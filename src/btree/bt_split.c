@@ -1722,7 +1722,7 @@ err:
  *     store and the history store.
  */
 static void
-__split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
+__split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
     uint32_t i, slot;
@@ -1759,6 +1759,11 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         /* Free the updates are no longer needed. */
         if (supd->free_upds != NULL)
             __wt_free_update_list(session, &supd->free_upds);
+    }
+
+    if (page->modify != NULL) {
+        page->modify->rec_pinned_stable_timestamp = orig->modify->rec_pinned_stable_timestamp;
+        page->modify->rec_prune_timestamp = orig->modify->rec_prune_timestamp;
     }
 }
 
@@ -2306,7 +2311,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * Finalize the move, discarding moved update lists from the original page.
      */
     for (i = 0; i < new_entries; ++i)
-        __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
+        __split_multi_inmem_final(session, page, ref_new[i]->page, &mod->mod_multi[i]);
 
     /*
      * Page with changes not written in this reconciliation is not marked as clean, do it now, then
@@ -2460,7 +2465,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
      *
      * Finalize the move, discarding moved update lists from the original page.
      */
-    __split_multi_inmem_final(session, page, multi);
+    __split_multi_inmem_final(session, page, new->page, multi);
 
     /*
      * Discard the original page.
