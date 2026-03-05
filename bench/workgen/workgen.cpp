@@ -779,11 +779,11 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
           _workload->options.oldest_timestamp_lag > 0) {
             const std::lock_guard<std::shared_mutex> lock(*icontext->_ts_mutex);
             if (_workload->options.stable_timestamp_lag > 0)
-                stable_ts = WorkgenTimeStamp::get_timestamp_lag(
-                  _workload->options.stable_timestamp_lag);
+                stable_ts =
+                  WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
             if (_workload->options.oldest_timestamp_lag > 0)
-                oldest_ts = WorkgenTimeStamp::get_timestamp_lag(
-                  _workload->options.oldest_timestamp_lag);
+                oldest_ts =
+                  WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
         }
 
         if (stable_ts != 0) {
@@ -2014,9 +2014,8 @@ err:
                 snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIx64, prepare_ts);
                 ret = _session->prepare_transaction(_session, buf);
 
-                snprintf(buf, BUF_SIZE,
-                "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64,
-                prepare_ts, prepare_ts);
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64,
+                  prepare_ts, prepare_ts);
                 ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us;
@@ -2027,8 +2026,8 @@ err:
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else {
-                ret = _session->commit_transaction(
-                _session, op->transaction->_commit_config.c_str());
+                ret =
+                  _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
             }
         }
         if (ret != 0) {
