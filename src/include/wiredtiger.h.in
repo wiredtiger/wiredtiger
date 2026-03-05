@@ -5616,17 +5616,13 @@ struct __wt_page_log {
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param checkpoint_id the checkpoint id to use. Must be greater than any other
-     *        checkpoint_id used with this call.
-     * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
-     * @param checkpoint_metadata the buffer with checkpoint metadata
      * @param ext_args optional version based extended arguments
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
-        uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
         WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *ext_args);
 
     /*!
+     * FIXME-WT-16821: Remove pl_complete_checkpoint_ext.
      * Complete checkpointing using the given checkpoint_id. This implies that other
      * nodes can now use the given checkpoint_id.
      *
@@ -5857,20 +5853,21 @@ typedef enum {
 #define WT_PAGE_LOG_COLD 0x8u
 
 /*!
- * FIXME-WT-16821: Remove (_ext) in the comment.
- * Version based parameters given to, or returned by
  * WT_PAGE_LOG::pl_complete_checkpoint(_ext) interface.
  */
 struct __wt_page_log_complete_checkpoint_args {
-        /*
-         * The version starts from zero, consistent with existing NULL pointer value.
-         */
-        uint64_t version;
-
-        /* version 1 */
-        uint64_t *lsnp;
+       /*
+        * Input arguments
+        */
+        uint64_t checkpoint_id;
+        uint64_t checkpoint_timestamp;
+        const WT_ITEM *checkpoint_metadata;
         uint64_t checkpoint_oldest_timestamp;
-        /* For any new version, add new parameter at the end. */
+
+       /*
+        * Output arguments, returned by the call
+        */
+        uint64_t lsn;
 };
 
 /*!

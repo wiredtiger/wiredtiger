@@ -1648,15 +1648,23 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           ",version=%d,compatible_version=%d",
           meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
           WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
-        /* This is hardcoded, code based version. */
-        complete_args.version = 1;
-        complete_args.lsnp = NULL;
-        complete_args.checkpoint_oldest_timestamp =
-          conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
-        /* FIXME-WT-16821: Using pl_complete_checkpoint once it's available, remove force type
-         * convert uint64_t. */
-        WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
-          &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, (uint64_t *)&complete_args));
+        /*
+         * FIXME-WT-16821: Remove the if branch keep non-ext version only.
+         */
+        if (disagg->npage_log->page_log->pl_complete_checkpoint != NULL) {
+            complete_args.checkpoint_id = 0;
+            complete_args.checkpoint_timestamp = checkpoint_timestamp;
+            complete_args.checkpoint_metadata = meta;
+            complete_args.checkpoint_oldest_timestamp =
+              conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
+            complete_args.lsn = 0;
+            WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint(
+              disagg->npage_log->page_log, &session->iface, &complete_args));
+        } else
+            WT_ERR(
+              disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
+                &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
+
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 
