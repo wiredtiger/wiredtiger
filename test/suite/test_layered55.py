@@ -34,8 +34,8 @@ from wtscenario import make_scenarios
 
 
 # Test we don't review obsolete time window for readonly btree in follower.
-# Also tests WT-16571: no crash when eviction processes checkpoint-split pages
-# on disaggregated btrees during the leader→follower step-down window.
+# no crash when eviction processes checkpoint-split pages
+# on disaggregated btrees during the leaderfollower step-down window.
 @disagg_test_class
 class test_layered55(eviction_util, wttest.WiredTigerTestCase):
     conn_base_config = 'cache_size=10MB,'
@@ -87,25 +87,9 @@ class test_layered55(eviction_util, wttest.WiredTigerTestCase):
 
     def test_step_down_dirty_eviction(self):
         """
-        WT-16571: Test that leader step-down doesn't crash when eviction encounters
+        Test that leader step-down doesn't crash when eviction encounters
         checkpoint-split (WT_PM_REC_MULTIBLOCK) pages on disaggregated btrees after
         leader=false is set but before the connection is closed.
-
-        The crash path without the fix:
-          eviction-server thread:
-            __evict_page_dirty_update        (rec_result==WT_PM_REC_MULTIBLOCK, entries>1)
-            → __wt_split_multi
-            → __split_parent
-            → __wt_page_modify_set(session, parent_page)
-            → WT_ASSERT(!WT_BTREE_DISAGGREGATED || leader)   ← CRASH: leader is now false
-
-        Root cause: the leader's stable btree dhandle (file:xxx.wt_stable) has
-        WT_BTREE_DISAGGREGATED set but WT_BTREE_READONLY not set. After step-down sets
-        leader=false, eviction threads can still attempt to dirty the parent of a
-        checkpoint-split page, hitting the assertion.
-
-        Fix: __disagg_step_down() must mark all disaggregated btrees as WT_BTREE_READONLY
-        BEFORE setting leader=false, preventing the eviction path from dirtying them.
         """
         create_params = 'key_format=i,value_format=S,block_manager=disagg'
         nrows = 10000
@@ -123,7 +107,7 @@ class test_layered55(eviction_util, wttest.WiredTigerTestCase):
         #   - page_state = WT_PAGE_CLEAN              (marked clean after reconciliation)
         #
         # These pages confuse eviction: __wt_page_evict_clean() returns false (rec_result!=0),
-        # so they route to __evict_page_dirty_update → __wt_split_multi → __split_parent.
+        # so they route to __evict_page_dirty_update  __wt_split_multi  __split_parent.
         self.session.checkpoint()
 
         # Make eviction aggressive so it actively processes the checkpoint-split pages
@@ -139,7 +123,7 @@ class test_layered55(eviction_util, wttest.WiredTigerTestCase):
 
         # --- STEP-DOWN: leader=false set here ---
         # Without the fix, eviction threads running concurrently can hit the crash path:
-        #   __split_parent → __wt_page_modify_set → ASSERT(!WT_BTREE_DISAGGREGATED || leader)
+        #   __split_parent  __wt_page_modify_set  ASSERT(!WT_BTREE_DISAGGREGATED || leader)
         # The fix marks all disaggregated btrees as WT_BTREE_READONLY before setting
         # leader=false, making __wt_page_modify_set return early (readonly guard at line 1131).
         self.conn.reconfigure('disaggregated=(role="follower")')
