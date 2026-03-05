@@ -214,6 +214,9 @@ thread_tables_drop_workload(void *arg)
  */
 volatile std::sig_atomic_t signal_raised = 0;
 
+/* Separate control for the timestamp thread. */
+static volatile bool stop_timestamp_thread = false;
+
 void
 signal_handler(int signum)
 {
@@ -771,7 +774,7 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     char buf[BUF_SIZE];
 
     ContextInternal *icontext = _workload->_context->_internal;
-    while (!stopping) {
+    while (!stop_timestamp_thread) {
         if (_workload->options.oldest_timestamp_lag > 0) {
             const std::lock_guard<std::shared_mutex> lock(*icontext->_ts_mutex);
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
@@ -3684,6 +3687,8 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
 
     // Wait for the time increment thread
     if (runnerConnection != nullptr) {
+        // Tell the timestamp thread to exit now that we are truly done.
+        stop_timestamp_thread = true;
         WT_TRET(pthread_join(time_thandle, &status));
         delete runnerConnection;
     }
