@@ -5634,12 +5634,11 @@ struct __wt_page_log {
      *        checkpoint_id used with this call.
      * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
-     * @param ext_args optional version based extended arguments
+     * @param lsnp an optional output argument for the checkpoint completion record's LSN
      */
     int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
-        /* FIXME-WT-16821: Replace uint64_t to WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS. */
-        uint64_t *ext_args);
+        uint64_t *lsnp);
 
     /*!
      * Get the most recent completed checkpoint number.

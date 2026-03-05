@@ -1242,8 +1242,8 @@ SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
 
 /* FIXME-WT-16821: Remember to remove ext. */
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint_ext,
-  (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *ext_args),
-  (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, ext_args))
+  (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *lsnp),
+  (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, lsnp))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),
