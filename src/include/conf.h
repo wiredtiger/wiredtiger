@@ -153,7 +153,7 @@ struct __wt_conf_value {
 WT_CONF_API_DECLARE(WT_CONNECTION, close, 1, 3);
 WT_CONF_API_DECLARE(WT_CONNECTION, debug_info, 1, 8);
 WT_CONF_API_DECLARE(WT_CONNECTION, load_extension, 1, 4);
-WT_CONF_API_DECLARE(WT_CONNECTION, open_session, 3, 9);
+WT_CONF_API_DECLARE(WT_CONNECTION, open_session, 3, 10);
 WT_CONF_API_DECLARE(WT_CONNECTION, query_timestamp, 1, 1);
 WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 21, 131);
 WT_CONF_API_DECLARE(WT_CONNECTION, rollback_to_stable, 1, 2);
@@ -172,7 +172,7 @@ WT_CONF_API_DECLARE(WT_SESSION, open_cursor, 4, 35);
 WT_CONF_API_DECLARE(WT_SESSION, prepare_transaction, 1, 2);
 WT_CONF_API_DECLARE(WT_SESSION, prepared_id_transaction, 1, 1);
 WT_CONF_API_DECLARE(WT_SESSION, query_timestamp, 1, 1);
-WT_CONF_API_DECLARE(WT_SESSION, reconfigure, 3, 9);
+WT_CONF_API_DECLARE(WT_SESSION, reconfigure, 3, 10);
 WT_CONF_API_DECLARE(WT_SESSION, rollback_transaction, 1, 2);
 WT_CONF_API_DECLARE(WT_SESSION, salvage, 1, 1);
 WT_CONF_API_DECLARE(WT_SESSION, timestamp_transaction, 1, 5);

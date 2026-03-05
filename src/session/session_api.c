@@ -538,6 +538,15 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
      * is completed.
      */
     if ((ret = __wt_conf_getones(
+           session, conf, Debug.allow_evict_no_progress_reconciliation, &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_ALLOW_EVICT_NO_PROGRESS_RECONCILIATION);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_ALLOW_EVICT_NO_PROGRESS_RECONCILIATION);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    if ((ret = __wt_conf_getones(
            session, conf, Debug.checkpoint_fail_before_turtle_update, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);

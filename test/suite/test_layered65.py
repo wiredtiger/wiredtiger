@@ -241,7 +241,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         self.conn_follow.set_timestamp(f"stable_timestamp={self.timestamp_str(10)}")
 
         # Evict the data.
-        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        session_follow2 = self.conn_follow.open_session("debug=(allow_evict_no_progress_reconciliation,release_evict_page)")
         evict_cursor = session_follow2.open_cursor(uri)
         evict_cursor.set_key(1)
         evict_cursor.search()
@@ -270,7 +270,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
 
         # Evict the data.
-        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        session_follow2 = self.conn_follow.open_session("debug=(allow_evict_no_progress_reconciliation,release_evict_page)")
         evict_cursor = session_follow2.open_cursor(uri)
         evict_cursor.set_key(1)
         evict_cursor.search()
@@ -322,7 +322,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         self.conn_follow.set_timestamp(f"stable_timestamp={self.timestamp_str(10)}")
 
         # Evict the data.
-        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        session_follow2 = self.conn_follow.open_session("debug=(allow_evict_no_progress_reconciliation,release_evict_page)")
         evict_cursor = session_follow2.open_cursor(uri)
         evict_cursor.set_key(1)
         evict_cursor.search()
@@ -355,7 +355,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
 
         # Evict the data.
-        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        session_follow2 = self.conn_follow.open_session("debug=(allow_evict_no_progress_reconciliation,release_evict_page)")
         evict_cursor = session_follow2.open_cursor(uri)
         evict_cursor.set_key(1)
         evict_cursor.search()
@@ -458,7 +458,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
 
         # Evict the data.
-        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        session_follow2 = self.conn_follow.open_session("debug=(allow_evict_no_progress_reconciliation,release_evict_page)")
         evict_cursor = session_follow2.open_cursor(uri)
         evict_cursor.set_key(1)
         evict_cursor.search()

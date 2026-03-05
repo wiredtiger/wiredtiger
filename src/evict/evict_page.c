@@ -1062,7 +1062,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (__wt_set_return(session, EBUSY));
     }
 
-    if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+    if (!F_ISSET(session, WT_SESSION_DEBUG_ALLOW_EVICT_NO_PROGRESS_RECONCILIATION) &&
+      F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
             /*
              * If garbage collection is enabled and this page was already reconciled at the current
