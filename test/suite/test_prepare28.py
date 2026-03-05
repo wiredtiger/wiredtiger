@@ -54,7 +54,12 @@ class test_prepare28(wttest.WiredTigerTestCase):
         ooo_thread = threading.Thread(target=self.read_update)
         # Start the thread
         ooo_thread.start()
+        # `prepare_resolution_2` injects a sleep before assigning WT_PREPARE_RESOLVED to the updates
+        # so when we read entries from self.read_update() we read the update list in it's intermediate state
+        # where some updates have WT_PREPARE_INPROGRESS and others have WT_PREPARE_RESOLVED
         self.session.commit_transaction('commit_timestamp=6,durable_timestamp=6')
+
+        ooo_thread.join()
 
     def read_update(self):
         sleep(0.1)
@@ -66,5 +71,5 @@ class test_prepare28(wttest.WiredTigerTestCase):
         # Read here
         ret = cursor.search()
         # Assert it didn't find anything, i.e. not WT_NOTFOUND
-        assert(ret == -31803)
+        self.assertEqual(ret, -31803)
         session.commit_transaction()
