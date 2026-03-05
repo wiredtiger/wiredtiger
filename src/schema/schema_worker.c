@@ -145,6 +145,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
     WT_DECL_RET;
+    int ingest_ret;
 
     WT_ASSERT(session, file_func == __wt_verify);
 
@@ -155,7 +156,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
                       session, layered->stable_uri, file_func, name_func, cfg, open_flags),
       EBUSY, true);
 
-    int ingest_ret = __schema_layered_ingest_worker_verify(session, layered->ingest_uri);
+    ingest_ret = __schema_layered_ingest_worker_verify(session, layered->ingest_uri);
     /*
      * TODO - At this point, we have ret than can be EBUSY or 0 and ingest_ret can be anything.
      */
