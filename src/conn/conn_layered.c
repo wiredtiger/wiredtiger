@@ -1194,7 +1194,8 @@ __disagg_mark_disagg_btrees_readonly(WT_SESSION_IMPL *session)
             continue;
 
         /*
-         * Must be called outside the checkpoint lock because __wt_checkpoint_db acquires it internally. 
+         * Must be called outside the checkpoint lock because __wt_checkpoint_db acquires it
+         * internally.
          */
         if (!checkpointed && __wt_atomic_load_bool_relaxed(&btree->modified)) {
             const char *checkpoint_cfg[] = {
@@ -1207,7 +1208,7 @@ __disagg_mark_disagg_btrees_readonly(WT_SESSION_IMPL *session)
             }
             checkpointed = true;
         }
-        
+
         /* Mark the disaggregated as readonly. */
         F_SET(btree, WT_BTREE_READONLY);
     }
