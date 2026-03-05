@@ -399,11 +399,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
 
-    /*
-     * Skip files that are never involved in a checkpoint. Skip the history store file as it is,
-     * checkpointed manually later.
-     */
-    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY) || WT_IS_HS(btree->dhandle))
+    /* Skip the history store file as it is checkpointed manually later. */
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY | WT_BTREE_READONLY) ||
+      WT_IS_HS(btree->dhandle))
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
@@ -862,6 +860,52 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 }
 
 /*
+ * __checkpoint_update_disagg_database_size --
+ *     On completion of the checkpoint, update the database size in disaggregated storage.
+ */
+static void
+__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    if (!__wt_conn_is_disagg(session))
+        return;
+
+    /*
+     * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
+     * to account for the KEK table and shared turtle page size. Correctness here is provided by the
+     * fact that we pickup a new checkpoint on startup. Thus subsequent starts of the database will
+     * already have a checkpoint size set.
+     */
+    if (conn->disaggregated_storage.database_size == 0)
+        conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+
+    /*
+     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
+     * succeeded. Positive deltas occur when data is added during the checkpoint. Negative deltas
+     * occur when data is removed reducing the total storage footprint. Guard against
+     * overflow/underflow in both cases.
+     */
+    if (session->ckpt.ckpt_size_delta != 0) {
+        uint64_t db;
+        int64_t delta;
+
+        db = conn->disaggregated_storage.database_size;
+        delta = session->ckpt.ckpt_size_delta;
+
+        if (delta > 0) {
+            WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
+            __wt_disagg_set_database_size(session, db + (uint64_t)delta);
+        } else {
+            WT_ASSERT(session, db >= (uint64_t)(-delta));
+            __wt_disagg_set_database_size(session, db - (uint64_t)(-delta));
+        }
+    }
+}
+
+/*
  * __checkpoint_fail_reset --
  *     Reset fields when a failure occurs.
  */
@@ -916,7 +960,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             WT_ERR(EINVAL);
 
         /* Precise checkpoint needs the stable timestamp. */
-        if (__wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp) == WT_TS_NONE)
+        if (__wt_get_stable_timestamp(session) == WT_TS_NONE)
             WT_ERR_MSG(session, EINVAL, "Precise checkpoint requires a stable timestamp");
     }
 
@@ -998,7 +1042,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * the stable timestamp.
      */
     WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
+      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+        !F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
 
     if (use_timestamp) {
         /*
@@ -1006,19 +1051,20 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * or not a stable timestamp is actually in use. Only set it when we're not running recovery
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
-        if (txn_global->has_stable_timestamp) {
+        wt_timestamp_t stable_timestamp = __wt_get_stable_timestamp(session);
+        if (stable_timestamp != WT_TS_NONE) {
             /* A checkpoint should never proceed when timestamps are out of order. */
             if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) &&
-              txn_global->oldest_timestamp > txn_global->stable_timestamp) {
+              __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp) > stable_timestamp) {
                 __wt_writeunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
                   "oldest timestamp %s must not be later than stable timestamp %s when taking a "
                   "checkpoint",
-                  __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
-                  __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
+                  __wt_timestamp_to_string(
+                    __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp), ts_string[0]),
+                  __wt_timestamp_to_string(stable_timestamp, ts_string[1]));
             }
-            __wt_tsan_suppress_store_uint64(
-              &txn_global->checkpoint_timestamp, txn_global->stable_timestamp);
+            __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, stable_timestamp);
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
@@ -1132,9 +1178,8 @@ __checkpoint_can_skip(
      * file has been modified, as such if the connection has been modified it is currently unsafe to
      * skip checkpoints.
      */
-    if (!conn->modified && use_timestamp && txn_global->has_stable_timestamp &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
+    if (!conn->modified && use_timestamp && txn_global->last_ckpt_timestamp != WT_TS_NONE &&
+      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp(session)) {
         *can_skipp = true;
         return (0);
     }
@@ -1311,8 +1356,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
     uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
-    uint64_t num_meta_put, time_start_ckpt_tree, time_start_fsync, time_start_hs,
-      time_stop_ckpt_tree, time_stop_fsync, time_stop_hs;
+    uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
+      time_stop_fsync, time_stop_hs;
     u_int i;
     const char *name;
     bool can_skip, failed, idle, logging, tracking, use_timestamp;
@@ -1528,6 +1573,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
 
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
+        if (ret != 0)
+            __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
+        WT_ERR(ret);
+
         if (hs_dhandle_shared != NULL)
             WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
 
@@ -1543,7 +1592,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Copy any updated metadata to the shared metadata table.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_update_metadata_process(session));
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_shared_metadata_queue_process(session));
         WT_ERR(ret);
     }
 
@@ -1600,6 +1649,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (hs_dhandle_shared != NULL && F_ISSET(hs_dhandle_shared, WT_DHANDLE_OPEN)) {
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
         WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_sync(session, NULL));
+        WT_ERR(ret);
     }
 
     time_stop_fsync = __wt_clock(session);
@@ -1732,6 +1782,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     } else
         conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
+    /* Disaggregated storage database size accounting. */
+    __checkpoint_update_disagg_database_size(session);
+
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
@@ -1794,9 +1847,9 @@ err:
      * disaggregated storage, even if there were no other changes. Also check for any updated key
      * encryption information.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
     if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
-      conn->disaggregated_storage.num_meta_put_at_ckpt_begin == num_meta_put &&
+      conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
+        conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
         if (conn->key_provider != NULL)
             WT_TRET(__wt_disagg_put_crypt_helper(session));
@@ -1814,8 +1867,8 @@ err:
      *
      * Ensure that turning off meta tracking worked.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
-    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put) {
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
+      conn->disaggregated_storage.num_meta_put) {
         WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
@@ -1845,6 +1898,9 @@ err:
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_trigger_point == 0 && session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
+
+    /* Reset accumulated change in database size. Failed checkpoints do not affect database size. */
+    session->ckpt.ckpt_size_delta = 0;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
@@ -1934,7 +1990,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     orig_flags = F_MASK(session, WTI_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WTI_CHECKPOINT_SESSION_FLAGS);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
     checkpoint_cleanup = cval.val;
 
     /*
@@ -1942,9 +1998,9 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      * flush_tier to have completed all of its copying of objects. This happens if the user chose to
      * not wait for sync on the previous call.
      */
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
     flush = cval.val;
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.sync", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.sync", &cval));
     flush_sync = cval.val;
     if (flush)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));

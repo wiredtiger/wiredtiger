@@ -82,30 +82,29 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
       session, "Session: ID: %" PRIu32 " @: 0x%p", dump_session->id, (void *)dump_session));
     WT_ERR(
       __wt_msg(session, "  Name: %s", dump_session->name == NULL ? "EMPTY" : dump_session->name));
-    if (!show_cursors) {
-        WT_ERR(__wt_msg(session, "  Last operation: %s",
-          dump_session->lastop == NULL ? "NONE" : dump_session->lastop));
-        WT_ERR(__wt_msg(session, "  Current dhandle: %s",
-          dump_session->dhandle == NULL ? "NONE" : dump_session->dhandle->name));
-        WT_ERR(__wt_msg(
-          session, "  Backup in progress: %s", dump_session->bkp_cursor == NULL ? "no" : "yes"));
-        WT_ERR(__wt_msg(session, "  Compact state: %s",
-          dump_session->compact_state == WT_COMPACT_NONE ?
-            "none" :
-            (dump_session->compact_state == WT_COMPACT_RUNNING ? "running" : "success")));
-        WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx32, dump_session->flags));
-        WT_ERR(__wt_msg(session, "  Isolation level: %s",
-          dump_session->isolation == WT_ISO_READ_COMMITTED ?
-            "read-committed" :
-            (dump_session->isolation == WT_ISO_READ_UNCOMMITTED ? "read-uncommitted" :
-                                                                  "snapshot")));
-        WT_ERR(__wt_msg(session, "  last saved error code: %d", dump_session->err_info.err));
-        WT_ERR(__wt_msg(
-          session, "  last saved sub-level error code: %d", dump_session->err_info.sub_level_err));
-        WT_ERR(__wt_msg(session, "  last saved error message: %s", dump_session->err_info.err_msg));
-        WT_ERR(__wt_msg(session, "  Transaction:"));
-        WT_ERR(__wt_verbose_dump_txn_one(session, dump_session, 0, NULL));
-    } else {
+    WT_ERR(__wt_msg(session, "  Last operation: %s",
+      dump_session->lastop == NULL ? "NONE" : dump_session->lastop));
+    WT_ERR(__wt_msg(session, "  Current dhandle: %s",
+      dump_session->dhandle == NULL ? "NONE" : dump_session->dhandle->name));
+    WT_ERR(__wt_msg(
+      session, "  Backup in progress: %s", dump_session->bkp_cursor == NULL ? "no" : "yes"));
+    WT_ERR(__wt_msg(session, "  Compact state: %s",
+      dump_session->compact_state == WT_COMPACT_NONE ?
+        "none" :
+        (dump_session->compact_state == WT_COMPACT_RUNNING ? "running" : "success")));
+    WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx32, dump_session->flags));
+    WT_ERR(__wt_msg(session, "  Isolation level: %s",
+      dump_session->isolation == WT_ISO_READ_COMMITTED ?
+        "read-committed" :
+        (dump_session->isolation == WT_ISO_READ_UNCOMMITTED ? "read-uncommitted" : "snapshot")));
+    WT_ERR(__wt_msg(session, "  last saved error code: %d", dump_session->err_info.err));
+    WT_ERR(__wt_msg(
+      session, "  last saved sub-level error code: %d", dump_session->err_info.sub_level_err));
+    WT_ERR(__wt_msg(session, "  last saved error message: %s", dump_session->err_info.err_msg));
+    WT_ERR(__wt_msg(session, "  Transaction:"));
+    WT_ERR(__wt_verbose_dump_txn_one(session, dump_session, 0, NULL));
+
+    if (show_cursors) {
         WT_ERR(__wt_msg(session, "  Number of positioned cursors: %u", dump_session->ncursors));
         TAILQ_FOREACH (cursor, &dump_session->cursors, q) {
             WT_ERR(__wt_msg(session, "Cursor @ %p:", (void *)cursor));

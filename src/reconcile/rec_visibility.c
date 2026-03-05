@@ -886,8 +886,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                      */
                     WT_ASSERT_ALWAYS(session,
                       !F_ISSET(r, WT_REC_EVICT) || prepare_rollback_tombstone != NULL ||
-                        upd->next != NULL ||
-                        (WT_REC_HAS_ON_DISK(vpack) && !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw)),
+                        upd->next != NULL || !WT_REC_HAS_ON_DISK(vpack) ||
+                        !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw),
                       "leaked prepared update.");
                 } else
                     WT_ASSERT(session, !*has_newer_updatesp);
@@ -1045,13 +1045,13 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
   WT_UPDATE *first_upd, WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp,
   bool *has_newer_updatesp, size_t *upd_memsizep)
 {
-    WT_CONNECTION_IMPL *conn;
+    WT_BTREE *btree;
     WT_UPDATE *upd, *first_pruned_update;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
     bool found_last_upd_to_keep;
 
-    conn = S2C(session);
+    btree = S2BT(session);
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     /* Assert that we can only call reconciliation for in memory btree in eviction */
@@ -1063,15 +1063,27 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
-            if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+            if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
                 continue;
 
             if (upd->prepare_state != WT_PREPARE_INPROGRESS)
                 continue;
 
             if (r->rec_prune_timestamp == WT_TS_NONE ||
-              upd->upd_rollback_ts > r->rec_prune_timestamp)
+              upd->upd_rollback_ts > r->rec_prune_timestamp) {
                 *has_newer_updatesp = true;
+                /*
+                 * If an update has already been selected for writing to the disk image, and the
+                 * rollback timestamp of the aborted prepared update is not part of the oldest
+                 * checkpoint currently in use, we cannot prune this update. It may still be
+                 * required during a step-up to resolve the prepared update on the stable btree.
+                 */
+                if (upd_select->upd != NULL) {
+                    upd_select->upd = NULL;
+                    found_last_upd_to_keep = false;
+                    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_keep_prepare_rollback);
+                }
+            }
 
             continue;
         }
@@ -1144,10 +1156,20 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             break;
         }
 
-        upd_select->upd = upd;
-        if (__wt_txn_upd_visible_all(session, upd)) {
-            found_last_upd_to_keep = true;
-            break;
+        if (!found_last_upd_to_keep) {
+            upd_select->upd = upd;
+
+            if (__wt_txn_upd_visible_all(session, upd)) {
+                found_last_upd_to_keep = true;
+
+                /*
+                 * If garbage collection is enabled, continue traversing the update chain. There may
+                 * be an aborted prepared update that cannot be discarded if the oldest timestamp
+                 * has moved beyond the prune timestamp.
+                 */
+                if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                    break;
+            }
         }
     }
 
@@ -1195,8 +1217,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
-    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) && !*has_newer_updatesp &&
-      upd_select->upd == NULL)
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && !*has_newer_updatesp && upd_select->upd == NULL)
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_update_chain);
 
     return (0);
@@ -1452,7 +1473,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     }
 
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
-        /* Never write prepared updates for in-memory btree */
+        /* Never write prepared updates for in-memory btrees. */
         write_prepare = false;
         WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
           &has_newer_updates, &upd_memsize));

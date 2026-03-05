@@ -151,7 +151,7 @@ static struct {
  */
 #define KEY_STRINGFORMAT ("%010" PRIu64)
 
-#define SHARED_PARSE_OPTIONS "b:CmP:h:p"
+#define SHARED_PARSE_OPTIONS "b:CGmP:h:p"
 
 /*
  * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
@@ -910,8 +910,8 @@ run_workload(uint32_t workload_iteration)
     THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t backup_id, cache_mb, ckpt_id, i, ts_id;
-    char envconf[512], uri[128];
-    const char *table_config, *table_config_nolog;
+    char envconf[512], table_config_nolog[1024], uri[128];
+    const char *table_config;
 
     thr = dcalloc(nth + 3, sizeof(*thr));
     td = dcalloc(nth + 3, sizeof(THREAD_DATA));
@@ -962,10 +962,16 @@ run_workload(uint32_t workload_iteration)
      */
     if (workload_iteration == 1) {
         if (columns) {
-            table_config_nolog = "key_format=r,value_format=u,log=(enabled=false)";
+            assert(!opts->disagg.is_enabled);
+            testutil_snprintf(table_config_nolog, sizeof(table_config_nolog),
+              "key_format=r,value_format=u,log=(enabled=false)");
+
             table_config = "key_format=r,value_format=u";
         } else {
-            table_config_nolog = "key_format=S,value_format=u,log=(enabled=false)";
+            testutil_snprintf(table_config_nolog, sizeof(table_config_nolog),
+              "key_format=S,value_format=u,log=(enabled=false),%s",
+              opts->disagg.is_enabled ? "type=layered,block_manager=disagg" : "");
+
             table_config = "key_format=S,value_format=u";
         }
         testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_collection);
@@ -1555,6 +1561,29 @@ main(int argc, char *argv[])
     testutil_deduce_build_dir(opts);
     testutil_work_dir_from_path(home, sizeof(home), opts->home);
 
+    if (opts->disagg.is_enabled) {
+        if (use_backups) {
+            fprintf(
+              stderr, "disaggregated storage feature is not compatible with backup option (-B)\n");
+            return (EXIT_FAILURE);
+        }
+        if (columns) {
+            fprintf(stderr,
+              "disaggregated storage feature is not compatible with column store option (-c)\n");
+            return (EXIT_FAILURE);
+        }
+        if (use_liverestore) {
+            fprintf(stderr,
+              "disaggregated storage feature is not compatible with live restore option (-l)\n");
+            return (EXIT_FAILURE);
+        }
+        if (!use_ts) {
+            fprintf(stderr, "disaggregated storage feature is only compatible with timestamps.\n");
+            return (EXIT_FAILURE);
+        }
+        opts->disagg.page_log_home = (char *)WT_HOME_DIR; /* Set home directory for page log. */
+    }
+
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find
      * the old record files.
@@ -1610,21 +1639,22 @@ main(int argc, char *argv[])
         }
 
         printf(
-          "Parent: compatibility: %s, in-mem log sync: %s, add timing stress: %s, timestamp in "
+          "Parent: Disaggregated storage: %s, compatibility: %s, in-mem log sync: %s, add timing "
+          "stress: %s, timestamp in "
           "use: %s\n",
-          opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
-          stress ? "true" : "false", use_ts ? "true" : "false");
+          opts->disagg.is_enabled ? "true" : "false", opts->compat ? "true" : "false",
+          opts->inmem ? "true" : "false", stress ? "true" : "false", use_ts ? "true" : "false");
         printf("Parent: backups: %s, full backup interval: %" PRIu32
                ", force stop interval: %" PRIu32 "\n",
           use_backups ? "true" : "false", backup_full_interval, backup_force_stop_interval);
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
                " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
           progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", columns ? " -c" : "",
-          use_lazyfs ? " -l" : "", verify_model ? " -M" : "", opts->inmem ? " -m" : "",
-          opts->tiered_storage ? " -PT" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
-          backup_full_interval, opts->home, num_iterations, nth, timeout, opts->data_seed,
-          opts->extra_seed);
+          opts->disagg.is_enabled ? " -G" : "", use_lazyfs ? " -l" : "", verify_model ? " -M" : "",
+          opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "", stress ? " -s" : "",
+          !use_ts ? " -z" : "", backup_full_interval, opts->home, num_iterations, nth, timeout,
+          opts->data_seed, opts->extra_seed);
 
         /*
          * Go inside the home directory (typically WT_TEST), but not all the way into the database's

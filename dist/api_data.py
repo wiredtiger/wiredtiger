@@ -649,10 +649,26 @@ connection_runtime_config = [
                if true, background compact aggressively removes compact statistics for a file and
                decreases the max amount of time a file can be skipped for.''',
                type='boolean'),
-        Config('crash_point_colgroup', 'false', r'''
-            if true, force crash in table creation while creating colgroup metadata entry. This is
-            intended for testing purposes only.''', 
-            type='boolean'),
+        Config('crash_point', '', r'''
+            control the settings of crash points used for debugging''',
+            type='category', subconfig=[
+            Config('before_insert_colgroup', 'false', r'''
+                if true, force crash in table creation before inserting the colgroup metadata entry.
+                This is intended for testing purposes only.''', 
+                type='boolean'),
+            Config('before_insert_file', 'false', r'''
+                if true, force crash in table creation before inserting the file metadata entry. 
+                This is intended for testing purposes only.''',
+                type='boolean'),
+            Config('after_drop_colgroup', 'false', r'''
+                if true, force crash in table drop after dropping the table metadata entry. This is
+                intended for testing purposes only.''', 
+                type='boolean'),
+            Config('after_drop_file', 'false', r'''
+                if true, force crash in table drop after dropping the colgroup metadata entry. This 
+                is intended for testing purposes only.''', 
+                type='boolean')
+            ]),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
             type='boolean'),
@@ -1434,8 +1450,10 @@ wiredtiger_open_common =\
         Enable automatic detection of scans by applications, and attempt to pre-fetch future
         content into the cache''',
         type='category', subconfig=[
-        Config('available', 'false', r'''
-            whether the thread pool for the pre-fetch functionality is started''',
+        Config('available', 'true', r'''
+            whether the thread pool for the pre-fetch functionality is started, this does not mean
+            that pre-fetch is enabled for sessions by default, see the \c default setting at the
+            connection level and the \c prefetch setting at the session level.''',
             type='boolean'),
         Config('default', 'false', r'''
             whether pre-fetch is enabled for all sessions by default''',

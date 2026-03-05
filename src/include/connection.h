@@ -161,10 +161,19 @@ struct __wt_layered_table_manager {
 #define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
 
 /*
- * WT_DISAGG_UPDATE_METADATA --
+ * Identify the shared metadata operations inside the shared metadata queue.
+ */
+typedef enum {
+    WT_SHARED_METADATA_UPDATE,
+    WT_SHARED_METADATA_CREATE,
+    WT_SHARED_METADATA_REMOVE
+} WT_SHARED_METADATA_OP;
+
+/*
+ * WT_DISAGG_METADATA_OP --
  *      Metadata about an object to be updated during the next checkpoint.
  */
-struct __wt_disagg_update_metadata {
+struct __wt_disagg_metadata_op {
     char *stable_uri; /* The full URI of the stable component. */
     char *table_name; /* The table name without prefix or suffix. */
 
@@ -173,7 +182,11 @@ struct __wt_disagg_update_metadata {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
-    TAILQ_ENTRY(__wt_disagg_update_metadata) q; /* Linked list of entries. */
+    /* Metadata type operation. */
+    WT_SHARED_METADATA_OP metadata_op;
+    /* Skip the drop operation in the next checkpoint and defer it to the one after. */
+    bool deferred;
+    TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
@@ -203,6 +216,25 @@ struct __wt_page_delta_config {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
+
+/*
+ * WT_DISAGG_CHECKPOINT_META --
+ *     Checkpoint metadata structure for disaggregated storage.
+ */
+typedef struct __wt_disagg_checkpoint_meta {
+    uint64_t metadata_lsn; /* The LSN of the metadata page. */
+
+    bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
+    uint32_t metadata_checksum; /* The checksum of the metadata page. */
+
+    uint64_t database_size; /* The total database size. */
+    bool has_database_size; /* Whether the database size is present. */
+    uint32_t version;       /* The version of the checkpoint_meta. */
+    uint32_t
+      compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
+} WT_DISAGG_CHECKPOINT_META;
+
+#define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 /*
  * WT_DISAGGREGATED_STORAGE --
@@ -240,13 +272,19 @@ struct __wt_disaggregated_storage {
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
+    uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 
+    /*
+     * Total size of all stable tables in the database, along with other components such as the KEK
+     * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
+     */
+    wt_shared uint64_t database_size;
+
     /* To copy at the next checkpoint. */
-    TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) update_metadata_qh;
-    WT_SPINLOCK update_metadata_lock;
+    TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
+    WT_SPINLOCK shared_metadata_queue_lock;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the
@@ -931,23 +969,26 @@ struct __wt_connection_impl {
     wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
-#define WT_CONN_DEBUG_CONFIGURATION 0x0002u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
-#define WT_CONN_DEBUG_CRASH_POINT_COLGROUP 0x0008u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x0010u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0020u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0040u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0080u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x0100u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0200u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x0400u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0800u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x1000u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x2000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x4000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t debug_flags;
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
+#define WT_CONN_DEBUG_CONFIGURATION 0x00002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x00004u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x00008u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x00010u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x00020u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00200u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00400u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x00800u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x01000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x02000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x04000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x08000u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x10000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t debug_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001ull
