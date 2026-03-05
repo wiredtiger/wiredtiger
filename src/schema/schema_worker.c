@@ -68,7 +68,7 @@ err:
 
 /*
  * __schema_layered_stable_worker_verify --
- *     Run the verify operation on the layered stable table.
+ *     Verify the layered stable table.
  */
 static int
 __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stable_uri,
