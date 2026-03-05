@@ -1207,6 +1207,10 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
 
+    /*
+     * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
+     * eviction paths from dirtying pages during the step-down window.
+     */
     __disagg_mark_btrees_readonly(session);
 
     conn->layered_table_manager.leader = false;
