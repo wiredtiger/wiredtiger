@@ -5855,17 +5855,17 @@ typedef enum {
  * WT_PAGE_LOG::pl_complete_checkpoint(_ext) interface.
  */
 struct __wt_page_log_complete_checkpoint_args {
-       /*
-        * Input arguments
-        */
+        /*
+         * Input arguments
+         */
         uint64_t checkpoint_id;
         uint64_t checkpoint_timestamp;
         const WT_ITEM *checkpoint_metadata;
         uint64_t checkpoint_oldest_timestamp;
 
-       /*
-        * Output arguments, returned by the call
-        */
+        /*
+         * Output arguments, returned by the call
+         */
         uint64_t lsn;
 };
 
