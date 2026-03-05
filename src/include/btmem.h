@@ -378,7 +378,7 @@ struct __wt_page_modify {
 
     /*
      * Track the prune timestamp used for the most recent reconciliation. It's useful to avoid
-     * duplicating work when doing garbage collection on the ingest table.
+     * duplicating work when doing garbage collection on the ingest btree.
      */
     wt_timestamp_t rec_prune_timestamp;
 

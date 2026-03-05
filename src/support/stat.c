@@ -2005,7 +2005,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips pages that are written with transactions greater than the last "
   "running",
   "cache: eviction server skips pages that are written with transactions greater than the prune "
-  "timestamp or has been reconciled at the same prune timestamp before",
+  "timestamp or have been reconciled at the same prune timestamp before",
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
   "cache: eviction server skips stable btrees in disagg",
