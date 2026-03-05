@@ -724,8 +724,11 @@ NOTFOUND_OK(__wt_cursor::largest_key)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
 ANY_OK(__wt_page_log_discard_args::__wt_page_log_discard_args)
-ANY_OK(__wt_page_log_get_args::__wt_page_log_get_args)
+ANY_OK(__wt_page_log_discard_args::~__wt_page_log_discard_args)
 ANY_OK(__wt_page_log_put_args::__wt_page_log_put_args)
+ANY_OK(__wt_page_log_put_args::~__wt_page_log_put_args)
+ANY_OK(__wt_page_log_get_args::__wt_page_log_get_args)
+ANY_OK(__wt_page_log_get_args::~__wt_page_log_get_args)
 
 COMPARE_OK(__wt_cursor::_compare)
 COMPARE_OK(__wt_cursor::_equals)
@@ -767,26 +770,6 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
 %ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, int *);
 %ignore __wt_page_log::get_open_checkpoint(WT_PAGE_LOG *, int *);
-
-/* TODO: workaround for issues with getting a Python version of structs working. */
-%ignore __wt_page_log_discard_args::lsn;
-%ignore __wt_page_log_discard_args::backlink_lsn;
-%ignore __wt_page_log_discard_args::base_lsn;
-%ignore __wt_page_log_discard_args::backlink_checkpoint_id;
-%ignore __wt_page_log_discard_args::base_checkpoint_id;
-%ignore __wt_page_log_discard_args::lsn_frontier;
-%ignore __wt_page_log_put_args::backlink_lsn;
-%ignore __wt_page_log_put_args::base_lsn;
-%ignore __wt_page_log_put_args::backlink_checkpoint_id;
-%ignore __wt_page_log_put_args::base_checkpoint_id;
-%ignore __wt_page_log_put_args::flags;
-%ignore __wt_page_log_put_args::lsn;
-%ignore __wt_page_log_get_args::lsn;
-%ignore __wt_page_log_get_args::backlink_lsn;
-%ignore __wt_page_log_get_args::base_lsn;
-%ignore __wt_page_log_get_args::backlink_checkpoint_id;
-%ignore __wt_page_log_get_args::base_checkpoint_id;
-%ignore __wt_page_log_get_args::lsn_frontier;
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
@@ -1503,6 +1486,33 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(FileSystem) __wt_file_system;
 
 %include "wiredtiger.h"
+
+%extend __wt_page_log_discard_args {
+	__wt_page_log_discard_args() {
+		return (struct __wt_page_log_discard_args *)calloc(1, sizeof(struct __wt_page_log_discard_args));
+	}
+	~__wt_page_log_discard_args() {
+		free($self);
+	}
+}
+
+%extend __wt_page_log_put_args {
+	__wt_page_log_put_args() {
+		return (struct __wt_page_log_put_args *)calloc(1, sizeof(struct __wt_page_log_put_args));
+	}
+	~__wt_page_log_put_args() {
+		free($self);
+	}
+}
+
+%extend __wt_page_log_get_args {
+	__wt_page_log_get_args() {
+		return (struct __wt_page_log_get_args *)calloc(1, sizeof(struct __wt_page_log_get_args));
+	}
+	~__wt_page_log_get_args() {
+		free($self);
+	}
+}
 
 /*
  * The original wiredtiger_calc_modify was ignored, now we define our own.

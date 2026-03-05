@@ -84,6 +84,7 @@ Config
 Coverity
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -354,6 +355,7 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+ReleaseSemaphore
 Rogerio
 Runtime
 SDK
@@ -813,6 +815,7 @@ fmterr
 fnv
 foc
 fopen
+foreach
 formatmessage
 foward
 fprintf
