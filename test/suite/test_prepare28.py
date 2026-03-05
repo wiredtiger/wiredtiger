@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from time import sleep
+import wiredtiger
 import wttest, threading
 
 # Prior to a bugfix in WiredTiger it was possible to read a partial transaction if the config
@@ -60,6 +61,11 @@ class test_prepare28(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=6,durable_timestamp=6')
 
         ooo_thread.join()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        race_prepare_commit = stat_cursor[wiredtiger.stat.conn.txn_read_race_prepare_commit][2]
+        self.assertGreater(race_prepare_commit, 0)
+        stat_cursor.close()
 
     def read_update(self):
         sleep(0.1)
