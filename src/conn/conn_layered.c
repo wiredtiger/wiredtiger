@@ -1160,24 +1160,17 @@ err:
 }
 
 /*
- * __disagg_mark_disagg_btrees_readonly --
- *     Checkpoint any dirty disaggregated btrees and mark all disaggregated btrees as readonly. This
- *     must be called during leader step-down BEFORE setting leader=false to close the race window
- *     where eviction threads could attempt to dirty pages on shared btrees after we transition to
- *     follower mode.
+ * __disagg_mark_btrees_readonly --
+ *     Mark all disaggregated btrees as readonly. This must be called during leader step-down.
  */
 static void
-__disagg_mark_disagg_btrees_readonly(WT_SESSION_IMPL *session)
+__disagg_mark_btrees_readonly(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    WT_SESSION_IMPL *ckpt_session;
-    bool checkpointed;
 
     conn = S2C(session);
-    ckpt_session = NULL;
-    checkpointed = false;
 
     for (dhandle = NULL;;) {
         WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
@@ -1192,22 +1185,6 @@ __disagg_mark_disagg_btrees_readonly(WT_SESSION_IMPL *session)
 
         if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             continue;
-
-        /*
-         * Must be called outside the checkpoint lock because __wt_checkpoint_db acquires it
-         * internally.
-         */
-        if (!checkpointed && __wt_atomic_load_bool_relaxed(&btree->modified)) {
-            const char *checkpoint_cfg[] = {
-              WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
-            if (__wt_open_internal_session(
-                  conn, "disagg_step_down_checkpoint", false, 0, 0, &ckpt_session) == 0) {
-                WT_IGNORE_RET(__wt_checkpoint_db(ckpt_session, checkpoint_cfg, true));
-                WT_IGNORE_RET(__wt_session_close_internal(ckpt_session));
-                ckpt_session = NULL;
-            }
-            checkpointed = true;
-        }
 
         /* Mark the disaggregated as readonly. */
         F_SET(btree, WT_BTREE_READONLY);
@@ -1229,6 +1206,8 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
+
+    __disagg_mark_btrees_readonly(session);
 
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
@@ -1315,14 +1294,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     } else if (was_leader && !leader) {
         /* Leader step-down. */
         time_start = __wt_clock(session);
-
-        /*
-         * Best-effort checkpoint any dirty disaggregated btrees and mark them all readonly. This
-         * must be done outside the checkpoint lock because __wt_checkpoint_db acquires it
-         * internally. Errors from the checkpoint are ignored -- setting WT_BTREE_READONLY is what
-         * actually closes the race window.
-         */
-        __disagg_mark_disagg_btrees_readonly(session);
 
         WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
         time_stop = __wt_clock(session);
