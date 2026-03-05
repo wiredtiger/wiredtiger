@@ -1384,7 +1384,7 @@ wiredtiger_open_common =\
     Config('checkpoint_sync', 'true', r'''
         flush files to stable storage when closing or writing checkpoints''',
         type='boolean'),
-    Config('checkpoint_threads', '1', r'''
+    Config('checkpoint_threads', '4', r'''
         the number of checkpoint threads for syncing tables in parallel during checkpoints''',
         min='1'),
     Config('compile_configuration_count', '1000', r'''
