@@ -2382,7 +2382,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, txn_global_stable_timestamp,
       __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp));
 
-    if (conn->version_cursor_count == 0)
+    if (__wt_atomic_load_uint32_relaxed(&conn->version_cursor_count) == 0)
         WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp, WT_TS_NONE);
     else
         WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp,
