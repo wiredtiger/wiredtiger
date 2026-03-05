@@ -357,9 +357,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /*
      * Fail 1% of the time after we have built the disk image but before we wrap up reconciliation.
+     * FIXME-WT-16660: Reset this failpoint to 100 probability once resolved.
      */
     if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
-      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 100))
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 0))
         ret = __wt_set_return(session, EBUSY);
 
     /*
