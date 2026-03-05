@@ -340,6 +340,19 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata with version", "[disagg]")
         REQUIRE(ret == ENOTSUP);
     }
 
+    SECTION("Missing version")
+    {
+        const std::string metadata_str = "compatible_version=1,checkpoint=(),timestamp=c0ffee12,";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __ut_disagg_parse_version_and_check(session, &metadata_buf, &metadata);
+        REQUIRE(ret == EINVAL);
+    }
+
     SECTION("Missing compatible_version")
     {
         const std::string metadata_str = "version=1,checkpoint=(),timestamp=c0ffee12,";

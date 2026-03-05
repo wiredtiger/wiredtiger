@@ -588,7 +588,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     /* Format metadata settings. */
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
-        "version=%d,compatible=%d,\n"
+        "version=%d,compatible_version=%d,\n"
         "checkpoint=%s,\n"
         "timestamp=%" PRIx64 ",\n"
         "oldest_timestamp=%" PRIx64,
@@ -716,7 +716,7 @@ err:
  *
  *     Metadata format follows the regular config format. Example:
  *
- *     version=1,compatible=1,
+ *     version=1,compatible_version=1,
  *     checkpoint=(WiredTigerCheckpoint.1=(addr="00c025808282bd21596019", order=1, ...)),
  *     timestamp=0,
  *     key_provider=(page.1=(page_id=1,lsn=123),version=1)
@@ -740,7 +740,7 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
 
         if (WT_CONFIG_LIT_MATCH("version", cfg_key)) {
             /* Already parsed in version check pass, skip */
-        } else if (WT_CONFIG_LIT_MATCH("compatible", cfg_key)) {
+        } else if (WT_CONFIG_LIT_MATCH("compatible_version", cfg_key)) {
             /* Already parsed in version check pass, skip */
         } else if (WT_CONFIG_LIT_MATCH("checkpoint", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->checkpoint == NULL,
