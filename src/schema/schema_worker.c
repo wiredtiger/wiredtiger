@@ -116,12 +116,11 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
         WT_ERR(ingest_ret);
 
         ingest_ret = ingest_cursor->next(ingest_cursor);
-        if (ingest_ret != WT_NOTFOUND) {
+        if (ingest_ret != WT_NOTFOUND)
             WT_ERR_MSG(session, ingest_ret,
               "Verify (layered): %s ingest table verification failed. Ingest on leader must be "
               "empty.",
               ingest_uri);
-        }
         ingest_ret = 0;
     }
 
