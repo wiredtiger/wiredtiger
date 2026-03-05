@@ -641,6 +641,7 @@ struct __wt_connection_stats {
     int64_t eviction_force_delete;
     int64_t eviction_force;
     int64_t eviction_force_fail;
+    int64_t cache_eviction_blocked_prune_timestamp;
     int64_t cache_eviction_blocked_hazard;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
@@ -1509,6 +1510,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
+    int64_t cache_eviction_blocked_prune_timestamp;
     int64_t cache_eviction_blocked_hazard;
     int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
