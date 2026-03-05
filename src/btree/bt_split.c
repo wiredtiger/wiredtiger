@@ -1761,6 +1761,10 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_PAGE *page
             __wt_free_update_list(session, &supd->free_upds);
     }
 
+    /*
+     * Ensure the reconciliation timestamps are passed to the new page; otherwise, this information
+     * will be lost following an update restore eviction.
+     */
     if (page->modify != NULL) {
         page->modify->rec_pinned_stable_timestamp = orig->modify->rec_pinned_stable_timestamp;
         page->modify->rec_prune_timestamp = orig->modify->rec_prune_timestamp;
