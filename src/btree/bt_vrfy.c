@@ -660,7 +660,6 @@ __verify_tree(
     if (__wt_session_prefetch_check(session, ref))
         WT_RET(__wti_btree_prefetch(session, ref));
 
-    /* Print disagg metadata if available, otherwise print address. */
     __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write_gen: %" PRIu64 ", entries: %" PRIu32,
       __wt_page_type_string(page->type), __verify_block_meta_string(session, ref, vs->tmp1),
       page->dsk->write_gen, page->entries);
