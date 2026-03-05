@@ -916,6 +916,6 @@ int
 __ut_disagg_parse_version_and_check(
   WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
 {
-    return __disagg_parse_version_and_check(session, meta_buf, metadata);
+    return (__disagg_parse_version_and_check(session, meta_buf, metadata));
 }
 #endif
