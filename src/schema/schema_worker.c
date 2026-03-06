@@ -165,9 +165,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
       EBUSY, true);
 
     ingest_ret = __schema_layered_ingest_worker_verify(session, layered->ingest_uri);
-    /*
-     * TODO - At this point, we have ret than can be EBUSY or 0 and ingest_ret can be anything.
-     */
+    /* At this point, ret can only be EBUSY or 0 and ingest_ret can hold any error code. */
     ret = ingest_ret != 0 ? ingest_ret : ret;
 
 err:
