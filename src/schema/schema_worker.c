@@ -123,9 +123,9 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
     WT_ERR(ret);
 
     ret = ingest_cursor->next(ingest_cursor);
-    if (ret == WT_NOTFOUND) {
+    if (ret == WT_NOTFOUND)
         ret = 0; /* Expected. */
-    } else if (ret == 0) {
+    else if (ret == 0) {
         /* We found a record in the ingest table, which is unexpected. */
         ret = WT_ERROR;
         WT_ERR_MSG(session, ret,
