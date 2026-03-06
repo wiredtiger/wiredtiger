@@ -178,7 +178,8 @@ struct __wt_checkpoint_cleanup {
  *     checkpoint session posts one work item at a time via work_ref. A worker acquires work_lock,
  *     takes its own hazard pointer on the ref, copies the work fields to locals, and clears
  *     work_ref. The checkpoint observes the clear and releases its own hazard pointer. An atomic
- *     workers_active counter tracks in-flight reconciliations for drain points.
+ *     work_pending counts items posted but not yet completed; checkpoint increments on post, worker
+ *     decrements on completion (success or error). Drain waits for zero.
  */
 struct __wt_checkpoint_reconcile_threads {
     WT_THREAD_GROUP thread_group;
@@ -192,18 +193,17 @@ struct __wt_checkpoint_reconcile_threads {
     WT_TXN_SNAPSHOT *checkpoint_snapshot;
 
     /*
-     * Single-item work handoff. The checkpoint writes per-item fields then release-stores work_ref.
-     * Workers acquire-load work_ref under work_lock, take a hazard pointer, copy the per-item
-     * metadata, and release-store NULL to work_ref.
+     * Single-item work handoff. Set once per file in begin_file (isolation, snapshot, dhandle,
+     * reconcile_flags do not change during a file sync). Handoff is store_release(work_ref) by the
+     * checkpoint and CAS(work_ref, ref, NULL) by the worker that claims it.
      */
     wt_shared WT_REF *work_ref;
     WT_DATA_HANDLE *work_dhandle;
     uint32_t work_reconcile_flags;
 
-    WT_SPINLOCK work_lock;
     WT_CONDVAR *work_cond;
 
-    wt_shared uint64_t workers_active; /* Count of workers currently reconciling. */
+    wt_shared uint64_t work_pending; /* Items posted, not yet completed; drain waits for zero. */
     wt_shared int32_t error;           /* First error encountered by any worker. */
 };
 
@@ -227,10 +227,11 @@ extern int __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_checkpoint_parallel_begin_file(WT_SESSION_IMPL *session, uint32_t reconcile_flags);
 extern int __wt_checkpoint_parallel_drain(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref,
-  uint32_t reconcile_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)

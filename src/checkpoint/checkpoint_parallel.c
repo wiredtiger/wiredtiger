@@ -21,7 +21,9 @@ __checkpoint_parallel_thread_chk(WT_SESSION_IMPL *session)
 /*
  * __checkpoint_parallel_take_work --
  *     A worker attempts to take the current work item. On success the worker holds its own hazard
- *     pointer on the ref and the per-item work fields have been copied to the output parameters.
+ *     pointer on the ref. Handoff is load_acquire(ref), hazard_set, CAS(ref, NULL). Isolation,
+ *     snapshot, work_dhandle and work_reconcile_flags are set once per file in begin_file and are
+ *     stable for the duration of the file, so we read them from ckpt_threads after claiming.
  */
 static int
 __checkpoint_parallel_take_work(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t *reconcile_flagsp)
@@ -34,53 +36,43 @@ __checkpoint_parallel_take_work(WT_SESSION_IMPL *session, WT_REF **refp, uint32_
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
     *refp = NULL;
 
-    __wt_spin_lock(session, &ckpt_threads->work_lock);
-
     ref = (WT_REF *)__wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref);
-    if (ref == NULL) {
-        __wt_spin_unlock(session, &ckpt_threads->work_lock);
+    if (ref == NULL)
         return (0);
-    }
 
-    /*
-     * Set the session's dhandle so __wt_hazard_set can find the btree. The acquire-load of work_ref
-     * above guarantees we see the checkpoint's store to work_dhandle.
-     */
+    /* work_dhandle is stable for the file; set for hazard_set. */
     session->dhandle = ckpt_threads->work_dhandle;
 
     /*
-     * Take our own hazard pointer on the ref before clearing the shared pointer. The checkpoint
-     * session also holds a hazard pointer; once we clear work_ref it will release its copy, so we
-     * must establish ours first. We already know the page is valid (checkpoint holds it), so a busy
-     * return is transient.
+     * Take our own hazard pointer on the ref before claiming it. The checkpoint session also holds
+     * a hazard pointer; once we CAS work_ref to NULL it will release its copy, so we must establish
+     * ours first. We already know the page is valid (checkpoint holds it), so a busy return is
+     * transient.
      */
     for (;;) {
         ret = __wt_hazard_set(session, ref, &busy);
         if (ret != 0) {
             (void)__wt_atomic_cas_int32(&ckpt_threads->error, 0, ret);
-            __wt_spin_unlock(session, &ckpt_threads->work_lock);
             return (ret);
         }
         if (!busy)
             break;
-        __wt_yield();
+        __wt_sleep(0, 1);
+    }
+
+    /*
+     * Claim the work with CAS. Only one worker can succeed; losers release their hazard and return.
+     * work_pending is incremented by the checkpoint when it posts (push_work), so drain cannot
+     * see zero until the winning worker decrements after reconciling.
+     */
+    if (!__wt_atomic_cas_ptr(&ckpt_threads->work_ref, ref, NULL)) {
+        WT_IGNORE_RET(__wt_page_release(session, ref, 0));
+        return (0);
     }
 
     *refp = ref;
     *reconcile_flagsp = ckpt_threads->work_reconcile_flags;
 
-    /*
-     * Increment workers_active before clearing work_ref. The checkpoint session uses workers_active
-     * in drain to know when all reconciliations are complete; if we cleared work_ref first, the
-     * checkpoint could observe the clear and call drain before we increment, seeing zero active
-     * workers while we're about to start reconciling.
-     */
-    (void)__wt_atomic_add_uint64(&ckpt_threads->workers_active, 1);
-
-    /* Clear the pointer so the checkpoint session knows we took it. */
-    __wt_atomic_store_ptr_release(&ckpt_threads->work_ref, NULL);
-
-    __wt_spin_unlock(session, &ckpt_threads->work_lock);
     return (0);
 }
 
@@ -96,6 +88,7 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_RET;
     WT_REF *ref;
     uint32_t reconcile_flags;
+    int spins;
     bool signalled;
 
     WT_UNUSED(thread);
@@ -112,8 +105,21 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             break;
 
         WT_ERR(__checkpoint_parallel_take_work(session, &ref, &reconcile_flags));
-        if (ref == NULL)
+        if (ref == NULL) {
+            /*
+             * Spin briefly waiting for new work before falling back to the condvar. Each
+             * sched_yield is ~50-100ns, so 100 iterations is ~5-10us — enough to cover the gap
+             * between the checkpoint thread walking to the next dirty leaf and posting work, without
+             * burning significant CPU.
+             */
+            for (spins = 0;
+                 spins < 100 && __wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref) == NULL;
+                 spins++)
+                __wt_yield();
+            if (__wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref) != NULL)
+                continue;
             break;
+        }
 
         /* Begin a transaction and import the checkpoint's snapshot once. */
         if (!F_ISSET(session->txn, WT_TXN_RUNNING)) {
@@ -132,14 +138,13 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_TRET(__wt_page_release(session, ref, 0));
 
         /*
-         * Set the error before decrementing workers_active. Drain waits for workers_active to reach
-         * zero; if we decremented first, drain could see zero active workers and return success
-         * before the error is visible.
+         * Set the error before decrementing work_pending. Drain waits for work_pending to reach
+         * zero; if we decremented first, drain could see zero and return before the error is visible.
          */
         if (ret != 0)
             (void)__wt_atomic_cas_int32(&ckpt_threads->error, 0, ret);
 
-        (void)__wt_atomic_sub_uint64(&ckpt_threads->workers_active, 1);
+        (void)__wt_atomic_sub_uint64(&ckpt_threads->work_pending, 1);
 
         if (ret != 0)
             WT_ERR(ret);
@@ -154,13 +159,33 @@ err:
 }
 
 /*
+ * __wt_checkpoint_parallel_begin_file --
+ *     Set the four file-scoped fields for parallel reconciliation. Called once at the start of
+ *     __wt_sync_file(WT_SYNC_CHECKPOINT); isolation, snapshot, dhandle and reconcile_flags do not
+ *     change during a single file sync.
+ */
+void
+__wt_checkpoint_parallel_begin_file(WT_SESSION_IMPL *session, uint32_t reconcile_flags)
+{
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return;
+
+    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
+    ckpt_threads->checkpoint_isolation = session->txn->isolation;
+    ckpt_threads->checkpoint_snapshot = &session->txn->snapshot_data;
+    ckpt_threads->work_dhandle = session->dhandle;
+    ckpt_threads->work_reconcile_flags = reconcile_flags;
+}
+
+/*
  * __wt_checkpoint_parallel_push_work --
- *     Post a leaf page for parallel reconciliation. This function blocks until a worker takes the
- *     item (acquires its own hazard pointer). The caller retains its hazard pointer on the ref; the
- *     walk code releases it when advancing to the next page.
+ *     Post a leaf page for parallel reconciliation. The four file-scoped fields were set in
+ *     begin_file; handoff is store_release(ref) then wait for a worker to CAS it to NULL.
  */
 int
-__wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
+__wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     int32_t err;
@@ -172,44 +197,24 @@ __wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref, uint32
         return (err);
 
     /*
-     * Set the per-checkpoint isolation and snapshot on the first push. These are constant for the
-     * entire checkpoint so workers read them directly from the struct.
+     * Increment work_pending before publishing so that when we see work_ref == NULL and return,
+     * drain cannot see zero until the worker that took the item decrements (success or error path).
      */
-    if (ckpt_threads->checkpoint_snapshot == NULL) {
-        ckpt_threads->checkpoint_isolation = session->txn->isolation;
-        ckpt_threads->checkpoint_snapshot = &session->txn->snapshot_data;
-    }
+    (void)__wt_atomic_add_uint64(&ckpt_threads->work_pending, 1);
 
-    /*
-     * Fill in the per-item work metadata. These are ordinary stores; the release-store of work_ref
-     * below makes them visible to any thread that acquire-loads work_ref.
-     */
-    ckpt_threads->work_dhandle = session->dhandle;
-    ckpt_threads->work_reconcile_flags = reconcile_flags;
-
-    /* Publish the work item. */
+    /* Publish the work item; workers read the stable file-scoped fields from ckpt_threads. */
     __wt_atomic_store_ptr_release(&ckpt_threads->work_ref, ref);
     __wt_cond_signal(session, ckpt_threads->work_cond);
 
     /*
-     * Wait for a worker to take the item. A worker taking it means it has established its own
-     * hazard pointer on the ref.
+     * Wait for a worker to take the item. If a worker failed (error set), do not revoke: keep
+     * waiting for work_ref == NULL so some worker takes it and decrements work_pending. Revoking
+     * (clearing work_ref and decrementing) would race with a worker CASing to take the item.
      */
-    while (__wt_atomic_load_ptr_relaxed(&ckpt_threads->work_ref) != NULL) {
-        if ((err = __wt_atomic_load_int32_relaxed(&ckpt_threads->error)) != 0) {
-            /*
-             * A worker failed. Clear the work pointer under the lock so we don't race with a worker
-             * mid-handoff.
-             */
-            __wt_spin_lock(session, &ckpt_threads->work_lock);
-            __wt_atomic_store_ptr_release(&ckpt_threads->work_ref, NULL);
-            __wt_spin_unlock(session, &ckpt_threads->work_lock);
-            return (err);
-        }
-        __wt_yield();
+    while (__wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref) != NULL) {
+        
     }
-
-    return (0);
+    return (__wt_atomic_load_int32_relaxed(&ckpt_threads->error));
 }
 
 /*
@@ -226,11 +231,11 @@ __wt_checkpoint_parallel_drain(WT_SESSION_IMPL *session)
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
 
     /*
-     * Acquire-load workers_active to synchronize with worker stores. Workers set the error (CAS
-     * release) before decrementing workers_active, so observing zero here with acquire semantics
-     * guarantees visibility of any prior error store.
+     * Acquire-load work_pending to synchronize with worker stores. Workers set the error (CAS
+     * release) before decrementing work_pending, so observing zero here guarantees visibility of
+     * any prior error store.
      */
-    while (__wt_atomic_load_uint64_acquire(&ckpt_threads->workers_active) > 0) {
+    while (__wt_atomic_load_uint64_acquire(&ckpt_threads->work_pending) > 0) {
         if ((err = __wt_atomic_load_int32_relaxed(&ckpt_threads->error)) != 0)
             return (err);
         __wt_yield();
@@ -271,8 +276,6 @@ __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS);
 
-    WT_RET(__wt_spin_init(
-      session, &ckpt_threads->work_lock, "checkpoint page reconciliation threads - work"));
     WT_RET(__wt_cond_auto_alloc(session, "checkpoint page reconciliation threads - work (signal)",
       10 * WT_THOUSAND, WT_MILLION, &ckpt_threads->work_cond));
 
@@ -315,7 +318,6 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     __wt_verbose(session, WT_VERB_CHECKPOINT, "%s", "Waiting for helper threads");
 
     WT_TRET(__wt_thread_group_destroy(session, &ckpt_threads->thread_group));
-    __wt_spin_destroy(session, &ckpt_threads->work_lock);
     __wt_cond_destroy(session, &ckpt_threads->work_cond);
 
     return (ret);
