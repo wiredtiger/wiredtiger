@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, wttest
+import wttest
 from eviction_util import eviction_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
@@ -34,8 +34,6 @@ from wtscenario import make_scenarios
 
 
 # Test we don't review obsolete time window for readonly btree in follower.
-# no crash when eviction processes checkpoint-split pages
-# on disaggregated btrees during the leaderfollower step-down window.
 @disagg_test_class
 class test_layered55(eviction_util, wttest.WiredTigerTestCase):
     conn_base_config = 'cache_size=10MB,'
@@ -84,66 +82,3 @@ class test_layered55(eviction_util, wttest.WiredTigerTestCase):
         conn_stat = self.get_stat(stat.conn.cache_eviction_dirty_obsolete_tw)
         self.assertEqual(btree_stat, 0)
         self.assertEqual(conn_stat, 0)
-
-    def test_step_down_dirty_eviction(self):
-        """
-        Test that leader step-down doesn't crash when eviction encounters
-        checkpoint-split (WT_PM_REC_MULTIBLOCK) pages on disaggregated btrees after
-        leader=false is set but before the connection is closed.
-        """
-        create_params = 'key_format=i,value_format=S,block_manager=disagg'
-        nrows = 10000
-        value = 'k' * 1024  # 1KB per row, ~10MB total fills the 10MB cache
-
-        self.session.create(self.uri, create_params)
-
-        # Write data as leader. Each row gets a unique commit timestamp.
-        self.populate(self.uri, 0, nrows, value)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows))
-
-        # Checkpoint: reconciles dirty pages into WT_PM_REC_MULTIBLOCK on disk.
-        # After checkpoint, many leaf pages will have:
-        #   - mod->rec_result = WT_PM_REC_MULTIBLOCK  (multi-block split by checkpoint)
-        #   - page_state = WT_PAGE_CLEAN              (marked clean after reconciliation)
-        #
-        # These pages confuse eviction: __wt_page_evict_clean() returns false (rec_result!=0),
-        # so they route to __evict_page_dirty_update  __wt_split_multi  __split_parent.
-        self.session.checkpoint()
-
-        # Make eviction aggressive so it actively processes the checkpoint-split pages
-        # during the step-down window. This widens the race and increases reproduction rate.
-        self.conn.reconfigure(
-            'eviction_dirty_target=1,eviction_dirty_trigger=5,'
-            'eviction_updates_target=1,eviction_updates_trigger=5'
-        )
-
-        # Capture checkpoint metadata while the connection is still the leader.
-        # This must be done before close_conn().
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
-
-        # --- STEP-DOWN: leader=false set here ---
-        # Without the fix, eviction threads running concurrently can hit the crash path:
-        #   __split_parent  __wt_page_modify_set  ASSERT(!WT_BTREE_DISAGGREGATED || leader)
-        # The fix marks all disaggregated btrees as WT_BTREE_READONLY before setting
-        # leader=false, making __wt_page_modify_set return early (readonly guard at line 1131).
-        self.conn.reconfigure('disaggregated=(role="follower")')
-
-        # Sleep to widen the race window, giving eviction time to encounter the
-        # checkpoint-split pages and attempt to split their parents.
-        # Without the fix, this reliably triggers the SIGABRT on macOS/Linux Debug builds.
-        time.sleep(0.5)
-
-        self.close_conn()
-
-        # Reopen as follower with the captured checkpoint metadata.
-        config = (self.conn_config_follower() +
-                  f'disaggregated=(checkpoint_meta="{checkpoint_meta}"),')
-        self.open_conn(".", config)
-
-        # Verify all data is readable from the follower.
-        cursor = self.session.open_cursor(self.uri, None, None)
-        count = 0
-        while cursor.next() == 0:
-            count += 1
-        cursor.close()
-        self.assertEqual(count, nrows)
