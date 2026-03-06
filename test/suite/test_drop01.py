@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import wttest, unittest
 
 # test_drop01.py
 # Test WT_SESSION->drop should clean up history store.
@@ -48,6 +48,7 @@ class test_drop01(wttest.WiredTigerTestCase):
 
     uri = 'table:test_drop01'
     name = 'test_drop01'
+    @unittest.skip('FIXME-WT-16857, Test has known bug.')
     def test_drop_hs_truncate(self):
         # Create the table with two column groups.
         self.session.create(self.uri, "key_format=S,value_format=SS,"
