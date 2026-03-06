@@ -6662,7 +6662,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: eviction server skips pages that are written with transactions
  * greater than the prune timestamp
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP_LT_NEWEST_TIMESTAMP	1156
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP	1156
 /*!
  * cache: eviction server skips pages that have been reconciled
  * previously at the same prune timestamp
