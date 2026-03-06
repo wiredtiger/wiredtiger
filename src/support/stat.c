@@ -2005,7 +2005,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips pages that are written with transactions greater than the last "
   "running",
   "cache: eviction server skips pages that are written with transactions greater than the prune "
-  "timestamp or have been reconciled at the same prune timestamp before",
+  "timestamp",
+  "cache: eviction server skips pages that have been reconciled previously at the same prune "
+  "timestamp",
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
   "cache: eviction server skips stable btrees in disagg",
@@ -3075,7 +3077,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_metatdata_with_history = 0;
     stats->eviction_server_skip_pages_checkpoint_timestamp = 0;
     stats->eviction_server_skip_pages_last_running = 0;
-    stats->eviction_server_skip_pages_prune_timestamp = 0;
+    stats->eviction_server_skip_pages_prune_timestamp_lt_newest_timestamp = 0;
+    stats->eviction_server_skip_pages_prune_timestamp_not_move = 0;
     stats->eviction_server_skip_pages_retry = 0;
     stats->eviction_server_skip_unwanted_pages = 0;
     stats->eviction_server_skip_stable_trees = 0;
@@ -4144,8 +4147,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_checkpoint_timestamp);
     to->eviction_server_skip_pages_last_running +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_last_running);
-    to->eviction_server_skip_pages_prune_timestamp +=
-      WT_STAT_CONN_READ(from, eviction_server_skip_pages_prune_timestamp);
+    to->eviction_server_skip_pages_prune_timestamp_lt_newest_timestamp +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_pages_prune_timestamp_lt_newest_timestamp);
+    to->eviction_server_skip_pages_prune_timestamp_not_move +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_pages_prune_timestamp_not_move);
     to->eviction_server_skip_pages_retry +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_retry);
     to->eviction_server_skip_unwanted_pages +=

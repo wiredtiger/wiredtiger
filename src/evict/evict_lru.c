@@ -2143,9 +2143,13 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
             wt_timestamp_t prune_timestamp =
               __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-            if (newest_commit_timestamp > prune_timestamp ||
-              page->modify->rec_prune_timestamp >= prune_timestamp) {
-                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
+            if (newest_commit_timestamp > prune_timestamp) {
+                WT_STAT_CONN_INCR(
+                  session, eviction_server_skip_pages_prune_timestamp_lt_newest_timestamp);
+                return (true);
+            }
+            if (page->modify->rec_prune_timestamp >= prune_timestamp) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
                 return (true);
             }
         } else {
