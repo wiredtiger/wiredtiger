@@ -1183,7 +1183,7 @@ __disagg_mark_btrees_readonly(WT_SESSION_IMPL *session)
 
         btree = (WT_BTREE *)dhandle->handle;
 
-        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET(btree, WT_BTREE_READONLY))
             continue;
 
         /* Mark the disaggregated as readonly. */
