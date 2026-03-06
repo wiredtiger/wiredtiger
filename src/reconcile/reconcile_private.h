@@ -74,6 +74,16 @@ typedef struct {
     } while (0)
 
 /*
+ * Type to retrieve context about what to do with a particular update (chain) when attempting a fast
+ * path delta generation.
+ */
+typedef enum {
+    WT_REC_FAST_DELTA_SKIP_UPDATE,
+    WT_REC_FAST_DELTA_INCLUDE_UPDATE,
+    WT_REC_FAST_DELTA_FAIL_UPDATE
+} WT_REC_FAST_DELTA_UPDATE_RESULT;
+
+/*
  * WTI_REC_KV--
  *	An on-page key/value item we're building.
  */
@@ -265,6 +275,8 @@ struct __wti_reconcile {
     WTI_REC_CHUNK chunk_A, chunk_B, *cur_ptr, *prev_ptr;
 
     WT_ITEM delta;
+    WT_TIME_AGGREGATE delta_ta;
+    bool is_fast_delta;
 
     size_t disk_img_buf_size; /* Base size needed for a chunk memory image */
 
@@ -510,6 +522,11 @@ extern int __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref,
   WT_SALVAGE_COOKIE *salvage) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_row_leaf_delta_fastpath(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
+  WT_REF *pageref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_save_upd_add(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
+  WT_ROW *rip, WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, WT_TIME_WINDOW *tw, size_t upd_memsize)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_split_finish(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
@@ -521,6 +538,7 @@ extern int __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_I
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wti_rec_dictionary_free(WT_SESSION_IMPL *session, WTI_RECONCILE *r);
 extern void __wti_rec_dictionary_reset(WTI_RECONCILE *r);
+extern void __wti_rec_save_update_reset(WT_SESSION_IMPL *session, WTI_RECONCILE *r);
 static WT_INLINE bool __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r,

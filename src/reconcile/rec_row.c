@@ -1404,3 +1404,209 @@ err:
     __wt_scr_free(session, &tmpkey);
     return (ret);
 }
+
+/*
+ * __rec_row_leaf_delta_fastpath_tw_from_upd --
+ *     Fill a time window from a single update for the fast path saved update.
+ */
+static void
+__rec_row_leaf_delta_fastpath_tw_from_upd(WT_UPDATE *upd, WT_TIME_WINDOW *tw)
+{
+    uint8_t prepare_state;
+    bool write_prepare;
+
+    WT_READ_ONCE(prepare_state, upd->prepare_state);
+    write_prepare = (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
+    WT_TIME_WINDOW_INIT(tw);
+    WT_TIME_WINDOW_SET_START(tw, upd, write_prepare);
+    WT_TIME_WINDOW_SET_STOP(tw, upd, write_prepare);
+}
+
+/*
+ * __rec_row_leaf_delta_fastpath_process_upd_chain --
+ *     Attempt a fast path reconciliation that generates a delta for simple cases
+ */
+static int
+__rec_row_leaf_delta_fastpath_process_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
+  WT_INSERT *ins, WT_ROW *rip, WT_UPDATE *upd, uint32_t *include_count,
+  WT_REC_FAST_DELTA_UPDATE_RESULT *resultp)
+{
+    WT_TIME_WINDOW tw;
+    uint64_t txnid;
+    uint8_t prepare_state;
+
+    if (F_ISSET(upd, WT_UPDATE_DURABLE)) {
+        *resultp = WT_REC_FAST_DELTA_SKIP_UPDATE;
+        /* Nothing to do - this update was included in a prior reconciliation. */
+        return (0);
+    }
+
+    /*
+     * TODO: The visibility checks here probably need to be more aligned with those in rec_upd_select
+     * which has a more wholistic view of possible update states. Or we could keep this simpler and
+     * fail the fastpath whenever a more complex update is encountered.
+     * This could get smarter and skip updates that can't be included and choose the first that
+     * can if there aren't more behind it that should be included.
+    */
+    txnid = __wt_atomic_load_uint64_v_acquire(&upd->txnid);
+    prepare_state = __wt_atomic_load_uint8_v_acquire(&upd->prepare_state);
+
+    if (false || (upd->next == NULL && upd->txnid != WT_TXN_ABORTED && prepare_state == WT_PREPARE_INIT &&
+         (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) ||
+          upd->upd_durable_ts <= r->rec_start_pinned_stable_ts) &&
+         (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id > txnid :
+                                                    __txn_visible_id(session, txnid)))) {
+
+        int ret;
+
+        __rec_row_leaf_delta_fastpath_tw_from_upd(upd, &tw);
+        if (r->max_txn < txnid)
+            r->max_txn = txnid;
+        if (r->max_ts < upd->upd_durable_ts)
+            r->max_ts = upd->upd_durable_ts;
+        if ((ret = __wti_rec_save_upd_add(session, r, ins, rip,
+               upd->type == WT_UPDATE_TOMBSTONE ? NULL : upd,
+               upd->type == WT_UPDATE_TOMBSTONE ? upd : NULL, &tw, WT_UPDATE_MEMSIZE(upd))) != 0) {
+            *resultp = WT_REC_FAST_DELTA_FAIL_UPDATE;
+            return (ret);
+        }
+
+        WT_TIME_AGGREGATE_UPDATE(session, &r->delta_ta, &tw);
+        ++(*include_count);
+        *resultp = WT_REC_FAST_DELTA_INCLUDE_UPDATE;
+        return (0);
+    }
+    /* Stat: failed fast path due to updates on insert list */
+    WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail_update_chain);
+    WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail);
+    *resultp = WT_REC_FAST_DELTA_FAIL_UPDATE;
+    return (0);
+}
+
+/*
+ * __wti_rec_row_leaf_delta_fastpath --
+ *     Attempt a fast path reconciliation that generates a delta for simple cases
+ */
+int
+__wti_rec_row_leaf_delta_fastpath(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
+{
+    WT_ADDR_COPY addr_copy;
+    WT_CELL *cell;
+    WT_CELL_UNPACK_KV *vpack, _vpack;
+    WT_DECL_RET;
+    WT_IKEY *ikey;
+    WT_INSERT *ins;
+    WT_PAGE *page;
+    WT_REC_FAST_DELTA_UPDATE_RESULT upd_result;
+    WT_ROW *rip;
+    WT_UPDATE *upd;
+    size_t key_size;
+    uint32_t delta_updates, i;
+    uint8_t key_prefix;
+    void *copy;
+    const void *key_data;
+
+    delta_updates = 0;
+    page = pageref->page;
+    upd = NULL;
+
+    vpack = &_vpack;
+
+    /* The default is to fall back to a full reconciliation, which might generate a delta */
+    r->is_fast_delta = false;
+    r->max_txn = WT_TXN_NONE;
+    r->max_ts = WT_TS_NONE;
+
+    /* TODO: Could check if page->modify->rec_results has generated an image */
+    if (page->dsk == NULL) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail_first_write);
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail);
+        return (0);
+    }
+
+    /*
+     * Start the time aggregate with either the aggregated from the most recent reconciliation, or
+     * if no reconciliation has happened, the one from when the page was read in.
+     */
+    WT_TIME_AGGREGATE_INIT_MERGE(&r->delta_ta);
+    if (pageref->page->modify->rec_result == WT_PM_REC_REPLACE)
+        WT_TIME_AGGREGATE_MERGE(session, &r->delta_ta, &pageref->page->modify->mod_replace.ta);
+    else if (pageref->addr != NULL && __wt_ref_addr_copy(session, pageref, &addr_copy))
+        WT_TIME_AGGREGATE_MERGE(session, &r->delta_ta, &addr_copy.ta);
+    else {
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail_other);
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail);
+        goto fail;
+    }
+
+    /*:
+     * Process any K/V pairs inserted into the page before the first from-disk key on the page. Add
+     * any single non-durable update to the saved updates array for the delta.
+     */
+    for (ins = WT_SKIP_FIRST(WT_ROW_INSERT_SMALLEST(page)); ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+        WT_ERR(__rec_row_leaf_delta_fastpath_process_upd_chain(
+          session, r, ins, NULL, ins->upd, &delta_updates, &upd_result));
+        if (upd_result == WT_REC_FAST_DELTA_FAIL_UPDATE)
+            goto fail;
+    }
+
+    /* For each entry in the page... */
+    WT_ROW_FOREACH (page, rip, i) {
+
+        copy = WT_ROW_KEY_COPY(rip);
+        __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
+        if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL) {
+            WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail_other);
+            WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail);
+            goto fail;
+        }
+
+        /* Unpack the on-page value cell. */
+        __wt_row_leaf_value_cell(session, page, rip, vpack);
+
+        /*
+         * If there is an update associated with the on-page value that isn't yet durable, add it to
+         * the saved updates array for the delta. If there are multiple updates on the chain we fail
+         * the fast path (full reconciliation will handle visibility).
+         */
+        if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
+            WT_ERR(__rec_row_leaf_delta_fastpath_process_upd_chain(
+              session, r, NULL, rip, upd, &delta_updates, &upd_result));
+            if (upd_result == WT_REC_FAST_DELTA_FAIL_UPDATE)
+                goto fail;
+        }
+
+        /* Process any K/V pairs inserted into the page after this key. */
+        for (ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip)); ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+            WT_ERR(__rec_row_leaf_delta_fastpath_process_upd_chain(
+              session, r, ins, NULL, ins->upd, &delta_updates, &upd_result));
+            if (upd_result == WT_REC_FAST_DELTA_FAIL_UPDATE)
+                goto fail;
+        }
+    }
+
+    /* We traversed the page and collected all non-durable updates into saved updates. */
+    WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_success);
+    if (delta_updates < 5)
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_lt5);
+    else if (delta_updates < 10)
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_lt10);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_ge10);
+
+    /* Succeed with fast path only when we have saved updates to write in the delta. */
+    if (r->supd_next > 0)
+        r->is_fast_delta = true;
+
+    return (0);
+
+fail:
+err:
+    /* Building the fast-path delta failed, cleanup any artifacts */
+    if (delta_updates != 0) {
+        r->max_txn = WT_TXN_NONE;
+        r->max_ts = WT_TS_NONE;
+        __wti_rec_save_update_reset(session, r);
+    }
+    return (ret);
+}

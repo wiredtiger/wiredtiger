@@ -15,6 +15,7 @@ static int __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_hs_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
+static int __rec_fast_path_setup_multi(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *, uint8_t);
@@ -250,6 +251,49 @@ __reconcile_post_wrapup(
 }
 
 /*
+ * __rec_fast_path_setup_multi --
+ *     Set up the multi structure and chunk from the existing page disk image when the fast path
+ *     delta was taken. This allows the rest of the write path to build and write the delta.
+ */
+static int
+__rec_fast_path_setup_multi(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_BTREE *btree;
+    WT_PAGE *page;
+    const WT_PAGE_HEADER *dsk;
+    WTI_REC_CHUNK *chunk;
+    WT_REF *ref;
+
+    btree = S2BT(session);
+    ref = r->ref;
+    page = ref->page;
+    dsk = page->dsk;
+
+    WT_ASSERT(session, dsk != NULL);
+    WT_ASSERT(session, r->supd_next > 0);
+
+    /* Initialize split state and chunk buffer. */
+    WT_RET(__wti_rec_split_init(session, r, 0, btree->maxleafpage));
+
+    chunk = r->cur_ptr;
+
+    /* Copy the existing disk image into the chunk (base for the delta). */
+    WT_RET(__wt_buf_set(session, &chunk->image, dsk, dsk->mem_size));
+
+    chunk->entries = dsk->u.entries;
+    WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta);
+
+    /* Set the chunk key from the ref (same as full reconciliation). */
+    if (__wt_ref_is_root(ref))
+        WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
+    else
+        __wt_ref_key(ref->home, ref, &chunk->key.data, &chunk->key.size);
+
+    /* Write the block (moves r->supd to multi->supd, builds delta, writes). */
+    return (__rec_split_write(session, r, chunk, true));
+}
+
+/*
  * __reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
@@ -284,6 +328,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     session->reconcile_timeline.reconcile_start = rec_start;
 
     r = session->reconcile;
+    r->is_fast_delta = false;
 
     /* Only update if we are in the first entry into eviction. */
     if (!session->evict_timeline.reentry_hs_eviction)
@@ -301,12 +346,16 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_WITH_PAGE_INDEX(session, ret = __wti_rec_row_int(session, r, page));
         break;
     case WT_PAGE_ROW_LEAF:
-        /*
-         * It's important we wrap this call in a page index guard, the ikey on the ref may still be
-         * pointing into the internal page's memory. We want to prevent eviction of the internal
-         * page for the duration.
-         */
-        WT_WITH_PAGE_INDEX(session, ret = __wti_rec_row_leaf(session, r, ref, salvage));
+        if (!F_ISSET(r, WT_REC_EVICT) && WT_DELTA_ENABLED_FOR_PAGE(session, ref->page->type) && salvage == NULL)
+            WT_WITH_PAGE_INDEX(
+              session, ret = __wti_rec_row_leaf_delta_fastpath(session, r, ref));
+        if (!r->is_fast_delta)
+            /*
+             * It's important we wrap this call in a page index guard, the ikey on the ref may still
+             * be pointing into the internal page's memory. We want to prevent eviction of the
+             * internal page for the duration.
+             */
+            WT_WITH_PAGE_INDEX(session, ret = __wti_rec_row_leaf(session, r, ref, salvage));
         break;
     default:
         ret = __wt_illegal_value(session, page->type);
@@ -315,6 +364,15 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     if (!session->evict_timeline.reentry_hs_eviction)
         session->reconcile_timeline.image_build_finish = __wt_clock(session);
+
+    /*
+     * If the fast path delta was taken, set up the multi structure from the existing page disk
+     * image so the rest of the write path can build and write the delta.
+     */
+    if (ret == 0 && r->is_fast_delta) {
+        WT_ASSERT_ALWAYS(session, r->supd_next > 0 && page->dsk != NULL, "Fast path generated violating invariant");
+        ret = __rec_fast_path_setup_multi(session, r);
+    }
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
@@ -636,6 +694,22 @@ err:
 }
 
 /*
+ * __wti_rec_save_upd_reset --
+ *     The fast path delta generation code adds saved updates to the array, but might discover that
+ *     it can't complete the fast path. If that happens, clear out the saved update array so that a
+ *     full reconciliation can complete. Don't free the memory for now - it's likely the full
+ *     reconciliation will use it.
+ */
+void
+__wti_rec_save_update_reset(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_UNUSED(session);
+    r->supd_next = 0;
+    r->supd_onpage_or_restore = 0;
+    r->supd_memsize = 0;
+}
+
+/*
  * __rec_init --
  *     Initialize the reconciliation structure.
  */
@@ -771,9 +845,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->any_empty_value = false;
 
     /* The list of saved updates is reused. */
-    r->supd_next = 0;
-    r->supd_onpage_or_restore = 0;
-    r->supd_memsize = 0;
+    __wti_rec_save_update_reset(session, r);
 
     /* The list of updates to be deleted from the history store. */
     r->delete_hs_upd_next = 0;
@@ -2118,6 +2190,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE_BLOCK_META *block_meta;
+    uint32_t image_size;
     uint64_t delta_pct;
 
     conn = S2C(session);
@@ -2128,20 +2201,45 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     *multi->block_meta = *block_meta;
 
-    /* The first delta needs to explicitly initialize the base LSN. */
+    /*
+     * Setup the base LSN to the LSN from the most recent full write, only do that explicitly
+     * the first time a delta is generated - in other cases the base LSN is carried forward
+     * in the copy-assignment from the previous block_meta above.
+     * Always set the backlink LSN to the LSN from the previous reconcilliation, regardless of
+     * whether that was a full image or a delta.
+     */
     if (multi->block_meta->delta_count == 0)
         multi->block_meta->base_lsn = multi->block_meta->disagg_lsn;
     WT_ASSERT(session, multi->block_meta->base_lsn > 0);
     multi->block_meta->backlink_lsn = block_meta->disagg_lsn;
     ++multi->block_meta->delta_count;
 
+    /*
+     * Ideally we could always use the delta time aggregate, but for now be conservative and use
+     * the time aggregate built while generating the full image if we went down that path.
+     * This isn't necessary here - it is handled in split_write a bit later
+    if (r->is_fast_delta) {
+        WT_TIME_AGGREGATE_COPY(&((WT_ADDR*)addr)->ta, &r->delta_ta);
+    }
+     */
+
+    /*
+     * The image size tracks the full image size, not the size of this delta. That is not currently available
+     * for fast-delta generation, just use the delta size for now. Update it before finalizing fast delta
+     * to guess at the right page size.
+     */
+    if (chunk->image.size != 0)
+        image_size = chunk->image.size;
+    else
+        image_size = r->delta.size;
+    WT_ASSERT(session, image_size != 0);
     /* Get the checkpoint ID. */
-    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
+    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, image_size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;
 
-    delta_pct = (r->delta.size * 100) / chunk->image.size;
+    delta_pct = (r->delta.size * 100) / image_size;
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /*
          * If we decide to write the delta we packed, track the number of internal keys deleted and
@@ -2369,7 +2467,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     multi = &r->multi[r->multi_next++];
 
     /* Initialize the address (set the addr type for the parent). */
-    WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
+    if (r->is_fast_delta)
+        WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &r->delta_ta);
+    else
+        WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
 
     switch (page->type) {
     case WT_PAGE_COL_VAR:
@@ -2497,7 +2598,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                       "build empty leaf page delta");
                     if (header->u.entries == 0)
                         skip_write = true;
-                    else if (r->delta.size * 100 / chunk->image.size > conn->page_delta.delta_pct)
+                    else if (!r->is_fast_delta && r->delta.size * 100 / chunk->image.size > conn->page_delta.delta_pct)
                         build_delta = false;
                 }
             }
@@ -2515,6 +2616,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
         WT_RET(__rec_write_delta(session, r, chunk, addr, &addr_size, &compressed_size));
+        /*
+         * TODO: This should verify the delta image, but for now it just verifies the full image that
+         * will be discarded. So skip that verification.
+         */
+        if (r->is_fast_delta)
+            verify_image = false;
     } else {
         WT_RET(
           __rec_write_image(session, r, chunk, addr, &addr_size, &compressed_size, last_block));
