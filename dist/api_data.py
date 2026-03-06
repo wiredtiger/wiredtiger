@@ -1324,9 +1324,6 @@ session_config = [
         configure debug specific behavior on a session. Generally only used for internal testing
         purposes.''',
         type='category', subconfig=[
-        Config('allow_evict_no_progress_reconciliation', 'false', r'''
-            Configure the session to allow eviction to do reconciliation that will make no
-            progress.''', type='boolean'),
         Config('checkpoint_fail_before_turtle_update', 'false', r'''
             Fail before writing a turtle file at the end of a checkpoint.''',
             type='boolean'),
