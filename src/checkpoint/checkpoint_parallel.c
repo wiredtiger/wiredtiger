@@ -19,189 +19,76 @@ __checkpoint_parallel_thread_chk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __checkpoint_parallel_free --
- *     Free a work unit.
- */
-static void
-__checkpoint_parallel_free(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE *entry)
-{
-    __wt_free(session, entry);
-}
-
-/*
- * __wt_checkpoint_parallel_push_work --
- *     Push a work unit to the queue.
- */
-int
-__wt_checkpoint_parallel_push_work(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
-{
-    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
-    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    ckpt_threads = conn->ckpt_reconcile_threads;
-
-    WT_RET(__wt_calloc_one(session, &entry));
-    entry->dhandle = session->dhandle;
-    entry->isolation = session->txn->isolation;
-    entry->snapshot = &session->txn->snapshot_data;
-    entry->ref = ref;
-    entry->reconcile_flags = reconcile_flags;
-    entry->release_flags = release_flags;
-
-    __wt_spin_lock(session, &ckpt_threads->work_lock);
-    TAILQ_INSERT_TAIL(&ckpt_threads->work_qh, entry, q);
-    __wt_atomic_add_uint64(&ckpt_threads->work_pushed, 1);
-    __wt_spin_unlock(session, &ckpt_threads->work_lock);
-    __wt_cond_signal(session, ckpt_threads->work_cond);
-
-    return (0);
-}
-
-/*
- * __checkpoint_parallel_pop_work --
- *     Pop a work unit from the queue.
- */
-static void
-__checkpoint_parallel_pop_work(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE **entryp)
-{
-    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
-    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
-    WT_CONNECTION_IMPL *conn;
-
-    *entryp = entry = NULL;
-
-    conn = S2C(session);
-    ckpt_threads = conn->ckpt_reconcile_threads;
-
-    /* FIXME-WT-16480: Do we need this? If so rename it. */
-    if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->work_qh))
-        return;
-
-    __wt_spin_lock(session, &ckpt_threads->work_lock);
-
-    /* Recheck again to confirm whether the queue is empty or not? */
-    if (TAILQ_EMPTY(&ckpt_threads->work_qh)) {
-        __wt_spin_unlock(session, &ckpt_threads->work_lock);
-        return;
-    }
-
-    entry = TAILQ_FIRST(&ckpt_threads->work_qh);
-    TAILQ_REMOVE(&ckpt_threads->work_qh, entry, q);
-    *entryp = entry;
-
-    __wt_spin_unlock(session, &ckpt_threads->work_lock);
-    return;
-}
-
-/*
- * __checkpoint_parallel_work_queue_empty --
- *     Check whether the queue for the checkpoint page reconciliation workers is empty.
- */
-static bool
-__checkpoint_parallel_work_queue_empty(WT_SESSION_IMPL *session)
-{
-    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
-    bool empty;
-
-    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
-
-    __wt_spin_lock(session, &ckpt_threads->work_lock);
-    empty = TAILQ_EMPTY(&ckpt_threads->work_qh);
-    __wt_spin_unlock(session, &ckpt_threads->work_lock);
-
-    return (empty);
-}
-
-/*
- * __checkpoint_parallel_done_queue_empty --
- *     Check whether the done queue for the checkpoint page reconciliation is empty.
- */
-static bool
-__checkpoint_parallel_done_queue_empty(WT_SESSION_IMPL *session)
-{
-    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
-    bool empty;
-
-    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
-
-    __wt_spin_lock(session, &ckpt_threads->done_lock);
-    empty = TAILQ_EMPTY(&ckpt_threads->done_qh);
-    __wt_spin_unlock(session, &ckpt_threads->done_lock);
-
-    return (empty);
-}
-
-/*
- * __checkpoint_parallel_push_done --
- *     Push a work done unit to the queue.
+ * __checkpoint_parallel_take_work --
+ *     A worker attempts to take the current work item. On success the worker holds its own hazard
+ *     pointer on the ref. Handoff is load_acquire(ref), hazard_set, CAS(ref, NULL). Isolation,
+ *     snapshot, work_dhandle and work_reconcile_flags are set once per file in begin_file and are
+ *     stable for the duration of the file, so we read them from ckpt_threads after claiming.
  */
 static int
-__checkpoint_parallel_push_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE *entry)
+__checkpoint_parallel_take_work(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t *reconcile_flagsp)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+    WT_DECL_RET;
+    WT_REF *ref;
+    bool busy;
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
+    *refp = NULL;
 
-    __wt_spin_lock(session, &ckpt_threads->done_lock);
-    TAILQ_INSERT_TAIL(&ckpt_threads->done_qh, entry, q);
-    __wt_spin_unlock(session, &ckpt_threads->done_lock);
+    ref = (WT_REF *)__wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref);
+    if (ref == NULL)
+        return (0);
 
-    WT_RET(__wt_semaphore_post(session, &ckpt_threads->done_sem));
-    return (0);
-}
+    /* work_dhandle is stable for the file; set for hazard_set. */
+    session->dhandle = ckpt_threads->work_dhandle;
 
-/*
- * __checkpoint_parallel_pop_done --
- *     Pop a work done unit from the queue. The caller is responsible for freeing it.
- */
-static void
-__checkpoint_parallel_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE **entryp)
-{
-    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
-    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
-    WT_CONNECTION_IMPL *conn;
-
-    *entryp = entry = NULL;
-
-    conn = S2C(session);
-    ckpt_threads = conn->ckpt_reconcile_threads;
-
-    /* FIXME-WT-16480: Do we need this? If so rename it. */
-    if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->done_qh))
-        return;
-
-    __wt_spin_lock(session, &ckpt_threads->done_lock);
-
-    /* Recheck again to confirm whether the queue is empty or not? */
-    if (TAILQ_EMPTY(&ckpt_threads->done_qh)) {
-        __wt_spin_unlock(session, &ckpt_threads->done_lock);
-        return;
+    /*
+     * Take our own hazard pointer on the ref before claiming it. The checkpoint session also holds
+     * a hazard pointer; once we CAS work_ref to NULL it will release its copy, so we must establish
+     * ours first. We already know the page is valid (checkpoint holds it), so a busy return is
+     * transient.
+     */
+    for (;;) {
+        ret = __wt_hazard_set(session, ref, &busy);
+        if (ret != 0) {
+            (void)__wt_atomic_cas_int32(&ckpt_threads->error, 0, ret);
+            return (ret);
+        }
+        if (!busy)
+            break;
+        __wt_sleep(0, 1);
     }
 
-    entry = TAILQ_FIRST(&ckpt_threads->done_qh);
-    TAILQ_REMOVE(&ckpt_threads->done_qh, entry, q);
-    *entryp = entry;
+    /*
+     * Claim the work with CAS. Only one worker can succeed; losers release their hazard and return.
+     * work_pending is incremented by the checkpoint when it posts (push_work), so drain cannot
+     * see zero until the winning worker decrements after reconciling.
+     */
+    if (!__wt_atomic_cas_ptr(&ckpt_threads->work_ref, ref, NULL)) {
+        WT_IGNORE_RET(__wt_page_release(session, ref, 0));
+        return (0);
+    }
 
-    __wt_spin_unlock(session, &ckpt_threads->done_lock);
-    return;
+    *refp = ref;
+    *reconcile_flagsp = ckpt_threads->work_reconcile_flags;
+
+    return (0);
 }
 
 /*
  * __checkpoint_parallel_thread_run --
  *     Entry function for a checkpoint page reconciliation thread. This is called repeatedly from
- *     the thread group code, with that in mind the internal loop may seem redundant but working on
- *     the assumption that the queue is likely to have more entries we loop internally to skip
- *     expensive checks.
+ *     the thread group code so we loop internally while work is available.
  */
 static int
 __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
-    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     WT_DECL_RET;
+    WT_REF *ref;
+    uint32_t reconcile_flags;
+    int spins;
     bool signalled;
 
     WT_UNUSED(thread);
@@ -213,29 +100,54 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
       session, ckpt_threads->work_cond, WT_MILLION, __checkpoint_parallel_thread_chk, &signalled);
 
     for (;;) {
-        __checkpoint_parallel_pop_work(session, &entry);
-        if (entry == NULL)
+        /* Stop taking work if a sibling already failed. */
+        if (__wt_atomic_load_int32_relaxed(&ckpt_threads->error) != 0)
             break;
 
-        /* Begin a transaction, if we don't already have one. */
+        WT_ERR(__checkpoint_parallel_take_work(session, &ref, &reconcile_flags));
+        if (ref == NULL) {
+            /*
+             * Spin briefly waiting for new work before falling back to the condvar. Each
+             * sched_yield is ~50-100ns, so 100 iterations is ~5-10us — enough to cover the gap
+             * between the checkpoint thread walking to the next dirty leaf and posting work, without
+             * burning significant CPU.
+             */
+            for (spins = 0;
+                 spins < 100 && __wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref) == NULL;
+                 spins++)
+                __wt_yield();
+            if (__wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref) != NULL)
+                continue;
+            break;
+        }
+
+        /* Begin a transaction and import the checkpoint's snapshot once. */
         if (!F_ISSET(session->txn, WT_TXN_RUNNING)) {
             WT_ERR(__wt_txn_begin(session, NULL));
             F_SET(session, WT_SESSION_CHECKPOINT);
             F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
+            __wt_txn_import_snapshot(session, ckpt_threads->checkpoint_snapshot);
+            session->isolation = session->txn->isolation = ckpt_threads->checkpoint_isolation;
         }
 
-        /* Set up the transaction for the given entry. */
-        __wt_txn_import_snapshot(session, entry->snapshot);
-        session->isolation = session->txn->isolation = entry->isolation;
-
-        /* It's not an error if we make no progress. */
-        WT_WITH_DHANDLE(session, entry->dhandle,
-          ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
+        /* session->dhandle was set by take_work for the hazard pointer. */
+        ret = __wt_reconcile(session, ref, NULL, reconcile_flags);
         WT_STAT_CONN_INCR(session, checkpoint_parallel_pages_reconciled);
-        WT_ERR(ret);
 
-        entry->result = ret;
-        __checkpoint_parallel_push_done(session, entry);
+        /* Release our hazard pointer; we're done with this page. */
+        WT_TRET(__wt_page_release(session, ref, 0));
+
+        /*
+         * Set the error before decrementing work_pending. Drain waits for work_pending to reach
+         * zero; if we decremented first, drain could see zero and return before the error is visible.
+         */
+        if (ret != 0)
+            (void)__wt_atomic_cas_int32(&ckpt_threads->error, 0, ret);
+
+        (void)__wt_atomic_sub_uint64(&ckpt_threads->work_pending, 1);
+
+        if (ret != 0)
+            WT_ERR(ret);
     }
 
     if (0) {
@@ -247,23 +159,89 @@ err:
 }
 
 /*
- * __checkpoint_parallel_thread_stop --
- *     Stop the checkpoint page reconciliation threads.
+ * __wt_checkpoint_parallel_begin_file --
+ *     Set the four file-scoped fields for parallel reconciliation. Called once at the start of
+ *     __wt_sync_file(WT_SYNC_CHECKPOINT); isolation, snapshot, dhandle and reconcile_flags do not
+ *     change during a single file sync.
  */
-static int
-__checkpoint_parallel_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
+void
+__wt_checkpoint_parallel_begin_file(WT_SESSION_IMPL *session, uint32_t reconcile_flags)
 {
-    __wt_verbose(
-      session, WT_VERB_CHECKPOINT, "Checkpoint page reconciliation thread %u exiting", thread->id);
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
 
-    /* We should never shrink the thread group while a transaction is running. */
-    WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_RUNNING));
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return;
 
-    if (F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_RET_PANIC(session, WT_VERB_CHECKPOINT,
-          "Checkpoint page reconciliation thread %u stopping while a transaction is running",
-          thread->id);
-    return (0);
+    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
+    ckpt_threads->checkpoint_isolation = session->txn->isolation;
+    ckpt_threads->checkpoint_snapshot = &session->txn->snapshot_data;
+    ckpt_threads->work_dhandle = session->dhandle;
+    ckpt_threads->work_reconcile_flags = reconcile_flags;
+}
+
+/*
+ * __wt_checkpoint_parallel_push_work --
+ *     Post a leaf page for parallel reconciliation. The four file-scoped fields were set in
+ *     begin_file; handoff is store_release(ref) then wait for a worker to CAS it to NULL.
+ */
+int
+__wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+    int32_t err;
+
+    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
+
+    /* Bail out early if a worker already failed. */
+    if ((err = __wt_atomic_load_int32_relaxed(&ckpt_threads->error)) != 0)
+        return (err);
+
+    /*
+     * Increment work_pending before publishing so that when we see work_ref == NULL and return,
+     * drain cannot see zero until the worker that took the item decrements (success or error path).
+     */
+    (void)__wt_atomic_add_uint64(&ckpt_threads->work_pending, 1);
+
+    /* Publish the work item; workers read the stable file-scoped fields from ckpt_threads. */
+    __wt_atomic_store_ptr_release(&ckpt_threads->work_ref, ref);
+    __wt_cond_signal(session, ckpt_threads->work_cond);
+
+    /*
+     * Wait for a worker to take the item. If a worker failed (error set), do not revoke: keep
+     * waiting for work_ref == NULL so some worker takes it and decrements work_pending. Revoking
+     * (clearing work_ref and decrementing) would race with a worker CASing to take the item.
+     */
+    while (__wt_atomic_load_ptr_acquire(&ckpt_threads->work_ref) != NULL) {
+        
+    }
+    return (__wt_atomic_load_int32_relaxed(&ckpt_threads->error));
+}
+
+/*
+ * __wt_checkpoint_parallel_drain --
+ *     Wait for all in-flight parallel reconciliations to complete. Called at internal page
+ *     boundaries and at the end of the tree walk.
+ */
+int
+__wt_checkpoint_parallel_drain(WT_SESSION_IMPL *session)
+{
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+    int32_t err;
+
+    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
+
+    /*
+     * Acquire-load work_pending to synchronize with worker stores. Workers set the error (CAS
+     * release) before decrementing work_pending, so observing zero here guarantees visibility of
+     * any prior error store.
+     */
+    while (__wt_atomic_load_uint64_acquire(&ckpt_threads->work_pending) > 0) {
+        if ((err = __wt_atomic_load_int32_relaxed(&ckpt_threads->error)) != 0)
+            return (err);
+        __wt_yield();
+    }
+
+    return (__wt_atomic_load_int32_relaxed(&ckpt_threads->error));
 }
 
 /*
@@ -298,26 +276,15 @@ __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS);
 
-    TAILQ_INIT(&ckpt_threads->work_qh);
-    WT_RET(__wt_spin_init(
-      session, &ckpt_threads->work_lock, "checkpoint page reconciliation threads - work queue"));
-    WT_RET(
-      __wt_cond_auto_alloc(session, "checkpoint page reconciliation threads - work queue (signal)",
-        10 * WT_THOUSAND, WT_MILLION, &ckpt_threads->work_cond));
-
-    TAILQ_INIT(&ckpt_threads->done_qh);
-    WT_RET(__wt_spin_init(
-      session, &ckpt_threads->done_lock, "checkpoint page reconciliation threads - done queue"));
-
-    WT_RET(__wt_semaphore_init(session, &ckpt_threads->done_sem, 0,
-      "checkpoint page reconciliation threads - done queue (semaphore)"));
+    WT_RET(__wt_cond_auto_alloc(session, "checkpoint page reconciliation threads - work (signal)",
+      10 * WT_THOUSAND, WT_MILLION, &ckpt_threads->work_cond));
 
     /* Create the checkpoint thread group. */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &ckpt_threads->thread_group,
       "checkpoint-page-reconciliation-threads", ckpt_threads->num_threads,
       ckpt_threads->num_threads, session_flags, __checkpoint_parallel_thread_chk,
-      __checkpoint_parallel_thread_run, __checkpoint_parallel_thread_stop));
+      __checkpoint_parallel_thread_run, NULL));
 
     return (0);
 }
@@ -345,85 +312,26 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     /* Wait for any checkpoint thread group changes to stabilize. */
     __wt_writelock(session, &ckpt_threads->thread_group.lock);
 
-    /*
-     * Signal the threads to finish and stop populating the queue.
-     */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS);
     __wt_cond_signal(session, ckpt_threads->work_cond);
 
     __wt_verbose(session, WT_VERB_CHECKPOINT, "%s", "Waiting for helper threads");
 
-    /*
-     * We call the destroy function still holding the write lock. It assumes it is called locked.
-     */
     WT_TRET(__wt_thread_group_destroy(session, &ckpt_threads->thread_group));
-    __wt_spin_destroy(session, &ckpt_threads->work_lock);
     __wt_cond_destroy(session, &ckpt_threads->work_cond);
-    __wt_spin_destroy(session, &ckpt_threads->done_lock);
-    WT_TRET(__wt_semaphore_destroy(session, &ckpt_threads->done_sem));
 
-    return (ret);
-}
-
-/*
- * __wt_checkpoint_parallel_finish --
- *     Wait for the checkpoint page reconciliation workers to finish and release the acquired
- *     resources.
- */
-int
-__wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session)
-{
-    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
-    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
-    WT_DECL_RET;
-    uint64_t done_popped, work_pushed;
-
-    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
-        return (0);
-
-    /*
-     * This function is called after all work has been pushed to the queue, and must wait for all
-     * work to be done.
-     */
-    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
-    work_pushed = __wt_atomic_load_uint64_acquire(&ckpt_threads->work_pushed);
-
-    done_popped = 0;
-    while (work_pushed > done_popped) {
-        WT_RET(__wt_semaphore_wait(session, &ckpt_threads->done_sem));
-
-        __checkpoint_parallel_pop_done(session, &entry);
-        if (entry == NULL)
-            break;
-        done_popped++;
-
-        WT_TRET(entry->result);
-        WT_TRET(__wt_page_release(session, entry->ref, entry->release_flags));
-        __checkpoint_parallel_free(session, entry);
-    }
-
-    WT_ASSERT_ALWAYS(session,
-      __checkpoint_parallel_done_queue_empty(session) &&
-        __checkpoint_parallel_work_queue_empty(session),
-      "Checkpoint page reconciliation work queue corrupted");
-
-    __wt_atomic_store_uint64_release(&ckpt_threads->work_pushed, 0);
     return (ret);
 }
 
 /*
  * __checkpoint_parallel_thread_release_snapshot --
- *     Release the snapshot associated with the thread.
+ *     Release the snapshot associated with a worker thread.
  */
 static int
 __checkpoint_parallel_thread_release_snapshot(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_UNUSED(thread);
 
-    /*
-     * It is reasonable to get here without having a snapshot if the thread never dequeued a work
-     * item.
-     */
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         return (0);
 
@@ -446,9 +354,6 @@ __wti_checkpoint_parallel_release_snapshot(WT_SESSION_IMPL *session)
     if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
         return (0);
 
-    WT_ASSERT_ALWAYS(session, __checkpoint_parallel_work_queue_empty(session),
-      "Checkpoint page reconciliation workers still have work to do");
-
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
     WT_RET(__wt_thread_group_foreach(
       session, &ckpt_threads->thread_group, __checkpoint_parallel_thread_release_snapshot));
@@ -457,19 +362,21 @@ __wti_checkpoint_parallel_release_snapshot(WT_SESSION_IMPL *session)
 
 /*
  * __checkpoint_parallel_thread_commit --
- *     Commit the transaction associated with the thread.
+ *     Commit the transaction associated with a worker thread.
  */
 static int
 __checkpoint_parallel_thread_commit(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_UNUSED(thread);
 
-    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT,
-          "Checkpoint page reconciliation thread %u committing the transaction", thread->id);
-        WT_RET(__wt_txn_commit(session, NULL));
-    }
+    if (!F_ISSET(session->txn, WT_TXN_RUNNING))
+        return (0);
 
+    __wt_verbose(session, WT_VERB_CHECKPOINT,
+      "Checkpoint page reconciliation thread %u committing the transaction", thread->id);
+    WT_RET(__wt_txn_commit(session, NULL));
+
+    WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_RUNNING));
     return (0);
 }
 
@@ -485,12 +392,13 @@ __wti_checkpoint_parallel_commit(WT_SESSION_IMPL *session)
     if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
         return (0);
 
-    WT_ASSERT_ALWAYS(session, __checkpoint_parallel_work_queue_empty(session),
-      "Checkpoint page reconciliation workers still have work to do");
-
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
     WT_RET(__wt_thread_group_foreach(
       session, &ckpt_threads->thread_group, __checkpoint_parallel_thread_commit));
+
+    /* Reset per-checkpoint state for the next checkpoint. */
+    ckpt_threads->checkpoint_snapshot = NULL;
+    __wt_atomic_store_int32_relaxed(&ckpt_threads->error, 0);
 
     return (0);
 }
