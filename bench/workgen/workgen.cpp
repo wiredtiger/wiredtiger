@@ -2004,7 +2004,10 @@ err:
             WT_TRET(_session->rollback_transaction(_session, nullptr));
         } else if (_in_transaction) {
             ContextInternal *icontext = _workload->_context->_internal;
-            // Set prepare, commit and durable timestamp if prepare is set.
+            /*
+             * Set the prepare, commit, and durable timestamps when prepare is enabled. The same
+             * prepare_timestamp value is reused for both the commit and durable timestamps.
+             */
             if (op->transaction->use_prepare_timestamp) {
                 uint64_t prepare_ts;
                 {
