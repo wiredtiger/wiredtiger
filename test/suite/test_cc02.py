@@ -115,6 +115,11 @@ class test_cc02(test_cc_base):
 
         # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
         self.check_cc_stats()
+        c = self.session.open_cursor('statistics:')
+        self.assertGreater(c[stat.conn.checkpoint_cleanup_duration][2], 0)
+        self.assertGreater(c[stat.conn.checkpoint_cleanup_handle_processed][2], 0)
+        self.assertGreater(c[stat.conn.checkpoint_cleanup_inmem_pages_visited][2], 0)
+        c.close()
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 200)
