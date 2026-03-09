@@ -1268,7 +1268,7 @@ __checkpoint_parse_config(WT_SESSION_IMPL *session, const char *cfg[], const cha
 {
     /* Avoid doing work if possible. */
     WT_RET(__checkpoint_can_skip(session, cfg, use_timestamp, can_skip));
-    if (can_skip)
+    if (*can_skip)
         return (0);
 
     /* Check if this is a named checkpoint. */
