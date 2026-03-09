@@ -1174,7 +1174,7 @@ __disagg_mark_btrees_readonly(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     for (dhandle = NULL;;) {
-        WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
         if (dhandle == NULL)
             break;
 
@@ -1215,9 +1215,10 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
-     * eviction paths from dirtying pages during the step-down window.
+     * eviction paths, especially parent split path, from dirtying pages during the step-down
+     * window.
      */
-    __disagg_mark_btrees_readonly(session);
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_mark_btrees_readonly(session));
 
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
