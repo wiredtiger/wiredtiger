@@ -77,7 +77,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.pr('creating cursor')
         cursor = self.session.open_cursor(tablearg, None, None)
         self.assertCursorHasNoKeyValue(cursor)
-        self.assertEqual(cursor.uri, tablearg)
+        if not self.runningHook('disagg'):
+            self.assertEqual(cursor.uri, tablearg)
 
         # Check insert operation
         for i in range(0, self.nentries):
@@ -185,5 +186,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction("commit_timestamp=2b")
         self.session.timestamp_transaction("durable_timestamp=2b")
         self.session.commit_transaction()
+        if (self.runningHook('disagg')):
+            # In disagg, a failed search_near will unposition the cursor, so we need to reposition it before trying again.
+            cursor.set_key(self.genkey(self.nentries))
         cursor.search_near()
         cursor.close()
