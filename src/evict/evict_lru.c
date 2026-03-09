@@ -2147,7 +2147,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
                 WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
                 return (true);
             }
-            if (page->modify->rec_prune_timestamp >= prune_timestamp) {
+            if (prune_timestamp != WT_TS_NONE &&
+              page->modify->rec_prune_timestamp >= prune_timestamp) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
                 return (true);
             }
