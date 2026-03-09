@@ -12,6 +12,8 @@ static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *dro
 static int __checkpoint_get_name(WT_SESSION_IMPL *, const char *[], const char **, size_t *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
+static int __checkpoint_parse_config(
+  WT_SESSION_IMPL *, const char *[], const char **, size_t *, bool *, bool *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
@@ -1225,6 +1227,30 @@ __checkpoint_can_skip(
 }
 
 /*
+ * __checkpoint_parse_config --
+ *     Parse checkpoint configuration to extract information and check for an early exit.
+ */
+static int
+__checkpoint_parse_config(WT_SESSION_IMPL *session, const char *cfg[], const char **name,
+  size_t *namelen, bool *use_timestamp, bool *can_skip)
+{
+    /* Avoid doing work if possible. */
+    WT_RET(__checkpoint_can_skip(session, cfg, use_timestamp, can_skip));
+    if (can_skip)
+        return (0);
+
+    /* Check if this is a named checkpoint. */
+    WT_RET(__checkpoint_get_name(session, cfg, name, namelen));
+
+    /*
+     * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
+     */
+    WT_RET(__checkpoint_apply_operation(session, cfg, NULL));
+
+    return (0);
+}
+
+/*
  * __checkpoint_establish_time --
  *     Get a time (wall time, not a timestamp) for this checkpoint. The time is left in the session.
  */
@@ -1400,20 +1426,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    /* Avoid doing work if possible. */
-    WT_RET(__checkpoint_can_skip(session, cfg, &use_timestamp, &can_skip));
+    WT_RET(__checkpoint_parse_config(session, cfg, &name, &namelen, &use_timestamp, &can_skip));
     if (can_skip) {
         WT_STAT_CONN_INCR(session, checkpoint_skipped);
         return (0);
     }
-
-    /* Check if this is a named checkpoint. */
-    WT_RET(__checkpoint_get_name(session, cfg, &name, &namelen));
-
-    /*
-     * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
-     */
-    WT_RET(__checkpoint_apply_operation(session, cfg, NULL));
 
     logging = F_ISSET(&conn->log_mgr, WT_LOG_ENABLED);
 
