@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
+static int __checkpoint_get_name(WT_SESSION_IMPL *, const char *[], const char **, size_t *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
@@ -215,6 +216,28 @@ __checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len, boo
     /* The name "all" is also special. */
     if (!allow_all && WT_STRING_LIT_MATCH("all", name, len))
         WT_RET_MSG(session, EINVAL, "the checkpoint name \"all\" is reserved");
+
+    return (0);
+}
+
+/*
+ * __checkpoint_get_name --
+ *     Parse the checkpoint name from the configuration.
+ */
+static int
+__checkpoint_get_name(
+  WT_SESSION_IMPL *session, const char *cfg[], const char **name, size_t *namelen)
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "name", &cval));
+    if (cval.len != 0) {
+        *name = cval.str;
+        *namelen = cval.len;
+    } else {
+        *name = NULL;
+        *namelen = 0;
+    }
 
     return (0);
 }
@@ -1343,7 +1366,6 @@ static int
 __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 {
     struct timespec tsp;
-    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *hs_dhandle, *hs_dhandle_shared;
     WT_DECL_RET;
@@ -1386,14 +1408,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Check if this is a named checkpoint. */
-    WT_RET(__wt_config_gets(session, cfg, "name", &cval));
-    if (cval.len != 0) {
-        name = cval.str;
-        namelen = cval.len;
-    } else {
-        name = NULL;
-        namelen = 0;
-    }
+    WT_RET(__checkpoint_get_name(session, cfg, &name, &namelen));
 
     /*
      * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
