@@ -463,19 +463,26 @@ class Oplog(object):
             if cursor:
                 cursor.close()
 
-    def get_table_snapshot(self, table):
-        entlist = self._uris[table - 1][1]
+    def get_table_snapshot(self, table, pos_limit = -1):
+        uri = self._uris[table - 1]
+        prev = -1
         result = dict()
 
-        for entindex in entlist:
+        for entindex in uri[1]:
+            if entindex < prev:
+                raise Exception(f'oplog: entindex for URI {uri[0]} is out of order')
+            if pos_limit > 0 and entindex >= pos_limit:
+                break
+
             (_,k,v) = self._entries[entindex]
             if v == self._tombstone_value:
                 result.pop(self.gen_key(k), None)  # Remove if exists
             else:
                 result[self.gen_key(k)] = self.gen_value(v)
 
-        # Sort by keys as strings (lexicographic order: "1", "10", "11", "2", "21", ...)
-        return sorted(result.items(), key=lambda x: x[0])
+            prev = entindex
+
+        return result
 
     def check(self, testcase, session, pos, count):
         # Keep a cache of open cursors
@@ -515,29 +522,19 @@ class Oplog(object):
                 cursor.close()
 
         # Do a cursor scan, compare against most recent.
-        for uri, entlist in self._uris:
-            # Set up the values we think should be present for this table
-            values = dict()        # key -> value for most recent value
-            prev = -1
-            for entindex in entlist:
-                if entindex < prev:
-                    raise Exception(f'oplog: entindex for URI {uri} is out of order')
-                if entindex >= pos_limit:
-                    break
-                (_,k,v) = self._entries[entindex]
-                values[k] = v    # overwrites in time order, so we end up with most recent
-                prev = entindex
+        for table, (uri, _) in enumerate(self._uris, 1):
+            # Build expected unencoded key/value pairs through pos_limit.
+            values = self.get_table_snapshot(table, pos_limit = pos_limit)
 
             # Walk the cursor and check
             cursor = session.open_cursor(uri)
             for k,v in cursor:
-                kint = self.decode_key(k)
-                if not kint in values:
-                    testcase.pr(f'FAILURE got unexpected key {kint}, value {v} from cursor')
-                elif v != self.gen_value(values[kint]):
-                    testcase.pr(f'FAILURE at key {kint}, got value {v} want {values[kint]}')
-                testcase.assertEqual(v, self.gen_value(values[kint]))
-                del values[kint]
+                if not k in values:
+                    testcase.pr(f'FAILURE got unexpected key {k}, value {v} from cursor')
+                elif v != values[k]:
+                    testcase.pr(f'FAILURE at key {k}, got value {v} want {values[k]}')
+                testcase.assertEqual(v, values[k])
+                del values[k]
             cursor.close()
 
             testcase.assertEqual(
