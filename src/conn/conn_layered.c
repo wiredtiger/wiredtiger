@@ -1169,6 +1169,7 @@ __disagg_mark_btrees_readonly(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
 
     conn = S2C(session);
 
@@ -1186,8 +1187,13 @@ __disagg_mark_btrees_readonly(WT_SESSION_IMPL *session)
         if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET(btree, WT_BTREE_READONLY))
             continue;
 
+        WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
+        WT_IGNORE_RET(ret);
+
         /* Mark the disaggregated as readonly. */
         F_SET(btree, WT_BTREE_READONLY);
+
+        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
 }
 
