@@ -17,6 +17,7 @@ static int __checkpoint_parse_config(
   WT_SESSION_IMPL *, const char *[], const char **, size_t *, bool *, bool *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_trees(WT_SESSION_IMPL *, const char *[], struct timespec);
+static int __checkpoint_sync(WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
@@ -1479,8 +1480,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
-    uint64_t fsync_duration_usecs, generation;
-    uint64_t time_start_fsync, time_stop_fsync;
+    uint64_t generation;
     u_int i;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *name;
@@ -1691,33 +1691,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     __checkpoint_verbose_track(session, "committing transaction");
 
-    /*
-     * Checkpoints have to hit disk (it would be reasonable to configure for lazy checkpoints, but
-     * we don't support them yet).
-     */
-    time_start_fsync = __wt_clock(session);
-
-    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
-    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
-
-    /* Sync the history store file. */
-    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
-        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
-        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
-        WT_ERR(ret);
-    }
-    if (hs_dhandle_shared != NULL && F_ISSET(hs_dhandle_shared, WT_DHANDLE_OPEN)) {
-        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
-        WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_sync(session, NULL));
-        WT_ERR(ret);
-    }
-
-    time_stop_fsync = __wt_clock(session);
-    fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop_fsync, time_start_fsync);
-    WT_STAT_CONN_INCR(session, checkpoint_fsync_post);
-    WT_STAT_CONN_SET(session, checkpoint_fsync_post_duration, fsync_duration_usecs);
-
-    __checkpoint_verbose_track(session, "sync completed");
+    WT_ERR(__checkpoint_sync(session, cfg, hs_dhandle, hs_dhandle_shared));
 
     /* If the history store file exists on disk, update its statistic. */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
@@ -3026,6 +3000,50 @@ __checkpoint_trees(WT_SESSION_IMPL *session, const char *cfg[], struct timespec 
     WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
 
     return (0);
+}
+
+/*
+ * __checkpoint_sync --
+ *     Sync the checkpoint to disk.
+ */
+static int
+__checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_dhandle,
+  WT_DATA_HANDLE *hs_dhandle_shared)
+{
+    WT_DECL_RET;
+    uint64_t fsync_duration_usecs, time_start_fsync, time_stop_fsync;
+
+    /*
+     * Checkpoints have to hit disk (it would be reasonable to configure for lazy checkpoints, but
+     * we don't support them yet).
+     */
+    time_start_fsync = __wt_clock(session);
+
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
+
+    /* Sync the history store file. */
+    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+        WT_ERR(ret);
+    }
+    if (hs_dhandle_shared != NULL && F_ISSET(hs_dhandle_shared, WT_DHANDLE_OPEN)) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
+        WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_sync(session, NULL));
+        WT_ERR(ret);
+    }
+
+    time_stop_fsync = __wt_clock(session);
+    fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop_fsync, time_start_fsync);
+    WT_STAT_CONN_INCR(session, checkpoint_fsync_post);
+    WT_STAT_CONN_SET(session, checkpoint_fsync_post_duration, fsync_duration_usecs);
+
+    __checkpoint_verbose_track(session, "sync completed");
+
+err:
+
+    return (ret);
 }
 
 /*
