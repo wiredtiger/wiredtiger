@@ -1443,7 +1443,7 @@ static int
 __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 {
     struct timespec tsp;
-    WT_CHECKPOINT_DB_CFG *ckpt_cfg;
+    WT_CHECKPOINT_DB_CFG ckpt_cfg;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *hs_dhandle, *hs_dhandle_shared;
     WT_DECL_RET;
@@ -1471,11 +1471,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    WT_RET(__checkpoint_parse_config(session, cfg, ckpt_cfg));
+    WT_RET(__checkpoint_parse_config(session, cfg, &ckpt_cfg));
 
     /* Avoid doing work if possible. */
-    WT_RET(__checkpoint_can_skip(session, ckpt_cfg));
-    if (ckpt_cfg->can_skip) {
+    WT_RET(__checkpoint_can_skip(session, &ckpt_cfg));
+    if (ckpt_cfg.can_skip) {
         WT_STAT_CONN_INCR(session, checkpoint_skipped);
         return (0);
     }
@@ -1483,7 +1483,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
      */
-    WT_RET(__checkpoint_apply_operation(session, ckpt_cfg, NULL));
+    WT_RET(__checkpoint_apply_operation(session, &ckpt_cfg, NULL));
 
     logging = F_ISSET(&conn->log_mgr, WT_LOG_ENABLED);
 
@@ -1562,7 +1562,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Hold the schema lock while starting the transaction and gathering handles so the set we get
      * is complete and correct.
      */
-    WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, ckpt_cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, &ckpt_cfg));
     WT_ERR(ret);
 
     WT_ERR(__checkpoint_db_debug_crash_points(session, cfg));
@@ -1656,7 +1656,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         __checkpoint_drop_list_execute(session, session->ckpt.drop_list);
         __wt_scr_free(session, &session->ckpt.drop_list);
     }
-    WT_ERR(__wt_meta_sysinfo_set(session, ckpt_cfg->name, ckpt_cfg->name_len));
+    WT_ERR(__wt_meta_sysinfo_set(session, ckpt_cfg.name, ckpt_cfg.name_len));
 
     /* Release the snapshot so we aren't pinning updates in cache. */
     __wt_txn_release_snapshot(session);
@@ -1695,7 +1695,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * operation. For the same reason, don't set it to WT_TS_NONE when the checkpoint timestamp is
      * WT_TS_NONE, set it to 1 so we can tell the difference.
      */
-    if (ckpt_cfg->use_timestamp) {
+    if (ckpt_cfg.use_timestamp) {
         conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
