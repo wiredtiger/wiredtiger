@@ -61,6 +61,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
      */
     F_SET(session->txn, WT_TXN_TS_NOT_SET);
 
+    __wt_verbose_warning(session, WT_VERB_LAYERED, "Drain: truncating ingest table %s", uri);
     WT_RET(session->iface.truncate(&session->iface, uri, NULL, NULL, NULL));
 
     WT_RET(__wt_txn_commit(session, NULL));
@@ -355,6 +356,7 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_LAYERED_TABLE_MANAGER_ENTRY **entries_snapshot;
 
     size_t i, table_count;
     bool empty, group_created;
@@ -366,6 +368,7 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &manager->layered_table_lock);
 
     table_count = manager->open_layered_table_count;
+    entries_snapshot = manager->entries;
 
     /*
      * FIXME-WT-14734: shouldn't we hold this lock longer, e.g. manager->entries could get
@@ -395,8 +398,23 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     }
 
     /* FIXME-WT-14735: skip empty ingest tables. */
+    __wt_verbose_warning(session, WT_VERB_LAYERED,
+      "Draining %zu ingest tables (entries=%p).", table_count, (void *)entries_snapshot);
     for (i = 0; i < table_count; i++) {
+        if (manager->entries != entries_snapshot) {
+            __wt_verbose_error(session, WT_VERB_LAYERED,
+              "WT-14734: entries array reallocated during drain! "
+              "snapshot=%p current=%p at index %zu",
+              (void *)entries_snapshot, (void *)manager->entries, i);
+        if (manager->open_layered_table_count != table_count)
+            __wt_verbose_error(session, WT_VERB_LAYERED,
+              "WT-14734: table count changed during drain! "
+              "snapshot=%zu current=%zu at index %zu",
+              table_count, manager->open_layered_table_count, i);
         if ((entry = manager->entries[i]) != NULL) {
+            __wt_verbose_warning(session, WT_VERB_LAYERED,
+              "Drain: queuing layered table %s (ingest: %s, stable: %s) at index %zu",
+              entry->layered_uri, entry->ingest_uri, entry->stable_uri, i);
             /*
              * Mark the layered table in use, we don't want it to be closed between now and when the
              * drain takes place, otherwise this entry would be freed.
@@ -410,6 +428,10 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
             TAILQ_INSERT_HEAD(&conn->layered_drain_data.work_queue, work_item, q);
             __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
         }
+    } else {
+            __wt_verbose_warning(session, WT_VERB_LAYERED,
+              "No ingest tables to drain at index %zu.", i);
+    }
     }
 
     /*

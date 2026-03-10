@@ -92,8 +92,8 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
           "Internal server error: opening the same layered table multiple times"));
 
     WT_STAT_CONN_INCR(session, layered_table_manager_tables);
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "__wt_layered_table_manager_add_table uri=%s ingest=%" PRIu32 " name=%s", entry->stable_uri,
+    __wt_verbose_warning(session, WT_VERB_LAYERED,
+      "Adding layered table: uri=%s ingest=%" PRIu32 " name=%s", entry->stable_uri,
       ingest_id, session->dhandle->name);
     manager->entries[ingest_id] = entry;
 
@@ -117,9 +117,10 @@ __layered_table_manager_remove_table_inlock(WT_SESSION_IMPL *session, uint32_t i
 
     if ((entry = manager->entries[ingest_id]) != NULL) {
         WT_STAT_CONN_DECR(session, layered_table_manager_tables);
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "__wt_layered_table_manager_remove_table stable_uri=%s ingest_id=%" PRIu32,
-          entry->stable_uri, ingest_id);
+        __wt_verbose_warning(session, WT_VERB_LAYERED,
+          "Layered table manager: freeing entry at index %" PRIu32
+          " (layered: %s, ingest: %s, stable: %s)",
+          ingest_id, entry->layered_uri, entry->ingest_uri, entry->stable_uri);
 
         WT_ASSERT(session, entry->pinned_dhandle == NULL);
         __wt_free(session, entry);

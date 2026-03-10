@@ -105,6 +105,8 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
 static int
 __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *ingest_uri)
 {
+    WT_DECL_ITEM(key_buf);
+    WT_DECL_ITEM(val_buf);
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_CURSOR *ingest_cursor = NULL;
@@ -121,17 +123,30 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_open_cursor(session, ingest_uri, NULL, cursor_config, &ingest_cursor));
     WT_ERR(ret);
+    F_SET(ingest_cursor, WT_CURSTD_RAW);
 
-    ret = ingest_cursor->next(ingest_cursor);
-    if (ret == WT_NOTFOUND)
-        ret = 0; /* Expected. */
-    else if (ret == 0) {
-        /* We found a record in the ingest table, which is unexpected. */
-        ret = WT_ERROR;
-        WT_ERR_MSG(session, ret,
-          "Verify (layered): %s ingest table verification failed. Ingest on leader must be "
-          "empty.",
-          ingest_uri);
+    WT_ERR(__wt_scr_alloc(session, 0, &key_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &val_buf));
+
+    /* Walk the ingest table, printing every record found (expected to be none). */
+    uint64_t found = 0;
+    while ((ret = ingest_cursor->next(ingest_cursor)) == 0) {
+        ++found;
+        __wt_verbose_error(session, WT_VERB_VERIFY,
+          "Verify (layered): %s unexpected record in ingest table. Key: %s, Value: %s.",
+          ingest_uri,
+          __wt_buf_set_printable(
+            session, ingest_cursor->key.data, ingest_cursor->key.size, false, key_buf),
+          __wt_buf_set_printable(
+            session, ingest_cursor->value.data, ingest_cursor->value.size, false, val_buf));
+    }
+    if (ret == WT_NOTFOUND) {
+        if (found != 0)
+            WT_ERR_MSG(session, WT_ERROR,
+              "Verify (layered): %s ingest table verification failed. Ingest on leader must be "
+              "empty. %" PRIu64 " unexpected record(s) found.",
+              ingest_uri, found);
+        ret = 0; /* Expected: table is empty. */
     } else
         WT_ERR_MSG(session, ret,
           "Verify (layered): %s ingest table verification failed. Unexpected error code.",
@@ -140,6 +155,8 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
 err:
     if (ingest_cursor != NULL)
         WT_TRET(ingest_cursor->close(ingest_cursor));
+    __wt_scr_free(session, &key_buf);
+    __wt_scr_free(session, &val_buf);
     return (ret);
 }
 
