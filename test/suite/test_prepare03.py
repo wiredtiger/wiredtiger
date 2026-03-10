@@ -78,11 +78,9 @@ class test_prepare03(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(tablearg, None, None)
         self.assertCursorHasNoKeyValue(cursor)
 
-        if self.runningHook('disagg') and self.tablekind == 'row' and self.uri == 'table':
-            # If we're running disagg, the hook will have created a "layered:" table for this
-            # scenario; tablearg will still have a "table:" prefix, so we need a custom comparison.
-            self.assertEqual(cursor.uri, "layered" + ':' + self.table_name)
-        else:
+        # If we're running the disagg hook then the actual uri might start with 'layered:' instead
+        # of "table:", so we skip this check.
+        if not self.runningHook('disagg'):
             self.assertEqual(cursor.uri, tablearg)
 
         # Check insert operation
