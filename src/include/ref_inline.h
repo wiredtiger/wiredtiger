@@ -92,7 +92,7 @@ __ref_track_state(
 static WT_INLINE WT_REF_STATE
 __ref_get_state(WT_REF *ref)
 {
-    return (__wt_atomic_load_uint8_v_relaxed(&ref->__state));
+    return (__wt_atomic_load_uint8_v_acquire(&ref->__state));
 }
 
 #define WT_REF_GET_STATE(ref) __ref_get_state((ref))

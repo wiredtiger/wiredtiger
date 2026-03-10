@@ -285,9 +285,6 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
 #endif
         __wt_epoch(session, &conn->evict->stuck_time);
 
-    /*
-     * Allow queues to be populated now that the eviction threads are running.
-     */
     __wt_atomic_store_bool_relaxed(&conn->evict_server_running, true);
 
     return (0);
@@ -566,32 +563,19 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
  *     tree, which disables all other means of eviction (except file eviction).
  *
  *     For the incremented `evict_disabled` value, the eviction workers skip this tree for
- *     eviction candidates, and force-evicting or queuing pages from this tree is not allowed.
+ *     eviction.
  *
  *     It is called from multiple places in the code base, such as when initiating file eviction
  *     `__wt_evict_file` or when opening or closing trees.
- *
- *     Return an error code if unable to acquire necessary locks.
  */
-int
+void
 __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
-    WT_DECL_RET;
-    WT_EVICT *evict;
 
     btree = S2BT(session);
-    evict = S2C(session)->evict;
 
-    /*
-     * Hold the exclusive lock to turn off eviction. If this lock becomes a bottleneck, we could
-     * create per-handle exclusive locks.
-     */
-    __wt_spin_lock(session, &evict->evict_exclusive_lock);
-    if (++btree->evict_data.evict_disabled > 1) {
-        __wt_spin_unlock(session, &evict->evict_exclusive_lock);
-        return (0);
-    }
+    (void)__wt_atomic_add_int32(&btree->evict_data.evict_disabled, 1);
 
     __wt_verbose_debug1(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
       btree->dhandle->name);
@@ -609,15 +593,13 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
     /*
      * We have disabled further eviction: wait for concurrent LRU eviction activity to drain.
      */
-    while (__wt_tsan_suppress_load_uint32_v(&btree->evict_busy))
+    while (__wt_tsan_suppress_load_uint32_v(&btree->evict_data.evict_busy))
         __wt_yield();
 
     if (0) {
 err:
-        --btree->evict_data.evict_disabled;
+        (void)__wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
     }
-    __wt_spin_unlock(session, &evict->evict_exclusive_lock);
-    return (ret);
 }
 
 /* !!!
@@ -652,11 +634,11 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
     {
         int32_t v;
 
-        v = __wt_atomic_sub_int32(&btree->evict_disabled, 1);
+        v = __wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
         WT_ASSERT(session, v >= 0);
     }
 #else
-    (void)__wt_atomic_sub_int32(&btree->evict_disabled, 1);
+    (void)__wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
 #endif
 }
 
@@ -1279,8 +1261,23 @@ __evict_get_ref(
                     (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
                     continue;
                 }
-                else /* found a reference */
-                    goto unlock_bucket_and_done;
+                else {
+                    /*
+                     * We are almost ready to take this reference for eviciton. Check that
+                     * eviction hasn't been disabled while we were checking it.
+                     */
+                    *btreep = ref->page->evict_data.dhandle->handle;
+                    (void)__wt_atomic_addv32(&((*btreep)->evict_data.evict_busy), 1);
+                    if (__wt_atomic_load_int32_relaxed(&(*btreep)->evict_data.evict_disabled) > 0) {
+                        printf("Late evict_disabled check\n");
+                        WT_REF_UNLOCK(ref, previous_state);
+                        ref = NULL;
+                        (void)__wt_atomic_subv32(&((*btreep)->evict_data.evict_busy), 1);
+                        (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
+                        continue;
+                    } else
+                        goto unlock_bucket_and_done;
+                }
             }
         unlock_bucket_and_done:
             if (ref != NULL) {
@@ -1294,16 +1291,11 @@ __evict_get_ref(
     }
 done:
     if (ref != NULL) {
-        *btreep = ref->page->evict_data.dhandle->handle;
         *previous_statep = previous_state;
         *refp = ref;
 
         /* Decrement items in the bucketset where the page came from */
         __wt_atomic_subv64(&bucketset->bucketset_num_items, 1);
-        /*
-         * Increment the busy count in the btree handle to prevent it from being closed under us.
-         */
-        (void)__wt_atomic_addv32(&((*btreep)->evict_data.evict_busy), 1);
         (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
 
 #if PRINT_CACHE_STATE
@@ -1895,7 +1887,7 @@ __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree)
     btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
 
     /* Skip files that don't allow eviction. */
-    if (btree->evict_data.evict_disabled > 0) {
+    if (__wt_atomic_load_int32_relaxed(&btree->evict_data.evict_disabled) > 0) {
         WT_STAT_CONN_INCR(session, eviction_skip_trees_eviction_disabled);
         __evict_disagg_btree_skip_count(session, btree);
         return true;
@@ -1905,7 +1897,7 @@ __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (F_ISSET(btree, WT_BTREE_READONLY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
         __evict_disagg_btree_skip_count(session, btree);
-        continue;
+        return true;
     }
 
     /*
