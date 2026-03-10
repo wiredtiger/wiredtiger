@@ -706,8 +706,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
  *     Fill the time window information and the selected update.
  */
 static int
-__rec_fill_tw_from_upd_select(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
+__rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack,
+  WT_UPDATE_SELECT *upd_select, WT_RECONCILE *r)
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
