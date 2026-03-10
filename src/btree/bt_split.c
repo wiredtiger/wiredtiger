@@ -1436,13 +1436,6 @@ static WT_INLINE void
 __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_modify)
 {
     /*
-     * When modifying the page we set the first dirty transaction to the last transaction currently
-     * running. However, the updates we made might be older than that. Set the first dirty
-     * transaction to an impossibly old value so this page is never skipped in a checkpoint.
-     */
-    mod->first_dirty_txn = WT_TXN_FIRST;
-
-    /*
      * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
      * page.
      */
@@ -1470,6 +1463,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
     WT_UPDATE *last_upd, *prev_onpage, *tmp, *upd;
     size_t free_size;
@@ -1719,9 +1713,16 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (free_size > 0)
         __wt_cache_page_inmem_decr(session, page, free_size);
 
-    __split_multi_inmem_mod_stats_update(page->modify, orig->modify);
+    /*
+     * When modifying the page we set the first dirty transaction to the last transaction currently
+     * running. However, the updates we made might be older than that. Set the first dirty
+     * transaction to an impossibly old value so this page is never skipped in a checkpoint.
+     */
+    mod = page->modify;
+    mod->first_dirty_txn = WT_TXN_FIRST;
+    __split_multi_inmem_mod_stats_update(mod, orig->modify);
 
-    FLD_SET(page->modify->restore_state, WT_PAGE_RS_RESTORED);
+    FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
     /* Free any resources that may have been cached in the cursor. */
