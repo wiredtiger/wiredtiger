@@ -334,7 +334,9 @@ __wti_disagg_parse_crypt_meta(
                       session, *lsnp == 0, "Duplicate lsn entry in key_provider metadata");
                     *lsnp = (uint64_t)cfg_value.val;
                 } else {
-                    /* Ignore unknown or unsupported page metadata entries. */
+                    WT_ERR_MSG(session, EINVAL,
+                      "Unknown or invalid entry \"%.*s\"=\"%.*s\" in key_provider page metadata",
+                      (int)cfg_key.len, cfg_key.str, (int)cfg_value.len, cfg_value.str);
                 }
             }
             WT_ERR_NOTFOUND_OK(ret, false);
@@ -342,7 +344,9 @@ __wti_disagg_parse_crypt_meta(
           cfg_value.type == WT_CONFIG_ITEM_NUM) {
             version = (unsigned int)cfg_value.val;
         } else {
-            /* Ignore unknown or unsupported metadata entries. */
+            WT_ERR_MSG(session, EINVAL,
+              "Unknown or invalid entry \"%.*s\"=\"%.*s\" in key_provider metadata",
+              (int)cfg_key.len, cfg_key.str, (int)cfg_value.len, cfg_value.str);
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -762,8 +766,7 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             metadata->key_provider = cfg_value.str;
             metadata->key_provider_len = cfg_value.len;
         } else {
-            WT_ERR_MSG(session, EINVAL, "Unknown entry \"%.*s\" in disaggregated storage metadata",
-              (int)cfg_key.len, cfg_key.str);
+            /* Ignore unknown or unsupported metadata entries. */
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -782,6 +785,9 @@ __wt_disagg_parse_meta(
   WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_RET;
+    char *meta_str;
+
+    meta_str = NULL;
 
     if (meta_buf->size == 0)
         WT_ERR_MSG(session, EINVAL, "Disaggregated checkpoint metadata is empty");
@@ -789,16 +795,18 @@ __wt_disagg_parse_meta(
     WT_CLEAR(*metadata);
     metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
 
-    if (WT_PREFIX_MATCH((const char *)meta_buf->data, "checkpoint=")) {
+    WT_ERR(__wt_strndup(session, meta_buf->data, meta_buf->size, &meta_str));
+
+    if (strstr(meta_str, "checkpoint=") != NULL) {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Disaggregated checkpoint metadata starts with \"checkpoint=\";"
+          "Disaggregated checkpoint metadata contains \"checkpoint=\";"
           "Parsing regular format. Found \"%.*s\"",
           (int)meta_buf->size, (const char *)meta_buf->data);
         WT_ERR(__disagg_parse_meta(session, meta_buf, metadata));
 
     } else {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Disaggregated checkpoint metadata does not start with \"checkpoint=\";"
+          "Disaggregated checkpoint metadata does not contain \"checkpoint=\";"
           "Parsing legacy format. Found \"%.*s\"",
           (int)meta_buf->size, (const char *)meta_buf->data);
         WT_ERR(__disagg_parse_legacy_meta(session, meta_buf, metadata));
@@ -811,6 +819,7 @@ __wt_disagg_parse_meta(
     /* Key provider entry is optional. */
 
 err:
+    __wt_free(session, meta_str);
     return (ret);
 }
 
