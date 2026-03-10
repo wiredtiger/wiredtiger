@@ -3348,8 +3348,7 @@ __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV
      * Disaggregated trees are not allowed to create overflow keys or values. In diagnostic builds,
      * assert if reconciliation ever tries to do so.
      */
-    WT_ASSERT_ALWAYS(session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED),
-      "attempted to build an overflow cell for a disaggregated btree");
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED));
 #endif
 
     /*
