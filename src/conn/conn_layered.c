@@ -1197,6 +1197,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
 
+    /* Step down to the follower mode. */
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
 }
