@@ -334,9 +334,7 @@ __wti_disagg_parse_crypt_meta(
                       session, *lsnp == 0, "Duplicate lsn entry in key_provider metadata");
                     *lsnp = (uint64_t)cfg_value.val;
                 } else {
-                    WT_ERR_MSG(session, EINVAL,
-                      "Unknown or invalid entry \"%.*s\"=\"%.*s\" in key_provider page metadata",
-                      (int)cfg_key.len, cfg_key.str, (int)cfg_value.len, cfg_value.str);
+                    /* Ignore unknown or unsupported page metadata entries. */
                 }
             }
             WT_ERR_NOTFOUND_OK(ret, false);
@@ -344,9 +342,7 @@ __wti_disagg_parse_crypt_meta(
           cfg_value.type == WT_CONFIG_ITEM_NUM) {
             version = (unsigned int)cfg_value.val;
         } else {
-            WT_ERR_MSG(session, EINVAL,
-              "Unknown or invalid entry \"%.*s\"=\"%.*s\" in key_provider metadata",
-              (int)cfg_key.len, cfg_key.str, (int)cfg_value.len, cfg_value.str);
+            /* Ignore unknown or unsupported metadata entries. */
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
