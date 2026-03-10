@@ -83,6 +83,8 @@ struct __wt_modify;     typedef struct __wt_modify WT_MODIFY;
 struct __wt_page_log; typedef struct __wt_page_log WT_PAGE_LOG;
 struct __wt_page_log_discard_args;
 typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
+struct __wt_page_log_complete_checkpoint_args;
+typedef struct __wt_page_log_complete_checkpoint_args WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS;
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_key_provider;    typedef struct __wt_key_provider WT_KEY_PROVIDER;
@@ -5639,13 +5641,13 @@ struct __wt_page_log {
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param checkpoint_id the checkpoint id to use. Must be greater than any other
-     *        checkpoint_id used with this call.
+     * @param args extended arguments
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
-        uint64_t checkpoint_id);
+        WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args);
 
     /*!
+     * FIXME-WT-16821: Remove pl_complete_checkpoint_ext.
      * Complete checkpointing using the given checkpoint_id. This implies that other
      * nodes can now use the given checkpoint_id.
      *
@@ -5873,6 +5875,25 @@ typedef enum {
 #define WT_PAGE_LOG_ENCRYPTED 0x4u
 /*! page is cold tier */
 #define WT_PAGE_LOG_COLD 0x8u
+
+/*!
+ * FIXME-WT-16821: Remove _ext.
+ * WT_PAGE_LOG::pl_complete_checkpoint(_ext) interface.
+ */
+struct __wt_page_log_complete_checkpoint_args {
+        /*
+         * Input arguments
+         */
+        uint64_t checkpoint_id;
+        uint64_t checkpoint_timestamp;
+        const WT_ITEM *checkpoint_metadata;
+        uint64_t checkpoint_oldest_timestamp;
+
+        /*
+         * Output arguments, returned by the call
+         */
+        uint64_t lsn;
+};
 
 /*!
  * Values given to, or returned by the WT_PAGE_LOG_HANDLE::plh_put interface.
