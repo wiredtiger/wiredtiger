@@ -605,7 +605,7 @@ __conn_get_page_log(WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG **page
 
 /*
  * __wti_conn_remove_page_log --
- *     Remove page_log added by WT_CONNECTION->add_page_log, only used internally.
+ *     Remove all page_log instances added by WT_CONNECTION->add_page_log, only used internally.
  */
 int
 __wti_conn_remove_page_log(WT_SESSION_IMPL *session)
