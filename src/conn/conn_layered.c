@@ -1160,11 +1160,12 @@ err:
 }
 
 /*
- * __disagg_mark_btrees_readonly --
- *     Mark all disaggregated btrees as readonly. This must be called during leader step-down.
+ * __disagg_mark_btrees_readonly_then_step_down --
+ *     Mark all disaggregated btrees as readonly. This must be called during leader step-down. And
+ *     then step down to the follower mode.
  */
 static void
-__disagg_mark_btrees_readonly(WT_SESSION_IMPL *session)
+__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -1195,6 +1196,9 @@ __disagg_mark_btrees_readonly(WT_SESSION_IMPL *session)
 
         WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
+
+    conn->layered_table_manager.leader = false;
+    WT_STAT_CONN_SET(session, disagg_role_leader, 0);
 }
 
 /*
@@ -1218,10 +1222,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * eviction paths, especially parent split path, from dirtying pages during the step-down
      * window.
      */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_mark_btrees_readonly(session));
-
-    conn->layered_table_manager.leader = false;
-    WT_STAT_CONN_SET(session, disagg_role_leader, 0);
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_mark_btrees_readonly_then_step_down(session));
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);
