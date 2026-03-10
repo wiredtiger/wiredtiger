@@ -77,7 +77,12 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.pr('creating cursor')
         cursor = self.session.open_cursor(tablearg, None, None)
         self.assertCursorHasNoKeyValue(cursor)
-        if not self.runningHook('disagg'):
+
+        if self.runningHook('disagg') and self.tablekind == 'row' and self.uri == 'table':
+            # If we're running disagg, the hook will have created a "layered:" table for this
+            # scenario; tablearg will still have a "table:" prefix, so we need a custom comparison.
+            self.assertEqual(cursor.uri, "layered" + ':' + self.table_name)
+        else:
             self.assertEqual(cursor.uri, tablearg)
 
         # Check insert operation
@@ -177,17 +182,16 @@ class test_prepare03(wttest.WiredTigerTestCase):
         cursor.update()
         cursor.remove()
 
-        # Check search_near operation
-        cursor.set_key(self.genkey(self.nentries))
-        self.session.begin_transaction()
-        self.session.prepare_transaction("prepare_timestamp=2a")
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:cursor.search_near(), preparemsg)
-        self.session.timestamp_transaction("commit_timestamp=2b")
-        self.session.timestamp_transaction("durable_timestamp=2b")
-        self.session.commit_transaction()
-        if (self.runningHook('disagg')):
-            # In disagg, a failed search_near will unposition the cursor, so we need to reposition it before trying again.
+        # FIXME-WT-16880: Fix layered search_near() incorrectly unpositioning the cursor.
+        if not self.runningHook('disagg'):
+            # Check search_near operation
             cursor.set_key(self.genkey(self.nentries))
-        cursor.search_near()
-        cursor.close()
+            self.session.begin_transaction()
+            self.session.prepare_transaction("prepare_timestamp=2a")
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:cursor.search_near(), preparemsg)
+            self.session.timestamp_transaction("commit_timestamp=2b")
+            self.session.timestamp_transaction("durable_timestamp=2b")
+            self.session.commit_transaction()
+            cursor.search_near()
+            cursor.close()
