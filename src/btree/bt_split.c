@@ -1433,7 +1433,7 @@ __split_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE *last_upd, size_t *
  *     Update the reconciliation stats in the page modify structure.
  */
 static WT_INLINE void
-__split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_modify, bool restore)
+__split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_modify)
 {
     /*
      * When modifying the page we set the first dirty transaction to the last transaction currently
@@ -1457,9 +1457,6 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
      */
     mod->rec_pinned_stable_timestamp = orig_modify->rec_pinned_stable_timestamp;
     mod->rec_prune_timestamp = orig_modify->rec_prune_timestamp;
-
-    if (restore)
-        FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 }
 
 /*
@@ -1532,7 +1529,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      */
     if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
         if (page->modify != NULL)
-            __split_multi_inmem_mod_stats_update(page->modify, orig->modify, false);
+            __split_multi_inmem_mod_stats_update(page->modify, orig->modify);
         return (0);
     }
 
@@ -1722,7 +1719,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (free_size > 0)
         __wt_cache_page_inmem_decr(session, page, free_size);
 
-    __split_multi_inmem_mod_stats_update(page->modify, orig->modify, true);
+    __split_multi_inmem_mod_stats_update(page->modify, orig->modify);
+
+    FLD_SET(page->modify->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
     /* Free any resources that may have been cached in the cursor. */
