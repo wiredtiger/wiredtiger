@@ -51,7 +51,7 @@ class test_debug_mode11(wttest.WiredTigerTestCase):
             else:
                 self.assertEqual(ret, 0)
                 value = cursor.get_value()
-                self.assertEqual(value, exp_value, 
+                self.assertEqual(value, exp_value,
                                 f"Expected value for key {key} to be {exp_value} but got {value}")
 
     def test_skip_shutdown_checkpoint_restart_visibility(self):
