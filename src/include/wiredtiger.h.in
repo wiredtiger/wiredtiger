@@ -2065,6 +2065,12 @@ struct __wt_connection {
      *
      * @param connection the connection handle
      * @configstart{WT_CONNECTION.close, see dist/api_data.py}
+     * @config{debug = (, configure debug specific behavior on connection close.  Generally only
+     * used for internal testing purposes., a set of related configuration options defined as
+     * follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_checkpoint, Skips the checkpoint during
+     * shutdown., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @config{leak_memory, don't free memory during close., a boolean flag; default \c false.}
      * @config{use_timestamp, by default\, create the close checkpoint as of the last stable
      * timestamp if timestamps are in use\, or all current updates if there is no stable timestamp
