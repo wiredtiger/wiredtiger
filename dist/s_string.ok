@@ -84,6 +84,7 @@ Config
 Coverity
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -354,6 +355,7 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+ReleaseSemaphore
 Rogerio
 Runtime
 SDK
@@ -864,7 +866,6 @@ goto
 goutf
 groupd
 gte
-handoff
 handleops
 handlep
 hardcoded
