@@ -60,6 +60,9 @@ __drop_file(
          */
         WT_TRET(__wt_meta_track_drop(session, filename));
 
+    __wti_debug_crash_if_flag_set(
+      session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, "after dropping file entry", uri);
+
     /*
      * Truncate history store for the dropped file if we can find its id from the metadata, this is
      * a best-effort operation, as we don't fail drop if truncate returns an error. There is no
@@ -196,13 +199,10 @@ __drop_layered(
     if (S2C(session)->layered_table_manager.leader) {
         WT_ERR(__drop_issue_trim(session, stable_uri));
 
-        /*
-         * Remove the all associated metadata from shared metadata table.
-         *
-         * FIXME-WT-16565: Refactor to use the shared metadata queue.
-         */
-        WT_SAVE_DHANDLE(
-          session, ret = __wt_disagg_remove_shared_metadata_layered(session, tablename));
+        /* Remove the all associated metadata from shared metadata table. */
+        WT_SAVE_DHANDLE(session,
+          ret = __wt_disagg_enqueue_metadata_operation(
+            session, stable_uri, tablename, WT_SHARED_METADATA_REMOVE));
         WT_ERR(ret);
     }
 
@@ -297,6 +297,9 @@ __drop_table(
         WT_ERR(__wt_schema_drop(session, colgroup->source, cfg, check_visibility));
         WT_ERR(__wt_metadata_remove(session, colgroup->name));
     }
+
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP,
+      "after dropping a colgroup entry from table", uri);
 
     /* Drop the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));

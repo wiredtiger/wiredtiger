@@ -111,11 +111,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     uint32_t retry, tmp_count, block_size_sum;
     int32_t last, result;
     uint8_t expected_magic;
-    bool is_delta;
+    bool from_cache, is_delta;
 
     /* This variable is only used in an assertion, diagnostic builders don't like this. */
     WT_UNUSED(block_size_sum);
     block_size_sum = 0;
+    from_cache = false;
     time_start = __wt_clock(session);
 
     WT_CLEAR(get_args);
@@ -189,6 +190,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         is_delta = (result != 0);
         block_size_sum += size;
 
+        if (is_delta)
+            __wt_verbose(session, WT_VERB_READ,
+              "Reading delta page at position #%" PRId32 " for page_id %" PRIu64, result, page_id);
+        else
+            __wt_verbose(session, WT_VERB_READ, "Reading base page for page_id %" PRIu64, page_id);
+
         /*
          * Do little- to big-endian handling early on.
          */
@@ -199,6 +206,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
          * TODO(WT-16511): When we have the original checksum stored in the page, we should check
          * that instead of skipping the check entirely for cached pages.
          */
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED))
+            from_cache = true;
         if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) || swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
@@ -282,8 +291,19 @@ corrupt:
         WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
     }
 
-    /* The cumulative size from the cookie must match the sum of all individual block sizes. */
-    WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
+    /*
+     * The size contained in the cookie must match the sum of all the individual block sizes,
+     * however this isn't true when the victim cache is enabled and the read is serviced by the
+     * cache. Effectively blocks stored in the victim cache are compressed versions of the in-memory
+     * page which is different to what the cookie size tracks which refers to pages written to the
+     * page service.
+     */
+    if (!from_cache)
+        /*
+         * Since the Victim Cache stores compressed variant of in-memory page representation rather
+         * than what we have in SLS, these numbers will not match.
+         */
+        WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
 
 err:
     time_stop = __wt_clock(session);
