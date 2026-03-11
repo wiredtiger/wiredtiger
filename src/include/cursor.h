@@ -465,10 +465,30 @@ struct __wt_cursor_version {
      * debug metadata in the version cursor's key.
      */
     uint64_t upd_stop_txnid;
-    /* The previous traversed update's durable_ts will become the durable_stop_ts. */
-    wt_timestamp_t upd_durable_stop_ts;
-    /* The previous traversed update's start_ts will become the stop_ts. */
-    wt_timestamp_t upd_stop_ts;
+    /*
+     * The previous traversed update's durable_ts/start_ts become the durable_stop_ts/stop_ts.
+     * For aborted (rolled-back) updates these fields carry rollback_ts/saved_txnid instead,
+     * mirroring the WT_UPDATE union in btmem.h.
+     */
+    union {
+        struct {
+            wt_timestamp_t durable_stop_ts;
+            wt_timestamp_t stop_ts;
+        } commit;
+        struct {
+            wt_timestamp_t stop_rollback_ts;
+            uint64_t stop_saved_txnid;
+        } prepare_rollback;
+    } stop_u;
+
+#undef curversion_durable_stop_ts
+#define curversion_durable_stop_ts stop_u.commit.durable_stop_ts
+#undef curversion_stop_ts
+#define curversion_stop_ts stop_u.commit.stop_ts
+#undef curversion_stop_rollback_ts
+#define curversion_stop_rollback_ts stop_u.prepare_rollback.stop_rollback_ts
+#undef curversion_stop_saved_txnid
+#define curversion_stop_saved_txnid stop_u.prepare_rollback.stop_saved_txnid
     /* The previous traversed update's prepare_ts will become the stop_prepare_ts. */
     wt_timestamp_t upd_stop_prepare_ts;
     /* The previous traversed update's prepared_id will become the stop_prepared_id. */
