@@ -115,29 +115,3 @@ class test_layered76(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.verifyUntilSuccess()
-
-    def test_ckpt_size_failed_ckpt(self):
-        self.session.create(self.uri, self.create_session_config)
-
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(100):
-            cursor[i] = 'a' * 100
-        cursor.close()
-
-        self.session.checkpoint()
-
-        # Insert more data (to change root page size)
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(100, 200):
-            cursor[i] = 'b' * 100
-        cursor.close()
-
-        # Fail checkpoint with error before resolving the checkpoint
-        # This rollbacks back to __checkpoint_fail_reset
-        with self.assertRaises(wiredtiger.WiredTigerError):
-            self.session.checkpoint("debug=(checkpoint_error_before_ckpt_resolve=true)")
-
-        self.session.checkpoint()
-
-        # Verify size consistency
-        self.verifyUntilSuccess()

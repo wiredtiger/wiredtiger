@@ -36,9 +36,6 @@ struct __wt_ckpt_session {
         CKPT_CRASH_ENUM_END,
     } ckpt_crash_state;
 
-    /*Error before checkpoint resolve. */
-    bool error_before_ckpt_resolve;
-
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *drop_list;
 

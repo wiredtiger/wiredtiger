@@ -2689,7 +2689,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
@@ -2697,6 +2696,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_TIME_AGGREGATE ta;
     char ckptlsn_str[WT_MAX_LSN_STRING];
     bool fake_ckpt, resolve_bm;
+
+    WT_UNUSED(cfg);
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -2774,20 +2775,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
         WT_ERR(__wt_evict_file(session, WT_SYNC_CLOSE));
     }
 
-    /* When called from checkpoin_tree_helper cfg is valid. When called from checkpoint_close it is
-     * NULL */
-    if (cfg != NULL) {
-        /* Inject error option if configured. */
-        WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_error_before_ckpt_resolve", &cval));
-        if (cval.len > 0)
-            session->ckpt.error_before_ckpt_resolve = cval.val != 0;
-
-        /* If configured, error. */
-        if (session->ckpt.error_before_ckpt_resolve && ret == 0)
-            WT_RET_SUB(session, EINVAL, WT_NONE, "debug mode simulated checkpoint error");
-
-        session->ckpt.error_before_ckpt_resolve = false;
-    }
 fake:
     /*
      * If we're faking a checkpoint and logging is enabled, recovery should roll forward any changes
