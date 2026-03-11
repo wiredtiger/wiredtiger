@@ -2850,7 +2850,6 @@ fake:
         stop_us = __wt_clock(session);
         diff_us = WT_CLOCKDIFF_US(stop_us, start_us);
 
-        /* Perdhandle: btree stat */
         WT_STAT_CONN_DSRC_INCRV(session, btree_checkpoint_reconcile_duration, diff_us);
     }
 
