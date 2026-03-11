@@ -8414,12 +8414,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS	1821
 /*!
- * reconciliation: number of keys that are garbage collected form the
+ * reconciliation: number of keys that are garbage collected from the
  * disk images in the ingest btrees for disaggregated storage
  */
 #define	WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	1822
 /*!
- * reconciliation: number of keys that are garbage collected form the
+ * reconciliation: number of keys that are garbage collected from the
  * update chains in the ingest btrees for disaggregated storage
  */
 #define	WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	1823
@@ -9903,12 +9903,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: maximum blocks required for a page */
 #define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2332
 /*!
- * reconciliation: number of keys that are garbage collected form the
+ * reconciliation: number of keys that are garbage collected from the
  * disk images in the ingest btrees for disaggregated storage
  */
 #define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	2333
 /*!
- * reconciliation: number of keys that are garbage collected form the
+ * reconciliation: number of keys that are garbage collected from the
  * update chains in the ingest btrees for disaggregated storage
  */
 #define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2334
