@@ -262,7 +262,8 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                   version_cursor->upd_stop_txnid,
                   version_cursor->upd_stop_prepared ? version_cursor->upd_stop_prepare_ts :
                                                       version_cursor->upd_stop_ts,
-                  version_cursor->upd_durable_stop_ts, (uint64_t)version_cursor->upd_stop_prepare_ts,
+                  version_cursor->upd_durable_stop_ts,
+                  (uint64_t)version_cursor->upd_stop_prepare_ts,
                   (uint64_t)version_cursor->upd_stop_prepared_id, upd->type, version_prepared,
                   upd->flags, WT_CURVERSION_UPDATE_CHAIN));
 
