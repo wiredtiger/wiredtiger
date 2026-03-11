@@ -99,7 +99,7 @@ class TestDecodeDeltaPage(unittest.TestCase):
             self.assertEqual(block_header.previous_checksum, 4000115340)
             self.assertTrue(block_header.flags & btree_format.BlockDisaggFlags.WT_BLOCK_DISAGG_DATA_CKSUM)
 
-            # There should be two cells
+            # There should be ten cells
             self.assertEqual(len(page.cells), 10)
 
             # First cell: short key 9 bytes, packed 64-bit value which encodes timestamp
