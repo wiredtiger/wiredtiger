@@ -2719,6 +2719,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_TIME_AGGREGATE ta;
     char ckptlsn_str[WT_MAX_LSN_STRING];
     bool fake_ckpt, resolve_bm;
+    uint64_t start_us = 0, stop_us, diff_us;
 
     WT_UNUSED(cfg);
 
@@ -2754,6 +2755,9 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
         __wt_checkpoint_update_generation(session, btree);
         goto fake;
     }
+
+    if (is_checkpoint)
+        start_us = __wt_clock(session);
 
     /*
      * Mark the root page dirty to ensure something gets written. (If the tree is modified, we must
@@ -2840,6 +2844,14 @@ fake:
             WT_ERR(__wt_meta_track_checkpoint(session));
         else
             WT_ERR(bm->checkpoint_resolve(bm, session, false));
+    }
+
+    if (is_checkpoint && start_us != 0) {
+        stop_us = __wt_clock(session);
+        diff_us = WT_CLOCKDIFF_US(stop_us, start_us);
+
+        /* Perdhandle: btree stat */
+        WT_STAT_CONN_DSRC_INCRV(session, btree_checkpoint_reconcile_duration, diff_us);
     }
 
     /* Tell logging that the checkpoint is complete. */
