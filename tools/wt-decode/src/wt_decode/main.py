@@ -1,32 +1,15 @@
 import argparse
-import csv
 import datetime
-import io
-import json
 import logging
 import sys
-from pathlib import Path
 from typing import Optional
 
 import grpc
 import typer
-from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich import print as rprint
 
 from .utils import ensure_stubs_generated, find_pagedecryptor
-from .constants import (
-    DEFAULT_KEY_FILE,
-    DEFAULT_PAGE_SERVER,
-    METADATA_TABLE_ID,
-    TURTLE_TABLE_ID,
-    TURTLE_PAGE_ID,
-)
-
-# Ensure stubs are generated before importing modules that depend on them
-ensure_stubs_generated()
-
 from py_common import btree_format
 from . import config as _config
 from . import disagg_fetch_full_tree
@@ -34,9 +17,11 @@ from .client import DisaggClient, create_page_service_stub, fetch_page
 from .decoding import make_decode_opts, decode_page_bytes, get_page_type_name, extract_children
 from .browser import DisaggBrowser
 from .dump import _dump_table_values
+from .ui import rich_print_page, console
 
 app = typer.Typer(help="WiredTiger Disaggregated Storage Decode Tool")
-console = Console()
+dump_app = typer.Typer(help="Dump table contents")
+app.add_typer(dump_app, name="dump")
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +66,10 @@ def setup_debug_logging(log_path: Optional[str] = None) -> str:
 # ---------------------------------------------------------------------------
 
 def _cfg_page_server() -> str:
-    return _config.get("page_server", DEFAULT_PAGE_SERVER)
+    return _config.get("page_server")
 
 def _cfg_key_file() -> str:
-    return _config.get("key_file", str(DEFAULT_KEY_FILE))
+    return str(_config.get_path("key_file"))
 
 def _cfg_log_id() -> int:
     return _config.get("log_id", 1)
@@ -157,7 +142,7 @@ def fetch_tree(
 
 
 @app.command()
-def inspect_page(
+def page(
     table_id: int = typer.Option(..., help="WiredTiger table ID"),
     page_id: int = typer.Option(..., help="Page ID to inspect"),
     lsn: int = typer.Option(..., help="LSN of the page"),
@@ -170,7 +155,7 @@ def inspect_page(
     rich: bool = typer.Option(False, help="Use rich formatting for output"),
 ):
     """
-    Fetch, decrypt, and decode a single page. Quick spot-check without full tree traversal.
+    Fetch, decrypt, and decode a single page.
     """
     from .client import decrypt_full_response_json
     from .ui import rich_print_page
@@ -211,38 +196,6 @@ def inspect_page(
 
     opts = make_decode_opts(verbose=verbose, bson=bson)
     decoded = decode_page_bytes(page_bytes, opts)
-    page_type = get_page_type_name(decoded)
-
-    # --- Decoded header ---
-    hdr_table = Table(show_header=False, box=None, padding=(0, 2))
-    hdr_table.add_column("Key", style="bold green")
-    hdr_table.add_column("Value")
-    hdr_table.add_row("page_type", page_type)
-    if decoded.page_header is not None:
-        hdr_table.add_row("write_gen", str(decoded.page_header.write_gen))
-        hdr_table.add_row("mem_size", str(decoded.page_header.mem_size))
-        if hasattr(decoded.page_header, "ncells"):
-            hdr_table.add_row("ncells", str(decoded.page_header.ncells))
-    hdr_table.add_row("decrypted_size", f"{len(page_bytes)} bytes")
-    console.print(Panel(hdr_table, title="[bold]Decoded Header[/bold]"))
-
-    # --- Children (internal pages) ---
-    children = extract_children(decoded)
-    if children:
-        child_table = Table(title="Children")
-        child_table.add_column("#", style="dim")
-        child_table.add_column("page_id", style="cyan")
-        child_table.add_column("lsn", style="green")
-        child_table.add_column("flags")
-        child_table.add_column("size", justify="right")
-        child_table.add_column("checksum")
-        for i, child in enumerate(children):
-            child_table.add_row(
-                str(i), str(child["page_id"]), str(child["lsn"]),
-                str(child.get("flags", "")), str(child.get("size", "")),
-                str(child.get("checksum", "")),
-            )
-        console.print(child_table)
 
     # --- Full decoded output ---
     if rich:
@@ -264,7 +217,7 @@ def delta_chain(
     show_history: bool = typer.Option(False, "--history", help="Also show full page version history via test service"),
 ):
     """
-    Visualize the delta chain structure for a page at a given LSN.
+    Summarise the delta chain structure for a page at a given LSN.
 
     Shows the full image and all deltas with their LSNs, backlink LSNs,
     sizes, write generations, and checksums.
@@ -367,7 +320,7 @@ def delta_chain(
         rprint(f"\n[bold]Chain summary:[/bold] 1 full image + {len(deltas)} delta(s)")
         rprint(f"  base_lsn: {page_proto.base_lsn}")
 
-@app.command()
+@dump_app.command("metadata")
 def dump_metadata(
     log_id: int = typer.Option(default_factory=_cfg_log_id, help="SLS log ID (shard)"),
     page_server: str = typer.Option(default_factory=_cfg_page_server, help="Address of the PageService gRPC server"),
@@ -378,14 +331,18 @@ def dump_metadata(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path (default: stdout)"),
 ):
     """
-    Dump the contents of the WiredTiger metadata table (table ID 9).
+    Dump the contents of the WiredTiger metadata table (table ID 10).
     Dumps cells with key and value types in leaf pages.
     """
+    metadata_table_id = _config.get("metadata_table_id")
+    turtle_table_id = _config.get("turtle_table_id")
+    turtle_page_id = _config.get("turtle_page_id")
+
     with DisaggClient(page_server, decryptor_path) as client:
         browser = DisaggBrowser(client, key_file, log_id)
         if not lsn:
             try:
-                history = client.get_page_history(log_id, TURTLE_TABLE_ID, TURTLE_PAGE_ID)
+                history = client.get_page_history(log_id, turtle_table_id, turtle_page_id)
                 if not history.metadata:
                     rprint("[red][!] No history found for turtle page.[/red]")
                     raise typer.Exit(code=1)
@@ -398,10 +355,10 @@ def dump_metadata(
         if not meta_root:
             raise typer.Exit(code=1)
         
-        _dump_table_values(client, key_file, log_id, METADATA_TABLE_ID, meta_root['page_id'], meta_root['lsn'], bson=False, values_only=values_only, output_path=output)
+        _dump_table_values(client, key_file, log_id, metadata_table_id, meta_root['page_id'], meta_root['lsn'], bson=False, values_only=values_only, output_path=output)
 
 
-@app.command()
+@dump_app.command("file")
 def dump_file(
     uri: str = typer.Argument(..., help="URI of the file to dump (e.g. file:collection-...)"),
     log_id: int = typer.Option(default_factory=_cfg_log_id, help="SLS log ID (shard)"),
@@ -417,11 +374,14 @@ def dump_file(
     Dump the contents of a specific file (table) by URI.
     Dumps cells with key and value types in leaf pages.
     """
+    turtle_table_id = _config.get("turtle_table_id")
+    turtle_page_id = _config.get("turtle_page_id")
+
     with DisaggClient(page_server, decryptor_path) as client:
         browser = DisaggBrowser(client, key_file, log_id)
         if not lsn:
             try:
-                history = client.get_page_history(log_id, TURTLE_TABLE_ID, TURTLE_PAGE_ID)
+                history = client.get_page_history(log_id, turtle_table_id, turtle_page_id)
                 if not history.metadata:
                     rprint("[red][!] No history found for turtle page.[/red]")
                     raise typer.Exit(code=1)
@@ -448,31 +408,25 @@ def dump_file(
 @app.command()
 def config_show():
     """
-    Show the current configuration file location and active defaults.
+    Show the active configuration defaults and their source.
     """
     path = _config.loaded_path()
     if path:
-        rprint(f"[green]Config loaded from:[/green] {path}")
-        defaults = _config.all_defaults()
-        if defaults:
-            tbl = Table(title="[defaults]", show_header=True)
-            tbl.add_column("Key", style="cyan")
-            tbl.add_column("Value")
-            for k, v in sorted(defaults.items()):
-                tbl.add_row(k, str(v))
-            console.print(tbl)
-        else:
-            rprint("[dim]No [defaults] section found in config.[/dim]")
+        rprint(f"[green]User configuration loaded from:[/green] {path}")
     else:
-        rprint("[yellow]No config file found.[/yellow]")
-        rprint("[dim]Searched:[/dim]")
-        for p in _config._search_paths():
-            rprint(f"  {p}")
-        rprint("\n[dim]Create a .wtd.toml file with:[/dim]")
-        rprint("[dim]  [defaults][/dim]")
-        rprint('[dim]  page_server = "172.17.0.1:20044"[/dim]')
-        rprint('[dim]  key_file = "/path/to/key"[/dim]')
-        rprint("[dim]  log_id = 1[/dim]")
+        rprint("[yellow]No user configuration file found. Using built-in defaults.[/yellow]")
+        rprint("[dim]Searched for .wtd.toml in current dir, ~/.config/wtd/config.toml, or ~/.wtd.toml[/dim]")
+
+    defaults = _config.all_defaults()
+    if defaults:
+        tbl = Table(title="Active Defaults", show_header=True)
+        tbl.add_column("Key", style="cyan")
+        tbl.add_column("Value")
+        for k, v in sorted(defaults.items()):
+            tbl.add_row(k, str(v))
+        console.print(tbl)
+    else:
+        rprint("[red][!] No defaults found (even built-in). This is unexpected.[/red]")
 
 
 if __name__ == "__main__":

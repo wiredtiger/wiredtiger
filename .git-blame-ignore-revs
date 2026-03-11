@@ -1,0 +1,5 @@
+#WT-4658 Apply Clang Format
+7dfd9391862bc9a6d84868c4dc51689c45a3aacf
+
+# WT-13817 Move functions from the meta module to the checkpoint one
+33839af5ccd37021d4a00e09aa77adda13c811c2

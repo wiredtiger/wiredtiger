@@ -2,7 +2,7 @@ import sys
 import logging
 from pathlib import Path
 from rich import print as rprint
-from .constants import DEFAULT_PROTO_PATHS
+from . import config as _config
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,8 @@ def ensure_stubs_generated():
     rprint("[yellow][*] gRPC stubs not found. Attempting to generate...[/yellow]")
     
     proto_dir = None
-    for p in DEFAULT_PROTO_PATHS:
+    proto_paths = _config.get_path_list("proto_paths")
+    for p in proto_paths:
         if p.exists():
             proto_dir = p
             break
@@ -74,9 +75,9 @@ def ensure_stubs_generated():
 
 def find_pagedecryptor() -> str:
     """Matches the discovery logic in wt-decode-ts."""
-    from .constants import DEFAULT_PAGEDECRYPTOR_PATHS
+    pagedecryptor_paths = _config.get_path_list("pagedecryptor_paths")
     
-    for p in DEFAULT_PAGEDECRYPTOR_PATHS:
+    for p in pagedecryptor_paths:
         if p.exists():
             return str(p)
     return "pagedecryptor"

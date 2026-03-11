@@ -24,3 +24,4 @@ class DecodedPageInfo:
     has_deltas: bool = False
     num_deltas: int = 0
     decoded_delta_paths: list[str] = field(default_factory=list)
+    decrypted_delta_paths: list[str] = field(default_factory=list)

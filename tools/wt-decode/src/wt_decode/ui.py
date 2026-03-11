@@ -1,4 +1,5 @@
 import json
+import questionary
 from typing import List, Optional
 from rich.console import Console, Group
 from rich.table import Table
@@ -92,50 +93,6 @@ def build_page_history_choices(metadata_list):
         )
 
     return choices
-
-def fuzzy_select(message: str, choices: List[str]) -> Optional[str]:
-    """Display a filterable list of choices using prompt_toolkit.
-    
-    Filters as the user types and allows selection via arrows/enter.
-    Shows the menu immediately even if input is empty. Empty input returns None.
-    """
-    from prompt_toolkit.completion import WordCompleter
-    from prompt_toolkit.shortcuts import PromptSession
-    from prompt_toolkit.styles import Style
-    from prompt_toolkit.formatted_text import HTML
-    from prompt_toolkit.validation import Validator, ValidationError
-
-    # WordCompleter with match_middle=True gives a similar effect to fuzzy for many cases
-    # but more importantly, it shows all results on empty string by default.
-    completer = WordCompleter(choices, match_middle=True, ignore_case=True)
-    
-    # Custom style to make the completion menu look good
-    style = Style.from_dict({
-        'completion-menu.completion': 'bg:#222222 #ffffff',
-        'completion-menu.completion.current': 'bg:#00aaaa #000000',
-        'scrollbar.background': 'bg:#444444',
-        'scrollbar.button': 'bg:#888888',
-    })
-
-    class ChoiceValidator(Validator):
-        def validate(self, document):
-            if document.text and document.text not in choices:
-                raise ValidationError(message="Please select an item from the list or leave empty to exit.")
-
-    try:
-        session = PromptSession(completer=completer, style=style)
-        # complete_while_typing=True and reserve_space_for_menu ensures the list is visible
-        result = session.prompt(
-            HTML(f"<b>{message}</b> (Type to filter, arrows to select, empty to exit): "),
-            complete_while_typing=True,
-            reserve_space_for_menu=10,
-            validator=ChoiceValidator(),
-        )
-        return result if result else None
-    except KeyboardInterrupt:
-        return None
-    except EOFError:
-        return None
 
 def _format_cell_data(data: bytes, is_value: bool = False) -> str:
     """Heuristic to format cell data as BSON, string, packed int, or hex."""

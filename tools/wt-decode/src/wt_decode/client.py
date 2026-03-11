@@ -240,11 +240,15 @@ def decrypt_response_deltas(
     table_id: int,
     page_id: int,
     *,
+    log_id: int = 1,
+    output_dir: Optional[Path] = None,
     debug: bool = False,
-) -> list[tuple[int, bytes]]:
+) -> list[tuple[int, bytes, Optional[Path]]]:
     """Decrypt each delta in the response individually.
 
-    Returns a list of (delta_lsn, decrypted_bytes) pairs in delta order.
+    Returns a list of (delta_lsn, decrypted_bytes, saved_path) tuples in delta order.
+    ``saved_path`` is the persistent file written under *output_dir* when that
+    argument is supplied, otherwise ``None``.
     Returns an empty list when the response has no deltas.
     """
     page_proto = response.page
@@ -260,10 +264,16 @@ def decrypt_response_deltas(
     if len(delta_backlinks) == num_deltas + 1:
         delta_backlinks = delta_backlinks[1:]
 
-    results: list[tuple[int, bytes]] = []
+    results: list[tuple[int, bytes, Optional[Path]]] = []
     for i, delta_blob in enumerate(page_proto.deltas):
         d_lsn = delta_lsns[i] if i < len(delta_lsns) else lsn
         d_backlink = delta_backlinks[i] if i < len(delta_backlinks) else None
+
+        if output_dir is not None:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            persist_path: Optional[Path] = output_dir / f"decrypted_{log_id}_{table_id}_{page_id}_{d_lsn}.delta.bin"
+        else:
+            persist_path = None
 
         tmp_file = tempfile.NamedTemporaryFile(suffix=".delta.out", delete=False)
         tmp_path = Path(tmp_file.name)
@@ -277,7 +287,10 @@ def decrypt_response_deltas(
                 is_delta=True,
                 debug=debug,
             )
-            results.append((d_lsn, tmp_path.read_bytes()))
+            d_bytes = tmp_path.read_bytes()
+            if persist_path is not None:
+                persist_path.write_bytes(d_bytes)
+            results.append((d_lsn, d_bytes, persist_path))
         finally:
             tmp_path.unlink(missing_ok=True)
 

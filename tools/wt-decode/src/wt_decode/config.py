@@ -37,19 +37,54 @@ def _load() -> dict[str, Any]:
     global _loaded, _loaded_path
     if _loaded is not None:
         return _loaded
+    
+    # 1. Load built-in defaults
+    _loaded = {}
+    defaults_path = Path(__file__).parent / "defaults.toml"
+    if defaults_path.is_file():
+        try:
+            with open(defaults_path, "rb") as f:
+                _loaded = tomllib.load(f)
+        except Exception:
+            pass
+
+    # 2. Layer user config on top
     for path in _search_paths():
         if path.is_file():
-            with open(path, "rb") as f:
-                _loaded = tomllib.load(f)
-                _loaded_path = path
-                return _loaded
-    _loaded = {}
+            try:
+                with open(path, "rb") as f:
+                    user_config = tomllib.load(f)
+                    if "defaults" in user_config:
+                        if "defaults" not in _loaded:
+                            _loaded["defaults"] = {}
+                        _loaded["defaults"].update(user_config["defaults"])
+                    _loaded_path = path
+                    break
+            except Exception:
+                continue
+                
     return _loaded
 
 
 def get(key: str, default: Any = None) -> Any:
     """Return a value from the ``[defaults]`` section of the config file."""
     return _load().get("defaults", {}).get(key, default)
+
+
+def get_path(key: str, default: Optional[Path] = None) -> Optional[Path]:
+    """Return a Path from the config, expanding ~."""
+    val = get(key)
+    if val is None:
+        return default
+    return Path(val).expanduser()
+
+
+def get_path_list(key: str, default: list[Path] = []) -> list[Path]:
+    """Return a list of Paths from the config, expanding ~ for each."""
+    val = get(key)
+    if val is None:
+        return default
+    return [Path(p).expanduser() for p in val]
 
 
 def loaded_path() -> Optional[Path]:

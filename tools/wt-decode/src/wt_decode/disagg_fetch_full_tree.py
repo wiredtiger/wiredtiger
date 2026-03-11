@@ -133,14 +133,19 @@ def traverse_tree(args: argparse.Namespace) -> int:
 
         # Decode each delta page individually with is_delta=True decode opts.
         decoded_delta_paths: list[str] = []
+        decrypted_delta_paths: list[str] = []
         if page_proto.deltas:
             delta_pairs = decrypt_response_deltas(
                 args.decryptor_path, args.key_file,
                 response,
                 current.lsn, args.table_id, current.page_id,
+                log_id=args.log_id,
+                output_dir=decrypted_dir,
                 debug=args.debug,
             )
-            for d_lsn, d_bytes in delta_pairs:
+            for d_lsn, d_bytes, d_decrypted_path in delta_pairs:
+                if d_decrypted_path is not None:
+                    decrypted_delta_paths.append(str(d_decrypted_path))
                 try:
                     delta_page = decode_page_bytes(d_bytes, delta_decode_opts)
                     delta_text = capture_page_text(delta_page, delta_decode_opts)
@@ -172,6 +177,7 @@ def traverse_tree(args: argparse.Namespace) -> int:
             has_deltas=bool(page_proto.deltas),
             num_deltas=len(page_proto.deltas),
             decoded_delta_paths=decoded_delta_paths,
+            decrypted_delta_paths=decrypted_delta_paths,
         )
         manifest_pages.append(asdict(info))
 

@@ -15,10 +15,10 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from py_common import binary_data, btree_format
 from .client import DisaggClient
 from .decoding import make_decode_opts, get_page_type_name
-from .ui import rich_print_page, build_page_history_choices, fuzzy_select
+from .ui import rich_print_page, build_page_history_choices
 from .dump import _dump_table_values
 from . import disagg_fetch_full_tree
-from .constants import METADATA_TABLE_ID, TURTLE_TABLE_ID, TURTLE_PAGE_ID
+from . import config as _config
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +30,19 @@ class DisaggBrowser:
         self.debug = debug
         self.tables: Dict[str, Dict[str, Any]] = {}
         self.use_rich = True
+        
+        self.metadata_table_id = _config.get("metadata_table_id")
+        self.turtle_table_id = _config.get("turtle_table_id")
+        self.turtle_page_id = _config.get("turtle_page_id")
 
     def run(self, initial_lsn: Optional[int] = None):
         rprint(Panel.fit("[bold cyan]WiredTiger Disaggregated Browser[/bold cyan]"))
         
         lsn = initial_lsn
         if not lsn:
-            rprint(f"[yellow][*] LSN not provided, querying history for turtle page (table_id={TURTLE_TABLE_ID}, page_id={TURTLE_PAGE_ID})...[/yellow]")
+            rprint(f"[yellow][*] LSN not provided, querying history for turtle page (table_id={self.turtle_table_id}, page_id={self.turtle_page_id})...[/yellow]")
             try:
-                history = self.client.get_page_history(self.log_id, TURTLE_TABLE_ID, TURTLE_PAGE_ID)
+                history = self.client.get_page_history(self.log_id, self.turtle_table_id, self.turtle_page_id)
                 if not history.metadata:
                     rprint("[red][!] No history found for turtle page.[/red]")
                     return
@@ -70,14 +74,14 @@ class DisaggBrowser:
         self.main_menu()
 
     def get_metadata_root(self, lsn: int) -> Optional[Dict[str, int]]:
-        rprint(f"[blue][*] Fetching turtle page (table_id={TURTLE_TABLE_ID}, page_id={TURTLE_PAGE_ID}, lsn={lsn})...[/blue]")
+        rprint(f"[blue][*] Fetching turtle page (table_id={self.turtle_table_id}, page_id={self.turtle_page_id}, lsn={lsn})...[/blue]")
         logger.debug(
             "get_metadata_root: fetching turtle page table_id=%d page_id=%d lsn=%d",
-            TURTLE_TABLE_ID, TURTLE_PAGE_ID, lsn,
+            self.turtle_table_id, self.turtle_page_id, lsn,
         )
         try:
-            resp = self.client.get_page_at_lsn(self.log_id, TURTLE_TABLE_ID, TURTLE_PAGE_ID, lsn)
-            decrypted = self.client.decrypt_full_response(self.key_file, resp, lsn, TURTLE_TABLE_ID, TURTLE_PAGE_ID)
+            resp = self.client.get_page_at_lsn(self.log_id, self.turtle_table_id, self.turtle_page_id, lsn)
+            decrypted = self.client.decrypt_full_response(self.key_file, resp, lsn, self.turtle_table_id, self.turtle_page_id)
             content = decrypted.decode('ascii', errors='ignore')
 
             match = re.search(r'addr="([0-9a-fA-F]+)"', content)
@@ -103,7 +107,6 @@ class DisaggBrowser:
             root['page_id'], root['lsn'],
         )
         
-        metadata_table_id = METADATA_TABLE_ID
         queue = [root]
         visited = set()
 
@@ -121,8 +124,8 @@ class DisaggBrowser:
                 visited.add(key)
 
                 try:
-                    resp = self.client.get_page_at_lsn(self.log_id, metadata_table_id, current['page_id'], current['lsn'])
-                    decrypted = self.client.decrypt_full_response(self.key_file, resp, current['lsn'], metadata_table_id, current['page_id'])
+                    resp = self.client.get_page_at_lsn(self.log_id, self.metadata_table_id, current['page_id'], current['lsn'])
+                    decrypted = self.client.decrypt_full_response(self.key_file, resp, current['lsn'], self.metadata_table_id, current['page_id'])
                     logger.debug(
                         "load_tables_from_metadata: decoded page_id=%d lsn=%d (%d bytes)",
                         current['page_id'], current['lsn'], len(decrypted),
@@ -165,12 +168,26 @@ class DisaggBrowser:
         choices = ["Dump Metadata Table"] + table_names + ["Exit"]
         
         while True:
-            selected_table = fuzzy_select("Select a table to inspect", choices)
+            from prompt_toolkit.completion import FuzzyWordCompleter
 
-            if selected_table == "Exit" or selected_table is None: break
+            completer = FuzzyWordCompleter(choices, WORD=False)
+            selected_table = questionary.autocomplete(
+                    "Filename of table to inspect (empty to exit):",
+                    choices=choices,
+                    completer=completer,
+                    validate_while_typing=False,
+                    complete_while_typing=True,
+                ).ask()
+
+            if not selected_table or selected_table == "Exit": break
             if selected_table == "Dump Metadata Table":
                 self.dump_metadata_interactive()
                 continue
+            
+            if selected_table not in self.tables:
+                rprint(f"[red][!] Table '{selected_table}' not found.[/red]")
+                continue
+
             self.table_menu(selected_table)
 
     def table_menu(self, table_name: str):
@@ -218,7 +235,7 @@ class DisaggBrowser:
 
     def dump_metadata_interactive(self):
         try:
-            history = self.client.get_page_history(self.log_id, 1, 1)
+            history = self.client.get_page_history(self.log_id, self.turtle_table_id, self.turtle_page_id)
             if not history.metadata:
                 rprint("[red][!] No history found for turtle page.[/red]")
                 return
@@ -244,7 +261,7 @@ class DisaggBrowser:
                 if not meta_root: return
                 
                 _dump_table_values(
-                    self.client, self.key_file, self.log_id, 9, 
+                    self.client, self.key_file, self.log_id, self.metadata_table_id, 
                     meta_root['page_id'], meta_root['lsn'], 
                     bson=False, values_only=values_only, output_path=output_path
                 )
@@ -362,6 +379,9 @@ class DisaggBrowser:
         output_dir = questionary.text("Output directory:", default=default_dir).ask()
         if output_dir is None: return
 
+        bson = questionary.confirm("Decode values as BSON?", default=False).ask()
+        if bson is None: return
+
         args = argparse.Namespace(
             log_id=self.log_id,
             table_id=table_id,
@@ -371,7 +391,7 @@ class DisaggBrowser:
             decryptor_path=self.client.decryptor_path,
             key_file=self.key_file,
             verbose=True,
-            bson=False,
+            bson=bson,
             output_dir=output_dir,
             max_pages=0,
             debug=False,
