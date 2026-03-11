@@ -26,6 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# Update Heavy workload- ~90% updates, ~5% inserts, ~5% reads + checkpoints,
+# readers use read_timestamp close to stable_timestamp.
 
 from runner import *
 from wiredtiger import *
