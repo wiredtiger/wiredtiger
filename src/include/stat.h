@@ -1210,6 +1210,8 @@ struct __wt_connection_stats {
     int64_t prefetch_attempts;
     int64_t rec_delta_fast_success;
     int64_t rec_delta_fast_fail;
+    int64_t rec_delta_fast_fail_chain_length;
+    int64_t rec_delta_fast_fail_eviction;
     int64_t rec_delta_fast_fail_first_write;
     int64_t rec_delta_fast_fail_update_chain;
     int64_t rec_delta_fast_fail_other;
@@ -1725,6 +1727,8 @@ struct __wt_dsrc_stats {
     int64_t layered_table_manager_skip_lsn;
     int64_t rec_delta_fast_success;
     int64_t rec_delta_fast_fail;
+    int64_t rec_delta_fast_fail_chain_length;
+    int64_t rec_delta_fast_fail_eviction;
     int64_t rec_delta_fast_fail_first_write;
     int64_t rec_delta_fast_fail_update_chain;
     int64_t rec_delta_fast_fail_other;

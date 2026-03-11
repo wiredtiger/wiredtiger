@@ -150,6 +150,20 @@ struct __wti_rec_chunk {
 };
 
 /*
+ * WTI_REC_FAST_DELTA --
+ *	Reconciliation fast delta information.
+ */
+struct __wti_rec_fast_delta {
+
+    /* Number of entries on the full page after this delta and any previous deltas are applied. */
+    uint32_t entries;
+    /* The first key on the page with this delta applied. */
+    WT_ITEM key;
+    WT_TIME_AGGREGATE ta;
+
+};
+
+/*
  * WTI_DELETE_HS_UPD --
  *	Update that needs to be deleted from the history store.
  */

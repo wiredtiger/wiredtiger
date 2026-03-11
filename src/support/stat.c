@@ -321,6 +321,10 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "reconciliation-delta: fast path delta pages could be generated",
   "reconciliation-delta: fast path delta pages could not be generated",
+  "reconciliation-delta: fast path delta pages could not be generated because the delta chain at "
+  "configured max length",
+  "reconciliation-delta: fast path delta pages could not be generated because the reconciliation "
+  "was not from checkpoint",
   "reconciliation-delta: fast path delta pages could not be generated because there is no prior "
   "image",
   "reconciliation-delta: fast path delta pages could not be generated because updates would need "
@@ -766,6 +770,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_table_manager_skip_lsn = 0;
     stats->rec_delta_fast_success = 0;
     stats->rec_delta_fast_fail = 0;
+    stats->rec_delta_fast_fail_chain_length = 0;
+    stats->rec_delta_fast_fail_eviction = 0;
     stats->rec_delta_fast_fail_first_write = 0;
     stats->rec_delta_fast_fail_update_chain = 0;
     stats->rec_delta_fast_fail_other = 0;
@@ -1210,6 +1216,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_table_manager_skip_lsn += from->layered_table_manager_skip_lsn;
     to->rec_delta_fast_success += from->rec_delta_fast_success;
     to->rec_delta_fast_fail += from->rec_delta_fast_fail;
+    to->rec_delta_fast_fail_chain_length += from->rec_delta_fast_fail_chain_length;
+    to->rec_delta_fast_fail_eviction += from->rec_delta_fast_fail_eviction;
     to->rec_delta_fast_fail_first_write += from->rec_delta_fast_fail_first_write;
     to->rec_delta_fast_fail_update_chain += from->rec_delta_fast_fail_update_chain;
     to->rec_delta_fast_fail_other += from->rec_delta_fast_fail_other;
@@ -1693,6 +1701,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_table_manager_skip_lsn += WT_STAT_DSRC_READ(from, layered_table_manager_skip_lsn);
     to->rec_delta_fast_success += WT_STAT_DSRC_READ(from, rec_delta_fast_success);
     to->rec_delta_fast_fail += WT_STAT_DSRC_READ(from, rec_delta_fast_fail);
+    to->rec_delta_fast_fail_chain_length +=
+      WT_STAT_DSRC_READ(from, rec_delta_fast_fail_chain_length);
+    to->rec_delta_fast_fail_eviction += WT_STAT_DSRC_READ(from, rec_delta_fast_fail_eviction);
     to->rec_delta_fast_fail_first_write += WT_STAT_DSRC_READ(from, rec_delta_fast_fail_first_write);
     to->rec_delta_fast_fail_update_chain +=
       WT_STAT_DSRC_READ(from, rec_delta_fast_fail_update_chain);
@@ -2638,6 +2649,10 @@ static const char *const __stats_connection_desc[] = {
   "prefetch: pre-fetch triggered by page read",
   "reconciliation-delta: fast path delta pages could be generated",
   "reconciliation-delta: fast path delta pages could not be generated",
+  "reconciliation-delta: fast path delta pages could not be generated because the delta chain at "
+  "configured max length",
+  "reconciliation-delta: fast path delta pages could not be generated because the reconciliation "
+  "was not from checkpoint",
   "reconciliation-delta: fast path delta pages could not be generated because there is no prior "
   "image",
   "reconciliation-delta: fast path delta pages could not be generated because updates would need "
@@ -3685,6 +3700,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->prefetch_attempts = 0;
     stats->rec_delta_fast_success = 0;
     stats->rec_delta_fast_fail = 0;
+    stats->rec_delta_fast_fail_chain_length = 0;
+    stats->rec_delta_fast_fail_eviction = 0;
     stats->rec_delta_fast_fail_first_write = 0;
     stats->rec_delta_fast_fail_update_chain = 0;
     stats->rec_delta_fast_fail_other = 0;
@@ -4917,6 +4934,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->prefetch_attempts += WT_STAT_CONN_READ(from, prefetch_attempts);
     to->rec_delta_fast_success += WT_STAT_CONN_READ(from, rec_delta_fast_success);
     to->rec_delta_fast_fail += WT_STAT_CONN_READ(from, rec_delta_fast_fail);
+    to->rec_delta_fast_fail_chain_length +=
+      WT_STAT_CONN_READ(from, rec_delta_fast_fail_chain_length);
+    to->rec_delta_fast_fail_eviction += WT_STAT_CONN_READ(from, rec_delta_fast_fail_eviction);
     to->rec_delta_fast_fail_first_write += WT_STAT_CONN_READ(from, rec_delta_fast_fail_first_write);
     to->rec_delta_fast_fail_update_chain +=
       WT_STAT_CONN_READ(from, rec_delta_fast_fail_update_chain);

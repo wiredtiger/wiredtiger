@@ -1412,14 +1412,8 @@ err:
 static void
 __rec_row_leaf_delta_fastpath_tw_from_upd(WT_UPDATE *upd, WT_TIME_WINDOW *tw)
 {
-    uint8_t prepare_state;
-    bool write_prepare;
-
-    WT_READ_ONCE(prepare_state, upd->prepare_state);
-    write_prepare = (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
     WT_TIME_WINDOW_INIT(tw);
-    WT_TIME_WINDOW_SET_START(tw, upd, write_prepare);
-    WT_TIME_WINDOW_SET_STOP(tw, upd, write_prepare);
+    WT_TIME_WINDOW_SET_START(tw, upd, false);
 }
 
 /*
@@ -1442,20 +1436,24 @@ __rec_row_leaf_delta_fastpath_process_upd_chain(WT_SESSION_IMPL *session, WTI_RE
     }
 
     /*
-     * TODO: The visibility checks here probably need to be more aligned with those in rec_upd_select
+     * The visibility checks here probably need to be more aligned with those in rec_upd_select
      * which has a more wholistic view of possible update states. Or we could keep this simpler and
      * fail the fastpath whenever a more complex update is encountered.
      * This could get smarter and skip updates that can't be included and choose the first that
      * can if there aren't more behind it that should be included.
+     * At the moment, this will include the first change on a page as a delta, even though that
+     * breaks the code that moves the record in the on-disk image to the history store. Need to
+     * figure out if that case is worth handling correctly - it probably is, since it will be
+     * necessary to move content to the history store if there are any new updates included.
     */
     txnid = __wt_atomic_load_uint64_v_acquire(&upd->txnid);
     prepare_state = __wt_atomic_load_uint8_v_acquire(&upd->prepare_state);
 
-    if (false || (upd->next == NULL && upd->txnid != WT_TXN_ABORTED && prepare_state == WT_PREPARE_INIT &&
+    if (upd->next == NULL && upd->txnid != WT_TXN_ABORTED && prepare_state == WT_PREPARE_INIT &&
          (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) ||
           upd->upd_durable_ts <= r->rec_start_pinned_stable_ts) &&
          (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id > txnid :
-                                                    __txn_visible_id(session, txnid)))) {
+                                                    __txn_visible_id(session, txnid))) {
 
         int ret;
 
@@ -1524,6 +1522,18 @@ __wti_rec_row_leaf_delta_fastpath(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
         return (0);
     }
 
+    if (page->disagg_info->block_meta.delta_count >= S2C(session)->page_delta.max_consecutive_delta) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail_chain_length);
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail);
+        return (0);
+    }
+
+    if (!F_ISSET(r, WT_REC_CHECKPOINT)) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail_eviction);
+        WT_STAT_CONN_DSRC_INCR(session, rec_delta_fast_fail);
+        return (0);
+    }
+
     /*
      * Start the time aggregate with either the aggregated from the most recent reconciliation, or
      * if no reconciliation has happened, the one from when the page was read in.
@@ -1539,7 +1549,7 @@ __wti_rec_row_leaf_delta_fastpath(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
         goto fail;
     }
 
-    /*:
+    /*
      * Process any K/V pairs inserted into the page before the first from-disk key on the page. Add
      * any single non-durable update to the saved updates array for the delta.
      */

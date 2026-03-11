@@ -1444,6 +1444,8 @@ conn_dsrc_stats = [
     # Fastpath delta stats
     ##########################################
     RecDeltaStat('rec_delta_fast_fail', 'fast path delta pages could not be generated'),
+    RecDeltaStat('rec_delta_fast_fail_chain_length', 'fast path delta pages could not be generated because the delta chain at configured max length'),
+    RecDeltaStat('rec_delta_fast_fail_eviction', 'fast path delta pages could not be generated because the reconciliation was not from checkpoint'),
     RecDeltaStat('rec_delta_fast_fail_first_write', 'fast path delta pages could not be generated because there is no prior image'),
     RecDeltaStat('rec_delta_fast_fail_other', 'fast path delta pages could not be generated for other reason'),
     RecDeltaStat('rec_delta_fast_fail_update_chain', 'fast path delta pages could not be generated because updates would need to be relocated to history store'),
