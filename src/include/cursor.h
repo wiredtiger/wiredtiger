@@ -466,9 +466,9 @@ struct __wt_cursor_version {
      */
     uint64_t upd_stop_txnid;
     /*
-     * The previous traversed update's durable_ts/start_ts become the durable_stop_ts/stop_ts.
-     * For aborted (rolled-back) updates these fields carry rollback_ts/saved_txnid instead,
-     * mirroring the WT_UPDATE union in btmem.h.
+     * The previous traversed update's durable_ts/start_ts become the durable_stop_ts/stop_ts. For
+     * aborted (rolled-back) updates these fields carry rollback_ts/saved_txnid instead, mirroring
+     * the WT_UPDATE union in btmem.h.
      */
     union {
         struct {
@@ -493,7 +493,7 @@ struct __wt_cursor_version {
     wt_timestamp_t upd_stop_prepare_ts;
     /* The previous traversed update's prepared_id will become the stop_prepared_id. */
     uint64_t upd_stop_prepared_id;
-    /* Whether The previous traversed update is prepared. */
+    /* Whether the previous traversed update is prepared. */
     uint8_t upd_stop_prepared;
 
     /* Don't show the user any keys from before this time. */

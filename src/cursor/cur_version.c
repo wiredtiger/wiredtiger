@@ -207,7 +207,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
             version_cursor->next_upd = NULL;
             F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
         } else {
-            if (version_cursor->start_timestamp != WT_TS_NONE &&
+            if (version_cursor->start_timestamp != WT_TS_NONE && upd->txnid != WT_TXN_ABORTED &&
               upd->upd_durable_ts <= version_cursor->start_timestamp)
                 goto done;
 
@@ -240,6 +240,10 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 else
                     upd = upd->next;
 
+                /* Skip aborted updates when only showing visible versions. */
+                if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY))
+                    while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+                        upd = upd->next;
             }
 
             if (upd == NULL) {
@@ -306,6 +310,11 @@ __curversion_next_single_key(WT_CURSOR *cursor)
 
                 /* Walk to the next non-obsolete update. */
                 for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
+                    /* Skip aborted updates when only showing visible versions. */
+                    if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) &&
+                      next_upd->txnid == WT_TXN_ABORTED)
+                        continue;
+
                     if (first_globally_visible != NULL) {
                         next_upd = NULL;
                         break;
@@ -321,11 +330,12 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                         /*
                          * If we are here, the previous update is not globally visible. We need
                          * snapshot isolation and have pinned the global timestamp when we start the
-                         * version cursor.
+                         * version cursor. Aborted updates are never globally visible.
                          */
                         WT_ASSERT(session,
-                          !__wt_txn_visible_all(session, version_cursor->upd_stop_txnid,
-                            version_cursor->curversion_durable_stop_ts));
+                          version_cursor->upd_stop_txnid == WT_TXN_ABORTED ||
+                            !__wt_txn_visible_all(session, version_cursor->upd_stop_txnid,
+                              version_cursor->curversion_durable_stop_ts));
                         break;
                     }
                 }
@@ -339,10 +349,10 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     if (!upd_found && !F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED)) {
         /*
          * We have already seen an update that is globally visible on the update chain. No need to
-         * return more updates.
+         * return more updates. Aborted updates are never globally visible.
          */
         if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-          !version_cursor->upd_stop_prepared &&
+          !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
           __wt_txn_visible_all(
             session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts))
             goto done;
@@ -501,7 +511,8 @@ __curversion_next_single_key(WT_CURSOR *cursor)
               WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
               cbt->upd_value->tw.start_prepare_ts :
               cbt->upd_value->tw.durable_start_ts;
-            version_cursor->curversion_stop_ts = WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
+            version_cursor->curversion_stop_ts =
+              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
               cbt->upd_value->tw.start_prepare_ts :
               cbt->upd_value->tw.start_ts;
             version_cursor->upd_stop_prepare_ts = cbt->upd_value->tw.start_prepare_ts;
@@ -518,10 +529,10 @@ skip_on_page:
       !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
         /*
          * We have already seen an update that is globally visible on the update chain. No need to
-         * return more updates.
+         * return more updates. Aborted updates are never globally visible.
          */
         if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-          !version_cursor->upd_stop_prepared &&
+          !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
           __wt_txn_visible_all(
             session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts))
             goto done;
@@ -580,8 +591,9 @@ skip_on_page:
             if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
                 break;
 
-            /* Skip all the updates that are duplicate to the previous updates returned. */
-            if (twp->stop_txn <= version_cursor->upd_stop_txnid &&
+            /* Skip all non-aborted updates that are duplicate to the previous updates returned. */
+            if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
+              twp->stop_txn <= version_cursor->upd_stop_txnid &&
               twp->stop_ts <= version_cursor->curversion_stop_ts &&
               twp->durable_stop_ts <= version_cursor->curversion_durable_stop_ts)
                 break;
@@ -607,15 +619,15 @@ skip_on_page:
                 goto done;
         }
 
-        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-          twp->start_txn,
-          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->start_ts,
-          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->durable_start_ts,
-          (uint64_t)twp->start_prepare_ts, (uint64_t)twp->start_prepared_id, twp->stop_txn,
-          WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->stop_ts,
-          WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->durable_stop_ts,
-          (uint64_t)twp->stop_prepare_ts, (uint64_t)twp->stop_prepared_id, hs_upd_type, 0, 0,
-          WT_CURVERSION_HISTORY_STORE));
+        WT_ERR(
+          __curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, twp->start_txn,
+            WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->start_ts,
+            WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->durable_start_ts,
+            (uint64_t)twp->start_prepare_ts, (uint64_t)twp->start_prepared_id, twp->stop_txn,
+            WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->stop_ts,
+            WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->durable_stop_ts,
+            (uint64_t)twp->stop_prepare_ts, (uint64_t)twp->stop_prepared_id, hs_upd_type, 0, 0,
+            WT_CURVERSION_HISTORY_STORE));
 
         version_cursor->upd_stop_txnid = twp->start_txn;
         version_cursor->curversion_durable_stop_ts =
@@ -715,6 +727,10 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
     for (; upd != NULL; upd = upd->next) {
         if (!F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY))
             break;
+
+        /* Skip aborted updates when only showing visible versions. */
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
 
         /* Skip invisible updates. */
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);

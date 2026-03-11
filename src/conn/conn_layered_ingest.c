@@ -220,7 +220,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             upd->prepared_id = tw.start_prepared_id;
             /*
              * The version cursor emits start_ts/start_durable_ts through the correct union
-             * accessors: for aborted updates these carry rollback_ts/saved_txnid, for normal
+             * accessor: for aborted updates these carry rollback_ts/saved_txnid, for normal
              * updates they carry start_ts/durable_ts. Populate the update accordingly.
              */
             if (FLD_ISSET(flags, WT_UPDATE_PREPARE_ROLLBACK)) {
@@ -231,13 +231,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 upd->txnid = tw.start_txn;
                 upd->upd_start_ts = tw.start_ts;
                 upd->upd_durable_ts = tw.durable_start_ts;
-                if (upd->prepare_ts != 0 && upd->prepare_ts <= last_checkpoint_timestamp) {
-                    printf("Found update to resolve! commit_ts: %" PRIu64 " durable_ts: %" PRIu64
-                           " prepare_ts: %" PRIu64 " prepared_id: %" PRIu64
-                           " last_checkpoint_timestamp: %" PRIu64 "\n",
-                      upd->upd_start_ts, upd->upd_durable_ts, upd->prepare_ts, upd->prepared_id,
-                      last_checkpoint_timestamp);
-                }
             }
         } else
             WT_ASSERT(session, tombstone != NULL);
