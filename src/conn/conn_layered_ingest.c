@@ -132,7 +132,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     else
         buf2[0] = '\0';
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
-      "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
+      "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=false,timestamp_order="
+      "true,"
       "cross_key=true,%s))",
       buf2));
     cfg[1] = buf;
@@ -177,10 +178,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         }
 
         WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
-          &tw.durable_start_ts, &tw.stop_txn, &tw.stop_ts, &tw.durable_stop_ts, &type, &prepare,
-          &flags, &location, value));
-        /* We shouldn't see any prepared updates. */
-        WT_ASSERT(session, prepare == 0);
+          &tw.durable_start_ts, &tw.start_prepare_ts, &tw.start_prepared_id, &tw.stop_txn,
+          &tw.stop_ts, &tw.durable_stop_ts, &tw.stop_prepare_ts, &tw.stop_prepared_id, &type,
+          &prepare, &flags, &location, value));
+        WT_UNUSED(prepare);
 
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
@@ -215,11 +216,29 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
             } else
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-            upd->txnid = tw.start_txn;
-            upd->upd_start_ts = tw.start_ts;
-            upd->upd_durable_ts = tw.durable_start_ts;
             upd->prepare_ts = tw.start_prepare_ts;
             upd->prepared_id = tw.start_prepared_id;
+            /*
+             * The version cursor emits start_ts/start_durable_ts through the correct union
+             * accessors: for aborted updates these carry rollback_ts/saved_txnid, for normal
+             * updates they carry start_ts/durable_ts. Populate the update accordingly.
+             */
+            if (FLD_ISSET(flags, WT_UPDATE_PREPARE_ROLLBACK)) {
+                upd->txnid = WT_TXN_ABORTED;
+                upd->upd_rollback_ts = tw.start_ts;
+                upd->upd_saved_txnid = tw.durable_start_ts;
+            } else {
+                upd->txnid = tw.start_txn;
+                upd->upd_start_ts = tw.start_ts;
+                upd->upd_durable_ts = tw.durable_start_ts;
+                if (upd->prepare_ts != 0 && upd->prepare_ts <= last_checkpoint_timestamp) {
+                    printf("Found update to resolve! commit_ts: %" PRIu64 " durable_ts: %" PRIu64
+                           " prepare_ts: %" PRIu64 " prepared_id: %" PRIu64
+                           " last_checkpoint_timestamp: %" PRIu64 "\n",
+                      upd->upd_start_ts, upd->upd_durable_ts, upd->prepare_ts, upd->prepared_id,
+                      last_checkpoint_timestamp);
+                }
+            }
         } else
             WT_ASSERT(session, tombstone != NULL);
 
