@@ -42,7 +42,6 @@ typedef struct {
 typedef struct {
     bool can_skip;
     bool force;
-    bool flush_tier_enabled;
     bool flush_tier_force;
     bool use_timestamp;
     const char *name;
@@ -977,6 +976,7 @@ static int
 __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB_CFG *ckpt_cfg)
 {
     struct timespec tsp;
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_CONF(WT_SESSION, begin_transaction, txn_conf);
     WT_DECL_RET;
@@ -985,6 +985,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_TXN_SHARED *txn_shared;
     uint64_t original_snap_min;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool flush;
 
     conn = S2C(session);
     txn = session->txn;
@@ -994,6 +995,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     API_CONF(session, WT_SESSION, begin_transaction, "isolation=snapshot", txn_conf);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    WT_ERR(__wt_config_gets(session, ckpt_cfg->cfg, "flush_tier.enabled", &cval));
+    flush = cval.val;
 
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         /* Precise checkpoint doesn't support non-timestamped checkpoint. */
@@ -1145,7 +1149,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
      * If we are doing a flush_tier, do the metadata naming switch now while holding the schema lock
      * in this function.
      */
-    if (ckpt_cfg->flush_tier_enabled)
+    if (flush)
         WT_ERR(__checkpoint_flush_tier(session, ckpt_cfg->flush_tier_force));
 
     /*
@@ -1177,6 +1181,7 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CFG *ckpt_cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
+    WT_CONFIG_ITEM cval;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -1184,7 +1189,8 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CFG *ckpt_cfg)
     /* Never skip if force is configured. */
     /* Never skip named checkpoints. */
     /* Never skip if flushing objects. */
-    if (ckpt_cfg->force || ckpt_cfg->name_len != 0 || ckpt_cfg->flush_tier_enabled)
+    WT_RET(__wt_config_gets(session, ckpt_cfg->cfg, "flush_tier.enabled", &cval));
+    if (ckpt_cfg->force || ckpt_cfg->name_len != 0 || cval.len != 0)
         return (0);
 
     /*
@@ -1243,16 +1249,11 @@ __checkpoint_parse_config(
         ckpt_cfg->name_len = cval.len;
     }
 
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
-    if (cval.len != 0)
-        ckpt_cfg->flush_tier_enabled = cval.val != 0;
-
     WT_RET(__wt_config_gets(session, cfg, "flush_tier.force", &cval));
-    if (cval.len != 0)
-        ckpt_cfg->flush_tier_force = cval.val != 0;
+    ckpt_cfg->flush_tier_force = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "drop", &cval));
-    ckpt_cfg->drop = cval.val != 0;
+    ckpt_cfg->drop = cval.len != 0;
 
     return (0);
 }
