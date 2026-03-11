@@ -260,9 +260,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!is_hs && !WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle))
             rec_flags |= WT_REC_HS;
 
-        if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
-            __wt_checkpoint_parallel_begin_file(session, rec_flags);
-
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
 
@@ -293,7 +290,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session))
                 if (WT_SESSION_IS_CHECKPOINT(session) && is_internal)
-                    WT_ERR(__wt_checkpoint_parallel_drain(session));
+                    WT_ERR(__wt_checkpoint_parallel_finish(session));
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
@@ -372,9 +369,15 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             /* Reconcile leaf pages in parallel, waiting at each internal page. */
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
-              !is_internal)
-                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk));
-            else
+              !is_internal) {
+                /*
+                 * Duplicate the position, and give it to the parallel checkpoint worker. The
+                 * existing walk position will be release by the walk code.
+                 */
+                WT_REF *walk_dup = NULL;
+                WT_ERR(__sync_dup_walk(session, walk, 0, &walk_dup));
+                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup, rec_flags, flags));
+            } else
                 WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /* Update checkpoint IO tracking data. */
@@ -385,7 +388,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
         if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
-            WT_ERR(__wt_checkpoint_parallel_drain(session));
+            WT_ERR(__wt_checkpoint_parallel_finish(session));
 
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
@@ -432,10 +435,6 @@ err:
         __wt_txn_release_snapshot(session);
 
     if (syncop == WT_SYNC_CHECKPOINT) {
-        /* On error, drain so work_pending reaches zero before we tear down. */
-        if (ret != 0 && WT_PARALLEL_CHECKPOINTS_ENABLED(session))
-            WT_TRET(__wt_checkpoint_parallel_drain(session));
-
         /*
          * Ensure the checkpoint generation is updated before clearing the sync flag. Otherwise,
          * eviction could evict a page from the btree after the flag is cleared but before the

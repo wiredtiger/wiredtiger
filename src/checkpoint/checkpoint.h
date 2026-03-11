@@ -173,38 +173,42 @@ struct __wt_checkpoint_cleanup {
 };
 
 /*
+ * WT_CHECKPOINT_PAGE_TO_RECONCILE --
+ *     A work item for reconciling a page.
+ */
+struct __wt_checkpoint_page_to_reconcile {
+    TAILQ_ENTRY(__wt_checkpoint_page_to_reconcile) q; /* Worker unit queue */
+
+    WT_DATA_HANDLE *dhandle;
+    WT_TXN_ISOLATION isolation;
+    WT_TXN_SNAPSHOT *snapshot;
+
+    WT_REF *ref;
+    uint32_t reconcile_flags;
+    uint32_t release_flags;
+
+    int result; /* Result - will be filled out later. */
+};
+
+/*
  * WT_CHECKPOINT_RECONCILE_THREADS --
- *     Parallel page reconciliation during a checkpoint. Uses a single-pointer handoff: the
- *     checkpoint session posts one work item at a time via work_ref. A worker acquires work_lock,
- *     takes its own hazard pointer on the ref, copies the work fields to locals, and clears
- *     work_ref. The checkpoint observes the clear and releases its own hazard pointer. An atomic
- *     work_pending counts items posted but not yet completed; checkpoint increments on post, worker
- *     decrements on completion (success or error). Drain waits for zero.
+ *     Information about threads for parallel page reconciliation during a checkpoint.
  */
 struct __wt_checkpoint_reconcile_threads {
     WT_THREAD_GROUP thread_group;
     uint32_t num_threads;
 
-    /*
-     * Per-checkpoint state. The isolation and snapshot are constant for the entire checkpoint and
-     * set once via the first push_work call when the checkpoint transaction is active.
-     */
-    WT_TXN_ISOLATION checkpoint_isolation;
-    WT_TXN_SNAPSHOT *checkpoint_snapshot;
+    /* The work queue contains pages to be reconciled. */
+    TAILQ_HEAD(__wt_checkpoint_reconcile_work_qh, __wt_checkpoint_page_to_reconcile) work_qh;
+    WT_SPINLOCK work_lock;
 
-    /*
-     * Single-item work handoff. Set once per file in begin_file (isolation, snapshot, dhandle,
-     * reconcile_flags do not change during a file sync). Handoff is store_release(work_ref) by the
-     * checkpoint and CAS(work_ref, ref, NULL) by the worker that claims it.
-     */
-    wt_shared WT_REF *work_ref;
-    WT_DATA_HANDLE *work_dhandle;
-    uint32_t work_reconcile_flags;
+    WT_CONDVAR *work_cond;          /* Signal that work is available. */
+    wt_shared uint64_t work_pushed; /* The number of outstanding work items. */
 
-    WT_CONDVAR *work_cond;
-
-    wt_shared uint64_t work_pending; /* Items posted, not yet completed; drain waits for zero. */
-    wt_shared int32_t error;           /* First error encountered by any worker. */
+    /* The done queue contains pages that have been reconciled. */
+    TAILQ_HEAD(__wt_checkpoint_reconcile_done_qh, __wt_checkpoint_page_to_reconcile) done_qh;
+    WT_SPINLOCK done_lock;
+    WT_SEMAPHORE done_sem;
 };
 
 /*
@@ -227,10 +231,10 @@ extern int __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_checkpoint_parallel_begin_file(WT_SESSION_IMPL *session, uint32_t reconcile_flags);
-extern int __wt_checkpoint_parallel_drain(WT_SESSION_IMPL *session)
+extern int __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref)
+extern int __wt_checkpoint_parallel_push_work(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

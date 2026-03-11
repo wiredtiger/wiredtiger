@@ -163,6 +163,7 @@ src/os_posix/os_fs.c             POSIX_HOST
 src/os_posix/os_getenv.c         POSIX_HOST
 src/os_posix/os_map.c            POSIX_HOST
 src/os_posix/os_mtx_cond.c       POSIX_HOST
+src/os_posix/os_mtx_sem.c        POSIX_HOST
 src/os_posix/os_once.c           POSIX_HOST
 src/os_posix/os_pagesize.c       POSIX_HOST
 src/os_posix/os_path.c           POSIX_HOST
@@ -179,6 +180,7 @@ src/os_win/os_fs.c               WINDOWS_HOST
 src/os_win/os_getenv.c           WINDOWS_HOST
 src/os_win/os_map.c              WINDOWS_HOST
 src/os_win/os_mtx_cond.c         WINDOWS_HOST
+src/os_win/os_mtx_sem.c          WINDOWS_HOST
 src/os_win/os_once.c             WINDOWS_HOST
 src/os_win/os_pagesize.c         WINDOWS_HOST
 src/os_win/os_path.c             WINDOWS_HOST
