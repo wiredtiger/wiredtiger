@@ -397,7 +397,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         }
 
         /* Turn off eviction. */
-        WT_RET(__wt_evict_file_exclusive_on(session));
+        __wt_evict_file_exclusive_on(session);
 
         /* Reset the tree's eviction priority (if any). */
         __wt_evict_priority_clear(session);
@@ -610,7 +610,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
 
     /* Turn off eviction. */
     if (WT_DHANDLE_BTREE(dhandle))
-        WT_RET(__wt_evict_file_exclusive_on(session));
+       __wt_evict_file_exclusive_on(session);
 
     /*
      * If the handle is already open, it has to be closed so it can be reopened with a new
@@ -960,7 +960,8 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
     }
 
     /* Try to remove the handle, protected by the data handle lock. */
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));s    WT_TRET(tret);
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
+    WT_TRET(tret);
 
     /*
      * After successfully removing the handle, clean it up.

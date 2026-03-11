@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -228,7 +228,7 @@ __cursor_enter(WT_SESSION_IMPL *session)
      */
     if (session->ncursors == 0)
         WT_RET_ONLY(
-          __wt_evict_app_assist_worker_check(session, false, false, true, NULL), WT_ROLLBACK);
+          __wt_evict_app_assist_worker_check(session, false, false, NULL), WT_ROLLBACK);
     ++session->ncursors;
     return (0);
 }

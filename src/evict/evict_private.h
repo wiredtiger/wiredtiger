@@ -20,6 +20,7 @@
 #define WT_READGEN_STEP 100
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
 static WT_INLINE bool __wti_evict_exceeded_clean_target(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wti_evict_exceeded_clean_trigger(

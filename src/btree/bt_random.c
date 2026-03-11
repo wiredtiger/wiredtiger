@@ -380,7 +380,7 @@ __random_root_inmem_ref(
  * __random_descent --
  *     Find a random page in a tree for either sampling or eviction.
  */
-int
+static int
 __random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_RAND_STATE *rnd)
 {
     WT_BTREE *btree;

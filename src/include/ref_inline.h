@@ -115,9 +115,8 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
     WT_ASSERT(session, old_state != new_state);
 
     /* If we have the reference locked and we are about to unlock it, reset the owner first */
-    if (old_state == WT_REF_LOCKED && new_state != WT_REF_LOCKED &&
-        WT_REF_OWNER(ref) == session)
-        __atomic_store_n(&ref->owner, 0,  __ATOMIC_SEQ_CST);
+    if (old_state == WT_REF_LOCKED && new_state != WT_REF_LOCKED && WT_REF_OWNER(ref) == session)
+        __atomic_store_n(&ref->owner, 0, __ATOMIC_SEQ_CST);
 
     cas_result = __wt_atomic_cas_uint8_v(&ref->__state, old_state, new_state);
 
@@ -131,7 +130,7 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
 #endif
 
     if (cas_result && new_state == WT_REF_LOCKED)
-        __atomic_store_n(&ref->owner, session,  __ATOMIC_SEQ_CST);
+        __atomic_store_n(&ref->owner, session, __ATOMIC_SEQ_CST);
 
     return (cas_result);
 }
@@ -159,15 +158,15 @@ __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE *previous_statep)
 
 #define WT_REF_LOCK(session, ref, previous_statep) __ref_lock((session), (ref), (previous_statep))
 
-#define WT_REF_UNLOCK(ref, state) \
-    do {                                                     \
-        __atomic_store_n(&ref->owner, 0, __ATOMIC_SEQ_CST);  \
-        WT_REF_SET_STATE(ref, state);                        \
-    }  while(0)
-
+#define WT_REF_UNLOCK(ref, state)                           \
+    do {                                                    \
+        __atomic_store_n(&ref->owner, 0, __ATOMIC_SEQ_CST); \
+        WT_REF_SET_STATE(ref, state);                       \
+    } while (0)
 
 static WT_INLINE void
-__wt_ref_make_visible(WT_SESSION_IMPL *session, WT_REF *ref, bool wont_need) {
+__wt_ref_make_visible(WT_SESSION_IMPL *session, WT_REF *ref, bool wont_need)
+{
 
     WT_REF_STATE current_state, previous_state;
 
@@ -176,18 +175,16 @@ __wt_ref_make_visible(WT_SESSION_IMPL *session, WT_REF *ref, bool wont_need) {
 
     if ((current_state = WT_REF_GET_STATE(ref)) != WT_REF_LOCKED) {
         WT_REF_LOCK(session, ref, &previous_state);
-    }
-    else
-        WT_ASSERT(session, session==ref->owner);
+    } else
+        WT_ASSERT(session, session == ref->owner);
 
     /* Insert into eviction data structures */
     __wt_evict_touch_page(session, ref, false, wont_need);
     WT_ASSERT(session, __wt_ref_is_root(ref) || ref->page->evict_data.bucket != NULL);
     /*
-     * It is absolutely essential that we properly unlock the page here
-     * as opposed to just setting its state to memory. Unlocking resets the
-     * page owner, whereas a simple state change does not. If we do not reset
-     * the owner, we will get subtle race conditions.
+     * It is absolutely essential that we properly unlock the page here as opposed to just setting
+     * its state to memory. Unlocking resets the page owner, whereas a simple state change does not.
+     * If we do not reset the owner, we will get subtle race conditions.
      */
     WT_REF_UNLOCK(ref, WT_REF_MEM);
 }

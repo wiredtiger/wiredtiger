@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -331,7 +331,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_REF *ref;
     u_int i;
-    bool eviction_happened, first, skip;
+    bool first, skip;
 
     uint64_t stats_pages_reviewed; /* Pages reviewed */
 
@@ -380,15 +380,6 @@ __wt_compact(WT_SESSION_IMPL *session)
             first = false;
             i = 0;
         }
-
-        /*
-         * Compact pulls pages into cache during the walk without checking whether the cache is
-         * full. Check now to throttle compact to match eviction speed.
-         */
-        WT_ERR(
-          __wt_evict_app_assist_worker_check(session, false, false, false, &eviction_happened));
-        if (eviction_happened)
-            WT_STAT_CONN_INCR(session, session_table_compact_eviction);
 
         /*
          * Pages read for compaction aren't "useful"; don't update the read generation of pages

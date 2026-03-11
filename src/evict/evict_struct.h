@@ -93,15 +93,18 @@ struct __wt_evict_page_data {
     bool destroying;           /* Sticky flag set once when the page is being destroyed */
 };
 
-
 /*
  * Data handle evict data
  */
 struct __wt_evict_handle_data {
     bool initialized;
-    uint64_t evict_priority;                   /* Relative priority of cached pages */
-    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
-    bool evict_disabled_open;                  /* Eviction disabled on open */
-    wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
+    uint64_t evict_priority;                /* Relative priority of cached pages */
+    wt_shared int32_t evict_disabled;       /* Eviction disabled count */
+    bool evict_disabled_open;               /* Eviction disabled on open */
+    wt_shared volatile uint32_t evict_busy; /* Count of threads in eviction */
+    /*
+     * Track the number of obsolete time window pages that are changed into dirty page
+     * reconciliation by the eviction.
+     */
+    wt_shared uint32_t eviction_obsolete_tw_pages;
 };
-

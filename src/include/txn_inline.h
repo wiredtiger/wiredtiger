@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -1212,9 +1212,9 @@ __wt_txn_visible_id_snapshot(
      * taking the snapshot should be invisible, even if the snapshot is empty.
      *
      * Snapshot data:
-     *	ids >= snap_max not visible,
-     *	ids < snap_min are visible,
-     *	everything else is visible unless it is found in the snapshot.
+     *  ids >= snap_max not visible,
+     *  ids < snap_min are visible,
+     *  everything else is visible unless it is found in the snapshot.
      */
     if (snap_max <= id)
         return (false);
@@ -1936,7 +1936,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
          * WT_SESSION.begin_transaction API can't, continue on.
          */
         WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, true, true, NULL), WT_ROLLBACK);
+          __wt_evict_app_assist_worker_check(session, false, true, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
     }
@@ -1993,7 +1993,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == WT_TXN_NONE)
-        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, NULL));
+        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, NULL));
 
     return (0);
 }

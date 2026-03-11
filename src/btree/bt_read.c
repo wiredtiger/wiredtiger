@@ -444,17 +444,15 @@ skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
 
     /*
-     * If configured to not trash the cache, we will pass the flag to the code enqueuing
-     * the pages for eviction so that it puts the page into the buckets set aside for
-     * forcible eviction. We don't put the page into that bucket here because we don't
-     * want to evict the page before we "acquire" it. Also avoid queuing a pre-fetch page
-     * for forced eviction before it has a chance of being used. Otherwise the work we've
-     * just done is wasted.
+     * If configured to not trash the cache, we will pass the flag to the code enqueuing the pages
+     * for eviction so that it puts the page into the buckets set aside for forcible eviction. We
+     * don't put the page into that bucket here because we don't want to evict the page before we
+     * "acquire" it. Also avoid queuing a pre-fetch page for forced eviction before it has a chance
+     * of being used. Otherwise the work we've just done is wasted.
      */
-    *wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
-    F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
-        (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP)
-         && (ref->page != NULL) && !WT_PAGE_IS_INTERNAL(ref->page));
+    *wont_need = LF_ISSET(WT_READ_WONT_NEED) || F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
+      (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP) &&
+        (ref->page != NULL) && !WT_PAGE_IS_INTERNAL(ref->page));
 
     __wt_ref_make_visible(session, ref, *wont_need);
 
@@ -562,12 +560,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
 read:
             /*
-             * The page isn't in memory, read it. If this thread respects the cache size, check if
-             * the cache needs help evicting clean pages (don't force a read to do dirty eviction).
+             * The page isn't in memory, read it.
              */
-            if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-                WT_RET(__wt_evict_app_assist_worker_check(
-                  session, true, txn->mod_count == 0, false, NULL));
             WT_RET(__page_read(session, ref, flags, &wont_need));
             read_from_disk = true;
             /* We just read a page, don't evict it before we have a chance to use it. */
@@ -706,7 +700,7 @@ skip_evict:
             }
 
             if (!read_from_disk) /* if we read it, the page would have been touched */
-                __wt_evict_touch_page(session, page, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
+                __wt_evict_touch_page(session, ref, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger
@@ -745,7 +739,7 @@ skip_evict:
          * cache, substitute that for a sleep.
          */
         if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
-            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, false, &cache_work));
+            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, &cache_work));
             if (cache_work)
                 continue;
         }

@@ -912,7 +912,7 @@ err:
         else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             (void)__wt_atomic_add_uint64_relaxed(&cache->pages_inmem_stable, 1);
     }
-    __wt_evict_page_init(page, __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen));
+    __wt_evict_page_init(page, __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->read_gen));
 
     *pagep = page;
     return (0);

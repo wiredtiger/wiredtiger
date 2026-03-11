@@ -353,10 +353,10 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 
         printf("allocating %d buckets at level %d \n", (int)bucketset->num_buckets, i);
 
-        WT_RET(__wt_calloc(session, bucketset->num_buckets, sizeof(WT_EVICT_BUCKET),
-                           &bucketset->buckets));
+        WT_RET(__wt_calloc(
+          session, bucketset->num_buckets, sizeof(WT_EVICT_BUCKET), &bucketset->buckets));
 
-        for (j = 0; j <  (int)bucketset->num_buckets; j++) {
+        for (j = 0; j < (int)bucketset->num_buckets; j++) {
             bucket = &bucketset->buckets[j];
             bucket->bucketset = bucketset;
             bucket->id = (uint64_t)j;

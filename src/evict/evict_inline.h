@@ -37,7 +37,7 @@ static WT_INLINE bool
 __wt_evict_aggressive(WT_SESSION_IMPL *session)
 {
     return (__wt_atomic_load_uint32_relaxed(&S2C(session)->evict->evict_aggressive_score) >=
-            WT_EVICT_SCORE_CUTOFF);
+      WT_EVICT_SCORE_CUTOFF);
 }
 
 /* !!!
@@ -66,82 +66,80 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
 
 /*
  * __evict_destination_bucket --
- *       Given the read generation, find the id of its destination bucket.
+ *     Given the read generation, find the id of its destination bucket.
  *
- * In a single-core world we would compute the home bucket by
- * dividing the read generation by the read generation step, typically set to 100. So
- * a read generation of 200 would land into bucket 2, a read generation of 5000 would
- * land into bucket 50 etc.
+ * In a single-core world we would compute the home bucket by dividing the read generation by the
+ *     read generation step, typically set to 100. So a read generation of 200 would land into
+ *     bucket 2, a read generation of 5000 would land into bucket 50 etc.
  *
- * In a multi-core world having only a single bucket for a range of read generations
- * would mean contention for the bucket's lock. Using smaller ranges per bucket doesn't
- * really help, read generations of pages touched close together in time will be very
- * similar or the same (e.g., many pages with a read generation of, say, 257).
+ * In a multi-core world having only a single bucket for a range of read generations would mean
+ *     contention for the bucket's lock. Using smaller ranges per bucket doesn't really help, read
+ *     generations of pages touched close together in time will be very similar or the same (e.g.,
+ *     many pages with a read generation of, say, 257).
  *
- * Instead we let a range of read generations span many buckets. The size of the span
- * is controlled by the "expected contention" parameter. So if
- * the expected contention is 10, then the first 10 buckets will be given to read generations
- * 0-99, the next 10 buckets will be given to read generations 100-199, etc. A thread
- * selects the destination bucket from the available 10 by adding its session id to the
- * first bucket in the set of 10. If the number of cores is equal to 10 (the expected
- * contention parameter), we never compete for the buckets.
+ * Instead we let a range of read generations span many buckets. The size of the span is controlled
+ *     by the "expected contention" parameter. So if the expected contention is 10, then the first
+ *     10 buckets will be given to read generations 0-99, the next 10 buckets will be given to read
+ *     generations 100-199, etc. A thread selects the destination bucket from the available 10 by
+ *     adding its session id to the first bucket in the set of 10. If the number of cores is equal
+ *     to 10 (the expected contention parameter), we never compete for the buckets.
  *
- * We use a modular division to wrap around to the first bucket when we exceed the
- * length of bucket array.
+ * We use a modular division to wrap around to the first bucket when we exceed the length of bucket
+ *     array.
  */
 static WT_INLINE uint64_t
 __evict_destination_bucket(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *bucketset, WT_PAGE *page)
 {
-    uint32_t num_buckets;
     uint64_t base_bucket, read_gen;
+    uint32_t num_buckets;
 
     num_buckets = bucketset->num_buckets;
     read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen);
 
     /*
-     * If this is a page we won't need, it goes into a distinct bucketset. In that bucketset
-     * all pages have the same read generation, so we place into a randomly selected bucket.
-     * Also, read generations only make sense for clean pages. For dirty content, we want to
-     * clean ASAP regardless of read generations.
+     * If this is a page we won't need, it goes into a distinct bucketset. In that bucketset all
+     * pages have the same read generation, so we place into a randomly selected bucket. Also, read
+     * generations only make sense for clean pages. For dirty content, we want to clean ASAP
+     * regardless of read generations.
      */
-    if (read_gen == WT_READGEN_WONT_NEED || read_gen == WT_READGEN_EVICT_SOON
-        || (bucketset->level != WT_EVICT_LEVEL_CLEAN_LEAF &&
-            bucketset->level != WT_EVICT_LEVEL_CLEAN_INTERNAL)) {
-        return (uint64_t)__wt_random(&session->rnd) % num_buckets;
+    if (read_gen == WT_READGEN_WONT_NEED || read_gen == WT_READGEN_EVICT_SOON ||
+      (bucketset->level != WT_EVICT_LEVEL_CLEAN_LEAF &&
+        bucketset->level != WT_EVICT_LEVEL_CLEAN_INTERNAL)) {
+        return (uint64_t)__wt_random(&session->rnd_random) % num_buckets;
     }
 
     /*
-     * Each read generation gets many slots, so threads don't compete for the same bucket when
-     * we are at that generation
+     * Each read generation gets many slots, so threads don't compete for the same bucket when we
+     * are at that generation
      */
     base_bucket = read_gen / WT_READGEN_STEP * WT_EVICT_EXPECTED_CONTENTION;
 
     /*
-     * Add a random offset to the base bucket so we don't contend on the same bucket for the
-     * read generation
+     * Add a random offset to the base bucket so we don't contend on the same bucket for the read
+     * generation
      */
-    return (base_bucket +__wt_random(&session->rnd) % WT_EVICT_EXPECTED_CONTENTION) % num_buckets;
+    return (base_bucket + __wt_random(&session->rnd_random) % WT_EVICT_EXPECTED_CONTENTION) % num_buckets;
 }
 
 /*
  * __wt_evict_get_bucketset_level --
- *      Return the expected bucketset level for a page given its properties.
+ *     Return the expected bucketset level for a page given its properties.
  */
 static WT_INLINE int
 __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     uint64_t read_gen;
-    if ((read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen)) == WT_READGEN_WONT_NEED
-        || read_gen == WT_READGEN_EVICT_SOON) {
+    if ((read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen)) ==
+        WT_READGEN_WONT_NEED ||
+      read_gen == WT_READGEN_EVICT_SOON) {
         if (!WT_PAGE_IS_INTERNAL(page))
             return WT_EVICT_LEVEL_WONT_NEED_LEAF;
         else
             return WT_EVICT_LEVEL_WONT_NEED_INTERNAL;
-    }
-    else if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page) && page->modify == NULL)
+    } else if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page) && page->modify == NULL)
         return WT_EVICT_LEVEL_CLEAN_LEAF;
     else if (WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page) && page->modify == NULL)
-    return WT_EVICT_LEVEL_CLEAN_INTERNAL;
+        return WT_EVICT_LEVEL_CLEAN_INTERNAL;
     else if (!WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
         return WT_EVICT_LEVEL_DIRTY_LEAF;
     else if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
@@ -153,10 +151,10 @@ __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
             return WT_EVICT_LEVEL_UPDATES_LEAF;
     }
 
-     /*
-      * If we are here, we couldn't determine the bucketset level for a page
-      * and this must never happen.
-      */
+    /*
+     * If we are here, we couldn't determine the bucketset level for a page and this must never
+     * happen.
+     */
     WT_ASSERT(session, false);
     return 0;
 }
@@ -171,22 +169,20 @@ __evict_read_gen(WT_SESSION_IMPL *session)
     return (__wt_atomic_load_uint64_relaxed(&S2C(session)->evict->read_gen));
 }
 
-
 /*
  * __evict_get_target_bucketset --
- *    Return the target bucket and bucketset for the page given its properties.
- *    if the return value is true, the page's current destination is already
- *    equal to the target.
+ *     Return the target bucket and bucketset for the page given its properties. if the return value
+ *     is true, the page's current destination is already equal to the target.
  */
 static WT_INLINE bool
-__evict_get_target_destination(WT_SESSION_IMPL *session, WT_PAGE *page,
-                               WT_EVICT_BUCKETSET **bucketset, WT_EVICT_BUCKET **bucket)
+__evict_get_target_destination(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_EVICT_BUCKETSET **bucketset, WT_EVICT_BUCKET **bucket)
 {
     WT_EVICT *evict;
     WT_EVICT_BUCKET *target_bucket;
     WT_EVICT_BUCKETSET *target_bucketset;
-    int target_bucketset_level;
     uint64_t target_bucket_id;
+    int target_bucketset_level;
 
     evict = S2C(session)->evict;
 
@@ -220,7 +216,6 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_PAGE *page)
     return !__evict_get_target_destination(session, page, NULL, NULL);
 }
 
-
 /*
  * __evict_readgen_is_soon_or_wont_need --
  *     Return whether a read generation value makes a page eligible for forced eviction. Read
@@ -249,7 +244,7 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
         return false;
 
     /* Ignore pages already in the future. */
-    if (__wt_atomic_load_uint64_relaxed((&page->evict_data.read_gen) > __evict_read_gen(session))
+    if (__wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen) > __evict_read_gen(session))
         return false;
 
     /*
@@ -516,7 +511,7 @@ __wti_evict_exceeded_clean_target(WT_SESSION_IMPL *session)
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
+    bytes_max = __wt_tsan_suppress_load_uint64_v(&S2C(session)->cache_size) + 1;
     bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
 
     return (bytes_inuse > (S2C(session)->evict->eviction_target * bytes_max) / 100);
@@ -563,8 +558,8 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 {
     double dirty_target, scrub_target;
 
-    dirty_target = __wt_read_shared_double(&evict->eviction_dirty_target);
-    scrub_target = __wt_read_shared_double(&evict->eviction_scrub_target);
+    dirty_target = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_target);
+    scrub_target = __wt_atomic_load_double_relaxed(&evict->eviction_scrub_target);
 
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
@@ -660,7 +655,7 @@ __wti_evict_exceeded_updates_trigger(WT_SESSION_IMPL *session, double *pct_fullp
         *pct_fullp = (100.0 * bytes_updates) / bytes_max;
 
     return (bytes_updates >
-        (uint64_t)(__wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_updates_trigger) *
+      (uint64_t)(__wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_updates_trigger) *
         bytes_max) /
         100);
 }
@@ -689,6 +684,68 @@ __wti_evict_exceeded_updates_target(WT_SESSION_IMPL *session)
     updates_target = S2C(session)->evict->eviction_updates_target;
 
     return (bytes_updates > (uint64_t)(updates_target * bytes_max) / 100);
+}
+
+/* !!!
+ * __wt_evict_needed --
+ *     Check whether the configured clean/dirty/update eviction trigger thresholds for the cache
+ *     have been reached.
+ *
+ *     This function is called to determine whether cache is under pressure.
+ *
+ *     Input parameters:
+ *       (1) `busy`: A flag indicating if the session is actively pinning resources, in which
+ *            case dirty trigger is ignored.
+ *       (2) `readonly`: A flag indicating if the session is read-only, in which case dirty and
+ *            update triggers are ignored.
+ *       (3) `pct_full`: A pointer to store the calculated cache full percentage, if not NULL.
+ *
+ *     Return `true` if the cache usage exceeds any of the clean/dirty/update eviction trigger
+ *     thresholds.
+ */
+static WT_INLINE bool
+__wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
+{
+    WT_EVICT *evict;
+    double pct_dirty, pct_full, pct_updates;
+    bool clean_needed, dirty_needed, updates_needed;
+
+    evict = S2C(session)->evict;
+
+    /*
+     * If the connection is closing we do not need eviction from an application thread. The eviction
+     * subsystem is already closed.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+        return (false);
+
+    clean_needed = __wti_evict_exceeded_clean_trigger(session, &pct_full);
+    if (readonly) {
+        dirty_needed = updates_needed = false;
+        pct_dirty = pct_updates = 0.0;
+    } else {
+        dirty_needed = __wti_evict_exceeded_dirty_trigger(session, &pct_dirty);
+        updates_needed = __wti_evict_exceeded_updates_trigger(session, &pct_updates);
+    }
+
+    /*
+     * Calculate the cache full percentage.
+     */
+    if (pct_fullp != NULL)
+        *pct_fullp = WT_MAX(0.0,
+          100.0 -
+            WT_MIN(
+              WT_MIN(evict->eviction_trigger - pct_full, evict->eviction_dirty_trigger - pct_dirty),
+              evict->eviction_updates_trigger - pct_updates));
+
+    /*
+     * Only check the dirty trigger when the session is not busy.
+     *
+     * In other words, once we are pinning resources, try to finish the operation as quickly as
+     * possible without exceeding the cache size. The next transaction in this session will not be
+     * able to start until the cache is under the limit.
+     */
+    return (clean_needed || updates_needed || (!busy && dirty_needed));
 }
 
 /* !!!
@@ -730,9 +787,8 @@ __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
     bytes_max = conn->cache_size;
 
     return (__wt_cache_bytes_plus_overhead(
-                cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_hs_dirty)) >=
-            ((uint64_t)(conn->evict->eviction_dirty_trigger * bytes_max) / 100));
-
+              cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_hs_dirty)) >=
+      ((uint64_t)(conn->evict->eviction_dirty_trigger * bytes_max) / 100));
 }
 
 /* !!!

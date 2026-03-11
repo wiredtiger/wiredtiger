@@ -249,12 +249,6 @@ struct __wt_btree {
     wt_shared uint32_t checkpoint_cleanup_obsolete_tw_pages;
 
     /*
-     * Track the number of obsolete time window pages that are changed into dirty page
-     * reconciliation by the eviction.
-     */
-    wt_shared uint32_t eviction_obsolete_tw_pages;
-
-    /*
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
      */
@@ -262,11 +256,18 @@ struct __wt_btree {
     uint64_t flush_most_recent_secs; /* Wall clock time for the most recent flush */
     uint64_t flush_most_recent_ts;   /* Timestamp of the most recent flush */
 
+    /*
+     * Evict data for this handle. Eviction information is maintained in the btree handle,
+     * but owned by eviction, not the btree code.
+     */
+    struct __wt_evict_handle_data evict_data;
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
  */
 #define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, next_page_id))
+
+    wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;

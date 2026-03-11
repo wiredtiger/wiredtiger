@@ -795,7 +795,7 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (modify != NULL && modify->bytes_dirty != 0)
         __wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
 
-     __wt_evict_page_set_clean(session, page);
+    __wt_evict_page_set_clean(session, page);
 }
 
 /*
@@ -989,7 +989,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * be incremented before the compare-and-swap operation.
          */
         (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, page_memory_footprint);
-
 
         /*
          * We won the race to dirty the page, but another thread could have committed in the
@@ -2171,13 +2170,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
     if ((mod = page->modify) == NULL || !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
         return (true);
 
-    /*
-     * Retry if a reasonable amount of eviction time has passed, the choice of 5 eviction passes as
-     * a reasonable amount of time is currently pretty arbitrary.
-     */
-    if (__wt_evict_aggressive(session) ||
-      mod->last_evict_pass_gen + 5 <
-        __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen))
+    if (__wt_evict_aggressive(session))
         return (true);
 
     /* Retry if the global transaction state has moved forward. */

@@ -239,6 +239,14 @@ struct __wt_error_info;
 typedef struct __wt_error_info WT_ERROR_INFO;
 struct __wt_evict;
 typedef struct __wt_evict WT_EVICT;
+struct __wt_evict_bucket;
+typedef struct __wt_evict_bucket WT_EVICT_BUCKET;
+struct __wt_evict_bucketset;
+typedef struct __wt_evict_bucketset WT_EVICT_BUCKETSET;
+struct __wt_evict_handle_data;
+typedef struct __wt_evict_handle_data WT_EVICT_HANDLE_DATA;
+struct __wt_evict_page_data;
+typedef struct __wt_evict_page_data WT_EVICT_PAGE_DATA;
 struct __wt_evict_timeline;
 typedef struct __wt_evict_timeline WT_EVICT_TIMELINE;
 struct __wt_ext;
@@ -479,10 +487,6 @@ struct __wti_delta_leaf_merge_state;
 typedef struct __wti_delta_leaf_merge_state WTI_DELTA_LEAF_MERGE_STATE;
 struct __wti_disk_leaf_merge_state;
 typedef struct __wti_disk_leaf_merge_state WTI_DISK_LEAF_MERGE_STATE;
-struct __wti_evict_entry;
-typedef struct __wti_evict_entry WTI_EVICT_ENTRY;
-struct __wti_evict_queue;
-typedef struct __wti_evict_queue WTI_EVICT_QUEUE;
 struct __wti_live_restore_file_handle;
 typedef struct __wti_live_restore_file_handle WTI_LIVE_RESTORE_FILE_HANDLE;
 struct __wti_live_restore_fs;
@@ -571,13 +575,13 @@ typedef uint64_t wt_timestamp_t;
 #include "tsan_suppress.h"
 #include "mutex.h"
 
-#include "../evict/evict_struct.h"        /* required by dhandle.h, btree.h and btmem.h */
-#include "stat.h"         /* required by dhandle.h */
-#include "dhandle.h"      /* required by btree.h, connection.h */
-#include "timestamp.h"    /* required by reconcile.h */
-#include "thread_group.h" /* required by rollback_to_stable.h */
-#include "verbose.h"      /* required by rollback_to_stable.h */
-#include "error.h"        /* required by api.h */
+#include "../evict/evict_struct.h" /* required by dhandle.h, btree.h and btmem.h */
+#include "stat.h"                  /* required by dhandle.h */
+#include "dhandle.h"               /* required by btree.h, connection.h */
+#include "timestamp.h"             /* required by reconcile.h */
+#include "thread_group.h"          /* required by rollback_to_stable.h */
+#include "verbose.h"               /* required by rollback_to_stable.h */
+#include "error.h"                 /* required by api.h */
 
 #include "api.h"
 #include "bitstring.h"

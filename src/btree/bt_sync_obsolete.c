@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -34,7 +34,7 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
      * If the current btree has not contributed to the cleanup yet, only process it if we can track
      * another btree.
      */
-    if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+    if (__wt_atomic_load_uint32_relaxed(&btree->evict_data.eviction_obsolete_tw_pages) == 0 &&
       __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
       __wt_atomic_load_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
@@ -183,7 +183,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          * Save that another tree has been processed if that's the first time it gets cleaned and
          * update the number of pages made dirty for that tree.
          */
-        if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+        if (__wt_atomic_load_uint32_relaxed(&btree->evict_data.eviction_obsolete_tw_pages) == 0 &&
           __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
             __wt_atomic_add_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
 
@@ -422,7 +422,7 @@ __checkpoint_cleanup_page_skip(
      * and also it can dirty the already existing in-memory page in the cache, skip if eviction is
      * needed.
      */
-    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_aggressive(session) ||
+    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_aggressive(session) ||
       __wt_cache_full(session) || __wt_evict_cache_stuck(session)) {
         *skipp = true;
         return (0);

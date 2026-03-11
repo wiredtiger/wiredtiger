@@ -486,12 +486,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if ((ret = __wt_session_get_dhandle(session, name, NULL, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
-    /*
-     * Save the current eviction walk setting: checkpoint can interfere with eviction and we don't
-     * want to unfairly penalize (or promote) eviction in trees due to checkpoints.
-     */
-    btree->evict_walk_saved = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
-
     session->ckpt.handle[session->ckpt.handle_next++] = session->dhandle;
     return (0);
 }
@@ -1404,13 +1398,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     logging = F_ISSET(&conn->log_mgr, WT_LOG_ENABLED);
 
     /* Reset the statistics tracked per checkpoint. */
-    __wt_atomic_store_uint64_relaxed(&evict->evict_max_unvisited_gen_gap_per_checkpoint, 0);
-    __wt_atomic_store_uint64_relaxed(&evict->evict_max_visited_gen_gap_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_clean_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_dirty_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_updates_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_ms_per_checkpoint, 0);
-    __wt_atomic_store_uint16_relaxed(&evict->evict_max_eviction_queue_attempts, 0);
     __wt_atomic_store_uint16_relaxed(&evict->evict_max_evict_page_attempts, 0);
     __wt_atomic_store_uint64_relaxed(&evict->reentry_hs_eviction_ms, 0);
     __wt_atomic_store_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
@@ -2879,7 +2870,6 @@ __checkpoint_presync(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
     WT_ASSERT(session, btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT));
-    __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, btree->evict_walk_saved);
     return (0);
 }
 

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -25,13 +25,6 @@
 #define WT_CACHE_POOL_BUMP_SKIPS 5
 /* Balancing passes after a reduction before a connection is a candidate. */
 #define WT_CACHE_POOL_REDUCE_SKIPS 10
-
-/*
- * Constants that control how much influence different metrics have on the pressure calculation.
- */
-#define WT_CACHE_POOL_APP_EVICT_MULTIPLIER 3
-#define WT_CACHE_POOL_APP_WAIT_MULTIPLIER 6
-#define WT_CACHE_POOL_READ_MULTIPLIER 1
 
 static void __cache_pool_adjust(WT_SESSION_IMPL *, uint64_t, uint64_t, bool, bool *);
 static void __cache_pool_assess(WT_SESSION_IMPL *, uint64_t *);
@@ -533,8 +526,7 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
     WT_CACHE *cache;
     WT_CACHE_POOL *cp;
     WT_CONNECTION_IMPL *entry;
-    WT_EVICT *evict;
-    uint64_t app_evicts, app_waits, reads;
+    uint64_t reads;
     uint64_t balanced_size, entries, highest, tmp;
 
     cp = __wt_process.cache_pool;
@@ -555,7 +547,6 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
         if (entry->cache_size == 0 || entry->cache == NULL)
             continue;
         cache = entry->cache;
-        evict = entry->evict;
 
         /*
          * Figure out a delta since the last time we did an assessment for each metric we are
@@ -570,26 +561,6 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
             reads = tmp;
         cache->cp_saved_read = tmp;
 
-        /* Update the application eviction count information */
-        tmp = evict->app_evicts;
-        if (tmp >= cache->cp_saved_app_evicts)
-            app_evicts = tmp - cache->cp_saved_app_evicts;
-        else
-            app_evicts = (UINT64_MAX - cache->cp_saved_app_evicts) + tmp;
-        cache->cp_saved_app_evicts = tmp;
-
-        /* Update the eviction wait information */
-        tmp = evict->app_waits;
-        if (tmp >= cache->cp_saved_app_waits)
-            app_waits = tmp - cache->cp_saved_app_waits;
-        else
-            app_waits = (UINT64_MAX - cache->cp_saved_app_waits) + tmp;
-        cache->cp_saved_app_waits = tmp;
-
-        /* Calculate the weighted pressure for this member. */
-        tmp = (app_evicts * WT_CACHE_POOL_APP_EVICT_MULTIPLIER) +
-          (app_waits * WT_CACHE_POOL_APP_WAIT_MULTIPLIER) + (reads * WT_CACHE_POOL_READ_MULTIPLIER);
-
         /* Weight smaller caches higher. */
         tmp = (uint64_t)(tmp * ((double)balanced_size / entry->cache_size));
 
@@ -600,9 +571,7 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
             highest = cache->cp_pass_pressure;
 
         __wt_verbose_debug2(session, WT_VERB_SHARED_CACHE,
-          "Assess entry. reads: %" PRIu64 ", app evicts: %" PRIu64 ", app waits: %" PRIu64
-          ", pressure: %" PRIu64,
-          reads, app_evicts, app_waits, cache->cp_pass_pressure);
+          "Assess entry. reads: %" PRIu64 ", pressure: %" PRIu64, reads, cache->cp_pass_pressure);
     }
     __wt_verbose(session, WT_VERB_SHARED_CACHE,
       "Highest eviction count: %" PRIu64 ", entries: %" PRIu64, highest, entries);
@@ -662,7 +631,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
          * the most active the more cache we should get assigned.
          */
         pressure = cache->cp_pass_pressure / highest_percentile;
-        busy = __wt_evict_needed(entry->default_session, false, true, false, &pct_full);
+        busy = __wt_evict_needed(entry->default_session, false, true, &pct_full);
 
         __wt_verbose_debug2(session, WT_VERB_SHARED_CACHE,
           "\t%5" PRIu64 ", %3" PRIu64 ", %2" PRIu32 ", %d, %2.3f", entry->cache_size >> 20,

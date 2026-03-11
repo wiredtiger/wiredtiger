@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -257,7 +257,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * cleanup operation to continue marking the clean obsolete time window pages as dirty once
          * the checkpoint is finished.
          */
-        __wt_atomic_store_uint32_relaxed(&btree->eviction_obsolete_tw_pages, 0);
+        __wt_atomic_store_uint32_relaxed(&btree->evict_data.eviction_obsolete_tw_pages, 0);
         __wt_atomic_store_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages, 0);
         is_hs = WT_IS_HS(btree->dhandle);
 

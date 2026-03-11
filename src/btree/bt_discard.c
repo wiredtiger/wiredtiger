@@ -88,7 +88,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     WT_ASSERT_ALWAYS(
       session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
     WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page),
-                     "Attempting to discard a page that is still in eviction data structures");
+      "Attempting to discard a page that is still in eviction data structures");
     page->evict_data.destroying = true;
 
     /*

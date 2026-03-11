@@ -102,7 +102,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
         __wt_atomic_stats_max_uint64(
-            &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
+          &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
         __wt_atomic_stats_max_uint64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICTION,
@@ -150,9 +150,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_DECL_RET;
     WT_EVICT_BUCKETSET *bucketset;
     WT_PAGE *page;
-    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
-    int bucketset_level;
     uint8_t stats_flags;
+    int bucketset_level;
+    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
@@ -161,9 +161,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     clean_page = ebusy_only = false;
 
     if (!closing)
-        WT_ASSERT(session,
-                  (WT_REF_GET_STATE(ref) == WT_REF_LOCKED
-                   && WT_REF_OWNER(ref) == session));
+        WT_ASSERT(
+          session, (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(ref) == session));
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -344,7 +343,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 err:
         ++page->evict_page_attempts;
         __wt_atomic_stats_max_uint16(
-            &conn->evict->evict_max_evict_page_attempts, page->evict_data->evict_page_attempts);
+          &conn->evict->evict_max_evict_page_attempts, page->evict_data->evict_page_attempts);
 
         if (!closing) {
             /*
@@ -552,7 +551,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
                 ref->addr = addr;
             } else
                 WT_ASSERT(
-                    session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
+                  session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);
@@ -793,7 +792,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Don't add more cache pressure. */
-    if (__wt_evict_needed(session, false, false, false, NULL) ||__wt_evict_cache_stuck(session))
+    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_cache_stuck(session))
         return (0);
 
     /*
@@ -929,7 +928,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * the cache size limit.
      */
     if (__wt_tsan_suppress_load_bool_v(&conn->txn_global.checkpoint_running_hs) &&
-        !WT_IS_HS(btree->dhandle) && __wti_evict_hs_dirty(session) && __wt_cache_full(session)) {
+      !WT_IS_HS(btree->dhandle) && __wti_evict_hs_dirty(session) && __wt_cache_full(session)) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs);
         return (__wt_set_return(session, EBUSY));
     }
@@ -941,7 +940,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      */
     checkpoint_timestamp = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_timestamp);
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
-        page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
+      page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_precise_checkpoint);
         return (__wt_set_return(session, EBUSY));
     }
@@ -1055,8 +1054,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * running application transaction.
      */
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
-        !WT_IS_METADATA(session->dhandle) && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) &&
-        !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
+      !WT_IS_METADATA(session->dhandle) && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) &&
+      !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
@@ -1110,7 +1109,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
 
     WT_ASSERT(
-        session, LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+      session, LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* We should not be trying to evict using a checkpoint-cursor transaction. */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
@@ -1120,7 +1119,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * eviction workers or application threads.
      */
     if ((is_eviction_thread && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) ||
-        use_snapshot_for_app_thread)
+      use_snapshot_for_app_thread)
         WT_WITH_TXN_ISOLATION(
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
@@ -1141,7 +1140,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     WT_ASSERT(session,
       !__wt_page_is_modified(ref->page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
-              WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle));
+        WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle));
 
     return (0);
 }

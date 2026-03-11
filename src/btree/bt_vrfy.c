@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -361,7 +361,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * because we are called with eviction locked out, so we release the lock at the top of
              * the loop and re-acquire it here.
              */
-            WT_TRET(__wt_evict_file_exclusive_on(session));
+            __wt_evict_file_exclusive_on(session);
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
         }
 

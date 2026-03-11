@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -250,7 +250,7 @@ __wt_timing_stress_sleep_random(WT_SESSION_IMPL *session)
      * totally full, return.
      */
     pct = 0.0;
-    if (__wt_evict_needed(session, false, false, false, &pct))
+    if (__wt_evict_needed(session, false, false, &pct))
         max = 5;
     else
         max = 9;
