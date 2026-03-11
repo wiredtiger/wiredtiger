@@ -30,23 +30,29 @@ For more information, visit [modelcontextprotocol.io](https://modelcontextprotoc
 
 0. Install `uv` if you haven't already. `uv` is a fast Python package installer.
    You can install it using pip:
+
    ```bash
    pip install uv
    ```
+
    Or using the standalone installer:
+
    ```bash
    # On macOS and Linux.
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
+
    Alternatively, follow the official installation instructions at [astral.sh/uv](https://astral.sh/uv).
 
 1. Create and activate a virtual environment using `uv` (recommended):
+
    ```bash
    uv venv .venv
    source .venv/bin/activate
    ```
 
 2. Sync the project dependencies:
+
    ```bash
    uv sync
    ```
@@ -54,6 +60,7 @@ For more information, visit [modelcontextprotocol.io](https://modelcontextprotoc
 3. Ensure the WiredTiger Python API is available:
    - Set the `WT_BUILDDIR` environment variable to the path of your WiredTiger build directory.
    - To maintain a persistent environment variable available to the script, create a `.env` file in the mcp-server root with the following content:
+
      ```bash
      WT_BUILDDIR=/path/to/wiredtiger/build
      ```
@@ -61,6 +68,7 @@ For more information, visit [modelcontextprotocol.io](https://modelcontextprotoc
 ## Usage
 
 ### Running the Server in VS Code
+
 Create a `mcp.json` file in the `.vscode` directory with the following content:
 
 ```json
@@ -101,16 +109,18 @@ uv run server.py
 The MCP Inspector provides a convenient way to test your tools without needing to integrate with an AI assistant:
 
 1. Install the Inspector:
+
    ```bash
    npm install -g @modelcontextprotocol/inspector
    ```
 
 2. Start the Inspector with your server:
+
    ```bash
    npx @modelcontextprotocol/inspector uv --directory ~/wiredtiger/tools/wt-mcp run server.py
    ```
 
-3. The Inspector will open a web interface (typically at http://localhost:3000) where you can:
+3. The Inspector will open a web interface (typically at <http://localhost:3000>) where you can:
    - View available tools and their documentation
    - Test tools with custom inputs
    - See tool execution results
@@ -121,6 +131,7 @@ The MCP Inspector provides a convenient way to test your tools without needing t
 The server provides the following tools for interacting with WiredTiger databases:
 
 ### WiredTiger API Operations
+
 - **list_files**: List all files in a WiredTiger home directory
 - **get_file_metadata**: Retrieve metadata for a specific WiredTiger file
 - **get_file_statistics**: Get statistics for a specific WiredTiger file
@@ -128,12 +139,13 @@ The server provides the following tools for interacting with WiredTiger database
 - **run_compact_dryrun**: Estimate space savings from compact operation without modifying data
 - **get_key_value**: Look up the value for a specific key in a table or file
 
-
 ### WT Verify tools
+
 - **get_btree_shape**: Analyse the structure of a B-tree
 - **get_btree_layout**: Get detailed layout information for a B-tree and checkpoint information
 
 ### Tool Scripts
+
 - **decode_wt_binary_file**: Decode a single block in a WiredTiger binary file
 - **checkpoint_decode**: Decode a checkpoint address to retrieve offset, size, and checksum information
 
@@ -188,6 +200,7 @@ async def my_new_tool(
    - "When to use this tool" section with specific use cases
    - Parameter descriptions that explain the expected input
 4. **Structured Output**: Return results in the proper MCP format for optimal display to users:
+
    ```python
    return {
        "content": [{
