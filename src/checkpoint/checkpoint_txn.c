@@ -1053,15 +1053,14 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          */
         wt_timestamp_t stable_timestamp = __wt_get_stable_timestamp(session);
         if (stable_timestamp != WT_TS_NONE) {
+            wt_timestamp_t oldest_timestamp = __wt_get_oldest_timestamp(session);
             /* A checkpoint should never proceed when timestamps are out of order. */
-            if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) &&
-              __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp) > stable_timestamp) {
+            if (oldest_timestamp > stable_timestamp) {
                 __wt_writeunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
                   "oldest timestamp %s must not be later than stable timestamp %s when taking a "
                   "checkpoint",
-                  __wt_timestamp_to_string(
-                    __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp), ts_string[0]),
+                  __wt_timestamp_to_string(oldest_timestamp, ts_string[0]),
                   __wt_timestamp_to_string(stable_timestamp, ts_string[1]));
             }
             __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, stable_timestamp);
