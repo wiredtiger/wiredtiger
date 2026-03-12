@@ -2850,7 +2850,7 @@ fake:
         stop_us = __wt_clock(session);
         diff_us = WT_CLOCKDIFF_US(stop_us, start_us);
 
-        WT_STAT_CONN_DSRC_INCRV(session, btree_checkpoint_reconcile_duration, diff_us);
+        WT_STAT_DSRC_INCRV(session, btree_checkpoint_reconcile_duration, diff_us);
     }
 
     /* Tell logging that the checkpoint is complete. */
