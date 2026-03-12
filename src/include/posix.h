@@ -9,7 +9,12 @@
 #pragma once
 
 #include <sys/statvfs.h>
+
+#ifdef __APPLE__
+#include <dispatch/dispatch.h>
+#else
 #include <semaphore.h>
+#endif
 
 /* Some systems don't configure 64-bit MIN/MAX by default. */
 #ifndef ULLONG_MAX
@@ -30,7 +35,13 @@
  */
 typedef pthread_cond_t wt_cond_t;
 typedef pthread_mutex_t wt_mutex_t;
+
+#ifdef __APPLE__
+typedef dispatch_semaphore_t wt_sem_t;
+#else
 typedef sem_t wt_sem_t;
+#endif
+
 typedef struct {
     bool created;
     uint16_t name_index;

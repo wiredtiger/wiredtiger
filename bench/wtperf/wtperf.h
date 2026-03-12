@@ -223,9 +223,15 @@ struct __wtperf {          /* Per-database structure */
 #define MILLION (1000000ULL)
 #define BILLION (1000000000ULL)
 
+#ifndef NSEC_PER_SEC
 #define NSEC_PER_SEC BILLION
+#endif
+#ifndef USEC_PER_SEC
 #define USEC_PER_SEC MILLION
+#endif
+#ifndef MSEC_PER_SEC
 #define MSEC_PER_SEC THOUSAND
+#endif
 
 #define ns_to_ms(v) ((v) / MILLION)
 #define ns_to_sec(v) ((v) / BILLION)
