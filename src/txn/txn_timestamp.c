@@ -564,7 +564,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
          * For a non-prepared transactions the commit timestamp should not be less or equal to the
          * stable timestamp.
          */
-        if (oldest_ts != WT_TS_NONE && commit_ts < oldest_ts)
+        if (commit_ts < oldest_ts)
             WT_RET_MSG(session, EINVAL, "commit timestamp %s is less than the oldest timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(oldest_ts, ts_string[1]));
@@ -678,7 +678,7 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
     oldest_ts = __wt_get_oldest_timestamp(session);
     stable_ts = __wt_get_stable_timestamp(session);
 
-    if (oldest_ts != WT_TS_NONE && durable_ts < oldest_ts)
+    if (durable_ts < oldest_ts)
         WT_RET_MSG(session, EINVAL, "durable timestamp %s is less than the oldest timestamp %s",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(oldest_ts, ts_string[1]));
