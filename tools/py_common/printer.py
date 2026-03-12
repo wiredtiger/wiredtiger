@@ -39,11 +39,9 @@ logger = logging.getLogger(__name__)
 # in decoding before the regular decoding output appears.
 # Those 'input bytes' are shown shifted to the right.
 class Printer(object):
-    def __init__(self, binfile, *, split=False, verbose=0, ext=False):
+    def __init__(self, binfile, *, split=False):
         self.binfile = binfile
         self.issplit = split
-        self.verbose = verbose
-        self.ext = ext
         self.cellpfx = ''
         self.in_cell = False
 
@@ -92,13 +90,12 @@ class Printer(object):
             pfx = '  '
         print(pfx + str(s))
 
+    # Aliases kept for readability at call sites.
     def rint_v(self, s):
-        if self.verbose:
-            self.rint(s)
+        self.rint(s)
 
     def rint_ext(self, s):
-        if self.ext:
-            self.rint(s)
+        self.rint(s)
             
 def raw_bytes(b):
     if type(b) != type(b''):
@@ -160,17 +157,6 @@ def binary_to_pretty_string(b, per_line=16, line_prefix='  ', start_with_line_pr
             result += '   '
     result += '  ' + printable
     return result
-
-def dumpraw(p, b, pos):
-    savepos = b.tell()
-    b.seek(pos)
-    i = 0
-    per_line = 16
-    s = binary_to_pretty_string(b.read(256), per_line=per_line, line_prefix='')
-    for line in s.splitlines():
-        p.rint_v(hex(pos + i) + ':  ' + line)
-        i += per_line
-    b.seek(savepos)
 
 def dumpraw_to_log(b, pos):
     """Dump raw bytes around a position to the logger for debugging (no Printer needed)."""

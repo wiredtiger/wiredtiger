@@ -41,6 +41,7 @@ import collections
 from contextlib import nullcontext
 from py_common import mdb_log_parse
 from py_common import binary_data
+from py_common.decode_opts import DecodeOptions
 from py_common import btree_format
 from py_common import snappy_util
 from py_common import file_format
@@ -64,53 +65,24 @@ def open_output_file(filename, mode):
     return open(filename, mode) if filename else nullcontext()
 
 
-def decode_dumpin_input(filename, opts, output):
-    with open_input_file(filename, 'r') as infile:
-        mdb_log_parse.process_logs(infile,
-                                   disagg=opts.disagg, skip_data=opts.skip_data, cont=opts.cont,
-                                   split=opts.split,
-                                   bson=opts.bson, output=output, pages=opts.pages)
-
-
-def decode_disagg_table_input(filename, opts):
-    with open_input_file(filename, 'r') as infile:
-        page_service.process_disagg_table(infile,
-                                          keyfile=opts.keyfile,
-                                          skip_data=opts.skip_data, cont=opts.cont,
-                                          split=opts.split, bson=opts.bson)
-
-
-def decode_sqlite_input(filename, opts):
-    logger.info('Detected SQLite3 input format.')
-    sqlite_format.process_sqlite_file(filename,
-                                      lsn=opts.lsn, page_id=opts.page_id, pages=opts.pages,
-                                      skip_data=opts.skip_data, cont=opts.cont,
-                                      split=opts.split, bson=opts.bson)
-
-
-def decode_wt_binary_input(filename, opts, output):
-    nbytes = 0 if filename == '-' else os.path.getsize(filename)
-    input_name = 'stdin' if filename == '-' else filename
-    input_size = 'unknown' if filename == '-' else hex(nbytes)
-    print(f'{input_name}, position {hex(opts.offset)}, size {input_size}, '
-          f'pagelimit {opts.pages}')
-    with open_input_file(filename, 'rb') as fileobj:
-        file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes,
-                                         disagg=opts.disagg, skip_data=opts.skip_data, cont=opts.cont,
-                                         split=opts.split,
-                                         bson=opts.bson, output=output,
-                                         offset=opts.offset, fragment=opts.fragment, pages=opts.pages)
-
-
-def wtdecode(filename, opts, *, output=None):
+def wtdecode(filename, opts: DecodeOptions):
     if opts.dumpin:
-        decode_dumpin_input(filename, opts, output)
+        with open_input_file(filename, 'r') as infile:
+            mdb_log_parse.process_logs(infile, opts)
     elif opts.disagg_table:
-        decode_disagg_table_input(filename, opts)
+        with open_input_file(filename, 'r') as infile:
+            page_service.process_disagg_table(infile, opts)
     elif sqlite_format.is_sqlite3_file(filename):
-        decode_sqlite_input(filename, opts)
+        logger.info('Detected SQLite3 input format.')
+        sqlite_format.process_sqlite_file(filename, opts)
     else:
-        decode_wt_binary_input(filename, opts, output)
+        nbytes = 0 if filename == '-' else os.path.getsize(filename)
+        input_name = 'stdin' if filename == '-' else filename
+        input_size = 'unknown' if filename == '-' else hex(nbytes)
+        print(f'{input_name}, position {hex(opts.offset)}, size {input_size}, '
+              f'pagelimit {opts.pages}')
+        with open_input_file(filename, 'rb') as fileobj:
+            file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
 
 
 def feature_check(*, bson: bool = False):
@@ -232,6 +204,22 @@ if __name__ == '__main__':
 
     try:
         with open_output_file(args.output, 'w') as output_file:
-            wtdecode(args.filename, args, output=output_file)
+            opts = DecodeOptions(
+                dumpin=args.dumpin,
+                disagg_table=args.disagg_table,
+                disagg=args.disagg,
+                skip_data=args.skip_data,
+                cont=args.cont,
+                split=args.split,
+                bson=args.bson,
+                output=output_file,
+                offset=args.offset,
+                fragment=args.fragment,
+                pages=args.pages,
+                keyfile=getattr(args, 'keyfile', None),
+                lsn=args.lsn,
+                page_id=args.page_id,
+            )
+            wtdecode(args.filename, opts)
     except (KeyboardInterrupt, BrokenPipeError):
         pass

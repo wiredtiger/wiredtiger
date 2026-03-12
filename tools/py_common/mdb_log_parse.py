@@ -32,39 +32,32 @@ import logging
 import re
 import json
 
+import dataclasses
+
 from py_common import binary_data
+from py_common.decode_opts import DecodeOptions
 from py_common.file_format import wtdecode_file_object
 
 
 logger = logging.getLogger(__name__)
 
 
-def process_logs(f, *,
-                 disagg: bool = False, skip_data: bool = False, cont: bool = False,
-                 split: bool = False,
-                 bson: bool = False, output=None, pages: int = 0):
+def process_logs(f, opts: DecodeOptions):
     '''
     Extract the byte dump from mongo or wiredtiger logs.
     '''
     first_line = f.readline()
     f.seek(0)
     if is_mongo_log(first_line):
-        return process_mongod_log(f, disagg=disagg, skip_data=skip_data, cont=cont,
-                                  split=split,
-                                  bson=bson, output=output, pages=pages)
+        return process_mongod_log(f, opts)
     else:
         logger.info('Non MongoDB log format detected, defaulting to WiredTiger log parsing')
-        return process_wiredtiger_log(f, disagg=disagg, skip_data=skip_data, cont=cont,
-                                      split=split,
-                                      bson=bson, output=output, pages=pages)
+        return process_wiredtiger_log(f, opts)
 
 def is_mongo_log(line):
     return line and line.startswith('{')
 
-def process_mongod_log(f, *,
-                       disagg: bool = False, skip_data: bool = False, cont: bool = False,
-                       split: bool = False,
-                       bson: bool = False, output=None, pages: int = 0):
+def process_mongod_log(f, opts: DecodeOptions):
     byte_dump = extract_mongodb_log_hex(f)
     if not byte_dump:
         logger.info('No valid byte dump found in MongoDB log')
@@ -72,14 +65,9 @@ def process_mongod_log(f, *,
 
     b = binary_data.BinaryFile(io.BytesIO(byte_dump))
     wtdecode_file_object(b, len(byte_dump),
-                         disagg=disagg, skip_data=skip_data, cont=cont,
-                         split=split,
-                         bson=bson, output=output, fragment=True, pages=pages)
+                         dataclasses.replace(opts, fragment=True))
 
-def process_wiredtiger_log(f, *,
-                           disagg: bool = False, skip_data: bool = False, cont: bool = False,
-                           split: bool = False,
-                           bson: bool = False, output=None, pages: int = 0):
+def process_wiredtiger_log(f, opts: DecodeOptions):
     while True:
         byte_dump = encode_bytes(f)
         if not byte_dump:
@@ -88,9 +76,7 @@ def process_wiredtiger_log(f, *,
 
         b = binary_data.BinaryFile(io.BytesIO(byte_dump))
         wtdecode_file_object(b, len(byte_dump),
-                             disagg=disagg, skip_data=skip_data, cont=cont,
-                             split=split,
-                             bson=bson, output=output, fragment=True, pages=pages)
+                             dataclasses.replace(opts, fragment=True))
 
 # Specific exceptions for hex dump validation errors, to distinguish from other parsing errors
 # and to provide more specific error messages about what is wrong with the hex dump.

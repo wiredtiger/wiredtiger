@@ -12,6 +12,7 @@ import sys
 from typing import Iterable, List, Optional
 
 from py_common import disagg
+from py_common.decode_opts import DecodeOptions
 
 
 SQLITE3_SIGNATURE = b'SQLite format 3\x00'
@@ -193,12 +194,6 @@ def load_disagg_pages(filename: str, *, lsn=None, page_id=None, pages: int = 0) 
         return _load_disagg_pages_all(conn, pages_limit)
 
 
-def process_sqlite_file(filename: str, *,
-                        lsn=None, page_id=None, pages: int = 0,
-                        skip_data: bool = False, cont: bool = False,
-                        split: bool = False,
-                        bson: bool = False) -> disagg.DisaggTableSummary:
-    disagg_pages = load_disagg_pages(filename, lsn=lsn, page_id=page_id, pages=pages)
-    return disagg.process_disagg_pages(disagg_pages,
-                                       skip_data=skip_data, cont=cont,
-                                       split=split, bson=bson)
+def process_sqlite_file(filename: str, opts: DecodeOptions) -> disagg.DisaggTableSummary:
+    disagg_pages = load_disagg_pages(filename, lsn=opts.lsn, page_id=opts.page_id, pages=opts.pages)
+    return disagg.process_disagg_pages(disagg_pages, opts)

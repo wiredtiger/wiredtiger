@@ -38,7 +38,7 @@ from typing import Optional, List, Union, Final
 # Tools and data structures for reading and decoding the on-disk format of WiredTiger's files.
 from py_common import binary_data
 from py_common.stats import PageStats
-from py_common.printer import Printer, binary_to_pretty_string, raw_bytes, dumpraw, dumpraw_to_log
+from py_common.printer import Printer, binary_to_pretty_string, raw_bytes, dumpraw_to_log
 from py_common.snappy_util import snappy_decompress_page
 
 logger = logging.getLogger(__name__)
@@ -870,7 +870,7 @@ class WTPage:
 
     def print_page(self, *, split: bool = False,
                    bson: bool = False, disagg: bool = False):
-        p = Printer(self.raw_bytes, split=split, verbose=1)
+        p = Printer(self.raw_bytes, split=split)
         p.rint(self.page_header)
         p.rint(self.block_header)
 
@@ -880,7 +880,7 @@ class WTPage:
             self.print_extents(p)
         elif self.page_header.type == PageType.WT_PAGE_ROW_INT or \
             self.page_header.type == PageType.WT_PAGE_ROW_LEAF:
-            self.print_cells(p, bson=bson, disagg=disagg)
+            self.print_cells(p, decode_as_bson=bson, disagg=disagg)
         elif self.page_header.type == PageType.WT_PAGE_OVFL:
             # Use b_page.read() so that we can also print the raw bytes in the split mode
             b_page = self.raw_bytes
@@ -891,7 +891,7 @@ class WTPage:
 
         return
 
-    def print_cells(self, p, *, bson: bool = False, disagg: bool = False):
+    def print_cells(self, p, *, decode_as_bson: bool = False, disagg: bool = False):
         for cellnum, cell in enumerate(self.cells):
             p.begin_cell(cellnum)
             p.rint_v(cell.descriptor_string())
@@ -901,7 +901,7 @@ class WTPage:
             # Print the contents of the cell.
             try:
                 # Attempt the decode the cell as BSON.
-                if (cell.is_value and bson and HAVE_BSON):
+                if (cell.is_value and decode_as_bson and HAVE_BSON):
                     decoded_data = bson.BSON(cell.data).decode()
                     p.rint_v(pprint.pformat(decoded_data, indent=2))
                 # If the cell is an address and we're in disagg mode, print the cell as a DisaggAddr

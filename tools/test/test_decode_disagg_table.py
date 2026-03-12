@@ -56,8 +56,7 @@ class TestDecodeDisaggTable(unittest.TestCase):
         with open(table_path, "r", encoding="utf-8") as disagg_file:
             table_summary = page_service.process_disagg_table(
                 disagg_file,
-                keyfile=keyfile,
-                bson=True,
+                DecodeOptions(keyfile=keyfile, bson=True),
             )
 
             self.assertEqual(table_summary.delta_pages, 2)

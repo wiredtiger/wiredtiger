@@ -35,6 +35,7 @@ import unittest
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import wt_binary_decode
+from py_common.decode_opts import DecodeOptions
 
 
 class TestDecodeDisaggDeltaChain(unittest.TestCase):
@@ -47,7 +48,7 @@ class TestDecodeDisaggDeltaChain(unittest.TestCase):
 
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            wt_binary_decode.wtdecode(log_path, disagg=True, dumpin=True, verbose=1)
+            wt_binary_decode.wtdecode(log_path, DecodeOptions(disagg=True, dumpin=True))
         output = buffer.getvalue()
 
         self.assertGreater(len(output), 0, "Decoder output should not be empty")

@@ -37,6 +37,7 @@ import tempfile
 from typing import Dict, List, Optional
 
 from py_common import disagg
+from py_common.decode_opts import DecodeOptions
 
 
 logger = logging.getLogger(__name__)
@@ -143,10 +144,7 @@ def decrypt_page(page, page_metadata, keyfile):
 
     return decrypted_bytes
 
-def process_disagg_table(disagg_table, *,
-                         keyfile=None, skip_data: bool = False,
-                         cont: bool = False, split: bool = False,
-                         bson: bool = False) -> disagg.DisaggTableSummary:
+def process_disagg_table(disagg_table, opts: DecodeOptions) -> disagg.DisaggTableSummary:
     '''
     Extract pages as json objects from the GetTableAtLSN API on the Object Read Proxy.
 
@@ -171,12 +169,10 @@ def process_disagg_table(disagg_table, *,
                 logger.info(f'page_id: {page_metadata.page_id} - empty page')
                 continue
 
-            decrypted_page_bytes = decrypt_page(page, page_metadata, keyfile)
+            decrypted_page_bytes = decrypt_page(page, page_metadata, opts.keyfile)
             page_disagg_pages.append(disagg.DisaggPage(page_metadata,
                                                        decrypted_page_bytes))
 
         disagg_pages.append(page_disagg_pages)
 
-    return disagg.process_disagg_pages(disagg_pages,
-                                       skip_data=skip_data, cont=cont,
-                                       split=split, bson=bson)
+    return disagg.process_disagg_pages(disagg_pages, opts)
