@@ -32,24 +32,28 @@ __layered_assert_tombstone_has_value_on_stable_btree(
     if (cbt->compare != 0)
         /* No on-page value to check; rely solely on visibility. */
         has_value = false;
-    else if (cbt->ins != NULL) {
-        WT_UPDATE *upd = cbt->ins->upd;
-        has_value =
-          (upd != NULL && upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE);
-    } else {
+    else {
+        WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
+          "The stable btree should not contain inserts prior to draining");
         WT_UPDATE *upd = NULL;
         if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
 
-        if (upd != NULL)
-            has_value = (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE);
-        else {
+        if (upd != NULL) {
+            WT_ASSERT_ALWAYS(session, upd->txnid != WT_TXN_ABORTED,
+              "The stable btree should not contain aborted updates prior to draining");
+            has_value = upd->type != WT_UPDATE_TOMBSTONE;
+        } else {
             WT_TIME_WINDOW tw;
             bool tw_found = __wt_read_cell_time_window(cbt, &tw);
-            has_value = (tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw));
+            has_value = tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw);
         }
     }
 
+    /*
+     * If a globally visible tombstone is observed at the end, the update it deletes may have been
+     * removed during the obsolete check.
+     */
     WT_ASSERT_ALWAYS(session, has_value || __wt_txn_upd_visible_all(session, last_upd),
       "No corresponding value exists on the stable table to delete");
 }
