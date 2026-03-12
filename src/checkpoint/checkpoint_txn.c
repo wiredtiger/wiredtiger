@@ -13,10 +13,7 @@ static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *dro
 static int __checkpoint_free_resources(WT_SESSION_IMPL *, bool);
 static int __checkpoint_hs(WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
-static int __checkpoint_log_end(WT_SESSION_IMPL *);
-static int __checkpoint_log_flush(WT_SESSION_IMPL *);
-static int __checkpoint_log_prepare(WT_SESSION_IMPL *);
-static int __checkpoint_log_start(WT_SESSION_IMPL *);
+static int __checkpoint_log_stage(WT_SESSION_IMPL *, int, bool, int);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_metadata(
   WT_SESSION_IMPL *, const char *[], WT_TXN *, WT_TXN_GLOBAL *, struct timespec *, bool);
@@ -51,6 +48,13 @@ typedef struct {
     /* Keep reference to original configuration */
     const char **cfg;
 } WT_CHECKPOINT_DB_CFG;
+
+enum {
+    CKPT_LOG_STAGE_PREPARE,
+    CKPT_LOG_STAGE_START,
+    CKPT_LOG_STAGE_FLUSH,
+    CKPT_LOG_STAGE_END,
+};
 
 /*
  * __checkpoint_flush_tier_wait --
@@ -337,6 +341,55 @@ __checkpoint_init(WT_SESSION_IMPL *session)
      * trees so they match. The time is left in the session.
      */
     __checkpoint_establish_time(session);
+}
+
+/*
+ * __checkpoint_log_stage --
+ *     Write / flush log records for a given stage of the checkpoint.
+ */
+static int
+__checkpoint_log_stage(WT_SESSION_IMPL *session, int stage, bool logging, int ret)
+{
+    bool idle;
+
+    idle = false;
+
+    if (!logging)
+        return (0);
+
+    switch (stage) {
+    case CKPT_LOG_STAGE_PREPARE:
+        WT_RET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_PREPARE, NULL));
+        break;
+    case CKPT_LOG_STAGE_START:
+        WT_RET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_START, NULL));
+        WT_RET(__wt_log_system_backup_id(session));
+        break;
+    case CKPT_LOG_STAGE_FLUSH:
+        /* FIXME-WT-15069: Remove this if condition as part of this FIXME. This is a temporary
+         * workaround to allow ckpt_crash_before_metadata_sync crash point with logging enabled.
+         * test/model currently expects crash points to result in only non-recoverable checkpoints.
+         * However, from WT perspective, a crash after flushing the logs here is still considered
+         * a valid recoverable checkpoint.
+         */
+        /* Crash before metadata sync if checkpoint crash point is configured. */
+        if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
+            __wt_debug_crash(session);
+
+        WT_RET(__wt_log_flush(session, WT_LOG_FSYNC));
+        break;
+    case CKPT_LOG_STAGE_END:
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
+        if (ret == 0 && F_ISSET(CUR2BT(session->meta_cursor), WT_BTREE_SKIP_CKPT))
+            idle = true;
+        WT_RET(__wt_checkpoint_log(session, true,
+          (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP, NULL));
+        break;
+    default:
+        WT_ASSERT(session, false);
+    }
+
+    return (0);
 }
 
 /*
@@ -1532,8 +1585,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_wait_reduce_dirty_cache(session);
 
     /* Tell logging that we are about to start a full database checkpoint. */
-    if (logging)
-        WT_ERR(__checkpoint_log_prepare(session));
+    WT_ERR(__checkpoint_log_stage(session, CKPT_LOG_STAGE_PREPARE, logging, 0));
 
     __checkpoint_verbose_track(session, "starting transaction");
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_START_TXN);
@@ -1608,8 +1660,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_set_scrub_target(session, 0.0);
 
     /* Tell logging that we have started a full database checkpoint. */
-    if (logging)
-        WT_ERR(__checkpoint_log_start(session));
+    WT_ERR(__checkpoint_log_stage(session, CKPT_LOG_STAGE_START, logging, 0));
 
     /* Add a ten second wait to simulate checkpoint slowness. */
     tsp.tv_sec = 10;
@@ -1774,8 +1825,7 @@ err:
      * Tell logging that we have finished a database checkpoint. Do not write a log record if the
      * database was idle.
      */
-    if (logging)
-        WT_TRET(__checkpoint_log_end(session));
+    WT_TRET(__checkpoint_log_stage(session, CKPT_LOG_STAGE_END, logging, ret));
 
     WT_TRET(__checkpoint_disagg_put_and_advance(session, ckpt_tmp_ts, failed));
 
@@ -2564,86 +2614,6 @@ err:
 }
 
 /*
- * __checkpoint_log_prepare --
- *     Log that a checkpoint is about to start.
- */
-static int
-__checkpoint_log_prepare(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-
-    WT_ERR(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_PREPARE, NULL));
-
-err:
-
-    return (ret);
-}
-
-/*
- * __checkpoint_log_start --
- *     Log the start of a checkpoint.
- */
-static int
-__checkpoint_log_start(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-
-    WT_ERR(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_START, NULL));
-    WT_ERR(__wt_log_system_backup_id(session));
-
-err:
-
-    return (ret);
-}
-
-/*
- * __checkpoint_log_flush --
- *     Flush the logs for a checkpoint.
- */
-static int
-__checkpoint_log_flush(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-
-    /* FIXME-WT-15069: Remove this if condition as part of this FIXME. This is a temporary
-     * workaround to allow ckpt_crash_before_metadata_sync crash point with logging enabled.
-     * test/model currently expects crash points to result in only non-recoverable checkpoints.
-     * However, from WT perspective, a crash after flushing the logs here is still considered
-     * a valid recoverable checkpoint.
-     */
-    /* Crash before metadata sync if checkpoint crash point is configured. */
-    if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
-        __wt_debug_crash(session);
-
-    WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
-
-err:
-
-    return (ret);
-}
-
-/*
- * __checkpoint_log_end --
- *     Log the end of a checkpoint.
- */
-static int
-__checkpoint_log_end(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-    bool idle;
-
-    idle = false;
-
-    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-    if (ret == 0 && F_ISSET(CUR2BT(session->meta_cursor), WT_BTREE_SKIP_CKPT))
-        idle = true;
-    WT_TRET(__wt_checkpoint_log(
-      session, true, (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP, NULL));
-
-    return (ret);
-}
-
-/*
  * __checkpoint_disagg_put_and_advance --
  *     If we are using disaggregated storage, and we updated the checkpoint metadata in the page
  *     log, then update the checkpoint metadata in disaggregated storage and advance to the next
@@ -3086,9 +3056,7 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn,
      * view of the data, make sure that all the logs are flushed to disk before the checkpoint is
      * complete.
      */
-    if (logging) {
-        WT_ERR(__checkpoint_log_flush(session));
-    }
+    WT_ERR(__checkpoint_log_stage(session, CKPT_LOG_STAGE_FLUSH, logging, 0));
 
     /* Crash before metadata sync if checkpoint crash point is configured. */
     if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
