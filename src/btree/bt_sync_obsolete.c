@@ -680,9 +680,7 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
 
-    /*
-     * FIXME-WT-15259: here should be adjusted when this ticket is done.
-     */
+    /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
     WT_WITH_TXN_ISOLATION(
       session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, &exact));
     WT_ERR(ret);
@@ -692,6 +690,7 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
      * is lexicographically larger the given one, make sure not to go backwards.
      */
     if (exact <= 0) {
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
         WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
         WT_ERR(ret);
     }
@@ -710,6 +709,8 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         /* Check the given uri needs checkpoint cleanup. */
         if (__checkpoint_cleanup_eligibility(session, key, value))
             break;
+
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
         WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
     } while (ret == 0);
     WT_ERR(ret);
