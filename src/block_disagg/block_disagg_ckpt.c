@@ -88,7 +88,7 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * we don't expect the size to change until it gets written to metadata, allowing us to validate
      * consistency.
      */
-    ckpt->size = __wt_atomic_load_uint64(&S2BT(session)->bytes_total);
+    ckpt->size = __wt_atomic_load_uint64(&btree->bytes_total);
 
     return (0);
 }
