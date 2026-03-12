@@ -177,10 +177,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         }
 
         WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
-          &tw.durable_start_ts, &tw.stop_txn, &tw.stop_ts, &tw.durable_stop_ts, &type, &prepare,
-          &flags, &location, value));
-        /* We shouldn't see any prepared updates. */
-        WT_ASSERT(session, prepare == 0);
+          &tw.durable_start_ts, &tw.start_prepare_ts, &tw.start_prepared_id, &tw.stop_txn,
+          &tw.stop_ts, &tw.durable_stop_ts, &tw.stop_prepare_ts, &tw.stop_prepared_id, &type,
+          &prepare, &flags, &location, value));
+        WT_UNUSED(prepare);
 
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
