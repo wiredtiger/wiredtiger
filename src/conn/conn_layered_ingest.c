@@ -37,13 +37,13 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      */
     if (last_upd_is_tombstone) {
         if (cbt->compare != 0)
-            WT_ASSERT_ALWAYS(session, false, "There is no value on the stable table to delete");
+            WT_ASSERT_ALWAYS(session, false, "No corresponding value exists on the stable table to delete");
         else {
             if (cbt->ins != NULL) {
                 WT_UPDATE *upd = cbt->ins->upd;
                 WT_ASSERT_ALWAYS(session,
                   upd != NULL && upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE,
-                  "There is no value on the stable table to delete");
+                  "No corresponding value exists on the stable table to delete");
             } else {
                 WT_UPDATE *upd = NULL;
                 if (cbt->ref->page->modify != NULL &&
@@ -54,12 +54,12 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
                     WT_ASSERT_ALWAYS(session,
                       upd != NULL && upd->txnid != WT_TXN_ABORTED &&
                         upd->type != WT_UPDATE_TOMBSTONE,
-                      "There is no value on the stable table to delete");
+                      "No corresponding value exists on the stable table to delete");
                 else {
                     WT_TIME_WINDOW tw;
                     bool tw_found = __wt_read_cell_time_window(cbt, &tw);
                     WT_ASSERT_ALWAYS(session, tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw),
-                      "There is no value on the stable table to delete");
+                      "No corresponding value exists on the stable table to delete");
                 }
             }
         }
