@@ -1433,26 +1433,27 @@ __checkpoint_hs(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_
      * It is possible that we don't have a history store file in certain recovery scenarios. As such
      * we could get a dhandle that is not opened.
      */
-    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
-        time_start_hs = __wt_clock(session);
-        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
-        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
+    if (!F_ISSET(hs_dhandle, WT_DHANDLE_OPEN))
+        return (0);
 
-        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
-        if (ret != 0)
-            __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
-        WT_ERR(ret);
+    time_start_hs = __wt_clock(session);
+    __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
 
-        if (hs_dhandle_shared != NULL)
-            WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
-
+    WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
+    if (ret != 0)
         __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
-        WT_ERR(ret);
+    WT_ERR(ret);
 
-        time_stop_hs = __wt_clock(session);
-        hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
-        WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
-    }
+    if (hs_dhandle_shared != NULL)
+        WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
+
+    __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
+    WT_ERR(ret);
+
+    time_stop_hs = __wt_clock(session);
+    hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+    WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
 
 err:
 
