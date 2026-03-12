@@ -45,17 +45,9 @@ class TestDecodeDisaggDeltaChain(unittest.TestCase):
         log_path = os.path.join(cur_dir, "binary_files", "disagg_delta_chain.log")
         self.assertTrue(os.path.exists(log_path), f"Missing delta chain log at {log_path}")
 
-        parser = wt_binary_decode.get_arg_parser()
-        opts = parser.parse_args([
-            "--disagg",
-            "--dumpin",
-            "--verbose",
-            log_path,
-        ])
-
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            wt_binary_decode.wtdecode(opts)
+            wt_binary_decode.wtdecode(log_path, disagg=True, dumpin=True, verbose=1)
         output = buffer.getvalue()
 
         self.assertGreater(len(output), 0, "Decoder output should not be empty")
