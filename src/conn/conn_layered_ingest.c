@@ -110,17 +110,19 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
-    WT_TIME_WINDOW tw;
     WT_UPDATE *prev_upd, *tombstone, *upd, *upds;
     wt_timestamp_t last_checkpoint_timestamp;
+    wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
+      stop_ts;
+    uint64_t start_prepared_id, start_txn, stop_prepared_id, stop_txn;
     uint8_t flags, location, prepare, type;
     int cmp;
     char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
+    bool has_stop, is_prepare_rollback;
 
     stable_cursor = version_cursor = NULL;
     prev_upd = tombstone = upd = upds = NULL;
-    WT_TIME_WINDOW_INIT(&tw);
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
@@ -131,6 +133,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
           buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
     else
         buf2[0] = '\0';
+    /* FIXME-WT-16744 - Enable show_prepared_rollback config to resolve prepared update on the
+     * stable table when draining. */
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
       "cross_key=true,%s))",
@@ -176,24 +180,29 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             WT_ERR(__wt_buf_set(session, key, tmp_key->data, tmp_key->size));
         }
 
-        WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
-          &tw.durable_start_ts, &tw.start_prepare_ts, &tw.start_prepared_id, &tw.stop_txn,
-          &tw.stop_ts, &tw.durable_stop_ts, &tw.stop_prepare_ts, &tw.stop_prepared_id, &type,
-          &prepare, &flags, &location, value));
-        WT_UNUSED(prepare);
-
+        WT_ERR(version_cursor->get_value(version_cursor, &start_txn, &start_ts, &durable_start_ts,
+          &start_prepare_ts, &start_prepared_id, &stop_txn, &stop_ts, &durable_stop_ts,
+          &stop_prepare_ts, &stop_prepared_id, &type, &prepare, &flags, &location, value));
+        WT_UNUSED(type);
+        WT_UNUSED(flags);
+        WT_UNUSED(location);
+        has_stop = stop_txn != WT_TXN_MAX;
+        is_prepare_rollback = start_txn == WT_TXN_ABORTED && prepare != 0;
+        /* FIXME-WT-16744 Remove this assertion when prepared update on the stable table are
+         * resolved during draining. */
+        WT_ASSERT(session, !is_prepare_rollback);
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
             WT_ASSERT(session,
-              tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->upd_start_ts &&
-                tw.durable_stop_ts <= prev_upd->upd_durable_ts);
+              stop_txn <= prev_upd->txnid && stop_ts <= prev_upd->upd_start_ts &&
+                durable_stop_ts <= prev_upd->upd_durable_ts);
             WT_ASSERT(session,
-              tw.start_txn <= prev_upd->txnid && tw.start_ts <= prev_upd->upd_start_ts &&
-                tw.durable_start_ts <= prev_upd->upd_durable_ts);
-            if (tw.stop_txn != prev_upd->txnid || tw.stop_ts != prev_upd->upd_start_ts ||
-              tw.durable_stop_ts != prev_upd->upd_durable_ts)
+              start_txn <= prev_upd->txnid && start_ts <= prev_upd->upd_start_ts &&
+                durable_start_ts <= prev_upd->upd_durable_ts);
+            if (stop_txn != prev_upd->txnid || stop_ts != prev_upd->upd_start_ts ||
+              durable_stop_ts != prev_upd->upd_durable_ts)
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
+        } else if (has_stop)
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
 
         /*
@@ -201,7 +210,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          * timestamp with a tombstone that is larger than the last checkpoint timestamp. Ignore the
          * update in this case.
          */
-        if (tw.durable_start_ts > last_checkpoint_timestamp) {
+        if (durable_start_ts > last_checkpoint_timestamp) {
             /*
              * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better way
              * now.
@@ -215,11 +224,21 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
             } else
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-            upd->txnid = tw.start_txn;
-            upd->upd_start_ts = tw.start_ts;
-            upd->upd_durable_ts = tw.durable_start_ts;
-            upd->prepare_ts = tw.start_prepare_ts;
-            upd->prepared_id = tw.start_prepared_id;
+            upd->prepare_ts = start_prepare_ts;
+            upd->prepared_id = start_prepared_id;
+            if (is_prepare_rollback) {
+                /*
+                 * WT_UPDATE stores these in a union, so they share the same underlying slots as
+                 * durable/start timestamps. We assign via rollback names here for readability.
+                 */
+                upd->txnid = WT_TXN_ABORTED;
+                upd->upd_rollback_ts = durable_start_ts;
+                upd->upd_saved_txnid = start_ts;
+            } else {
+                upd->txnid = start_txn;
+                upd->upd_start_ts = start_ts;
+                upd->upd_durable_ts = durable_start_ts;
+            }
         } else
             WT_ASSERT(session, tombstone != NULL);
 
@@ -228,11 +247,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          * ingest table.
          */
         if (tombstone != NULL) {
-            tombstone->txnid = tw.stop_txn;
-            tombstone->upd_start_ts = tw.stop_ts;
-            tombstone->upd_durable_ts = tw.durable_stop_ts;
-            tombstone->prepare_ts = tw.stop_prepare_ts;
-            tombstone->prepared_id = tw.stop_prepared_id;
+            tombstone->txnid = stop_txn;
+            tombstone->upd_start_ts = stop_ts;
+            tombstone->upd_durable_ts = durable_stop_ts;
+            tombstone->prepare_ts = stop_prepare_ts;
+            tombstone->prepared_id = stop_prepared_id;
             tombstone->next = upd;
 
             WT_ASSERT(session, tombstone->upd_durable_ts > last_checkpoint_timestamp);
