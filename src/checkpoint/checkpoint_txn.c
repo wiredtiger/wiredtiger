@@ -19,8 +19,10 @@ static int __checkpoint_metadata(
   WT_SESSION_IMPL *, const char *[], WT_TXN *, WT_TXN_GLOBAL *, struct timespec *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[], struct timespec);
-static int __checkpoint_fsync_post(WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
+static int __checkpoint_fsync_post(
+  WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
+static void __checkpoint_establish_time(WT_SESSION_IMPL *);
 static void __checkpoint_init(WT_SESSION_IMPL *);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
@@ -1052,7 +1054,6 @@ static int
 __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB_CFG *ckpt_cfg)
 {
     struct timespec tsp;
-    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_CONF(WT_SESSION, begin_transaction, txn_conf);
     WT_DECL_RET;
@@ -1253,7 +1254,6 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CFG *ckpt_cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
-    WT_CONFIG_ITEM cval;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
