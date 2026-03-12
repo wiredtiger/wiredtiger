@@ -8981,7 +8981,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_BTREE_CHECKPOINT_PAGES_RECONCILED	2031
 /*! btree: btree skipped by compaction as process would not reduce size */
 #define	WT_STAT_DSRC_BTREE_COMPACT_SKIPPED		2032
-/*! btree: checkpoint B-tree walk, construct and write duration (usecs) */
+/*! btree: checkpoint btree walk, construct and write duration (usecs) */
 #define	WT_STAT_DSRC_BTREE_CHECKPOINT_RECONCILE_DURATION	2033
 /*!
  * btree: column-store internal pages, only reported if tree_walk or all

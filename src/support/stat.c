@@ -36,7 +36,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree expected number of compact pages rewritten",
   "btree: btree number of pages reconciled during checkpoint",
   "btree: btree skipped by compaction as process would not reduce size",
-  "btree: checkpoint B-tree walk, construct and write duration (usecs)",
+  "btree: checkpoint btree walk, construct and write duration (usecs)",
   "btree: column-store internal pages",
   "btree: column-store variable-size RLE encoded values",
   "btree: column-store variable-size deleted values",

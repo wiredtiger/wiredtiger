@@ -1025,7 +1025,7 @@ dsrc_stats = [
     ##########################################
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
     BtreeStat('btree_checkpoint_pages_reconciled', 'btree number of pages reconciled during checkpoint', 'no_clear,no_scale'),
-    BtreeStat('btree_checkpoint_reconcile_duration', 'checkpoint B-tree walk, construct and write duration (usecs)', 'no_clear,no_scale'),
+    BtreeStat('btree_checkpoint_reconcile_duration', 'checkpoint btree walk, construct and write duration (usecs)', 'no_clear,no_scale'),
     BtreeStat('btree_clean_checkpoint_timer', 'btree clean tree checkpoint expiration time', 'no_clear,no_scale'),
     BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_internal', 'column-store internal pages', 'no_scale,tree_walk'),
