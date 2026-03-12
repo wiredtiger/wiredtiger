@@ -39,39 +39,58 @@ from py_common.file_format import wtdecode_file_object
 logger = logging.getLogger(__name__)
 
 
-def process_logs(f, opts):
+def process_logs(f, *,
+                 disagg: bool = False, skip_data: bool = False, cont: bool = False,
+                 split: bool = False,
+                 bson: bool = False, output=None, pages: int = 0):
     '''
     Extract the byte dump from mongo or wiredtiger logs.
     '''
     first_line = f.readline()
     f.seek(0)
     if is_mongo_log(first_line):
-        return process_mongod_log(f, opts)
+        return process_mongod_log(f, disagg=disagg, skip_data=skip_data, cont=cont,
+                                  split=split,
+                                  bson=bson, output=output, pages=pages)
     else:
         logger.info('Non MongoDB log format detected, defaulting to WiredTiger log parsing')
-        return process_wiredtiger_log(f, opts)
+        return process_wiredtiger_log(f, disagg=disagg, skip_data=skip_data, cont=cont,
+                                      split=split,
+                                      bson=bson, output=output, pages=pages)
 
 def is_mongo_log(line):
     return line and line.startswith('{')
 
-def process_mongod_log(f, opts):
-    byte_dump = extract_mongodb_log_hex(f, opts)
+def process_mongod_log(f, *,
+                       disagg: bool = False, skip_data: bool = False, cont: bool = False,
+                       split: bool = False,
+                       bson: bool = False, output=None, pages: int = 0):
+    byte_dump = extract_mongodb_log_hex(f)
     if not byte_dump:
         logger.info('No valid byte dump found in MongoDB log')
         return
 
     b = binary_data.BinaryFile(io.BytesIO(byte_dump))
-    wtdecode_file_object(b, opts, len(byte_dump))
+    wtdecode_file_object(b, len(byte_dump),
+                         disagg=disagg, skip_data=skip_data, cont=cont,
+                         split=split,
+                         bson=bson, output=output, fragment=True, pages=pages)
 
-def process_wiredtiger_log(f, opts):
+def process_wiredtiger_log(f, *,
+                           disagg: bool = False, skip_data: bool = False, cont: bool = False,
+                           split: bool = False,
+                           bson: bool = False, output=None, pages: int = 0):
     while True:
-        byte_dump = encode_bytes(f, opts)
+        byte_dump = encode_bytes(f)
         if not byte_dump:
             logger.info('No (more) byte dumps found in WiredTiger log')
             break
 
         b = binary_data.BinaryFile(io.BytesIO(byte_dump))
-        wtdecode_file_object(b, opts, len(byte_dump))
+        wtdecode_file_object(b, len(byte_dump),
+                             disagg=disagg, skip_data=skip_data, cont=cont,
+                             split=split,
+                             bson=bson, output=output, fragment=True, pages=pages)
 
 # Specific exceptions for hex dump validation errors, to distinguish from other parsing errors
 # and to provide more specific error messages about what is wrong with the hex dump.
@@ -93,7 +112,7 @@ def validate_hex_block_size(chunks, expected_size):
     if collected_size != expected_size:
         raise HexDumpCorruptError(f'Block size mismatch: expected {expected_size}, got {collected_size}')
 
-def extract_mongodb_log_hex(f, opts):
+def extract_mongodb_log_hex(f):
     """
     Extract hex dump from MongoDB log file containing checksum mismatch errors.
     Looks for __wt_bm_corrupt_dump messages and extracts all hex chunks.
@@ -162,7 +181,7 @@ def extract_mongodb_log_hex(f, opts):
             # If we don't have a JSON log line, then this isn't a MongoDB log. Reset the file
             # pointer to the start to read all the bytes again.
             f.seek(0)
-            return encode_bytes(f, opts)
+            return encode_bytes(f)
         except HexDumpCorruptError as e:
             logger.error(f'Hex dump is corrupt - {e}')
             logger.info('Stopping parsing')
@@ -180,7 +199,7 @@ def extract_mongodb_log_hex(f, opts):
     logger.error('No checksum mismatch found in log file')
     return bytearray()
 
-def encode_bytes(f, opts):
+def encode_bytes(f):
     """
     Encode a text hex dump into raw bytes.
 

@@ -26,7 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import logging
+
 from py_common import binary_data
+
+logger = logging.getLogger(__name__)
 
 # Manages printing to output.
 # We keep track of cells, the first line printed for a new cell
@@ -35,11 +39,11 @@ from py_common import binary_data
 # in decoding before the regular decoding output appears.
 # Those 'input bytes' are shown shifted to the right.
 class Printer(object):
-    def __init__(self, binfile, opts):
+    def __init__(self, binfile, *, split=False, verbose=0, ext=False):
         self.binfile = binfile
-        self.issplit = opts.split
-        self.verbose = opts.verbose
-        self.ext = opts.ext
+        self.issplit = split
+        self.verbose = verbose
+        self.ext = ext
         self.cellpfx = ''
         self.in_cell = False
 
@@ -165,5 +169,17 @@ def dumpraw(p, b, pos):
     s = binary_to_pretty_string(b.read(256), per_line=per_line, line_prefix='')
     for line in s.splitlines():
         p.rint_v(hex(pos + i) + ':  ' + line)
+        i += per_line
+    b.seek(savepos)
+
+def dumpraw_to_log(b, pos):
+    """Dump raw bytes around a position to the logger for debugging (no Printer needed)."""
+    savepos = b.tell()
+    b.seek(pos)
+    i = 0
+    per_line = 16
+    s = binary_to_pretty_string(b.read(256), per_line=per_line, line_prefix='')
+    for line in s.splitlines():
+        logger.error(hex(pos + i) + ':  ' + line)
         i += per_line
     b.seek(savepos)

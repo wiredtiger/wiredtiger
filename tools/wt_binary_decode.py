@@ -64,54 +64,60 @@ def open_output_file(filename, mode):
     return open(filename, mode) if filename else nullcontext()
 
 
-def decode_dumpin_input(opts):
-    opts.fragment = True
-    with open_input_file(opts.filename, 'r') as infile:
-        mdb_log_parse.process_logs(infile, opts)
+def decode_dumpin_input(filename, opts, output):
+    with open_input_file(filename, 'r') as infile:
+        mdb_log_parse.process_logs(infile,
+                                   disagg=opts.disagg, skip_data=opts.skip_data, cont=opts.cont,
+                                   split=opts.split,
+                                   bson=opts.bson, output=output, pages=opts.pages)
 
 
-def decode_disagg_table_input(opts):
-    opts.disagg = True
-    opts.fragment = True
-    with open_input_file(opts.filename, 'r') as infile:
-        page_service.process_disagg_table(infile, opts)
+def decode_disagg_table_input(filename, opts):
+    with open_input_file(filename, 'r') as infile:
+        page_service.process_disagg_table(infile,
+                                          keyfile=opts.keyfile,
+                                          skip_data=opts.skip_data, cont=opts.cont,
+                                          split=opts.split, bson=opts.bson)
 
 
-def decode_sqlite_input(opts):
+def decode_sqlite_input(filename, opts):
     logger.info('Detected SQLite3 input format.')
-    opts.disagg = True
-    opts.fragment = True
-    sqlite_format.process_sqlite_file(opts.filename, opts)
+    sqlite_format.process_sqlite_file(filename,
+                                      lsn=opts.lsn, page_id=opts.page_id, pages=opts.pages,
+                                      skip_data=opts.skip_data, cont=opts.cont,
+                                      split=opts.split, bson=opts.bson)
 
 
-def decode_wt_binary_input(opts):
-    nbytes = 0 if opts.filename == '-' else os.path.getsize(opts.filename)
-    input_name = 'stdin' if opts.filename == '-' else opts.filename
-    input_size = 'unknown' if opts.filename == '-' else hex(nbytes)
+def decode_wt_binary_input(filename, opts, output):
+    nbytes = 0 if filename == '-' else os.path.getsize(filename)
+    input_name = 'stdin' if filename == '-' else filename
+    input_size = 'unknown' if filename == '-' else hex(nbytes)
     print(f'{input_name}, position {hex(opts.offset)}, size {input_size}, '
           f'pagelimit {opts.pages}')
-    with open_input_file(opts.filename, 'rb') as fileobj:
-        file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj),
-                                         opts,
-                                         nbytes)
+    with open_input_file(filename, 'rb') as fileobj:
+        file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes,
+                                         disagg=opts.disagg, skip_data=opts.skip_data, cont=opts.cont,
+                                         split=opts.split,
+                                         bson=opts.bson, output=output,
+                                         offset=opts.offset, fragment=opts.fragment, pages=opts.pages)
 
 
-def wtdecode(opts):
+def wtdecode(filename, opts, *, output=None):
     if opts.dumpin:
-        decode_dumpin_input(opts)
+        decode_dumpin_input(filename, opts, output)
     elif opts.disagg_table:
-        decode_disagg_table_input(opts)
-    elif sqlite_format.is_sqlite3_file(opts.filename):
-        decode_sqlite_input(opts)
+        decode_disagg_table_input(filename, opts)
+    elif sqlite_format.is_sqlite3_file(filename):
+        decode_sqlite_input(filename, opts)
     else:
-        decode_wt_binary_input(opts)
+        decode_wt_binary_input(filename, opts, output)
 
 
-def feature_check(opts):
+def feature_check(*, bson: bool = False):
     Feature = collections.namedtuple('Feature',
                                      ['available', 'requested', 'message'])
     features = [
-        Feature(btree_format.HAVE_BSON, opts.bson,
+        Feature(btree_format.HAVE_BSON, bson,
                 'BSON decoding (--bson) is not available. '
                 'BSON-encoded cell values will be shown as raw bytes. '
                 'Please install the bson library (pip install pymongo).'),
@@ -193,7 +199,7 @@ def get_arg_parser():
     outargs.add_argument('-v', '--verbose',
         action='count',
         default=0,
-        help='verbose output (repeat for more verbosity: -v, -vv)')
+        help='verbose logging output (repeat for more verbosity: -v, -vv)')
     outargs.add_argument('-b', '--bytes',
         action='store_true',
         help='show bytes alongside decoding')
@@ -206,9 +212,6 @@ def get_arg_parser():
         dest='cont',
         action='store_true',
         help='continue on checksum failure')
-    outargs.add_argument('--ext',
-        action='store_true',
-        help='dump only the extent lists')
     outargs.add_argument('-s', '--split',
         action='store_true',
         help='split output to also show raw bytes')
@@ -219,17 +222,16 @@ def get_arg_parser():
 # Only run the main code if this file is not imported.
 if __name__ == '__main__':
     parser = get_arg_parser()
-    opts = parser.parse_args()
+    args = parser.parse_args()
 
     log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]
-    level = log_levels[min(opts.verbose, len(log_levels) - 1)]
+    level = log_levels[min(args.verbose, len(log_levels) - 1)]
     logging.basicConfig(level=level, format='[%(levelname)s] %(message)s')
 
-    feature_check(opts)
+    feature_check(bson=args.bson)
 
     try:
-        with open_output_file(opts.output, 'w') as output_file:
-            opts.output = output_file
-            wtdecode(opts)
+        with open_output_file(args.output, 'w') as output_file:
+            wtdecode(args.filename, args, output=output_file)
     except (KeyboardInterrupt, BrokenPipeError):
         pass

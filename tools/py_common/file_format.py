@@ -30,8 +30,8 @@ def file_header_decode(p, b):
     p.rint('')
 
 
-def outfile_header(opts):
-    if opts.output != None:
+def outfile_header(output):
+    if output != None:
         fields = [
             "block id",
 
@@ -47,28 +47,42 @@ def outfile_header(opts):
             # page stats
             *PageStats.csv_cols(),
         ]
-        opts.output.write(",".join(fields))
+        output.write(",".join(fields))
 
-def wtdecode_file_object(b, opts, nbytes):
-    p = Printer(b, opts)
+def wtdecode_file_object(b, nbytes, *,
+                         disagg: bool = False, skip_data: bool = False, cont: bool = False,
+                         split: bool = False,
+                         bson: bool = False, output=None, offset: int = 0,
+                         fragment: bool = False, pages: int = 0):
+    p = Printer(b, split=split)
     pagecount = 0
-    if opts.offset == 0 and not opts.fragment:
+    if offset == 0 and not fragment:
         file_header_decode(p, b)
         startblock = (b.tell() + 0x1ff) & ~(0x1FF)
     else:
-        startblock = opts.offset
+        startblock = offset
 
-    outfile_header(opts)
+    outfile_header(output)
 
-    while (nbytes == 0 or startblock < nbytes) and (opts.pages == 0 or pagecount < opts.pages):
+    while (nbytes == 0 or startblock < nbytes) and (pages == 0 or pagecount < pages):
         d_h = binary_data.d_and_h(startblock)
-        PageStats.outfile_stats_start(opts, d_h)
+        PageStats.outfile_stats_start(output, d_h)
         print('Decode at ' + d_h)
         b.seek(startblock)
         try:
-            page = btree_format.WTPage.parse(b, nbytes, opts)
+            page = btree_format.WTPage.parse(b, nbytes,
+                                             disagg=disagg,
+                                             skip_data=skip_data,
+                                             cont=cont)
             if page.success:
-                page.print_page(opts)
+                page.print_page(split=split,
+                                bson=bson,
+                                disagg=disagg)
+                if page.pagestats:
+                    PageStats.outfile_stats_end(output,
+                                               page.page_header,
+                                               page.block_header,
+                                               page.pagestats)
             p.rint('')
         except BrokenPipeError:
             break
@@ -82,7 +96,7 @@ def wtdecode_file_object(b, opts, nbytes):
         pos = b.tell()
 
         # If we're in attached storage mode align the file pointer on a 512 byte boundary.
-        if not opts.disagg:
+        if not disagg:
             pos = (pos + 0x1FF) & ~(0x1FF)
 
         if startblock == pos:
