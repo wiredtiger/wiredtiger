@@ -903,6 +903,9 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
             __wt_disagg_set_database_size(session, db - (uint64_t)(-delta));
         }
     }
+
+    WT_ASSERT(
+      session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
 }
 
 /*
