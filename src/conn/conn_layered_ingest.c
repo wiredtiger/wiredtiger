@@ -17,7 +17,7 @@ static int __layered_last_checkpoint_order(
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, bool last_tombstone)
+  WT_UPDATE *upds, bool last_upd_is_tombstone)
 {
     WT_DECL_RET;
 
@@ -31,7 +31,11 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    if (last_tombstone) {
+    /*
+     * If the last update is a tombstone, ensure that there is a corresponding value on the stable
+     * table that it deletes.
+     */
+    if (last_upd_is_tombstone) {
         if (cbt->compare != 0)
             WT_ASSERT_ALWAYS(session, false, "There is no value on the stable table to delete");
         else {
@@ -146,12 +150,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     uint8_t flags, location, prepare, type;
     int cmp;
     char buf[256], buf2[64];
-    bool last_tombstone;
+    bool last_upd_is_tombstone;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
     stable_cursor = version_cursor = NULL;
     prev_upd = tombstone = upd = upds = NULL;
-    last_tombstone = false;
+    last_upd_is_tombstone = false;
     WT_TIME_WINDOW_INIT(&tw);
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
@@ -180,10 +184,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_tombstone));
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd_is_tombstone));
                 WT_ERR(ret);
                 upds = NULL;
-                last_tombstone = false;
+                last_upd_is_tombstone = false;
             } else
                 ret = 0;
             break;
@@ -200,9 +204,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_tombstone));
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd_is_tombstone));
                 WT_ERR(ret);
-                last_tombstone = false;
+                last_upd_is_tombstone = false;
             }
 
             upds = NULL;
@@ -247,10 +251,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                  */
                 WT_ASSERT(session, tombstone == NULL);
                 WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                last_tombstone = true;
+                last_upd_is_tombstone = true;
             } else {
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-                last_tombstone = false;
+                last_upd_is_tombstone = false;
             }
             upd->txnid = tw.start_txn;
             upd->upd_start_ts = tw.start_ts;
