@@ -731,7 +731,12 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 
     time_diff = __checkpoint_running_time(session);
 
-    if (closing || __wt_counter_backoff(conn->ckpt.progress.write_pages, 100) ||
+    /*
+     * Output a verbose progress message if the checkpoint is closing, or if the number of write
+     * pages has reached a backoff threshold, or if the time since the checkpoint started exceeds
+     * the progress message period.
+     */
+    if (closing || __wt_counter_backoff(conn->ckpt.progress.write_pages, 10) ||
       (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",

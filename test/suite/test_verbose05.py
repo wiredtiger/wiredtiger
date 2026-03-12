@@ -30,7 +30,8 @@
 from test_verbose01 import test_verbose_base
 from wtscenario import make_scenarios
 import wttest
-from helper import WiredTigerCursor
+from wiredtiger import stat
+from helper import WiredTigerCursor, statistic_uri
 import re
 import math
 
@@ -63,13 +64,18 @@ class test_verbose05(test_verbose_base):
         session.create(self.uri, self.create_config)
         self.populate(session, self.initial_rows, 'x')
         session.checkpoint()
-        output = self.readStdout(self.initial_rows * 100)
+
+        with WiredTigerCursor(session, statistic_uri()) as stat_cursor:
+            # This can be used as an estimated upper bound for
+            # the number of progress messages we expect to see
+            checkpoint_pages_upper_bound = stat_cursor[stat.conn.checkpoint_pages_reconciled][2]
+
+        output = self.readStdout(checkpoint_pages_upper_bound * 100)
         progress_pattern = re.compile(
             r'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint has been running for \d+ seconds ')
         log_count = len(progress_pattern.findall(output))
-        upper_limit = 100 * math.log(self.initial_rows, 10)
+        upper_limit = 10 * math.log(checkpoint_pages_upper_bound, 10)
         self.assertLess(log_count, upper_limit, "Too many progress logs emitted: {}".format(log_count))
-        self.assertGreater(log_count, min(100, self.initial_rows/100) - 1, "Less than expected progress logs emitted")
-        self.close_conn()
-        # The shutdown checkpoint still generate logs which may lead to test failure.
+        self.assertGreater(log_count, min(10, checkpoint_pages_upper_bound/5) - 1, "Less than expected progress logs emitted")
         self.cleanStdout()
+        self.conn.reconfigure('verbose=[]')
