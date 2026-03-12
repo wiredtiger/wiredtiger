@@ -69,7 +69,7 @@ class test_verbose05(test_verbose_base):
         log_count = len(progress_pattern.findall(output))
         upper_limit = 100 * math.log(self.initial_rows, 10)
         self.assertLess(log_count, upper_limit, "Too many progress logs emitted: {}".format(log_count))
-        self.assertGreater(log_count, min(100, self.initial_rows/100) - 1, "No progress logs emitted")
+        self.assertGreater(log_count, min(100, self.initial_rows/100) - 1, "Less than expected progress logs emitted")
         self.close_conn()
         # The shutdown checkpoint still generate logs which may lead to test failure.
         self.cleanStdout()
