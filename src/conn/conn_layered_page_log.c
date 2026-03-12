@@ -788,6 +788,7 @@ __wt_disagg_parse_meta(
   WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_RET;
+    static const char *legacy_ckpt_prefix = "(WiredTigerCheckpoint.";
 
     if (meta_buf->size == 0)
         WT_ERR_MSG(session, EINVAL, "Disaggregated checkpoint metadata is empty");
@@ -799,18 +800,18 @@ __wt_disagg_parse_meta(
      * Detect format by checking for the legacy prefix. The legacy format always starts with
      * "(WiredTigerCheckpoint.", while the regular config format does not.
      */
-    if (WT_PREFIX_MATCH((const char *)meta_buf->data, "(WiredTigerCheckpoint.")) {
+    if (WT_PREFIX_MATCH((const char *)meta_buf->data, legacy_ckpt_prefix)) {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Disaggregated checkpoint metadata starts with \"(WiredTigerCheckpoint.\";"
+          "Disaggregated checkpoint metadata starts with \"%s\";"
           "Parsing legacy format. Found \"%.*s\"",
-          (int)meta_buf->size, (const char *)meta_buf->data);
+          legacy_ckpt_prefix, (int)meta_buf->size, (const char *)meta_buf->data);
         WT_ERR(__disagg_parse_legacy_meta(session, meta_buf, metadata));
 
     } else {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Disaggregated checkpoint metadata does not start with \"(WiredTigerCheckpoint.\";"
+          "Disaggregated checkpoint metadata does not start with \"%s\";"
           "Parsing regular format. Found \"%.*s\"",
-          (int)meta_buf->size, (const char *)meta_buf->data);
+          legacy_ckpt_prefix, (int)meta_buf->size, (const char *)meta_buf->data);
         WT_ERR(__disagg_parse_meta(session, meta_buf, metadata));
     }
 
