@@ -789,8 +789,8 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 
 /*
  * __wt_counter_backoff --
- *     Return true only when the leading two digits of 'v' change, so the reporting
- *     interval grows with 'v' and avoids excessive logging.
+ *     Return true only when the leading two digits of 'v' change, so the reporting interval grows
+ *     with 'v' and avoids excessive logging.
  */
 bool
 __wt_counter_backoff(uint64_t v, uint64_t accuracy)
@@ -801,9 +801,7 @@ __wt_counter_backoff(uint64_t v, uint64_t accuracy)
     uint64_t base, v_last = v - 1;
     for (base = 1; v / base > accuracy; base *= 10)
         ;
-    if (v / base != v_last / base)
-        return (true);
-    return (false);
+    return (v / base != v_last / base);
 }
 
 /*
