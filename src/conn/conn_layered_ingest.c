@@ -37,7 +37,8 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      */
     if (last_upd_is_tombstone) {
         if (cbt->compare != 0)
-            WT_ASSERT_ALWAYS(session, false, "No corresponding value exists on the stable table to delete");
+            WT_ASSERT_ALWAYS(
+              session, false, "No corresponding value exists on the stable table to delete");
         else {
             if (cbt->ins != NULL) {
                 WT_UPDATE *upd = cbt->ins->upd;
