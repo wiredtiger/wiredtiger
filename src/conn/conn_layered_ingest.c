@@ -16,8 +16,8 @@ static int __layered_last_checkpoint_order(
  *     Move the updates of a key to the stable table
  */
 static int
-__layered_move_updates(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
+__layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
+  WT_UPDATE *upds, bool last_tombstone)
 {
     WT_DECL_RET;
 
@@ -30,6 +30,30 @@ __layered_move_updates(
     /* Search the page. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
+
+    if (last_tombstone) {
+        if (cbt->compare != 0)
+            WT_ASSERT_ALWAYS(session, false, "There is no value on the stable table to delete");
+        else {
+            if (cbt->ins != NULL) {
+                WT_UPDATE *upd = cbt->ins->upd;
+                WT_ASSERT_ALWAYS(session,
+                  upd != NULL && upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE,
+                  "There is no value on the stable table to delete");
+            } else if (cbt->ref->page->modify != NULL &&
+              cbt->ref->page->modify->mod_row_update != NULL) {
+                WT_UPDATE *upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+                WT_ASSERT_ALWAYS(session,
+                  upd != NULL && upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE,
+                  "There is no value on the stable table to delete");
+            } else {
+                WT_TIME_WINDOW tw;
+                bool tw_found = __wt_read_cell_time_window(cbt, &tw);
+                WT_ASSERT_ALWAYS(session, tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw),
+                  "There is no value on the stable table to delete");
+            }
+        }
+    }
 
     /* Apply the modification. */
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
@@ -116,10 +140,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     uint8_t flags, location, prepare, type;
     int cmp;
     char buf[256], buf2[64];
+    bool last_tombstone;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
     stable_cursor = version_cursor = NULL;
     prev_upd = tombstone = upd = upds = NULL;
+    last_tombstone = false;
     WT_TIME_WINDOW_INIT(&tw);
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
@@ -147,10 +173,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         WT_ERR_NOTFOUND_OK(version_cursor->next(version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
-                WT_WITH_DHANDLE(
-                  session, cbt->dhandle, ret = __layered_move_updates(session, cbt, key, upds));
+                WT_WITH_DHANDLE(session, cbt->dhandle,
+                  ret = __layered_move_updates(session, cbt, key, upds, last_tombstone));
                 WT_ERR(ret);
                 upds = NULL;
+                last_tombstone = false;
             } else
                 ret = 0;
             break;
@@ -166,9 +193,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             WT_ASSERT(session, key->size == 0 || cmp <= 0);
 
             if (upds != NULL) {
-                WT_WITH_DHANDLE(
-                  session, cbt->dhandle, ret = __layered_move_updates(session, cbt, key, upds));
+                WT_WITH_DHANDLE(session, cbt->dhandle,
+                  ret = __layered_move_updates(session, cbt, key, upds, last_tombstone));
                 WT_ERR(ret);
+                last_tombstone = false;
             }
 
             upds = NULL;
@@ -213,8 +241,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                  */
                 WT_ASSERT(session, tombstone == NULL);
                 WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            } else
+                last_tombstone = true;
+            } else {
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+                last_tombstone = false;
+            }
             upd->txnid = tw.start_txn;
             upd->upd_start_ts = tw.start_ts;
             upd->upd_durable_ts = tw.durable_start_ts;
