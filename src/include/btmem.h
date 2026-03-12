@@ -1561,9 +1561,10 @@ struct __wt_update {
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0100u /* Fast truncate instantiation. */
 #define WT_UPDATE_RESTORED_FROM_DS 0x0200u       /* Update restored from data store. */
 #define WT_UPDATE_RESTORED_FROM_HS 0x0400u       /* Update restored from history store. */
-#define WT_UPDATE_RESTORED_FROM_INGEST 0x0800u   /* Update restored from ingest btree. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x1000u       /* Used by dry run to mark a would-be abort. */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+#define WT_UPDATE_RESTORED_FROM_INGEST \
+    0x0800u                                /* Update restored from ingest btree for debugging. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x1000u /* Used by dry run to mark a would-be abort. */
+                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the
