@@ -47,6 +47,7 @@ typedef struct {
     bool use_timestamp;
     const char *name;
     size_t name_len;
+    bool named;
     bool drop;
     /* Keep reference to original configuration */
     const char **cfg;
@@ -362,11 +363,10 @@ __checkpoint_apply_operation(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CFG *ckp
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    bool ckpt_closed, named;
+    bool ckpt_closed;
 
     /* Flag if this is a named checkpoint, and check if the name is OK. */
-    named = ckpt_cfg->name_len != 0;
-    if (named) {
+    if (ckpt_cfg->named) {
         WT_RET(__checkpoint_name_ok(session, ckpt_cfg->name, ckpt_cfg->name_len, false));
         /* Some objects don't support named checkpoints. */
         WT_ERR(__checkpoint_name_check(session));
@@ -377,7 +377,7 @@ __checkpoint_apply_operation(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CFG *ckp
          * If the checkpoint is named or we're dropping checkpoints, we checkpoint both open and
          * closed files; else, only checkpoint open files.
          */
-        ckpt_closed = named || ckpt_cfg->drop;
+        ckpt_closed = ckpt_cfg->named || ckpt_cfg->drop;
 
         if (ckpt_closed) {
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_APPLY_META);
@@ -1209,7 +1209,7 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CFG *ckpt_cfg)
     /* Never skip if force is configured. */
     /* Never skip named checkpoints. */
     /* Never skip if flushing objects. */
-    if (ckpt_cfg->force || ckpt_cfg->name_len != 0 || ckpt_cfg->flush_tier_enabled)
+    if (ckpt_cfg->force || ckpt_cfg->named || ckpt_cfg->flush_tier_enabled)
         return (0);
 
     /*
@@ -1266,6 +1266,7 @@ __checkpoint_parse_config(
     if (cval.len != 0) {
         ckpt_cfg->name = cval.str;
         ckpt_cfg->name_len = cval.len;
+        ckpt_cfg->named = true;
     }
 
     WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
