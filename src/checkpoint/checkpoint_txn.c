@@ -16,7 +16,7 @@ static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, con
 static int __checkpoint_log_stage(WT_SESSION_IMPL *, int, bool, int);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_metadata(
-  WT_SESSION_IMPL *, const char *[], WT_TXN *, WT_TXN_GLOBAL *, struct timespec *, bool);
+  WT_SESSION_IMPL *, const char *[], WT_TXN *, WT_TXN_GLOBAL *, struct timespec *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[], struct timespec);
 static int __checkpoint_fsync_post(WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
@@ -1747,7 +1747,23 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
     WT_ERR(__wt_txn_commit(session, NULL));
 
-    WT_ERR(__checkpoint_metadata(session, cfg, txn, txn_global, &tsp, logging));
+    /* Crash before updating the metadata if checkpoint crash point is configured. */
+    if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_UPDATE)
+        __wt_debug_crash(session);
+
+    /*
+     * Flush all the logs that are generated during the checkpoint. It is possible that checkpoint
+     * may include the changes that are written in parallel by an eviction. To have a consistent
+     * view of the data, make sure that all the logs are flushed to disk before the checkpoint is
+     * complete.
+     */
+    WT_ERR(__checkpoint_log_stage(session, CKPT_LOG_STAGE_FLUSH, logging, 0));
+
+    /* Crash before metadata sync if checkpoint crash point is configured. */
+    if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
+        __wt_debug_crash(session);
+
+    WT_ERR(__checkpoint_metadata(session, cfg, txn, txn_global, &tsp));
 
     __checkpoint_stats(session);
 
@@ -3038,29 +3054,13 @@ err:
  */
 static int
 __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn,
-  WT_TXN_GLOBAL *txn_global, struct timespec *tsp, bool logging)
+  WT_TXN_GLOBAL *txn_global, struct timespec *tsp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     void *saved_meta_next;
 
     conn = S2C(session);
-
-    /* Crash before updating the metadata if checkpoint crash point is configured. */
-    if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_UPDATE)
-        __wt_debug_crash(session);
-
-    /*
-     * Flush all the logs that are generated during the checkpoint. It is possible that checkpoint
-     * may include the changes that are written in parallel by an eviction. To have a consistent
-     * view of the data, make sure that all the logs are flushed to disk before the checkpoint is
-     * complete.
-     */
-    WT_ERR(__checkpoint_log_stage(session, CKPT_LOG_STAGE_FLUSH, logging, 0));
-
-    /* Crash before metadata sync if checkpoint crash point is configured. */
-    if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
-        __wt_debug_crash(session);
 
     /*
      * Stress point to stop just before we sync the metadata file. Used to recreate log recovery
