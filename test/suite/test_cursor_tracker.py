@@ -287,8 +287,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
         if bits not in self.vers:
             self.bitlist.append(bits)
             if self.isrow:
-                #TODO: why doesn't self.bitlist.sort() work?
-                self.bitlist = sorted(self.bitlist)
+                self.bitlist.sort()
             self.vers[bits] = 0
         else:
             raise Exception('cur_insert: key already exists: ' + str(major) + ',' + str(minor))
