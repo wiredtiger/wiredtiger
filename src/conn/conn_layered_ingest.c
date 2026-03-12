@@ -187,7 +187,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                   ret = __layered_move_updates(session, cbt, key, upds, last_upd_is_tombstone));
                 WT_ERR(ret);
                 upds = NULL;
-                last_upd_is_tombstone = false;
             } else
                 ret = 0;
             break;
@@ -206,7 +205,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 WT_WITH_DHANDLE(session, cbt->dhandle,
                   ret = __layered_move_updates(session, cbt, key, upds, last_upd_is_tombstone));
                 WT_ERR(ret);
-                last_upd_is_tombstone = false;
             }
 
             upds = NULL;
