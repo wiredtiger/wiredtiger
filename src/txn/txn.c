@@ -1092,9 +1092,9 @@ __txn_resolve_prepared_update_chain(
     /* Resolve the prepared update to be a committed update. */
     __txn_apply_prepare_state_update(session, upd, true);
 
-    /* Sleep for 100ms in the prepared resolution path if configured. */
+    /* Sleep for 1 second in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
-        __wt_sleep(0, 100 * WT_THOUSAND);
+        __wt_sleep(0, 1000 * WT_THOUSAND);
     WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
 }
 
@@ -2382,7 +2382,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, txn_global_stable_timestamp,
       __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp));
 
-    if (conn->version_cursor_count == 0)
+    if (__wt_atomic_load_uint32_relaxed(&conn->version_cursor_count) == 0)
         WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp, WT_TS_NONE);
     else
         WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp,
@@ -2519,7 +2519,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_TIMER timer;
     char conn_rts_cfg[16], ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
-    bool conn_is_disagg, use_timestamp;
+    bool conn_is_disagg, use_timestamp, skip_checkpoint;
 
     conn = S2C(session);
     conn_is_disagg = __wt_conn_is_disagg(session);
@@ -2535,6 +2535,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
      * true for waiting for internal races.
      */
     F_SET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT);
+
+    WT_TRET(__wt_config_gets(session, cfg, "debug.skip_checkpoint", &cval));
+    skip_checkpoint = cval.val != 0;
+
     WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     ckpt_cfg = "use_timestamp=false";
     if (cval.val != 0) {
@@ -2580,15 +2584,19 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
 
         s = NULL;
+        if (skip_checkpoint)
+            __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s",
+              "skipped shutdown checkpoint due to debug.skip_checkpoint config");
         /*
-         * Do shutdown checkpoint if we are not using disaggregated storage or the node still
-         * consider itself the leader. If it is not the real leader, the storage layer services
-         * should return an error as it is not allowed to write.
+         * Do shutdown checkpoint if we are not configured to skip the checkpoint, and not using
+         * disaggregated storage and the node still consider itself the leader. If it is not the
+         * real leader, the storage layer services should return an error as it is not allowed to
+         * write.
          *
          * FIXME-WT-14739: we should be able to do shutdown checkpoint for followers as well when we
          * are able to skip the shared tables in checkpoint.
          */
-        if (!conn_is_disagg || conn->layered_table_manager.leader) {
+        if (!skip_checkpoint && (!conn_is_disagg || conn->layered_table_manager.leader)) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
             if (s != NULL) {
                 const char *checkpoint_cfg[] = {
