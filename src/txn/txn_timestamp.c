@@ -70,13 +70,12 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    wt_timestamp_t old_ts, tmp_read_ts, tmp_ts;
+    wt_timestamp_t oldest_ts, tmp_read_ts, tmp_ts;
     uint32_t i, older_reader_cnt, session_cnt;
     bool include_oldest, txn_has_write_lock;
 
     conn = S2C(session);
     older_reader_cnt = 0;
-    old_ts = WT_TS_NONE;
     include_oldest = LF_ISSET(WT_TXN_TS_INCLUDE_OLDEST);
     txn_global = &conn->txn_global;
     txn_has_write_lock = LF_ISSET(WT_TXN_TS_ALREADY_LOCKED);
@@ -90,10 +89,9 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     if (!txn_has_write_lock)
         __wt_readlock(session, &txn_global->rwlock);
 
-    if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp))
-        old_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
+    oldest_ts = __wt_get_oldest_timestamp(session);
 
-    tmp_ts = include_oldest ? old_ts : WT_TS_NONE;
+    tmp_ts = include_oldest ? oldest_ts : WT_TS_NONE;
 
     /* Check for a running checkpoint */
     if (LF_ISSET(WT_TXN_TS_INCLUDE_CKPT) && txn_global->checkpoint_timestamp != WT_TS_NONE &&
@@ -115,7 +113,7 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
         if (tmp_ts == WT_TS_NONE || tmp_read_ts < tmp_ts)
             tmp_ts = tmp_read_ts;
 
-        if (tmp_read_ts < old_ts)
+        if (tmp_read_ts < oldest_ts)
             ++older_reader_cnt;
     }
 
