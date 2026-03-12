@@ -789,7 +789,7 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 
 /*
  * __wt_counter_backoff --
- *     Emit progress messages only when the leading two digits of 'v' change, so the reporting
+ *     Return true only when the leading two digits of 'v' change, so the reporting
  *     interval grows with 'v' and avoids excessive logging.
  */
 bool
