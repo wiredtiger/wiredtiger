@@ -12,6 +12,49 @@ static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
+ * __layered_assert_tombstone_has_value_on_stable_btree --
+ *     Assert that a value exists on the stable btree before moving a tombstone intended to delete
+ *     it.
+ */
+static WT_INLINE void
+__layered_assert_tombstone_has_value_on_stable_btree(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
+{
+    bool has_value;
+
+    if (last_upd->type != WT_UPDATE_TOMBSTONE)
+        return;
+
+    /*
+     * If the last update is a tombstone, ensure that there is a corresponding value on the stable
+     * table that it deletes.
+     */
+    if (cbt->compare != 0)
+        /* No on-page value to check; rely solely on visibility. */
+        has_value = false;
+    else if (cbt->ins != NULL) {
+        WT_UPDATE *upd = cbt->ins->upd;
+        has_value =
+          (upd != NULL && upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE);
+    } else {
+        WT_UPDATE *upd = NULL;
+        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+
+        if (upd != NULL)
+            has_value = (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE);
+        else {
+            WT_TIME_WINDOW tw;
+            bool tw_found = __wt_read_cell_time_window(cbt, &tw);
+            has_value = (tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw));
+        }
+    }
+
+    WT_ASSERT_ALWAYS(session, has_value || __wt_txn_upd_visible_all(session, last_upd),
+      "No corresponding value exists on the stable table to delete");
+}
+
+/*
  * __layered_move_updates --
  *     Move the updates of a key to the stable table
  */
@@ -31,45 +74,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    /*
-     * If the last update is a tombstone, ensure that there is a corresponding value on the stable
-     * table that it deletes.
-     */
-    if (last_upd->type == WT_UPDATE_TOMBSTONE) {
-        if (cbt->compare != 0)
-            WT_ASSERT_ALWAYS(session, __wt_txn_upd_visible_all(session, last_upd),
-              "No corresponding value exists on the stable table to delete");
-        else {
-            if (cbt->ins != NULL) {
-                WT_UPDATE *upd = cbt->ins->upd;
-                WT_ASSERT_ALWAYS(session,
-                  (upd != NULL && upd->txnid != WT_TXN_ABORTED &&
-                    upd->type != WT_UPDATE_TOMBSTONE) ||
-                    __wt_txn_upd_visible_all(session, last_upd),
-                  "No corresponding value exists on the stable table to delete");
-            } else {
-                WT_UPDATE *upd = NULL;
-                if (cbt->ref->page->modify != NULL &&
-                  cbt->ref->page->modify->mod_row_update != NULL)
-                    upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-
-                if (upd != NULL)
-                    WT_ASSERT_ALWAYS(session,
-                      (upd != NULL && upd->txnid != WT_TXN_ABORTED &&
-                        upd->type != WT_UPDATE_TOMBSTONE) ||
-                        __wt_txn_upd_visible_all(session, last_upd),
-                      "No corresponding value exists on the stable table to delete");
-                else {
-                    WT_TIME_WINDOW tw;
-                    bool tw_found = __wt_read_cell_time_window(cbt, &tw);
-                    WT_ASSERT_ALWAYS(session,
-                      (tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw)) ||
-                        __wt_txn_upd_visible_all(session, last_upd),
-                      "No corresponding value exists on the stable table to delete");
-                }
-            }
-        }
-    }
+    __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
 
     /* Apply the modification. */
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
