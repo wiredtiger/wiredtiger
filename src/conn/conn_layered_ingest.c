@@ -261,8 +261,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             upd->prepare_ts = tw.start_prepare_ts;
             upd->prepared_id = tw.start_prepared_id;
             last_upd = upd;
-        } else
+        } else {
             WT_ASSERT(session, tombstone != NULL);
+            last_upd = tombstone;
+        }
 
         /*
          * FIXME-WT-14732: we can simplify the algorithm if we don't use real tombstones on the
