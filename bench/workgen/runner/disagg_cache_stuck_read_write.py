@@ -132,7 +132,7 @@ checkpoint_thread = Thread(ops)
 # ------------------------
 # Assemble workload threads
 # ------------------------
-# 50% reads, ~50% (inserts+updates) 
+# 50% reads, ~50% (inserts+updates)
 threads = 50 * tupdate + 50 * tinsert
 
 # Reads: 10 lags * 5 threads each, each with 2000 ops => 100,000 read ops
