@@ -1606,6 +1606,9 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during eviction (usecs)",
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
+  "checkpoint-cleanup: most recent duration on all eligible files (usecs)",
+  "checkpoint-cleanup: most recent handles processed",
+  "checkpoint-cleanup: most recent in-memory pages visited",
   "checkpoint-cleanup: pages added for eviction",
   "checkpoint-cleanup: pages removed",
   "checkpoint-cleanup: pages skipped during tree walk",
@@ -2276,6 +2279,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
+    /* not clearing checkpoint_cleanup_duration */
+    stats->checkpoint_cleanup_handle_processed = 0;
+    stats->checkpoint_cleanup_inmem_pages_visited = 0;
     stats->cc_pages_evict = 0;
     stats->cc_pages_removed = 0;
     stats->cc_pages_walk_skipped = 0;
@@ -2966,6 +2972,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
+    to->checkpoint_cleanup_duration += WT_STAT_READ(from, checkpoint_cleanup_duration);
+    to->checkpoint_cleanup_handle_processed +=
+      WT_STAT_READ(from, checkpoint_cleanup_handle_processed);
+    to->checkpoint_cleanup_inmem_pages_visited +=
+      WT_STAT_READ(from, checkpoint_cleanup_inmem_pages_visited);
     to->cc_pages_evict += WT_STAT_READ(from, cc_pages_evict);
     to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
     to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
