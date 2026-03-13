@@ -574,9 +574,9 @@ struct __wt_connection_stats {
     int64_t capacity_time_evict;
     int64_t capacity_time_log;
     int64_t capacity_time_read;
-    int64_t checkpoint_cleanup_duration;
-    int64_t checkpoint_cleanup_handle_processed;
-    int64_t checkpoint_cleanup_inmem_pages_visited;
+    int64_t cc_duration;
+    int64_t cc_handle_processed;
+    int64_t cc_inmem_pages_visited;
     int64_t cc_pages_evict;
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
@@ -1122,6 +1122,9 @@ struct __wt_dsrc_stats {
     int64_t cache_state_refs_skipped;
     int64_t cache_state_root_size;
     int64_t cache_state_pages;
+    int64_t cc_duration;
+    int64_t cc_handle_processed;
+    int64_t cc_inmem_pages_visited;
     int64_t cc_pages_evict;
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
