@@ -218,8 +218,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_REF *prev, *walk;
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
-    uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
-    uint32_t flags, rec_flags;
+    uint64_t oldest_id, saved_pinned_id, cc_time_start, time_start, time_stop;
+    uint32_t flags, cc_pages_visited, rec_flags;
     bool dirty, internal_cleanup, is_hs, tried_eviction;
 
     conn = S2C(session);
@@ -235,6 +235,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     internal_pages = leaf_pages = 0;
     saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
     time_start = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT) ? __wt_clock(session) : 0;
+    cc_time_start = 0;
+    cc_pages_visited = 0;
 
     switch (syncop) {
     case WT_SYNC_WRITE_LEAVES:
@@ -346,6 +348,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             internal_cleanup = false;
         }
 
+        if (internal_cleanup) {
+            WT_STAT_CONN_INCR(session, checkpoint_cleanup_handle_processed);
+            cc_time_start = __wt_clock(session);
+        }
+
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
@@ -356,9 +363,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (walk == NULL)
                 break;
 
-            if (F_ISSET(walk, WT_REF_FLAG_INTERNAL) && internal_cleanup) {
-                WT_WITH_PAGE_INDEX(session, ret = __wt_sync_obsolete_cleanup(session, walk));
-                WT_ERR(ret);
+            if (internal_cleanup) {
+                ++cc_pages_visited;
+                if (F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
+                    WT_WITH_PAGE_INDEX(session, ret = __wt_sync_obsolete_cleanup(session, walk));
+                    WT_ERR(ret);
+                }
             }
 
             page = walk->page;
@@ -470,6 +480,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         break;
     }
 
+    if (cc_time_start != 0) {
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_INCRV(
+          session, checkpoint_cleanup_duration, WT_CLOCKDIFF_US(time_stop, cc_time_start));
+    }
+
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         __wt_verbose(session, WT_VERB_CHECKPOINT,
@@ -480,6 +496,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     }
 
 err:
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, cc_pages_visited);
+
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
