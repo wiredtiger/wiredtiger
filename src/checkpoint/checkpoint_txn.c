@@ -744,7 +744,9 @@ __checkpoint_progress_clear(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    conn->ckpt.progress.files_checkpointed = 0;
     conn->ckpt.progress.msg_count = 0;
+    conn->ckpt.progress.pages_walked = 0;
     conn->ckpt.progress.write_bytes = 0;
     conn->ckpt.progress.write_pages = 0;
 }
