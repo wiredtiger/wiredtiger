@@ -393,8 +393,11 @@ __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session)
         WT_RET(__wt_semaphore_wait(session, &ckpt_threads->done_sem));
 
         __checkpoint_parallel_pop_done(session, &entry);
-        if (entry == NULL)
-            break;
+        if (entry == NULL) {
+            /* We can get here if the semaphore was never posted. Try again. */
+            __wt_yield();
+            continue;
+        }
         done_popped++;
 
         WT_TRET(entry->result);
