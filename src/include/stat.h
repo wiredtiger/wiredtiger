@@ -1448,6 +1448,7 @@ struct __wt_dsrc_stats {
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
+    int64_t block_checkpoint_reconcile_duration;
     int64_t block_checkpoint_size;
     int64_t allocation_size;
     int64_t block_reuse_bytes;

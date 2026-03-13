@@ -20,6 +20,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-manager: allocations requiring file extension",
   "block-manager: blocks allocated",
   "block-manager: blocks freed",
+  "block-manager: checkpoint reconciliation block manager duration (usecs)",
   "block-manager: checkpoint size",
   "block-manager: file allocation unit size",
   "block-manager: file bytes available for reuse",
@@ -485,6 +486,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->block_extension = 0;
     stats->block_alloc = 0;
     stats->block_free = 0;
+    /* not clearing block_checkpoint_reconcile_duration */
     stats->block_checkpoint_size = 0;
     stats->allocation_size = 0;
     stats->block_reuse_bytes = 0;
@@ -898,6 +900,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->block_extension += from->block_extension;
     to->block_alloc += from->block_alloc;
     to->block_free += from->block_free;
+    to->block_checkpoint_reconcile_duration += from->block_checkpoint_reconcile_duration;
     to->block_checkpoint_size += from->block_checkpoint_size;
     if (from->allocation_size > to->allocation_size)
         to->allocation_size = from->allocation_size;
@@ -1345,6 +1348,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->block_extension += WT_STAT_DSRC_READ(from, block_extension);
     to->block_alloc += WT_STAT_DSRC_READ(from, block_alloc);
     to->block_free += WT_STAT_DSRC_READ(from, block_free);
+    to->block_checkpoint_reconcile_duration +=
+      WT_STAT_DSRC_READ(from, block_checkpoint_reconcile_duration);
     to->block_checkpoint_size += WT_STAT_DSRC_READ(from, block_checkpoint_size);
     if ((v = WT_STAT_DSRC_READ(from, allocation_size)) > to->allocation_size)
         to->allocation_size = v;

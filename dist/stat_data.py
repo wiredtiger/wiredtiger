@@ -1011,6 +1011,7 @@ dsrc_stats = [
     ##########################################
     BlockStat('allocation_size', 'file allocation unit size', 'max_aggregate,no_scale,size'),
     BlockStat('block_alloc', 'blocks allocated'),
+    BlockStat('block_checkpoint_reconcile_duration', 'checkpoint reconciliation block manager duration (usecs)', 'no_clear,no_scale'),
     BlockStat('block_checkpoint_size', 'checkpoint size', 'no_scale,size'),
     BlockStat('block_extension', 'allocations requiring file extension'),
     BlockStat('block_free', 'blocks freed'),
