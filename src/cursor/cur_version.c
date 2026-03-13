@@ -24,11 +24,11 @@ __curversion_is_prepare_rollback_value(WT_UPDATE *upd)
 {
     uint8_t prepare_state;
 
-    if (upd->txnid != WT_TXN_ABORTED)
+    if (upd->txnid != WT_TXN_ABORTED || upd->type == WT_UPDATE_TOMBSTONE)
         return (false);
 
     WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
-    return (prepare_state == WT_PREPARE_INPROGRESS);
+    return (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
 }
 
 /*
