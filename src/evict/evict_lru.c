@@ -2529,6 +2529,22 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         }
     }
 
+    /*
+     * If we encounter a leaf page flagged by checkpoint as having been split, queue it for urgent
+     * eviction. We want to realize the split as quickly as possible to allow for delta generation
+     * to take place on subsequently dirtied pages.
+     */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_CKPT_SPLIT) &&
+      !__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running)) {
+        WT_STAT_CONN_INCR(session, cache_eviction_multiblock_urgent_queued);
+        F_CLR_ATOMIC_16(page, WT_PAGE_CKPT_SPLIT);
+        if (__wt_evict_page_urgent(session, ref)) {
+            *urgent_queuedp = true;
+            return;
+        } else
+            WT_STAT_CONN_INCR(session, cache_eviction_multiblock_urgent_queued_fail);
+    }
+
     /* Pages being forcibly evicted go on the urgent queue. */
     if (modified &&
       (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_EVICT_SOON ||

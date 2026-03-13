@@ -301,6 +301,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_WITH_PAGE_INDEX(session, ret = __wti_rec_row_int(session, r, page));
         break;
     case WT_PAGE_ROW_LEAF:
+        /* Track whether checkpoint is re-reconciling a page with an unresolved multiblock split. */
+        if (WT_REC_RESULT_MULTIBLOCK_SPLIT(page) && F_ISSET(r, WT_REC_CHECKPOINT))
+            WT_STAT_CONN_INCR(session, cache_eviction_multiblock_split_re_reconciled);
         /*
          * It's important we wrap this call in a page index guard, the ikey on the ref may still be
          * pointing into the internal page's memory. We want to prevent eviction of the internal

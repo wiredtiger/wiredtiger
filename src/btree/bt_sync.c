@@ -305,7 +305,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
-
+                /* Flag the page for urgent eviction. */
+                if (WT_REC_RESULT_MULTIBLOCK_SPLIT(page)) {
+                    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_checkpoint_flagged);
+                    F_SET_ATOMIC_16(page, WT_PAGE_CKPT_SPLIT);
+                }
                 continue;
             }
 
@@ -367,6 +371,16 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+
+            /*
+             * Mark leaf page with an unresolved multiblock split, the eviction server will queue
+             * these pages for urgent eviction allowing the multiblock split to be realized. This
+             * enables subsequent delta generation.
+             */
+            if (!is_internal && WT_REC_RESULT_MULTIBLOCK_SPLIT(page)) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_checkpoint_flagged);
+                F_SET_ATOMIC_16(page, WT_PAGE_CKPT_SPLIT);
+            }
 
             /* Update checkpoint IO tracking data. */
             if (__wt_checkpoint_verbose_timer_started(session))
