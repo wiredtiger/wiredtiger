@@ -864,7 +864,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
 static void
-__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
+__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -893,7 +893,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
         int64_t delta;
 
         db = conn->disaggregated_storage.database_size;
-        delta = session->ckpt.ckpt_size_delta;
+        delta = session->ckpt.ckpt_size_delta - (int64_t)drop_size;
 
         if (delta > 0) {
             WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
@@ -1355,7 +1355,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
-    uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
+    uint64_t ckpt_tree_duration_usecs, drop_size, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
     u_int i;
@@ -1368,6 +1368,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     ckpt_tmp_ts = WT_TS_NONE;
     evict = conn->evict;
+    drop_size = 0;
     hs_size = 0;
     hs_dhandle = hs_dhandle_shared = NULL;
     txn = session->txn;
@@ -1592,7 +1593,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Copy any updated metadata to the shared metadata table.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_shared_metadata_queue_process(session));
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_shared_metadata_queue_process(session, &drop_size));
         WT_ERR(ret);
     }
 
@@ -1783,7 +1784,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
     /* Disaggregated storage database size accounting. */
-    __checkpoint_update_disagg_database_size(session);
+    __checkpoint_update_disagg_database_size(session, drop_size);
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 

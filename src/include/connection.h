@@ -181,6 +181,7 @@ struct __wt_disagg_metadata_op {
     char *layered_value;  /* The value for the layered component. */
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
+    uint64_t disagg_size; /* The size of the stable table in shared storage. */
 
     /* Metadata type operation. */
     WT_SHARED_METADATA_OP metadata_op;
