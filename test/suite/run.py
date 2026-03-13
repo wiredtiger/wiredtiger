@@ -41,6 +41,12 @@ if sys.version_info[0] <= 2:
     print('WiredTiger requires Python version 3.0 or above')
     sys.exit(1)
 
+# Provide a Python 3-compatible xrange alias; some legacy code paths still use xrange.
+try:
+    xrange  # type: ignore[name-defined]
+except NameError:  # pragma: no cover - Python 3 only
+    xrange = range  # type: ignore[assignment]
+
 sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'py_utility'))
 import test_util
 

@@ -153,6 +153,10 @@ class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, RecStat.prefix, desc, flags)
+class RecDeltaStat(Stat):
+    prefix = 'reconciliation-delta'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, RecDeltaStat.prefix, desc, flags)
 class SessionOpStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
@@ -1460,6 +1464,20 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
     RecStat('rec_vlcs_emptied_pages', 'VLCS pages explicitly reconciled as empty'),
+
+    ##########################################
+    # Fastpath delta stats
+    ##########################################
+    RecDeltaStat('rec_delta_fast_fail', 'fast path delta pages could not be generated'),
+    RecDeltaStat('rec_delta_fast_fail_chain_length', 'fast path delta pages could not be generated because the delta chain at configured max length'),
+    RecDeltaStat('rec_delta_fast_fail_eviction', 'fast path delta pages could not be generated because the reconciliation was not from checkpoint'),
+    RecDeltaStat('rec_delta_fast_fail_first_write', 'fast path delta pages could not be generated because there is no prior image'),
+    RecDeltaStat('rec_delta_fast_fail_other', 'fast path delta pages could not be generated for other reason'),
+    RecDeltaStat('rec_delta_fast_fail_update_chain', 'fast path delta pages could not be generated because updates would need to be relocated to history store'),
+    RecDeltaStat('rec_delta_fast_ge10', 'fast path delta pages generated with 10 or more changes'),
+    RecDeltaStat('rec_delta_fast_lt10', 'fast path delta pages generated with fewer than 10 changes'),
+    RecDeltaStat('rec_delta_fast_lt5', 'fast path delta pages generated with fewer than 5 changes'),
+    RecDeltaStat('rec_delta_fast_success', 'fast path delta pages could be generated'),
 
     ##########################################
     # Transaction statistics
