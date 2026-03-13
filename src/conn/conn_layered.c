@@ -944,7 +944,11 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, uint64_t *dr
          */
         if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
             uint64_t size;
-            WT_ERR(__wt_ckpt_last_size(session, entry->stable_value, &size));
+            /*
+             * A table that was created and dropped without ever being checkpointed won't have a
+             * checkpoint entry in its metadata, so WT_NOTFOUND is expected.
+             */
+            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
             *drop_sizep += size;
         }
 
