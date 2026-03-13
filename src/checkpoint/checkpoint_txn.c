@@ -2839,7 +2839,8 @@ err:
                  * the discard logic would also need to be reconsidered.
                  */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
-                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size));
+                    WT_TRET(
+                      __wt_btree_block_free(session, ckpt_temp->raw.data, ckpt_temp->raw.size));
             }
         }
     }
