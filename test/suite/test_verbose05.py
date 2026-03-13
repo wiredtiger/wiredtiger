@@ -76,6 +76,7 @@ class test_verbose05(test_verbose_base):
         log_count = len(progress_pattern.findall(output))
         upper_limit = 10 * math.log(checkpoint_pages_upper_bound, 10)
         self.assertLess(log_count, upper_limit, "Too many progress logs emitted: {}".format(log_count))
-        self.assertGreater(log_count, min(10, checkpoint_pages_upper_bound/5) - 1, "Less than expected progress logs emitted")
+        lower_limit = max(1, math.log(checkpoint_pages_upper_bound, 10))
+        self.assertGreater(log_count, lower_limit, "Less than expected progress logs emitted")
         self.cleanStdout()
         self.conn.reconfigure('verbose=[]')

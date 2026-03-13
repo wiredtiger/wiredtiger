@@ -796,9 +796,9 @@ bool
 __wt_counter_backoff(uint64_t v, uint64_t accuracy)
 {
     /*
-     * Using v - 1 causes unsigned underflow when v == 0, resulting in v_last/base
-     * being very large. This makes the function return true for v == 0, which is
-     * acceptable since the first call should always trigger.
+     * Using v - 1 causes unsigned underflow when v == 0, resulting in v_last/base being very large.
+     * This makes the function return true for v == 0, which is acceptable since the first call
+     * should always trigger.
      */
     uint64_t base, v_last = v - 1;
     for (base = 1; v / base > accuracy; base *= 10)
