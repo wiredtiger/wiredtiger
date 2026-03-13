@@ -826,14 +826,13 @@ class WTPage:
             # The disk size is too small
             return page
 
-        pagestats = PageStats()
+        page.pagestats = PageStats()
 
         if not verify_block_checksum(b, disk_pos, disk_size, page, disagg=disagg, cont=cont):
             return page
 
         if skip_data:
             b.seek(disk_pos + disk_size)
-            page.pagestats = pagestats
             page.success = True
             return page
 
@@ -859,17 +858,16 @@ class WTPage:
             page.extents = extents
         elif page.page_header.type == PageType.WT_PAGE_ROW_INT or \
             page.page_header.type == PageType.WT_PAGE_ROW_LEAF:
-            cells = page.decode_rows(b_page, pagestats)
+            cells = page.decode_rows(b_page, page.pagestats)
             page.cells = cells
         else:
             logger.warning('? unimplemented decode for page type {}'.format(page.page_header.type))
 
-        page.pagestats = pagestats
         page.success = True
         return page
 
     def print_page(self, *, split: bool = False,
-                   bson: bool = False, disagg: bool = False):
+                   decode_as_bson: bool = False, disagg: bool = False):
         p = Printer(self.raw_bytes, split=split)
         p.rint(self.page_header)
         p.rint(self.block_header)
@@ -880,7 +878,7 @@ class WTPage:
             self.print_extents(p)
         elif self.page_header.type == PageType.WT_PAGE_ROW_INT or \
             self.page_header.type == PageType.WT_PAGE_ROW_LEAF:
-            self.print_cells(p, decode_as_bson=bson, disagg=disagg)
+            self.print_cells(p, decode_as_bson=decode_as_bson, disagg=disagg)
         elif self.page_header.type == PageType.WT_PAGE_OVFL:
             # Use b_page.read() so that we can also print the raw bytes in the split mode
             b_page = self.raw_bytes
