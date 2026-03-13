@@ -81,7 +81,7 @@ TEST_CASE("Test Semaphore: Multi-threaded Operations", "[semaphore]")
         for (int i = 0; i < num_threads; ++i)
             CHECK(__wt_semaphore_post(session, &sem) == 0);
 
-        for (auto& t : threads)
+        for (auto &t : threads)
             t.join();
 
         CHECK(counter == num_threads);
