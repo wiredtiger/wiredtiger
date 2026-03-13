@@ -2934,6 +2934,10 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
      */
     __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, btree->evict_walk_saved);
 
+    /* Track the number of files successfully checkpointed for progress reporting. */
+    if (ret == 0)
+        ++S2C(session)->ckpt.progress.files_checkpointed;
+
     /*
      * Wake the eviction server, in case application threads have stalled while the eviction server
      * decided it couldn't make progress. Without this, application threads will be stalled until
