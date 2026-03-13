@@ -220,7 +220,8 @@ class test_cursor25(wttest.WiredTigerTestCase):
         """
         Committed insert@ts=1, then prepared delete@ts=5 + rollback.
         Chain: [aborted prepared tombstone] -> [committed insert@ts=1].
-        show_prepared_rollback should not emit a tombstone-only rollback row.
+        show_prepared_rollback should not emit a tombstone-only rollback row, but the
+        committed value should carry stop metadata from the aborted tombstone.
         """
         self.create()
 
@@ -251,13 +252,21 @@ class test_cursor25(wttest.WiredTigerTestCase):
         vc.close()
         self.session.rollback_transaction()
 
-        # With show_prepared_rollback: same result. The head rollback is a tombstone, and this
-        # test only expects value rows to be emitted.
+        # With show_prepared_rollback: still emit only the committed value row, but
+        # the stop metadata now comes from the aborted tombstone at the head.
         self.session.begin_transaction()
         vc = self.open_version_cursor(show_prepared_rollback=True)
         vc.set_key(1)
         self.assertEqual(vc.search(), 0)
-        self.verify_value(vc, 1, 1, WT_TS_MAX, 0, 3, 0, 0, 0, 10)
+        values = self.get_values(vc)
+        self.assertEqual(values[1], 1)                # start_ts
+        self.assertEqual(values[2], 1)                # start_durable_ts
+        self.assertEqual(values[5], WT_TXN_ABORTED)   # stop_txn is the aborted tombstone
+        self.assertNotEqual(values[6], WT_TS_MAX)     # stop_ts stores saved txn id for aborted stop
+        self.assertEqual(values[7], ROLLBACK_TS)      # stop_durable_ts carries rollback_ts
+        self.assertEqual(values[8], PREPARE_TS)       # stop_prepare_ts from prepared delete
+        self.assertEqual(values[10], 3)               # WT_UPDATE_STANDARD
+        self.assertEqual(values[14], 10)
         self.assertEqual(vc.next(), wiredtiger.WT_NOTFOUND)
         vc.close()
         self.session.rollback_transaction()

@@ -119,7 +119,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     int cmp;
     char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
-    bool has_stop, is_prepare_rollback;
+    bool has_stop;
 
     stable_cursor = version_cursor = NULL;
     prev_upd = tombstone = upd = upds = NULL;
@@ -187,10 +187,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         WT_UNUSED(flags);
         WT_UNUSED(location);
         has_stop = stop_txn != WT_TXN_MAX;
-        is_prepare_rollback = start_txn == WT_TXN_ABORTED && prepare != 0;
         /* FIXME-WT-16744 Remove this assertion when prepared update on the stable table are
          * resolved during draining. */
-        WT_ASSERT(session, !is_prepare_rollback);
+        WT_ASSERT(session, start_txn != WT_TXN_ABORTED);
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
             WT_ASSERT(session,
@@ -226,7 +225,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
             upd->prepare_ts = start_prepare_ts;
             upd->prepared_id = start_prepared_id;
-            if (is_prepare_rollback) {
+            if (start_txn != WT_TXN_ABORTED) {
                 /*
                  * WT_UPDATE stores these in a union, so they share the same underlying slots as
                  * durable/start timestamps. We assign via rollback names here for readability.
