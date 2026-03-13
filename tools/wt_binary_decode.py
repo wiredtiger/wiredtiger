@@ -65,24 +65,40 @@ def open_output_file(filename, mode):
     return open(filename, mode) if filename else nullcontext()
 
 
+def decode_dumpin_input(filename, opts: DecodeOptions):
+    with open_input_file(filename, 'r') as infile:
+        mdb_log_parse.process_logs(infile, opts)
+
+
+def decode_disagg_table_input(filename, opts: DecodeOptions):
+    with open_input_file(filename, 'r') as infile:
+        page_service.process_disagg_table(infile, opts)
+
+
+def decode_sqlite_input(filename, opts: DecodeOptions):
+    logger.info('Detected SQLite3 input format.')
+    sqlite_format.process_sqlite_file(filename, opts)
+
+
+def decode_wt_binary_input(filename, opts: DecodeOptions):
+    nbytes = 0 if filename == '-' else os.path.getsize(filename)
+    input_name = 'stdin' if filename == '-' else filename
+    input_size = 'unknown' if filename == '-' else hex(nbytes)
+    print(f'{input_name}, position {hex(opts.offset)}, size {input_size}, '
+          f'pagelimit {opts.pages}')
+    with open_input_file(filename, 'rb') as fileobj:
+        file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
+
+
 def wtdecode(filename, opts: DecodeOptions):
     if opts.dumpin:
-        with open_input_file(filename, 'r') as infile:
-            mdb_log_parse.process_logs(infile, opts)
+        decode_dumpin_input(filename, opts)
     elif opts.disagg_table:
-        with open_input_file(filename, 'r') as infile:
-            page_service.process_disagg_table(infile, opts)
+        decode_disagg_table_input(filename, opts)
     elif sqlite_format.is_sqlite3_file(filename):
-        logger.info('Detected SQLite3 input format.')
-        sqlite_format.process_sqlite_file(filename, opts)
+        decode_sqlite_input(filename, opts)
     else:
-        nbytes = 0 if filename == '-' else os.path.getsize(filename)
-        input_name = 'stdin' if filename == '-' else filename
-        input_size = 'unknown' if filename == '-' else hex(nbytes)
-        print(f'{input_name}, position {hex(opts.offset)}, size {input_size}, '
-              f'pagelimit {opts.pages}')
-        with open_input_file(filename, 'rb') as fileobj:
-            file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
+        decode_wt_binary_input(filename, opts)
 
 
 def feature_check(*, bson: bool = False):
