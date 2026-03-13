@@ -1355,7 +1355,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
-    uint64_t ckpt_tree_duration_usecs, drop_size, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
+    uint64_t ckpt_tree_duration_usecs, drop_size, fsync_duration_usecs, generation,
+      hs_ckpt_duration_usecs;
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
     u_int i;
@@ -1593,7 +1594,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Copy any updated metadata to the shared metadata table.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_shared_metadata_queue_process(session, &drop_size));
+        WT_WITH_SCHEMA_LOCK(
+          session, ret = __wt_disagg_shared_metadata_queue_process(session, &drop_size));
         WT_ERR(ret);
     }
 
