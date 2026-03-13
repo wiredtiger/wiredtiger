@@ -480,12 +480,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         break;
     }
 
-    if (cc_time_start != 0) {
-        time_stop = __wt_clock(session);
-        WT_STAT_CONN_INCRV(
-          session, checkpoint_cleanup_duration, WT_CLOCKDIFF_US(time_stop, cc_time_start));
-    }
-
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         __wt_verbose(session, WT_VERB_CHECKPOINT,
@@ -496,7 +490,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     }
 
 err:
-    WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, cc_pages_visited);
+    if (cc_time_start != 0) {
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_INCRV(
+          session, checkpoint_cleanup_duration, WT_CLOCKDIFF_US(time_stop, cc_time_start));
+        WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, cc_pages_visited);
+    }
 
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, walk, flags));
