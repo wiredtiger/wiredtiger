@@ -760,14 +760,6 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
-     * For drop operations, extract the checkpoint size of the stable table so the database size can
-     * be adjusted when the drop is processed during checkpoint. We could do that work there but it
-     * would meaningfully add work to the checkpoint operations.
-     */
-    if (metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL)
-        WT_ERR(__wt_ckpt_last_size(session, entry->stable_value, &entry->disagg_size));
-
-    /*
      * When WiredTiger is running a checkpoint, prevent drop updates from entering the shared
      * metadata table for that checkpoint. We defer these metadata operations to the next checkpoint
      * to keep the checkpoints metadata and table state consistent.
@@ -946,8 +938,15 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, uint64_t *dr
         }
 
         WT_ERR(__disagg_shared_metadata_op(session, entry));
-        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE)
-            *drop_sizep += entry->disagg_size;
+        /*
+         * For drop operations, extract the checkpoint size of the stable table to adjust the
+         * overall database size.
+         */
+        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
+            uint64_t size;
+            WT_ERR(__wt_ckpt_last_size(session, entry->stable_value, &size));
+            *drop_sizep += size;
+        }
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
