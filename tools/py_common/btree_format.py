@@ -31,7 +31,6 @@ import enum
 import io
 import json
 import logging
-
 from dataclasses import dataclass
 from typing import Optional, List, Union, Final
 
@@ -966,7 +965,6 @@ class WTPage:
         okay = True
         cellnum = -1
         lastoff = 0
-        # p.rint('extent list follows:')
         while True:
             cellnum += 1
             cellpos = b.tell()

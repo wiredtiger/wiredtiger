@@ -31,7 +31,6 @@ import io
 import logging
 import re
 import json
-
 import dataclasses
 
 from py_common import binary_data

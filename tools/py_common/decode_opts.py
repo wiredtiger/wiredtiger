@@ -26,31 +26,21 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any, Optional
 
-
 @dataclass
 class DecodeOptions:
-    """Options controlling how WiredTiger binary data is decoded and printed.
-
-    Instances are passed through the high-level decode pipeline rather than
-    threading individual keyword arguments across every call boundary.
-    Low-level functions (WTPage.parse, load_disagg_pages, …) keep explicit
-    keyword arguments because they expose stable, focused APIs used directly
-    by tests and other callers.
-    """
-
     # --- Input routing ---
-    # True when the input file is a hex dump embedded in log messages.
+    # Input file is a hex dump embedded in log messages.
     dumpin: bool = False
-    # True when the input is a full disagg table from the GetTableAtLSN endpoint.
+    # Input is a full disagg table from the GetTableAtLSN endpoint.
     disagg_table: bool = False
+    # Treat the input as a fragment with no WT file header.
+    fragment: bool = False
 
     # --- Decode behaviour ---
-    # True when the input comes from disaggregated storage.
+    # Input comes from disaggregated storage.
     disagg: bool = False
     # Skip reading/processing cell data (print headers only).
     skip_data: bool = False
@@ -68,12 +58,10 @@ class DecodeOptions:
     # --- Seek / page-limit ---
     # Byte offset in the file to start decoding from.
     offset: int = 0
-    # Treat the input as a fragment with no WT file header.
-    fragment: bool = False
     # Maximum number of pages to decode (0 = unlimited).
     pages: int = 0
 
-    # --- Storage-specific ---
+    # --- Disagg ---
     # Path to the encryption key file used by the pagedecryptor tool.
     keyfile: Optional[str] = None
     # For SQLite input: decode only the record with this LSN.
