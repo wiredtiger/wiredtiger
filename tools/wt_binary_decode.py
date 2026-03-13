@@ -65,14 +65,12 @@ def open_output_file(filename, mode):
 
 
 def decode_dumpin_input(opts):
-    opts.fragment = True
     with open_input_file(opts.filename, 'r') as infile:
         mdb_log_parse.process_logs(infile, opts)
 
 
 def decode_disagg_table_input(opts):
     opts.disagg = True
-    opts.fragment = True
     with open_input_file(opts.filename, 'r') as infile:
         page_service.process_disagg_table(infile, opts)
 
@@ -80,7 +78,6 @@ def decode_disagg_table_input(opts):
 def decode_sqlite_input(opts):
     logger.info('Detected SQLite3 input format.')
     opts.disagg = True
-    opts.fragment = True
     sqlite_format.process_sqlite_file(opts.filename, opts)
 
 
@@ -160,9 +157,6 @@ def get_arg_parser():
     inargs.add_argument('--disagg',
         action='store_true',
         help='input comes from disaggregated storage')
-    inargs.add_argument('-f', '--fragment',
-        action='store_true',
-        help='input file is a fragment, does not have a WT file header')
     inargs.add_argument('-o', '--offset',
         type=int,
         default=0,
