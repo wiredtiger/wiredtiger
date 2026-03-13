@@ -118,12 +118,12 @@ class test_gc02(test_gc_base):
         self.session.checkpoint()
         self.check_gc_stats()
         c = self.session.open_cursor('statistics:')
-        self.assertGreater(c[stat.conn.checkpoint_cleanup_handle_processed][2], 0)
-        self.assertGreater(c[stat.conn.checkpoint_cleanup_inmem_pages_visited][2], 0)
+        self.assertGreater(c[stat.conn.cc_handle_processed][2], 0)
+        self.assertGreater(c[stat.conn.cc_inmem_pages_visited][2], 0)
         # Some Windows machines lack the time granularity to detect microseconds.
         # Skip the time check on Windows.
         if not os.name == "nt":
-            self.assertGreater(c[stat.conn.checkpoint_cleanup_duration][2], 0)
+            self.assertGreater(c[stat.conn.cc_duration][2], 0)
         c.close()
 
         # Check that the new updates are only seen after the update timestamp.

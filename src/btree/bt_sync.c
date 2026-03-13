@@ -349,7 +349,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         }
 
         if (internal_cleanup) {
-            WT_STAT_CONN_INCR(session, checkpoint_cleanup_handle_processed);
+            WT_STAT_CONN_INCR(session, cc_handle_processed);
             cc_time_start = __wt_clock(session);
         }
 
@@ -492,9 +492,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 err:
     if (cc_time_start != 0) {
         time_stop = __wt_clock(session);
-        WT_STAT_CONN_INCRV(
-          session, checkpoint_cleanup_duration, WT_CLOCKDIFF_US(time_stop, cc_time_start));
-        WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, cc_pages_visited);
+        WT_STAT_CONN_INCRV(session, cc_duration, WT_CLOCKDIFF_US(time_stop, cc_time_start));
+        WT_STAT_CONN_SET(session, cc_inmem_pages_visited, cc_pages_visited);
     }
 
     /* On error, clear any left-over tree walk. */

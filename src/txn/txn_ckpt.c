@@ -1033,9 +1033,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
     conn->rec_maximum_milliseconds = 0;
-    WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, 0);
-    WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, 0);
-    WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, 0);
+    WT_STAT_CONN_SET(session, cc_duration, 0);
+    WT_STAT_CONN_SET(session, cc_handle_processed, 0);
+    WT_STAT_CONN_SET(session, cc_inmem_pages_visited, 0);
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt_timer_start);
