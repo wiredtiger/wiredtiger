@@ -642,23 +642,23 @@ class Cell(object):
         if self.extra_descriptor == 0:
             return
 
-        p.rint_v('cell has timestamps:')
+        p.rint('cell has timestamps:')
         if self.prepared:
-            p.rint_v(' prepared')
+            p.rint(' prepared')
 
         if self.start_ts is not None:
-            p.rint_v(' start ts: ' + binary_data.ts(self.start_ts))
+            p.rint(' start ts: ' + binary_data.ts(self.start_ts))
         if self.start_txn is not None:
-            p.rint_v(' start txn: ' + binary_data.txn(self.start_txn))
+            p.rint(' start txn: ' + binary_data.txn(self.start_txn))
         if self.durable_start_ts is not None:
-            p.rint_v(' durable start ts: ' + binary_data.ts(self.durable_start_ts))
+            p.rint(' durable start ts: ' + binary_data.ts(self.durable_start_ts))
 
         if self.stop_ts is not None:
-            p.rint_v(' stop ts: ' + binary_data.ts(self.stop_ts))
+            p.rint(' stop ts: ' + binary_data.ts(self.stop_ts))
         if self.stop_txn is not None:
-            p.rint_v(' stop txn: ' + binary_data.txn(self.stop_txn))
+            p.rint(' stop txn: ' + binary_data.txn(self.stop_txn))
         if self.durable_stop_ts is not None:
-            p.rint_v(' durable stop ts: ' + binary_data.ts(self.durable_stop_ts))
+            p.rint(' durable stop ts: ' + binary_data.ts(self.durable_stop_ts))
 
     def process_timestamps(self, pagestats: PageStats):
         pagestats.process_timestamps(self)
@@ -875,25 +875,27 @@ class WTPage:
         if self.page_header.type == PageType.WT_PAGE_INVALID:
             pass    # a blank page: TODO maybe should check that it's all zeros?
         elif self.page_header.type == PageType.WT_PAGE_BLOCK_MANAGER:
-            self.print_extents(p)
+            if self.extents is not None:
+                self.print_extents(p)
         elif self.page_header.type == PageType.WT_PAGE_ROW_INT or \
             self.page_header.type == PageType.WT_PAGE_ROW_LEAF:
-            self.print_cells(p, decode_as_bson=decode_as_bson, disagg=disagg)
+            if self.cells is not None:
+                self.print_cells(p, decode_as_bson=decode_as_bson, disagg=disagg)
         elif self.page_header.type == PageType.WT_PAGE_OVFL:
             # Use b_page.read() so that we can also print the raw bytes in the split mode
             b_page = self.raw_bytes
-            p.rint_v(raw_bytes(b_page.read(len(self.raw_bytes))))
+            p.rint(raw_bytes(b_page.read(len(self.raw_bytes))))
         else:
             logger.warning(f'? unimplemented decode for page type {self.page_header.type}')
-            p.rint_v(binary_to_pretty_string(self.raw_bytes))
+            p.rint(binary_to_pretty_string(self.raw_bytes))
 
         return
 
     def print_cells(self, p, *, decode_as_bson: bool = False, disagg: bool = False):
         for cellnum, cell in enumerate(self.cells):
             p.begin_cell(cellnum)
-            p.rint_v(cell.descriptor_string())
-            p.rint_v(cell.type_string())
+            p.rint(cell.descriptor_string())
+            p.rint(cell.type_string())
             cell.print_timestamps(p)
 
             # Print the contents of the cell.
@@ -901,31 +903,31 @@ class WTPage:
                 # Attempt the decode the cell as BSON.
                 if (cell.is_value and decode_as_bson and HAVE_BSON):
                     decoded_data = bson.BSON(cell.data).decode()
-                    p.rint_v(pprint.pformat(decoded_data, indent=2))
+                    p.rint(pprint.pformat(decoded_data, indent=2))
                 # If the cell is an address and we're in disagg mode, print the cell as a DisaggAddr
                 # type.
                 elif cell.is_address and disagg:
                     addr = DisaggAddr.parse(cell.data)
                     p.rint(json.dumps(addr.__dict__))
                 else:
-                    p.rint_v(raw_bytes(cell.data))
+                    p.rint(raw_bytes(cell.data))
             except (IndexError, ValueError):
                 # FIXME-WT-13000 theres a bug in raw_bytes
                 pass
             except Exception as e:
                 if HAVE_BSON and isinstance(e, bson.InvalidBSON):
-                    p.rint_v(f"cannot decode cell as BSON: {e}")
-                    p.rint_v(raw_bytes(cell.data))
+                    p.rint(f"cannot decode cell as BSON: {e}")
+                    p.rint(raw_bytes(cell.data))
                 else:
                     raise
 
             p.end_cell()
 
     def print_extents(self, p):
-        p.rint_ext('extent list follows:')
+        p.rint('extent list follows:')
         for extnum, extent in enumerate(self.extents):
             p.begin_cell(extnum)
-            p.rint_ext(f'  {extent.offset}, {extent.size}{extent.extra_stuff}')
+            p.rint(f'  {extent.offset}, {extent.size}{extent.extra_stuff}')
 
     def is_delta(self):
         if not isinstance(self.block_header, BlockDisaggHeader):
@@ -964,7 +966,7 @@ class WTPage:
         okay = True
         cellnum = -1
         lastoff = 0
-        # p.rint_ext('extent list follows:')
+        # p.rint('extent list follows:')
         while True:
             cellnum += 1
             cellpos = b.tell()

@@ -53,11 +53,10 @@ def outfile_header(output):
 def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
     p = Printer(b, split=opts.split)
     pagecount = 0
+    startblock = opts.offset
     if opts.offset == 0 and not opts.fragment:
         file_header_decode(p, b)
         startblock = (b.tell() + 0x1ff) & ~(0x1FF)
-    else:
-        startblock = opts.offset
 
     outfile_header(opts.output)
 
@@ -73,7 +72,7 @@ def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
                                              cont=opts.cont)
             if page.success:
                 page.print_page(split=opts.split,
-                                bson=opts.bson,
+                                decode_as_bson=opts.bson,
                                 disagg=opts.disagg)
                 if page.pagestats:
                     PageStats.outfile_stats_end(opts.output,

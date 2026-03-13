@@ -90,13 +90,6 @@ class Printer(object):
             pfx = '  '
         print(pfx + str(s))
 
-    # Aliases kept for readability at call sites.
-    def rint_v(self, s):
-        self.rint(s)
-
-    def rint_ext(self, s):
-        self.rint(s)
-            
 def raw_bytes(b):
     if type(b) != type(b''):
         # Not bytes, it's already a string.

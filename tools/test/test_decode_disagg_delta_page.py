@@ -54,7 +54,7 @@ class TestDecodeDeltaPage(unittest.TestCase):
 
             page = btree_format.WTPage.parse(b, nbytes, disagg=True)
 
-            page.print_page(bson=True, disagg=True)
+            page.print_page(decode_as_bson=True, disagg=True)
 
             # Verify the parse succeeded and we can inspect the page
             self.assertTrue(getattr(page, 'success', True), 'WTPage.parse failed')

@@ -146,7 +146,7 @@ def process_disagg_pages(disagg_pages, opts: DecodeOptions) -> DisaggTableSummar
                 p.rint(page.block_header)
             else:
                 page.print_page(split=opts.split,
-                                bson=opts.bson,
+                                decode_as_bson=opts.bson,
                                 disagg=True)
             p.rint('')
 
