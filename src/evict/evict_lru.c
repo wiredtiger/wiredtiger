@@ -2536,9 +2536,9 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_CKPT_SPLIT) &&
       !__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_multiblock_urgent_queued);
-        F_CLR_ATOMIC_16(page, WT_PAGE_CKPT_SPLIT);
         if (__wt_evict_page_urgent(session, ref)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_multiblock_urgent_queued);
+            F_CLR_ATOMIC_16(page, WT_PAGE_CKPT_SPLIT);
             *urgent_queuedp = true;
             return;
         } else
