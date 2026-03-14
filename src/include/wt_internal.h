@@ -575,6 +575,12 @@ typedef uint64_t wt_timestamp_t;
 #include "posix.h"
 #endif
 
+#ifdef __linux__
+#include "os_linux.h"
+#elif __APPLE__
+#include "os_darwin.h"
+#endif
+
 #include "misc.h"
 #include "tsan_suppress.h"
 #include "mutex.h"
