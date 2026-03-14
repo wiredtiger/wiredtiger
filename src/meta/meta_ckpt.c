@@ -1171,7 +1171,20 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
             WT_RET(__wt_buf_catfmt(session, buf, ".%" PRId64, ckpt->order));
 
-        /* Use PRId64 formats: WiredTiger's configuration code handles signed 8B values. */
+        /*
+         * Use PRId64 formats: WiredTiger's configuration code handles signed 8B values.
+         *
+         * Backward compatibility: write the old field names alongside the new ones so that an older
+         * version of WiredTiger can read a checkpoint produced here. The semantic mapping is:
+         *   newest_start_durable_ts <- newest_durable_ts  (over-estimate; safe for RTS)
+         *   newest_stop_durable_ts  <- newest_durable_ts  (over-estimate; safe for RTS)
+         *
+         * We must NOT write newest_page_stop_durable_ts as newest_stop_durable_ts because the old
+         * field tracked the max durable timestamp of any delete, whereas the new field is WT_TS_NONE
+         * for pages with partial deletes. An older WT using WT_MAX(newest_start_durable_ts,
+         * newest_stop_durable_ts) for RTS would incorrectly skip rollback on partially-deleted
+         * tables if we wrote WT_TS_NONE there.
+         */
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_durable_ts=%" PRId64 ",newest_page_stop_durable_ts=%" PRId64
@@ -1182,7 +1195,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_durable_ts,
           (int64_t)ckpt->ta.newest_page_stop_durable_ts, (int64_t)ckpt->ta.newest_durable_ts,
-          (int64_t)ckpt->ta.newest_page_stop_durable_ts, (int64_t)ckpt->ta.oldest_start_ts,
+          (int64_t)ckpt->ta.newest_durable_ts, (int64_t)ckpt->ta.oldest_start_ts,
           (int64_t)ckpt->ta.newest_txn, (int64_t)ckpt->ta.newest_stop_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
           (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id));

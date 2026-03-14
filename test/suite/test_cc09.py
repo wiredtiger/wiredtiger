@@ -85,6 +85,9 @@ class test_cc09(test_cc_base):
         self.assertEqual(cursor.reset(), 0)
 
         if self.has_delete:
+            # Delete enough keys (1000) to guarantee that a page-level fast delete is used rather
+            # than recording individual tombstones, so that newest_page_stop_durable_ts is set on
+            # the resulting address cookie and checkpoint cleanup can exercise that code path.
             for i in range(1000):
                 self.session.begin_transaction()
                 cursor.set_key(i)

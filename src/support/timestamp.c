@@ -242,10 +242,11 @@ __wt_time_aggregate_validate(
     /*
      * The aggregated time window values that are tracked at the page level.
      *    newest_durable_ts - The default value is WT_TS_NONE. It tracks the maximum durable
-     timestamp of all the inserts, updates, or modify operations performed on a page.
+     timestamp of all modifications (inserts, updates, and deletes) performed on a page.
      *    newest_page_stop_durable_ts - The default value is WT_TS_NONE. It tracks the maximum
-     durable timestamp of all the delete operations performed on a page when all the keys are
-     deleted.
+     durable stop timestamp, but is only non-zero when all entries in the aggregate are deleted —
+     either via a fast page delete (WT_TIME_AGGREGATE_UPDATE_PAGE_DEL) or because every individual
+     key has a tombstone. It is WT_TS_NONE whenever any live (non-deleted) key is present.
      *    oldest_start_ts - The default value is WT_TS_NONE. It tracks the minimum commit timestamp
      of any inserts performed on a page.
      *    newest_txn - The default value is WT_TXN_NONE. It tracks the maximum transaction id of any
@@ -313,6 +314,13 @@ __wt_time_aggregate_validate(
           "aggregate time window has the oldest start time after its newest start durable time; "
           "time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
+    /*
+     * FIXME-WT-13076: The checks below are only valid for aggregates built with the new field
+     * semantics (newest_durable_ts tracks both start and stop, newest_page_stop_durable_ts is
+     * non-zero only when all keys are deleted). Old-format checkpoints written before this change
+     * may violate these invariants. Enable these checks once the compatibility window for reading
+     * old-format checkpoints has passed and a version barrier can be enforced.
+     */
 #if 0
     if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_page_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
@@ -320,11 +328,6 @@ __wt_time_aggregate_validate(
           "time "
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
-
-    /*
-     * FIXME: These checks are possible only with the new way of storing the data. Enable it with
-     * the version check.
-     */
     if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest stop time after its newest durable time; time "

@@ -259,6 +259,13 @@
         (dest)->newest_txn = WT_MAX((dest)->newest_txn, (source)->newest_txn);                \
         (dest)->newest_stop_ts = WT_MAX((dest)->newest_stop_ts, (source)->newest_stop_ts);    \
         (dest)->newest_stop_txn = WT_MAX((dest)->newest_stop_txn, (source)->newest_stop_txn); \
+        /*                                                                                    \
+         * Ensure newest_txn reflects valid stop transactions. New-format aggregates capture  \
+         * this in WT_TIME_AGGREGATE_UPDATE, but old-format aggregates loaded from disk may   \
+         * not have done so. This guard keeps merges correct for both cases.                  \
+         */                                                                                   \
+        if ((dest)->newest_stop_txn != WT_TXN_MAX)                                           \
+            (dest)->newest_txn = WT_MAX((dest)->newest_txn, (dest)->newest_stop_txn);         \
         if ((source)->prepare != 0)                                                           \
             (dest)->prepare = 1;                                                              \
     } while (0)

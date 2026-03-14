@@ -60,9 +60,12 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
     if (__sync_obsolete_limit_reached(session))
         return (false);
 
-    /* Ensure there is globally visible content. */
-    if (!__wt_txn_has_newest_and_visible_all(
-          session, ta.newest_txn, WT_MAX(ta.newest_durable_ts, ta.newest_page_stop_durable_ts)))
+    /*
+     * Ensure there is globally visible content. newest_durable_ts already captures the maximum
+     * durable timestamp across all modifications including deletes, so it is always >=
+     * newest_page_stop_durable_ts; no need for WT_MAX here.
+     */
+    if (!__wt_txn_has_newest_and_visible_all(session, ta.newest_txn, ta.newest_durable_ts))
         return (false);
 
     return (true);
