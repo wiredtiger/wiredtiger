@@ -288,6 +288,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 upd->upd_start_ts = start_ts;
                 upd->upd_durable_ts = durable_start_ts;
             }
+            /* This is for debugging purpose and it is not checked in the code. */
+            F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
             last_upd = upd;
         } else {
             WT_ASSERT(session, tombstone != NULL);
@@ -305,6 +307,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             tombstone->prepare_ts = stop_prepare_ts;
             tombstone->prepared_id = stop_prepared_id;
             tombstone->next = upd;
+            /* This is for debugging purpose and it is not checked in the code. */
+            F_SET(tombstone, WT_UPDATE_RESTORED_FROM_INGEST);
 
             WT_ASSERT(session, tombstone->upd_durable_ts > last_checkpoint_timestamp);
 
