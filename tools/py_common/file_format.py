@@ -14,7 +14,7 @@ def file_header_decode(p, b):
     logger.info('magic: ' + str(h.magic))
     logger.info('major: ' + str(h.major))
     logger.info('minor: ' + str(h.minor))
-    logger.info('unused: ' + str(h.unused))
+    logger.info('checksum: ' + str(h.checksum))
     if h.magic != btree_format.BlockFileHeader.WT_BLOCK_MAGIC:
         logger.info('bad magic number')
         return False
