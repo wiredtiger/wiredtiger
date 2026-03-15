@@ -81,7 +81,7 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
 
     WT_ASSERT(session, filename != NULL);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s (%" PRIu32 ")", filename, S2BT(session)->id);
 
     conn = S2C(session);
     hash = __wt_hash_city64(filename, strlen(filename));
@@ -146,8 +146,8 @@ __wti_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg
 
     conn = S2C(session);
 
-    __wt_verbose(
-      session, WT_VERB_BLOCK, "close: %s", block_disagg->name == NULL ? "" : block_disagg->name);
+    __wt_verbose(session, WT_VERB_BLOCK, "close: %s (%" PRIu64 ")",
+      block_disagg->name == NULL ? "" : block_disagg->name, block_disagg->tableid);
 
     __wt_spin_lock(session, &conn->block_lock);
 
