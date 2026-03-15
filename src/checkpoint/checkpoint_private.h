@@ -63,7 +63,7 @@ struct __wti_ckpt_handle_stats {
 struct __wti_ckpt_progress {
     uint64_t files_checkpointed; /* files successfully checkpointed */
     uint64_t msg_count;
-    uint64_t pages_walked;  /* pages walked (visited) during checkpoint */
+    uint64_t pages_visited; /* pages visited during checkpoint */
     uint64_t write_bytes;
     uint64_t write_pages;
 };

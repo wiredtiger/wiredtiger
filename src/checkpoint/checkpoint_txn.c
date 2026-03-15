@@ -723,10 +723,10 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64
-          " MB), walked %" PRIu64 " pages, checkpointed %" PRIu64 " files, cache dirty: %"
-          PRIu64 " MB",
+          " MB), walked %" PRIu64 " pages, checkpointed %" PRIu64 " files, cache dirty: %" PRIu64
+          " MB",
           closing ? "ran" : "has been running", time_diff, conn->ckpt.progress.write_pages,
-          conn->ckpt.progress.write_bytes / WT_MEGABYTE, conn->ckpt.progress.pages_walked,
+          conn->ckpt.progress.write_bytes / WT_MEGABYTE, conn->ckpt.progress.pages_visited,
           conn->ckpt.progress.files_checkpointed,
           __wt_cache_dirty_leaf_inuse(conn->cache) / WT_MEGABYTE);
         conn->ckpt.progress.msg_count++;
@@ -746,7 +746,7 @@ __checkpoint_progress_clear(WT_SESSION_IMPL *session)
 
     conn->ckpt.progress.files_checkpointed = 0;
     conn->ckpt.progress.msg_count = 0;
-    conn->ckpt.progress.pages_walked = 0;
+    conn->ckpt.progress.pages_visited = 0;
     conn->ckpt.progress.write_bytes = 0;
     conn->ckpt.progress.write_pages = 0;
 }
