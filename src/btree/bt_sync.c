@@ -493,7 +493,7 @@ err:
     if (cc_time_start != 0) {
         time_stop = __wt_clock(session);
         WT_STAT_CONN_INCRV(session, cc_duration, WT_CLOCKDIFF_US(time_stop, cc_time_start));
-        WT_STAT_CONN_SET(session, cc_inmem_pages_visited, cc_pages_visited);
+        WT_STAT_CONN_INCRV(session, cc_inmem_pages_visited, cc_pages_visited);
     }
 
     /* On error, clear any left-over tree walk. */
