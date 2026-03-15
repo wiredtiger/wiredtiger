@@ -488,16 +488,16 @@ retry:
         /*
          * If the cursor has no page reference or the page is not in memory, we cannot read the
          * on-page base value to reconstruct the modify chain. This can occur in the
-         * disaggregated/layered storage path when a modify update exists in the ingest table
-         * but its complete base value only exists in the stable table. Return WT_NOTFOUND so
-         * the layered cursor can fall back to the stable table.
+         * disaggregated/layered storage path when a modify update exists in the ingest table but
+         * its complete base value only exists in the stable table. Return WT_NOTFOUND so the
+         * layered cursor can fall back to the stable table.
          */
         if (cbt->ref == NULL || cbt->ref->page == NULL) {
 #ifdef HAVE_DIAGNOSTIC
             /*
              * Scan the update chain to verify no standard update was silently skipped due to an
-             * aborted transaction. An aborted standard update would leave the modify chain without a
-             * valid base, which is a bug distinct from the expected cross-table case where the
+             * aborted transaction. An aborted standard update would leave the modify chain without
+             * a valid base, which is a bug distinct from the expected cross-table case where the
              * base value simply lives in the stable table.
              */
             WT_UPDATE *scan_upd;
