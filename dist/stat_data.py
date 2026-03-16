@@ -72,6 +72,10 @@ class CapacityStat(Stat):
     prefix = 'capacity'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
+class CheckpointCleanupStat(Stat):
+    prefix = 'checkpoint-cleanup'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
 class CheckpointStat(Stat):
     prefix = 'checkpoint'
     def __init__(self, name, desc, flags=''):
@@ -419,6 +423,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_pages_checkpoint_timestamp', 'eviction server skips pages that are written with transactions greater than the checkpoint timestamp'),
     EvictStat('eviction_server_skip_pages_last_running', 'eviction server skips pages that are written with transactions greater than the last running'),
     EvictStat('eviction_server_skip_pages_prune_timestamp', 'eviction server skips pages that are written with transactions greater than the prune timestamp'),
+    EvictStat('eviction_server_skip_pages_prune_timestamp_not_move', 'eviction server skips pages that have been reconciled previously at the same prune timestamp'),
     EvictStat('eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     EvictStat('eviction_server_skip_stable_trees', 'eviction server skips stable btrees in disagg'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
@@ -483,12 +488,16 @@ conn_stats = [
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
     ##########################################
+    # Checkpoint Cleanup statistics
+    ##########################################
+    CheckpointCleanupStat('checkpoint_cleanup_duration', 'most recent duration on all eligible files (usecs)', 'no_clear,no_scale'),
+    CheckpointCleanupStat('checkpoint_cleanup_handle_processed', 'most recent handles processed'),
+    CheckpointCleanupStat('checkpoint_cleanup_inmem_pages_visited', 'most recent in-memory pages visited'),
+    CheckpointCleanupStat('checkpoint_cleanup_success', 'successful calls'),
+
+    ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoint_cleanup_duration', 'most recent checkpoint cleanup duration on all eligible files (usecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_cleanup_handle_processed', 'most recent checkpoint cleanup handles processed'),
-    CheckpointStat('checkpoint_cleanup_inmem_pages_visited', 'in-memory pages visited during checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_success', 'checkpoint cleanup successful calls'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_generation', 'generation', 'no_clear,no_scale'),
@@ -1189,6 +1198,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_overflow_keys', 'overflow keys on a multiblock row-store page blocked its eviction'),
     CacheStat('cache_eviction_blocked_precise_checkpoint', 'precise checkpoint caused an eviction to be skipped because any dirty content needs to remain in cache'),
     CacheStat('cache_eviction_blocked_prefetched', 'eviction server skipped the pages when prefetching'),
+    CacheStat('cache_eviction_blocked_prune_timestamp', 'garbage collection from the ingest btree page is skipped because the prune timestamp has not moved'),
     CacheStat('cache_eviction_blocked_recently_modified', 'recent modification of a page blocked its eviction'),
     CacheStat('cache_eviction_blocked_remove_hs_race_with_checkpoint', 'eviction gave up due to needing to remove a record from the history store but checkpoint is running'),
     CacheStat('cache_eviction_blocked_uncommitted_truncate', 'uncommitted truncate blocked page eviction'),
@@ -1265,15 +1275,19 @@ conn_dsrc_stats = [
     CacheStat('cache_write_restore_scrub', 'pages written requiring in-memory restoration due to scrub eviction'),
 
     ##########################################
+    # Checkpoint Cleanup statistics
+    ##########################################
+    CheckpointCleanupStat('checkpoint_cleanup_pages_evict', 'pages added for eviction'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache due to obsolete time window'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_read_reclaim_space', 'pages read into cache (reclaim_space)'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_removed', 'pages removed'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_visited', 'pages visited'),
+    CheckpointCleanupStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during tree walk'),
+
+    ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoint_cleanup_pages_evict', 'pages added for eviction during checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window by checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache during checkpoint cleanup due to obsolete time window'),
-    CheckpointStat('checkpoint_cleanup_pages_read_reclaim_space', 'pages read into cache during checkpoint cleanup (reclaim_space)'),
-    CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),
     CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
 
     ##########################################
@@ -1382,8 +1396,8 @@ conn_dsrc_stats = [
     RecStat('rec_average_leaf_page_delta_chain_length', 'average length of delta chain on leaf page with deltas'),
     RecStat('rec_free_page_id_due_to_failed_replacement_reconciliation', 'free page ID due to failed page replacement reconciliation in disagg'),
     RecStat('rec_hs_wrapup_next_prev_calls', 'cursor next/prev calls during HS wrapup search_near'),
-    RecStat('rec_ingest_garbage_collection_keys_disk_image', 'number of keys that are garbage collected form the disk images in the ingest btrees for disaggregated storage'),
-    RecStat('rec_ingest_garbage_collection_keys_update_chain', 'number of keys that are garbage collected form the update chains in the ingest btrees for disaggregated storage'),
+    RecStat('rec_ingest_garbage_collection_keys_disk_image', 'number of keys that are garbage collected from the disk images in the ingest btrees for disaggregated storage'),
+    RecStat('rec_ingest_garbage_collection_keys_update_chain', 'number of keys that are garbage collected from the update chains in the ingest btrees for disaggregated storage'),
     RecStat('rec_ingest_keep_prepare_rollback', 'ingest btree reconciliation keeps the aborted prepare updates'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),

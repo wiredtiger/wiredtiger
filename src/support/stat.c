@@ -89,6 +89,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walk target pages histogram - 32-63",
   "cache: eviction walk target pages histogram - 64-128",
   "cache: eviction walk target pages reduced due to history store cache pressure",
+  "cache: garbage collection from the ingest btree page is skipped because the prune timestamp has "
+  "not moved",
   "cache: hazard pointer blocked page eviction",
   "cache: history store cursor not cached during eviction",
   "cache: history store table insert calls",
@@ -194,14 +196,14 @@ static const char *const __stats_dsrc_desc[] = {
   "cache_walk: Refs skipped during cache traversal",
   "cache_walk: Size of the root page",
   "cache_walk: Total number of pages currently in cache",
+  "checkpoint-cleanup: pages added for eviction",
+  "checkpoint-cleanup: pages dirtied due to obsolete time window",
+  "checkpoint-cleanup: pages read into cache (reclaim_space)",
+  "checkpoint-cleanup: pages read into cache due to obsolete time window",
+  "checkpoint-cleanup: pages removed",
+  "checkpoint-cleanup: pages skipped during tree walk",
+  "checkpoint-cleanup: pages visited",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
-  "checkpoint: pages added for eviction during checkpoint cleanup",
-  "checkpoint: pages dirtied due to obsolete time window by checkpoint cleanup",
-  "checkpoint: pages read into cache during checkpoint cleanup (reclaim_space)",
-  "checkpoint: pages read into cache during checkpoint cleanup due to obsolete time window",
-  "checkpoint: pages removed during checkpoint cleanup",
-  "checkpoint: pages skipped during checkpoint cleanup tree walk",
-  "checkpoint: pages visited during checkpoint cleanup",
   "compression: compressed page maximum internal page size prior to compression",
   "compression: compressed page maximum leaf page size prior to compression",
   "compression: page written to disk failed to compress",
@@ -352,9 +354,9 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: max deltas seen on internal page during reconciliation",
   "reconciliation: max deltas seen on leaf page during reconciliation",
   "reconciliation: maximum blocks required for a page",
-  "reconciliation: number of keys that are garbage collected form the disk images in the ingest "
+  "reconciliation: number of keys that are garbage collected from the disk images in the ingest "
   "btrees for disaggregated storage",
-  "reconciliation: number of keys that are garbage collected form the update chains in the ingest "
+  "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
   "reconciliation: page deltas rejected due to invalid page ID",
@@ -546,6 +548,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_target_page_lt64 = 0;
     stats->cache_eviction_target_page_lt128 = 0;
     stats->cache_eviction_target_page_reduced = 0;
+    stats->cache_eviction_blocked_prune_timestamp = 0;
     stats->cache_eviction_blocked_hazard = 0;
     stats->cache_eviction_hs_cursor_not_cached = 0;
     stats->cache_hs_insert = 0;
@@ -641,7 +644,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cache_state_refs_skipped */
     /* not clearing cache_state_root_size */
     /* not clearing cache_state_pages */
-    stats->checkpoint_snapshot_acquired = 0;
     stats->checkpoint_cleanup_pages_evict = 0;
     stats->checkpoint_cleanup_pages_obsolete_tw = 0;
     stats->checkpoint_cleanup_pages_read_reclaim_space = 0;
@@ -649,6 +651,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->checkpoint_cleanup_pages_removed = 0;
     stats->checkpoint_cleanup_pages_walk_skipped = 0;
     stats->checkpoint_cleanup_pages_visited = 0;
+    stats->checkpoint_snapshot_acquired = 0;
     /* not clearing compress_precomp_intl_max_page_size */
     /* not clearing compress_precomp_leaf_max_page_size */
     stats->compress_write_fail = 0;
@@ -978,6 +981,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_lt64 += from->cache_eviction_target_page_lt64;
     to->cache_eviction_target_page_lt128 += from->cache_eviction_target_page_lt128;
     to->cache_eviction_target_page_reduced += from->cache_eviction_target_page_reduced;
+    to->cache_eviction_blocked_prune_timestamp += from->cache_eviction_blocked_prune_timestamp;
     to->cache_eviction_blocked_hazard += from->cache_eviction_blocked_hazard;
     to->cache_eviction_hs_cursor_not_cached += from->cache_eviction_hs_cursor_not_cached;
     to->cache_hs_insert += from->cache_hs_insert;
@@ -1081,7 +1085,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += from->cache_state_refs_skipped;
     to->cache_state_root_size += from->cache_state_root_size;
     to->cache_state_pages += from->cache_state_pages;
-    to->checkpoint_snapshot_acquired += from->checkpoint_snapshot_acquired;
     to->checkpoint_cleanup_pages_evict += from->checkpoint_cleanup_pages_evict;
     to->checkpoint_cleanup_pages_obsolete_tw += from->checkpoint_cleanup_pages_obsolete_tw;
     to->checkpoint_cleanup_pages_read_reclaim_space +=
@@ -1091,6 +1094,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->checkpoint_cleanup_pages_removed += from->checkpoint_cleanup_pages_removed;
     to->checkpoint_cleanup_pages_walk_skipped += from->checkpoint_cleanup_pages_walk_skipped;
     to->checkpoint_cleanup_pages_visited += from->checkpoint_cleanup_pages_visited;
+    to->checkpoint_snapshot_acquired += from->checkpoint_snapshot_acquired;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
     to->compress_precomp_leaf_max_page_size += from->compress_precomp_leaf_max_page_size;
     to->compress_write_fail += from->compress_write_fail;
@@ -1437,6 +1441,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt128);
     to->cache_eviction_target_page_reduced +=
       WT_STAT_DSRC_READ(from, cache_eviction_target_page_reduced);
+    to->cache_eviction_blocked_prune_timestamp +=
+      WT_STAT_DSRC_READ(from, cache_eviction_blocked_prune_timestamp);
     to->cache_eviction_blocked_hazard += WT_STAT_DSRC_READ(from, cache_eviction_blocked_hazard);
     to->cache_eviction_hs_cursor_not_cached +=
       WT_STAT_DSRC_READ(from, cache_eviction_hs_cursor_not_cached);
@@ -1554,7 +1560,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += WT_STAT_DSRC_READ(from, cache_state_refs_skipped);
     to->cache_state_root_size += WT_STAT_DSRC_READ(from, cache_state_root_size);
     to->cache_state_pages += WT_STAT_DSRC_READ(from, cache_state_pages);
-    to->checkpoint_snapshot_acquired += WT_STAT_DSRC_READ(from, checkpoint_snapshot_acquired);
     to->checkpoint_cleanup_pages_evict += WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_evict);
     to->checkpoint_cleanup_pages_obsolete_tw +=
       WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_obsolete_tw);
@@ -1568,6 +1573,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_walk_skipped);
     to->checkpoint_cleanup_pages_visited +=
       WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_visited);
+    to->checkpoint_snapshot_acquired += WT_STAT_DSRC_READ(from, checkpoint_snapshot_acquired);
     to->compress_precomp_intl_max_page_size +=
       WT_STAT_DSRC_READ(from, compress_precomp_intl_max_page_size);
     to->compress_precomp_leaf_max_page_size +=
@@ -2000,6 +2006,8 @@ static const char *const __stats_connection_desc[] = {
   "running",
   "cache: eviction server skips pages that are written with transactions greater than the prune "
   "timestamp",
+  "cache: eviction server skips pages that have been reconciled previously at the same prune "
+  "timestamp",
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
   "cache: eviction server skips stable btrees in disagg",
@@ -2066,6 +2074,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected because of too many deleted items count",
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
+  "cache: garbage collection from the ingest btree page is skipped because the prune timestamp has "
+  "not moved",
   "cache: hazard pointer blocked page eviction",
   "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked",
@@ -2233,17 +2243,24 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
   "capacity: time waiting for chunk cache IO bandwidth (usecs)",
-  "checkpoint: checkpoint cleanup successful calls",
+  "checkpoint-cleanup: most recent duration on all eligible files (usecs)",
+  "checkpoint-cleanup: most recent handles processed",
+  "checkpoint-cleanup: most recent in-memory pages visited",
+  "checkpoint-cleanup: pages added for eviction",
+  "checkpoint-cleanup: pages dirtied due to obsolete time window",
+  "checkpoint-cleanup: pages read into cache (reclaim_space)",
+  "checkpoint-cleanup: pages read into cache due to obsolete time window",
+  "checkpoint-cleanup: pages removed",
+  "checkpoint-cleanup: pages skipped during tree walk",
+  "checkpoint-cleanup: pages visited",
+  "checkpoint-cleanup: successful calls",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "checkpoint: checkpoints skipped because database was clean",
   "checkpoint: fsync calls after allocating the transaction ID",
   "checkpoint: fsync duration after allocating the transaction ID (usecs)",
   "checkpoint: generation",
-  "checkpoint: in-memory pages visited during checkpoint cleanup",
   "checkpoint: max time (msecs)",
   "checkpoint: min time (msecs)",
-  "checkpoint: most recent checkpoint cleanup duration on all eligible files (usecs)",
-  "checkpoint: most recent checkpoint cleanup handles processed",
   "checkpoint: most recent duration for checkpoint dropping all handles (usecs)",
   "checkpoint: most recent duration for gathering all handles (usecs)",
   "checkpoint: most recent duration for gathering applied handles (usecs)",
@@ -2267,13 +2284,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: number of internal pages visited",
   "checkpoint: number of leaf pages visited",
   "checkpoint: number of pages caused to be reconciled",
-  "checkpoint: pages added for eviction during checkpoint cleanup",
-  "checkpoint: pages dirtied due to obsolete time window by checkpoint cleanup",
-  "checkpoint: pages read into cache during checkpoint cleanup (reclaim_space)",
-  "checkpoint: pages read into cache during checkpoint cleanup due to obsolete time window",
-  "checkpoint: pages removed during checkpoint cleanup",
-  "checkpoint: pages skipped during checkpoint cleanup tree walk",
-  "checkpoint: pages visited during checkpoint cleanup",
   "checkpoint: prepare currently running",
   "checkpoint: prepare max time (msecs)",
   "checkpoint: prepare min time (msecs)",
@@ -2683,9 +2693,9 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
   "reconciliation: maximum milliseconds spent in moving updates to the history store in a "
   "reconciliation",
-  "reconciliation: number of keys that are garbage collected form the disk images in the ingest "
+  "reconciliation: number of keys that are garbage collected from the disk images in the ingest "
   "btrees for disaggregated storage",
-  "reconciliation: number of keys that are garbage collected form the update chains in the ingest "
+  "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
   "reconciliation: page deltas rejected due to invalid page ID",
@@ -3069,6 +3079,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_pages_checkpoint_timestamp = 0;
     stats->eviction_server_skip_pages_last_running = 0;
     stats->eviction_server_skip_pages_prune_timestamp = 0;
+    stats->eviction_server_skip_pages_prune_timestamp_not_move = 0;
     stats->eviction_server_skip_pages_retry = 0;
     stats->eviction_server_skip_unwanted_pages = 0;
     stats->eviction_server_skip_stable_trees = 0;
@@ -3131,6 +3142,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_force_delete = 0;
     stats->eviction_force = 0;
     stats->eviction_force_fail = 0;
+    stats->cache_eviction_blocked_prune_timestamp = 0;
     stats->cache_eviction_blocked_hazard = 0;
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
@@ -3286,17 +3298,24 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
     stats->capacity_time_chunkcache = 0;
+    /* not clearing checkpoint_cleanup_duration */
+    stats->checkpoint_cleanup_handle_processed = 0;
+    stats->checkpoint_cleanup_inmem_pages_visited = 0;
+    stats->checkpoint_cleanup_pages_evict = 0;
+    stats->checkpoint_cleanup_pages_obsolete_tw = 0;
+    stats->checkpoint_cleanup_pages_read_reclaim_space = 0;
+    stats->checkpoint_cleanup_pages_read_obsolete_tw = 0;
+    stats->checkpoint_cleanup_pages_removed = 0;
+    stats->checkpoint_cleanup_pages_walk_skipped = 0;
+    stats->checkpoint_cleanup_pages_visited = 0;
     stats->checkpoint_cleanup_success = 0;
     stats->checkpoint_snapshot_acquired = 0;
     stats->checkpoint_skipped = 0;
     stats->checkpoint_fsync_post = 0;
     /* not clearing checkpoint_fsync_post_duration */
     /* not clearing checkpoint_generation */
-    stats->checkpoint_cleanup_inmem_pages_visited = 0;
     /* not clearing checkpoint_time_max */
     /* not clearing checkpoint_time_min */
-    /* not clearing checkpoint_cleanup_duration */
-    stats->checkpoint_cleanup_handle_processed = 0;
     /* not clearing checkpoint_handle_drop_duration */
     /* not clearing checkpoint_handle_duration */
     /* not clearing checkpoint_handle_apply_duration */
@@ -3320,13 +3339,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_pages_visited_internal = 0;
     stats->checkpoint_pages_visited_leaf = 0;
     stats->checkpoint_pages_reconciled = 0;
-    stats->checkpoint_cleanup_pages_evict = 0;
-    stats->checkpoint_cleanup_pages_obsolete_tw = 0;
-    stats->checkpoint_cleanup_pages_read_reclaim_space = 0;
-    stats->checkpoint_cleanup_pages_read_obsolete_tw = 0;
-    stats->checkpoint_cleanup_pages_removed = 0;
-    stats->checkpoint_cleanup_pages_walk_skipped = 0;
-    stats->checkpoint_cleanup_pages_visited = 0;
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
     /* not clearing checkpoint_prep_min */
@@ -4139,6 +4151,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_last_running);
     to->eviction_server_skip_pages_prune_timestamp +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_prune_timestamp);
+    to->eviction_server_skip_pages_prune_timestamp_not_move +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_pages_prune_timestamp_not_move);
     to->eviction_server_skip_pages_retry +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_retry);
     to->eviction_server_skip_unwanted_pages +=
@@ -4227,6 +4241,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_force_delete += WT_STAT_CONN_READ(from, eviction_force_delete);
     to->eviction_force += WT_STAT_CONN_READ(from, eviction_force);
     to->eviction_force_fail += WT_STAT_CONN_READ(from, eviction_force_fail);
+    to->cache_eviction_blocked_prune_timestamp +=
+      WT_STAT_CONN_READ(from, cache_eviction_blocked_prune_timestamp);
     to->cache_eviction_blocked_hazard += WT_STAT_CONN_READ(from, cache_eviction_blocked_hazard);
     to->cache_hazard_checks += WT_STAT_CONN_READ(from, cache_hazard_checks);
     to->cache_hazard_walks += WT_STAT_CONN_READ(from, cache_hazard_walks);
@@ -4426,19 +4442,32 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_log += WT_STAT_CONN_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_CONN_READ(from, capacity_time_read);
     to->capacity_time_chunkcache += WT_STAT_CONN_READ(from, capacity_time_chunkcache);
+    to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
+    to->checkpoint_cleanup_handle_processed +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_handle_processed);
+    to->checkpoint_cleanup_inmem_pages_visited +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_inmem_pages_visited);
+    to->checkpoint_cleanup_pages_evict += WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_evict);
+    to->checkpoint_cleanup_pages_obsolete_tw +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_obsolete_tw);
+    to->checkpoint_cleanup_pages_read_reclaim_space +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_read_reclaim_space);
+    to->checkpoint_cleanup_pages_read_obsolete_tw +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_read_obsolete_tw);
+    to->checkpoint_cleanup_pages_removed +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_removed);
+    to->checkpoint_cleanup_pages_walk_skipped +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_walk_skipped);
+    to->checkpoint_cleanup_pages_visited +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_visited);
     to->checkpoint_cleanup_success += WT_STAT_CONN_READ(from, checkpoint_cleanup_success);
     to->checkpoint_snapshot_acquired += WT_STAT_CONN_READ(from, checkpoint_snapshot_acquired);
     to->checkpoint_skipped += WT_STAT_CONN_READ(from, checkpoint_skipped);
     to->checkpoint_fsync_post += WT_STAT_CONN_READ(from, checkpoint_fsync_post);
     to->checkpoint_fsync_post_duration += WT_STAT_CONN_READ(from, checkpoint_fsync_post_duration);
     to->checkpoint_generation += WT_STAT_CONN_READ(from, checkpoint_generation);
-    to->checkpoint_cleanup_inmem_pages_visited +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_inmem_pages_visited);
     to->checkpoint_time_max += WT_STAT_CONN_READ(from, checkpoint_time_max);
     to->checkpoint_time_min += WT_STAT_CONN_READ(from, checkpoint_time_min);
-    to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
-    to->checkpoint_cleanup_handle_processed +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_handle_processed);
     to->checkpoint_handle_drop_duration += WT_STAT_CONN_READ(from, checkpoint_handle_drop_duration);
     to->checkpoint_handle_duration += WT_STAT_CONN_READ(from, checkpoint_handle_duration);
     to->checkpoint_handle_apply_duration +=
@@ -4466,19 +4495,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, checkpoint_pages_visited_internal);
     to->checkpoint_pages_visited_leaf += WT_STAT_CONN_READ(from, checkpoint_pages_visited_leaf);
     to->checkpoint_pages_reconciled += WT_STAT_CONN_READ(from, checkpoint_pages_reconciled);
-    to->checkpoint_cleanup_pages_evict += WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_evict);
-    to->checkpoint_cleanup_pages_obsolete_tw +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_obsolete_tw);
-    to->checkpoint_cleanup_pages_read_reclaim_space +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_read_reclaim_space);
-    to->checkpoint_cleanup_pages_read_obsolete_tw +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_read_obsolete_tw);
-    to->checkpoint_cleanup_pages_removed +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_removed);
-    to->checkpoint_cleanup_pages_walk_skipped +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_walk_skipped);
-    to->checkpoint_cleanup_pages_visited +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_visited);
     to->checkpoint_prep_running += WT_STAT_CONN_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_CONN_READ(from, checkpoint_prep_max);
     to->checkpoint_prep_min += WT_STAT_CONN_READ(from, checkpoint_prep_min);
