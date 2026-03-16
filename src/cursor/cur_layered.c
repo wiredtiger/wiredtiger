@@ -10,7 +10,7 @@
 
 static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
 static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
-static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, bool);
+static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
@@ -150,7 +150,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stabl
             else if (!need_search_stable && clayered->ingest_cursor != NULL)
                 break;
         }
-        ret = __clayered_open_cursors(session, clayered, need_search_stable);
+        ret = __clayered_open_cursors(session, clayered);
 
         /*
          * We only check the external state once. There will always be a race where the state
@@ -535,8 +535,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
  *     Open cursors for the current set of files.
  */
 static int
-__clayered_open_cursors(
-  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool need_search_stable)
+__clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
@@ -588,7 +587,7 @@ __clayered_open_cursors(
             F_SET(clayered->ingest_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     }
 
-    if (need_search_stable && clayered->stable_cursor == NULL) {
+    if (F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor == NULL) {
         leader = conn->layered_table_manager.leader;
         WT_ERR(__clayered_open_stable(clayered, leader));
     }
@@ -1707,8 +1706,9 @@ __clayered_insert(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(
-      clayered, false, clayered->leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
+    WT_ERR(__clayered_enter(clayered, false,
+      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
+      false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -1760,8 +1760,9 @@ __clayered_update(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(
-      clayered, false, clayered->leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
+    WT_ERR(__clayered_enter(clayered, false,
+      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
+      false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
