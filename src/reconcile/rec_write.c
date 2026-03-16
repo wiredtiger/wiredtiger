@@ -1039,13 +1039,13 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
         WT_RET(ret);
     }
 
-    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+    if (r != NULL && F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
         _write_start = __wt_clock(session);
 
     WT_RET(__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
       compressed_sizep, checkpoint, checkpoint_io, compressed));
 
-    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+    if (r != NULL && F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
         r->blkcache_write_time += WT_CLOCKDIFF_US(__wt_clock(session), _write_start);
 
     return (0);
@@ -2157,11 +2157,11 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     ++multi->block_meta->delta_count;
 
     /* Get the checkpoint ID. */
-    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+    if (r != NULL && F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
         _write_start = __wt_clock(session);
     WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+    if (r != NULL && F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
         r->blkcache_write_time += WT_CLOCKDIFF_US(__wt_clock(session), _write_start);
 
     /* Turn off compression adjustment for delta. */
