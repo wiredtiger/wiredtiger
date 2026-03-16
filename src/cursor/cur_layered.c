@@ -121,6 +121,11 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stabl
     bool external_state_change;
 
     session = CUR2S(clayered);
+
+    /* Query operations need a full set of cursors. */
+    if (need_search_stable)
+        F_SET(clayered, WT_CLAYERED_READ_STABLE);
+
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
      * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
@@ -140,7 +145,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stabl
          * met, avoid taking the schema lock and early exit.
          */
         if (!external_state_change) {
-            if (need_search_stable && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
+            if (need_search_stable && clayered->stable_cursor != NULL)
                 break;
             else if (!need_search_stable && clayered->ingest_cursor != NULL)
                 break;
@@ -180,6 +185,8 @@ __clayered_leave(WT_CURSOR_LAYERED *clayered)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(clayered);
+
+    F_CLR(clayered, WT_CLAYERED_READ_STABLE);
 
     if (F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
         --session->ncursors;
@@ -542,10 +549,6 @@ __clayered_open_cursors(
     c = &clayered->iface;
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
-
-    /* Query operations need a full set of cursors. */
-    if (need_search_stable)
-        F_SET(clayered, WT_CLAYERED_OPEN_READ);
 
     /*
      * Cursors open for updates only open the ingest cursor, cursors open for read open both. If the
@@ -1295,13 +1298,13 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
     } else
         /* Be sure we'll make a search attempt further down.  */
         WT_ASSERT(
-          session, F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL);
+          session, F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor != NULL);
 
     /*
      * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
      * the stable constituent.
      */
-    if (!found && F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL) {
+    if (!found && F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor != NULL) {
         c = clayered->stable_cursor;
         /*
          * Temporarily set ignore prepared flag when searching for update in the stable cursor. In
@@ -1704,9 +1707,8 @@ __clayered_insert(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+    WT_ERR(__clayered_enter(
+      clayered, false, clayered->leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -1758,9 +1760,8 @@ __clayered_update(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+    WT_ERR(__clayered_enter(
+      clayered, false, clayered->leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
