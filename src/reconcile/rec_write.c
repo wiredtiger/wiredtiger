@@ -757,6 +757,9 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->max_txn = WT_TXN_NONE;
     r->max_ts = WT_TS_NONE;
 
+    /* Track time spent writing to the block cache during checkpoints. */
+    r->blkcache_write_time = 0;
+
     /* Track if updates were used and/or uncommitted. */
     r->update_used = false;
 
