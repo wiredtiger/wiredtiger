@@ -1408,7 +1408,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
 
     /* Initialize the checkpoint progress tracking data */
-    WT_CLEAR(S2C(session)->ckpt.progress);
+    WT_CLEAR(conn->ckpt.progress);
 
     /*
      * Get a time (wall time, not a timestamp) for this checkpoint. This will be applied to all the
