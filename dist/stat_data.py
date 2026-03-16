@@ -541,7 +541,6 @@ conn_stats = [
     CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
     CheckpointStat('checkpoints_api', 'number of checkpoints started by api'),
     CheckpointStat('checkpoints_compact', 'number of checkpoints started by compaction'),
-    CheckpointStat('checkpoints_picked_up_follower', 'number of checkpoints picked up by a follower'),
     CheckpointStat('checkpoints_total_failed', 'total failed number of checkpoints'),
     CheckpointStat('checkpoints_total_succeed', 'total succeed number of checkpoints'),
 
@@ -644,6 +643,7 @@ conn_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
+    LayeredStat('checkpoints_picked_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 
     ##########################################

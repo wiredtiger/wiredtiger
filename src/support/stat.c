@@ -2275,7 +2275,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
   "checkpoint: number of bytes caused to be reconciled",
-  "checkpoint: number of checkpoints picked up by a follower",
   "checkpoint: number of checkpoints started by api",
   "checkpoint: number of checkpoints started by compaction",
   "checkpoint: number of files synced",
@@ -2467,6 +2466,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
+  "layered: number of checkpoints picked up by a follower",
   "layered: the number of tables the layered table manager has open",
   "live-restore: number of bytes copied from the source to the destination",
   "live-restore: number of files remaining for migration completion",
@@ -3330,7 +3330,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_handle_walked = 0;
     /* not clearing checkpoint_time_recent */
     stats->checkpoint_pages_reconciled_bytes = 0;
-    stats->checkpoints_picked_up_follower = 0;
     stats->checkpoints_api = 0;
     stats->checkpoints_compact = 0;
     stats->checkpoint_sync = 0;
@@ -3520,6 +3519,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
+    stats->checkpoints_picked_up_follower = 0;
     stats->layered_table_manager_tables = 0;
     stats->live_restore_bytes_copied = 0;
     /* not clearing live_restore_work_remaining */
@@ -4485,7 +4485,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_time_recent += WT_STAT_CONN_READ(from, checkpoint_time_recent);
     to->checkpoint_pages_reconciled_bytes +=
       WT_STAT_CONN_READ(from, checkpoint_pages_reconciled_bytes);
-    to->checkpoints_picked_up_follower += WT_STAT_CONN_READ(from, checkpoints_picked_up_follower);
     to->checkpoints_api += WT_STAT_CONN_READ(from, checkpoints_api);
     to->checkpoints_compact += WT_STAT_CONN_READ(from, checkpoints_compact);
     to->checkpoint_sync += WT_STAT_CONN_READ(from, checkpoint_sync);
@@ -4694,6 +4693,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_logops_skipped +=
       WT_STAT_CONN_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_CONN_READ(from, layered_table_manager_skip_lsn);
+    to->checkpoints_picked_up_follower += WT_STAT_CONN_READ(from, checkpoints_picked_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
     to->live_restore_bytes_copied += WT_STAT_CONN_READ(from, live_restore_bytes_copied);
     to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);

@@ -830,7 +830,6 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
     int64_t checkpoint_pages_reconciled_bytes;
-    int64_t checkpoints_picked_up_follower;
     int64_t checkpoints_api;
     int64_t checkpoints_compact;
     int64_t checkpoint_sync;
@@ -1020,6 +1019,7 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
+    int64_t checkpoints_picked_up_follower;
     int64_t layered_table_manager_tables;
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
