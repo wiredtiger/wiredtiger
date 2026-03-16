@@ -1292,11 +1292,10 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
             if (__clayered_deleted(clayered, value))
                 ret = WT_NOTFOUND;
         }
-    } else {
+    } else
         /* Be sure we'll make a search attempt further down.  */
         WT_ASSERT(
           session, F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL);
-    }
 
     /*
      * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
@@ -1705,7 +1704,9 @@ __clayered_insert(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false, !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
+    WT_ERR(__clayered_enter(clayered, false,
+      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
+      false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -1757,7 +1758,9 @@ __clayered_update(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false, !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
+    WT_ERR(__clayered_enter(clayered, false,
+      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
+      false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
@@ -1860,7 +1863,7 @@ __clayered_reserve(WT_CURSOR *cursor)
 
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     F_CLR(cursor, WT_CURSTD_OVERWRITE);
-    WT_ERR(__clayered_enter(clayered, false, false, false));
+    WT_ERR(__clayered_enter(clayered, false, S2C(session)->layered_table_manager.leader, false));
     WT_ERR(__clayered_lookup(session, clayered, &value));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
