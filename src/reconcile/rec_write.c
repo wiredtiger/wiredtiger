@@ -437,9 +437,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->evict->reentry_hs_eviction_ms =
           session->reconcile_timeline.total_reentry_hs_eviction_time;
 
-    if (F_ISSET(r, WT_REC_CHECKPOINT)) {
-        WT_STAT_CONN_INCRV(session, checkpoint_rec_blkcache_write, r->blkcache_write_time_accum);
-    }
+    if (F_ISSET(r, WT_REC_CHECKPOINT))
+        WT_STAT_CONN_SET(session, checkpoint_rec_blkcache_write, r->blkcache_write_time);
 
 err:
     if (ret != 0)
@@ -983,6 +982,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     WT_PAGE_HEADER *dsk;
     size_t result_len;
     WTI_RECONCILE *r;
+    uint64_t _write_start = 0;
 
     dsk = buf->mem;
     btree = S2BT(session);
@@ -1039,10 +1039,15 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
         WT_RET(ret);
     }
 
-    uint64_t _write_start = __wt_clock(session);
-    ret = (__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
-      compressed_sizep, checkpoint, checkpoint_io, compressed));
-    r->blkcache_write_time_accum += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+        _write_start = __wt_clock(session);
+
+    ret = __wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
+      compressed_sizep, checkpoint, checkpoint_io, compressed);
+
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session)) {
+        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+    }
     return (ret);
 }
 
@@ -2153,10 +2158,9 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     /* Get the checkpoint ID. */
     uint64_t _write_start = __wt_clock(session);
-    ret = (__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
+    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-    r->blkcache_write_time_accum += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
-    WT_RET(ret);
+    r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
 
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;

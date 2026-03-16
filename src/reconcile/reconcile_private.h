@@ -183,7 +183,7 @@ struct __wti_reconcile {
     wt_timestamp_t max_ts;
 
     /* Track the total time in msecs spent in block writes */
-    uint64_t blkcache_write_time_accum;
+    uint64_t blkcache_write_time;
 
     /*
      * When we do not find any update to be written for the whole page, we would like to mark
