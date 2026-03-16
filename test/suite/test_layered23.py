@@ -49,9 +49,9 @@ class test_layered23(wttest.WiredTigerTestCase):
         self.assertEqual(stat_cur[stat.conn.checkpoints_total_succeed][2], expected)
         stat_cur.close()
 
-    def check_checkpoints_picked_up_follower(self, session_follow, expected):
+    def check_checkpoints_picked_up(self, session_follow, expected):
         stat_cur = session_follow.open_cursor('statistics:', None, None)
-        self.assertEqual(stat_cur[stat.conn.checkpoints_picked_up_follower][2], expected)
+        self.assertEqual(stat_cur[stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed][2], expected)
         stat_cur.close()
 
     # Test simple inserts to a leader/follower
@@ -101,7 +101,7 @@ class test_layered23(wttest.WiredTigerTestCase):
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
         self.disagg_advance_checkpoint(conn_follow)
-        self.check_checkpoints_picked_up_follower(session_follow, checkpoint_count)
+        self.check_checkpoints_picked_up(session_follow, checkpoint_count)
         oplog.check(self, session_follow, 0, 2100)
 
         # Now go back to leader, checkpoint and insert more.
@@ -145,7 +145,7 @@ class test_layered23(wttest.WiredTigerTestCase):
             # advance checkpoint
             self.pr('advance checkpoint')
             self.disagg_advance_checkpoint(conn_follow)
-            self.check_checkpoints_picked_up_follower(session_follow, checkpoint_count)
+            self.check_checkpoints_picked_up(session_follow, checkpoint_count)
 
             # The check begins at 0, which means this test will have quadratic performance.
             self.pr(f'checking follower from pos 0 to {follower_pos} after checkpoint pick-up')

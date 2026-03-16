@@ -2258,7 +2258,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
   "checkpoint: number of bytes caused to be reconciled",
-  "checkpoint: number of checkpoints completed by a leader",
   "checkpoint: number of checkpoints picked up by a follower",
   "checkpoint: number of checkpoints started by api",
   "checkpoint: number of checkpoints started by compaction",
@@ -3312,7 +3311,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_handle_walked = 0;
     /* not clearing checkpoint_time_recent */
     stats->checkpoint_pages_reconciled_bytes = 0;
-    stats->checkpoints_completed_leader = 0;
     stats->checkpoints_picked_up_follower = 0;
     stats->checkpoints_api = 0;
     stats->checkpoints_compact = 0;
@@ -4458,7 +4456,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_time_recent += WT_STAT_CONN_READ(from, checkpoint_time_recent);
     to->checkpoint_pages_reconciled_bytes +=
       WT_STAT_CONN_READ(from, checkpoint_pages_reconciled_bytes);
-    to->checkpoints_completed_leader += WT_STAT_CONN_READ(from, checkpoints_completed_leader);
     to->checkpoints_picked_up_follower += WT_STAT_CONN_READ(from, checkpoints_picked_up_follower);
     to->checkpoints_api += WT_STAT_CONN_READ(from, checkpoints_api);
     to->checkpoints_compact += WT_STAT_CONN_READ(from, checkpoints_compact);

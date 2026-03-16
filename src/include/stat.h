@@ -821,7 +821,6 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
     int64_t checkpoint_pages_reconciled_bytes;
-    int64_t checkpoints_completed_leader;
     int64_t checkpoints_picked_up_follower;
     int64_t checkpoints_api;
     int64_t checkpoints_compact;

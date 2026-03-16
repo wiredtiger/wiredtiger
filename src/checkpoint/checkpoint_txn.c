@@ -1785,8 +1785,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_update_disagg_database_size(session);
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
-    if (conn->layered_table_manager.leader)
-        WT_STAT_CONN_INCR(session, checkpoints_completed_leader);
 
 err:
     /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
