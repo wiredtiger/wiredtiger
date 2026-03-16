@@ -2309,6 +2309,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",
   "checkpoint: total time (msecs)",
+  "checkpoint: total time (msecs) writing pages to stable storage during checkpoint reconciliation",
   "checkpoint: wait cycles while cache dirty level is decreasing",
   "chunk-cache: aggregate number of spanned chunks on read",
   "chunk-cache: chunks evicted",
@@ -3364,6 +3365,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
     /* not clearing checkpoint_time_total */
+    stats->checkpoint_rec_blkcache_write = 0;
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->chunkcache_spans_chunks_read = 0;
     stats->chunkcache_chunks_evicted = 0;
@@ -4520,6 +4522,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoints_total_failed += WT_STAT_CONN_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_CONN_READ(from, checkpoints_total_succeed);
     to->checkpoint_time_total += WT_STAT_CONN_READ(from, checkpoint_time_total);
+    to->checkpoint_rec_blkcache_write += WT_STAT_CONN_READ(from, checkpoint_rec_blkcache_write);
     to->checkpoint_wait_reduce_dirty += WT_STAT_CONN_READ(from, checkpoint_wait_reduce_dirty);
     to->chunkcache_spans_chunks_read += WT_STAT_CONN_READ(from, chunkcache_spans_chunks_read);
     to->chunkcache_chunks_evicted += WT_STAT_CONN_READ(from, chunkcache_chunks_evicted);

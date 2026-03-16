@@ -524,6 +524,7 @@ conn_stats = [
     CheckpointStat('checkpoint_prep_running', 'prepare currently running', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_total', 'prepare total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_presync', 'number of handles visited after writes complete'),
+    CheckpointStat('checkpoint_rec_blkcache_write', 'total time (msecs) writing pages to stable storage during checkpoint reconciliation'),
     CheckpointStat('checkpoint_scrub_max', 'scrub max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_min', 'scrub min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_recent', 'scrub most recent time (msecs)', 'no_clear,no_scale'),

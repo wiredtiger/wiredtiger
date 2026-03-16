@@ -437,6 +437,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->evict->reentry_hs_eviction_ms =
           session->reconcile_timeline.total_reentry_hs_eviction_time;
 
+    if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+        WT_STAT_CONN_INCRV(session, checkpoint_rec_blkcache_write, r->blkcache_write_time_accum);
+    }
+
 err:
     if (ret != 0)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
@@ -978,10 +982,12 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     size_t result_len;
+    WTI_RECONCILE *r;
 
     dsk = buf->mem;
     btree = S2BT(session);
     result_len = 0;
+    r = session->reconcile;
 
     if (dsk->type == WT_PAGE_INVALID || dsk->type >= WT_PAGE_TYPE_COUNT)
         return (__wt_illegal_value(session, dsk->type));
@@ -1033,8 +1039,11 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
         WT_RET(ret);
     }
 
-    return (__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
+    uint64_t _write_start = __wt_clock(session);
+    ret = (__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
       compressed_sizep, checkpoint, checkpoint_io, compressed));
+    r->blkcache_write_time_accum += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+    WT_RET(ret);
 }
 
 /*
@@ -2122,6 +2131,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
   size_t *addr_sizep, size_t *compressed_sizep)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_BLOCK_META *block_meta;
     uint64_t delta_pct;
@@ -2142,8 +2152,12 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     ++multi->block_meta->delta_count;
 
     /* Get the checkpoint ID. */
-    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
+    uint64_t _write_start = __wt_clock(session);
+    ret = (__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+    r->blkcache_write_time_accum += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+    WT_RET(ret);
+
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;
 

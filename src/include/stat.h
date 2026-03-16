@@ -854,6 +854,7 @@ struct __wt_connection_stats {
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
+    int64_t checkpoint_rec_blkcache_write;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t chunkcache_spans_chunks_read;
     int64_t chunkcache_chunks_evicted;
