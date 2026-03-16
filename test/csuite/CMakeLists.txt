@@ -381,3 +381,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt16753_prepare_locked
+    SOURCES wt16753_prepare_locked/main.c
+    DIR_NAME wt16753_prepare_locked
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
