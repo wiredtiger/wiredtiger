@@ -746,12 +746,12 @@ __wt_config_getones(
 }
 
 /*
- * __wt_config_getones_length --
+ * __wt_config_getones_n --
  *     Get the value for a given string key from a non-null-terminated config string of a specified
  *     length.
  */
 int
-__wt_config_getones_length(WT_SESSION_IMPL *session, const char *config, size_t config_len,
+__wt_config_getones_n(WT_SESSION_IMPL *session, const char *config, size_t config_len,
   const char *key, WT_CONFIG_ITEM *value)
 {
     WT_CONFIG cparser;

@@ -809,9 +809,9 @@ __disagg_parse_version_and_check(
     metadata->compatible_version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
 
     WT_ERR_NOTFOUND_OK(
-      __wt_config_getones_length(session, meta_buf->data, meta_buf->size, "version", &version_val),
+      __wt_config_getones_n(session, meta_buf->data, meta_buf->size, "version", &version_val),
       false);
-    WT_ERR_NOTFOUND_OK(__wt_config_getones_length(session, meta_buf->data, meta_buf->size,
+    WT_ERR_NOTFOUND_OK(__wt_config_getones_n(session, meta_buf->data, meta_buf->size,
                          "compatible_version", &compat_val),
       false);
 

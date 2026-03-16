@@ -393,9 +393,8 @@ extern int __wt_config_getone(WT_SESSION_IMPL *session, const char *config, WT_C
   WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_getones(WT_SESSION_IMPL *session, const char *config, const char *key,
   WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_config_getones_length(WT_SESSION_IMPL *session, const char *config,
-  size_t config_len, const char *key, WT_CONFIG_ITEM *value)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_config_getones_n(WT_SESSION_IMPL *session, const char *config, size_t config_len,
+  const char *key, WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_getones_none(WT_SESSION_IMPL *session, const char *config, const char *key,
   WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_gets(WT_SESSION_IMPL *session, const char **cfg, const char *key,
