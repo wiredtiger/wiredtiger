@@ -51,7 +51,7 @@ class test_layered23(wttest.WiredTigerTestCase):
 
     def check_checkpoints_picked_up(self, session_follow, expected):
         with WiredTigerCursor(session_follow, statistic_uri()) as stat_cur:
-            self.assertEqual(stat_cur[stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed][2], expected)
+            self.assertEqual(stat_cur[stat.conn.checkpoints_picked_up_follower][2], expected)
 
     # Test simple inserts to a leader/follower
     def test_leader_follower(self):
