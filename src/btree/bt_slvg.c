@@ -134,7 +134,7 @@ static int __slvg_ovfl_reconcile(WT_SESSION_IMPL *, WT_STUFF *);
 static int __slvg_ovfl_ref(WT_SESSION_IMPL *, WT_TRACK *, bool);
 static int __slvg_ovfl_ref_all(WT_SESSION_IMPL *, WT_TRACK *);
 static int __slvg_read(WT_SESSION_IMPL *, WT_STUFF *);
-static int __slvg_reconcile_free(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
+static int __slvg_reconcile_free(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool);
 static int __slvg_row_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
 static int __slvg_row_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *, WT_STUFF *);
 static int __slvg_row_ovfl(WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, uint32_t, uint32_t);
@@ -1203,7 +1203,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
     WT_SALVAGE_COOKIE *cookie, _cookie;
     uint64_t recno, skip, take;
     uint32_t save_entries;
-    int (*saved_free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
+    int (*saved_free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool);
 
     btree = S2BT(session);
     saved_free = NULL;
@@ -1823,7 +1823,7 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_S
     WT_ROW *rip;
     WT_SALVAGE_COOKIE *cookie, _cookie;
     uint32_t i, skip_start, skip_stop;
-    int cmp, (*saved_free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
+    int cmp, (*saved_free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool);
 
     btree = S2BT(session);
     page = NULL;
@@ -2015,7 +2015,7 @@ __slvg_row_ovfl(
  */
 static int
 __slvg_reconcile_free(
-  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *is_root)
+  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool is_root)
 {
     WT_TRACK *ovfl, *trk;
     uint32_t i;

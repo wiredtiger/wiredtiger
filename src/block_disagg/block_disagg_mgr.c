@@ -69,8 +69,7 @@ __bmd_close(WT_BM *bm, WT_SESSION_IMPL *session)
  *     Free a block of space to the underlying file.
  */
 static int
-__bmd_free(
-  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *is_root)
+__bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool is_root)
 {
     WT_BLKCACHE *blkcache;
     WT_DECL_RET;

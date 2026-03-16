@@ -280,7 +280,7 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
  */
 int
 __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  const uint8_t *addr, size_t addr_size, bool *is_root)
+  const uint8_t *addr, size_t addr_size, bool is_root)
 {
     /* Crack the cookie. */
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
@@ -307,7 +307,7 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
      * root size at the moment the checkpoint size is computed. Decrementing here as well would
      * cause the old root page size to be subtracted twice.
      */
-    if (!*is_root)
+    if (!is_root)
         __wt_btree_decrease_size(session, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
