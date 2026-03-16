@@ -114,7 +114,7 @@ __clayered_cursor_compare(WT_CURSOR_LAYERED *clayered, WT_CURSOR *c1, WT_CURSOR 
  *     Start an operation on a layered cursor.
  */
 static WT_INLINE int
-__clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stable, bool iteration)
+__clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable, bool iteration)
 {
     WT_SESSION_IMPL *session;
     bool external_state_change;
@@ -122,7 +122,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stabl
     session = CUR2S(clayered);
 
     /* Query operations need a full set of cursors. */
-    if (need_search_stable)
+    if (need_read_stable)
         F_SET(clayered, WT_CLAYERED_READ_STABLE);
 
     /*
@@ -139,7 +139,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stabl
     WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
 
     if (external_state_change || clayered->ingest_cursor == NULL ||
-      (need_search_stable && clayered->stable_cursor == NULL))
+      (need_read_stable && clayered->stable_cursor == NULL))
         WT_RET(__clayered_open_cursors(session, clayered));
 
     if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
