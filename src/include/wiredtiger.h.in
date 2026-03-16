@@ -7823,7 +7823,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_SKIP_LSN	1596
 /*! layered: number of checkpoints picked up by a follower */
-#define	WT_STAT_CONN_CHECKPOINTS_PICKED_UP_FOLLOWER	1597
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FOLLOWER	1597
 /*! layered: the number of tables the layered table manager has open */
 #define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_TABLES	1598
 /*!

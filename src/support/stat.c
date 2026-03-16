@@ -3519,7 +3519,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
-    stats->checkpoints_picked_up_follower = 0;
+    stats->layered_table_manager_checkpoints_disagg_pick_up_follower = 0;
     stats->layered_table_manager_tables = 0;
     stats->live_restore_bytes_copied = 0;
     /* not clearing live_restore_work_remaining */
@@ -4693,7 +4693,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_logops_skipped +=
       WT_STAT_CONN_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_CONN_READ(from, layered_table_manager_skip_lsn);
-    to->checkpoints_picked_up_follower += WT_STAT_CONN_READ(from, checkpoints_picked_up_follower);
+    to->layered_table_manager_checkpoints_disagg_pick_up_follower +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
     to->live_restore_bytes_copied += WT_STAT_CONN_READ(from, live_restore_bytes_copied);
     to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
