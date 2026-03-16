@@ -706,7 +706,7 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
  * __checkpoint_progress --
  *     Output a checkpoint progress message.
  */
-void
+static void
 __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 {
     struct timespec cur_time;
