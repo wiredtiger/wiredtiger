@@ -409,7 +409,7 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
         if (manager->open_layered_table_count != table_count)
             __wt_verbose_error(session, WT_VERB_LAYERED,
               "WT-14734: table count changed during drain! "
-              "snapshot=%zu current=%zu at index %zu",
+              "snapshot=%zu current=%u at index %zu",
               table_count, manager->open_layered_table_count, i);
         if ((entry = manager->entries[i]) != NULL) {
             __wt_verbose_warning(session, WT_VERB_LAYERED,

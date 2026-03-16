@@ -196,13 +196,29 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
          * outdated, wait until the idle time has elapsed since time of death.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
-            if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
+            if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0) {
+                if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_LAYERED)
+                    __wt_verbose_warning(session, WT_VERB_SWEEP,
+                      "Sweep: skipping outdated layered dhandle %s, session_inuse=%" PRId32,
+                      dhandle->name,
+                      __wt_atomic_load_int32_relaxed(&dhandle->session_inuse));
                 continue;
+            }
         } else if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
           __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
-          now - dhandle->timeofdeath <= conn->sweep_idle_time)
+          now - dhandle->timeofdeath <= conn->sweep_idle_time) {
+            if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_LAYERED &&
+              F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
+              __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 &&
+              __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) != 0 &&
+              now - dhandle->timeofdeath > conn->sweep_idle_time)
+                __wt_verbose_warning(session, WT_VERB_SWEEP,
+                  "Sweep: skipping expired layered dhandle %s, session_inuse=%" PRId32,
+                  dhandle->name,
+                  __wt_atomic_load_int32_relaxed(&dhandle->session_inuse));
             continue;
+        }
 
         /*
          * For tables, we need to hold the table lock to avoid racing with cursor opens.
@@ -215,8 +231,16 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 
         if (ret == 0)
             WT_STAT_CONN_INCR(session, dh_sweep_expired_close);
-        else
+        else {
             WT_STAT_CONN_INCR(session, dh_sweep_ref);
+            if (ret == EBUSY &&
+              __wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_LAYERED)
+                __wt_verbose_warning(session, WT_VERB_SWEEP,
+                  "Sweep: EBUSY acquiring write lock on expired layered dhandle %s,"
+                  " session_inuse=%" PRId32,
+                  dhandle->name,
+                  __wt_atomic_load_int32_relaxed(&dhandle->session_inuse));
+        }
 
         WT_RET_BUSY_OK(ret);
     }
@@ -323,8 +347,17 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
               session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_remove_one(session)));
         if (ret == 0)
             WT_STAT_CONN_INCR(session, dh_sweep_remove);
-        else
+        else {
             WT_STAT_CONN_INCR(session, dh_sweep_ref);
+            if (ret == EBUSY &&
+              __wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_LAYERED)
+                __wt_verbose_warning(session, WT_VERB_SWEEP,
+                  "Sweep: EBUSY removing layered dhandle %s, session_inuse=%" PRId32
+                  " references=%" PRIu32,
+                  dhandle->name,
+                  __wt_atomic_load_int32_relaxed(&dhandle->session_inuse),
+                  __wt_atomic_load_uint32_relaxed(&dhandle->references));
+        }
         WT_RET_BUSY_OK(ret);
     }
 
