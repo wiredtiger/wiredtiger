@@ -10,7 +10,7 @@
 
 static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
 static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
-static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, bool, bool);
+static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, bool);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
@@ -114,7 +114,7 @@ __clayered_cursor_compare(WT_CURSOR_LAYERED *clayered, WT_CURSOR *c1, WT_CURSOR 
  *     Start an operation on a layered cursor.
  */
 static WT_INLINE int
-__clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool remove, bool iteration)
+__clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stable, bool iteration)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -140,16 +140,12 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool remo
          * met, avoid taking the schema lock and early exit.
          */
         if (!external_state_change) {
-            if ((!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
+            if (need_search_stable && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
                 break;
-            else if (update && clayered->ingest_cursor != NULL) {
-                if (F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
-                    break;
-                else if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
-                    break;
-            }
+            else if (!need_search_stable && clayered->ingest_cursor != NULL)
+                break;
         }
-        ret = __clayered_open_cursors(session, clayered, update, remove);
+        ret = __clayered_open_cursors(session, clayered, need_search_stable);
 
         /*
          * We only check the external state once. There will always be a race where the state
@@ -533,7 +529,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
  */
 static int
 __clayered_open_cursors(
-  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool update, bool remove)
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool need_search_stable)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
@@ -547,11 +543,8 @@ __clayered_open_cursors(
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
 
-    /*
-     * Query operations need a full set of cursors. Overwrite cursors and remove operations do
-     * queries in service of updates.
-     */
-    if (!update || remove || !F_ISSET(c, WT_CURSTD_OVERWRITE))
+    /* Query operations need a full set of cursors. */
+    if (need_search_stable)
         F_SET(clayered, WT_CLAYERED_OPEN_READ);
 
     /*
@@ -882,7 +875,7 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, bool forward, uint32_t iter_flag
     WT_CURSOR *cursor = &clayered->iface;
 
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, false, false, false, true));
+    WT_ERR(__clayered_enter(clayered, false, true, true));
 
     /*
      * FIXME-WT-16158: We currently check whether the entry has been deleted on the current cursor,
@@ -1362,7 +1355,7 @@ __clayered_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, search, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, true, false, false, false));
+    WT_ERR(__clayered_enter(clayered, true, true, false));
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     ret = __clayered_lookup(session, clayered, &cursor->value);
@@ -1403,7 +1396,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, true, false, false, false));
+    WT_ERR(__clayered_enter(clayered, true, true, false));
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     /*
@@ -1712,7 +1705,7 @@ __clayered_insert(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false, true, false, false));
+    WT_ERR(__clayered_enter(clayered, false, !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -1764,7 +1757,7 @@ __clayered_update(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false, true, false, false));
+    WT_ERR(__clayered_enter(clayered, false, !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
@@ -1818,7 +1811,7 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
-    WT_ERR(__clayered_enter(clayered, false, true, true, false));
+    WT_ERR(__clayered_enter(clayered, false, true, false));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
      * landed on.
@@ -1867,7 +1860,7 @@ __clayered_reserve(WT_CURSOR *cursor)
 
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     F_CLR(cursor, WT_CURSTD_OVERWRITE);
-    WT_ERR(__clayered_enter(clayered, false, true, false, false));
+    WT_ERR(__clayered_enter(clayered, false, false, false));
     WT_ERR(__clayered_lookup(session, clayered, &value));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
@@ -1913,7 +1906,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, ret, largest_key, clayered->dhandle);
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, false, false, false, false));
+    WT_ERR(__clayered_enter(clayered, false, true, false));
 
     ingest_cursor = clayered->ingest_cursor;
     stable_cursor = clayered->stable_cursor;
@@ -2080,7 +2073,7 @@ __clayered_next_random(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, false, false, false, true));
+    WT_ERR(__clayered_enter(clayered, false, true, true));
 
     for (;;) {
         /* FIXME-WT-14736: consider the size of ingest table in the future. */
@@ -2196,7 +2189,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
 
     WT_ERR(__cursor_needkey(cursor));
-    WT_ERR(__clayered_enter(clayered, false, true, false, false));
+    WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
     if (nentries <= 0)
