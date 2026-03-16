@@ -2309,7 +2309,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",
   "checkpoint: total time (msecs)",
-  "checkpoint: total time (msecs) writing pages to stable storage during checkpoint reconciliation",
+  "checkpoint: total time (usecs) writing pages to stable storage during checkpoint reconciliation",
   "checkpoint: wait cycles while cache dirty level is decreasing",
   "chunk-cache: aggregate number of spanned chunks on read",
   "chunk-cache: chunks evicted",

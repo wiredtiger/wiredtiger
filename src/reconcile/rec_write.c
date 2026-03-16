@@ -1042,13 +1042,13 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
         _write_start = __wt_clock(session);
 
-    ret = __wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
-      compressed_sizep, checkpoint, checkpoint_io, compressed);
+    WT_RET(__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
+      compressed_sizep, checkpoint, checkpoint_io, compressed));
 
-    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session)) {
-        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
-    }
-    return (ret);
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+        r->blkcache_write_time += WT_CLOCKDIFF_US(__wt_clock(session), _write_start);
+
+    return (0);
 }
 
 /*
@@ -2136,10 +2136,10 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
   size_t *addr_sizep, size_t *compressed_sizep)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_BLOCK_META *block_meta;
     uint64_t delta_pct;
+    uint64_t _write_start = 0;
 
     conn = S2C(session);
     multi = &r->multi[r->multi_next - 1];
@@ -2157,10 +2157,12 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     ++multi->block_meta->delta_count;
 
     /* Get the checkpoint ID. */
-    uint64_t _write_start = __wt_clock(session);
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+        _write_start = __wt_clock(session);
     WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-    r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && WT_STAT_ENABLED(session))
+        r->blkcache_write_time += WT_CLOCKDIFF_US(__wt_clock(session), _write_start);
 
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;
