@@ -729,7 +729,6 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
     WT_DECL_RET;
 
     WT_CLEAR(meta_cfg);
-    WT_CLEAR(*metadata);
     metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
 
     __wt_config_initn(session, &meta_cfg, meta_buf->data, meta_buf->size);
@@ -878,6 +877,10 @@ __wt_disagg_parse_meta(
         WT_ERR(__disagg_parse_legacy_meta(session, meta_buf, metadata));
 
     } else {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Performing version check for disaggregated checkpoint metadata. Found \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+        WT_ERR(__disagg_parse_version_and_check(session, meta_buf, metadata));
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Disaggregated checkpoint metadata does not start with \"%s\";"
           "Parsing regular format. Found \"%.*s\"",

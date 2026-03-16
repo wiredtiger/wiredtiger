@@ -170,10 +170,11 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(metadata.key_provider_len == 0);
     }
 
-    SECTION("Unknown keys ignored")
+    SECTION("Unknown keys ignored if version doesn't match")
     {
         const std::string metadata_str =
-          "version=1,compatible=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,another_unknown="
+          "version=2,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,another_"
+          "unknown="
           "bar,";
 
         WT_ITEM metadata_buf{};
@@ -188,6 +189,20 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
         const uint64_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
+    }
+
+    SECTION("Unknown keys are an error if version matches")
+    {
+        const std::string metadata_str =
+          "version=1,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
+        REQUIRE(ret == EINVAL);
     }
 }
 
