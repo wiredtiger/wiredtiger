@@ -316,6 +316,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (!session->evict_timeline.reentry_hs_eviction)
         session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
+    if (F_ISSET(r, WT_REC_CHECKPOINT))
+        WT_STAT_CONN_SET(session, checkpoint_rec_blkcache_write, r->blkcache_write_time);
+
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
      */
@@ -436,9 +439,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
       conn->evict->reentry_hs_eviction_ms)
         conn->evict->reentry_hs_eviction_ms =
           session->reconcile_timeline.total_reentry_hs_eviction_time;
-
-    if (F_ISSET(r, WT_REC_CHECKPOINT))
-        WT_STAT_CONN_SET(session, checkpoint_rec_blkcache_write, r->blkcache_write_time);
 
 err:
     if (ret != 0)
