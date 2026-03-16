@@ -175,8 +175,8 @@ struct __wt_btree {
     wt_shared uint64_t bytes_total;
 
     /* Root page size tracking for checkpoint size accounting */
-    wt_shared uint64_t current_root_size;  /* Size of current root page */
-    wt_shared uint64_t previous_root_size; /* Size of previous root page */
+    uint64_t current_root_size;  /* Size of current root page */
+    uint64_t previous_root_size; /* Size of previous root page */
 
     /*
      * Reconciliation...
