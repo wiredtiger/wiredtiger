@@ -585,7 +585,7 @@ __clayered_open_cursors(
             F_SET(clayered->ingest_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     }
 
-    if (clayered->stable_cursor == NULL) {
+    if (need_search_stable && clayered->stable_cursor == NULL) {
         leader = conn->layered_table_manager.leader;
         WT_ERR(__clayered_open_stable(clayered, leader));
     }
@@ -613,7 +613,6 @@ __clayered_open_cursors(
      * Set any boundaries for any newly opened cursors.
      */
     WT_ERR(__clayered_copy_bounds(clayered));
-
 err:
     __wt_scr_free(session, &random_config);
     return (ret);
