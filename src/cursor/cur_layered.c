@@ -613,6 +613,7 @@ __clayered_open_cursors(
      * Set any boundaries for any newly opened cursors.
      */
     WT_ERR(__clayered_copy_bounds(clayered));
+
 err:
     __wt_scr_free(session, &random_config);
     return (ret);
