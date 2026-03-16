@@ -116,7 +116,6 @@ __clayered_cursor_compare(WT_CURSOR_LAYERED *clayered, WT_CURSOR *c1, WT_CURSOR 
 static WT_INLINE int
 __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stable, bool iteration)
 {
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     bool external_state_change;
 
@@ -139,28 +138,9 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_search_stabl
 
     WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
 
-    for (;;) {
-        /*
-         * Ensure that the cursor has the correct state and configuration. If the conditions are
-         * met, avoid taking the schema lock and early exit.
-         */
-        if (!external_state_change) {
-            if (need_search_stable && clayered->stable_cursor != NULL)
-                break;
-            else if (!need_search_stable && clayered->ingest_cursor != NULL)
-                break;
-        }
-        ret = __clayered_open_cursors(session, clayered);
-
-        /*
-         * We only check the external state once. There will always be a race where the state
-         * changes after we check and before we do operations with the cursor. There's no need to
-         * narrow the race window further, if we do, we're holding constituent cursors open for a
-         * slightly shorter time.
-         */
-        external_state_change = false;
-        WT_RET(ret);
-    }
+    if (external_state_change || clayered->ingest_cursor == NULL ||
+      (need_search_stable && clayered->stable_cursor == NULL))
+        WT_RET(__clayered_open_cursors(session, clayered));
 
     if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
         /*
