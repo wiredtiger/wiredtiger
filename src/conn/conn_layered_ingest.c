@@ -232,9 +232,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         WT_ERR(version_cursor->get_value(version_cursor, &start_txn, &start_ts, &durable_start_ts,
           &start_prepare_ts, &start_prepared_id, &stop_txn, &stop_ts, &durable_stop_ts,
           &stop_prepare_ts, &stop_prepared_id, &type, &prepare, &flags, &location, value));
-        WT_UNUSED(type);
-        WT_UNUSED(flags);
-        WT_UNUSED(location);
+
         has_stop = stop_txn != WT_TXN_MAX;
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /* FIXME-WT-16744 Remove this assertion when prepared update on the stable table are

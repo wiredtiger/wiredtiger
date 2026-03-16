@@ -33,16 +33,11 @@ __curversion_is_prepare_rollback_value(WT_UPDATE *upd)
 
 /*
  * __curversion_stop_uses_prepare_ts --
- *     True if stop_ts should be derived from stop_prepare_ts.
+ *     True if stop timestamp should be derived from stop prepare timestamp.
  */
 static WT_INLINE bool
 __curversion_stop_uses_prepare_ts(WT_CURSOR_VERSION *version_cursor)
 {
-    /*
-     * For aborted updates, stop_u uses rollback_ts/saved_txnid in the same union slots as
-     * durable_ts/start_ts, so stop_ts should come from curversion_stop_ts (saved_txnid) rather than
-     * stop_prepare_ts.
-     */
     return (version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED);
 }
 
