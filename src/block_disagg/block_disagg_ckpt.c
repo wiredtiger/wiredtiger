@@ -82,7 +82,7 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * Set the btree root write size generation to the current checkpoint generation so we know
      * whether to roll this back later.
      */
-    btree->root_write_size_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+    btree->root_size_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
     __wt_btree_decrease_size(session, btree->previous_root_size);
     __wt_btree_increase_size(session, btree->current_root_size);
