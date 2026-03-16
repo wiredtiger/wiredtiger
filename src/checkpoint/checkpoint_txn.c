@@ -905,8 +905,8 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Ensure that the database size never drops below the 1MB checkpoint buffer. Catches bugs where
-     * size incorrectly goes to zero or below the buffer.
+     * The database size must never drop below the 1MB checkpoint buffer because the checkpoint
+     * metadata itself occupies space that must always be accounted for.
      */
     WT_ASSERT(
       session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
