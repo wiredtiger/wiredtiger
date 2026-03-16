@@ -365,6 +365,7 @@ class test_cursor13_drops(test_cursor13_base):
         self.dropUntilSuccess(session, uri)
         confirm_does_not_exist(self, uri)
 
+        # Same test for indices, but with cursor held by another session.
         session2 = self.conn.open_session(None)
         ds = ComplexDataSet(self, uri, 100)
         ds.create()
