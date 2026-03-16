@@ -775,8 +775,13 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             metadata->key_provider = cfg_value.str;
             metadata->key_provider_len = cfg_value.len;
         } else {
-            WT_ERR_MSG(session, EINVAL, "Unknown entry \"%.*s\" in disaggregated storage metadata",
-              (int)cfg_key.len, cfg_key.str);
+            /*
+             * Unknown key is an error only for current metadata version. For non-current versions,
+             * ignore for compatibility.
+             */
+            if (metadata->version == WT_DISAGG_CHECKPOINT_TURTLE_VERSION)
+                WT_ERR_MSG(
+                  session, EINVAL, "Unknown metadata entry: %.*s", (int)cfg_key.len, cfg_key.str);
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -794,44 +799,43 @@ static int
 __disagg_parse_version_and_check(
   WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
 {
-    WT_CONFIG meta_cfg;
-    WT_CONFIG_ITEM cfg_key, cfg_value;
+    WT_CONFIG_ITEM compat_val, version_val;
     WT_DECL_RET;
+    bool has_compat, has_version;
 
-    metadata->version = 0;
-    metadata->compatible_version = 0;
+    WT_CLEAR(version_val);
+    WT_CLEAR(compat_val);
 
-    __wt_config_initn(session, &meta_cfg, meta_buf->data, meta_buf->size);
-    while ((ret = __wt_config_next(&meta_cfg, &cfg_key, &cfg_value)) == 0) {
-        if (WT_CONFIG_LIT_MATCH("version", cfg_key)) {
-            WT_ASSERT_ALWAYS(session, metadata->version == 0,
-              "Duplicate version entry in disaggregated storage metadata");
-            if (cfg_value.val < 0 || cfg_value.val > INT_MAX)
-                WT_ERR_MSG(session, EINVAL, "Invalid version value: %" PRId64, cfg_value.val);
-            metadata->version = (int)cfg_value.val;
-        } else if (WT_CONFIG_LIT_MATCH("compatible_version", cfg_key)) {
-            WT_ASSERT_ALWAYS(session, metadata->compatible_version == 0,
-              "Duplicate compatible_version entry in disaggregated storage metadata");
-            if (cfg_value.val < 0 || cfg_value.val > INT_MAX)
-                WT_ERR_MSG(
-                  session, EINVAL, "Invalid compatible_version value: %" PRId64, cfg_value.val);
-            metadata->compatible_version = (int)cfg_value.val;
-        }
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
+    metadata->version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
+    metadata->compatible_version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
 
-    /* Apply defaults if not set */
-    if (metadata->version == 0 && metadata->compatible_version == 0) {
-        metadata->version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
-        metadata->compatible_version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
-    } else if (metadata->version != 0 && metadata->compatible_version == 0) {
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_getonen(session, meta_buf->data, meta_buf->size, "version", &version_val), false);
+    WT_ERR_NOTFOUND_OK(__wt_config_getonen(session, meta_buf->data, meta_buf->size,
+                         "compatible_version", &compat_val),
+      false);
+
+    has_version = version_val.len > 0;
+    has_compat = compat_val.len > 0;
+
+    if (has_version && !has_compat)
         WT_ERR_MSG(session, EINVAL,
-          "Disaggregated checkpoint metadata with version %d missing compatible version",
-          metadata->version);
-    } else if (metadata->version == 0 && metadata->compatible_version != 0) {
+          "Disaggregated checkpoint metadata with version %" PRId64 " missing compatible version",
+          version_val.val);
+    if (!has_version && has_compat)
         WT_ERR_MSG(session, EINVAL,
-          "Disaggregated checkpoint metadata with compatible version %d missing version",
-          metadata->compatible_version);
+          "Disaggregated checkpoint metadata with compatible version %" PRId64 " missing version",
+          compat_val.val);
+
+    if (has_version && has_compat) {
+        if (version_val.val < 0 || version_val.val > INT_MAX)
+            WT_ERR_MSG(session, EINVAL, "Invalid version value: %" PRId64, version_val.val);
+        if (compat_val.val < 0 || compat_val.val > INT_MAX)
+            WT_ERR_MSG(
+              session, EINVAL, "Invalid compatible_version value: %" PRId64, compat_val.val);
+
+        metadata->version = (int)version_val.val;
+        metadata->compatible_version = (int)compat_val.val;
     }
 
     if (metadata->compatible_version > WT_DISAGG_CHECKPOINT_TURTLE_VERSION)
