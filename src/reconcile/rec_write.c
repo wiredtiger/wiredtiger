@@ -1043,7 +1043,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     ret = (__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
       compressed_sizep, checkpoint, checkpoint_io, compressed));
     r->blkcache_write_time_accum += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
-    WT_RET(ret);
+    return (ret);
 }
 
 /*
