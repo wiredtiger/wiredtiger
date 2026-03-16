@@ -312,6 +312,16 @@ table_verify_mirror(
             table_mirror_fail_msg(session, checkpoint, base, base_keyno, &base_key, &base_value,
               table, table_keyno, &table_key, &table_value, last_match);
 
+            /*
+             * We can't continue if the keys don't match, otherwise, optionally continue showing
+             * failures, up to 20.
+             */
+            bool continuing = (base_keyno == table_keyno ||
+              (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
+            if (!continuing && g.disagg_storage_config)
+                testutil_disagg_preserve(
+                  NULL, conn, 10000, __wt_atomic_add_uint64_v(&g.timestamp, 1));
+
             /* Dump the cursor pages for the first failure. */
             if (++failures == 1) {
                 testutil_snprintf(
@@ -336,12 +346,7 @@ table_verify_mirror(
                 }
             }
 
-            /*
-             * We can't continue if the keys don't match, otherwise, optionally continue showing
-             * failures, up to 20.
-             */
-            testutil_assert(base_keyno == table_keyno ||
-              (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
+            testutil_assert(continuing);
         }
 
         /* Report progress (unless verifying checkpoints which happens during live operations). */
