@@ -295,10 +295,17 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
 
     /*
-     * Skip size decrement for root pages to prevent double accounting. Root page sizes are tracked
-     * separately and accounted for during checkpoint packing in __bmd_checkpoint_pack_raw, where we
-     * adjust btree->bytes_total by subtracting the previous root size and adding the current root
-     * size. Decrementing here would cause the root page size to be subtracted twice.
+     * Skip the size decrement for root pages for two reasons:
+     *
+     * First, the old root page discard occurs after the checkpoint size has already been written
+     * out to the metadata. This means the old root page's size is intentionally included in the
+     * checkpoint size at the point it is recorded. Decrementing here would produce a size smaller
+     * than what was written to metadata, causing verify to fail.
+     *
+     * Second, to account for the above, __bmd_checkpoint_pack_raw explicitly manages root page size
+     * transitions in btree->bytes_total: it subtracts the previous root size and adds the current
+     * root size at the moment the checkpoint size is computed. Decrementing here as well would
+     * cause the old root page size to be subtracted twice.
      */
     if (!*is_root)
         __wt_btree_decrease_size(session, cookie.size);
