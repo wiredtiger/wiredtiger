@@ -31,15 +31,15 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     /*
      * Write the root page out, and get back the address information for that page which will be
      * written into the block manager checkpoint cookie.
+     *
+     * Initialize size to zero so that the root size swap below covers both the empty checkpoint
+     * path (when root image is NULL, size stays 0) and the real checkpoint path uniformly.
      */
+    size = 0;
+
     if (root_image == NULL) {
         ckpt->raw.data = NULL;
         ckpt->raw.size = 0;
-
-        /* Account for this empty checkpoint. */
-        btree->previous_root_size = btree->current_root_size;
-        btree->current_root_size = 0;
-
     } else {
         /* Copy the checkpoint information into the checkpoint. */
         WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
@@ -69,10 +69,14 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
           "Checkpoint root page: root_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64
           " root_size=%" PRIu32 " root_checksum=%" PRIx32,
           block_meta->page_id, block_meta->disagg_lsn, block_meta->base_lsn, size, checksum);
-
-        btree->previous_root_size = btree->current_root_size;
-        btree->current_root_size = size;
     }
+
+    /*
+     * Update root page size tracking. Size being set to zero accounts for both empty checkpoints
+     * (when root image is NULL) and real checkpoints (when root image contains the actual size).
+     */
+    btree->previous_root_size = btree->current_root_size;
+    btree->current_root_size = size;
 
     /*
      * Set the btree root write size generation to the current checkpoint generation so we know
