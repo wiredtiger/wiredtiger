@@ -871,20 +871,17 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, bool forward, uint32_t iter_flag
         WT_ERR(__clayered_get_current(session, clayered, forward));
         deleted = __clayered_deleted(clayered, &clayered->current_cursor->value);
     } while (deleted);
-    WT_ERR_NOTFOUND_OK(ret, true);
 
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if (ret == 0) {
-        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-        WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-        WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
-    }
+    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
 
 err:
     __clayered_leave(clayered);
-    if (ret == 0)
+    if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
-    else {
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    } else {
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         if (ret != WT_PREPARE_CONFLICT)
             __clayered_reset_cursors(clayered, false);
