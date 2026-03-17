@@ -8954,1176 +8954,1171 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_BLOCK_ALLOC			2015
 /*! block-manager: blocks freed */
 #define	WT_STAT_DSRC_BLOCK_FREE				2016
-/*!
- * block-manager: checkpoint reconciliation block manager duration
- * (usecs)
- */
-#define	WT_STAT_DSRC_BLOCK_CHECKPOINT_RECONCILE_DURATION	2017
 /*! block-manager: checkpoint size */
-#define	WT_STAT_DSRC_BLOCK_CHECKPOINT_SIZE		2018
+#define	WT_STAT_DSRC_BLOCK_CHECKPOINT_SIZE		2017
 /*! block-manager: file allocation unit size */
-#define	WT_STAT_DSRC_ALLOCATION_SIZE			2019
+#define	WT_STAT_DSRC_ALLOCATION_SIZE			2018
 /*! block-manager: file bytes available for reuse */
-#define	WT_STAT_DSRC_BLOCK_REUSE_BYTES			2020
+#define	WT_STAT_DSRC_BLOCK_REUSE_BYTES			2019
 /*! block-manager: file magic number */
-#define	WT_STAT_DSRC_BLOCK_MAGIC			2021
+#define	WT_STAT_DSRC_BLOCK_MAGIC			2020
 /*! block-manager: file major version number */
-#define	WT_STAT_DSRC_BLOCK_MAJOR			2022
+#define	WT_STAT_DSRC_BLOCK_MAJOR			2021
 /*! block-manager: file size in bytes */
-#define	WT_STAT_DSRC_BLOCK_SIZE				2023
+#define	WT_STAT_DSRC_BLOCK_SIZE				2022
 /*! block-manager: minor version number */
-#define	WT_STAT_DSRC_BLOCK_MINOR			2024
+#define	WT_STAT_DSRC_BLOCK_MINOR			2023
 /*! btree: btree checkpoint generation */
-#define	WT_STAT_DSRC_BTREE_CHECKPOINT_GENERATION	2025
+#define	WT_STAT_DSRC_BTREE_CHECKPOINT_GENERATION	2024
 /*! btree: btree clean tree checkpoint expiration time */
-#define	WT_STAT_DSRC_BTREE_CLEAN_CHECKPOINT_TIMER	2026
+#define	WT_STAT_DSRC_BTREE_CLEAN_CHECKPOINT_TIMER	2025
 /*! btree: btree compact pages reviewed */
-#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED	2027
+#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED	2026
 /*! btree: btree compact pages rewritten */
-#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN	2028
+#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN	2027
 /*! btree: btree compact pages skipped */
-#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED	2029
+#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED	2028
 /*! btree: btree expected number of compact bytes rewritten */
-#define	WT_STAT_DSRC_BTREE_COMPACT_BYTES_REWRITTEN_EXPECTED	2030
+#define	WT_STAT_DSRC_BTREE_COMPACT_BYTES_REWRITTEN_EXPECTED	2029
 /*! btree: btree expected number of compact pages rewritten */
-#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN_EXPECTED	2031
+#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN_EXPECTED	2030
 /*! btree: btree number of pages reconciled during checkpoint */
-#define	WT_STAT_DSRC_BTREE_CHECKPOINT_PAGES_RECONCILED	2032
+#define	WT_STAT_DSRC_BTREE_CHECKPOINT_PAGES_RECONCILED	2031
 /*! btree: btree skipped by compaction as process would not reduce size */
-#define	WT_STAT_DSRC_BTREE_COMPACT_SKIPPED		2033
+#define	WT_STAT_DSRC_BTREE_COMPACT_SKIPPED		2032
 /*! btree: checkpoint btree walk, construct and write duration (usecs) */
-#define	WT_STAT_DSRC_BTREE_CHECKPOINT_RECONCILE_DURATION	2034
+#define	WT_STAT_DSRC_BTREE_CHECKPOINT_RECONCILE_DURATION	2033
 /*!
  * btree: column-store internal pages, only reported if tree_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_INTERNAL		2035
+#define	WT_STAT_DSRC_BTREE_COLUMN_INTERNAL		2034
 /*!
  * btree: column-store variable-size RLE encoded values, only reported if
  * tree_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_RLE			2036
+#define	WT_STAT_DSRC_BTREE_COLUMN_RLE			2035
 /*!
  * btree: column-store variable-size deleted values, only reported if
  * tree_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_DELETED		2037
+#define	WT_STAT_DSRC_BTREE_COLUMN_DELETED		2036
 /*!
  * btree: column-store variable-size leaf pages, only reported if
  * tree_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_VARIABLE		2038
+#define	WT_STAT_DSRC_BTREE_COLUMN_VARIABLE		2037
 /*! btree: fixed-record size */
-#define	WT_STAT_DSRC_BTREE_FIXED_LEN			2039
+#define	WT_STAT_DSRC_BTREE_FIXED_LEN			2038
 /*! btree: maximum internal page size */
-#define	WT_STAT_DSRC_BTREE_MAXINTLPAGE			2040
+#define	WT_STAT_DSRC_BTREE_MAXINTLPAGE			2039
 /*! btree: maximum leaf page key size */
-#define	WT_STAT_DSRC_BTREE_MAXLEAFKEY			2041
+#define	WT_STAT_DSRC_BTREE_MAXLEAFKEY			2040
 /*! btree: maximum leaf page size */
-#define	WT_STAT_DSRC_BTREE_MAXLEAFPAGE			2042
+#define	WT_STAT_DSRC_BTREE_MAXLEAFPAGE			2041
 /*! btree: maximum leaf page value size */
-#define	WT_STAT_DSRC_BTREE_MAXLEAFVALUE			2043
+#define	WT_STAT_DSRC_BTREE_MAXLEAFVALUE			2042
 /*! btree: maximum tree depth */
-#define	WT_STAT_DSRC_BTREE_MAXIMUM_DEPTH		2044
+#define	WT_STAT_DSRC_BTREE_MAXIMUM_DEPTH		2043
 /*!
  * btree: number of key/value pairs, only reported if tree_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_ENTRIES			2045
+#define	WT_STAT_DSRC_BTREE_ENTRIES			2044
 /*!
  * btree: overflow pages, only reported if tree_walk or all statistics
  * are enabled
  */
-#define	WT_STAT_DSRC_BTREE_OVERFLOW			2046
+#define	WT_STAT_DSRC_BTREE_OVERFLOW			2045
 /*!
  * btree: row-store empty values, only reported if tree_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_ROW_EMPTY_VALUES		2047
+#define	WT_STAT_DSRC_BTREE_ROW_EMPTY_VALUES		2046
 /*!
  * btree: row-store internal pages, only reported if tree_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_ROW_INTERNAL			2048
+#define	WT_STAT_DSRC_BTREE_ROW_INTERNAL			2047
 /*!
  * btree: row-store leaf pages, only reported if tree_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_ROW_LEAF			2049
+#define	WT_STAT_DSRC_BTREE_ROW_LEAF			2048
 /*!
  * cache: application threads eviction requested with cache fill ratio <
  * 25%
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_LT_25	2050
+#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_LT_25	2049
 /*!
  * cache: application threads eviction requested with cache fill ratio >=
  * 25% and < 50%
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_25_50	2051
+#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_25_50	2050
 /*!
  * cache: application threads eviction requested with cache fill ratio >=
  * 50% and < 75%
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_50_75	2052
+#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_50_75	2051
 /*!
  * cache: application threads eviction requested with cache fill ratio >=
  * 75%
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_GT_75	2053
+#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_FILL_RATIO_GT_75	2052
 /*!
  * cache: application threads eviction skip page with updates or dirty
  * page
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_SKIP_UPDATES_DIRTY_PAGE	2054
+#define	WT_STAT_DSRC_CACHE_EVICTION_APP_THREADS_SKIP_UPDATES_DIRTY_PAGE	2053
 /*! cache: bytes currently in the cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_INUSE			2055
+#define	WT_STAT_DSRC_CACHE_BYTES_INUSE			2054
 /*! cache: bytes dirty in the cache cumulative */
-#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_TOTAL		2056
+#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_TOTAL		2055
 /*! cache: bytes read into cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_READ			2057
+#define	WT_STAT_DSRC_CACHE_BYTES_READ			2056
 /*! cache: bytes written from cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_WRITE			2058
+#define	WT_STAT_DSRC_CACHE_BYTES_WRITE			2057
 /*! cache: checkpoint blocked page eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT	2059
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT	2058
 /*!
  * cache: checkpoint of history store file blocked non-history store page
  * eviction
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	2060
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	2059
 /*! cache: data source pages selected for eviction unable to be evicted */
-#define	WT_STAT_DSRC_EVICTION_FAIL			2061
+#define	WT_STAT_DSRC_EVICTION_FAIL			2060
 /*! cache: dirty internal page cannot be evicted in disaggregated storage */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	2062
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	2061
 /*!
  * cache: eviction gave up due to detecting a disk value without a
  * timestamp behind the last update on the chain
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1	2063
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1	2062
 /*!
  * cache: eviction gave up due to detecting a tombstone without a
  * timestamp ahead of the selected on disk update
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2	2064
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2	2063
 /*!
  * cache: eviction gave up due to detecting a tombstone without a
  * timestamp ahead of the selected on disk update after validating the
  * update chain
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3	2065
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3	2064
 /*!
  * cache: eviction gave up due to detecting update chain entries without
  * timestamps after the selected on disk update
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4	2066
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4	2065
 /*!
  * cache: eviction gave up due to needing to remove a record from the
  * history store but checkpoint is running
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	2067
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	2066
 /*! cache: eviction gave up due to no progress being made */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_PROGRESS	2068
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_PROGRESS	2067
 /*! cache: eviction server skipped the pages when prefetching */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PREFETCHED	2069
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PREFETCHED	2068
 /*! cache: eviction walk pages queued that had updates */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_UPDATES	2070
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_UPDATES	2069
 /*! cache: eviction walk pages queued that were clean */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_CLEAN	2071
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_CLEAN	2070
 /*! cache: eviction walk pages queued that were dirty */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_DIRTY	2072
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_DIRTY	2071
 /*! cache: eviction walk pages seen that had updates */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_UPDATES	2073
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_UPDATES	2072
 /*! cache: eviction walk pages seen that were clean */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_CLEAN	2074
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_CLEAN	2073
 /*! cache: eviction walk pages seen that were dirty */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_DIRTY	2075
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_DIRTY	2074
 /*! cache: eviction walk passes of a file */
-#define	WT_STAT_DSRC_EVICTION_WALK_PASSES		2076
+#define	WT_STAT_DSRC_EVICTION_WALK_PASSES		2075
 /*! cache: eviction walk target pages histogram - 0-9 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10	2077
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10	2076
 /*! cache: eviction walk target pages histogram - 10-31 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT32	2078
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT32	2077
 /*! cache: eviction walk target pages histogram - 128 and higher */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_GE128	2079
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_GE128	2078
 /*! cache: eviction walk target pages histogram - 32-63 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT64	2080
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT64	2079
 /*! cache: eviction walk target pages histogram - 64-128 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT128	2081
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT128	2080
 /*!
  * cache: eviction walk target pages reduced due to history store cache
  * pressure
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_REDUCED	2082
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_REDUCED	2081
 /*!
  * cache: garbage collection from the ingest btree page is skipped
  * because the prune timestamp has not moved
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP	2083
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP	2082
 /*! cache: hazard pointer blocked page eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_HAZARD	2084
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_HAZARD	2083
 /*! cache: history store cursor not cached during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_HS_CURSOR_NOT_CACHED	2085
+#define	WT_STAT_DSRC_CACHE_EVICTION_HS_CURSOR_NOT_CACHED	2084
 /*! cache: history store table insert calls */
-#define	WT_STAT_DSRC_CACHE_HS_INSERT			2086
+#define	WT_STAT_DSRC_CACHE_HS_INSERT			2085
 /*! cache: history store table insert calls that returned restart */
-#define	WT_STAT_DSRC_CACHE_HS_INSERT_RESTART		2087
+#define	WT_STAT_DSRC_CACHE_HS_INSERT_RESTART		2086
 /*! cache: history store table key to be processed */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_PROCESSED		2088
+#define	WT_STAT_DSRC_CACHE_HS_KEY_PROCESSED		2087
 /*! cache: history store table reads */
-#define	WT_STAT_DSRC_CACHE_HS_READ			2089
+#define	WT_STAT_DSRC_CACHE_HS_READ			2088
 /*! cache: history store table reads missed */
-#define	WT_STAT_DSRC_CACHE_HS_READ_MISS			2090
+#define	WT_STAT_DSRC_CACHE_HS_READ_MISS			2089
 /*! cache: history store table reads requiring squashed modifies */
-#define	WT_STAT_DSRC_CACHE_HS_READ_SQUASH		2091
+#define	WT_STAT_DSRC_CACHE_HS_READ_SQUASH		2090
 /*!
  * cache: history store table resolved updates without timestamps that
  * lose their durable timestamp
  */
-#define	WT_STAT_DSRC_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	2092
+#define	WT_STAT_DSRC_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	2091
 /*!
  * cache: history store table truncation by rollback to stable to remove
  * an unstable update
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	2093
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	2092
 /*!
  * cache: history store table truncation by rollback to stable to remove
  * an update
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS		2094
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS		2093
 /*!
  * cache: history store table truncation to remove all the keys of a
  * btree
  */
-#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE		2095
+#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE		2094
 /*! cache: history store table truncation to remove an update */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE		2096
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE		2095
 /*!
  * cache: history store table truncation to remove range of updates due
  * to an update without a timestamp on data page
  */
-#define	WT_STAT_DSRC_CACHE_HS_ORDER_REMOVE		2097
+#define	WT_STAT_DSRC_CACHE_HS_ORDER_REMOVE		2096
 /*!
  * cache: history store table truncation to remove range of updates due
  * to key being removed from the data page during reconciliation
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	2098
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	2097
 /*!
  * cache: history store table truncations that would have happened in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE_DRYRUN	2099
+#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE_DRYRUN	2098
 /*!
  * cache: history store table truncations to remove an unstable update
  * that would have happened in non-dryrun mode
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN	2100
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN	2099
 /*!
  * cache: history store table truncations to remove an update that would
  * have happened in non-dryrun mode
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN	2101
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN	2100
 /*! cache: history store table update to be processed */
-#define	WT_STAT_DSRC_CACHE_HS_UPDATE_PROCESSED		2102
+#define	WT_STAT_DSRC_CACHE_HS_UPDATE_PROCESSED		2101
 /*!
  * cache: history store table updates without timestamps fixed up by
  * reinserting with the fixed timestamp
  */
-#define	WT_STAT_DSRC_CACHE_HS_ORDER_REINSERT		2103
+#define	WT_STAT_DSRC_CACHE_HS_ORDER_REINSERT		2102
 /*! cache: history store table writes requiring squashed modifies */
-#define	WT_STAT_DSRC_CACHE_HS_WRITE_SQUASH		2104
+#define	WT_STAT_DSRC_CACHE_HS_WRITE_SQUASH		2103
 /*! cache: in-memory page passed criteria to be split */
-#define	WT_STAT_DSRC_CACHE_INMEM_SPLITTABLE		2105
+#define	WT_STAT_DSRC_CACHE_INMEM_SPLITTABLE		2104
 /*! cache: in-memory page splits */
-#define	WT_STAT_DSRC_CACHE_INMEM_SPLIT			2106
+#define	WT_STAT_DSRC_CACHE_INMEM_SPLIT			2105
 /*! cache: internal page split blocked its eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT	2107
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT	2106
 /*! cache: internal pages evicted */
-#define	WT_STAT_DSRC_CACHE_EVICTION_INTERNAL		2108
+#define	WT_STAT_DSRC_CACHE_EVICTION_INTERNAL		2107
 /*! cache: internal pages split during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_INTERNAL	2109
+#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_INTERNAL	2108
 /*! cache: leaf pages split during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_LEAF		2110
+#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_LEAF		2109
 /*!
  * cache: locate a random in-mem ref by examining all entries on the root
  * page
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	2111
+#define	WT_STAT_DSRC_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	2110
 /*! cache: modified pages evicted */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY		2112
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY		2111
 /*! cache: multi-block reconciliation blocked whilst checkpoint is running */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	2113
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	2112
 /*! cache: number of internal pages read that had deltas attached */
-#define	WT_STAT_DSRC_CACHE_READ_INTERNAL_DELTA		2114
+#define	WT_STAT_DSRC_CACHE_READ_INTERNAL_DELTA		2113
 /*! cache: number of leaf pages read that had deltas attached */
-#define	WT_STAT_DSRC_CACHE_READ_LEAF_DELTA		2115
+#define	WT_STAT_DSRC_CACHE_READ_LEAF_DELTA		2114
 /*! cache: number of times dirty trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	2116
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	2115
 /*! cache: number of times eviction trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_REACHED	2117
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_REACHED	2116
 /*! cache: number of times updates trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	2118
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	2117
 /*! cache: number of times when cas update the btree max_lsn failed */
-#define	WT_STAT_DSRC_CACHE_CAS_BTREE_MAX_LSN_RACE	2119
+#define	WT_STAT_DSRC_CACHE_CAS_BTREE_MAX_LSN_RACE	2118
 /*! cache: obsolete updates removed */
-#define	WT_STAT_DSRC_CACHE_OBSOLETE_UPDATES_REMOVED	2120
+#define	WT_STAT_DSRC_CACHE_OBSOLETE_UPDATES_REMOVED	2119
 /*!
  * cache: overflow keys on a multiblock row-store page blocked its
  * eviction
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	2121
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	2120
 /*! cache: overflow pages read into cache */
-#define	WT_STAT_DSRC_CACHE_READ_OVERFLOW		2122
+#define	WT_STAT_DSRC_CACHE_READ_OVERFLOW		2121
 /*! cache: page eviction blocked due to materialization frontier */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MATERIALIZATION	2123
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MATERIALIZATION	2122
 /*!
  * cache: page eviction blocked in disaggregated storage as it can only
  * be written by the next checkpoint
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT	2124
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT	2123
 /*! cache: page split during eviction deepened the tree */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2125
+#define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2124
 /*! cache: page written requiring history store records */
-#define	WT_STAT_DSRC_CACHE_WRITE_HS			2126
+#define	WT_STAT_DSRC_CACHE_WRITE_HS			2125
 /*! cache: pages dirtied due to obsolete time window by eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2127
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2126
 /*! cache: pages evicted ahead of the page materialization frontier */
-#define	WT_STAT_DSRC_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN	2128
+#define	WT_STAT_DSRC_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN	2127
 /*! cache: pages read into cache */
-#define	WT_STAT_DSRC_CACHE_READ				2129
+#define	WT_STAT_DSRC_CACHE_READ				2128
 /*! cache: pages read into cache after truncate */
-#define	WT_STAT_DSRC_CACHE_READ_DELETED			2130
+#define	WT_STAT_DSRC_CACHE_READ_DELETED			2129
 /*! cache: pages read into cache after truncate in prepare state */
-#define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2131
+#define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2130
 /*! cache: pages read into cache by checkpoint */
-#define	WT_STAT_DSRC_CACHE_READ_CHECKPOINT		2132
+#define	WT_STAT_DSRC_CACHE_READ_CHECKPOINT		2131
 /*! cache: pages requested from the cache */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2133
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2132
 /*! cache: pages requested from the cache due to pre-fetch */
-#define	WT_STAT_DSRC_CACHE_PAGES_PREFETCH		2134
+#define	WT_STAT_DSRC_CACHE_PAGES_PREFETCH		2133
 /*! cache: pages requested from the cache internal */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_INTERNAL	2135
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_INTERNAL	2134
 /*! cache: pages requested from the cache leaf */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_LEAF		2136
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_LEAF		2135
 /*! cache: pages requested from the history store */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_HS		2137
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_HS		2136
 /*! cache: pages seen by eviction walk */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN		2138
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN		2137
 /*! cache: pages written from cache */
-#define	WT_STAT_DSRC_CACHE_WRITE			2139
+#define	WT_STAT_DSRC_CACHE_WRITE			2138
 /*!
  * cache: pages written requiring in-memory restoration due to invisible
  * updates
  */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_INVISIBLE	2140
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_INVISIBLE	2139
 /*!
  * cache: pages written requiring in-memory restoration due to scrub
  * eviction
  */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB		2141
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB		2140
 /*!
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	2142
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	2141
 /*!
  * cache: realizing in-memory split after reconciliation failed due to
  * internal lock busy
  */
-#define	WT_STAT_DSRC_CACHE_EVICT_SPLIT_FAILED_LOCK	2143
+#define	WT_STAT_DSRC_CACHE_EVICT_SPLIT_FAILED_LOCK	2142
 /*! cache: recent modification of a page blocked its eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_RECENTLY_MODIFIED	2144
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_RECENTLY_MODIFIED	2143
 /*! cache: reconciled pages scrubbed and added back to the cache clean */
-#define	WT_STAT_DSRC_CACHE_SCRUB_RESTORE		2145
+#define	WT_STAT_DSRC_CACHE_SCRUB_RESTORE		2144
 /*! cache: reverse splits performed */
-#define	WT_STAT_DSRC_CACHE_REVERSE_SPLITS		2146
+#define	WT_STAT_DSRC_CACHE_REVERSE_SPLITS		2145
 /*!
  * cache: reverse splits skipped because of VLCS namespace gap
  * restrictions
  */
-#define	WT_STAT_DSRC_CACHE_REVERSE_SPLITS_SKIPPED_VLCS	2147
+#define	WT_STAT_DSRC_CACHE_REVERSE_SPLITS_SKIPPED_VLCS	2146
 /*! cache: shared history store cursor not cached during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_HS_SHARED_CURSOR_NOT_CACHED	2148
+#define	WT_STAT_DSRC_CACHE_EVICTION_HS_SHARED_CURSOR_NOT_CACHED	2147
 /*! cache: size of delta updates reconstructed on the base page */
-#define	WT_STAT_DSRC_CACHE_READ_DELTA_UPDATES		2149
+#define	WT_STAT_DSRC_CACHE_READ_DELTA_UPDATES		2148
 /*! cache: size of tombstones restored when reading a page */
-#define	WT_STAT_DSRC_CACHE_READ_RESTORED_TOMBSTONE_BYTES	2150
+#define	WT_STAT_DSRC_CACHE_READ_RESTORED_TOMBSTONE_BYTES	2149
 /*! cache: the number of times full update inserted to history store */
-#define	WT_STAT_DSRC_CACHE_HS_INSERT_FULL_UPDATE	2151
+#define	WT_STAT_DSRC_CACHE_HS_INSERT_FULL_UPDATE	2150
 /*! cache: the number of times reverse modify inserted to history store */
-#define	WT_STAT_DSRC_CACHE_HS_INSERT_REVERSE_MODIFY	2152
+#define	WT_STAT_DSRC_CACHE_HS_INSERT_REVERSE_MODIFY	2151
 /*! cache: tracked dirty bytes in the cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY			2153
+#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY			2152
 /*! cache: tracked dirty internal page bytes in the cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_INTERNAL		2154
+#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_INTERNAL		2153
 /*! cache: tracked dirty leaf page bytes in the cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_LEAF		2155
+#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_LEAF		2154
 /*! cache: uncommitted truncate blocked page eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE	2156
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_UNCOMMITTED_TRUNCATE	2155
 /*! cache: unmodified pages evicted */
-#define	WT_STAT_DSRC_CACHE_EVICTION_CLEAN		2157
+#define	WT_STAT_DSRC_CACHE_EVICTION_CLEAN		2156
 /*!
  * cache_walk: Average difference between current eviction generation
  * when the page was last considered, only reported if cache_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_GEN_AVG_GAP		2158
+#define	WT_STAT_DSRC_CACHE_STATE_GEN_AVG_GAP		2157
 /*!
  * cache_walk: Average on-disk page image size seen, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_AVG_WRITTEN_SIZE	2159
+#define	WT_STAT_DSRC_CACHE_STATE_AVG_WRITTEN_SIZE	2158
 /*!
  * cache_walk: Average time in cache for pages that have been visited by
  * the eviction server, only reported if cache_walk or all statistics are
  * enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_AVG_VISITED_AGE	2160
+#define	WT_STAT_DSRC_CACHE_STATE_AVG_VISITED_AGE	2159
 /*!
  * cache_walk: Average time in cache for pages that have not been visited
  * by the eviction server, only reported if cache_walk or all statistics
  * are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_AVG_UNVISITED_AGE	2161
+#define	WT_STAT_DSRC_CACHE_STATE_AVG_UNVISITED_AGE	2160
 /*!
  * cache_walk: Clean pages currently in cache, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_PAGES_CLEAN		2162
+#define	WT_STAT_DSRC_CACHE_STATE_PAGES_CLEAN		2161
 /*!
  * cache_walk: Current eviction generation, only reported if cache_walk
  * or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_GEN_CURRENT		2163
+#define	WT_STAT_DSRC_CACHE_STATE_GEN_CURRENT		2162
 /*!
  * cache_walk: Dirty pages currently in cache, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_PAGES_DIRTY		2164
+#define	WT_STAT_DSRC_CACHE_STATE_PAGES_DIRTY		2163
 /*!
  * cache_walk: Entries in the root page, only reported if cache_walk or
  * all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_ROOT_ENTRIES		2165
+#define	WT_STAT_DSRC_CACHE_STATE_ROOT_ENTRIES		2164
 /*!
  * cache_walk: Internal pages currently in cache, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_PAGES_INTERNAL		2166
+#define	WT_STAT_DSRC_CACHE_STATE_PAGES_INTERNAL		2165
 /*!
  * cache_walk: Leaf pages currently in cache, only reported if cache_walk
  * or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_PAGES_LEAF		2167
+#define	WT_STAT_DSRC_CACHE_STATE_PAGES_LEAF		2166
 /*!
  * cache_walk: Maximum difference between current eviction generation
  * when the page was last considered, only reported if cache_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_GEN_MAX_GAP		2168
+#define	WT_STAT_DSRC_CACHE_STATE_GEN_MAX_GAP		2167
 /*!
  * cache_walk: Maximum page size seen, only reported if cache_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_MAX_PAGESIZE		2169
+#define	WT_STAT_DSRC_CACHE_STATE_MAX_PAGESIZE		2168
 /*!
  * cache_walk: Minimum on-disk page image size seen, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_MIN_WRITTEN_SIZE	2170
+#define	WT_STAT_DSRC_CACHE_STATE_MIN_WRITTEN_SIZE	2169
 /*!
  * cache_walk: Number of pages never visited by eviction server, only
  * reported if cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_UNVISITED_COUNT	2171
+#define	WT_STAT_DSRC_CACHE_STATE_UNVISITED_COUNT	2170
 /*!
  * cache_walk: On-disk page image sizes smaller than a single allocation
  * unit, only reported if cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_SMALLER_ALLOC_SIZE	2172
+#define	WT_STAT_DSRC_CACHE_STATE_SMALLER_ALLOC_SIZE	2171
 /*!
  * cache_walk: Pages created in memory and never written, only reported
  * if cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_MEMORY			2173
+#define	WT_STAT_DSRC_CACHE_STATE_MEMORY			2172
 /*!
  * cache_walk: Pages currently queued for eviction, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_QUEUED			2174
+#define	WT_STAT_DSRC_CACHE_STATE_QUEUED			2173
 /*!
  * cache_walk: Pages that could not be queued for eviction, only reported
  * if cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_NOT_QUEUEABLE		2175
+#define	WT_STAT_DSRC_CACHE_STATE_NOT_QUEUEABLE		2174
 /*!
  * cache_walk: Refs skipped during cache traversal, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_REFS_SKIPPED		2176
+#define	WT_STAT_DSRC_CACHE_STATE_REFS_SKIPPED		2175
 /*!
  * cache_walk: Size of the root page, only reported if cache_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_ROOT_SIZE		2177
+#define	WT_STAT_DSRC_CACHE_STATE_ROOT_SIZE		2176
 /*!
  * cache_walk: Total number of pages currently in cache, only reported if
  * cache_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_CACHE_STATE_PAGES			2178
+#define	WT_STAT_DSRC_CACHE_STATE_PAGES			2177
 /*! checkpoint-cleanup: pages added for eviction */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_EVICT	2179
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_EVICT	2178
 /*! checkpoint-cleanup: pages dirtied due to obsolete time window */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	2180
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	2179
 /*! checkpoint-cleanup: pages read into cache (reclaim_space) */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	2181
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	2180
 /*! checkpoint-cleanup: pages read into cache due to obsolete time window */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW	2182
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW	2181
 /*! checkpoint-cleanup: pages removed */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_REMOVED	2183
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_REMOVED	2182
 /*! checkpoint-cleanup: pages skipped during tree walk */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	2184
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	2183
 /*! checkpoint-cleanup: pages visited */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_VISITED	2185
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_VISITED	2184
 /*! checkpoint: checkpoint has acquired a snapshot for its transaction */
-#define	WT_STAT_DSRC_CHECKPOINT_SNAPSHOT_ACQUIRED	2186
+#define	WT_STAT_DSRC_CHECKPOINT_SNAPSHOT_ACQUIRED	2185
 /*!
  * compression: compressed page maximum internal page size prior to
  * compression
  */
-#define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE	2187
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE	2186
 /*!
  * compression: compressed page maximum leaf page size prior to
  * compression
  */
-#define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2188
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2187
 /*! compression: page written to disk failed to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2189
+#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2188
 /*! compression: page written to disk was too small to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2190
+#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2189
 /*! compression: pages read from disk */
-#define	WT_STAT_DSRC_COMPRESS_READ			2191
+#define	WT_STAT_DSRC_COMPRESS_READ			2190
 /*!
  * compression: pages read from disk with compression ratio greater than
  * 64
  */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_MAX	2192
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_MAX	2191
 /*!
  * compression: pages read from disk with compression ratio smaller than
  * 2
  */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_2		2193
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_2		2192
 /*!
  * compression: pages read from disk with compression ratio smaller than
  * 4
  */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_4		2194
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_4		2193
 /*!
  * compression: pages read from disk with compression ratio smaller than
  * 8
  */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_8		2195
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_8		2194
 /*!
  * compression: pages read from disk with compression ratio smaller than
  * 16
  */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_16	2196
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_16	2195
 /*!
  * compression: pages read from disk with compression ratio smaller than
  * 32
  */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_32	2197
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_32	2196
 /*!
  * compression: pages read from disk with compression ratio smaller than
  * 64
  */
-#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_64	2198
+#define	WT_STAT_DSRC_COMPRESS_READ_RATIO_HIST_64	2197
 /*! compression: pages written to disk */
-#define	WT_STAT_DSRC_COMPRESS_WRITE			2199
+#define	WT_STAT_DSRC_COMPRESS_WRITE			2198
 /*!
  * compression: pages written to disk with compression ratio greater than
  * 64
  */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_MAX	2200
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_MAX	2199
 /*!
  * compression: pages written to disk with compression ratio smaller than
  * 2
  */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_2	2201
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_2	2200
 /*!
  * compression: pages written to disk with compression ratio smaller than
  * 4
  */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_4	2202
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_4	2201
 /*!
  * compression: pages written to disk with compression ratio smaller than
  * 8
  */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_8	2203
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_8	2202
 /*!
  * compression: pages written to disk with compression ratio smaller than
  * 16
  */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_16	2204
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_16	2203
 /*!
  * compression: pages written to disk with compression ratio smaller than
  * 32
  */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_32	2205
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_32	2204
 /*!
  * compression: pages written to disk with compression ratio smaller than
  * 64
  */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64	2206
+#define	WT_STAT_DSRC_COMPRESS_WRITE_RATIO_HIST_64	2205
 /*! cursor: Total number of deleted pages skipped during tree walk */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_PAGE_SKIP	2207
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_DEL_PAGE_SKIP	2206
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2208
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2207
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2209
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2208
 /*!
  * cursor: Total number of entries skipped to position the history store
  * cursor
  */
-#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2210
+#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2209
 /*!
  * cursor: Total number of in-memory deleted pages skipped during tree
  * walk
  */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_INMEM_DEL_PAGE_SKIP	2211
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_INMEM_DEL_PAGE_SKIP	2210
 /*! cursor: Total number of on-disk deleted pages skipped during tree walk */
-#define	WT_STAT_DSRC_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP	2212
+#define	WT_STAT_DSRC_CURSOR_TREE_WALK_ONDISK_DEL_PAGE_SKIP	2211
 /*!
  * cursor: Total number of times a search near has exited due to prefix
  * config
  */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	2213
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	2212
 /*!
  * cursor: Total number of times cursor fails to temporarily release
  * pinned page to encourage eviction of hot or large page
  */
-#define	WT_STAT_DSRC_CURSOR_REPOSITION_FAILED		2214
+#define	WT_STAT_DSRC_CURSOR_REPOSITION_FAILED		2213
 /*!
  * cursor: Total number of times cursor temporarily releases pinned page
  * to encourage eviction of hot or large page
  */
-#define	WT_STAT_DSRC_CURSOR_REPOSITION			2215
+#define	WT_STAT_DSRC_CURSOR_REPOSITION			2214
 /*! cursor: bulk loaded cursor insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2216
+#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2215
 /*! cursor: cache cursors reuse count */
-#define	WT_STAT_DSRC_CURSOR_REOPEN			2217
+#define	WT_STAT_DSRC_CURSOR_REOPEN			2216
 /*! cursor: close calls that result in cache */
-#define	WT_STAT_DSRC_CURSOR_CACHE			2218
+#define	WT_STAT_DSRC_CURSOR_CACHE			2217
 /*! cursor: create calls */
-#define	WT_STAT_DSRC_CURSOR_CREATE			2219
+#define	WT_STAT_DSRC_CURSOR_CREATE			2218
 /*! cursor: cursor bound calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_BOUND_ERROR			2220
+#define	WT_STAT_DSRC_CURSOR_BOUND_ERROR			2219
 /*! cursor: cursor bounds cleared from reset */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_RESET		2221
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_RESET		2220
 /*! cursor: cursor bounds comparisons performed */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_COMPARISONS		2222
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_COMPARISONS		2221
 /*! cursor: cursor bounds next called on an unpositioned cursor */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_NEXT_UNPOSITIONED	2223
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_NEXT_UNPOSITIONED	2222
 /*! cursor: cursor bounds next early exit */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_NEXT_EARLY_EXIT	2224
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_NEXT_EARLY_EXIT	2223
 /*! cursor: cursor bounds prev called on an unpositioned cursor */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_PREV_UNPOSITIONED	2225
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_PREV_UNPOSITIONED	2224
 /*! cursor: cursor bounds prev early exit */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_PREV_EARLY_EXIT	2226
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_PREV_EARLY_EXIT	2225
 /*! cursor: cursor bounds search early exit */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_SEARCH_EARLY_EXIT	2227
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_SEARCH_EARLY_EXIT	2226
 /*! cursor: cursor bounds search near call repositioned cursor */
-#define	WT_STAT_DSRC_CURSOR_BOUNDS_SEARCH_NEAR_REPOSITIONED_CURSOR	2228
+#define	WT_STAT_DSRC_CURSOR_BOUNDS_SEARCH_NEAR_REPOSITIONED_CURSOR	2227
 /*! cursor: cursor cache calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_CACHE_ERROR			2229
+#define	WT_STAT_DSRC_CURSOR_CACHE_ERROR			2228
 /*! cursor: cursor close calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_CLOSE_ERROR			2230
+#define	WT_STAT_DSRC_CURSOR_CLOSE_ERROR			2229
 /*! cursor: cursor compare calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_COMPARE_ERROR		2231
+#define	WT_STAT_DSRC_CURSOR_COMPARE_ERROR		2230
 /*! cursor: cursor equals calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_EQUALS_ERROR		2232
+#define	WT_STAT_DSRC_CURSOR_EQUALS_ERROR		2231
 /*! cursor: cursor get key calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_GET_KEY_ERROR		2233
+#define	WT_STAT_DSRC_CURSOR_GET_KEY_ERROR		2232
 /*! cursor: cursor get value calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_GET_VALUE_ERROR		2234
+#define	WT_STAT_DSRC_CURSOR_GET_VALUE_ERROR		2233
 /*! cursor: cursor insert calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_INSERT_ERROR		2235
+#define	WT_STAT_DSRC_CURSOR_INSERT_ERROR		2234
 /*! cursor: cursor insert check calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_INSERT_CHECK_ERROR		2236
+#define	WT_STAT_DSRC_CURSOR_INSERT_CHECK_ERROR		2235
 /*! cursor: cursor largest key calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_LARGEST_KEY_ERROR		2237
+#define	WT_STAT_DSRC_CURSOR_LARGEST_KEY_ERROR		2236
 /*! cursor: cursor modify calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_ERROR		2238
+#define	WT_STAT_DSRC_CURSOR_MODIFY_ERROR		2237
 /*! cursor: cursor next calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_NEXT_ERROR			2239
+#define	WT_STAT_DSRC_CURSOR_NEXT_ERROR			2238
 /*!
  * cursor: cursor next calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_HS_TOMBSTONE		2240
+#define	WT_STAT_DSRC_CURSOR_NEXT_HS_TOMBSTONE		2239
 /*!
  * cursor: cursor next calls that skip greater than 1 and fewer than 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2241
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2240
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2242
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2241
 /*! cursor: cursor next random calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_NEXT_RANDOM_ERROR		2243
+#define	WT_STAT_DSRC_CURSOR_NEXT_RANDOM_ERROR		2242
 /*! cursor: cursor prev calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_PREV_ERROR			2244
+#define	WT_STAT_DSRC_CURSOR_PREV_ERROR			2243
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE		2245
+#define	WT_STAT_DSRC_CURSOR_PREV_HS_TOMBSTONE		2244
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2246
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2245
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2247
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2246
 /*! cursor: cursor reconfigure calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_RECONFIGURE_ERROR		2248
+#define	WT_STAT_DSRC_CURSOR_RECONFIGURE_ERROR		2247
 /*! cursor: cursor remove calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_REMOVE_ERROR		2249
+#define	WT_STAT_DSRC_CURSOR_REMOVE_ERROR		2248
 /*! cursor: cursor reopen calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_REOPEN_ERROR		2250
+#define	WT_STAT_DSRC_CURSOR_REOPEN_ERROR		2249
 /*! cursor: cursor reserve calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_RESERVE_ERROR		2251
+#define	WT_STAT_DSRC_CURSOR_RESERVE_ERROR		2250
 /*! cursor: cursor reset calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_RESET_ERROR			2252
+#define	WT_STAT_DSRC_CURSOR_RESET_ERROR			2251
 /*! cursor: cursor search calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_ERROR		2253
+#define	WT_STAT_DSRC_CURSOR_SEARCH_ERROR		2252
 /*! cursor: cursor search near calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_ERROR		2254
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_ERROR		2253
 /*! cursor: cursor update calls that return an error */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_ERROR		2255
+#define	WT_STAT_DSRC_CURSOR_UPDATE_ERROR		2254
 /*! cursor: insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT			2256
+#define	WT_STAT_DSRC_CURSOR_INSERT			2255
 /*! cursor: insert key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2257
+#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2256
 /*! cursor: modify */
-#define	WT_STAT_DSRC_CURSOR_MODIFY			2258
+#define	WT_STAT_DSRC_CURSOR_MODIFY			2257
 /*! cursor: modify key and value bytes affected */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2259
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2258
 /*! cursor: modify value bytes modified */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2260
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2259
 /*! cursor: next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT			2261
+#define	WT_STAT_DSRC_CURSOR_NEXT			2260
 /*! cursor: open cursor count */
-#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2262
+#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2261
 /*! cursor: open cursor time application (usecs) */
-#define	WT_STAT_DSRC_CURSOR_OPEN_TIME_USER_USECS	2263
+#define	WT_STAT_DSRC_CURSOR_OPEN_TIME_USER_USECS	2262
 /*! cursor: open cursor time internal (usecs) */
-#define	WT_STAT_DSRC_CURSOR_OPEN_TIME_INTERNAL_USECS	2264
+#define	WT_STAT_DSRC_CURSOR_OPEN_TIME_INTERNAL_USECS	2263
 /*! cursor: operation restarted */
-#define	WT_STAT_DSRC_CURSOR_RESTART			2265
+#define	WT_STAT_DSRC_CURSOR_RESTART			2264
 /*! cursor: prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV			2266
+#define	WT_STAT_DSRC_CURSOR_PREV			2265
 /*! cursor: remove calls */
-#define	WT_STAT_DSRC_CURSOR_REMOVE			2267
+#define	WT_STAT_DSRC_CURSOR_REMOVE			2266
 /*! cursor: remove key bytes removed */
-#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2268
+#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2267
 /*! cursor: reserve calls */
-#define	WT_STAT_DSRC_CURSOR_RESERVE			2269
+#define	WT_STAT_DSRC_CURSOR_RESERVE			2268
 /*! cursor: reset calls */
-#define	WT_STAT_DSRC_CURSOR_RESET			2270
+#define	WT_STAT_DSRC_CURSOR_RESET			2269
 /*! cursor: search calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH			2271
+#define	WT_STAT_DSRC_CURSOR_SEARCH			2270
 /*! cursor: search history store calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_HS			2272
+#define	WT_STAT_DSRC_CURSOR_SEARCH_HS			2271
 /*! cursor: search near calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2273
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2272
 /*! cursor: truncate calls */
-#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2274
+#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2273
 /*! cursor: update calls */
-#define	WT_STAT_DSRC_CURSOR_UPDATE			2275
+#define	WT_STAT_DSRC_CURSOR_UPDATE			2274
 /*! cursor: update key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2276
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2275
 /*! cursor: update value size change */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2277
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2276
 /*! layered: Layered table cursor insert operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_INSERT		2278
+#define	WT_STAT_DSRC_LAYERED_CURS_INSERT		2277
 /*! layered: Layered table cursor modify operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_MODIFY		2279
+#define	WT_STAT_DSRC_LAYERED_CURS_MODIFY		2278
 /*! layered: Layered table cursor next operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_NEXT			2280
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT			2279
 /*! layered: Layered table cursor next operations from the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_INGEST		2281
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_INGEST		2280
 /*! layered: Layered table cursor next operations from the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_STABLE		2282
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_STABLE		2281
 /*! layered: Layered table cursor prev operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_PREV			2283
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV			2282
 /*! layered: Layered table cursor prev operations from the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_PREV_INGEST		2284
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV_INGEST		2283
 /*! layered: Layered table cursor prev operations from the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE		2285
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE		2284
 /*! layered: Layered table cursor remove operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_REMOVE		2286
+#define	WT_STAT_DSRC_LAYERED_CURS_REMOVE		2285
 /*! layered: Layered table cursor search near operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR		2287
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR		2286
 /*!
  * layered: Layered table cursor search near operations from the ingest
  * btrees
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST	2288
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST	2287
 /*!
  * layered: Layered table cursor search near operations from the stable
  * btrees
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE	2289
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE	2288
 /*! layered: Layered table cursor search operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH		2290
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH		2289
 /*! layered: Layered table cursor search operations from the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2291
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2290
 /*! layered: Layered table cursor search operations from the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2292
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2291
 /*! layered: Layered table cursor update operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_UPDATE		2293
+#define	WT_STAT_DSRC_LAYERED_CURS_UPDATE		2292
 /*! layered: Layered table cursor upgrade state for the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_UPGRADE_INGEST	2294
+#define	WT_STAT_DSRC_LAYERED_CURS_UPGRADE_INGEST	2293
 /*! layered: Layered table cursor upgrade state for the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_UPGRADE_STABLE	2295
+#define	WT_STAT_DSRC_LAYERED_CURS_UPGRADE_STABLE	2294
 /*!
  * layered: checkpoints performed on this table by the layered table
  * manager
  */
-#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS	2296
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS	2295
 /*! layered: disagg pick up checkpoints failed */
-#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FAILED	2297
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FAILED	2296
 /*! layered: disagg pick up checkpoints succeeded */
-#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED	2298
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED	2297
 /*!
  * layered: how many log applications the layered table manager applied
  * on this tree
  */
-#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED	2299
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED	2298
 /*!
  * layered: how many log applications the layered table manager skipped
  * on this tree
  */
-#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED	2300
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED	2299
 /*!
  * layered: how many previously-applied LSNs the layered table manager
  * skipped on this tree
  */
-#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_SKIP_LSN	2301
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_SKIP_LSN	2300
 /*! reconciliation: VLCS pages explicitly reconciled as empty */
-#define	WT_STAT_DSRC_REC_VLCS_EMPTIED_PAGES		2302
+#define	WT_STAT_DSRC_REC_VLCS_EMPTIED_PAGES		2301
 /*! reconciliation: approximate byte size of timestamps in pages written */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS		2303
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS		2302
 /*!
  * reconciliation: approximate byte size of transaction IDs in pages
  * written
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TXN		2304
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TXN		2303
 /*!
  * reconciliation: average length of delta chain on internal page with
  * deltas
  */
-#define	WT_STAT_DSRC_REC_AVERAGE_INTERNAL_PAGE_DELTA_CHAIN_LENGTH	2305
+#define	WT_STAT_DSRC_REC_AVERAGE_INTERNAL_PAGE_DELTA_CHAIN_LENGTH	2304
 /*! reconciliation: average length of delta chain on leaf page with deltas */
-#define	WT_STAT_DSRC_REC_AVERAGE_LEAF_PAGE_DELTA_CHAIN_LENGTH	2306
+#define	WT_STAT_DSRC_REC_AVERAGE_LEAF_PAGE_DELTA_CHAIN_LENGTH	2305
 /*!
  * reconciliation: changes since prior reconciliation (bucket 1) between
  * 1 and 5
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE5			2307
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE5			2306
 /*!
  * reconciliation: changes since prior reconciliation (bucket 2) between
  * 6 and 10
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE10			2308
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE10			2307
 /*!
  * reconciliation: changes since prior reconciliation (bucket 3) between
  * 11 and 20
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE20			2309
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE20			2308
 /*!
  * reconciliation: changes since prior reconciliation (bucket 4) between
  * 21 and 50
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE50			2310
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE50			2309
 /*!
  * reconciliation: changes since prior reconciliation (bucket 5) between
  * 51 and 100
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE100		2311
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE100		2310
 /*!
  * reconciliation: changes since prior reconciliation (bucket 6) between
  * 101 and 200
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE200		2312
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE200		2311
 /*!
  * reconciliation: changes since prior reconciliation (bucket 7) between
  * 201 and 500
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_LE500		2313
+#define	WT_STAT_DSRC_REC_PAGE_MODS_LE500		2312
 /*!
  * reconciliation: changes since prior reconciliation (bucket 8) greater
  * than 500
  */
-#define	WT_STAT_DSRC_REC_PAGE_MODS_GT500		2314
+#define	WT_STAT_DSRC_REC_PAGE_MODS_GT500		2313
 /*! reconciliation: cursor next/prev calls during HS wrapup search_near */
-#define	WT_STAT_DSRC_REC_HS_WRAPUP_NEXT_PREV_CALLS	2315
+#define	WT_STAT_DSRC_REC_HS_WRAPUP_NEXT_PREV_CALLS	2314
 /*! reconciliation: dictionary matches */
-#define	WT_STAT_DSRC_REC_DICTIONARY			2316
+#define	WT_STAT_DSRC_REC_DICTIONARY			2315
 /*! reconciliation: fast-path pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2317
+#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2316
 /*!
  * reconciliation: free page ID due to failed page replacement
  * reconciliation in disagg
  */
-#define	WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	2318
+#define	WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	2317
 /*! reconciliation: full internal pages written instead of a page delta */
-#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL	2319
+#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL	2318
 /*! reconciliation: full leaf pages written instead of a page delta */
-#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_LEAF		2320
+#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_LEAF		2319
 /*!
  * reconciliation: ingest btree reconciliation keeps the aborted prepare
  * updates
  */
-#define	WT_STAT_DSRC_REC_INGEST_KEEP_PREPARE_ROLLBACK	2321
+#define	WT_STAT_DSRC_REC_INGEST_KEEP_PREPARE_ROLLBACK	2320
 /*! reconciliation: internal page delta keys deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	2322
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	2321
 /*! reconciliation: internal page delta keys updated/inserted */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	2323
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	2322
 /*! reconciliation: internal page deltas written */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL		2324
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL		2323
 /*!
  * reconciliation: internal page key bytes discarded using suffix
  * compression
  */
-#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2325
+#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2324
 /*! reconciliation: internal page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2326
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2325
 /*!
  * reconciliation: leaf delta page key bytes discarded using prefix
  * compression
  */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_DELTA	2327
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_DELTA	2326
 /*!
  * reconciliation: leaf full page key bytes discarded using prefix
  * compression
  */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL	2328
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL	2327
 /*! reconciliation: leaf page deltas written */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_LEAF		2329
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_LEAF		2328
 /*! reconciliation: leaf page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2330
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2329
 /*! reconciliation: leaf-page overflow keys */
-#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2331
+#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2330
 /*! reconciliation: max deltas seen on internal page during reconciliation */
-#define	WT_STAT_DSRC_REC_MAX_INTERNAL_PAGE_DELTAS	2332
+#define	WT_STAT_DSRC_REC_MAX_INTERNAL_PAGE_DELTAS	2331
 /*! reconciliation: max deltas seen on leaf page during reconciliation */
-#define	WT_STAT_DSRC_REC_MAX_LEAF_PAGE_DELTAS		2333
+#define	WT_STAT_DSRC_REC_MAX_LEAF_PAGE_DELTAS		2332
 /*! reconciliation: maximum blocks required for a page */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2334
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2333
 /*!
  * reconciliation: number of keys that are garbage collected from the
  * disk images in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	2335
+#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	2334
 /*!
  * reconciliation: number of keys that are garbage collected from the
  * update chains in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2336
+#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2335
 /*! reconciliation: overflow values written */
-#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2337
+#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2336
 /*! reconciliation: page deltas rejected due to invalid page ID */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2338
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2337
 /*! reconciliation: page deltas rejected due to max consecutive limit */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2339
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2338
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2340
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2339
 /*!
  * reconciliation: page deltas rejected due to non-single page in
  * previous reconciliation
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2341
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2340
 /*! reconciliation: page deltas rejected due to size threshold */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2342
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2341
 /*! reconciliation: page deltas rejected due to zero entries */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	2343
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	2342
 /*!
  * reconciliation: page deltas rejected: build function returned false
  * (disabled, in-memory split, or internal page constraints not met)
  */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_BUILD_FAILED	2344
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_BUILD_FAILED	2343
 /*! reconciliation: page reconciliation calls */
-#define	WT_STAT_DSRC_REC_PAGES				2345
+#define	WT_STAT_DSRC_REC_PAGES				2344
 /*! reconciliation: page reconciliation calls for eviction */
-#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2346
+#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2345
 /*! reconciliation: page reconciliation calls for pages between 1 and 10MB */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_1MB_TO_10MB		2347
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_1MB_TO_10MB		2346
 /*!
  * reconciliation: page reconciliation calls for pages between 10 and
  * 100MB
  */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_10MB_TO_100MB	2348
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_10MB_TO_100MB	2347
 /*!
  * reconciliation: page reconciliation calls for pages between 100MB and
  * 1GB
  */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_100MB_TO_1GB	2349
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_100MB_TO_1GB	2348
 /*! reconciliation: page reconciliation calls for pages over 1GB */
-#define	WT_STAT_DSRC_REC_PAGES_SIZE_1GB_PLUS		2350
+#define	WT_STAT_DSRC_REC_PAGES_SIZE_1GB_PLUS		2349
 /*! reconciliation: pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE			2351
+#define	WT_STAT_DSRC_REC_PAGE_DELETE			2350
 /*! reconciliation: pages eligible for delta generation */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_ELIGIBLE		2352
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_ELIGIBLE		2351
 /*!
  * reconciliation: pages written including an aggregated newest start
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2353
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2352
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2354
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2353
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2355
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2354
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2356
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2355
 /*!
  * reconciliation: pages written including an aggregated newest
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2357
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2356
 /*!
  * reconciliation: pages written including an aggregated oldest start
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2358
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2357
 /*! reconciliation: pages written including an aggregated prepare */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2359
+#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2358
 /*! reconciliation: pages written including at least one prepare state */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2360
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2359
 /*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2361
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2360
 /*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2362
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2361
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2363
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2362
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2364
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2363
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2365
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2364
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2366
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2365
 /*! reconciliation: pages written with at least one internal page delta */
-#define	WT_STAT_DSRC_REC_PAGES_WITH_INTERNAL_DELTAS	2367
+#define	WT_STAT_DSRC_REC_PAGES_WITH_INTERNAL_DELTAS	2366
 /*! reconciliation: pages written with at least one leaf page delta */
-#define	WT_STAT_DSRC_REC_PAGES_WITH_LEAF_DELTAS		2368
+#define	WT_STAT_DSRC_REC_PAGES_WITH_LEAF_DELTAS		2367
 /*! reconciliation: records written including a prepare state */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2369
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2368
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2370
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2369
 /*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2371
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2370
 /*! reconciliation: records written including a start transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2372
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2371
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2373
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2372
 /*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2374
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2373
 /*! reconciliation: records written including a stop transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2375
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2374
 /*! reconciliation: writes skipped in disaggregated storage */
-#define	WT_STAT_DSRC_REC_SKIP_WRITE			2376
+#define	WT_STAT_DSRC_REC_SKIP_WRITE			2375
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2377
+#define	WT_STAT_DSRC_SESSION_COMPACT			2376
 /*!
  * transaction: a reader raced with a prepared transaction commit and
  * skipped an update or updates
  */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT	2378
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_COMMIT	2377
 /*! transaction: number of times overflow removed value is read */
-#define	WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE		2379
+#define	WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE		2378
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2380
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2379
 /*! transaction: rollback to stable applied btrees */
-#define	WT_STAT_DSRC_TXN_RTS_BTREES_APPLIED		2381
+#define	WT_STAT_DSRC_TXN_RTS_BTREES_APPLIED		2380
 /*!
  * transaction: rollback to stable history store keys that would have
  * been swept in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	2382
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	2381
 /*!
  * transaction: rollback to stable history store records with stop
  * timestamps older than newer records
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2383
+#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2382
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2384
+#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2383
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2385
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2384
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2386
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2385
 /*!
  * transaction: rollback to stable keys that would have been removed in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED_DRYRUN	2387
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED_DRYRUN	2386
 /*!
  * transaction: rollback to stable keys that would have been restored in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED_DRYRUN	2388
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED_DRYRUN	2387
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2389
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2388
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2390
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2389
 /*! transaction: rollback to stable skipped btrees */
-#define	WT_STAT_DSRC_TXN_RTS_BTREES_SKIPPED		2391
+#define	WT_STAT_DSRC_TXN_RTS_BTREES_SKIPPED		2390
 /*! transaction: rollback to stable skipping delete rle */
-#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2392
+#define	WT_STAT_DSRC_TXN_RTS_DELETE_RLE_SKIPPED		2391
 /*! transaction: rollback to stable skipping stable rle */
-#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2393
+#define	WT_STAT_DSRC_TXN_RTS_STABLE_RLE_SKIPPED		2392
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2394
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2393
 /*!
  * transaction: rollback to stable tombstones from history store that
  * would have been restored in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	2395
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	2394
 /*!
  * transaction: rollback to stable updates from history store that would
  * have been restored in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	2396
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	2395
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2397
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2396
 /*!
  * transaction: rollback to stable updates that would have been removed
  * from history store in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN		2398
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED_DRYRUN		2397
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2399
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2398
 
 /*!
  * @}

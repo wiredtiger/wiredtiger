@@ -839,8 +839,6 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         WT_STAT_CONN_INCR(session, cache_write_app_count);
         WT_STAT_CONN_INCRV(session, cache_write_app_time, time_diff);
         WT_STAT_SESSION_INCRV(session, write_time, time_diff);
-        if (checkpoint)
-            WT_STAT_DSRC_INCRV(session, block_checkpoint_reconcile_duration, time_diff);
     }
 
     /*
