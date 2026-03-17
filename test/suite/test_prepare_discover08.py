@@ -31,9 +31,9 @@
 #   - Setup layered cursor as leader, insert and commit data
 #   - Prepare transaction, advance stable timestamp past prepare but not durable/rollback
 #   - Checkpoint (writes prepared update to stable table)
-#   - Restart as follower, write committed values to the ingest table for the prepared keys
-#   - Step up to leader (triggers drain of ingest -> stable, resolving prepared updates)
-#   - Checkpoint as leader, then restart as follower to verify no leftover prepared updates
+#   - Open follower, discover and resolve prepared transaction (resolution goes to ingest table)
+#   - Step up to leader (triggers drain of ingest -> stable, must resolve prepared on stable)
+#   - Checkpoint as leader and verify data correctness
 
 import wiredtiger
 import wttest
@@ -47,7 +47,7 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
 
     resolve_scenarios = [
         ('commit', dict(commit=True)),
-        # ('rollback', dict(commit=False)),
+        ('rollback', dict(commit=False)),
     ]
     disagg_storages = gen_disagg_storages('test_prepare_discover08', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolve_scenarios)
@@ -117,28 +117,40 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
         self.assertEqual(cursor_follow[1], "committed_value_1")
         self.assertEqual(cursor_follow[2], "committed_value_2")
         self.assertEqual(cursor_follow[3], "committed_value_3")
-
-        # Phase 4: Write committed values for the prepared keys to the follower's ingest table.
-        # On a real replica, these would come from oplog replay. Here we simulate by writing
-        # directly through the follower's layered cursor, which routes to the ingest table.
-        self.pr("=== Phase 4: Write committed values to follower's ingest table ===")
-        conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
-
-        session_follow.begin_transaction()
-        cursor_follow[4] = "prepared_value_4"
-        cursor_follow[5] = "prepared_value_5"
-        cursor_follow[6] = "prepared_value_6"
-        session_follow.commit_transaction("commit_timestamp=" + self.timestamp_str(200))
-
-        # Verify the follower can read the committed values through the layered cursor
-        # (ingest table overlays the stable table).
-        if self.commit:
-            session_follow.begin_transaction("read_timestamp=" + self.timestamp_str(200))
-            for i in range(4, 7):
-                self.assertEqual(cursor_follow[i], f"prepared_value_{i}")
-            session_follow.rollback_transaction()
-
         cursor_follow.close()
+
+        # Phase 4: Discover and resolve the prepared transaction on the follower.
+        # The follower finds the prepared transaction via prepared_discover cursor, claims it,
+        # and commits or rolls back. The resolution goes to the ingest table, while the
+        # unresolved prepared cell remains on the stable table.
+        self.pr("=== Phase 4: Discover and resolve prepared transaction ===")
+
+        discover_cursor = session_follow.open_cursor("prepared_discover:")
+        discover_session = conn_follow.open_session()
+        count = 0
+        found_prepared_id = None
+
+        while discover_cursor.next() == 0:
+            count += 1
+            prepared_id = discover_cursor.get_key()
+            self.assertEqual(prepared_id, 123)
+            found_prepared_id = prepared_id
+            discover_session.begin_transaction(
+                "claim_prepared_id=" + self.prepared_id_str(prepared_id))
+            break
+
+        self.assertEqual(count, 1)
+        self.assertEqual(found_prepared_id, 123)
+        discover_cursor.close()
+
+        if self.commit:
+            discover_session.commit_transaction(
+                "commit_timestamp=" + self.timestamp_str(200) +
+                ",durable_timestamp=" + self.timestamp_str(210))
+        else:
+            discover_session.rollback_transaction(
+                "rollback_timestamp=" + self.timestamp_str(210))
+        discover_session.close()
 
         # Clean up the leader's prepared transaction so it doesn't block shutdown.
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(200) +
@@ -146,21 +158,22 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
         cursor.close()
         session_follow.close()
 
-        # close the old leader connection
+        # Close the old leader connection.
         self.conn.close()
 
-        # # Phase 5: Step up to leader. This triggers drain (ingest -> stable).
-        # # The drain moves ingest updates to the stable table via __layered_move_updates,
-        # # which calls __layered_resolve_committed_prepare to resolve the prepared updates
-        # # that were written to the stable table during Phase 2's checkpoint.
+        # Phase 5: Step up to leader. This triggers drain (ingest -> stable).
+        # The drain moves ingest updates to the stable table via __layered_move_updates.
+        # The stable table still has the unresolved prepared cell from Phase 2's checkpoint;
+        # the ingest table has the resolution from Phase 4. The drain must reconcile them.
         self.pr("=== Phase 5: Step up to leader (triggers drain) ===")
         conn_follow.reconfigure('disaggregated=(role="leader")')
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
         ckpt_session = conn_follow.open_session()
         ckpt_session.checkpoint()
         ckpt_session.close()
-        # # Phase 7: Verify data correctness after step-up + drain + checkpoint.
-        self.pr("=== Phase 7: Verify data after step-up ===")
+
+        # Phase 6: Verify data correctness after step-up + drain + checkpoint.
+        self.pr("=== Phase 6: Verify data after step-up ===")
 
         read_session = conn_follow.open_session()
         read_cursor = read_session.open_cursor(self.uri)
