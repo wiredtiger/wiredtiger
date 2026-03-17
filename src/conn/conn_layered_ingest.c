@@ -108,11 +108,11 @@ __layered_resolve_prepared_on_stable(
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
 
     if (ret == 0)
-        WT_ERR(__wti_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
+        WT_ERR(__wt_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
     else {
         ret = 0;
         if (!commit)
-            WT_ERR(__wti_txn_prepare_rollback_delete_key(session, btree, cbt));
+            WT_ERR(__wt_txn_prepare_rollback_delete_key(session, btree, cbt));
     }
 
     /*
@@ -132,7 +132,7 @@ __layered_resolve_prepared_on_stable(
         time_point.rollback_timestamp = ingest_upds->upd_rollback_ts;
         F_SET(&time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
     }
-    __wti_txn_resolve_prepared_update_chain(session, &time_point, upd, commit);
+    __wt_txn_resolve_prepared_update_chain(session, &time_point, upd, commit);
 
     __wt_page_modify_set(session, page);
 
