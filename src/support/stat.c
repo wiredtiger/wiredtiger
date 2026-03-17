@@ -153,9 +153,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages requested from the cache leaf",
   "cache: pages requested from the history store",
   "cache: pages seen by eviction walk",
-  "cache: pages with an unresolved multiblock queued for urgent eviction",
-  "cache: pages with an unresolved multiblock queued for urgent eviction, fail",
-  "cache: pages with an unresolved multiblock split flagged by checkpoint for urgent eviction",
+  "cache: pages with an unresolved multiblock split flagged by checkpoint to be evicted soon",
   "cache: pages with an unresolved multiblock split re-reconciled by checkpoint",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration due to invisible updates",
@@ -608,8 +606,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_pages_requested_leaf = 0;
     stats->cache_pages_requested_hs = 0;
     stats->cache_eviction_pages_seen = 0;
-    stats->cache_eviction_multiblock_urgent_queued = 0;
-    stats->cache_eviction_multiblock_urgent_queued_fail = 0;
     stats->cache_eviction_multiblock_checkpoint_flagged = 0;
     stats->cache_eviction_multiblock_split_re_reconciled = 0;
     stats->cache_write = 0;
@@ -1050,9 +1046,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_pages_requested_leaf += from->cache_pages_requested_leaf;
     to->cache_pages_requested_hs += from->cache_pages_requested_hs;
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
-    to->cache_eviction_multiblock_urgent_queued += from->cache_eviction_multiblock_urgent_queued;
-    to->cache_eviction_multiblock_urgent_queued_fail +=
-      from->cache_eviction_multiblock_urgent_queued_fail;
     to->cache_eviction_multiblock_checkpoint_flagged +=
       from->cache_eviction_multiblock_checkpoint_flagged;
     to->cache_eviction_multiblock_split_re_reconciled +=
@@ -1529,10 +1522,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_pages_requested_leaf += WT_STAT_DSRC_READ(from, cache_pages_requested_leaf);
     to->cache_pages_requested_hs += WT_STAT_DSRC_READ(from, cache_pages_requested_hs);
     to->cache_eviction_pages_seen += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen);
-    to->cache_eviction_multiblock_urgent_queued +=
-      WT_STAT_DSRC_READ(from, cache_eviction_multiblock_urgent_queued);
-    to->cache_eviction_multiblock_urgent_queued_fail +=
-      WT_STAT_DSRC_READ(from, cache_eviction_multiblock_urgent_queued_fail);
     to->cache_eviction_multiblock_checkpoint_flagged +=
       WT_STAT_DSRC_READ(from, cache_eviction_multiblock_checkpoint_flagged);
     to->cache_eviction_multiblock_split_re_reconciled +=
@@ -2209,9 +2198,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages selected for eviction unable to be evicted because of race between checkpoint and "
   "updates without timestamps",
   "cache: pages walked for eviction",
-  "cache: pages with an unresolved multiblock queued for urgent eviction",
-  "cache: pages with an unresolved multiblock queued for urgent eviction, fail",
-  "cache: pages with an unresolved multiblock split flagged by checkpoint for urgent eviction",
+  "cache: pages with an unresolved multiblock split flagged by checkpoint to be evicted soon",
   "cache: pages with an unresolved multiblock split re-reconciled by checkpoint",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration due to invisible updates",
@@ -3268,8 +3255,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_fail_in_reconciliation = 0;
     stats->eviction_fail_checkpoint_no_ts = 0;
     stats->eviction_walk = 0;
-    stats->cache_eviction_multiblock_urgent_queued = 0;
-    stats->cache_eviction_multiblock_urgent_queued_fail = 0;
     stats->cache_eviction_multiblock_checkpoint_flagged = 0;
     stats->cache_eviction_multiblock_split_re_reconciled = 0;
     stats->cache_write = 0;
@@ -4404,10 +4389,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_fail_in_reconciliation += WT_STAT_CONN_READ(from, eviction_fail_in_reconciliation);
     to->eviction_fail_checkpoint_no_ts += WT_STAT_CONN_READ(from, eviction_fail_checkpoint_no_ts);
     to->eviction_walk += WT_STAT_CONN_READ(from, eviction_walk);
-    to->cache_eviction_multiblock_urgent_queued +=
-      WT_STAT_CONN_READ(from, cache_eviction_multiblock_urgent_queued);
-    to->cache_eviction_multiblock_urgent_queued_fail +=
-      WT_STAT_CONN_READ(from, cache_eviction_multiblock_urgent_queued_fail);
     to->cache_eviction_multiblock_checkpoint_flagged +=
       WT_STAT_CONN_READ(from, cache_eviction_multiblock_checkpoint_flagged);
     to->cache_eviction_multiblock_split_re_reconciled +=
