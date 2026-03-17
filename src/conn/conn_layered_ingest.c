@@ -62,9 +62,9 @@ __layered_assert_tombstone_has_value_on_stable_btree(
  * __layered_resolve_prepared_on_stable --
  *     After positioning the cursor on the stable table, check if the key has an unresolved prepared
  *     update restored from disk. If so, resolve it by restoring the prior history store value and
- *     applying the committed timestamps from the ingest update chain. This must be done before
- *     copying ingest updates via __wt_row_modify so that reconciliation does not encounter an
- *     unresolved prepare.
+ *     applying the committed or rolled-back timestamps from the ingest update chain. This must be
+ *     done before copying ingest updates via __wt_row_modify so that reconciliation does not
+ *     encounter an unresolved prepare.
  */
 static int
 __layered_resolve_prepared_on_stable(
@@ -91,10 +91,12 @@ __layered_resolve_prepared_on_stable(
     else if (page->modify != NULL && page->modify->mod_row_update != NULL)
         upd = page->modify->mod_row_update[cbt->slot];
 
-    /* If no prepared update found, nothing to resolve. */
-    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS ||
-      !F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
-        return (0);
+    /*
+     * Stable table must have the corresponding unresolved prepared cell restored from disk.
+     */
+    WT_ASSERT(session,
+      upd != NULL && upd->prepare_state == WT_PREPARE_INPROGRESS &&
+        F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
 
     /*
      * Search the history store for a prior version of this key, following the same pattern as
@@ -106,8 +108,7 @@ __layered_resolve_prepared_on_stable(
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
 
     if (ret == 0)
-        WT_ERR(
-          __wti_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
+        WT_ERR(__wti_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
     else {
         ret = 0;
         if (!commit)
@@ -115,10 +116,10 @@ __layered_resolve_prepared_on_stable(
     }
 
     /*
-     * Construct a time point from the head of the ingest update chain. For commit, the ingest
-     * chain's head carries the committed timestamps. The transaction ID and prepared transaction ID
-     * are taken from the prepared update on stable, since the ingest resolution was written under
-     * the same original transaction.
+     * Construct a time point for resolution. The transaction ID and prepared transaction ID are
+     * taken from the prepared update on stable. For commit, the ingest chain's head carries the
+     * commit and durable timestamps. For rollback, it carries the rollback timestamp (stored in the
+     * durable timestamp field due to the WT_UPDATE union layout).
      */
     WT_CLEAR(time_point);
     time_point.id = upd->txnid;
@@ -127,6 +128,9 @@ __layered_resolve_prepared_on_stable(
     if (commit) {
         time_point.commit_timestamp = ingest_upds->upd_start_ts;
         time_point.durable_timestamp = ingest_upds->upd_durable_ts;
+    } else {
+        time_point.rollback_timestamp = ingest_upds->upd_rollback_ts;
+        F_SET(&time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
     }
     __wti_txn_resolve_prepared_update_chain(session, &time_point, upd, commit);
 
@@ -163,10 +167,12 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     /*
      * If the ingest table contained a resolved prepared update for this key, the stable table may
      * still have the unresolved prepared cell from a prior checkpoint. Resolve it now while the
-     * cursor is positioned, before applying the ingest updates.
+     * cursor is positioned, before applying the ingest updates. Determine commit versus rollback
+     * from the ingest chain head: a rolled-back prepared update has an aborted transaction ID.
      */
     if (resolve_prepare)
-        WT_ERR(__layered_resolve_prepared_on_stable(session, cbt, key, upds, true));
+        WT_ERR(__layered_resolve_prepared_on_stable(
+          session, cbt, key, upds, upds->txnid != WT_TXN_ABORTED));
 
     __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
 
@@ -273,11 +279,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
           buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
     else
         buf2[0] = '\0';
-    /* FIXME-WT-16744 - Enable show_prepared_rollback config to resolve prepared update on the
-     * stable table when draining. */
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
-      "cross_key=true,%s))",
+      "cross_key=true,show_prepared_rollback=true,%s))",
       buf2));
     cfg[1] = buf;
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
@@ -330,9 +334,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
         has_stop = stop_txn != WT_TXN_MAX;
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
-        /* FIXME-WT-16744 Remove this assertion when prepared update on the stable table are
-         * resolved during draining. */
-        WT_ASSERT(session, !is_prepare_rollback);
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
             WT_ASSERT(session,

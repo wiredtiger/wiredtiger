@@ -47,8 +47,7 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
 
     resolve_scenarios = [
         ('commit', dict(commit=True)),
-        # TODO WT-16744: Enable rollback scenario after implementing Iteration 2.
-        # ('rollback', dict(commit=False)),
+        ('rollback', dict(commit=False)),
     ]
     disagg_storages = gen_disagg_storages('test_prepare_discover08', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolve_scenarios)
@@ -160,7 +159,7 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
         session_follow.close()
 
         # Close the old leader connection.
-        self.conn.close()
+        self.conn.close("debug=(skip_checkpoint=true)")
 
         # Phase 5: Step up to leader. This triggers drain (ingest -> stable).
         # The drain moves ingest updates to the stable table via __layered_move_updates.

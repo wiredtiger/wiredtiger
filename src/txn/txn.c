@@ -1008,7 +1008,8 @@ __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key
  *     prepare rollback.
  */
 int
-__wti_txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
+__wti_txn_prepare_rollback_delete_key(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 {
     WT_DECL_RET;
     WT_UPDATE *tombstone;
@@ -1261,7 +1262,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
 
         if (ret == 0)
             /* Restore the history store update to the update chain. */
-            WT_ERR(__wti_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
+            WT_ERR(
+              __wti_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
         else {
             ret = 0;
             /*
