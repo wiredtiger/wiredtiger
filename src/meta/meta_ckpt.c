@@ -1522,15 +1522,9 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
           __meta_sysinfo_update(session, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, valbuf->data));
     }
 
-    /*
-     * Handle the oldest timestamp.
-     *
-     * Cache the oldest timestamp and use an acquire barrier to prevent us from reading two
-     * different values of the oldest timestamp.
-     */
+    /* Handle the oldest timestamp. */
 
-    oldest_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
-    WT_ACQUIRE_BARRIER();
+    oldest_timestamp = __wt_get_oldest_timestamp(session);
     __wt_timestamp_to_hex_string(
       WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
 
@@ -1559,7 +1553,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
       ", oldest timestamp: %s , meta checkpoint timestamp: %s"
       " base write gen: %" PRIu64,
       txn->snapshot_data.snap_min, txn->snapshot_data.snap_max, txn->snapshot_data.snapshot_count,
-      __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
+      __wt_timestamp_to_string(oldest_timestamp, ts_string[0]),
       __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
       conn->base_write_gen);
 
