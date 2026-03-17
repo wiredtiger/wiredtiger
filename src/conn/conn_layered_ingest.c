@@ -68,7 +68,7 @@ __layered_assert_tombstone_has_value_on_stable_btree(
  */
 static int
 __layered_resolve_prepared_on_stable(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *ingest_upds, bool commit)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *ingest_upd, bool commit)
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
@@ -98,23 +98,26 @@ __layered_resolve_prepared_on_stable(
       upd != NULL && upd->prepare_state == WT_PREPARE_INPROGRESS &&
         F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
 
-    /* Assert that the resolved prepare update on the ingest table is the same update as the one on stable table.  */
-    WT_ASSERT_ALWAYS(session, ingest_upds->prepared_id == upd->prepared_id && ingest_upds->prepare_ts == upd->prepare_ts, 
-        "Ingest resolved prepare does not match the unresolved prepared cell on the stable table");
+    /* 
+     * Assert that the resolved prepare update on the ingest table is the same update as the one on
+     * stable table.  */
+    WT_ASSERT_ALWAYS(session,
+      ingest_upd->prepared_id == upd->prepared_id && ingest_upd->prepare_ts == upd->prepare_ts,
+      "Ingest resolved prepare does not match the unresolved prepared cell on the stable table");
 
     /*
      * There are two on-disk layouts for prepared cells:
      *
      * Prepared value (start prepare): the on-disk cell is the prepared value. The page read creates
-     *   a single prepared update. The prior committed value, if any, lives in the history store and
-     *   must be restored to the update chain. This follows the RESOLVE_PREPARE_ON_DISK pattern in
-     *   __txn_resolve_prepared_op.
+     * a single prepared update. The prior committed value, if any, lives in the history store and
+     * must be restored to the update chain. This follows the RESOLVE_PREPARE_ON_DISK pattern in
+     *__txn_resolve_prepared_op.
      *
      * Prepared delete (stop prepare): the on-disk cell is the committed value with a prepared stop
-     *   time window. The page read creates a prepared tombstone followed by the committed value on
-     *   the update chain. No history store lookup is needed — resolution simply aborts the tombstone
-     *   (rollback) or stamps it with commit/durable timestamps (commit). This mirrors the
-     *   RESOLVE_UPDATE_CHAIN path in __txn_resolve_prepared_op.
+     * time window. The page read creates a prepared tombstone followed by the committed value on
+     * the update chain. No history store lookup is needed — resolution simply aborts the
+     * tombstone (rollback) or stamps it with commit/durable timestamps (commit). This mirrors the
+     * RESOLVE_UPDATE_CHAIN path in __txn_resolve_prepared_op.
      */
     if (upd->type != WT_UPDATE_TOMBSTONE) {
         WT_ERR(__wt_curhs_open(session, btree->id, NULL, NULL, &hs_cursor));
@@ -134,7 +137,7 @@ __layered_resolve_prepared_on_stable(
 
     /*
      * Construct a time point for resolution. The transaction ID and prepared transaction ID are
-     * taken from the prepared update on stable. For commit, the ingest chain's head carries the
+     * taken from the prepared update on stable. For commit, the update on ingest table carries the
      * commit and durable timestamps. For rollback, it carries the rollback timestamp.
      */
     WT_CLEAR(time_point);
@@ -142,10 +145,10 @@ __layered_resolve_prepared_on_stable(
     time_point.prepared_id = upd->prepared_id;
     time_point.prepare_timestamp = upd->prepare_ts;
     if (commit) {
-        time_point.commit_timestamp = ingest_upds->upd_start_ts;
-        time_point.durable_timestamp = ingest_upds->upd_durable_ts;
+        time_point.commit_timestamp = ingest_upd->upd_start_ts;
+        time_point.durable_timestamp = ingest_upd->upd_durable_ts;
     } else {
-        time_point.rollback_timestamp = ingest_upds->upd_rollback_ts;
+        time_point.rollback_timestamp = ingest_upd->upd_rollback_ts;
         F_SET(&time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
     }
     __wt_txn_resolve_prepared_update_chain(session, &time_point, upd, commit);
@@ -368,15 +371,13 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         has_stop = stop_txn != WT_TXN_MAX;
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /* We assume the updates returned will be in timestamp order. */
-        if (prev_upd != NULL && !is_prepare_rollback) {
+        if (prev_upd != NULL) {
+            WT_ASSERT(
+              session, stop_txn <= prev_upd->txnid && durable_stop_ts <= prev_upd->upd_durable_ts);
             WT_ASSERT(session,
-              stop_txn <= prev_upd->txnid && stop_ts <= prev_upd->upd_start_ts &&
-                durable_stop_ts <= prev_upd->upd_durable_ts);
-            WT_ASSERT(session,
-              start_txn <= prev_upd->txnid && start_ts <= prev_upd->upd_start_ts &&
+              (is_prepare_rollback || start_txn <= prev_upd->txnid) &&
                 durable_start_ts <= prev_upd->upd_durable_ts);
-            if (stop_txn != prev_upd->txnid || stop_ts != prev_upd->upd_start_ts ||
-              durable_stop_ts != prev_upd->upd_durable_ts)
+            if (stop_txn != prev_upd->txnid || durable_stop_ts != prev_upd->upd_durable_ts)
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         } else if (has_stop)
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
