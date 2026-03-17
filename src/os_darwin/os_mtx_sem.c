@@ -73,7 +73,8 @@ __wt_semaphore_wait(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
     WT_UNUSED(session);
 
     if (dispatch_semaphore_wait(sem->sem, DISPATCH_TIME_FOREVER) != 0)
-        return (ETIMEDOUT);
+        /* We should not get here due to a timeout because we use DISPATCH_TIME_FOREVER. */
+        return (EINVAL);
 
     return (0);
 }
