@@ -115,6 +115,7 @@ class test_layered22(wttest.WiredTigerTestCase):
 
         cursor.set_key("nonexistent")
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        cursor.set_key("nonexistent")
         self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
 
         self.session.begin_transaction()
