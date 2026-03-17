@@ -154,8 +154,9 @@ src/os_common/os_fstream_stdio.c
 src/os_common/os_getopt.c
 src/os_common/os_strtouq.c
 src/os_darwin/os_futex.c         DARWIN_HOST
+src/os_darwin/os_mtx_sem.c       DARWIN_HOST
 src/os_linux/os_futex.c          LINUX_HOST
-src/os_win/os_futex.c            WINDOWS_HOST
+src/os_linux/os_mtx_sem.c        LINUX_HOST
 src/os_posix/os_dir.c            POSIX_HOST
 src/os_posix/os_dlopen.c         POSIX_HOST
 src/os_posix/os_fallocate.c      POSIX_HOST
@@ -163,7 +164,6 @@ src/os_posix/os_fs.c             POSIX_HOST
 src/os_posix/os_getenv.c         POSIX_HOST
 src/os_posix/os_map.c            POSIX_HOST
 src/os_posix/os_mtx_cond.c       POSIX_HOST
-src/os_posix/os_mtx_sem.c        POSIX_HOST
 src/os_posix/os_once.c           POSIX_HOST
 src/os_posix/os_pagesize.c       POSIX_HOST
 src/os_posix/os_path.c           POSIX_HOST
@@ -177,6 +177,7 @@ src/os_posix/os_yield.c          POSIX_HOST
 src/os_win/os_dir.c              WINDOWS_HOST
 src/os_win/os_dlopen.c           WINDOWS_HOST
 src/os_win/os_fs.c               WINDOWS_HOST
+src/os_win/os_futex.c            WINDOWS_HOST
 src/os_win/os_getenv.c           WINDOWS_HOST
 src/os_win/os_map.c              WINDOWS_HOST
 src/os_win/os_mtx_cond.c         WINDOWS_HOST
