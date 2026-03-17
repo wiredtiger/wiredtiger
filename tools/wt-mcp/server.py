@@ -102,12 +102,14 @@ async def list_files(
     After calling this tool, you can use the get-file-metadata tool to get metadata for a specific file.
     """
     conn = None
-    
+    session = None
+    cursor = None
+
     try:
         await ctx.info(f"Listing files in {home}")
         if config:
             await ctx.debug(f"Using configuration: {config}")
-            
+
         # Open a WiredTiger metadata cursor.
         conn = wiredtiger.wiredtiger_open(home, config or "")
         session = conn.open_session()
@@ -119,16 +121,16 @@ async def list_files(
             key = cursor.get_key()
             files.append(key)
             await ctx.debug(f"Found file: {key}")
-        
+
         await ctx.info(f"Found {len(files)} files in WiredTiger directory")
-        
+
         return {
             "content": [{
                 "type": "text",
                 "text": "\n".join(files)
             }]
         }
-    
+
     except Exception as e:
         await ctx.error(f"Error listing files: {str(e)}")
         return {
@@ -137,8 +139,12 @@ async def list_files(
                 "text": f"Error listing files: {str(e)}"
             }]
         }
-    
+
     finally:
+        if cursor:
+            cursor.close()
+        if session:
+            session.close()
         if conn:
             conn.close()
 
@@ -157,37 +163,31 @@ async def get_file_metadata(
         - You need to know the details of a file, such as its size, type, or other properties.
     """
     conn = None
-    
+    session = None
+    cursor = None
+
     try:
         await ctx.info(f"Getting metadata for {uri} in {home}")
         if config:
             await ctx.debug(f"Using configuration: {config}")
-            
+
         # Open a WiredTiger connection
         conn = wiredtiger.wiredtiger_open(home, config or "")
         session = conn.open_session()
         cursor = session.open_cursor("metadata:")
 
-        # Iterate over the cursor and find the specified file
-        file_metadata = None
-        while cursor.next() == 0:
-            key = cursor.get_key()
+        # Look up the URI directly using search
+        cursor.set_key(uri)
+        if cursor.search() == 0:
             value = cursor.get_value()
-            
-            # Check if the current file matches the requested file
-            if key == uri:
-                file_metadata = {"key": key, "value": value}
-                break
-        
-        # If a matching file was found, return its metadata
-        if file_metadata:
+            file_metadata = {"key": uri, "value": value}
             return {
                 "content": [{
                     "type": "text",
                     "text": json.dumps(file_metadata, indent=2)
                 }]
             }
-        
+
         # If the file was not found, return an error message
         await ctx.warning(f"File not found in metadata: {uri}")
         return {
@@ -196,7 +196,7 @@ async def get_file_metadata(
                 "text": f"File not found in metadata: {uri}"
             }]
         }
-    
+
     except Exception as e:
         await ctx.error(f"Error retrieving metadata for file: {str(e)}")
         return {
@@ -205,8 +205,12 @@ async def get_file_metadata(
                 "text": f"Error retrieving metadata for file: {str(e)}"
             }]
         }
-    
+
     finally:
+        if cursor:
+            cursor.close()
+        if session:
+            session.close()
         if conn:
             conn.close()
 
@@ -225,21 +229,24 @@ async def get_file_statistics(
         - You need to gather statistics about file usage, cache behavior, or other performance indicators
     """
     conn = None
-    
+    session = None
+    stat_cursor = None
+
     try:
         await ctx.info(f"Getting statistics for {uri} in {home}")
         if config:
             await ctx.info(f"Using configuration: {config}")
-            
+
         # Open a WiredTiger connection with statistics enabled
-        conn_config = config or "statistics=(all)"
-        if "statistics" not in conn_config:
-            conn_config += ",statistics=(all)"
-        
+        if config:
+            conn_config = config if "statistics" in config else config + ",statistics=(all)"
+        else:
+            conn_config = "statistics=(all)"
+
         conn = wiredtiger.wiredtiger_open(home, conn_config)
         session = conn.open_session()
         stat_cursor = session.open_cursor(f"statistics:{uri}", None, None)
-        
+
         # Collect statistics
         stats = []
         while stat_cursor.next() == 0:
@@ -249,20 +256,20 @@ async def get_file_statistics(
                 value_str = str(value[0])
             else:
                 value_str = str(value)
-            
+
             stats.append({
                 "description": desc,
                 "value": value,
                 "printableValue": value_str
             })
-        
+
         return {
             "content": [{
                 "type": "text",
                 "text": json.dumps(stats, indent=2)
             }]
         }
-    
+
     except Exception as e:
         await ctx.error(f"Error retrieving statistics for file {uri}: {str(e)}")
         return {
@@ -271,8 +278,12 @@ async def get_file_statistics(
                 "text": f"Error retrieving statistics for file {uri}: {str(e)}"
             }]
         }
-    
+
     finally:
+        if stat_cursor:
+            stat_cursor.close()
+        if session:
+            session.close()
         if conn:
             conn.close()
 
@@ -290,20 +301,24 @@ async def get_connection_statistics(
         - You need to gather global statistics about cache usage, connections, and system behavior
     """
     conn = None
-    
+    session = None
+    stat_cursor = None
+
     try:
         await ctx.info(f"Getting connection statistics for {home}")
         if config:
             await ctx.debug(f"Using configuration: {config}")
+
         # Open a WiredTiger connection with statistics enabled
-        conn_config = "statistics=(all)"
         if config:
-            conn_config = config
-        
+            conn_config = config if "statistics" in config else config + ",statistics=(all)"
+        else:
+            conn_config = "statistics=(all)"
+
         conn = wiredtiger.wiredtiger_open(home, conn_config)
         session = conn.open_session()
         stat_cursor = session.open_cursor("statistics:", None, None)
-        
+
         # Collect statistics
         stats = []
         while stat_cursor.next() == 0:
@@ -313,20 +328,20 @@ async def get_connection_statistics(
                 value_str = str(value[0])
             else:
                 value_str = str(value)
-            
+
             stats.append({
                 "description": desc,
                 "value": value,
                 "printableValue": value_str
             })
-        
+
         return {
             "content": [{
                 "type": "text",
                 "text": json.dumps(stats, indent=2)
             }]
         }
-    
+
     except Exception as e:
         await ctx.error(f"Error retrieving connection statistics: {str(e)}")
         return {
@@ -335,8 +350,12 @@ async def get_connection_statistics(
                 "text": f"Error retrieving connection statistics: {str(e)}"
             }]
         }
-    
+
     finally:
+        if stat_cursor:
+            stat_cursor.close()
+        if session:
+            session.close()
         if conn:
             conn.close()
 
@@ -356,34 +375,34 @@ async def run_compact_dryrun(
         - You're analysing file fragmentation
     """
     conn = None
-    
+    session = None
+
     try:
         await ctx.info(f"Running compact dryrun for {uri} in {home}")
         if config:
             await ctx.debug(f"Using configuration: {config}")
-        
-        # Set up redirection to capture stdout and stderr
 
+        # Set up redirection to capture stdout and stderr
         captured_stdout = io.StringIO()
         captured_stderr = io.StringIO()
-        
+
         # Use redirection context managers to capture output
         with redirect_stdout(captured_stdout), redirect_stderr(captured_stderr):
             # Open a WiredTiger connection
             conn = wiredtiger.wiredtiger_open(home, config or "verbose=[compact:2]")
             session = conn.open_session()
-            
+
             compact_config = "dryrun=true"
             session.compact(uri, compact_config)
             await ctx.info(f"Compact dryrun completed for {uri}")
-            
+
             return {
                 "content": [{
                     "type": "text",
                     "text": f"Compact dryrun completed successfully for {uri}\nLogs:\n{captured_stdout.getvalue()}\nErrors:\n{captured_stderr.getvalue()}"
                 }]
             }
-    
+
     except Exception as e:
         await ctx.error(f"Error running compact dryrun for {uri}: {str(e)}")
         return {
@@ -392,8 +411,10 @@ async def run_compact_dryrun(
                 "text": f"Error running compact dryrun for {uri}: {str(e)}"
             }]
         }
-    
+
     finally:
+        if session:
+            session.close()
         if conn:
             conn.close()
 
@@ -414,16 +435,19 @@ async def get_key_value(
         - You need to validate data integrity for specific records
     """
     conn = None
-    
+    session = None
+    metadata_cursor = None
+    cursor = None
+
     try:
         await ctx.info(f"Retrieving value for key '{key}' from {uri} in {home}")
         if config:
             await ctx.debug(f"Using configuration: {config}")
-        
+
         # Open a WiredTiger connection
         conn = wiredtiger.wiredtiger_open(home, config or "")
         session = conn.open_session()
-        
+
         metadata_cursor = session.open_cursor("metadata:")
         metadata_cursor.set_key(uri)
         
@@ -453,7 +477,8 @@ async def get_key_value(
 
         # Close the metadata cursor as we're done with it
         metadata_cursor.close()
-        
+        metadata_cursor = None
+
         # Convert the key string to the appropriate data type
         converted_key = key
         
@@ -510,8 +535,14 @@ async def get_key_value(
                 "text": f"Error retrieving key-value pair: {str(e)}"
             }]
         }
-    
+
     finally:
+        if cursor:
+            cursor.close()
+        if metadata_cursor:
+            metadata_cursor.close()
+        if session:
+            session.close()
         if conn:
             conn.close()
 
@@ -530,25 +561,26 @@ async def get_btree_shape(
         - You need to understand how data is organized within a table or file
     """
     conn = None
-    
+    session = None
+
     try:
         if config:
             await ctx.debug(f"Using configuration: {config}")
-        
+
         # Set up redirection to capture stdout and stderr
         captured_stdout = io.StringIO()
         captured_stderr = io.StringIO()
-        
+
         # Use redirection context managers to capture output
         with redirect_stdout(captured_stdout), redirect_stderr(captured_stderr):
-            
+
             # Open a WiredTiger connection
             conn = wiredtiger.wiredtiger_open(home, config or "")
             session = conn.open_session()
-            
+
             # Get the B-tree layout for the specified URI
             session.verify(uri, 'dump_tree_shape=true')
-            
+
             # Return the B-tree layout
             return {
                 "content": [{
@@ -556,7 +588,7 @@ async def get_btree_shape(
                     "text": f"B-tree shape for {uri}:\n{captured_stdout.getvalue()}\nErrors:\n{captured_stderr.getvalue()}"
                 }]
             }
-    
+
     except Exception as e:
         await ctx.error(f"Error retrieving B-tree shape for {uri}: {str(e)}")
         return {
@@ -565,11 +597,13 @@ async def get_btree_shape(
                 "text": f"Error retrieving B-tree shape for {uri}: {str(e)}"
             }]
         }
-    
+
     finally:
+        if session:
+            session.close()
         if conn:
             conn.close()
-            
+
 @mcp.tool()
 async def get_btree_layout(
     ctx: Context,
@@ -586,25 +620,26 @@ async def get_btree_layout(
         - You want to know information about the latest checkpoint
     """
     conn = None
-    
+    session = None
+
     try:
         if config:
             await ctx.debug(f"Using configuration: {config}")
-        
+
         # Set up redirection to capture stdout and stderr
         captured_stdout = io.StringIO()
         captured_stderr = io.StringIO()
-        
+
         # Use redirection context managers to capture output
         with redirect_stdout(captured_stdout), redirect_stderr(captured_stderr):
-            
+
             # Open a WiredTiger connection
             conn = wiredtiger.wiredtiger_open(home, config or "")
             session = conn.open_session()
-            
+
             # Get the B-tree layout for the specified URI
             session.verify(uri, 'dump_layout=true')
-            
+
             # Return the B-tree layout
             return {
                 "content": [{
@@ -612,7 +647,7 @@ async def get_btree_layout(
                     "text": f"B-tree layout for {uri}:\n{captured_stdout.getvalue()}\nErrors:\n{captured_stderr.getvalue()}"
                 }]
             }
-    
+
     except Exception as e:
         await ctx.error(f"Error retrieving B-tree layout for {uri}: {str(e)}")
         return {
@@ -621,11 +656,13 @@ async def get_btree_layout(
                 "text": f"Error retrieving B-tree layout for {uri}: {str(e)}"
             }]
         }
-    
+
     finally:
+        if session:
+            session.close()
         if conn:
             conn.close()
-            
+
 @mcp.tool()
 async def decode_wt_binary_file(
     ctx: Context, 
