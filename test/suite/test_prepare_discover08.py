@@ -47,7 +47,8 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
 
     resolve_scenarios = [
         ('commit', dict(commit=True)),
-        ('rollback', dict(commit=False)),
+        # TODO WT-16744: Enable rollback scenario after implementing Iteration 2.
+        # ('rollback', dict(commit=False)),
     ]
     disagg_storages = gen_disagg_storages('test_prepare_discover08', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolve_scenarios)

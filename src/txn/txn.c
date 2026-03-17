@@ -834,11 +834,11 @@ __txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_prepare_rollback_restore_hs_update --
+ * __wti_txn_prepare_rollback_restore_hs_update --
  *     Restore the history store update to the update chain.
  */
-static int
-__txn_prepare_rollback_restore_hs_update(
+int
+__wti_txn_prepare_rollback_restore_hs_update(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page, WT_UPDATE *upd_chain, bool commit)
 {
     WT_DECL_ITEM(hs_value);
@@ -1003,12 +1003,12 @@ __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key
 }
 
 /*
- * __txn_prepare_rollback_delete_key --
+ * __wti_txn_prepare_rollback_delete_key --
  *     Prepend a global visible tombstone to the head of the update chain to delete the key for
  *     prepare rollback.
  */
-static int
-__txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
+int
+__wti_txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 {
     WT_DECL_RET;
     WT_UPDATE *tombstone;
@@ -1031,14 +1031,14 @@ err:
 }
 
 /*
- * __txn_resolve_prepared_update_chain --
+ * __wti_txn_resolve_prepared_update_chain --
  *     Helper for resolving updates. Recursively visit the update chain and resolve the updates on
  *     the way back out, so older updates are resolved first. This ensures that a reconciliation
  *     racing with us will always see the newest update from the prepared transaction if any updates
  *     are still unresolved.
  */
-static void
-__txn_resolve_prepared_update_chain(
+void
+__wti_txn_resolve_prepared_update_chain(
   WT_SESSION_IMPL *session, WT_TXN_TIME_POINT *txn_time_point, WT_UPDATE *upd, bool commit)
 {
     /*
@@ -1064,7 +1064,7 @@ __txn_resolve_prepared_update_chain(
         upd->prepared_id == txn_time_point->prepared_id);
 
     /* Go down the chain. Do the resolves on the way back up. */
-    __txn_resolve_prepared_update_chain(session, txn_time_point, upd->next, commit);
+    __wti_txn_resolve_prepared_update_chain(session, txn_time_point, upd->next, commit);
 
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
@@ -1090,7 +1090,7 @@ __txn_resolve_prepared_update_chain(
     }
 
     /* Resolve the prepared update to be a committed update. */
-    __txn_apply_prepare_state_update(session, upd, true);
+    __txn_apply_prepare_state_update(session, upd, txn_time_point, true);
 
     /* Sleep for 1 second in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
@@ -1226,7 +1226,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
             if (!tw_found)
-                WT_ERR(__txn_prepare_rollback_delete_key(session, btree, cbt));
+                WT_ERR(__wti_txn_prepare_rollback_delete_key(session, btree, cbt));
             else
                 WT_ASSERT_ALWAYS(
                   session, !WT_TIME_WINDOW_HAS_PREPARE(&tw), "no committed update to fallback to.");
@@ -1261,7 +1261,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
 
         if (ret == 0)
             /* Restore the history store update to the update chain. */
-            WT_ERR(__txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
+            WT_ERR(__wti_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
         else {
             ret = 0;
             /*
@@ -1270,7 +1270,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
              * and instead write nothing.
              */
             if (!commit)
-                WT_ERR(__txn_prepare_rollback_delete_key(session, btree, cbt));
+                WT_ERR(__wti_txn_prepare_rollback_delete_key(session, btree, cbt));
         }
         break;
     case RESOLVE_IN_MEMORY:
@@ -1302,7 +1302,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
      * In the above example, we will resolve "u2" and "u1" as part of resolving "txn_op1" and will
      * not do any significant thing as part of "txn_op2".
      */
-    __txn_resolve_prepared_update_chain(session, txn_time_point, upd, commit);
+    __wti_txn_resolve_prepared_update_chain(session, txn_time_point, upd, commit);
 
     /* Mark the page dirty once the prepared updates are resolved. */
     __wt_page_modify_set(session, page);
@@ -1958,7 +1958,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
             ++prepared_updates;
 
-            __txn_apply_prepare_state_update(session, upd, false);
+            __txn_apply_prepare_state_update(session, upd, &session->txn->time_point, false);
             op->u.op_upd = NULL;
 
             /*
