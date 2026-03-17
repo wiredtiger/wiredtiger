@@ -25,6 +25,20 @@ typedef struct {
     double new_updates_trigger;
 } WT_PRECISE_CKPT_SAVED_TRIGGERS;
 
+typedef struct {
+    bool can_skip;
+    bool force;
+    bool flush_tier_enabled;
+    bool flush_tier_force;
+    bool use_timestamp;
+    const char *name;
+    size_t name_len;
+    bool named;
+    bool drop;
+    /* Keep reference to original configuration */
+    const char **cfg;
+} WT_CHECKPOINT_DB_CONFIG;
+
 /*
  * __checkpoint_flush_tier_wait --
  *     Wait for all previous work units queued to be processed.
@@ -1193,6 +1207,43 @@ __checkpoint_can_skip(
 }
 
 /*
+ * __checkpoint_parse_config --
+ *     Parse checkpoint configuration to extract information and check for an early exit.
+ */
+static int
+__checkpoint_parse_config(
+  WT_SESSION_IMPL *session, const char *cfg[], WT_CHECKPOINT_DB_CONFIG *ckpt_cfg)
+{
+    WT_CONFIG_ITEM cval;
+
+    ckpt_cfg->cfg = cfg;
+
+    WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+    ckpt_cfg->use_timestamp = cval.val != 0;
+
+    WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
+    ckpt_cfg->force = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "name", &cval));
+    if (cval.len != 0) {
+        ckpt_cfg->name = cval.str;
+        ckpt_cfg->name_len = cval.len;
+        ckpt_cfg->named = true;
+    }
+
+    WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
+    ckpt_cfg->flush_tier_enabled = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "flush_tier.force", &cval));
+    ckpt_cfg->flush_tier_force = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "drop", &cval));
+    ckpt_cfg->drop = cval.len != 0;
+
+    return (0);
+}
+
+/*
  * __checkpoint_establish_time --
  *     Get a time (wall time, not a timestamp) for this checkpoint. The time is left in the session.
  */
@@ -1334,6 +1385,7 @@ static int
 __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 {
     struct timespec tsp;
+    WT_CHECKPOINT_DB_CONFIG ckpt_cfg;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *hs_dhandle, *hs_dhandle_shared;
@@ -1355,6 +1407,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     char ts_string[WT_TS_INT_STRING_SIZE];
     void *saved_meta_next;
 
+    WT_CLEAR(ckpt_cfg);
     WT_CLEAR(precise_ckpt_saved_triggers);
     conn = S2C(session);
     ckpt_tmp_ts = WT_TS_NONE;
@@ -1368,6 +1421,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    WT_RET(__checkpoint_parse_config(session, cfg, &ckpt_cfg));
 
     /* Avoid doing work if possible. */
     WT_RET(__checkpoint_can_skip(session, cfg, &use_timestamp, &can_skip));
