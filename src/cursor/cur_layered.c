@@ -911,8 +911,10 @@ __clayered_next(WT_CURSOR *cursor)
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
-    else
+    else {
+        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_stable);
+    }
 
 err:
     API_END_RET(session, ret);
@@ -940,8 +942,10 @@ __layered_prev(WT_CURSOR *cursor)
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
-    else
+    else {
+        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_stable);
+    }
 
 err:
     API_END_RET(session, ret);
