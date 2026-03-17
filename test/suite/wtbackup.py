@@ -210,12 +210,17 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
-        while bkup_c.next() == 0:
+        ret = wiredtiger.WT_NOTFOUND
+        while True:
+            ret = bkup_c.next()
+            if ret != 0:
+                break
             newfile = bkup_c.get_key() if home is None else os.path.join(home, bkup_c.get_key())
             sz = os.path.getsize(newfile)
             self.pr(f'Copy from: {newfile} ({sz}) to {backup_dir}')
             self.copy_file(newfile, backup_dir)
             all_files.append(newfile)
+        self.assertEqual(wiredtiger.WT_NOTFOUND, ret)
         if backup_cur == None:
             bkup_c.close()
         return all_files
