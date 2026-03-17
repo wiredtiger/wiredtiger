@@ -1689,15 +1689,19 @@ __clayered_insert(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+    /*
+     * On a follower node, the insert was already validated and applied on the primary. Skip opening
+     * the stable cursor and skip the duplicate key search — both are unnecessary overhead.
+     */
+    WT_ERR(__clayered_enter(clayered, false, S2C(session)->layered_table_manager.leader, false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
      * lookup results in an error, and a failed lookup leaves the original key intact.
+     *
+     * On a follower node skip the duplicate key search: the primary already validated the insert.
      */
-    if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
+    if (S2C(session)->layered_table_manager.leader && !F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(session, clayered, &value)) != WT_NOTFOUND) {
         if (ret == 0) {
             WT_ERR(__clayered_copy_duplicate_kv(cursor));
@@ -1743,11 +1747,18 @@ __clayered_update(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+    /*
+     * On a follower node, the update was already validated and applied on the primary. Skip opening
+     * the stable cursor and skip the key existence search — both are unnecessary overhead.
+     */
+    WT_ERR(__clayered_enter(clayered, false, S2C(session)->layered_table_manager.leader, false));
 
-    if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+    /*
+     * On a follower node skip the key existence lookup: the primary already validated the update.
+     * The __clayered_put call below (position=true) will set current_cursor on the ingest cursor,
+     * so the post-update key/value assignment remains correct.
+     */
+    if (S2C(session)->layered_table_manager.leader && !F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
         /*
          * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
