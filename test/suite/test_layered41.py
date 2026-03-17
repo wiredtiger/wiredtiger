@@ -41,19 +41,11 @@ class test_layered41(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    # Only the leader checks for duplicate keys during a non-overwrite insert.  On a
-    # follower, the primary already validated the insert so the duplicate key search is
-    # skipped (see __clayered_insert).  The follower-specific behaviour is covered in
-    # test_layered79.py.
-    role = [
-        ('leader', dict(role='leader')),
-    ]
-
     disagg_storages = gen_disagg_storages('test_layered41', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, role)
+    scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + f'disaggregated=(role="{self.role}")'
+        return self.extensionsConfig() + self.conn_base_config + f'disaggregated=(role="leader")'
 
     def test_dup_key(self):
         uri = "layered:test_layered41"
