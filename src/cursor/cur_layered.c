@@ -996,6 +996,13 @@ __clayered_reset(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
 
+    /*
+     * Release any cursor copy debug state before resetting constituent cursors. The layered
+     * cursor's key/value may point into constituent cursor memory; if we reset constituents first,
+     * that memory is freed and the subsequent copy release would access freed memory.
+     */
+    WT_ERR(__cursor_copy_release(cursor));
+
     /* Reset any bounds on the top level cursor, and propagate that to constituents */
     __wt_cursor_bound_reset(cursor);
     WT_ERR(__clayered_copy_bounds(clayered));
