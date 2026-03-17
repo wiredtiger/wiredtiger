@@ -359,11 +359,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (walk == NULL)
                 break;
 
-            if (internal_cleanup) {
-                if (F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
-                    WT_WITH_PAGE_INDEX(session, ret = __wt_sync_obsolete_cleanup(session, walk));
-                    WT_ERR(ret);
-                }
+            if (F_ISSET(walk, WT_REF_FLAG_INTERNAL) && internal_cleanup) {
+                WT_WITH_PAGE_INDEX(session, ret = __wt_sync_obsolete_cleanup(session, walk));
+                WT_ERR(ret);
             }
 
             page = walk->page;
@@ -485,7 +483,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     }
 
 err:
-
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
