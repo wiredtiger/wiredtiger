@@ -90,6 +90,18 @@ Create a `mcp.json` file in the `.vscode` directory at the root level of your pr
 
 See the [MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) documentation for more details.
 
+### Running the Server in Claude Code
+
+Add the server to your project-scoped settings by running:
+
+```bash
+claude mcp add wt-mcp -- uv --directory /path/to/wiredtiger/tools/wt-mcp run server.py
+```
+
+Ensure the `WT_BUILDDIR` environment variable is set before starting Claude Code, or configure it in a `.env` file in the `wt-mcp` directory.
+
+See the [Claude Code MCP documentation](https://docs.anthropic.com/en/docs/claude-code/mcp) for more details.
+
 ### Starting the Server
 
 To start the server with the MCP Inspector tool (recommended for testing):
