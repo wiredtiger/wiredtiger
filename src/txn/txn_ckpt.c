@@ -1035,7 +1035,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_milliseconds = 0;
     WT_STAT_CONN_SET(session, cc_duration, 0);
     WT_STAT_CONN_SET(session, cc_handle_processed, 0);
-    WT_STAT_CONN_SET(session, cc_inmem_pages_visited, 0);
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt_timer_start);

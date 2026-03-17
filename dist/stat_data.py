@@ -987,7 +987,6 @@ conn_dsrc_stats = [
     ##########################################
     CheckpointCleanupStat('cc_duration', 'most recent duration on all eligible files (usecs)', 'no_clear,no_scale'),
     CheckpointCleanupStat('cc_handle_processed', 'most recent handles processed'),
-    CheckpointCleanupStat('cc_inmem_pages_visited', 'most recent in-memory pages visited'),
     CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
     CheckpointCleanupStat('cc_pages_visited', 'pages visited'),

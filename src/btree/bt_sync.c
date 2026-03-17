@@ -219,7 +219,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, cc_time_start, time_start, time_stop;
-    uint32_t flags, cc_pages_visited, rec_flags;
+    uint32_t flags, rec_flags;
     bool dirty, internal_cleanup, is_hs, tried_eviction;
 
     conn = S2C(session);
@@ -236,7 +236,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
     time_start = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT) ? __wt_clock(session) : 0;
     cc_time_start = 0;
-    cc_pages_visited = 0;
 
     switch (syncop) {
     case WT_SYNC_WRITE_LEAVES:
@@ -364,7 +363,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 break;
 
             if (internal_cleanup) {
-                ++cc_pages_visited;
                 if (F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
                     WT_WITH_PAGE_INDEX(session, ret = __wt_sync_obsolete_cleanup(session, walk));
                     WT_ERR(ret);
@@ -493,7 +491,6 @@ err:
     if (cc_time_start != 0) {
         time_stop = __wt_clock(session);
         WT_STAT_CONN_INCRV(session, cc_duration, WT_CLOCKDIFF_US(time_stop, cc_time_start));
-        WT_STAT_CONN_INCRV(session, cc_inmem_pages_visited, cc_pages_visited);
     }
 
     /* On error, clear any left-over tree walk. */

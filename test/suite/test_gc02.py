@@ -119,7 +119,6 @@ class test_gc02(test_gc_base):
         self.check_gc_stats()
         c = self.session.open_cursor('statistics:')
         self.assertGreater(c[stat.conn.cc_handle_processed][2], 0)
-        self.assertGreater(c[stat.conn.cc_inmem_pages_visited][2], 0)
         # Some Windows machines lack the time granularity to detect microseconds.
         # Skip the time check on Windows.
         if not os.name == "nt":
