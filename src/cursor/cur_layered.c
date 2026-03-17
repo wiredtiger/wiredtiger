@@ -1234,7 +1234,8 @@ __clayered_reopen(WT_CURSOR *cursor, bool sweep_check_only)
  *     The cursor-agnostic parts of layered table lookups.
  */
 static int
-__clayered_lookup_constituent(WT_CURSOR *c, WT_CURSOR_LAYERED *clayered, WT_ITEM *value, bool set_layered_key)
+__clayered_lookup_constituent(
+  WT_CURSOR *c, WT_CURSOR_LAYERED *clayered, WT_ITEM *value, bool set_layered_key)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -1257,7 +1258,8 @@ __clayered_lookup_constituent(WT_CURSOR *c, WT_CURSOR_LAYERED *clayered, WT_ITEM
  *     Position a layered cursor.
  */
 static int
-__clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *value, bool set_layered_key)
+__clayered_lookup(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *value, bool set_layered_key)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c, *cursor;
@@ -1272,7 +1274,8 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
 
     if (!conn->layered_table_manager.leader) {
         c = clayered->ingest_cursor;
-        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value, set_layered_key), true);
+        WT_ERR_NOTFOUND_OK(
+          __clayered_lookup_constituent(c, clayered, value, set_layered_key), true);
         if (ret == 0) {
             found = true;
             if (__clayered_deleted(clayered, value))
@@ -1300,7 +1303,8 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
             reset_ignore_prepare = true;
             F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
         }
-        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value, set_layered_key), true);
+        WT_ERR_NOTFOUND_OK(
+          __clayered_lookup_constituent(c, clayered, value, set_layered_key), true);
         if (ret == 0)
             found = true;
     }
