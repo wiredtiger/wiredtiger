@@ -1262,13 +1262,12 @@ static int
 __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *c, *cursor;
+    WT_CURSOR *c;
     WT_DECL_RET;
     bool found, reset_ignore_prepare;
 
     c = NULL;
     conn = S2C(session);
-    cursor = &clayered->iface;
     found = false;
     reset_ignore_prepare = false;
 
