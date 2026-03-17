@@ -868,10 +868,9 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, bool forward, uint32_t iter_flag
      */
     do {
         WT_ERR(__clayered_iterate_constituents(clayered, iter_flag, deleted));
-        ret = __clayered_get_current(session, clayered, forward);
-        if (ret == 0)
-            deleted = __clayered_deleted(clayered, &clayered->current_cursor->value);
-    } while (ret == 0 && deleted);
+        WT_ERR(__clayered_get_current(session, clayered, forward));
+        deleted = __clayered_deleted(clayered, &clayered->current_cursor->value);
+    } while (deleted);
     WT_ERR_NOTFOUND_OK(ret, true);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
