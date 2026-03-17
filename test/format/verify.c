@@ -213,6 +213,14 @@ table_verify_mirror(
         testutil_check(table_cursor->close(table_cursor));
     }
 
+    /*
+     * For live tree reads, begin an explicit transaction with ignore_prepare=true so that
+     * concurrent prepare-commits in the WT_PREPARE_LOCKED state are skipped rather than causing an
+     * indefinite spin.
+     */
+    if (checkpoint == NULL)
+        wt_wrap_begin_transaction(session, "ignore_prepare=true");
+
     testutil_snprintf(buf, sizeof(buf),
       "table %u %s%s"
       "mirror verify",
@@ -361,6 +369,8 @@ done:
     testutil_assert(failures == 0);
 
     trace_msg(session, "%s: stop", buf);
+    if (checkpoint == NULL)
+        testutil_check(session->rollback_transaction(session, NULL));
     wt_wrap_close_session(session);
 }
 

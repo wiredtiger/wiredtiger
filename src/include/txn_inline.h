@@ -193,6 +193,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 static WT_INLINE void
 __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
+    struct timespec prepare_locked_delay;
     WT_TXN *txn;
 
     txn = session->txn;
@@ -211,12 +212,13 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
         __wt_tsan_suppress_store_uint8_v(&upd->prepare_state, WT_PREPARE_LOCKED);
         WT_RELEASE_BARRIER();
         /*
-         * WT-16753: If timing stress is enabled, sleep for 5 seconds while the update is in
-         * WT_PREPARE_LOCKED state. This widens the transient window (INPROGRESS -> LOCKED ->
-         * RESOLVED) to make it reliably observable by concurrent readers.
+         * Widen the transient LOCKED window (INPROGRESS -> LOCKED -> RESOLVED) so concurrent
+         * readers can reliably observe it under timing stress. Use a fixed 5-second delay so
+         * the regression test can distinguish "blocked" from "skipped".
          */
-        if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_LOCKED_DELAY))
-            __wt_sleep(5, 0);
+        prepare_locked_delay.tv_sec = 5;
+        prepare_locked_delay.tv_nsec = 0;
+        __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_LOCKED_DELAY, &prepare_locked_delay);
         __wt_atomic_store_uint64_relaxed(&upd->upd_start_ts, txn->time_point.commit_timestamp);
         __wt_atomic_store_uint64_relaxed(&upd->upd_durable_ts, txn->time_point.durable_timestamp);
         __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_RESOLVED);
@@ -1534,15 +1536,11 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         }
 
         /*
-         * WT-16753: if the update is transiently in WT_PREPARE_LOCKED state (i.e. a prepare-commit
-         * is in progress, mid-way through INPROGRESS -> LOCKED -> RESOLVED) and the session is
-         * configured to ignore prepared updates, skip it immediately rather than entering the
-         * unconditional yield loop inside __wt_txn_upd_visible_type. Without this check the loop
-         * would spin forever when the commit is delayed (e.g. under ASAN), blocking the caller
-         * indefinitely.
+         * If the update is transiently in WT_PREPARE_LOCKED state (i.e. a prepare-commit is in
+         * progress, mid-way through INPROGRESS -> LOCKED -> RESOLVED) and the session is configured
+         * to ignore prepared updates, skip it immediately.
          */
-        if (prepare_state == WT_PREPARE_LOCKED &&
-          F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+        if (prepare_state == WT_PREPARE_LOCKED && F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
             prepare_txnid = upd->txnid;
             continue;
         }

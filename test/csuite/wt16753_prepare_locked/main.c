@@ -27,7 +27,7 @@
  */
 
 /*
- * Regression test for WT-16753: scan with ignore_prepare blocks on WT_PREPARE_LOCKED update.
+ * Regression test: scan with ignore_prepare blocks on WT_PREPARE_LOCKED update.
  *
  * __wt_txn_upd_visible_type() spins unconditionally on WT_PREPARE_LOCKED state. The timing stress
  * flag prepare_locked_delay widens this transient window to 5 seconds so a concurrent reader can
@@ -63,8 +63,8 @@ static volatile bool commit_starting;
 static WT_THREAD_RET
 committer_thread(void *arg)
 {
-    WT_SESSION *session;
     WT_CURSOR *cursor;
+    WT_SESSION *session;
 
     (void)arg;
 
@@ -101,12 +101,12 @@ committer_thread(void *arg)
 static WT_THREAD_RET
 reader_thread(void *arg)
 {
-    WT_SESSION *session;
-    WT_CURSOR *cursor;
     struct timespec start, end;
+    WT_CURSOR *cursor;
+    WT_SESSION *session;
     double elapsed;
-    const char *val;
     int ret;
+    const char *val;
     bool *passed = (bool *)arg;
 
     /* Wait until the committer is about to enter commit_transaction. */
@@ -116,8 +116,7 @@ reader_thread(void *arg)
     __wt_sleep(0, 100000); /* 100ms */
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(
-      session->begin_transaction(session, "ignore_prepare=true,read_timestamp=15"));
+    testutil_check(session->begin_transaction(session, "ignore_prepare=true,read_timestamp=15"));
     testutil_check(session->open_cursor(session, URI, NULL, NULL, &cursor));
 
     __wt_epoch(NULL, &start);
@@ -136,8 +135,8 @@ reader_thread(void *arg)
             *passed = false;
         } else if (elapsed > SCAN_TIMEOUT_SEC) {
             fprintf(stderr,
-              "FAIL: search took %.1fs (> %ds) — likely blocked on WT_PREPARE_LOCKED (WT-16753)\n",
-              elapsed, SCAN_TIMEOUT_SEC);
+              "FAIL: search took %.1fs (> %ds)  likely blocked on WT_PREPARE_LOCKED\n", elapsed,
+              SCAN_TIMEOUT_SEC);
             *passed = false;
         } else {
             printf("PASS: search completed in %.2fs with correct value\n", elapsed);
@@ -145,7 +144,7 @@ reader_thread(void *arg)
         }
     } else if (ret == WT_NOTFOUND) {
         printf("reader: search returned WT_NOTFOUND in %.2f seconds\n", elapsed);
-        fprintf(stderr, "FAIL: WT_NOTFOUND — baseline committed value not visible\n");
+        fprintf(stderr, "FAIL: WT_NOTFOUND  baseline committed value not visible\n");
         *passed = false;
     } else {
         printf("reader: search returned %d in %.2f seconds\n", ret, elapsed);
@@ -159,12 +158,16 @@ reader_thread(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
+/*
+ * main --
+ *     Test that scan with ignore_prepare skips WT_PREPARE_LOCKED updates without blocking.
+ */
 int
 main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
-    WT_SESSION *session;
     WT_CURSOR *cursor;
+    WT_SESSION *session;
     wt_thread_t commit_tid, reader_tid;
     bool passed;
 
@@ -173,7 +176,7 @@ main(int argc, char *argv[])
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_recreate_dir(opts->home);
 
-    /* Open connection without stress flag — it will be enabled per-commit. */
+    /* Open connection without stress flag  it will be enabled per-commit. */
     testutil_check(wiredtiger_open(opts->home, NULL, "create,statistics=(all)", &conn));
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
