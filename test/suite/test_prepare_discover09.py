@@ -157,6 +157,22 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
                 "rollback_timestamp=" + self.timestamp_str(210))
         discover_session.close()
 
+        # Phase 4b: Write a newer update on the follower for the same keys. This goes to the
+        # ingest table, creating a chain where the newer update is at the head and the resolved
+        # prepare is at the tail. This exercises the case where the ingest chain has multiple
+        # updates and the resolved prepare is not the head of the chain.
+        self.pr("=== Phase 4b: Write newer update on follower ===")
+
+        write_session = conn_follow.open_session()
+        write_cursor = write_session.open_cursor(self.uri)
+        write_session.begin_transaction()
+        write_cursor[1] = "newer_value_1"
+        write_cursor[2] = "newer_value_2"
+        write_cursor[3] = "newer_value_3"
+        write_session.commit_transaction("commit_timestamp=" + self.timestamp_str(220))
+        write_cursor.close()
+        write_session.close()
+
         # Clean up the leader's prepared transaction so it doesn't block shutdown.
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(200) +
                                        ",durable_timestamp=" + self.timestamp_str(210))
@@ -206,6 +222,14 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
             self.assertEqual(read_cursor[1], "original_value_1")
             self.assertEqual(read_cursor[2], "original_value_2")
             self.assertEqual(read_cursor[3], "original_value_3")
+        read_session.rollback_transaction()
+
+        # At the newer update's commit timestamp (220), the newer values must be visible
+        # regardless of whether the prepared update was committed or rolled back.
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(220))
+        self.assertEqual(read_cursor[1], "newer_value_1")
+        self.assertEqual(read_cursor[2], "newer_value_2")
+        self.assertEqual(read_cursor[3], "newer_value_3")
         read_session.rollback_transaction()
 
         read_cursor.close()
