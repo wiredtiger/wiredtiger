@@ -69,7 +69,7 @@ For more information, visit [modelcontextprotocol.io](https://modelcontextprotoc
 
 ### Running the Server in VS Code
 
-Create a `mcp.json` file in the `.vscode` directory with the following content:
+Create a `mcp.json` file in the `.vscode` directory at the root level of your project with the following content:  
 
 ```json
 {
