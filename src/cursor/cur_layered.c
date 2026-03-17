@@ -1354,8 +1354,14 @@ __clayered_search(WT_CURSOR *cursor)
 
 err:
     __clayered_leave(clayered);
-    if (ret == 0)
+    if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    } else {
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        clayered->current_cursor = NULL;
+    }
     API_END_RET(session, ret);
 }
 
