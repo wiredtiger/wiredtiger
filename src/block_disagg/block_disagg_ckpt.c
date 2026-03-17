@@ -31,9 +31,6 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     /*
      * Write the root page out, and get back the address information for that page which will be
      * written into the block manager checkpoint cookie.
-     *
-     * Initialize size to zero so that the root size swap below covers both the empty checkpoint
-     * path (when root image is NULL, size stays 0) and the real checkpoint path uniformly.
      */
     size = 0;
 
