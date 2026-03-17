@@ -150,6 +150,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_DECL_RET;
     WT_EVICT_BUCKETSET *bucketset;
     WT_PAGE *page;
+    uint64_t page_size;
     uint8_t stats_flags;
     int bucketset_level;
     bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
@@ -245,7 +246,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * Get exclusive access to the page if our caller doesn't have the tree locked down.
      */
     if (!closing) {
-        WT_ERR_FUNC("evict_exclusive", __evict_exclusive(session, ref));
+        WT_ERR(__evict_exclusive(session, ref));
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -256,14 +257,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * example, we find a page with active children), quit. Make this check for clean pages, too:
      * while unlikely eviction would choose an internal page with children, it's not disallowed.
      */
-    WT_ERR_FUNC("evict_review", __evict_review(session, ref, flags, &inmem_split));
+    WT_ERR(__evict_review(session, ref, flags, &inmem_split));
 
     /*
      * If we decide to do an in-memory split. Do it now. If an in-memory split completes, the page
      * stays in memory and the tree is left in the desired state: avoid the usual cleanup.
      */
     if (inmem_split) {
-        WT_ERR_FUNC("wt_split_insert", __wt_split_insert(session, ref));
+        WT_ERR(__wt_split_insert(session, ref));
         goto done;
     }
 
@@ -341,16 +342,16 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     if (0) {
 err:
-        ++page->evict_page_attempts;
+        ++page->evict_data.evict_page_attempts;
         __wt_atomic_stats_max_uint16(
-          &conn->evict->evict_max_evict_page_attempts, page->evict_data->evict_page_attempts);
+          &conn->evict->evict_max_evict_page_attempts, page->evict_data.evict_page_attempts);
 
         if (!closing) {
             /*
              * In case something goes wrong, don't pick the same set of pages every time. Mark the
              * page, so that eviction skips it once if it encounters it.
              */
-            __wt_atomic_storebool(&ref->page->evict_data.evict_skip, true);
+            __wt_atomic_store_bool(&ref->page->evict_data.evict_skip, true);
 
             if (WT_EVICT_PAGE_CLEARED(page)) {
                 /* Put the page back into the list it belongs */
@@ -747,7 +748,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
 
     /* Too many pages have been cleaned for this btree. */
-    if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) >=
+    if (__wt_atomic_load_uint32_relaxed(&btree->evict_data.eviction_obsolete_tw_pages) >=
       conn->heuristic_controls.eviction_obsolete_tw_pages_dirty_max)
         return (0);
 
@@ -785,14 +786,14 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Limit the number of btrees that can be cleaned up. */
-    if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+    if (__wt_atomic_load_uint32_relaxed(&btree->evict_data.eviction_obsolete_tw_pages) == 0 &&
       __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
       __wt_atomic_load_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
         return (0);
 
     /* Don't add more cache pressure. */
-    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_cache_stuck(session))
+    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_cache_stuck(session))
         return (0);
 
     /*
@@ -833,10 +834,10 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
          * Save that another tree has been processed if that's the first time it gets cleaned and
          * update the number of pages made dirty for that tree.
          */
-        if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+        if (__wt_atomic_load_uint32_relaxed(&btree->evict_data.eviction_obsolete_tw_pages) == 0 &&
           __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
             __wt_atomic_add_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
-        __wt_atomic_addv32(&btree->eviction_obsolete_tw_pages, 1);
+        __wt_atomic_add_uint32_v(&btree->evict_data.eviction_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
     }
 
@@ -1023,8 +1024,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
              * generation (the page is hot and we want to keep it in cache).
              */
             if (can_scrub &&
-              (!__wt_evict_clean_needed(session, NULL) ||
-                ref->page->read_gen > __evict_read_gen(session))) {
+                (!__wti_evict_exceeded_clean_trigger(session, NULL) ||
+                ref->page->evict_data.read_gen > __evict_read_gen(session))) {
                 LF_SET(WT_REC_SCRUB);
             }
         }

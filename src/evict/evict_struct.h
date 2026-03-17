@@ -91,6 +91,7 @@ struct __wt_evict_page_data {
     uint64_t evict_pass_gen;   /* Eviction pass generation */
     bool evict_skip;           /* Skip this page once for eviction */
     bool destroying;           /* Sticky flag set once when the page is being destroyed */
+    uint16_t evict_page_attempts; /* Tried to evict page but failed */
 };
 
 /*

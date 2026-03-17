@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -1300,10 +1300,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * the tail of the transaction modify chain.
      *
      * For example, a transaction has modified [k,v] as
-     *	[k, v]  -> [k, u1]   (txn_op : txn_op1)
-     *	[k, u1] -> [k, u2]   (txn_op : txn_op2)
-     *	update chain : u2->u1
-     *	txn_mod      : txn_op1->txn_op2.
+     *  [k, v]  -> [k, u1]   (txn_op : txn_op1)
+     *  [k, u1] -> [k, u2]   (txn_op : txn_op2)
+     *  update chain : u2->u1
+     *  txn_mod      : txn_op1->txn_op2.
      *
      * Only the key is saved in the transaction operation structure, hence we cannot identify
      * whether "txn_op1" corresponds to "u2" or "u1" during commit/rollback.
@@ -1830,7 +1830,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!readonly) {
         bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
         if (save_errors)
             F_SET(session, WT_SESSION_SAVE_ERRORS);
     }
@@ -2163,7 +2162,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     if (!readonly) {
         bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
         if (save_errors)
             F_SET(session, WT_SESSION_SAVE_ERRORS);
     }

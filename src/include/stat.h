@@ -567,6 +567,7 @@ struct __wt_connection_stats {
     int64_t eviction_target_bucket_wont_need_internal;
     int64_t eviction_target_bucket_wont_need_leaf;
     int64_t eviction_server_race_reconfigure_disagg;
+    int64_t eviction_server_readgen;
     int64_t eviction_skip_intl_page_non_aggressive;
     int64_t cache_eviction_blocked_prefetched;
     int64_t eviction_skip_history_store_pages_with_updates_during_checkpoint;
@@ -581,6 +582,7 @@ struct __wt_connection_stats {
     int64_t eviction_skip_trees_stick_in_cache;
     int64_t eviction_skip_trees_read_only;
     int64_t eviction_skip_trees_eviction_disabled;
+    int64_t eviction_server_slept;
     int64_t eviction_slow;
     int64_t eviction_skip_page_locked;
     int64_t eviction_skip_page_hazard;
@@ -588,8 +590,9 @@ struct __wt_connection_stats {
     int64_t eviction_skip_empty_bucket;
     int64_t eviction_skip_page_dirty_not_aggressive;
     int64_t eviction_skip_page_cannot_evict;
+    int64_t eviction_skip_page_again;
     int64_t eviction_skip_page_last_running;
-    int64_t eviction_skip_page_retry;
+    int64_t eviction_skip_pages_retry;
     int64_t eviction_state;
     int64_t eviction_target_strategy_both_clean_and_dirty;
     int64_t eviction_threshold_cache_full_target;
@@ -705,6 +708,7 @@ struct __wt_connection_stats {
     int64_t eviction_fail_active_children_on_an_internal_page;
     int64_t eviction_fail_in_reconciliation;
     int64_t eviction_fail_checkpoint_no_ts;
+    int64_t eviction_pages_set_clean;
     int64_t cache_write;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
