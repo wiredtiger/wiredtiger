@@ -460,17 +460,14 @@ int
 __wt_ckpt_last_size(WT_SESSION_IMPL *session, const char *config, uint64_t *sizep)
 {
     WT_CKPT ckpt;
-    WT_DECL_RET;
-
-    *sizep = 0;
     WT_CLEAR(ckpt);
 
+    *sizep = 0;
     WT_RET(__ckpt_last(session, config, &ckpt));
     *sizep = ckpt.size;
 
-    ret = 0;
     __wt_checkpoint_free(session, &ckpt);
-    return (ret);
+    return (0);
 }
 
 /*

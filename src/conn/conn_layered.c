@@ -905,18 +905,54 @@ err:
 }
 
 /*
+ * __wt_disagg_shared_metadata_queue_drop_size --
+ *     Walk the metadata queue and sum the checkpoint sizes of non-deferred drop operations. This is
+ *     a read-only operation on the queue.
+ */
+int
+__wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry;
+
+    conn = S2C(session);
+    *drop_sizep = 0;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        if (!entry->deferred && entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
+            uint64_t size;
+            /*
+             * A table that was created and dropped without ever being checkpointed won't have a
+             * checkpoint entry in its metadata, so WT_NOTFOUND is expected.
+             */
+            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
+            *drop_sizep += size;
+        }
+    }
+
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (ret);
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list.
  */
 int
-__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *tmp;
 
     conn = S2C(session);
-    *drop_sizep = 0;
 
     /*
      * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
@@ -938,19 +974,6 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, uint64_t *dr
         }
 
         WT_ERR(__disagg_shared_metadata_op(session, entry));
-        /*
-         * For drop operations, extract the checkpoint size of the stable table to adjust the
-         * overall database size.
-         */
-        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
-            uint64_t size;
-            /*
-             * A table that was created and dropped without ever being checkpointed won't have a
-             * checkpoint entry in its metadata, so WT_NOTFOUND is expected.
-             */
-            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
-            *drop_sizep += size;
-        }
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
