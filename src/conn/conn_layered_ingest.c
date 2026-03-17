@@ -98,9 +98,10 @@ __layered_resolve_prepared_on_stable(
       upd != NULL && upd->prepare_state == WT_PREPARE_INPROGRESS &&
         F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
 
-    /* 
+    /*
      * Assert that the resolved prepare update on the ingest table is the same update as the one on
-     * stable table.  */
+     * the stable table.
+     */
     WT_ASSERT_ALWAYS(session,
       ingest_upd->prepared_id == upd->prepared_id && ingest_upd->prepare_ts == upd->prepare_ts,
       "Ingest resolved prepare does not match the unresolved prepared cell on the stable table");
@@ -169,9 +170,10 @@ err:
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, WT_UPDATE *last_upd, WT_UPDATE *prev_last_upd, bool resolve_prepare)
+  WT_UPDATE *upds, WT_UPDATE *last_upd, bool resolve_prepare)
 {
     WT_DECL_RET;
+    WT_UPDATE *prev;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -200,11 +202,15 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
          * applied.
          */
         if (upds == last_upd) {
-            /* The resolved prepare is the only update — nothing left to apply. */
+            /* The resolved prepare is the only update, nothing left to apply. */
+            __wt_free(session, upds);
             upds = NULL;
         } else {
-            prev_last_upd->next = NULL;
-            last_upd = prev_last_upd;
+            for (prev = upds; prev->next != last_upd; prev = prev->next)
+                ;
+            __wt_free(session, last_upd);
+            prev->next = NULL;
+            last_upd = prev;
         }
     }
 
@@ -333,7 +339,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
                   ret = __layered_move_updates(
-                    session, cbt, key, upds, last_upd, prev_upd, needs_prepare_resolve));
+                    session, cbt, key, upds, last_upd, needs_prepare_resolve));
                 WT_ERR(ret);
                 upds = NULL;
                 needs_prepare_resolve = false;
@@ -354,7 +360,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
                   ret = __layered_move_updates(
-                    session, cbt, key, upds, last_upd, prev_upd, needs_prepare_resolve));
+                    session, cbt, key, upds, last_upd, needs_prepare_resolve));
                 WT_ERR(ret);
                 needs_prepare_resolve = false;
             }
