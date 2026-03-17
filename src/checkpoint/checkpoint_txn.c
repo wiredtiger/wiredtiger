@@ -893,6 +893,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
         int64_t delta;
 
         db = conn->disaggregated_storage.database_size;
+        /* Subtract the size of the dropped tables from our delta, we need to account for those. */
         delta = session->ckpt.ckpt_size_delta - (int64_t)drop_size;
 
         if (delta > 0) {
