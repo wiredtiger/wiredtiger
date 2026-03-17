@@ -83,7 +83,7 @@ def decode_sqlite_input(filename, opts: DecodeOptions):
 def decode_wt_binary_input(filename, opts: DecodeOptions):
     nbytes = 0 if filename == '-' else os.path.getsize(filename)
     input_name = 'stdin' if filename == '-' else filename
-        file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
+    file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
 
 def wtdecode(filename, opts: DecodeOptions):
     if opts.dumpin:
