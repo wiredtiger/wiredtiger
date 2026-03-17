@@ -50,8 +50,8 @@ class test_stat06(wttest.WiredTigerTestCase):
 
     def stats_gathered(self, stats_expected):
         self.session = self.conn.open_session()
-        self.session.create("table:foo", None)
-        self.session.create("table:bar", None)
+        self.session.create("table:foo")
+        self.session.create("table:bar")
         sleep(2)
         if stats_expected:
             stat_cursor = self.session.open_cursor('statistics:', None, None)

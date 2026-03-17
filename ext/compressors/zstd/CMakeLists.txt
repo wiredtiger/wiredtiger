@@ -1,7 +1,3 @@
-project(zstd C)
-
-include(GNUInstallDirs)
-
 config_bool(
     HAVE_BUILTIN_EXTENSION_ZSTD
     "Builtin zstd compression library."

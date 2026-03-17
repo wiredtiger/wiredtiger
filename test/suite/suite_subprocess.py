@@ -37,6 +37,10 @@ import wttest
 # Used as a 'mixin' class along with a WiredTigerTestCase class
 class suite_subprocess:
     subproc = None
+    """
+    Check the first 1GB content from a file.
+    """
+    maxbytes = 1 * 1024 ** 3
 
     def has_error_in_file(self, filename):
         """
@@ -97,12 +101,8 @@ class suite_subprocess:
     # Check contents of the file against a provided checklist. Expected is used as a bool to either
     # ensure checklist is included or ensure the checklist is not included in the file.
     def check_file_contains_one_of(self, filename, checklist, expected):
-        """
-        Check that the file contains the expected string in the first 100K bytes
-        """
-        maxbytes = 1024*100
         with open(filename, 'r') as f:
-            got = f.read(maxbytes)
+            got = f.read(self.maxbytes)
             found = False
             for expect in checklist:
                 pat = self.convert_to_pattern(expect)
@@ -127,8 +127,8 @@ class suite_subprocess:
                     expect = str(checklist)
                 gotstr = '\'' + \
                     (got if len(got) < 1000 else (got[0:1000] + '...')) + '\''
-                if len(got) >= maxbytes:
-                    self.fail(filename + ': does not contain expected ' + expect + ', or output is too large, got ' + gotstr)
+                if len(got) >= self.maxbytes:
+                    self.fail(filename + ': does not contain expected ' + expect + ', or output is larger than ' + str(self.maxbytes) + ' Bytes')
                 else:
                     self.fail(filename + ': does not contain expected ' + expect + ', got ' + gotstr)
 
@@ -172,11 +172,10 @@ class suite_subprocess:
               'output files follow:'
         WiredTigerTestCase.prout(out)
         for filename in filenames:
-            maxbytes = 1024*100
             with open(filename, 'r') as f:
-                contents = f.read(maxbytes)
+                contents = f.read(self.maxbytes)
                 if len(contents) > 0:
-                    if len(contents) >= maxbytes:
+                    if len(contents) >= self.maxbytes:
                         contents += '...\n'
                     sepline = '*' * 50 + '\n'
                     out = sepline + filename + '\n' + sepline + contents
@@ -185,7 +184,7 @@ class suite_subprocess:
     # Run a method as a subprocess using the run.py machinery.
     # Return the process exit status and the WiredTiger home
     # directory used by the subprocess.
-    def run_subprocess_function(self, directory, funcname):
+    def run_subprocess_function(self, directory, funcname, silent=False):
         testparts = funcname.split('.')
         if len(testparts) != 3:
             raise ValueError('bad function name "' + funcname +
@@ -195,24 +194,15 @@ class suite_subprocess:
         procargs = [ sys.executable, runscript, '-p', '--dir', directory,
             funcname]
 
-        # scenario_number is only set if we are running in a scenario
-        try:
-            scennum = self.scenario_number
-            procargs.append('-s')
-            procargs.append(str(scennum))
-        except:
-            scennum = 0
-
         returncode = -1
         os.makedirs(directory)
-
         # We cannot put the output/error files in the subdirectory, as
         # that will be cleared by the run.py script.
         with open("subprocess.err", "w") as wterr:
             with open("subprocess.out", "w") as wtout:
                 returncode = subprocess.call(
                     procargs, stdout=wtout, stderr=wterr)
-                if returncode != 0:
+                if returncode != 0 and not silent:
                     # This is not necessarily an error, the primary reason to
                     # run in a subprocess is that it may crash.
                     self.show_outputs(procargs,
@@ -220,8 +210,9 @@ class suite_subprocess:
                         " returned error code " + str(returncode),
                         [ "subprocess.out", "subprocess.err" ])
 
+        # Running a scenario will default create directory starting with 0.
         new_home_dir = os.path.join(directory,
-            testparts[1] + '.' + str(scennum))
+            testparts[1] + '.0')
         return [ returncode, new_home_dir ]
 
     # Run the wt utility.
@@ -236,6 +227,19 @@ class suite_subprocess:
 
         if 'timestamp' in self.hook_names and args[0] == 'load':
             self.skipTest("the load utility cannot be run when timestamps are already set")
+
+        # If disagg and verify, change table and file URIs to layered
+        if 'disagg' in self.hook_names and 'verify' in args:
+            args = [
+                re.sub(r'''             # Raw string with extended regex
+                       ^                # Line beginning
+                       (?:table|file):  # "table:" or "file:" prefix, non-capturing
+                       (.*?)            # Non-greedy capture of the name
+                       (?:\.wt)?        # Optional ".wt" suffix, non-capturing. Must be stripped out when using layered URI
+                       $                # Line end
+                       ''', r'layered:\1', a, flags=re.X)
+                for a in args
+            ]
 
         # Close the connection to guarantee everything is flushed, and that
         # we can open it from another process.

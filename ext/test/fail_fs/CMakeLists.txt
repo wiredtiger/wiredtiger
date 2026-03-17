@@ -1,5 +1,3 @@
-project(fail_fs C)
-
 set(sources "fail_fs.c")
 add_library(wiredtiger_fail_fs MODULE ${sources})
 

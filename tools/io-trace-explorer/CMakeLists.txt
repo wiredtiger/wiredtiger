@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.0)
 project(IOTraceExplorer)
 
-#set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE RelWithDebInfo)
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 if (NOT VCPKG_TOOLCHAIN)
   find_package(PkgConfig)

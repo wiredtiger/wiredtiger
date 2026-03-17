@@ -28,7 +28,6 @@
 
 import threading, time
 import wttest
-import wiredtiger
 from wiredtiger import stat
 from wtthread import checkpoint_thread
 from wtdataset import SimpleDataSet
@@ -46,19 +45,23 @@ from wtscenario import make_scenarios
 # an interesting scenario. The concern is getting the matching version
 # of WiredTigerCheckpoint and hanging onto it.
 
+@wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
 
     format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
-    scenarios = make_scenarios(format_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
+        ('precise', dict(ckpt_config='precise_checkpoint=true')),
+    ]
+    scenarios = make_scenarios(format_values, ckpt_precision)
 
+    def conn_config(self):
+        return 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
     def large_updates(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
         self.session.begin_transaction()
@@ -86,6 +89,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #self.session.rollback_transaction()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'precise_checkpoint=true':
+            self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint18'
         nrows = 10000
 
@@ -95,15 +102,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds.populate()
 
-        if self.value_format == '8t':
-            nrows *= 5
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Write some baseline data and checkpoint it.
         self.large_updates(ds, nrows, value_a)

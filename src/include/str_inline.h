@@ -56,8 +56,8 @@ __wt_page_type_str(uint8_t val)
         return ("WT_PAGE_INVALID");
     case WT_PAGE_BLOCK_MANAGER:
         return ("WT_PAGE_BLOCK_MANAGER");
-    case WT_PAGE_COL_FIX:
-        return ("WT_PAGE_COL_FIX");
+    case WT_PAGE_COL_FIX_DEPRECATED:
+        return ("WT_PAGE_COL_FIX_DEPRECATED");
     case WT_PAGE_COL_INT:
         return ("WT_PAGE_COL_INT");
     case WT_PAGE_COL_VAR:
@@ -68,6 +68,8 @@ __wt_page_type_str(uint8_t val)
         return ("WT_PAGE_ROW_INT");
     case WT_PAGE_ROW_LEAF:
         return ("WT_PAGE_ROW_LEAF");
+    case WT_PAGE_TYPE_COUNT:
+        return ("WT_PAGE_TYPE_COUNT");
     }
 
     return ("PAGE_TYPE_INVALID");

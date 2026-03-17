@@ -1,5 +1,3 @@
-project(gcp_store CXX)
-
 # Using the Google Cloud Storage SDK produces a reference problem where a google library
 # indirectly depends on an internal google library. Fixing this problem requires setting
 # the linker flags and runtime path.

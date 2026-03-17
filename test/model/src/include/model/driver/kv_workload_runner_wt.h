@@ -46,7 +46,7 @@ class kv_workload_runner_wt {
 
 public:
     /* Base connection configuration applied to every connection. */
-    constexpr static const char *k_config_base = "create=true,log=(enabled=false)";
+    constexpr static const char *k_config_base = "create=true";
 
 protected:
     /*
@@ -158,6 +158,9 @@ protected:
         /* The map of table IDs to table states, needed to resume the workload from a crash. */
         size_t num_tables;
         table_state tables[256]; /* The table states; protected by the same lock as the URI map. */
+
+        /* Top-level configuration specified by the workload (protected by the connection lock). */
+        char database_config[256];
 
         /* WiredTiger configuration specified by the workload (protected by the connection lock). */
         char connection_config[256];
@@ -274,6 +277,12 @@ protected:
     int do_operation(const operation::commit_transaction &op);
 
     /*
+     * kv_workload_runner_wt::config --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::config &op);
+
+    /*
      * kv_workload_runner_wt::crash --
      *     Execute the given workload operation in WiredTiger.
      */
@@ -290,6 +299,12 @@ protected:
      *     Execute the given workload operation in WiredTiger.
      */
     int do_operation(const operation::evict &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::get &op);
 
     /*
      * kv_workload_runner_wt::do_operation --
@@ -374,6 +389,12 @@ protected:
      *     Close WiredTiger, assume the right locks are held.
      */
     void wiredtiger_close_nolock();
+
+    /*
+     * kv_workload_runner_wt::remove_local_files --
+     *     Remove the local WiredTiger files.
+     */
+    void remove_local_files();
 
     /*
      * kv_workload_runner_wt::add_table_uri --

@@ -96,6 +96,16 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 /* Maximum number of buckets to visit during a regular cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_MAX 64
 
+/* Initial session ID. */
+#define WT_SESSION_ID_INITIAL 0
+
+/*
+ * Check if the session is the default session. A default session is a special session created
+ * during the initialization of a WiredTiger connection. It serves as the initial session for the
+ * connection before any user sessions are created.
+ */
+#define WT_SESSION_IS_DEFAULT(s) ((s)->id == WT_SESSION_ID_INITIAL)
+
 /* Invalid session ID. */
 #define WT_SESSION_ID_INVALID 0xffffffff
 
@@ -117,6 +127,7 @@ struct __wt_session_impl {
 
     u_int active; /* Non-zero if the session is in-use */
 
+    /* FIXME-WT-16787 Consider removing the session name field. */
     const char *name;   /* Name */
     const char *lastop; /* Last operation */
     uint32_t id;        /* UID, offset in session array */
@@ -127,6 +138,7 @@ struct __wt_session_impl {
     u_int api_call_counter;        /* Depth of api calls */
 
     wt_shared WT_DATA_HANDLE *dhandle; /* Current data handle */
+    WT_DHANDLE_CLEAR_LOG dhandle_clear_log;
     WT_BUCKET_STORAGE *bucket_storage; /* Current bucket storage and file system */
 
     /*
@@ -150,6 +162,10 @@ struct __wt_session_impl {
     u_int sweep_warning_5min;        /* Whether the session was without sweep for 5 min. */
     u_int sweep_warning_60min;       /* Whether the session was without sweep for 60 min. */
 
+#ifdef HAVE_DIAGNOSTIC
+    bool cursor_open_timer_running; /* Flag used to track timer across nested calls. */
+#endif
+
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 
     WT_COMPACT_STATE *compact; /* Compaction information */
@@ -157,7 +173,8 @@ struct __wt_session_impl {
 
     WT_IMPORT_LIST *import_list; /* List of metadata entries to import from file. */
 
-    u_int hs_cursor_counter; /* Number of open history store cursors */
+    u_int hs_cursor_counter;   /* Number of open history store cursors */
+    uint64_t hs_checkpoint_id; /* The checkpoint ID of the last opened HS cursor */
 
     WT_CURSOR *meta_cursor;  /* Metadata file */
     void *meta_track;        /* Metadata operation tracking */
@@ -205,6 +222,11 @@ struct __wt_session_impl {
         uint64_t reconcile_finish;
         uint64_t total_reentry_hs_eviction_time;
     } reconcile_timeline;
+
+    /* Record statistics in an reconciliation. */
+    struct __wt_reconcile_stats {
+        uint64_t hs_wrapup_next_prev_calls;
+    } reconcile_stats;
 
     /*
      * Record the important timestamps of each stage in an eviction. If an eviction takes a long
@@ -294,29 +316,32 @@ struct __wt_session_impl {
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_SESSION_BACKUP_CURSOR 0x000001u
-#define WT_SESSION_BACKUP_DUP 0x000002u
-#define WT_SESSION_CACHE_CURSORS 0x000004u
-#define WT_SESSION_CAN_WAIT 0x000008u
-#define WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE 0x000010u
-#define WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID 0x000020u
-#define WT_SESSION_DEBUG_RELEASE_EVICT 0x000040u
-#define WT_SESSION_EVICTION 0x000080u
-#define WT_SESSION_IGNORE_CACHE_SIZE 0x000100u
-#define WT_SESSION_IMPORT 0x000200u
-#define WT_SESSION_IMPORT_REPAIR 0x000400u
-#define WT_SESSION_INTERNAL 0x000800u
-#define WT_SESSION_LOGGING_INMEM 0x001000u
-#define WT_SESSION_NO_DATA_HANDLES 0x002000u
-#define WT_SESSION_NO_RECONCILE 0x004000u
-#define WT_SESSION_PREFETCH_ENABLED 0x008000u
-#define WT_SESSION_PREFETCH_THREAD 0x010000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x020000u
-#define WT_SESSION_READ_WONT_NEED 0x040000u
-#define WT_SESSION_RESOLVING_TXN 0x080000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x100000u
-#define WT_SESSION_SAVE_ERRORS 0x200000u
-#define WT_SESSION_SCHEMA_TXN 0x400000u
+#define WT_SESSION_BACKUP_CURSOR 0x0000001u
+#define WT_SESSION_BACKUP_DUP 0x0000002u
+#define WT_SESSION_CACHE_CURSORS 0x0000004u
+#define WT_SESSION_CAN_WAIT 0x0000008u
+#define WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE 0x0000010u
+#define WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID 0x0000020u
+#define WT_SESSION_DEBUG_RELEASE_EVICT 0x0000040u
+#define WT_SESSION_DUMPING_EXTLIST 0x0000080u
+#define WT_SESSION_EVICTION 0x0000100u
+#define WT_SESSION_HS_WRAPUP 0x0000200u
+#define WT_SESSION_IGNORE_CACHE_SIZE 0x0000400u
+#define WT_SESSION_IMPORT 0x0000800u
+#define WT_SESSION_IMPORT_REPAIR 0x0001000u
+#define WT_SESSION_INTERNAL 0x0002000u
+#define WT_SESSION_LOGGING_INMEM 0x0004000u
+#define WT_SESSION_NO_DATA_HANDLES 0x0008000u
+#define WT_SESSION_NO_RECONCILE 0x0010000u
+#define WT_SESSION_PREFETCH_ENABLED 0x0020000u
+#define WT_SESSION_PREFETCH_THREAD 0x0040000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x0080000u
+#define WT_SESSION_QUIET_OPEN_FILE 0x0100000u
+#define WT_SESSION_READ_WONT_NEED 0x0200000u
+#define WT_SESSION_RESOLVING_TXN 0x0400000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x0800000u
+#define WT_SESSION_SAVE_ERRORS 0x1000000u
+#define WT_SESSION_SCHEMA_TXN 0x2000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

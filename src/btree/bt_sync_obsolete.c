@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 #define WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL 5 /* 5 seconds */
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1            /* 1 second */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -27,7 +26,7 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
     btree = S2BT(session);
 
     /* Check current progress against max. */
-    if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
+    if (__wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
       conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
         return (true);
 
@@ -35,9 +34,9 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
      * If the current btree has not contributed to the cleanup yet, only process it if we can track
      * another btree.
      */
-    if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-      __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
-      __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
+    if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
         return (true);
 
@@ -184,11 +183,11 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          * Save that another tree has been processed if that's the first time it gets cleaned and
          * update the number of pages made dirty for that tree.
          */
-        if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-          __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
-            __wt_atomic_addv32(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
+        if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+          __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
+            __wt_atomic_add_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
 
-        __wt_atomic_addv32(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
+        __wt_atomic_add_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
     }
 
@@ -207,7 +206,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
 
     page_del = ref->page_del;
     if (page_del == NULL ||
-      __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
+      __wt_txn_visible_all(session, page_del->txnid, page_del->pg_del_durable_ts)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
@@ -327,6 +326,12 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
             if (ref_deleted)
                 new_state = WT_REF_DELETED;
         }
+        /*
+         * For deleted and on-disk pages, mark the ref as dirty if there has been a change in the
+         * ref's state. There's nothing to do for in-memory pages as we don't change those.
+         */
+        if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)) && previous_state != new_state)
+            __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
     } else
@@ -417,7 +422,7 @@ __checkpoint_cleanup_page_skip(
      * and also it can dirty the already existing in-memory page in the cache, skip if eviction is
      * needed.
      */
-    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_aggressive(session) ||
+    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_aggressive(session) ||
       __wt_cache_full(session) || __wt_evict_cache_stuck(session)) {
         *skipp = true;
         return (0);
@@ -452,7 +457,7 @@ __checkpoint_cleanup_page_skip(
         *skipp = true;
     else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
-        *skipp = !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
+        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
         if (!*skipp)
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
@@ -485,21 +490,10 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_REF *ref;
-    uint32_t flags;
-
-    ref = NULL;
-    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
-
-    /*
-     * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
-     * dhandles that are already opened.
-     */
-    WT_WITHOUT_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __wt_conn_dhandle_find(session, uri->data, NULL))));
-    if (ret == WT_NOTFOUND)
-        return (0);
+    WT_REF *ref = NULL;
+    uint32_t flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    uint32_t pages_visited = 0;
+    uint64_t elapsed_us, end_time, start_time = __wt_clock(session);
 
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
@@ -511,21 +505,24 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     }
 
     btree = S2BT(session);
+
+    /* Skip read-only btrees. */
+    if (F_ISSET(btree, WT_BTREE_READONLY))
+        goto err;
+
     /* There is nothing to do on an empty tree. */
     if (btree->root.page == NULL)
         goto err;
 
-    /*
-     * FLCS pages cannot be discarded and must be rewritten as implicitly filling in missing chunks
-     * of FLCS namespace is problematic.
-     */
-    if (btree->type == BTREE_COL_FIX)
+    /* Ignore tables that are empty or is currently in a bulk-load phase. */
+    if (btree->original)
         goto err;
 
     /* Walk the tree. */
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
+        ++pages_visited;
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
         } else {
@@ -541,6 +538,14 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     }
 
 err:
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "checkpoint cleanup btree walk completed (ret=%d), pages_visited=%" PRIu32
+      ", elapsed_us=%" PRIu64,
+      ret, pages_visited, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, pages_visited);
+
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, ref, flags));
     WT_TRET(__wt_session_release_dhandle(session));
@@ -575,6 +580,15 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      */
     if (strcmp(uri, WT_HS_URI) == 0)
         return (true);
+
+    /*
+     * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
+     * dhandles that are already opened.
+     */
+    WT_WITHOUT_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
+    if (ret == WT_NOTFOUND)
+        return (false);
 
     /*
      * Logged table. The logged tables do not support timestamps, so we need to check for obsolete
@@ -665,14 +679,21 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
 
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
-    WT_ERR(cursor->search_near(cursor, &exact));
+
+    /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+    WT_WITH_TXN_ISOLATION(
+      session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, &exact));
+    WT_ERR(ret);
 
     /*
      * The given URI may not exist in the metadata file. Since we always want to return a URI that
      * is lexicographically larger the given one, make sure not to go backwards.
      */
-    if (exact <= 0)
-        WT_ERR(cursor->next(cursor));
+    if (exact <= 0) {
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+        WT_ERR(ret);
+    }
 
     /* Loop through the eligible candidates. */
     do {
@@ -688,7 +709,10 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         /* Check the given uri needs checkpoint cleanup. */
         if (__checkpoint_cleanup_eligibility(session, key, value))
             break;
-    } while ((ret = cursor->next(cursor)) == 0);
+
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+    } while (ret == 0);
     WT_ERR(ret);
 
     /* Save the selected uri. */
@@ -709,6 +733,9 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(uri);
     WT_DECL_RET;
 
+    uint32_t tables_processed = 0;
+    uint64_t elapsed_us, end_time, start_time = __wt_clock(session);
+
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
 
@@ -721,13 +748,18 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             continue;
         }
         WT_ERR(ret);
+        ++tables_processed;
 
-        /*
-         * Wait here for some time before proceeding with another table to minimize the impact of
-         * checkpoint cleanup on the regular workload.
-         */
-        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __checkpoint_cleanup_run_chk);
+        /* Check if we need to wait before continuing with the next file to minimize impact. */
+        if (S2C(session)->cc_cleanup.file_wait_ms > 0) {
+            __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "waiting for %" PRIu64
+              " milliseconds after %s cleanup before continuing with the next file",
+              S2C(session)->cc_cleanup.file_wait_ms, (char *)uri->data);
+
+            __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
+              S2C(session)->cc_cleanup.file_wait_ms * WT_THOUSAND, __checkpoint_cleanup_run_chk);
+        }
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
@@ -736,6 +768,15 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "checkpoint cleanup full iteration completed (ret=%d), tables_processed=%" PRIu32
+      " elapsed_us=%" PRIu64,
+      ret, tables_processed, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, tables_processed);
+
     __wt_scr_free(session, &uri);
     return (ret);
 }
@@ -772,6 +813,10 @@ __checkpoint_cleanup(void *arg)
 
         __wt_seconds(session, &now);
 
+        /* Skip running checkpoint cleanup if we are the follower. */
+        if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
+            continue;
+
         /*
          * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that
          * typically involves many IO operations so skipping some should have little impact.
@@ -803,7 +848,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
     /* Set first, the thread might run before we finish up. */
@@ -811,10 +856,13 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
     if (WT_CONFIG_LIT_MATCH("reclaim_space", cval))
-        F_SET_ATOMIC_32(conn, WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE);
+        F_SET(conn, WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
     conn->cc_cleanup.interval = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.file_wait_ms", &cval));
+    conn->cc_cleanup.file_wait_ms = (uint64_t)cval.val;
 
     /*
      * Checkpoint cleanup does enough I/O it may be called upon to perform slow operations for the

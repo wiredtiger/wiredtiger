@@ -246,25 +246,39 @@ class test_config04(wttest.WiredTigerTestCase):
             '/eviction updates target must be lower than the eviction updates trigger/')
 
     def test_invalid_config(self):
-        # The tiered hook modifies the wiredtiger_open configuration string.
+        # The tiered/disagg hook modifies the wiredtiger_open configuration string.
         # This may influence what particular error message occurs in certain cases.
-        if self.runningHook('tiered'):
-            msg = '/./'
-        else:
-            msg = '/Unbalanced brackets/'
+        classic = not (self.runningHook('tiered') or self.runningHook('disagg'))
+        match_any = '/./'
 
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.wiredtiger_open('.', '}'), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.wiredtiger_open('.', '{'), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.wiredtiger_open('.', '{}}'), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.wiredtiger_open('.', '(]}'), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.wiredtiger_open('.', '(create=]}'), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.wiredtiger_open('.', '(create='), msg)
+        unbalanced_brackets = (['}', '{', '{}}', '(]}', '(create=]}', '(create='],
+                               '/Unbalanced brackets/' if classic else match_any)
+
+        unbalanced_quotes = (['"', '"""', '",', '"create=', 'create=,"', 'error_prefix="a'],
+                             '/Unbalanced quotes/' if classic else match_any)
+
+        unexpected_escape = ([f'error_prefix="{esc}"'
+                              for esc in ['\a', '\b', '\f', '\n', '\r', '\t', '\v']],
+                             '/Unexpected escaped character/' if classic else match_any)
+
+        for bad_configs, msg in (unbalanced_brackets, unbalanced_quotes, unexpected_escape):
+            for config in bad_configs:
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda cfg=config: self.wiredtiger_open('.', cfg), msg)
+
+    def test_valid_config_with_quotes(self):
+        valid_configs = [
+            '"create"',
+            '"",create',
+            'create,"",',
+            'create,log="(enabled)"',
+            'log="(enabled)",create']
+
+        home_dir = os.path.join('.', 'WT_HOME')
+        for config in valid_configs:
+            with self.temporaryDirectory(home_dir):
+                conn = self.wiredtiger_open(home_dir, config)
+                conn.close()
 
     def test_error_prefix(self):
         self.common_test('error_prefix="MyOwnPrefix"')
@@ -310,3 +324,35 @@ class test_config04(wttest.WiredTigerTestCase):
     def test_transactional(self):
         # Note: this will have functional tests in the future.
         self.common_test('')
+
+    def test_removed_metadata_config(self):
+        '''
+        We still need to support all the removed configurations that may remain in the metadata, as
+        removing them could cause issues when upgrading to a newer version.
+        '''
+        self.conn = self.wiredtiger_open('.', 'create,statistics=(fast)')
+        self.session = self.conn.open_session(None)
+
+        create_args_base = 'key_format=S,value_format=S'
+        config_variants = [
+            ',lsm=(auto_throttle=)',
+            ',lsm=(bloom=)',
+            ',lsm=(bloom_bit_count=)',
+            ',lsm=(bloom_config=)',
+            ',lsm=(bloom_hash_count=)',
+            ',lsm=(bloom_oldest=)',
+            ',lsm=(chunk_count_limit=)',
+            ',lsm=(chunk_max=)',
+            ',lsm=(chunk_size=)',
+            ',lsm=(merge_custom=(prefix=))',
+            ',lsm=(merge_custom=(start_generation=))',
+            ',lsm=(merge_custom=(suffix=))',
+            ',lsm=(merge_max=)',
+            ',lsm=(merge_min=)',
+        ]
+
+        table_idx = 1
+        for config_variant in config_variants:
+            self.session.create("table:" + self.table_name1 + str(table_idx),
+                                create_args_base + config_variant)
+            table_idx += 1

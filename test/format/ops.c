@@ -29,7 +29,7 @@
 #include "format.h"
 
 static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
-static void clear_bounds(WT_CURSOR *, TABLE *);
+static void clear_bounds(WT_CURSOR *);
 static int col_insert(TINFO *);
 static void col_insert_resolve(TABLE *, void *);
 static int col_modify(TINFO *, bool);
@@ -40,7 +40,7 @@ static int col_update(TINFO *, bool);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
-static void rollback_transaction(TINFO *);
+static void rollback_transaction(TINFO *, bool);
 static int row_insert(TINFO *, bool);
 static int row_modify(TINFO *, bool);
 static int row_remove(TINFO *, bool);
@@ -237,13 +237,19 @@ rollback_to_stable(WT_SESSION *session)
     if (!g.transaction_timestamps_config)
         return;
 
-    /*
-     * Rollback the system using up to 10 threads. Extend to 11 values to cover the NULL config
-     * case.
-     */
-    num_threads = mmrand(&g.extra_rnd, 0, 11);
+    /* Rollback-to-stable is not supported for disaggregated storage. */
+    if (g.disagg_storage_config)
+        return;
+
+    /* Rollback-to-stable is not supported for precise checkpoint. */
+    if (GV(PRECISE_CHECKPOINT))
+        return;
+
+    /* Rollback the system using the RTS threads config. */
+    num_threads = GV(ROLLBACK_TO_STABLE_THREADS);
     testutil_snprintf(cfg, sizeof(cfg), "threads=%" PRIu32, num_threads);
-    testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, num_threads == 11 ? NULL : cfg));
+    testutil_check(
+      g.wts_conn->rollback_to_stable(g.wts_conn, num_threads == RTS_THREADS_MAX ? NULL : cfg));
 
     /*
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
@@ -275,8 +281,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid, hs_tid,
-      import_tid, random_tid;
+    wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid,
+      follower_tid, hs_tid, import_tid, random_tid;
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
@@ -294,6 +300,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     memset(&backup_tid, 0, sizeof(backup_tid));
     memset(&checkpoint_tid, 0, sizeof(checkpoint_tid));
     memset(&compact_tid, 0, sizeof(compact_tid));
+    memset(&follower_tid, 0, sizeof(follower_tid));
     memset(&hs_tid, 0, sizeof(hs_tid));
     memset(&import_tid, 0, sizeof(import_tid));
     memset(&random_tid, 0, sizeof(random_tid));
@@ -362,6 +369,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_create(NULL, &compact_tid, compact, NULL));
+    if (disagg_is_multi_node() && !g.disagg_leader)
+        testutil_check(__wt_thread_create(NULL, &follower_tid, follower, NULL));
     if (GV(OPS_HS_CURSOR))
         testutil_check(__wt_thread_create(NULL, &hs_tid, hs_cursor, NULL));
     if (GV(IMPORT))
@@ -463,6 +472,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
+    if (disagg_is_multi_node() && !g.disagg_leader)
+        testutil_check(__wt_thread_join(NULL, &follower_tid));
     if (GV(OPS_HS_CURSOR))
         testutil_check(__wt_thread_join(NULL, &hs_tid));
     if (GV(IMPORT))
@@ -486,6 +497,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
      * able to replay operations from after rollback-to-stable completes.
      */
     rollback_to_stable(session);
+
+    disagg_sync_multi_node(session);
 
     replay_run_end(session);
 
@@ -596,7 +609,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_commit_ts(tinfo);
         else
-            ts = __wt_atomic_addv64(&g.timestamp, 1);
+            ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
@@ -625,19 +638,30 @@ commit_transaction(TINFO *tinfo, bool prepared)
  *     Rollback a transaction.
  */
 static void
-rollback_transaction(TINFO *tinfo)
+rollback_transaction(TINFO *tinfo, bool prepared)
 {
     WT_SESSION *session;
+    uint64_t ts;
 
     session = tinfo->session;
+    ts = 0;
 
     ++tinfo->rollback;
     tinfo->ignore_prepare = false;
 
+    if (prepared) {
+        if (GV(RUNS_PREDICTABLE_REPLAY))
+            ts = replay_rollback_ts(tinfo);
+        else
+            ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+
+        testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_ROLLBACK, ts));
+    }
     testutil_check(session->rollback_transaction(session, NULL));
     replay_rollback(tinfo);
 
-    trace_uri_op(tinfo, NULL, "abort read-ts=%" PRIu64, tinfo->read_ts);
+    trace_uri_op(
+      tinfo, NULL, "abort read-ts=%" PRIu64 ", rollback-ts=%" PRIu64, tinfo->read_ts, ts);
 }
 
 /*
@@ -649,25 +673,28 @@ prepare_transaction(TINFO *tinfo)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t ts;
+    uint64_t prepared_id, ts;
 
     session = tinfo->session;
 
     ++tinfo->prepare;
 
+    prepared_id = __wt_atomic_add_uint64_v(&g.prepared_id, 1);
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_prepare_ts(tinfo);
     else
         /*
-         * Prepare timestamps must be less than or equal to the eventual commit timestamp. Set the
-         * prepare timestamp to whatever the global value is now. The subsequent commit will
-         * increment it, ensuring correctness.
+         * Prepare timestamps must be less than or equal to the eventual commit timestamp but larger
+         * than the current stable timestamp. Increase the global value to ensure it is larger than
+         * the stable timestamp. The subsequent commit will increment it again, ensuring
+         * correctness.
          */
-        ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
+        ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
+    testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);
 
-    trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64, ts);
+    trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64 ", prepared id=%" PRIu64, ts, prepared_id);
 
     return (ret);
 }
@@ -774,7 +801,6 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             case ROW:
                 ret = row_reserve(tinfo, positioned);
                 break;
-            case FIX:
             case VAR:
                 ret = col_reserve(tinfo, positioned);
                 break;
@@ -795,7 +821,6 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         case ROW:
             ret = row_insert(tinfo, positioned);
             break;
-        case FIX:
         case VAR:
             ret = col_insert(tinfo);
             break;
@@ -808,10 +833,6 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         break;
     case MODIFY:
         switch (table->type) {
-        case FIX:
-            ++tinfo->update; /* FLCS does an update instead of a modify. */
-            ret = col_update(tinfo, positioned);
-            break;
         case ROW:
             ++tinfo->modify;
             ret = row_modify(tinfo, positioned);
@@ -846,10 +867,10 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             if (!bound_set)
                 SNAP_TRACK(tinfo, READ);
         } else {
-            clear_bounds(tinfo->cursor, tinfo->table);
+            clear_bounds(tinfo->cursor);
             OP_FAILED(true);
         }
-        clear_bounds(tinfo->cursor, tinfo->table);
+        clear_bounds(tinfo->cursor);
         break;
     case REMOVE:
         ++tinfo->remove;
@@ -857,7 +878,6 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         case ROW:
             ret = row_remove(tinfo, positioned);
             break;
-        case FIX:
         case VAR:
             ret = col_remove(tinfo, positioned);
             break;
@@ -877,7 +897,6 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         case ROW:
             ret = row_truncate(tinfo);
             break;
-        case FIX:
         case VAR:
             ret = col_truncate(tinfo);
             break;
@@ -894,7 +913,6 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         case ROW:
             ret = row_update(tinfo, positioned);
             break;
-        case FIX:
         case VAR:
             ret = col_update(tinfo, positioned);
             break;
@@ -1028,6 +1046,7 @@ ops(void *arg)
             __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
         }
 rollback_retry:
+        prepared = false;
         mirrored_truncate = false;
         if (tinfo->quit)
             break;
@@ -1143,8 +1162,8 @@ rollback_retry:
                 op = REMOVE;
                 if (TV(OPS_TRUNCATE) && tinfo->ops > truncate_op) {
                     /* Limit test runs to a maximum of 4 truncation operations at a time. */
-                    if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 4)
-                        (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
+                    if (__wt_atomic_add_uint64_v(&g.truncate_cnt, 1) > 4)
+                        (void)__wt_atomic_sub_uint64_v(&g.truncate_cnt, 1);
                     else
                         op = TRUNCATE;
 
@@ -1246,53 +1265,14 @@ rollback_retry:
             }
         }
 
-        /*
-         * If an insert or update, create a value.
-         *
-         * If the first table we're updating is FLCS and a mirrored table, use the base table (which
-         * must be ROW or VLCS), to create a value usable for any table. Because every FLCS table
-         * tracks a different number of bits, we can't figure out the specific bits we're going to
-         * use until the insert or update call that's going to do the modify.
-         *
-         * If the first table we're updating is FLCS and not a mirrored table, we use the table
-         * we're modifying and acquire the bits for the table immediately.
-         *
-         * See the column-store update/insert calls for the matching work, if the table is mirrored,
-         * we derive the bits based on the ROW/VLCS value, otherwise, there's nothing to do, we have
-         * the bits we need.
-         *
-         * If the first table we're updating isn't FLCS, generate the new value for the table, no
-         * special work is done here and the column-store insert/update calls will create derive the
-         * necessary bits if/when a mirrored FLCS table is updated in this operation.
-         */
-        if (op == INSERT || op == UPDATE) {
-            if (table->type == FIX && table->mirror)
-                val_gen(
-                  g.base_mirror, &tinfo->data_rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
-            else
-                val_gen(table, &tinfo->data_rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
-        }
+        /* If an insert or update, create a value. */
+        if (op == INSERT || op == UPDATE)
+            val_gen(table, &tinfo->data_rnd, tinfo->new_value, tinfo->keyno);
 
-        /*
-         * If modify, build a modify change vector. FLCS operations do updates instead of modifies,
-         * if we're not in a mirrored group, generate a bit value for the FLCS table. If we are in a
-         * mirrored group or not modifying an FLCS table, we'll need a change vector and we will
-         * have to modify a ROW/VLCS table first to get a new value from which we can derive the
-         * FLCS value.
-         */
-        if (op == MODIFY) {
-            if (table->type != FIX || table->mirror)
-                modify_build(tinfo);
-            else
-                val_gen(table, &tinfo->data_rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
-        }
+        /* If modify, build a modify change vector. */
+        if (op == MODIFY)
+            modify_build(tinfo);
 
-        /*
-         * For modify we haven't created the new value when we queue up the operation; we have to
-         * modify a RS or VLCS table first so we have a value from which we can set any FLCS values
-         * we need. In that case, do the modify on the base mirror table first. Then, do the
-         * operation on the selected table, then any remaining tables.
-         */
         ret = 0;
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
@@ -1302,9 +1282,7 @@ rollback_retry:
 
             /*
              * We make blind modifies and the record may not exist. If the base modify returns DNE,
-             * skip the operation. This isn't to avoid wasted work: any FLCS table in the mirrored
-             * will do an update as FLCS doesn't support modify, and we'll fail when we compare the
-             * remove to the FLCS value.
+             * skip the operation.
              *
              * For predictable replay if the record doesn't exist (that's predictable), and we must
              * force a rollback, we always finish a loop iteration in a committed or rolled back
@@ -1345,7 +1323,7 @@ skip_operation:
 
         /* Release the truncate operation counter. */
         if (op == TRUNCATE)
-            (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
+            (void)__wt_atomic_sub_uint64_v(&g.truncate_cnt, 1);
 
         /* Drain any pending column-store inserts. */
         if (g.column_store_config)
@@ -1393,7 +1371,6 @@ skip_operation:
          * If prepare configured, prepare the transaction 10% of the time. Note prepare requires a
          * timestamped world, which means we're in a snapshot-isolation transaction by definition.
          */
-        prepared = false;
         if (GV(OPS_PREPARE) && mmrand(&tinfo->data_rnd, 1, 10) == 1) {
             if ((ret = prepare_transaction(tinfo)) != 0) {
                 testutil_assert(ret == WT_ROLLBACK);
@@ -1422,7 +1399,7 @@ rollback:
                     goto loop_exit;
                 /* Force a rollback */
                 testutil_assert(intxn);
-                rollback_transaction(tinfo);
+                rollback_transaction(tinfo, prepared);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1430,7 +1407,7 @@ rollback:
                 goto rollback_retry;
             }
             __wt_yield(); /* Encourage races */
-            rollback_transaction(tinfo);
+            rollback_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, false);
             break;
         }
@@ -1457,11 +1434,10 @@ loop_exit:
  */
 static int
 read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, WT_ITEM *key,
-  WT_ITEM *value, uint8_t *bitvp, bool sn)
+  WT_ITEM *value, bool sn)
 {
     int exact, ret;
 
-    *bitvp = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     value->data = NULL;
     value->size = 0;
 
@@ -1470,7 +1446,6 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
 
     /* Retrieve the key/value pair by key. */
     switch (table->type) {
-    case FIX:
     case VAR:
         cursor->set_key(cursor, keyno);
         break;
@@ -1492,19 +1467,9 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
         ret = read_op(cursor, SEARCH, NULL);
     switch (ret) {
     case 0:
-        if (table->type == FIX)
-            testutil_check(cursor->get_value(cursor, bitvp));
-        else
-            testutil_check(cursor->get_value(cursor, value));
+        testutil_check(cursor->get_value(cursor, value));
         break;
     case WT_NOTFOUND:
-        /*
-         * Zero values at the end of the key space in fixed length stores are returned as not-found.
-         * The WiredTiger cursor has lost its position though, so we return not-found, the cursor
-         * movement can't continue.
-         */
-        if (table->type == FIX)
-            *bitvp = 0;
         break;
     }
     if (ret != 0)
@@ -1514,13 +1479,6 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
     if (!FLD_ISSET(g.trace_flags, TRACE_READ))
         return (0);
     switch (table->type) {
-    case FIX:
-        if (tinfo == NULL)
-            trace_msg(cursor->session, "read %" PRIu64 " {0x%02" PRIx8 "}", keyno, *bitvp);
-        else
-            trace_op(tinfo, "read %" PRIu64 " {0x%02" PRIx8 "}", keyno, *bitvp);
-
-        break;
     case ROW:
         if (tinfo == NULL)
             trace_msg(cursor->session, "read %" PRIu64 " {%.*s}, {%.*s}", keyno, (int)key->size,
@@ -1551,10 +1509,6 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
     WT_ITEM key;
     uint32_t lower_keyno, max_rows, upper_keyno;
 
-    /* FLCS is not supported with bounds. */
-    if (table->type == FIX)
-        return;
-
     /* Set up the default key buffer. */
     key_gen_init(&key);
     WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
@@ -1566,7 +1520,6 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
     lower_keyno = mmrand(rnd, 1, max_rows);
     /* Retrieve the key/value pair by key. */
     switch (table->type) {
-    case FIX:
     case VAR:
         cursor->set_key(cursor, lower_keyno);
         break;
@@ -1588,7 +1541,6 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
 
     /* Retrieve the key/value pair by key. */
     switch (table->type) {
-    case FIX:
     case VAR:
         cursor->set_key(cursor, upper_keyno);
         break;
@@ -1610,12 +1562,8 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
  *     Clear both the lower and upper bounds on the cursor.
  */
 static void
-clear_bounds(WT_CURSOR *cursor, TABLE *table)
+clear_bounds(WT_CURSOR *cursor)
 {
-    /* FLCS is not supported with bounds. */
-    if (table->type == FIX)
-        return;
-
     cursor->bound(cursor, "action=clear");
 }
 
@@ -1635,7 +1583,6 @@ wts_read_scan(TABLE *table, void *args)
     WT_SESSION *session;
     uint64_t keyno;
     uint32_t max_rows;
-    uint8_t bitv;
 
     testutil_assert(table != NULL);
     conn = ((READ_SCAN_ARGS *)args)->conn;
@@ -1672,7 +1619,7 @@ wts_read_scan(TABLE *table, void *args)
             apply_bounds(cursor, table, rnd);
         }
 
-        switch (ret = read_row_worker(NULL, table, cursor, keyno, &key, &value, &bitv, false)) {
+        switch (ret = read_row_worker(NULL, table, cursor, keyno, &key, &value, false)) {
         case 0:
         case WT_NOTFOUND:
         case WT_ROLLBACK:
@@ -1682,7 +1629,7 @@ wts_read_scan(TABLE *table, void *args)
         default:
             testutil_die(ret, "%s: read row %" PRIu64, __func__, keyno);
         }
-        clear_bounds(cursor, table);
+        clear_bounds(cursor);
     }
 
     wt_wrap_close_session(session);
@@ -1700,7 +1647,7 @@ read_row(TINFO *tinfo)
 {
     /* 25% of the time we call search-near. */
     return (read_row_worker(tinfo, NULL, tinfo->cursor, tinfo->keyno, tinfo->key, tinfo->value,
-      &tinfo->bitv, mmrand(&tinfo->extra_rnd, 0, 3) == 1));
+      mmrand(&tinfo->extra_rnd, 0, 3) == 1));
 }
 
 /*
@@ -1715,22 +1662,16 @@ nextprev(TINFO *tinfo, bool next)
     WT_DECL_RET;
     WT_ITEM key, value;
     uint64_t keyno;
-    uint8_t bitv;
     const char *which;
 
     table = tinfo->table;
     cursor = tinfo->cursor;
     keyno = 0;
-    bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
 
     if ((ret = read_op(cursor, next ? NEXT : PREV, NULL)) != 0)
         return (ret);
 
     switch (table->type) {
-    case FIX:
-        testutil_check(cursor->get_key(cursor, &keyno));
-        testutil_check(cursor->get_value(cursor, &bitv));
-        break;
     case ROW:
         testutil_check(cursor->get_key(cursor, &key));
         testutil_check(cursor->get_value(cursor, &value));
@@ -1744,9 +1685,6 @@ nextprev(TINFO *tinfo, bool next)
     if (FLD_ISSET(g.trace_flags, TRACE_CURSOR)) {
         which = next ? "next" : "prev";
         switch (table->type) {
-        case FIX:
-            trace_op(tinfo, "%s %" PRIu64 " {0x%02" PRIx8 "}", which, keyno, bitv);
-            break;
         case ROW:
             trace_op(tinfo, "%s {%.*s}, {%.*s}", which, (int)key.size, (char *)key.data,
               (int)value.size, (char *)value.data);
@@ -2004,31 +1942,19 @@ row_update(TINFO *tinfo, bool positioned)
 static int
 col_update(TINFO *tinfo, bool positioned)
 {
-    TABLE *table;
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    table = tinfo->table;
     cursor = tinfo->cursor;
-
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
-    if (table->type == FIX) {
-        /* Mirrors will not have set the FLCS value. */
-        if (table->mirror)
-            val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
-        cursor->set_value(cursor, tinfo->bitv);
-    } else
-        cursor->set_value(cursor, tinfo->new_value);
+    cursor->set_value(cursor, tinfo->new_value);
 
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
 
-    if (table->type == FIX)
-        trace_op(tinfo, "update %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno, tinfo->bitv);
-    else
-        trace_op(tinfo, "update %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->new_value->size,
-          (char *)tinfo->new_value->data);
+    trace_op(tinfo, "update %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->new_value->size,
+      (char *)tinfo->new_value->data);
 
     return (0);
 }
@@ -2109,7 +2035,7 @@ col_insert_resolve(TABLE *table, void *arg)
             if (*p > 0 && *p <= max_rows + 1) {
                 if (*p == max_rows + 1)
                     testutil_assert(
-                      __wt_atomic_casv32(&table->rows_current, max_rows, max_rows + 1));
+                      __wt_atomic_cas_uint32_v(&table->rows_current, max_rows, max_rows + 1));
                 *p = 0;
                 --cip->insert_list_cnt;
                 break;
@@ -2162,14 +2088,7 @@ col_insert(TINFO *tinfo)
     cip = &tinfo->col_insert[table->id - 1];
     if (cip->insert_list_cnt >= WT_ELEMENTS(cip->insert_list))
         return (WT_ROLLBACK);
-
-    if (table->type == FIX) {
-        /* Mirrors will not have set the FLCS value. */
-        if (table->mirror)
-            val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
-        cursor->set_value(cursor, tinfo->bitv);
-    } else
-        cursor->set_value(cursor, tinfo->new_value);
+    cursor->set_value(cursor, tinfo->new_value);
 
     /* Create a record, then add the key to our list of new records for later resolution. */
     if ((ret = cursor->insert(cursor)) != 0)
@@ -2179,11 +2098,8 @@ col_insert(TINFO *tinfo)
 
     col_insert_add(tinfo); /* Extend the object. */
 
-    if (table->type == FIX)
-        trace_op(tinfo, "insert %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno, tinfo->bitv);
-    else
-        trace_op(tinfo, "insert %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->new_value->size,
-          (char *)tinfo->new_value->data);
+    trace_op(tinfo, "insert %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->new_value->size,
+      (char *)tinfo->new_value->data);
 
     return (0);
 }

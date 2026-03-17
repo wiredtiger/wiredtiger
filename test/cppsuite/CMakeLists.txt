@@ -1,5 +1,3 @@
-project(cppsuite CXX)
-
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
     src/bound/bound.cpp
@@ -62,6 +60,12 @@ create_test_executable(test_live_restore
 # frowned upon.
 create_test_executable(csuite_style_example_test
     SOURCES tests/csuite_style_example_test.cpp
+    LIBS cppsuite_test_harness
+    CXX
+)
+
+create_test_executable(test_disagg_failover_perf
+    SOURCES tests/test_disagg_failover_perf.cpp
     LIBS cppsuite_test_harness
     CXX
 )

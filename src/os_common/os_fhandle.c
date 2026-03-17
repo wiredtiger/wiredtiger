@@ -138,7 +138,7 @@ __handle_search(WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH 
     if (!found && newfh != NULL) {
         newfh->name_hash = hash;
         WT_FILE_HANDLE_INSERT(conn, newfh, bucket);
-        (void)__wt_atomic_add32(&conn->open_file_count, 1);
+        (void)__wt_atomic_add_uint32(&conn->open_file_count, 1);
 
         ++newfh->ref;
         *fhp = newfh;
@@ -222,17 +222,16 @@ err:
 }
 
 /*
- * __wt_open --
- *     Open a file handle.
+ * __open_fs --
+ *     Open a file handle with a known file system
  */
-int
-__wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags,
-  WT_FH **fhp)
+static int
+__open_fs(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags,
+  WT_FILE_SYSTEM *file_system, WT_FH **fhp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_FH *fh;
-    WT_FILE_SYSTEM *file_system;
     char *path;
     bool lock_file, open_called;
 
@@ -241,7 +240,6 @@ __wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_
     *fhp = NULL;
 
     conn = S2C(session);
-    file_system = __wt_fs_file_system(session);
     fh = NULL;
     open_called = false;
     path = NULL;
@@ -265,7 +263,7 @@ __wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_
      *
      * The only file created in read-only mode is the lock file.
      */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY)) {
+    if (F_ISSET(conn, WT_CONN_READONLY)) {
         lock_file = strcmp(name, WT_SINGLETHREAD) == 0;
         if (!lock_file)
             LF_SET(WT_FS_OPEN_READONLY);
@@ -302,6 +300,20 @@ err:
 }
 
 /*
+ * __wt_open --
+ *     Open a file handle.
+ */
+int
+__wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags,
+  WT_FH **fhp)
+{
+    WT_FILE_SYSTEM *file_system;
+
+    file_system = __wt_fs_file_system(session);
+    return (__open_fs(session, name, file_type, flags, file_system, fhp));
+}
+
+/*
  * __handle_close --
  *     Final close of a handle.
  */
@@ -320,7 +332,7 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
     /* Remove from the list. */
     bucket = fh->name_hash & (conn->hash_size - 1);
     WT_FILE_HANDLE_REMOVE(conn, fh, bucket);
-    (void)__wt_atomic_sub32(&conn->open_file_count, 1);
+    (void)__wt_atomic_sub_uint32(&conn->open_file_count, 1);
 
     if (locked)
         __wt_spin_unlock(session, &conn->fh_lock);

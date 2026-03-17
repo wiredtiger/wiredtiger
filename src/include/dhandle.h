@@ -21,6 +21,33 @@
 
 #define WT_WITH_BTREE(s, b, e) WT_WITH_DHANDLE(s, (b)->dhandle, e)
 
+/* The number of dhandle clears we want to record. */
+#define WT_CLEAR_EVENT_MAX 10
+
+/*
+ * Information a single line of code that cleared a dhandle. This is primarily a debugging aid.
+ */
+struct __wt_dhandle_clear_event {
+    const char *file; /* The file where the error occurred. */
+    const char *func; /* The function where the error occurred. */
+    int line;         /* The line number. */
+};
+
+/* The log itself. A circular buffer of clear events. */
+struct __wt_dhandle_clear_log {
+    int count;
+    int head;
+    int tail;
+    WT_DHANDLE_CLEAR_EVENT log[WT_CLEAR_EVENT_MAX];
+};
+
+/* Centralized place to clear handles, to enable tracking. */
+#define WT_DHANDLE_CLEAR(s)                                                                       \
+    do {                                                                                          \
+        (s)->dhandle = NULL;                                                                      \
+        __wt_dhandle_clear_add(&(s)->dhandle_clear_log, __FILE__, __PRETTY_FUNCTION__, __LINE__); \
+    } while (0)
+
 /* Call a function without the caller's data handle, restore afterwards. */
 #define WT_WITHOUT_DHANDLE(s, e) WT_WITH_DHANDLE(s, NULL, e)
 
@@ -34,15 +61,17 @@
     (F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN))
 
 /* Check if a handle could be reopened. */
-#define WT_DHANDLE_CAN_REOPEN(dhandle) \
-    (F_MASK(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN) == WT_DHANDLE_OPEN)
+#define WT_DHANDLE_CAN_REOPEN(dhandle)                                                           \
+    (F_MASK(                                                                                     \
+       dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN | WT_DHANDLE_OUTDATED) == \
+      WT_DHANDLE_OPEN)
 
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
 
-#define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->references, 1)
+#define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add_uint32(&(dhandle)->references, 1)
 
-#define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->references, 1)
+#define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub_uint32(&(dhandle)->references, 1)
 
 #define WT_DHANDLE_NEXT(session, dhandle, head, field)                                     \
     do {                                                                                   \
@@ -74,6 +103,7 @@
 
 enum wt_dhandle_type {
     WT_DHANDLE_TYPE_BTREE = 0,
+    WT_DHANDLE_TYPE_LAYERED,
     WT_DHANDLE_TYPE_TABLE,
     WT_DHANDLE_TYPE_TIERED,
     WT_DHANDLE_TYPE_TIERED_TREE
@@ -117,9 +147,9 @@ struct __wt_data_handle {
 
     wt_shared enum wt_dhandle_type type;
 
-#define WT_DHANDLE_BTREE(dhandle)                                        \
-    (__wt_atomic_load_enum(&(dhandle)->type) == WT_DHANDLE_TYPE_BTREE || \
-      __wt_atomic_load_enum(&(dhandle)->type) == WT_DHANDLE_TYPE_TIERED)
+#define WT_DHANDLE_BTREE(dhandle)                                                \
+    (__wt_atomic_load_enum_relaxed(&(dhandle)->type) == WT_DHANDLE_TYPE_BTREE || \
+      __wt_atomic_load_enum_relaxed(&(dhandle)->type) == WT_DHANDLE_TYPE_TIERED)
 
     bool compact_skip; /* If the handle failed to compact */
 
@@ -141,14 +171,16 @@ struct __wt_data_handle {
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DHANDLE_DEAD 0x001u         /* Dead, awaiting discard */
-#define WT_DHANDLE_DISCARD 0x002u      /* Close on release */
-#define WT_DHANDLE_DISCARD_KILL 0x004u /* Mark dead on release */
-#define WT_DHANDLE_DROPPED 0x008u      /* Handle is dropped */
-#define WT_DHANDLE_EXCLUSIVE 0x010u    /* Exclusive access */
-#define WT_DHANDLE_HS 0x020u           /* History store table */
-#define WT_DHANDLE_IS_METADATA 0x040u  /* Metadata handle */
-#define WT_DHANDLE_LOCK_ONLY 0x080u    /* Handle only used as a lock */
-#define WT_DHANDLE_OPEN 0x100u         /* Handle is open */
+#define WT_DHANDLE_DISAGG_META 0x002u  /* Disaggregated storage metadata */
+#define WT_DHANDLE_DISCARD 0x004u      /* Close on release */
+#define WT_DHANDLE_DISCARD_KILL 0x008u /* Mark dead on release */
+#define WT_DHANDLE_DROPPED 0x010u      /* Handle is dropped */
+#define WT_DHANDLE_EXCLUSIVE 0x020u    /* Exclusive access */
+#define WT_DHANDLE_HS 0x040u           /* History store table */
+#define WT_DHANDLE_IS_METADATA 0x080u  /* Metadata handle */
+#define WT_DHANDLE_LOCK_ONLY 0x100u    /* Handle only used as a lock */
+#define WT_DHANDLE_OPEN 0x200u         /* Handle is open */
+#define WT_DHANDLE_OUTDATED 0x400u     /* Handle is outdated */
                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 12 */
     uint16_t flags;
 

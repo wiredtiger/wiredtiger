@@ -34,7 +34,7 @@
 #   Transactions: test recovery with corrupted log files
 #
 
-import os
+import os, re
 from wtscenario import make_scenarios
 from suite_subprocess import suite_subprocess
 import helper, wiredtiger, wttest
@@ -57,6 +57,7 @@ def corrupt(fname, truncate, offset, writeit):
         if writeit:
             log.write(writeit)
 
+@wttest.skip_for_hook("disagg", "corrupts log files, which are not relevant for disagg")
 class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'log=(enabled,file_max=100K,remove=false),' + \
                   'transaction_sync=(enabled,method=none),cache_size=1GB,' + \
@@ -298,6 +299,10 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
                     self.reopen_conn(newdir, self.base_config)
             else:
                 self.reopen_conn(newdir, self.base_config)
+                # The test may corrupt logs, ignore the error messages.
+                out_text = self.readStdout()
+                if re.search('log file .* corrupted record length oversize', out_text):
+                    self.cleanStdout()
             self.close_conn()
 
         found_records = self.recovered_records()

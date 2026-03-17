@@ -1,9 +1,6 @@
-project(xray_to_optrack CXX)
+cmake_minimum_required(VERSION 3.21)
 
-if("${CMAKE_VERSION}" VERSION_LESS "3.13.4")
-    message(STATUS "Skipping xray_to_optrack. LLVM CMake package requires CMake 3.13.4 minimum.")
-    return()
-endif()
+project(xray_to_optrack CXX)
 
 # We require our Clang version >= 8 to use the xray feature.
 if(NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "^(Apple)?[Cc]lang")
@@ -16,14 +13,10 @@ if(${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS "8")
 endif()
 
 # Find the LLVM package, preferencing the newest/highest package version.
-SET(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
-SET(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
-find_package(LLVM CONFIG)
+set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
+set(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
+find_package(LLVM CONFIG REQUIRED) 
 
-if(NOT LLVM_FOUND)
-    message(STATUS "Skipping xray_to_optrack. LLVM CMake package not found.")
-    return()
-endif()
 # We require at least LLVM 8 for linking against xray.
 if(${LLVM_PACKAGE_VERSION} VERSION_LESS "8")
     message(STATUS "Skipping xray_to_optrack. Requires LLVM >= 8, found LLVM ${LLVM_PACKAGE_VERSION}")

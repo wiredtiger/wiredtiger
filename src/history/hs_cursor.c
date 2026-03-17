@@ -50,9 +50,10 @@ __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
  *     for the record and return to the caller.
  */
 int
-__wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
-  const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
+__wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
+  WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
 {
+    WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(orig_hs_value_buf);
@@ -68,6 +69,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     bool upd_found;
 
+    btree = S2BT(session);
     hs_cursor = NULL;
     mod_upd = NULL;
     orig_hs_value_buf = NULL;
@@ -103,10 +105,19 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         goto done;
     }
 
-    WT_ERR_NOTFOUND_OK(__wt_curhs_open(session, NULL, &hs_cursor), true);
+    /*
+     * No shared history store checkpoint that matches the stable btree. Simply return without any
+     * data.
+     */
+    if (btree->hs_checkpoint_name == NULL && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      F_ISSET(btree, WT_BTREE_READONLY)) {
+        ret = 0;
+        goto done;
+    }
+
+    WT_ERR(__wt_curhs_open(session, btree->id, btree->hs_checkpoint_name, NULL, &hs_cursor));
     /* Do this separately for now because the behavior below is confusing if it triggers. */
-    WT_ASSERT(session, ret != WT_NOTFOUND);
-    WT_ERR(ret);
+    WT_ASSERT_ALWAYS(session, ret == 0, "missing history store for existing btree");
 
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
@@ -123,7 +134,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
                                                       txn_shared->read_timestamp;
     read_timestamp = read_timestamp == WT_TS_NONE ? WT_TS_MAX : read_timestamp;
 
-    hs_cursor->set_key(hs_cursor, 4, btree_id, key, read_timestamp, UINT64_MAX);
+    hs_cursor->set_key(hs_cursor, 4, btree->id, key, read_timestamp, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
@@ -251,6 +262,78 @@ err:
 
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
+
+    return (ret);
+}
+
+/*
+ * __wt_hs_btree_truncate --
+ *     Wipe all history store updates for the btree.
+ */
+int
+__wt_hs_btree_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
+{
+    WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_RET;
+    WT_SESSION *truncate_session;
+    wt_timestamp_t hs_start_ts;
+    uint64_t hs_counter;
+    uint32_t hs_btree_id;
+
+    hs_cursor_start = hs_cursor_stop = NULL;
+    hs_btree_id = 0;
+    truncate_session = (WT_SESSION *)session;
+
+    WT_RET(__wt_scr_alloc(session, 0, &hs_key));
+
+    /* Open a history store start cursor. */
+    WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor_start));
+    F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
+
+    hs_cursor_start->set_key(hs_cursor_start, 1, btree_id);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_start), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto done;
+    }
+
+    /* Open a history store stop cursor. */
+    WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor_stop));
+    F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
+
+    hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), true);
+
+#ifdef HAVE_DIAGNOSTIC
+    /* If we get not found, we are at the largest btree id in the history store. */
+    if (ret == 0) {
+        hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
+        WT_ASSERT(session, hs_btree_id > btree_id);
+    }
+#endif
+
+    do {
+        WT_ASSERT(session, ret == WT_NOTFOUND || hs_btree_id > btree_id);
+
+        WT_ERR_NOTFOUND_OK(hs_cursor_stop->prev(hs_cursor_stop), true);
+        /* We can find the start point then we must be able to find the stop point. */
+        if (ret == WT_NOTFOUND)
+            WT_ERR_PANIC(
+              session, ret, "cannot locate the stop point to truncate the history store.");
+        hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
+    } while (hs_btree_id != btree_id);
+
+    WT_ERR(
+      truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
+
+done:
+err:
+    __wt_scr_free(session, &hs_key);
+    if (hs_cursor_start != NULL)
+        WT_TRET(hs_cursor_start->close(hs_cursor_start));
+    if (hs_cursor_stop != NULL)
+        WT_TRET(hs_cursor_stop->close(hs_cursor_stop));
 
     return (ret);
 }

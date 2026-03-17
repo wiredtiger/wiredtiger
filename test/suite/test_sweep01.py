@@ -44,15 +44,14 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
     numkv = 1000
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
                   'close_idle_time=3,close_scan_interval=1),' + \
-                  'statistics=(fast),operation_tracking=(enabled=false),'
+                  'statistics=(fast),operation_tracking=(enabled=false),' + \
+                  'verbose=(sweep:2)'
 
     types = [
         ('row', dict(tabletype='row',
                     create_params = 'key_format=i,value_format=i')),
         ('var', dict(tabletype='var',
                     create_params = 'key_format=r,value_format=i')),
-        ('fix', dict(tabletype='fix',
-                    create_params = 'key_format=r,value_format=8t')),
     ]
 
     scenarios = make_scenarios(types)

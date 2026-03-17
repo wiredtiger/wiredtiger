@@ -8,6 +8,94 @@
 
 #include "wt_internal.h"
 
+/* !!!
+ * __wti_config_parse_dec --
+ *     Parse a decimal number from a string up to a specified length.
+ *
+ *     This function is designed to be a drop-in replacement for strtoll, but
+ *     with a length argument.
+ *
+ *     Return value:
+ *      - If successful, an integer value corresponding to the contents of str
+ *        is returned.
+ *      - If the converted value falls out of range, a range error occurs
+ *        (setting errno to ERANGE) and INT64_MAX or INT64_MIN is returned.
+ *      - If no conversion can be performed, 0 is returned.
+ *
+ *     The endptr is updated to point to the character after the last character
+ *     used in the conversion.
+ *     If no conversion is performed, endptr is set to str.
+ */
+int64_t
+__wti_config_parse_dec(const char *str, size_t len, char **endptr)
+{
+    const char *cur = str;
+    const char *end = str + len;
+    bool neg = false;
+
+    /*
+     * Skip leading spaces and pick up optional sign.
+     */
+    while (cur < end && __wt_isspace((u_char)*cur))
+        ++cur;
+
+    if (cur < end) {
+        if (*cur == '-') {
+            neg = true;
+            ++cur;
+        } else if (*cur == '+')
+            ++cur;
+    }
+
+    /* Parsing state */
+    typedef enum { S_NAN, S_DIGITS, S_ERANGE } STATE;
+
+    /*
+     * Calculate:
+     *  - cutoff: largest valid number without last digit,
+     *  - cutlim: last digit limit.
+     * All numbers are positive.
+     */
+    const uint64_t maxval = neg ? -(uint64_t)INT64_MIN : INT64_MAX;
+    const uint64_t cutoff = maxval / 10;
+    const int cutlim = maxval % 10;
+
+    uint64_t acc = 0;
+    STATE state = S_NAN;
+    while (cur < end) {
+        int c = *cur;
+
+        if (__wt_isdigit((u_char)c)) {
+            c -= '0';
+            ++cur;
+        } else
+            break;
+
+        if (state == S_ERANGE || acc > cutoff || (acc == cutoff && c > cutlim)) {
+            /*
+             * Overflow or underflow. No stopping here, keep parsing to find the end of the number.
+             */
+            state = S_ERANGE;
+        } else {
+            state = S_DIGITS;
+            acc *= 10;
+            acc += (uint64_t)c;
+        }
+    }
+
+    int64_t value = 0;
+    if (state == S_ERANGE) {
+        value = neg ? INT64_MIN : INT64_MAX;
+        errno = ERANGE;
+    } else
+        value = neg ? -(int64_t)acc : (int64_t)acc;
+
+    if (endptr != NULL)
+        *endptr = (char *)(state != S_NAN ? cur : str);
+
+    return (value);
+}
+
 /*
  * __config_err --
  *     Error message and return for config string parse failures.
@@ -250,10 +338,10 @@ static const int8_t goutf8_continue[256] = {A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A
  *	static void *goesc[] =
  *	{
  *		[0 ... 255] = &&l_bad,
- *		['"'] = &&l_unesc, ['\\'] = &&l_unesc,
- *		['/'] = &&l_unesc, ['b'] = &&l_unesc,
- *		['f'] = &&l_unesc, ['n'] = &&l_unesc,
- *		['r'] = &&l_unesc, ['t'] = &&l_unesc, ['u'] = &&l_unesc
+ *		['"'] = &&l_unesc, ['/'] = &&l_unesc, ['\\'] = &&l_unesc,
+ *		['a'] = &&l_unesc, ['b'] = &&l_unesc, ['f'] = &&l_unesc,
+ *      ['n'] = &&l_unesc, ['r'] = &&l_unesc, ['t'] = &&l_unesc,
+ *      ['u'] = &&l_unesc, ['v'] = &&l_unesc,
  *	};
  */
 static const int8_t goesc[256] = {A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
@@ -263,9 +351,9 @@ static const int8_t goesc[256] = {A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BA
   A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
   A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
   A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
-  A_BAD, A_UNESC, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_UNESC, A_BAD, A_BAD, A_BAD, A_UNESC, A_BAD,
+  A_BAD, A_UNESC, A_BAD, A_BAD, A_BAD, A_BAD, A_UNESC, A_UNESC, A_BAD, A_BAD, A_BAD, A_UNESC, A_BAD,
   A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_UNESC, A_BAD, A_BAD, A_BAD, A_UNESC, A_BAD, A_UNESC,
-  A_UNESC, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
+  A_UNESC, A_UNESC, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
   A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
   A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
   A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD, A_BAD,
@@ -303,7 +391,18 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
             break;
 
         case A_BAD:
-            return (__config_err(conf, "Unexpected character", EINVAL));
+            switch (*conf->cur) {
+            case '\a':
+            case '\b':
+            case '\f':
+            case '\n':
+            case '\r':
+            case '\t':
+            case '\v':
+                return (__config_err(conf, "Unexpected escaped character", EINVAL));
+            default:
+                return (__config_err(conf, "Unexpected character", EINVAL));
+            }
 
         case A_DOWN:
             if (conf->top == -1)
@@ -408,11 +507,14 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
     if (conf->depth <= conf->top && key->len > 0)
         return (0);
 
-    /* We're either at the end of the string or we failed to parse. */
-    if (conf->depth == 0)
-        return (WT_NOTFOUND);
+    if (key->len == 0 && conf->go == gostring)
+        return (__config_err(conf, "Unbalanced quotes", EINVAL));
 
-    return (__config_err(conf, "Unbalanced brackets", EINVAL));
+    if (conf->depth != 0)
+        return (__config_err(conf, "Unbalanced brackets", EINVAL));
+
+    /* We're either at the end of the string or we failed to parse. */
+    return (WT_NOTFOUND);
 }
 
 /*
@@ -452,7 +554,7 @@ __config_process_value(WT_CONFIG_ITEM *value)
         }
     } else if (value->type == WT_CONFIG_ITEM_NUM) {
         errno = 0;
-        value->val = strtoll(value->str, &endptr, 10);
+        value->val = __wti_config_parse_dec(value->str, value->len, &endptr);
 
         /*
          * If we parsed the string but the number is out of range, treat the value as an identifier.
@@ -510,7 +612,7 @@ nonum:
 int
 __wt_config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 {
-    WT_RET(__config_next(conf, key, value));
+    WT_RET_NOLOG(__config_next(conf, key, value));
     __config_process_value(value);
     return (0);
 }

@@ -38,11 +38,10 @@ from wtscenario import make_scenarios
 # middle of reading a checkpoint.
 
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
+@wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
@@ -50,8 +49,14 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named', dict(first_checkpoint='first_checkpoint')),
         ('unnamed', dict(first_checkpoint=None)),
     ]
-    scenarios = make_scenarios(format_values, name_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
+        ('precise', dict(ckpt_config='precise_checkpoint=true')),
+    ]
+    scenarios = make_scenarios(format_values, name_values, ckpt_precision)
 
+    def conn_config(self):
+        return self.ckpt_config
 
     def large_updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
@@ -122,12 +127,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 5.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +

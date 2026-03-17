@@ -13,7 +13,7 @@ if not [f for f in filter_if_fast([
             "../src/include/conf.h"
             "../src/include/conf_keys.h"
             "../src/include/config.h"
-            "../src/include/wiredtiger.in",
+            "../src/include/wiredtiger.h.in",
         ], prefix="../")]:
     sys.exit(0)
 
@@ -34,9 +34,9 @@ else:
 tmp_file = '__tmp_apiconfig' + str(os.getpid())
 
 #####################################################################
-# Update wiredtiger.in with doxygen comments
+# Update wiredtiger.h.in with doxygen comments
 #####################################################################
-f='../src/include/wiredtiger.in'
+f='../src/include/wiredtiger.h.in'
 tfile = open(tmp_file, 'w')
 
 whitespace_re = re.compile(r'\s+')
@@ -51,8 +51,12 @@ class KeyNumber:
         if not name in self.numbering:
             self.numbering[name] = len(self.numbering)
 
+    def has(self, name):
+        return name in self.numbering
+
     def get(self, name):
-        return self.numbering[name]
+        if self.has(name):
+            return self.numbering[name]
 
     def count(self):
         return len(self.numbering)
@@ -239,6 +243,13 @@ def add_conf_keys_one(c, conf_keys):
     ctype = gettype(c)
     idname = gen_id_name(c.name, ctype)
     if ctype == 'category':
+        # FIXME-WT-15615: We should implement a better way to handle duplicate
+        # config names than appending a suffix.
+        if idname in conf_keys and idname == 'Prefetch':
+            # If duplicated config name is found for prefetch, append a suffix
+            # to make it unique. This is to make compiled configuration work.
+            suffix = 1
+            idname = idname + str(suffix)
         subconf_keys = dict()
         add_conf_keys(c.subconfig, subconf_keys, False)
         conf_keys[idname] = subconf_keys
@@ -278,6 +289,13 @@ def add_keys(keynumber, configs, prefix):
     for c in configs:
         ty = gettype(c)
         idname = gen_id_name(c.name, ty)
+        # FIXME-WT-15615: We should implement a better way to handle duplicate
+        # config names than appending a suffix.
+        if keynumber.has(idname) and idname == 'Prefetch':
+            # If duplicated config name is found for prefetch, append a suffix
+            # to make it unique. This is to make compiled configuration work.
+            suffix = 1
+            idname = idname + str(suffix)
         keynumber.add(idname)
         if not c.name in config_key:
             config_names[c.name] = c.name
@@ -348,7 +366,7 @@ if not test_config:
 
     tfile.close()
     compare_srcfile(tmp_file, f)
-    # Don't add wiredtiger.in to the clang_format list.
+    # Don't add wiredtiger.h.in to the clang_format list.
 
 #####################################################################
 # Create config_def.c with defaults for each config string

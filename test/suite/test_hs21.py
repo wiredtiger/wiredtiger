@@ -48,10 +48,11 @@ class test_hs21(wttest.WiredTigerTestCase):
     nrows = 1000
 
     format_values = [
-        ('column', dict(key_format='r', key1=1, key2=2, value_format='S')),
-        ('column-fix', dict(key_format='r', key1=1, key2=2, value_format='8t')),
-        ('string-row', dict(key_format='S', key1=str(0), key2=str(1), value_format='S')),
+        ('column', dict(key_format='r', key1=1, key2=2)),
+        ('string-row', dict(key_format='S', key1=str(0), key2=str(1))),
     ]
+
+    value_format='S'
 
     scenarios = make_scenarios(format_values)
 
@@ -65,9 +66,7 @@ class test_hs21(wttest.WiredTigerTestCase):
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
-    def check(self, session, check_value, uri, nrows, read_ts=-1, flcs_nrows=None):
-        if self.value_format != '8t':
-            flcs_nrows = None
+    def check(self, session, check_value, uri, nrows, read_ts=-1):
 
         # Validate we read an expected value (optionally at a given read timestamp).
         if read_ts != -1:
@@ -75,14 +74,11 @@ class test_hs21(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
-            if flcs_nrows is not None and count >= nrows:
-                self.assertEqual(v, 0)
-            else:
-                self.assertEqual(v, check_value)
+            self.assertEqual(v, check_value)
             count += 1
         if read_ts != -1:
             session.rollback_transaction()
-        self.assertEqual(count, flcs_nrows if flcs_nrows is not None else nrows)
+        self.assertEqual(count, nrows)
         cursor.close()
 
     def parse_run_write_gen(self, uri):
@@ -104,18 +100,16 @@ class test_hs21(wttest.WiredTigerTestCase):
     def test_hs(self):
         active_files = []
 
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 100
-        else:
-            value1 = 'a' * 500
-            value2 = 'd' * 500
+        value1 = 'a' * 500
+        value2 = 'd' * 500
 
         # Set up 'numfiles' with 'numrows' entries. We want to create a number of files that
         # contain active history (content newer than the oldest timestamp).
         for f in range(self.numfiles):
             table_uri = 'table:%s.%d' % (self.file_name, f)
             file_uri = 'file:%s.%d.wt' % (self.file_name, f)
+            if self.key_format == 'S' and self.runningHook('disagg'):
+                file_uri += '_stable'
             # Create a small table.
             ds = SimpleDataSet(
                 self, table_uri, 0, key_format=self.key_format, value_format=self.value_format,
@@ -152,7 +146,7 @@ class test_hs21(wttest.WiredTigerTestCase):
             # Load more data with a later timestamp.
             self.large_updates(ds.uri, value2, ds, self.nrows, 100)
             # Check that the new updates are only seen after the update timestamp.
-            self.check(self.session, value1, ds.uri, self.nrows // 2, 2, flcs_nrows=self.nrows)
+            self.check(self.session, value1, ds.uri, self.nrows // 2, 2)
             self.check(self.session, value2, ds.uri, self.nrows, 100)
 
         # Set the stable timestamp to 100 to let checkpoint write all the stable data.
@@ -201,7 +195,7 @@ class test_hs21(wttest.WiredTigerTestCase):
         # handles have been closed.
         for (_, ds) in active_files:
             # Check that all updates at timestamp 2 are seen.
-            self.check(session_read, value1, ds.uri, self.nrows // 2, flcs_nrows=self.nrows)
+            self.check(session_read, value1, ds.uri, self.nrows // 2)
         session_read.rollback_transaction()
 
         # Perform a series of checks over our files to ensure that our transactions have been written
@@ -212,6 +206,8 @@ class test_hs21(wttest.WiredTigerTestCase):
             # Check that the most recent transaction has the correct data.
             self.check(self.session, value2, ds.uri, self.nrows, 100)
             file_uri = 'file:%s.%d.wt' % (self.file_name, idx)
+            if self.key_format == 'S' and self.runningHook('disagg'):
+                file_uri += '_stable'
             # Get the current base_write_gen and ensure it hasn't changed since being
             # closed.
             base_write_gen = self.parse_run_write_gen(file_uri)

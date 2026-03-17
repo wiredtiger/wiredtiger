@@ -178,6 +178,9 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
  * The read statistics are separated into data-source or connection statistics as the counter slots
  * for the statistics are separate. The write statistics do not rely on counter slots in this way so
  * they do not need to be split.
+ *
+ * FIXME-WT-15752: Remove __wt_tsan_suppress_* wrappers and implement proper atomics synchronization
+ * where needed.
  */
 #define WT_STAT_ENABLED(session) (S2C(session)->stat_flags != 0)
 
@@ -186,36 +189,37 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
 #define WT_STAT_DSRC_READ(stats, fld) \
     __wt_stats_aggregate_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
 #define WT_STAT_SESSION_READ(stats, fld) ((stats)->fld)
-#define WT_STAT_WRITE(session, stats, fld, v) \
-    do {                                      \
-        if (WT_STAT_ENABLED(session))         \
-            (stats)->fld = (int64_t)(v);      \
+#define WT_STAT_WRITE(session, stats, fld, v)                            \
+    do {                                                                 \
+        if (WT_STAT_ENABLED(session))                                    \
+            __wt_tsan_suppress_store_int64(&(stats)->fld, (int64_t)(v)); \
     } while (0)
 
-#define WT_STAT_SET_BASE(session, stat, fld, value) \
-    do {                                            \
-        if (WT_STAT_ENABLED(session))               \
-            (stat)->fld = (int64_t)(value);         \
+#define WT_STAT_SET_BASE(session, stat, fld, value)                         \
+    do {                                                                    \
+        if (WT_STAT_ENABLED(session))                                       \
+            __wt_tsan_suppress_store_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
-#define WT_STAT_DECRV_BASE(session, stat, fld, value) \
-    do {                                              \
-        if (WT_STAT_ENABLED(session))                 \
-            (stat)->fld -= (int64_t)(value);          \
+#define WT_STAT_DECRV_BASE(session, stat, fld, value)                     \
+    do {                                                                  \
+        if (WT_STAT_ENABLED(session))                                     \
+            __wt_tsan_suppress_sub_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
-#define WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value)          \
-    do {                                                              \
-        if (WT_STAT_ENABLED(session))                                 \
-            (void)__wt_atomic_subi64(&(stat)->fld, (int64_t)(value)); \
+/* FIXME-WT-15754: Consider using relaxed memory order for all statistic operations. */
+#define WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value)             \
+    do {                                                                 \
+        if (WT_STAT_ENABLED(session))                                    \
+            (void)__wt_atomic_sub_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
-#define WT_STAT_INCRV_BASE(session, stat, fld, value) \
-    do {                                              \
-        if (WT_STAT_ENABLED(session))                 \
-            (stat)->fld += (int64_t)(value);          \
+#define WT_STAT_INCRV_BASE(session, stat, fld, value)                     \
+    do {                                                                  \
+        if (WT_STAT_ENABLED(session))                                     \
+            __wt_tsan_suppress_add_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
-#define WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value)          \
-    do {                                                              \
-        if (WT_STAT_ENABLED(session))                                 \
-            (void)__wt_atomic_addi64(&(stat)->fld, (int64_t)(value)); \
+#define WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value)             \
+    do {                                                                 \
+        if (WT_STAT_ENABLED(session))                                    \
+            (void)__wt_atomic_add_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
 
 /*
@@ -242,6 +246,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
 
+/* FIXME-WT-15961 Introduce thread-safe stats interfaces. */
 #define WT_STATP_CONN_SET(session, stats, fld, value)                           \
     do {                                                                        \
         if (WT_STAT_ENABLED(session)) {                                         \
@@ -425,8 +430,12 @@ struct __wt_connection_stats {
     int64_t background_compact_ema;
     int64_t background_compact_bytes_recovered;
     int64_t background_compact_running;
-    int64_t background_compact_exclude;
+    int64_t background_compact_skipped_exclude;
+    int64_t background_compact_skipped_small_file;
     int64_t background_compact_skipped;
+    int64_t background_compact_skipped_unsuccessful;
+    int64_t background_compact_skipped_no_such_file;
+    int64_t background_compact_skipped_missing_permissions;
     int64_t background_compact_sleep_cache_pressure;
     int64_t background_compact_success;
     int64_t background_compact_timeout;
@@ -462,6 +471,16 @@ struct __wt_connection_stats {
     int64_t block_cache_bytes;
     int64_t block_cache_bytes_insert_read;
     int64_t block_cache_bytes_insert_write;
+    int64_t disagg_block_hs_byte_read;
+    int64_t disagg_block_hs_byte_write;
+    int64_t disagg_block_get;
+    int64_t disagg_block_get_cold;
+    int64_t disagg_block_hs_get;
+    int64_t disagg_block_page_discard;
+    int64_t disagg_block_put;
+    int64_t disagg_block_put_cold;
+    int64_t disagg_block_hs_put;
+    int64_t disagg_block_read_ahead_frontier;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
@@ -472,6 +491,8 @@ struct __wt_connection_stats {
     int64_t block_byte_read_leaf_disk;
     int64_t block_byte_read_mmap;
     int64_t block_byte_read_syscall;
+    int64_t block_byte_write_saved_delta_intl;
+    int64_t block_byte_write_saved_delta_leaf;
     int64_t block_byte_write;
     int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
@@ -483,24 +504,49 @@ struct __wt_connection_stats {
     int64_t block_byte_write_syscall;
     int64_t block_map_read;
     int64_t block_byte_map_read;
+    int64_t block_byte_write_intl_delta_lt20;
+    int64_t block_byte_write_intl_delta_lt40;
+    int64_t block_byte_write_intl_delta_lt60;
+    int64_t block_byte_write_intl_delta_lt80;
+    int64_t block_byte_write_intl_delta_lt100;
+    int64_t block_byte_write_intl_delta_gt100;
+    int64_t block_byte_write_leaf_delta_lt20;
+    int64_t block_byte_write_leaf_delta_lt40;
+    int64_t block_byte_write_leaf_delta_lt60;
+    int64_t block_byte_write_leaf_delta_lt80;
+    int64_t block_byte_write_leaf_delta_lt100;
+    int64_t block_byte_write_leaf_delta_gt100;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t block_first_srch_walk_time;
     int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
+    int64_t cache_eviction_app_threads_fill_ratio_lt_25;
+    int64_t cache_eviction_app_threads_fill_ratio_25_50;
+    int64_t cache_eviction_app_threads_fill_ratio_50_75;
+    int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
     int64_t cache_bytes_updates;
+    int64_t cache_bytes_updates_ingest;
+    int64_t cache_bytes_updates_stable;
     int64_t cache_bytes_image;
+    int64_t cache_bytes_image_ingest;
+    int64_t cache_bytes_image_stable;
     int64_t cache_bytes_hs;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_other;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
+    int64_t cache_tolerance_level;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_bytes_hs_dirty;
+    int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t eviction_server_evict_attempt;
     int64_t eviction_worker_evict_attempt;
     int64_t eviction_server_evict_fail;
@@ -518,23 +564,49 @@ struct __wt_connection_stats {
     int64_t eviction_walk_passes;
     int64_t eviction_queue_empty;
     int64_t eviction_queue_not_empty;
+    int64_t eviction_dhandle_complete_walk;
+    int64_t eviction_server_push_pages_failed_when_flaging;
+    int64_t eviction_server_race_reconfigure_disagg;
+    int64_t eviction_server_skip_intl_page_non_aggressive;
+    int64_t eviction_server_skip_pages_already_in_urgent_queue;
+    int64_t cache_eviction_blocked_prefetched;
+    int64_t eviction_root_pages_skipped;
+    int64_t eviction_server_skip_history_store_pages_with_updates_during_checkpoint;
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;
     int64_t eviction_server_skip_metatdata_with_history;
+    int64_t eviction_server_skip_pages_checkpoint_timestamp;
     int64_t eviction_server_skip_pages_last_running;
+    int64_t eviction_server_skip_pages_prune_timestamp;
+    int64_t eviction_server_skip_pages_prune_timestamp_not_move;
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
+    int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
+    int64_t eviction_server_skip_trees_read_only;
     int64_t eviction_server_skip_trees_eviction_disabled;
     int64_t eviction_server_skip_trees_not_useful_before;
     int64_t eviction_server_slept;
     int64_t eviction_slow;
     int64_t eviction_walk_leaf_notfound;
     int64_t eviction_state;
+    int64_t eviction_threshold_cache_full_target;
+    int64_t eviction_threshold_cache_full_trigger;
+    int64_t eviction_threshold_dirty_target;
+    int64_t eviction_threshold_dirty_trigger;
+    int64_t eviction_threshold_updates_target;
+    int64_t eviction_threshold_updates_trigger;
     int64_t eviction_walk_sleeps;
+    int64_t cache_eviction_pages_queued_updates;
+    int64_t cache_eviction_pages_queued_clean;
+    int64_t cache_eviction_pages_queued_dirty;
+    int64_t cache_eviction_pages_seen_updates;
+    int64_t cache_eviction_pages_seen_clean;
+    int64_t cache_eviction_pages_seen_dirty;
     int64_t npos_evict_walk_max;
     int64_t eviction_restored_pos;
     int64_t eviction_restored_pos_differ;
@@ -544,9 +616,9 @@ struct __wt_connection_stats {
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
-    int64_t eviction_target_strategy_both_clean_and_dirty;
     int64_t eviction_target_strategy_clean;
     int64_t eviction_target_strategy_dirty;
+    int64_t eviction_target_strategy_updates;
     int64_t eviction_walks_abandoned;
     int64_t eviction_walks_stopped;
     int64_t eviction_walks_gave_up_no_targets;
@@ -570,12 +642,15 @@ struct __wt_connection_stats {
     int64_t eviction_force_delete;
     int64_t eviction_force;
     int64_t eviction_force_fail;
+    int64_t cache_eviction_blocked_prune_timestamp;
     int64_t cache_eviction_blocked_hazard;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
+    int64_t cache_hs_key_processed;
     int64_t cache_hs_ondisk_max;
     int64_t cache_hs_ondisk;
     int64_t cache_hs_read;
@@ -591,6 +666,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_btree_truncate_dryrun;
     int64_t cache_hs_key_truncate_rts_unstable_dryrun;
     int64_t cache_hs_key_truncate_rts_dryrun;
+    int64_t cache_hs_update_processed;
     int64_t cache_hs_order_reinsert;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
@@ -604,23 +680,45 @@ struct __wt_connection_stats {
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_bytes_max;
+    int64_t eviction_maximum_clean_page_size_per_checkpoint;
+    int64_t eviction_maximum_dirty_page_size_per_checkpoint;
+    int64_t eviction_maximum_unvisited_gen_gap;
+    int64_t eviction_maximum_unvisited_gen_gap_per_checkpoint;
+    int64_t eviction_maximum_visited_gen_gap;
+    int64_t eviction_maximum_visited_gen_gap_per_checkpoint;
     int64_t eviction_maximum_milliseconds;
-    int64_t eviction_maximum_page_size;
+    int64_t eviction_maximum_milliseconds_per_checkpoint;
+    int64_t eviction_maximum_attempts_to_queue_page;
+    int64_t eviction_maximum_attempts_to_evict_page;
+    int64_t eviction_maximum_updates_page_size_per_checkpoint;
     int64_t eviction_app_dirty_attempt;
     int64_t eviction_app_dirty_fail;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
     int64_t npos_read_walk_max;
+    int64_t cache_read_internal_delta;
+    int64_t cache_read_leaf_delta;
+    int64_t cache_eviction_trigger_dirty_reached;
+    int64_t cache_eviction_trigger_reached;
+    int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_cas_btree_max_lsn_race;
+    int64_t cache_obsolete_updates_removed;
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t eviction_app_attempt;
     int64_t eviction_app_fail;
+    int64_t cache_eviction_blocked_materialization;
+    int64_t cache_eviction_blocked_disagg_next_checkpoint;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
+    int64_t eviction_pages_remaining_in_queue;
     int64_t eviction_consider_prefetch;
     int64_t cache_pages_inuse;
+    int64_t cache_pages_inuse_ingest;
+    int64_t cache_pages_inuse_stable;
     int64_t cache_eviction_dirty_obsolete_tw;
+    int64_t cache_eviction_ahead_of_last_materialized_lsn;
     int64_t eviction_pages_in_parallel_with_checkpoint;
     int64_t eviction_pages_ordinary_queued;
     int64_t eviction_pages_queued_post_lru;
@@ -634,6 +732,9 @@ struct __wt_connection_stats {
     int64_t eviction_clear_ordinary;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
+    int64_t cache_pages_requested_internal;
+    int64_t cache_pages_requested_leaf;
+    int64_t cache_pages_requested_hs;
     int64_t cache_eviction_pages_seen;
     int64_t eviction_pages_already_queued;
     int64_t eviction_fail;
@@ -642,22 +743,43 @@ struct __wt_connection_stats {
     int64_t eviction_fail_checkpoint_no_ts;
     int64_t eviction_walk;
     int64_t cache_write;
-    int64_t cache_write_restore;
+    int64_t cache_write_restore_invisible;
+    int64_t cache_write_restore_scrub;
     int64_t cache_overhead;
+    int64_t cache_eviction_blocked_precise_checkpoint;
+    int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;
+    int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_hs_shared_cursor_not_cached;
+    int64_t cache_read_delta_updates;
+    int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
+    int64_t eviction_worker_lock_wait_time;
     int64_t eviction_reentry_hs_eviction_milliseconds;
     int64_t cache_bytes_internal;
+    int64_t cache_bytes_internal_ingest;
+    int64_t cache_bytes_internal_stable;
     int64_t cache_bytes_leaf;
+    int64_t cache_bytes_leaf_ingest;
+    int64_t cache_bytes_leaf_stable;
     int64_t cache_bytes_dirty;
+    int64_t cache_bytes_dirty_ingest;
+    int64_t cache_bytes_dirty_stable;
     int64_t cache_bytes_dirty_internal;
+    int64_t cache_bytes_dirty_internal_ingest;
+    int64_t cache_bytes_dirty_internal_stable;
     int64_t cache_bytes_dirty_leaf;
+    int64_t cache_bytes_dirty_leaf_ingest;
+    int64_t cache_bytes_dirty_leaf_stable;
     int64_t cache_pages_dirty;
+    int64_t cache_pages_dirty_ingest;
+    int64_t cache_pages_dirty_stable;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
+    int64_t cache_bytes_hs_updates;
     int64_t cache_updates_txn_uncommitted_bytes;
     int64_t cache_updates_txn_uncommitted_count;
     int64_t fsync_all_fh_total;
@@ -676,6 +798,16 @@ struct __wt_connection_stats {
     int64_t capacity_time_log;
     int64_t capacity_time_read;
     int64_t capacity_time_chunkcache;
+    int64_t checkpoint_cleanup_duration;
+    int64_t checkpoint_cleanup_handle_processed;
+    int64_t checkpoint_cleanup_inmem_pages_visited;
+    int64_t checkpoint_cleanup_pages_evict;
+    int64_t checkpoint_cleanup_pages_obsolete_tw;
+    int64_t checkpoint_cleanup_pages_read_reclaim_space;
+    int64_t checkpoint_cleanup_pages_read_obsolete_tw;
+    int64_t checkpoint_cleanup_pages_removed;
+    int64_t checkpoint_cleanup_pages_walk_skipped;
+    int64_t checkpoint_cleanup_pages_visited;
     int64_t checkpoint_cleanup_success;
     int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_skipped;
@@ -697,6 +829,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_skipped;
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
+    int64_t checkpoint_pages_reconciled_bytes;
     int64_t checkpoints_api;
     int64_t checkpoints_compact;
     int64_t checkpoint_sync;
@@ -705,13 +838,6 @@ struct __wt_connection_stats {
     int64_t checkpoint_pages_visited_internal;
     int64_t checkpoint_pages_visited_leaf;
     int64_t checkpoint_pages_reconciled;
-    int64_t checkpoint_cleanup_pages_evict;
-    int64_t checkpoint_cleanup_pages_obsolete_tw;
-    int64_t checkpoint_cleanup_pages_read_reclaim_space;
-    int64_t checkpoint_cleanup_pages_read_obsolete_tw;
-    int64_t checkpoint_cleanup_pages_removed;
-    int64_t checkpoint_cleanup_pages_walk_skipped;
-    int64_t checkpoint_cleanup_pages_visited;
     int64_t checkpoint_prep_running;
     int64_t checkpoint_prep_max;
     int64_t checkpoint_prep_min;
@@ -754,6 +880,7 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
+    int64_t btree_open;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;
@@ -845,6 +972,9 @@ struct __wt_connection_stats {
     int64_t cursor_update_bytes_changed;
     int64_t cursor_reopen;
     int64_t cursor_open_count;
+    int64_t cursor_open_time_user_usecs;
+    int64_t cursor_open_time_internal_usecs;
+    int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_tiered_count;
     int64_t dh_conn_handle_tiered_tree_count;
@@ -861,9 +991,40 @@ struct __wt_connection_stats {
     int64_t dh_sweep_skip_ckpt;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
+    int64_t disagg_database_size;
+    int64_t disagg_role_leader;
+    int64_t disagg_step_down_time;
+    int64_t disagg_step_up_time;
+    int64_t layered_curs_insert;
+    int64_t layered_curs_modify;
+    int64_t layered_curs_next;
+    int64_t layered_curs_next_ingest;
+    int64_t layered_curs_next_stable;
+    int64_t layered_curs_prev;
+    int64_t layered_curs_prev_ingest;
+    int64_t layered_curs_prev_stable;
+    int64_t layered_curs_remove;
+    int64_t layered_curs_search_near;
+    int64_t layered_curs_search_near_ingest;
+    int64_t layered_curs_search_near_stable;
+    int64_t layered_curs_search;
+    int64_t layered_curs_search_ingest;
+    int64_t layered_curs_search_stable;
+    int64_t layered_curs_update;
+    int64_t layered_curs_upgrade_ingest;
+    int64_t layered_curs_upgrade_stable;
+    int64_t layered_table_manager_checkpoints;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
+    int64_t layered_table_manager_logops_applied;
+    int64_t layered_table_manager_logops_skipped;
+    int64_t layered_table_manager_skip_lsn;
+    int64_t layered_table_manager_tables;
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
     int64_t live_restore_source_read_count;
+    int64_t live_restore_hist_source_read_latency_lt2;
+    int64_t live_restore_hist_source_read_latency_lt5;
     int64_t live_restore_hist_source_read_latency_lt10;
     int64_t live_restore_hist_source_read_latency_lt50;
     int64_t live_restore_hist_source_read_latency_lt100;
@@ -943,6 +1104,46 @@ struct __wt_connection_stats {
     int64_t log_compress_len;
     int64_t log_slot_coalesced;
     int64_t log_close_yields;
+    int64_t perf_hist_bmread_latency_lt2;
+    int64_t perf_hist_bmread_latency_lt5;
+    int64_t perf_hist_bmread_latency_lt10;
+    int64_t perf_hist_bmread_latency_lt50;
+    int64_t perf_hist_bmread_latency_lt100;
+    int64_t perf_hist_bmread_latency_lt250;
+    int64_t perf_hist_bmread_latency_lt500;
+    int64_t perf_hist_bmread_latency_lt1000;
+    int64_t perf_hist_bmread_latency_gt1000;
+    int64_t perf_hist_bmread_latency_total_msecs;
+    int64_t perf_hist_bmwrite_latency_lt2;
+    int64_t perf_hist_bmwrite_latency_lt5;
+    int64_t perf_hist_bmwrite_latency_lt10;
+    int64_t perf_hist_bmwrite_latency_lt50;
+    int64_t perf_hist_bmwrite_latency_lt100;
+    int64_t perf_hist_bmwrite_latency_lt250;
+    int64_t perf_hist_bmwrite_latency_lt500;
+    int64_t perf_hist_bmwrite_latency_lt1000;
+    int64_t perf_hist_bmwrite_latency_gt1000;
+    int64_t perf_hist_bmwrite_latency_total_msecs;
+    int64_t perf_hist_disaggbmread_latency_lt100;
+    int64_t perf_hist_disaggbmread_latency_lt250;
+    int64_t perf_hist_disaggbmread_latency_lt500;
+    int64_t perf_hist_disaggbmread_latency_lt1000;
+    int64_t perf_hist_disaggbmread_latency_lt2500;
+    int64_t perf_hist_disaggbmread_latency_lt5000;
+    int64_t perf_hist_disaggbmread_latency_lt10000;
+    int64_t perf_hist_disaggbmread_latency_gt10000;
+    int64_t perf_hist_disaggbmread_latency_total_usecs;
+    int64_t perf_hist_disaggbmwrite_latency_lt100;
+    int64_t perf_hist_disaggbmwrite_latency_lt250;
+    int64_t perf_hist_disaggbmwrite_latency_lt500;
+    int64_t perf_hist_disaggbmwrite_latency_lt1000;
+    int64_t perf_hist_disaggbmwrite_latency_lt2500;
+    int64_t perf_hist_disaggbmwrite_latency_lt5000;
+    int64_t perf_hist_disaggbmwrite_latency_lt10000;
+    int64_t perf_hist_disaggbmwrite_latency_gt10000;
+    int64_t perf_hist_disaggbmwrite_latency_total_usecs;
+    int64_t perf_hist_fsread_latency_lt2;
+    int64_t perf_hist_fsread_latency_lt5;
     int64_t perf_hist_fsread_latency_lt10;
     int64_t perf_hist_fsread_latency_lt50;
     int64_t perf_hist_fsread_latency_lt100;
@@ -951,6 +1152,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_fsread_latency_lt1000;
     int64_t perf_hist_fsread_latency_gt1000;
     int64_t perf_hist_fsread_latency_total_msecs;
+    int64_t perf_hist_fswrite_latency_lt2;
+    int64_t perf_hist_fswrite_latency_lt5;
     int64_t perf_hist_fswrite_latency_lt10;
     int64_t perf_hist_fswrite_latency_lt50;
     int64_t perf_hist_fswrite_latency_lt100;
@@ -959,10 +1162,30 @@ struct __wt_connection_stats {
     int64_t perf_hist_fswrite_latency_lt1000;
     int64_t perf_hist_fswrite_latency_gt1000;
     int64_t perf_hist_fswrite_latency_total_msecs;
+    int64_t perf_hist_internal_reconstruct_latency_lt100;
+    int64_t perf_hist_internal_reconstruct_latency_lt250;
+    int64_t perf_hist_internal_reconstruct_latency_lt500;
+    int64_t perf_hist_internal_reconstruct_latency_lt1000;
+    int64_t perf_hist_internal_reconstruct_latency_lt2500;
+    int64_t perf_hist_internal_reconstruct_latency_lt5000;
+    int64_t perf_hist_internal_reconstruct_latency_lt10000;
+    int64_t perf_hist_internal_reconstruct_latency_gt10000;
+    int64_t perf_hist_internal_reconstruct_latency_total_usecs;
+    int64_t perf_hist_leaf_reconstruct_latency_lt100;
+    int64_t perf_hist_leaf_reconstruct_latency_lt250;
+    int64_t perf_hist_leaf_reconstruct_latency_lt500;
+    int64_t perf_hist_leaf_reconstruct_latency_lt1000;
+    int64_t perf_hist_leaf_reconstruct_latency_lt2500;
+    int64_t perf_hist_leaf_reconstruct_latency_lt5000;
+    int64_t perf_hist_leaf_reconstruct_latency_lt10000;
+    int64_t perf_hist_leaf_reconstruct_latency_gt10000;
+    int64_t perf_hist_leaf_reconstruct_latency_total_usecs;
     int64_t perf_hist_opread_latency_lt100;
     int64_t perf_hist_opread_latency_lt250;
     int64_t perf_hist_opread_latency_lt500;
     int64_t perf_hist_opread_latency_lt1000;
+    int64_t perf_hist_opread_latency_lt2500;
+    int64_t perf_hist_opread_latency_lt5000;
     int64_t perf_hist_opread_latency_lt10000;
     int64_t perf_hist_opread_latency_gt10000;
     int64_t perf_hist_opread_latency_total_usecs;
@@ -970,6 +1193,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt250;
     int64_t perf_hist_opwrite_latency_lt500;
     int64_t perf_hist_opwrite_latency_lt1000;
+    int64_t perf_hist_opwrite_latency_lt2500;
+    int64_t perf_hist_opwrite_latency_lt5000;
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
     int64_t perf_hist_opwrite_latency_total_usecs;
@@ -991,18 +1216,55 @@ struct __wt_connection_stats {
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
+    int64_t rec_average_internal_page_delta_chain_length;
+    int64_t rec_average_leaf_page_delta_chain_length;
+    int64_t rec_page_mods_le5;
+    int64_t rec_page_mods_le10;
+    int64_t rec_page_mods_le20;
+    int64_t rec_page_mods_le50;
+    int64_t rec_page_mods_le100;
+    int64_t rec_page_mods_le200;
+    int64_t rec_page_mods_le500;
+    int64_t rec_page_mods_gt500;
+    int64_t rec_hs_wrapup_next_prev_calls;
     int64_t rec_page_delete_fast;
+    int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
+    int64_t rec_page_full_image_internal;
+    int64_t rec_page_full_image_leaf;
+    int64_t rec_ingest_keep_prepare_rollback;
+    int64_t rec_page_delta_internal_key_deleted;
+    int64_t rec_page_delta_internal_key_updated;
+    int64_t rec_page_delta_internal;
+    int64_t rec_multiblock_internal;
+    int64_t rec_page_delta_leaf;
+    int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
+    int64_t rec_max_internal_page_deltas;
+    int64_t rec_max_leaf_page_deltas;
     int64_t rec_maximum_milliseconds;
     int64_t rec_maximum_image_build_milliseconds;
     int64_t rec_maximum_hs_wrapup_milliseconds;
+    int64_t rec_ingest_garbage_collection_keys_disk_image;
+    int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_invalid_page_id;
+    int64_t rec_page_delta_rejected_max_consecutive_exceeded;
+    int64_t rec_page_delta_rejected_multiblock;
+    int64_t rec_page_delta_rejected_non_single_page;
+    int64_t rec_page_delta_rejected_size_threshold;
+    int64_t rec_page_delta_rejected_zero_entries;
+    int64_t rec_page_delta_rejected_build_failed;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
+    int64_t rec_pages_size_1MB_to_10MB;
+    int64_t rec_pages_size_10MB_to_100MB;
+    int64_t rec_pages_size_100MB_to_1GB;
+    int64_t rec_pages_size_1GB_plus;
     int64_t rec_pages_with_prepare;
     int64_t rec_pages_with_ts;
     int64_t rec_pages_with_txn;
     int64_t rec_page_delete;
+    int64_t rec_page_delta_eligible;
     int64_t rec_time_aggr_newest_start_durable_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_ts;
@@ -1017,6 +1279,8 @@ struct __wt_connection_stats {
     int64_t rec_time_window_pages_durable_stop_ts;
     int64_t rec_time_window_pages_stop_ts;
     int64_t rec_time_window_pages_stop_txn;
+    int64_t rec_pages_with_internal_deltas;
+    int64_t rec_pages_with_leaf_deltas;
     int64_t rec_time_window_prepared;
     int64_t rec_time_window_durable_start_ts;
     int64_t rec_time_window_start_ts;
@@ -1026,6 +1290,7 @@ struct __wt_connection_stats {
     int64_t rec_time_window_stop_txn;
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
+    int64_t rec_skip_write;
     int64_t local_objects_inuse;
     int64_t flush_tier_fail;
     int64_t flush_tier;
@@ -1086,6 +1351,8 @@ struct __wt_connection_stats {
     int64_t page_sleep;
     int64_t page_del_rollback_blocked;
     int64_t child_modify_blocked_page;
+    int64_t page_split_restart;
+    int64_t page_read_skip_deleted;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
@@ -1093,12 +1360,14 @@ struct __wt_connection_stats {
     int64_t txn_read_race_prepare_commit;
     int64_t txn_read_overflow_remove;
     int64_t txn_rollback_oldest_pinned;
+    int64_t txn_rollback_oldest_id;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
+    int64_t txn_rts_btrees_applied;
     int64_t txn_rts;
     int64_t txn_rts_sweep_hs_keys_dryrun;
     int64_t txn_rts_hs_stop_older_than_newer_start;
@@ -1110,6 +1379,7 @@ struct __wt_connection_stats {
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_btrees_skipped;
     int64_t txn_rts_delete_rle_skipped;
     int64_t txn_rts_stable_rle_skipped;
     int64_t txn_rts_sweep_hs_keys;
@@ -1132,11 +1402,20 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
+    int64_t txn_global_checkpoint_timestamp;
+    int64_t txn_global_durable_timestamp;
+    int64_t txn_global_last_running_timestamp;
+    int64_t txn_global_newest_timestamp;
+    int64_t txn_global_oldest_timestamp;
+    int64_t txn_global_pinned_timestamp;
+    int64_t txn_global_stable_timestamp;
+    int64_t txn_global_version_cursor_timestamp;
+    int64_t txn_pinned_readers;
     int64_t txn_pinned_range;
     int64_t txn_pinned_checkpoint_range;
-    int64_t txn_pinned_timestamp;
-    int64_t txn_pinned_timestamp_checkpoint;
-    int64_t txn_pinned_timestamp_reader;
+    int64_t txn_pinned_timestamp_lag;
+    int64_t txn_pinned_timestamp_checkpoint_lag;
+    int64_t txn_pinned_timestamp_reader_lag;
     int64_t txn_pinned_timestamp_oldest;
     int64_t txn_timestamp_oldest_active_read;
     int64_t txn_rollback_to_stable_running;
@@ -1155,6 +1434,16 @@ struct __wt_dsrc_stats {
     int64_t autocommit_update_retry;
     int64_t backup_blocks_compressed;
     int64_t backup_blocks_uncompressed;
+    int64_t disagg_block_hs_byte_read;
+    int64_t disagg_block_hs_byte_write;
+    int64_t disagg_block_get;
+    int64_t disagg_block_get_cold;
+    int64_t disagg_block_hs_get;
+    int64_t disagg_block_page_discard;
+    int64_t disagg_block_put;
+    int64_t disagg_block_put_cold;
+    int64_t disagg_block_hs_put;
+    int64_t disagg_block_read_ahead_frontier;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
@@ -1174,8 +1463,6 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_checkpoint_pages_reconciled;
     int64_t btree_compact_skipped;
-    int64_t btree_column_fix;
-    int64_t btree_column_tws;
     int64_t btree_column_internal;
     int64_t btree_column_rle;
     int64_t btree_column_deleted;
@@ -1191,6 +1478,11 @@ struct __wt_dsrc_stats {
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
     int64_t btree_row_leaf;
+    int64_t cache_eviction_app_threads_fill_ratio_lt_25;
+    int64_t cache_eviction_app_threads_fill_ratio_25_50;
+    int64_t cache_eviction_app_threads_fill_ratio_50_75;
+    int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;
@@ -1198,12 +1490,20 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t eviction_fail;
+    int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_blocked_no_progress;
+    int64_t cache_eviction_blocked_prefetched;
+    int64_t cache_eviction_pages_queued_updates;
+    int64_t cache_eviction_pages_queued_clean;
+    int64_t cache_eviction_pages_queued_dirty;
+    int64_t cache_eviction_pages_seen_updates;
+    int64_t cache_eviction_pages_seen_clean;
+    int64_t cache_eviction_pages_seen_dirty;
     int64_t eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
@@ -1211,9 +1511,12 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
+    int64_t cache_eviction_blocked_prune_timestamp;
     int64_t cache_eviction_blocked_hazard;
+    int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
+    int64_t cache_hs_key_processed;
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
@@ -1227,6 +1530,7 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_btree_truncate_dryrun;
     int64_t cache_hs_key_truncate_rts_unstable_dryrun;
     int64_t cache_hs_key_truncate_rts_dryrun;
+    int64_t cache_hs_update_processed;
     int64_t cache_hs_order_reinsert;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
@@ -1238,23 +1542,43 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
+    int64_t cache_read_internal_delta;
+    int64_t cache_read_leaf_delta;
+    int64_t cache_eviction_trigger_dirty_reached;
+    int64_t cache_eviction_trigger_reached;
+    int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_cas_btree_max_lsn_race;
+    int64_t cache_obsolete_updates_removed;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t cache_eviction_blocked_materialization;
+    int64_t cache_eviction_blocked_disagg_next_checkpoint;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t cache_eviction_dirty_obsolete_tw;
+    int64_t cache_eviction_ahead_of_last_materialized_lsn;
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
     int64_t cache_read_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
+    int64_t cache_pages_requested_internal;
+    int64_t cache_pages_requested_leaf;
+    int64_t cache_pages_requested_hs;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
-    int64_t cache_write_restore;
+    int64_t cache_write_restore_invisible;
+    int64_t cache_write_restore_scrub;
+    int64_t cache_eviction_blocked_precise_checkpoint;
+    int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;
+    int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_hs_shared_cursor_not_cached;
+    int64_t cache_read_delta_updates;
+    int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;
@@ -1283,7 +1607,6 @@ struct __wt_dsrc_stats {
     int64_t cache_state_refs_skipped;
     int64_t cache_state_root_size;
     int64_t cache_state_pages;
-    int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_cleanup_pages_evict;
     int64_t checkpoint_cleanup_pages_obsolete_tw;
     int64_t checkpoint_cleanup_pages_read_reclaim_space;
@@ -1291,6 +1614,7 @@ struct __wt_dsrc_stats {
     int64_t checkpoint_cleanup_pages_removed;
     int64_t checkpoint_cleanup_pages_walk_skipped;
     int64_t checkpoint_cleanup_pages_visited;
+    int64_t checkpoint_snapshot_acquired;
     int64_t compress_precomp_intl_max_page_size;
     int64_t compress_precomp_leaf_max_page_size;
     int64_t compress_write_fail;
@@ -1367,6 +1691,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
     int64_t cursor_open_count;
+    int64_t cursor_open_time_user_usecs;
+    int64_t cursor_open_time_internal_usecs;
     int64_t cursor_restart;
     int64_t cursor_prev;
     int64_t cursor_remove;
@@ -1380,21 +1706,81 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t layered_curs_insert;
+    int64_t layered_curs_modify;
+    int64_t layered_curs_next;
+    int64_t layered_curs_next_ingest;
+    int64_t layered_curs_next_stable;
+    int64_t layered_curs_prev;
+    int64_t layered_curs_prev_ingest;
+    int64_t layered_curs_prev_stable;
+    int64_t layered_curs_remove;
+    int64_t layered_curs_search_near;
+    int64_t layered_curs_search_near_ingest;
+    int64_t layered_curs_search_near_stable;
+    int64_t layered_curs_search;
+    int64_t layered_curs_search_ingest;
+    int64_t layered_curs_search_stable;
+    int64_t layered_curs_update;
+    int64_t layered_curs_upgrade_ingest;
+    int64_t layered_curs_upgrade_stable;
+    int64_t layered_table_manager_checkpoints;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
+    int64_t layered_table_manager_logops_applied;
+    int64_t layered_table_manager_logops_skipped;
+    int64_t layered_table_manager_skip_lsn;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
+    int64_t rec_average_internal_page_delta_chain_length;
+    int64_t rec_average_leaf_page_delta_chain_length;
+    int64_t rec_page_mods_le5;
+    int64_t rec_page_mods_le10;
+    int64_t rec_page_mods_le20;
+    int64_t rec_page_mods_le50;
+    int64_t rec_page_mods_le100;
+    int64_t rec_page_mods_le200;
+    int64_t rec_page_mods_le500;
+    int64_t rec_page_mods_gt500;
+    int64_t rec_hs_wrapup_next_prev_calls;
     int64_t rec_dictionary;
     int64_t rec_page_delete_fast;
+    int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
+    int64_t rec_page_full_image_internal;
+    int64_t rec_page_full_image_leaf;
+    int64_t rec_ingest_keep_prepare_rollback;
+    int64_t rec_page_delta_internal_key_deleted;
+    int64_t rec_page_delta_internal_key_updated;
+    int64_t rec_page_delta_internal;
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
-    int64_t rec_prefix_compression;
+    int64_t rec_prefix_compression_delta;
+    int64_t rec_prefix_compression_full;
+    int64_t rec_page_delta_leaf;
     int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
+    int64_t rec_max_internal_page_deltas;
+    int64_t rec_max_leaf_page_deltas;
     int64_t rec_multiblock_max;
+    int64_t rec_ingest_garbage_collection_keys_disk_image;
+    int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_invalid_page_id;
+    int64_t rec_page_delta_rejected_max_consecutive_exceeded;
+    int64_t rec_page_delta_rejected_multiblock;
+    int64_t rec_page_delta_rejected_non_single_page;
+    int64_t rec_page_delta_rejected_size_threshold;
+    int64_t rec_page_delta_rejected_zero_entries;
+    int64_t rec_page_delta_rejected_build_failed;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
+    int64_t rec_pages_size_1MB_to_10MB;
+    int64_t rec_pages_size_10MB_to_100MB;
+    int64_t rec_pages_size_100MB_to_1GB;
+    int64_t rec_pages_size_1GB_plus;
     int64_t rec_page_delete;
+    int64_t rec_page_delta_eligible;
     int64_t rec_time_aggr_newest_start_durable_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_ts;
@@ -1409,6 +1795,8 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_pages_durable_stop_ts;
     int64_t rec_time_window_pages_stop_ts;
     int64_t rec_time_window_pages_stop_txn;
+    int64_t rec_pages_with_internal_deltas;
+    int64_t rec_pages_with_leaf_deltas;
     int64_t rec_time_window_prepared;
     int64_t rec_time_window_durable_start_ts;
     int64_t rec_time_window_start_ts;
@@ -1416,10 +1804,12 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_durable_stop_ts;
     int64_t rec_time_window_stop_ts;
     int64_t rec_time_window_stop_txn;
+    int64_t rec_skip_write;
     int64_t session_compact;
     int64_t txn_read_race_prepare_commit;
     int64_t txn_read_overflow_remove;
     int64_t txn_read_race_prepare_update;
+    int64_t txn_rts_btrees_applied;
     int64_t txn_rts_sweep_hs_keys_dryrun;
     int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_inconsistent_ckpt;
@@ -1429,6 +1819,7 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_keys_restored_dryrun;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_btrees_skipped;
     int64_t txn_rts_delete_rle_skipped;
     int64_t txn_rts_stable_rle_skipped;
     int64_t txn_rts_sweep_hs_keys;

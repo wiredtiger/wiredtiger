@@ -64,11 +64,14 @@ __rts_check(WT_SESSION_IMPL *session)
      * A new cursor may be positioned or a transaction may start after we return from this call and
      * callers should be aware of this limitation.
      */
-    if (cookie.ret_cursor_active)
-        WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
+    if (cookie.ret_cursor_active) {
+        ret = EBUSY;
+        WT_TRET(__wt_verbose_dump_sessions(session, true));
+        WT_RET_MSG(session, ret, "rollback_to_stable illegal with active file cursors");
+    }
     if (cookie.ret_txn_active) {
         ret = EBUSY;
-        WT_TRET(__wt_verbose_dump_txn(session));
+        WT_TRET(__wt_verbose_dump_sessions(session, false));
         WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");
     }
     return (0);
@@ -83,7 +86,8 @@ __rts_assert_timestamps_unchanged(
 {
 #ifdef HAVE_DIAGNOSTIC
     WT_ASSERT(session, S2C(session)->txn_global.pinned_timestamp == old_pinned);
-    WT_ASSERT(session, S2C(session)->txn_global.stable_timestamp == old_stable);
+    WT_ASSERT(session,
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.stable_timestamp) == old_stable);
 #else
     WT_UNUSED(session);
     WT_UNUSED(old_pinned);
@@ -133,7 +137,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
 
     WT_ASSERT_ALWAYS(session,
       (txn_global->has_pinned_timestamp ||
-        !__wt_atomic_loadbool(&txn_global->has_oldest_timestamp)),
+        !__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp)),
       "Database has no pinned timestamp but an oldest timestamp. Pinned timestamp is required to "
       "find out the global visibility/obsolete of an update.");
 
@@ -142,7 +146,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * though the stable timestamp isn't supposed to be updated while rolling back, accessing it
      * without a lock would violate protocol.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(stable_timestamp, txn_global->stable_timestamp);
+    stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, txn_global->pinned_timestamp);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_INIT
@@ -160,7 +164,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
           "the stable timestamp is not set; set the rollback timestamp to the maximum timestamp");
     }
 
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+    if (F_ISSET(conn, WT_CONN_RECOVERING))
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_RECOVER_CKPT "recovered checkpoint snapshot_min=%" PRIu64
                                        ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
@@ -171,8 +175,9 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
 
     /* Rollback the global durable timestamp to the stable timestamp. */
     if (!dryrun) {
-        txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
-        txn_global->durable_timestamp = txn_global->stable_timestamp;
+        /* FIXME-WT-16778: use atomic write for the has durable timestamp flag. */
+        txn_global->has_durable_timestamp = stable_timestamp != WT_TS_NONE;
+        __wt_atomic_store_uint64_relaxed(&txn_global->durable_timestamp, stable_timestamp);
     }
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, stable_timestamp);
 
@@ -181,7 +186,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * ensure that both in-memory and on-disk versions are the same unless caller requested for no
      * checkpoint.
      */
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) && !no_ckpt && !dryrun)
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !no_ckpt && !dryrun)
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
 err:
@@ -223,7 +228,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
       session, WT_VERB_RECOVERY_RTS(session), "starting rollback to stable on uri %s", uri);
 
     /* Read the stable timestamp once, when we first start up. */
-    WT_ACQUIRE_READ_WITH_BARRIER(stable_timestamp, conn->txn_global.stable_timestamp);
+    stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, conn->txn_global.pinned_timestamp);
 
     /* If the stable timestamp is not set, do not roll back based on it. */

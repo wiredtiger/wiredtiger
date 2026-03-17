@@ -28,6 +28,44 @@
 
 import inspect, os, re, shutil, sys, time, traceback, unittest
 
+class TeeFile(object):
+    """
+    A file-like object that writes to multiple destinations simultaneously.
+    Useful for capturing output while still showing it on the terminal.
+    """
+    capture_file = None
+    std_file = None
+
+    def __init__(self, capture_file):
+        self.capture_file = capture_file
+
+    def add_std_file(self, std_file):
+        self.std_file = std_file
+
+    def get_files(self):
+        files = [self.capture_file]
+        if (self.std_file):
+            files.append(self.std_file)
+        return files
+
+    def write(self, text):
+        for f in self.get_files():
+            f.write(text)
+            f.flush()
+
+    def flush(self):
+        for f in self.get_files():
+            f.flush()
+
+    def fileno(self):
+        if self.std_file:
+            return self.std_file.fileno()
+        return self.capture_file.fileno()
+
+    def close(self):
+        # We shouldn't close std file
+        self.capture_file.close()
+
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
         s = s[0:maxlen-3] + '...'
@@ -78,32 +116,57 @@ class CapturedFd(object):
         self.file.close()
         self.file = None
 
-    def hasUnexpectedOutput(self, testcase):
+    def skipLinesWithPattern(self, pat):
+        """
+        Ignore lines with the given pattern.
+        """
+        if type(pat) == str:
+            pat = re.compile(pat)
+        with open(self.filename, 'r') as f:
+            f.seek(self.expectpos)
+            while True:
+                line = f.readline()
+                if not line:
+                    self.expectpos = f.tell()
+                    break
+                elif pat.search(line) is not None:
+                    self.expectpos = f.tell()
+                else:
+                    break
+
+    def hasUnexpectedOutput(self, testcase=None, ignore_pat=None):
         """
         Check to see that there is no unexpected output in the captured output
-        file.
+        file. Ignore lines with the given pattern.
         """
         if AbstractWiredTigerTestCase._ignoreStdout:
-            return
+            return False
         if self.file != None:
             self.file.flush()
         new_size = os.path.getsize(self.filename)
-        if self.ignore_regex is None:
+
+        ignore = []
+        if self.ignore_regex is not None:
+            ignore.append(self.ignore_regex)
+        if ignore_pat is not None:
+            ignore.append(re.compile(ignore_pat))
+        if len(ignore) == 0:
             return self.expectpos < new_size
 
         gotstr = self.readFileFrom(self.filename, self.expectpos, new_size - self.expectpos)
         for line in list(filter(None, gotstr.split('\n'))):
-            if self.ignore_regex.search(line) is None:
+            if all(r.search(line) is None for r in ignore):
                 return True
         return False
 
-    def check(self, testcase):
+    def check(self, testcase=None, ignore_pat=None):
         """
         Check to see that there is no unexpected output in the captured output
         file.  If there is, raise it as a test failure.
         This is generally called after 'release' is called.
+        Ignore lines with the given pattern.
         """
-        if self.hasUnexpectedOutput(testcase):
+        if self.hasUnexpectedOutput(testcase, ignore_pat=ignore_pat):
             contents = self.readFileFrom(self.filename, self.expectpos, 10000)
             AbstractWiredTigerTestCase.prout('ERROR: ' + self.filename +
                                              ' unexpected ' + self.desc +
@@ -120,28 +183,34 @@ class CapturedFd(object):
             self.file.flush()
         self.expectpos = os.path.getsize(self.filename)
 
-    def checkAdditional(self, testcase, expect):
+    def checkAdditional(self, testcase, expect, ignore_pat=None):
         """
         Check to see that an additional string has been added to the
         output file.  If it has not, raise it as a test failure.
         In any case, reset the expected pos to account for the new output.
+        If ignore_pat is set, ignore any lines that match it.
         """
         if self.file != None:
             self.file.flush()
+        if ignore_pat is not None:
+            self.skipLinesWithPattern(ignore_pat)
         gotstr = self.readFileFrom(self.filename, self.expectpos, 1000)
         testcase.assertEqual(gotstr, expect, 'in ' + self.desc +
                              ', expected "' + expect + '", but got "' +
                              gotstr + '"')
         self.expectpos = os.path.getsize(self.filename)
 
-    def checkAdditionalPattern(self, testcase, pat, re_flags = 0, maxchars = 1500):
+    def checkAdditionalPattern(self, testcase, pat, re_flags=0, maxchars=1500, ignore_pat=None):
         """
         Check to see that an additional string has been added to the
         output file.  If it has not, raise it as a test failure.
         In any case, reset the expected pos to account for the new output.
+        If ignore_pat is set, ignore any lines that match it.
         """
         if self.file != None:
             self.file.flush()
+        if ignore_pat is not None:
+            self.skipLinesWithPattern(ignore_pat)
         gotstr = self.readFileFrom(self.filename, self.expectpos, maxchars)
         if re.search(pat, gotstr, re_flags) == None:
             testcase.fail('in ' + self.desc +
@@ -182,6 +251,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
     # Placeholder configuration, in the case no one calls the setup functions.
     _dupout = sys.stdout
     _ignoreStdout = False
+    _printOutput = False
     _parentTestdir = None
     _resultFile = sys.stdout
     _stderr = sys.stderr
@@ -246,7 +316,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             d += '.' + time.strftime('%Y%m%d-%H%M%S', time.localtime())
         if removeAtStart:
             shutil.rmtree(d, ignore_errors=True)
-        os.makedirs(d)
+        os.makedirs(d, exist_ok=True)
         AbstractWiredTigerTestCase._origcwd = os.getcwd()
         AbstractWiredTigerTestCase._parentTestdir = os.path.abspath(d)
         AbstractWiredTigerTestCase._preserveFiles = preserveFiles
@@ -256,7 +326,8 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
     #
 
     @staticmethod
-    def setupIO(resultFileName = 'results.txt', ignoreStdout = False, verbose = 1):
+    def setupIO(resultFileName = 'results.txt', ignoreStdout = False, printOutput = False,
+                verbose = 1):
         '''
         Set up I/O for the test.
         '''
@@ -266,6 +337,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             os.path.join(AbstractWiredTigerTestCase._parentTestdir, resultFileName))
 
         AbstractWiredTigerTestCase._ignoreStdout = ignoreStdout
+        AbstractWiredTigerTestCase._printOutput = printOutput
         AbstractWiredTigerTestCase._resultFileName = resultFilePath
         AbstractWiredTigerTestCase._verbose = verbose
 
@@ -292,10 +364,23 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         Set up stderr/stdout after a test.
         '''
+        # Create capture object to intercept the output and check for unexpected entries
         self.captureout = CapturedFd('stdout.txt', 'standard output')
         self.captureerr = CapturedFd('stderr.txt', 'error output')
-        sys.stdout = self.captureout.capture()
-        sys.stderr = self.captureerr.capture()
+
+        # Create tee objects that write to both capture files and original stdout/stderr
+        self.tee_stdout = TeeFile(self.captureout.capture())
+        self.tee_stderr = TeeFile(self.captureerr.capture())
+
+        # If real-time output is enabled, add the original stdout/stderr BEFORE replacing sys.stdout/stderr
+        if (self._printOutput):
+            self.tee_stdout.add_std_file(sys.stdout)
+            self.tee_stderr.add_std_file(sys.stderr)
+
+        # Now replace sys.stdout and sys.stderr with the tee objects
+        sys.stdout = self.tee_stdout
+        sys.stderr = self.tee_stderr
+
         if self.ignore_regex is not None:
             self.captureout.setIgnorePattern(self.ignore_regex)
 
@@ -303,8 +388,14 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         Restore stderr/stdout after a test.
         '''
+        # Release capturing objects
         self.captureout.release()
         self.captureerr.release()
+
+        # Close tee objects
+        self.tee_stdout.close()
+        self.tee_stderr.close()
+
         sys.stdout = AbstractWiredTigerTestCase._stdout
         sys.stderr = AbstractWiredTigerTestCase._stderr
 
@@ -461,6 +552,9 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         So transform '(', but remove final ')'.
         '''
         name = self.shortid().translate(str.maketrans('($[]/ ','______', ')'))
+
+        # Remove '<' and '>', because some qualified names contain strings such as "<locals>".
+        name = name.replace('<', '_').replace('>', '_')
 
         # On OS/X, we can get name conflicts if names differ by case. Upper
         # case letters are uncommon in our python class and method names, so

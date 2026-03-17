@@ -105,6 +105,14 @@ static int recover_and_verify(uint32_t backup_index, uint32_t workload_iteration
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+static struct {
+    uint32_t workload_progress;
+    bool timer_ready_to_go;
+    WT_CONDVAR *timer_cond;
+    bool ckpt_ready_to_go;
+    WT_CONDVAR *ckpt_cond;
+} thread_sync_conds = {0, false, NULL, false, NULL};
+
 /*
  * Print that we are doing backup verification.
  */
@@ -143,7 +151,7 @@ extern char *__wt_optarg;
  */
 #define KEY_STRINGFORMAT ("%010" PRIu64)
 
-#define SHARED_PARSE_OPTIONS "b:CmP:h:p"
+#define SHARED_PARSE_OPTIONS "b:CGmP:h:p"
 
 /*
  * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
@@ -340,9 +348,18 @@ thread_ts_run(void *arg)
 
     td = (THREAD_DATA *)arg;
     conn = td->conn;
-
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
+    /*
+     * Wait for all working threads to complete as there will be a stable timestamp available to
+     * work with.
+     */
+    while (!thread_sync_conds.timer_ready_to_go) {
+        bool cv_signalled;
+        /* Under a high workload, there is no need to check very often, check every second. */
+        __wt_cond_wait_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond, WT_MILLION,
+          NULL, &cv_signalled);
+    }
+    printf("Timestamp thread started...\n");
     __wt_seconds((WT_SESSION_IMPL *)session, &last_reconfig);
     /* Update the oldest/stable timestamps every 1 millisecond. */
     for (last_ts = 0;; __wt_sleep(0, WT_THOUSAND)) {
@@ -361,7 +378,8 @@ thread_ts_run(void *arg)
             testutil_snprintf(tscfg, sizeof(tscfg),
               "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts);
         testutil_check(conn->set_timestamp(conn, tscfg));
-
+        thread_sync_conds.ckpt_ready_to_go = true;
+        __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond);
         /*
          * Only perform the reconfigure test after statistics have a chance to run. If we do it too
          * frequently then internal servers like the statistics server get destroyed and restarted
@@ -478,6 +496,18 @@ thread_ckpt_run(void *arg)
      */
     (void)unlink(ckpt_file);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+    /*
+     * Wait for the stable timestamp to be configured before starting the checkpoint thread. If
+     * there is no stable timestamp, we won't create the sentinel file and we will have to
+     * checkpoint again which will delay the test.
+     */
+    while (!thread_sync_conds.ckpt_ready_to_go) {
+        bool cv_signalled;
+        /* Under a high workload, there is no need to check very often, check every second. */
+        __wt_cond_wait_signal(
+          (WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond, WT_MILLION, NULL, &cv_signalled);
+    }
+    printf("Checkpoint thread started...\n");
     first_ckpt = true;
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
@@ -817,8 +847,33 @@ rollback:
         }
 
         /* We're done with the timestamps, allow oldest and stable to move forward. */
-        if (use_ts)
+        if (use_ts) {
+            if (WT_TS_NONE == active_timestamps[td->threadnum]) {
+                uint32_t current_progress =
+                  __wt_atomic_add_uint32(&thread_sync_conds.workload_progress, 1);
+                printf("Thread %" PRIu32 " reach syncing point, overall progress: %u/%u. \n",
+                  td->threadnum, current_progress, nth);
+                if (current_progress == nth) {
+                    /* All threads are done working and should have updated the active timestamps
+                     * array with a non-zero timestamp. It's time for the timer thread to get
+                     * started. */
+                    thread_sync_conds.timer_ready_to_go = true;
+                    __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond);
+                }
+            }
             WT_RELEASE_WRITE_WITH_BARRIER(active_timestamps[td->threadnum], active_ts);
+        } else {
+            uint32_t current_progress =
+              __wt_atomic_add_uint32(&thread_sync_conds.workload_progress, 1);
+            /* When timestamps are not in use, we don't need to sync all threads before starting the
+             * checkpoint thread. Use the first thread to notify the checkpoint thread to start. */
+            if (current_progress == 1) {
+                printf(
+                  "Thread %" PRIu32 " reach syncing point, trigger checkpoint.\n", td->threadnum);
+                thread_sync_conds.ckpt_ready_to_go = true;
+                __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond);
+            }
+        }
     }
     /* NOTREACHED */
 }
@@ -851,11 +906,12 @@ run_workload(uint32_t workload_iteration)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
+    WT_SESSION_IMPL *opt_session;
     THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t backup_id, cache_mb, ckpt_id, i, ts_id;
-    char envconf[512], uri[128];
-    const char *table_config, *table_config_nolog;
+    char envconf[512], table_config_nolog[1024], uri[128];
+    const char *table_config;
 
     thr = dcalloc(nth + 3, sizeof(*thr));
     td = dcalloc(nth + 3, sizeof(THREAD_DATA));
@@ -864,11 +920,11 @@ run_workload(uint32_t workload_iteration)
     /*
      * Size the cache appropriately for the number of threads. Each thread adds keys sequentially to
      * its own portion of the key space, so each thread will be dirtying one page at a time. By
-     * default, a leaf page grows to 32K in size before it splits and the thread begins to fill
+     * default, a leaf page grows to 256K in size before it splits and the thread begins to fill
      * another page. We'll budget for 10 full size leaf pages per thread in the cache plus a little
      * extra in the total for overhead.
      */
-    cache_mb = ((32 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 20;
+    cache_mb = ((256 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 300;
 
     /*
      * Do not remove log files when using model verification. The current implementation requires
@@ -906,10 +962,16 @@ run_workload(uint32_t workload_iteration)
      */
     if (workload_iteration == 1) {
         if (columns) {
-            table_config_nolog = "key_format=r,value_format=u,log=(enabled=false)";
+            assert(!opts->disagg.is_enabled);
+            testutil_snprintf(table_config_nolog, sizeof(table_config_nolog),
+              "key_format=r,value_format=u,log=(enabled=false)");
+
             table_config = "key_format=r,value_format=u";
         } else {
-            table_config_nolog = "key_format=S,value_format=u,log=(enabled=false)";
+            testutil_snprintf(table_config_nolog, sizeof(table_config_nolog),
+              "key_format=S,value_format=u,log=(enabled=false),%s",
+              opts->disagg.is_enabled ? "type=layered,block_manager=disagg" : "");
+
             table_config = "key_format=S,value_format=u";
         }
         testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_collection);
@@ -936,7 +998,13 @@ run_workload(uint32_t workload_iteration)
     }
 
     opts->running = true;
-
+    /* Initialize cond variables. */
+    opt_session = (WT_SESSION_IMPL *)opts->session;
+    thread_sync_conds.workload_progress = 0;
+    thread_sync_conds.timer_ready_to_go = false;
+    testutil_check(__wt_cond_alloc(opt_session, "timer thread cv", &thread_sync_conds.timer_cond));
+    thread_sync_conds.ckpt_ready_to_go = false;
+    testutil_check(__wt_cond_alloc(opt_session, "ckpt thread cv", &thread_sync_conds.ckpt_cond));
     /* The backup, checkpoint, timestamp, and worker threads are added at the end. */
     backup_id = nth;
     if (use_backups) {
@@ -989,6 +1057,9 @@ run_workload(uint32_t workload_iteration)
     /*
      * NOTREACHED
      */
+    __wt_cond_destroy(opt_session, &thread_sync_conds.timer_cond);
+    __wt_cond_destroy(opt_session, &thread_sync_conds.ckpt_cond);
+
     free(thr);
     free(td);
     _exit(EXIT_SUCCESS);
@@ -1425,7 +1496,6 @@ main(int argc, char *argv[])
             use_backups = true;
             break;
         case 'c':
-            /* Variable-length columns only (for now) */
             columns = true;
             break;
         case 'F':
@@ -1491,6 +1561,29 @@ main(int argc, char *argv[])
     testutil_deduce_build_dir(opts);
     testutil_work_dir_from_path(home, sizeof(home), opts->home);
 
+    if (opts->disagg.is_enabled) {
+        if (use_backups) {
+            fprintf(
+              stderr, "disaggregated storage feature is not compatible with backup option (-B)\n");
+            return (EXIT_FAILURE);
+        }
+        if (columns) {
+            fprintf(stderr,
+              "disaggregated storage feature is not compatible with column store option (-c)\n");
+            return (EXIT_FAILURE);
+        }
+        if (use_liverestore) {
+            fprintf(stderr,
+              "disaggregated storage feature is not compatible with live restore option (-l)\n");
+            return (EXIT_FAILURE);
+        }
+        if (!use_ts) {
+            fprintf(stderr, "disaggregated storage feature is only compatible with timestamps.\n");
+            return (EXIT_FAILURE);
+        }
+        opts->disagg.page_log_home = (char *)WT_HOME_DIR; /* Set home directory for page log. */
+    }
+
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find
      * the old record files.
@@ -1546,21 +1639,22 @@ main(int argc, char *argv[])
         }
 
         printf(
-          "Parent: compatibility: %s, in-mem log sync: %s, add timing stress: %s, timestamp in "
+          "Parent: Disaggregated storage: %s, compatibility: %s, in-mem log sync: %s, add timing "
+          "stress: %s, timestamp in "
           "use: %s\n",
-          opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
-          stress ? "true" : "false", use_ts ? "true" : "false");
+          opts->disagg.is_enabled ? "true" : "false", opts->compat ? "true" : "false",
+          opts->inmem ? "true" : "false", stress ? "true" : "false", use_ts ? "true" : "false");
         printf("Parent: backups: %s, full backup interval: %" PRIu32
                ", force stop interval: %" PRIu32 "\n",
           use_backups ? "true" : "false", backup_full_interval, backup_force_stop_interval);
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
                " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
           progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", columns ? " -c" : "",
-          use_lazyfs ? " -l" : "", verify_model ? " -M" : "", opts->inmem ? " -m" : "",
-          opts->tiered_storage ? " -PT" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
-          backup_full_interval, opts->home, num_iterations, nth, timeout, opts->data_seed,
-          opts->extra_seed);
+          opts->disagg.is_enabled ? " -G" : "", use_lazyfs ? " -l" : "", verify_model ? " -M" : "",
+          opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "", stress ? " -s" : "",
+          !use_ts ? " -z" : "", backup_full_interval, opts->home, num_iterations, nth, timeout,
+          opts->data_seed, opts->extra_seed);
 
         /*
          * Go inside the home directory (typically WT_TEST), but not all the way into the database's
@@ -1614,29 +1708,12 @@ main(int argc, char *argv[])
             testutil_assertfmt(waitpid(pid, &status, WNOHANG) == 0,
               "Child process %" PRIu64 " already exited with status %d", pid, status);
 
-            /*
-             * Sleep for the configured amount of time before killing the child. Start the timeout
-             * from the time we notice that the file has been created. That allows the test to run
-             * correctly on really slow machines.
-             */
             wait_time = 0;
             while (!testutil_exists(NULL, ckpt_file)) {
                 testutil_sleep_wait(1, pid);
                 ++wait_time;
-                /*
-                 * We want to wait the MAX_TIME not the timeout because the timeout chosen could be
-                 * smaller than the time it takes to start up the child and complete the first
-                 * checkpoint. If there's an issue creating the first checkpoint we just want to
-                 * eventually exit and not have the parent process hang.
-                 */
-                if (wait_time > MAX_TIME) {
-                    sa.sa_handler = SIG_DFL;
-                    testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
-                    testutil_assert_errno(kill(pid, SIGABRT) == 0);
-                    testutil_assert_errno(waitpid(pid, &status, 0) != -1);
-                    testutil_die(
-                      ENOENT, "waited %" PRIu32 " seconds for checkpoint file creation", wait_time);
-                }
+                if (wait_time % 10 == 0)
+                    printf("Wait %ds for checkpoint generation\n", wait_time);
             }
             sleep(timeout);
             sa.sa_handler = SIG_DFL;

@@ -1,7 +1,3 @@
-project(test)
-
-include(ctest_helpers.cmake)
-
 if(WT_WIN)
     # Compile the windows shim library.
     add_subdirectory(windows)
@@ -11,7 +7,6 @@ endif()
 add_subdirectory(utility)
 
 # Compile our tests.
-add_subdirectory(bloom)
 add_subdirectory(checkpoint)
 add_subdirectory(cursor_order)
 add_subdirectory(fops)

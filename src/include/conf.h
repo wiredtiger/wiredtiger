@@ -12,10 +12,23 @@
  * Sample usage:
  *  __wt_conf_gets(session, conf, statistics, &cval);
  *  __wt_conf_gets(session, conf, Operation_tracking.enabled, &cval);
+ *  __wt_conf_getones(session, conf, cache_cursors, &cval));
  *  __wt_conf_gets_def(session, conf, no_timestamp, 0, &cval));
  */
 #define __wt_conf_gets(s, conf, key, cval) \
-    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, cval)
+    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, false, cval)
+
+/*
+ * This is equivalent to the use of __wt_config_getones when using configuration strings for the
+ * case when there is a single configuration string supplied by the API caller, and a base "default"
+ * configuration string.  In this case, only the "API caller" configuration string is searched.
+ * __wt_conf_getones and __wt_config_getones would be different for an unusual case when there are
+ * multiple configuration strings grouped on top of the base default.  With __wt_config_getones you
+ * can search any specific configuration strings, whereas __wt_conf_getones searches them all in
+ * order, but ignores the last base default.
+ */
+#define __wt_conf_getones(s, conf, key, cval) \
+    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, true, cval)
 
 #define __wt_conf_gets_def(s, conf, key, def, cval) \
     __wt_conf_gets_def_func(s, conf, WT_CONF_ID_STRUCTURE.key, def, cval)
@@ -137,46 +150,48 @@ struct __wt_conf_value {
  * DO NOT EDIT: automatically built by dist/api_config.py.
  * Per-API configuration structure declarations: BEGIN
  */
-WT_CONF_API_DECLARE(WT_CONNECTION, close, 1, 3);
-WT_CONF_API_DECLARE(WT_CONNECTION, debug_info, 1, 7);
+WT_CONF_API_DECLARE(WT_CONNECTION, close, 2, 5);
+WT_CONF_API_DECLARE(WT_CONNECTION, debug_info, 1, 8);
 WT_CONF_API_DECLARE(WT_CONNECTION, load_extension, 1, 4);
 WT_CONF_API_DECLARE(WT_CONNECTION, open_session, 3, 9);
 WT_CONF_API_DECLARE(WT_CONNECTION, query_timestamp, 1, 1);
-WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 19, 106);
+WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 21, 131);
 WT_CONF_API_DECLARE(WT_CONNECTION, rollback_to_stable, 1, 2);
 WT_CONF_API_DECLARE(WT_CONNECTION, set_timestamp, 1, 4);
 WT_CONF_API_DECLARE(WT_CURSOR, bound, 1, 3);
 WT_CONF_API_DECLARE(WT_CURSOR, reconfigure, 1, 3);
 WT_CONF_API_DECLARE(WT_SESSION, alter, 3, 16);
-WT_CONF_API_DECLARE(WT_SESSION, begin_transaction, 2, 11);
-WT_CONF_API_DECLARE(WT_SESSION, checkpoint, 3, 12);
+WT_CONF_API_DECLARE(WT_SESSION, begin_transaction, 2, 12);
+WT_CONF_API_DECLARE(WT_SESSION, checkpoint, 3, 13);
 WT_CONF_API_DECLARE(WT_SESSION, commit_transaction, 1, 4);
 WT_CONF_API_DECLARE(WT_SESSION, compact, 1, 6);
-WT_CONF_API_DECLARE(WT_SESSION, create, 6, 67);
+WT_CONF_API_DECLARE(WT_SESSION, create, 9, 91);
 WT_CONF_API_DECLARE(WT_SESSION, drop, 1, 5);
 WT_CONF_API_DECLARE(WT_SESSION, log_flush, 1, 1);
-WT_CONF_API_DECLARE(WT_SESSION, open_cursor, 3, 29);
-WT_CONF_API_DECLARE(WT_SESSION, prepare_transaction, 1, 1);
+WT_CONF_API_DECLARE(WT_SESSION, open_cursor, 4, 36);
+WT_CONF_API_DECLARE(WT_SESSION, prepare_transaction, 1, 2);
+WT_CONF_API_DECLARE(WT_SESSION, prepared_id_transaction, 1, 1);
 WT_CONF_API_DECLARE(WT_SESSION, query_timestamp, 1, 1);
 WT_CONF_API_DECLARE(WT_SESSION, reconfigure, 3, 9);
-WT_CONF_API_DECLARE(WT_SESSION, rollback_transaction, 1, 1);
+WT_CONF_API_DECLARE(WT_SESSION, rollback_transaction, 1, 2);
 WT_CONF_API_DECLARE(WT_SESSION, salvage, 1, 1);
-WT_CONF_API_DECLARE(WT_SESSION, timestamp_transaction, 1, 4);
+WT_CONF_API_DECLARE(WT_SESSION, timestamp_transaction, 1, 5);
 WT_CONF_API_DECLARE(WT_SESSION, verify, 1, 12);
 WT_CONF_API_DECLARE(colgroup, meta, 2, 12);
-WT_CONF_API_DECLARE(file, config, 5, 55);
-WT_CONF_API_DECLARE(file, meta, 6, 65);
-WT_CONF_API_DECLARE(index, meta, 2, 15);
-WT_CONF_API_DECLARE(object, meta, 6, 67);
+WT_CONF_API_DECLARE(file, config, 6, 60);
+WT_CONF_API_DECLARE(file, meta, 7, 70);
+WT_CONF_API_DECLARE(index, meta, 2, 16);
+WT_CONF_API_DECLARE(layered, meta, 4, 24);
+WT_CONF_API_DECLARE(object, meta, 7, 72);
 WT_CONF_API_DECLARE(table, meta, 2, 13);
-WT_CONF_API_DECLARE(tier, meta, 6, 68);
-WT_CONF_API_DECLARE(tiered, meta, 6, 70);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 24, 175);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 24, 176);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 24, 170);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 24, 169);
+WT_CONF_API_DECLARE(tier, meta, 7, 73);
+WT_CONF_API_DECLARE(tiered, meta, 7, 75);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 26, 202);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 26, 203);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 26, 197);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 26, 196);
 
-#define WT_CONF_API_ELEMENTS 53
+#define WT_CONF_API_ELEMENTS 57
 
 /*
  * Per-API configuration structure declarations: END

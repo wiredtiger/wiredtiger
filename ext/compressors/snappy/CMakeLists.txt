@@ -1,7 +1,3 @@
-project(snappy C)
-
-include(GNUInstallDirs)
-
 config_bool(
     HAVE_BUILTIN_EXTENSION_SNAPPY
     "Builtin snappy compression library."

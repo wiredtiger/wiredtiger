@@ -9,6 +9,12 @@
 #include "wt_internal.h"
 
 /*
+ * Define functions that increment histogram statistics for reconstruction of pages with deltas.
+ */
+WT_STAT_USECS_HIST_INCR_FUNC(internal_reconstruct, perf_hist_internal_reconstruct_latency)
+WT_STAT_USECS_HIST_INCR_FUNC(leaf_reconstruct, perf_hist_leaf_reconstruct_latency)
+
+/*
  * __evict_force_check --
  *     Check if a page matches the criteria for forced eviction.
  */
@@ -41,7 +47,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * the disk image size takes into account large values that have
      * already been written and should not trigger forced eviction.
      */
-    footprint = __wt_atomic_loadsize(&page->memory_footprint);
+    footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     if (page->dsk != NULL)
         footprint -= page->dsk->mem_size;
 
@@ -124,11 +130,74 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     if (ref->page != NULL && !__wt_page_evict_clean(ref->page)) {
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
-        WT_RET(__wt_curhs_cache(session));
+        ret = __wt_curhs_cache(session);
+        if (ret != 0) {
+            WT_ASSERT(session, locked);
+            WT_REF_SET_STATE(ref, previous_state);
+            return (ret);
+        }
     }
-    (void)__wt_atomic_addv32(&btree->evict_busy, 1);
+    (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
     ret = __wt_evict(session, ref, previous_state, evict_flags);
-    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
+    (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+
+    return (ret);
+}
+
+/*
+ * __page_read_build_full_disk_image --
+ *     Build a full disk image of the page after reading from disk.
+ */
+static int
+__page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_ITEM *deltas, size_t delta_size,
+  WT_ITEM *new_image, const void *base_image_addr
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  WT_TIME_AGGREGATE *ta
+#endif
+)
+{
+    WT_DECL_RET;
+    WT_PAGE_HEADER *base_dsk;
+    uint64_t time_start, time_stop;
+
+    base_dsk = (WT_PAGE_HEADER *)base_image_addr;
+    WT_ASSERT(session, base_dsk != NULL);
+
+    /*
+     * Merge deltas directly with the base image to build the new disk image in a single pass. The
+     * merge helpers will also update ta (if non-NULL) as they emit cells.
+     */
+    if (base_dsk->type == WT_PAGE_ROW_LEAF) {
+        time_start = __wt_clock(session);
+        ret = __wti_page_merge_deltas_with_base_image_leaf(
+          session, deltas, delta_size, new_image, base_dsk
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          ta
+#endif
+        );
+        WT_ERR(ret);
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
+    } else {
+        time_start = __wt_clock(session);
+        ret = __wti_page_merge_deltas_with_base_image_int(
+          session, deltas, delta_size, new_image, base_image_addr
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          ta
+#endif
+        );
+        WT_ERR(ret);
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_internal_reconstruct(
+          session, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_internal_delta);
+    }
+
+err:
 
     return (ret);
 }
@@ -141,18 +210,26 @@ static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
+    WT_BTREE *btree;
     WT_DECL_RET;
-    WT_ITEM tmp;
-    WT_PAGE *notused;
+    WT_ITEM *deltas;
+    WT_ITEM new_image, new_image_copy;
+    WT_ITEM *tmp;
+    WT_PAGE *page;
+    WT_PAGE_BLOCK_META block_meta;
     WT_REF_STATE previous_state;
+    size_t count, i;
     uint32_t page_flags;
-    bool prepare;
+    bool instantiate_upd, disk_image_freed, page_change, build_full_disk_image_from_deltas;
 
-    /*
-     * Don't pass an allocated buffer to the underlying block read function, force allocation of new
-     * memory of the appropriate size.
-     */
-    WT_CLEAR(tmp);
+    btree = S2BT(session);
+    WT_CLEAR(block_meta);
+    tmp = NULL;
+    count = 0;
+    disk_image_freed = page_change = build_full_disk_image_from_deltas = false;
+    page = NULL;
+    WT_CLEAR(new_image);
+    WT_CLEAR(new_image_copy);
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -203,11 +280,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * it gets discarded before something else modifies it, eviction will see the instantiated flag
      * and set the ref state back to WT_REF_DELETED.
      *
-     * Skip this optimization in cases that need the obsolete values. To minimize the number of
-     * special cases, use the same test as for skipping instantiation below.
+     * Skip this optimization in cases that need the obsolete values. For disaggregated storage,
+     * this optimization results in the loss of page ID information, which can lead to a leaked
+     * block. To minimize the number of special cases, use the same test as for skipping
+     * instantiation below.
      */
-    if (previous_state == WT_REF_DELETED &&
-      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
+    if (previous_state == WT_REF_DELETED && !F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      !F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         /*
          * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
@@ -229,26 +308,106 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
-    WT_ERR(__wt_blkcache_read(session, &tmp, addr.addr, addr.size));
+    WT_ERR(__wt_blkcache_read_multi(session, &tmp, &count, &block_meta, addr.addr, addr.size));
+
+    WT_ASSERT(session, tmp != NULL && count > 0);
+
+    if (count > 1)
+        deltas = &tmp[1];
+    else
+        deltas = NULL;
 
     /*
-     * Build the in-memory version of the page. Clear our local reference to the allocated copy of
-     * the disk image on return, the in-memory object steals it.
-     *
      * If a page is read with eviction disabled, we don't count evicting it as progress. Since
      * disabling eviction allows pages to be read even when the cache is full, we want to avoid
      * workloads repeatedly reading a page with eviction disabled (e.g., a metadata page), then
      * evicting that page and deciding that is a sign that eviction is unstuck.
      */
-    page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
+    page_flags = WT_DATA_IN_ITEM(&tmp[0]) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
-    tmp.mem = NULL;
-    if (prepare)
-        WT_ERR(__wti_page_inmem_prepare(session, ref));
+
+    /* After reading the page from disk, construct a full disk image. */
+    if (count > 1) {
+        size_t new_image_buf_size;
+        uint32_t split_size;
+
+        /* Allocate enough size for the new image, similar to __rec_split_chunk_init. */
+        split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
+        new_image_buf_size = 2 * WT_ALIGN(WT_MAX(btree->maxleafpage, split_size), btree->allocsize);
+
+        WT_ERR(__wt_buf_init(session, &new_image, new_image_buf_size));
+#ifdef HAVE_DIAGNOSTIC
+        WT_TIME_AGGREGATE full_image_ta;
+#endif
+        ret = __page_read_build_full_disk_image(session, deltas, count - 1, &new_image, tmp[0].data
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          &full_image_ta
+#endif
+        );
+        WT_ERR(ret);
+
+#ifdef HAVE_DIAGNOSTIC
+        WT_ADDR addr_tmp;
+        addr_tmp.block_cookie = addr.addr;
+        addr_tmp.block_cookie_size = addr.size;
+        addr_tmp.type = addr.type;
+        WT_TIME_AGGREGATE_COPY(&addr_tmp.ta, &full_image_ta);
+
+        int verify_ret =
+          __wt_verify_dsk_image(session, "[verify the newly built full disk image from deltas]",
+            new_image.data, new_image.size, &addr_tmp, WT_VRFY_DISK_EMPTY_PAGE_OK);
+        WT_ASSERT_ALWAYS(session, verify_ret == 0,
+          "verification failed for the newly built full disk image from deltas!");
+#endif
+
+        build_full_disk_image_from_deltas = true;
+        WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image.data;
+        __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA,
+          "Full disk image built from deltas for page type %u with %d deltas, new size %d",
+          tmp_header->type, (int)count - 1, (int)new_image.size);
+
+        /*
+         * We initially allocated the maximum possible buffer for new_image, but only part of it is
+         * used. Copy the used portion into a right-sized buffer and free the original oversized
+         * buffer.
+         */
+        WT_ERR(__wt_buf_initsize(session, &new_image_copy, new_image.size));
+        memcpy(new_image_copy.mem, new_image.data, new_image.size);
+
+        __wt_buf_free(session, &new_image);
+        for (i = 0; i < count - 1; ++i)
+            __wt_buf_free(session, &deltas[i]);
+        __wt_buf_free(session, &tmp[0]);
+
+        WT_ERR(ret);
+    }
+    /*
+     * Build the in-memory version of the page. Clear our local reference to the allocated copy of
+     * the disk image on return, the in-memory object steals it.
+     */
+    if (build_full_disk_image_from_deltas)
+        /* Pass the newly built full disk image data to build in-memory page information. */
+        WT_ERR(
+          __wti_page_inmem(session, ref, new_image_copy.data, page_flags, &page, &instantiate_upd));
+    else {
+        WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
+        WT_ASSERT(session, ref->page == page);
+        tmp[0].mem = NULL;
+    }
+    if (page->disagg_info != NULL) {
+        page->disagg_info->block_meta = block_meta;
+        page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;
+        page->disagg_info->rec_lsn_max = block_meta.disagg_lsn;
+    }
+
+    __wt_free(session, tmp);
+
+    if (!page_change && instantiate_upd && !WT_IS_HS(session->dhandle))
+        WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
@@ -268,12 +427,18 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
 
     if (previous_state == WT_REF_DELETED) {
-        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
-            WT_ERR(__wt_page_modify_init(session, ref->page));
+        if (F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
+            WT_ERR(__wt_page_modify_init(session, page));
             ref->page->modify->instantiated = true;
         } else
             WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
+
+    /* Track page reads for debugging purposes. */
+    WT_ERR(__wt_conn_page_history_track_read(session, page));
+
+    /* Read only page must be clean. */
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY) || !__wt_page_is_modified(page));
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
@@ -287,13 +452,24 @@ err:
      * If the function building an in-memory version of the page failed, it discarded the page, but
      * not the disk image. Discard the page and separately discard the disk image in all cases.
      */
-    if (ref->page != NULL)
+    if (page != NULL) {
+        disk_image_freed = page->dsk != NULL;
+        __wt_page_modify_clear(session, page);
         __wt_ref_out(session, ref);
+    }
 
+    /* Free any disk images or delta buffers we allocated or read. */
+    if (tmp != NULL) {
+        for (i = 0; i < count; ++i)
+            __wt_buf_free(session, &tmp[i]);
+        __wt_free(session, tmp);
+    }
+
+    __wt_buf_free(session, &new_image);
+    if (!disk_image_freed)
+        __wt_buf_free(session, &new_image_copy);
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
-
-    __wt_buf_free(session, &tmp);
 
     return (ret);
 }
@@ -316,12 +492,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_PAGE *page;
     WT_REF_STATE current_state;
     WT_TXN *txn;
+    size_t sleep_count;
     uint64_t sleep_usecs, yield_cnt;
     int force_attempts;
     bool busy, cache_work, evict_skip, read_from_disk, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
+    sleep_count = 0;
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
@@ -330,8 +508,15 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE))
+    if (!LF_ISSET(WT_READ_CACHE)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested);
+        if (WT_IS_HS(session->dhandle))
+            WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_hs);
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+            WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_internal);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_leaf);
+    }
 
     if (LF_ISSET(WT_READ_PREFETCH))
         WT_STAT_CONN_INCR(session, cache_pages_prefetch);
@@ -352,8 +537,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
-              __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
+              __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
+                WT_STAT_CONN_INCR(session, page_read_skip_deleted);
                 return (WT_NOTFOUND);
+            }
             goto read;
         case WT_REF_DISK:
             /* Optionally limit reads to cache-only. */
@@ -401,6 +588,7 @@ read:
             stalled = true;
             break;
         case WT_REF_SPLIT:
+            WT_STAT_CONN_INCR(session, page_split_restart);
             return (WT_RESTART);
         case WT_REF_MEM:
             /*
@@ -409,7 +597,7 @@ read:
              * Get a hazard pointer if one is required. We cannot be evicting if no hazard pointer
              * is required, we're done.
              */
-            if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+            if (F_ISSET(btree, WT_BTREE_NO_EVICT))
                 goto skip_evict;
 
 /*
@@ -426,6 +614,7 @@ read:
                 break;
             }
 
+            WT_ASSERT(session, __wt_tsan_suppress_load_wt_page_ptr(&ref->page) != NULL);
             /*
              * If a page has grown too large, we'll try and forcibly evict it before making it
              * available to the caller. There are a variety of cases where that's not possible.
@@ -492,6 +681,8 @@ read:
 
 skip_evict:
             page = ref->page;
+            WT_ASSERT(session, page != NULL);
+
             /*
              * Keep track of whether a session is reading leaf pages into the cache. This allows for
              * the session to decide whether pre-fetch would be helpful. It might not work if a
@@ -554,6 +745,10 @@ skip_evict:
                 continue;
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
+        ++sleep_count;
+        if (sleep_count > 10 * WT_THOUSAND && sleep_count % (10 * WT_THOUSAND) == 0)
+            __wt_verbose_warning(session, WT_VERB_READ,
+              "sleep to wait the page %p for %" WT_SIZET_FMT " times", (void *)ref, sleep_count);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
 }

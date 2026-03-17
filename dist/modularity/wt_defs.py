@@ -1,11 +1,10 @@
 {
-    "extraFiles": ["src/include/wiredtiger.in"],
+    "extraFiles": ["src/include/wiredtiger.h.in"],
     "modules": [
         # Modules in subdirectories of src/
         Module("block"),
         Module("block_cache", fileAliases=["block_chunkcache"],
                sourceAliases = ["blkcache", "bm", "chunkcache"]),
-        Module("bloom"),
         Module("btree", fileAliases=["btmem", "btree_cmp", "dhandle", "modify", "ref", "serial"],
                sourceAliases = ["ref", "page", "dhandle", "btcur"]),
         Module("call_log"),

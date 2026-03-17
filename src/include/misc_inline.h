@@ -250,12 +250,10 @@ __wt_timing_stress_sleep_random(WT_SESSION_IMPL *session)
      * totally full, return.
      */
     pct = 0.0;
-    if (__wt_evict_needed(session, false, false, &pct))
+    if (__wt_evict_needed(session, false, false, false, &pct))
         max = 5;
     else
         max = 9;
-    if (pct > 100.0)
-        return;
 
     /*
      * We need a fast way to choose a sleep time. We want to sleep a short period most of the time,
@@ -293,26 +291,6 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
     WT_ASSERT(session, probability <= 10 * WT_THOUSAND);
 
     return (__wt_random(&session->rnd_random) % (10 * WT_THOUSAND) <= probability);
-}
-
-/*
- * __wt_set_shared_double --
- *     This function enables suppressing TSan warnings about setting doubles in a shared context.
- */
-static WT_INLINE void
-__wt_set_shared_double(double *to_set, double value)
-{
-    *to_set = value;
-}
-
-/*
- * __wt_read_shared_double --
- *     This function enables suppressing TSan warnings about reading doubles in a shared context.
- */
-static WT_INLINE double
-__wt_read_shared_double(double *to_read)
-{
-    return (*to_read);
 }
 
 /*

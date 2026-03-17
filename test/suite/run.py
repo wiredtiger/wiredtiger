@@ -54,7 +54,7 @@ unittest = None
 def usage():
     print('Usage:\n\
   $ cd build\n\
-  $ python ../test/suite/run.py [ options ] [ tests ]\n\
+  $ python ../test/suite/run.py [ options | variables ] [ tests ]\n\
 \n\
 Options:\n\
             --asan               run with an ASAN enabled shared library\n\
@@ -84,10 +84,15 @@ Options:\n\
             --timeout N          have any test that exceeds N seconds throw an error.\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
   -i      | --ignore-stdout      dont fail on unexpected stdout or stderr\n\
+  -P      | --print-output       duplicate all intercepted output to a standard stream\n\
   -R      | --randomseed         run with random seeds for generates random numbers\n\
   -S      | --seed               run with two seeds that generates random numbers, \n\
                                  format "seed1.seed2", seed1 or seed2 can\'t be zero\n\
   -z      | --zstd               run the zstd tests\n\
+\n\
+Variables, via name=value, default listed in brackets:\n\
+  page_log=[palite]              the Page and Log interface (PALI) implementation used\n\
+                                 for disaggregated storage tests\n\
 \n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
@@ -155,6 +160,26 @@ def parse_int_list(str):
         # It's not valid syntax; give up.
         return None
     return ret
+
+def verify_command_line_vars(vars):
+    # The list of allowed variables, with defaults. Matches the usage message.
+    vars_allowed = {
+        'page_log' : 'palite',
+        'page_log_verbose' : '0'  # INFO level logging by default
+    }
+
+    for name in vars:
+        if not name in vars_allowed:
+            print(f'{name}: unknown command line variable')
+            usage()
+            sys.exit(1)
+
+    for name in vars_allowed:
+        if not name in vars:
+            # Set the default
+            vars[name] = vars_allowed[name]
+
+    return vars
 
 def restrictScenario(testcases, restrict):
     # Inner function to see if test case matches a scenario list
@@ -268,19 +293,24 @@ def configApply(suites, configfilename, configwrite):
             json.dump(configmap, f, sort_keys=True, indent=4)
     return newsuite
 
-def testsFromArg(tests, loader, arg, scenario):
+def testsFromArg(tests, loader, arg, scenario, skipTests):
     # If a group of test is mentioned, do all tests in that group
     # e.g. 'run.py base'
     groupedfiles = glob.glob(suitedir + os.sep + 'test_' + arg + '*.py')
     if len(groupedfiles) > 0:
         for file in groupedfiles:
-            testsFromArg(tests, loader, os.path.basename(file), scenario)
+            testsFromArg(tests, loader, os.path.basename(file), scenario, skipTests)
         return
 
     # Explicit test class names
     if not arg[0].isdigit():
         if arg.endswith('.py'):
             arg = arg[:-3]
+
+        # Skip tests that are in the skip list.
+        if skipTests and arg in skipTests:
+            return
+
         addScenarioTests(tests, loader, arg, scenario)
         return
 
@@ -298,7 +328,7 @@ def error(exitval, prefix, msg):
 
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = extralongtest = False
+    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = printOutput = extralongtest = False
     removeAtStart = True
     asan = False
     parallel = 0
@@ -309,11 +339,13 @@ if __name__ == '__main__':
     configwrite = False
     dirarg = None
     scenario = ''
+    skipFileForTests = ''
     verbose = 1
     args = sys.argv[1:]
     testargs = []
     hook_names = []
     timeout = 0
+    command_line_vars = dict()
     # Generate a random string to use as a prefix for the tiered test objects to group them under
     # the same test run.
     ss_random_prefix = str(random.randrange(1, 2147483646))
@@ -372,6 +404,12 @@ if __name__ == '__main__':
                     usage()
                     sys.exit(2)
                 hook_names.append(args.pop(0))
+                continue
+            if option == '-skip-tests-in-file' or option == 'sf':
+                if len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                skipFileForTests = args.pop(0)
                 continue
             if option == '-long' or option == 'l':
                 longtest = True
@@ -432,6 +470,9 @@ if __name__ == '__main__':
             if option == '-ignore-stdout' or option == 'i':
                 ignoreStdout = True
                 continue
+            if option == '-print-output' or option == 'P':
+                printOutput = True
+                continue
             if option == '-config' or option == 'c':
                 if configfile != None or len(args) == 0:
                     usage()
@@ -462,13 +503,29 @@ if __name__ == '__main__':
             print('unknown arg: ' + arg)
             usage()
             sys.exit(2)
+        elif '=' in arg:
+            eq = arg.index('=')
+            left = arg[:eq]
+            right = arg[eq+1:]
+            command_line_vars[left] = right
+            continue
         testargs.append(arg)
 
     if asan:
+        # FIXME-WT-16067: Investigate the reason of hidden warnings.
+        # For some reason, when tests are executed with ASAN by many processes in parallel,
+        # many warnings get hidden. While the reason is unknown, the simplest solution is to
+        # restrict parallel test execution when ASAN is enabled.
+        if parallel > 1:
+            print("ASAN is incompatible with running tests in parallel.")
+            sys.exit(1)
+
         # To run ASAN, we need to ensure these environment variables are set:
         #    ASAN_SYMBOLIZER_PATH    full path to the llvm-symbolizer program
         #    LD_LIBRARY_PATH         includes path with wiredtiger shared object
         #    LD_PRELOAD              includes the ASAN runtime library
+        #    PYTHONMALLOC            turns off pythons own allocation functions instead using the
+        #                            default ones. This avoids ASan false positives.
         #
         # Note that LD_LIBRARY_PATH has already been set above. The trouble with
         # simply setting these variables in the Python environment is that it's
@@ -493,23 +550,28 @@ if __name__ == '__main__':
         # detect this error from here short of capturing/parsing all output
         # from the test run.
         ASAN_ENV = "__WT_TEST_SUITE_ASAN"    # if set, we've been here before
-        ASAN_SYMBOLIZER_PROG = "llvm-symbolizer"
         ASAN_SYMBOLIZER_ENV = "ASAN_SYMBOLIZER_PATH"
+        PYTHONMALLOC = "PYTHONMALLOC"
         LD_PRELOAD_ENV = "LD_PRELOAD"
-        SO_FILE_NAME = "libclang_rt.asan-x86_64.so"
+        SO_FILE_NAME = "libclang_rt.asan.so"
         if not os.environ.get(ASAN_ENV):
             if verbose >= 2:
                 print('Enabling ASAN environment and rerunning python')
             os.environ[ASAN_ENV] = "1"
             show_env(verbose, "LD_LIBRARY_PATH")
+            if not os.environ.get(PYTHONMALLOC):
+                os.environ[PYTHONMALLOC] = "malloc"
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
-                os.environ[ASAN_SYMBOLIZER_ENV] = which(ASAN_SYMBOLIZER_PROG)
+                # Force usage of the toolchain symbolizer, we intentionally specify v4 here as the
+                # v5 version has memory leaks which cause recursion when ASan attempts to symbolize
+                # the stack traces.
+                os.environ[ASAN_SYMBOLIZER_ENV] = '/opt/mongodbtoolchain/v4/bin/llvm-symbolizer'
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
                 error(ASAN_SYMBOLIZER_ENV,
                       'symbolizer program not found in PATH')
             show_env(verbose, ASAN_SYMBOLIZER_ENV)
             if not os.environ.get(LD_PRELOAD_ENV):
-                symbolizer = follow_symlinks(os.environ[ASAN_SYMBOLIZER_ENV])
+                symbolizer = follow_symlinks('/opt/mongodbtoolchain/v5/bin/llvm-symbolizer')
                 bindir = os.path.dirname(symbolizer)
                 sofiles = []
                 if os.path.basename(bindir) == 'bin':
@@ -543,17 +605,47 @@ if __name__ == '__main__':
 
     import wthooks
     hookmgr = wthooks.WiredTigerHookManager(hook_names)
+
+    command_line_vars = verify_command_line_vars(command_line_vars)
+
     # All global variables should be set before any test classes are loaded.
     # That way, verbose printing can be done at the class definition level.
-    wttest.WiredTigerTestCase.globalSetup(preserve, removeAtStart, timestamp, gdbSub, lldbSub,
-                                          verbose, wt_builddir, dirarg, longtest, extralongtest,
-                                          zstdtest, ignoreStdout, seedw, seedz, hookmgr,
-                                          ss_random_prefix, timeout)
+    wttest.WiredTigerTestCase.globalSetup(command_line_vars, preserve, removeAtStart, timestamp,
+                                          gdbSub, lldbSub, verbose, wt_builddir, dirarg, longtest,
+                                          extralongtest, zstdtest, ignoreStdout, printOutput,
+                                          seedw, seedz, hookmgr, ss_random_prefix, timeout)
+
+    skipTests = []
+    if skipFileForTests:
+        with open(skipFileForTests, 'r') as f:
+            # Read the skip file and process it to get a list of tests to skip.
+            skipTests = f.read().splitlines()
+            # Remove comment lines starting with '#'.
+            skipTests = [test for test in skipTests if not test.lstrip().startswith('#')]
+            # Remove trailing comments and file extensions for each line.
+            skipTests = [re.split(r'\s+#', test)[0].strip().replace('.py', '') for test in skipTests]
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
         from discover import defaultTestLoader as loader
         suites = loader.discover(suitedir)
+
+        # Remove tests if the skip list is not empty.
+        if skipTests:
+            def remove_test_from_suite(suite, skipTests):
+                new_suite = unittest.TestSuite()
+                for test in suite:
+                    if type(test) is unittest.TestSuite:
+                        # Recursively process nested suites.
+                        subsuite = remove_test_from_suite(test, skipTests)
+                        if subsuite.countTestCases() > 0:
+                            new_suite.addTest(subsuite)
+                    else:
+                        test_name = test.__class__.__name__
+                        if test_name not in skipTests:
+                            new_suite.addTest(test)
+                return new_suite
+            suites = remove_test_from_suite(suites, skipTests)
 
         # If you have an empty Python file, it comes back as an empty entry in suites
         # and then the sort explodes. Drop empty entries first. Note: this converts
@@ -574,7 +666,7 @@ if __name__ == '__main__':
         tests.addTests(restrictScenario(generate_scenarios(suites), scenario))
     else:
         for arg in testargs:
-            testsFromArg(tests, loader, arg, scenario)
+            testsFromArg(tests, loader, arg, scenario, skipTests)
 
     hookmgr.register_skipped_tests(tests)
 

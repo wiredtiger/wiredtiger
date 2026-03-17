@@ -1,0 +1,63 @@
+/*-
+ * Public Domain 2014-present MongoDB, Inc.
+ * Public Domain 2008-2014 WiredTiger, Inc.
+ *
+ * This is free and unencumbered software released into the public domain.
+ *
+ * Anyone is free to copy, modify, publish, use, compile, sell, or
+ * distribute this software, either in source code form or as a compiled
+ * binary, for any purpose, commercial or non-commercial, and by any
+ * means.
+ *
+ * In jurisdictions that recognize copyright laws, the author or authors
+ * of this software dedicate any and all copyright interest in the
+ * software to the public domain. We make this dedication for the benefit
+ * of the public at large and to the detriment of our heirs and
+ * successors. We intend this dedication to be an overt act of
+ * relinquishment in perpetuity of all present and future rights to this
+ * software under copyright law.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+#include "test_util.h"
+
+/*
+ * testutil_disagg_storage_configuration --
+ *     Set up disagg storage configuration.
+ */
+void
+testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *disagg_cfg,
+  size_t disagg_cfg_size, char *ext_cfg, size_t ext_cfg_size)
+{
+    (void)home;
+    char key_provider_ext_cfg[256];
+
+    if (opts->disagg.is_enabled) {
+        testutil_snprintf(ext_cfg, ext_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG_EXT, opts->build_dir,
+          opts->disagg.page_log, opts->disagg.page_log, opts->disagg.page_log_home, opts->delay_ms,
+          opts->error_ms, opts->force_delay, opts->force_error, opts->disagg.page_log_map_size_mb,
+          opts->disagg.page_log_verbose);
+
+        if (opts->disagg.key_provider) {
+            testutil_snprintf(key_provider_ext_cfg, sizeof(key_provider_ext_cfg),
+              TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT, opts->build_dir);
+            testutil_strcat(
+              ext_cfg, ext_cfg_size + sizeof(key_provider_ext_cfg), key_provider_ext_cfg);
+        }
+
+        testutil_snprintf(disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG,
+          opts->disagg.mode, opts->disagg.page_log, opts->disagg.drain_threads,
+          (opts->disagg.internal_page_delta ? "true" : "false"),
+          (opts->disagg.leaf_page_delta ? "true" : "false"));
+    } else {
+        testutil_snprintf(ext_cfg, ext_cfg_size, "\"\"");
+        testutil_assert(disagg_cfg_size > 0);
+        disagg_cfg[0] = '\0';
+    }
+}

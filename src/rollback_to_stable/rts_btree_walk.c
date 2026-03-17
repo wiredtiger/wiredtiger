@@ -52,7 +52,7 @@ __rts_btree_walk_page_skip(
         page_del = ref->page_del;
         if (page_del == NULL ||
           (__wti_rts_visibility_txn_visible_id(session, page_del->txnid) &&
-            page_del->durable_timestamp <= rollback_timestamp)) {
+            page_del->pg_del_durable_ts <= rollback_timestamp)) {
             /*
              * We should never see a prepared truncate here; not at recovery time because prepared
              * truncates can't be written to disk, and not during a runtime RTS either because it
@@ -69,22 +69,23 @@ __rts_btree_walk_page_skip(
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
                   WT_RTS_VERB_TAG_SKIP_DEL "ref=%p: deleted page walk skipped page_del %s",
                   (void *)ref,
-                  __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
-                    page_del->txnid, time_string[0]));
+                  __wt_time_point_to_string(page_del->pg_del_durable_ts, page_del->pg_del_start_ts,
+                    page_del->prepare_ts, page_del->prepared_id, page_del->txnid, time_string[0]));
             }
             WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
             *skipp = true;
         }
-        WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
         if (page_del != NULL)
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_PAGE_DELETE
               "deleted page with commit_timestamp=%s, durable_timestamp=%s > "
               "rollback_timestamp=%s, txnid=%" PRIu64,
-              __wt_timestamp_to_string(page_del->timestamp, time_string[0]),
-              __wt_timestamp_to_string(page_del->durable_timestamp, time_string[1]),
+              __wt_timestamp_to_string(page_del->pg_del_start_ts, time_string[0]),
+              __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
               __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
+
+        WT_REF_SET_STATE(ref, WT_REF_DELETED);
         return (0);
     }
 
@@ -244,6 +245,7 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
     WT_DECL_RET;
 
     ret = __rts_btree_int(session, uri, rollback_timestamp);
+    WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_applied);
     /*
      * Ignore rollback to stable failures on files that don't exist or files where corruption is
      * detected.
@@ -290,7 +292,7 @@ __wti_rts_btree_walk_btree_apply(
     WT_ASSERT(session, rollback_timestamp != WT_TS_NONE);
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
-    if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
+    if (!WT_BTREE_PREFIX(uri) || WT_IS_URI_HS(uri) || WT_IS_URI_METADATA(uri))
         return (0);
 
     addr_size = 0;
@@ -358,7 +360,7 @@ __wti_rts_btree_walk_btree_apply(
     }
 
     /* Skip empty and newly-created tables during recovery. */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) && addr_size == 0) {
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) && addr_size == 0) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_FILE_SKIP
           "skipping rollback to stable on file=%s because has never been checkpointed",
@@ -409,6 +411,9 @@ __wti_rts_btree_walk_btree_apply(
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
+    if (file_skipped)
+        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_skipped);
+
     /*
      * Truncate history store entries for the non-timestamped table.
      * Exceptions:
@@ -419,7 +424,7 @@ __wti_rts_btree_walk_btree_apply(
      * 2. In-memory database - In this scenario, there is no history store to truncate.
      */
     if ((file_skipped && !modified) && max_durable_ts == WT_TS_NONE &&
-      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY)) {
+      !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
         WT_RET(__wti_rts_history_btree_hs_truncate(session, btree_id));
@@ -468,8 +473,8 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      * reflect that the tree only contains stable data. The fields are set in a way to ensure RTS
      * does not mark the btree as dirty when checkpoint is happening.
      */
-    oldest_id = __wt_atomic_loadv64(&conn->txn_global.oldest_id);
-    stable_timestamp = __wt_atomic_loadv64(&conn->txn_global.stable_timestamp);
+    oldest_id = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.oldest_id);
+    stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ASSERT(session, oldest_id > WT_TXN_NONE);
     btree->rec_max_txn = oldest_id - 1;
     btree->rec_max_timestamp = stable_timestamp;

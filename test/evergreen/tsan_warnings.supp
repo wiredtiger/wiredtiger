@@ -3,13 +3,13 @@
 # before running tests with TSan. history_size isn't required but it reduces the chance that TSan reports
 # an error that is missing information and the message "failed to restore the stack"
 
-# These functions enable threads to access double values in a shared context, and catch all TSan warnings.
-race:__wt_read_shared_double
-race:__wt_set_shared_double
-
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
 race:src/support/stat.c
+
+# These functions were created for fine-grained suppressions. Please search for appropriate FIXME tickets
+# around usages of these functions.
+race:__wt_tsan_suppress_*
 
 # FIXME-WT-12734 this function copies an 8 byte struct which needs further investigation.
 race:__log_wrlsn_server
@@ -26,31 +26,99 @@ race:__tiered_queue_peek_empty
 # The ref track code is diagnostic only and allows for races
 race:__ref_track_state
 
-# __wt_configure_method intentionally allows for races between threads to avoid the overhead of taking a lock on each API call.  
+# __wt_configure_method intentionally allows for races between threads to avoid the overhead of taking a lock on each API call.
 race:__wt_configure_method
 
-# FIXME-WT-13074 This Work has been split out into a separate ticket to keep PR sizes down.
+# FIXME-WT-14930 Dhandle timeofdeath synchronization
+race:__sweep_mark
+
+# FIXME-WT-14948 Figure out concurrency control expectations around reconfigure
+race:conn_reconfig.c
+
+# FIXME-WT-14958 ex_backup warnings. This work has been split out into a separate ticket to keep PR sizes down.
 race:__wt_free_int
 race:__wt_free_update_list
 race:__wt_page_out
-race:__read_blocked
-race:__sweep_mark
 race:__posix_file_close
-race:__log_newfile
 race:__handle_close
 race:__sweep_remove_handles
 race:__stash_discard
 race:__evict_lru_walk
-race:__log_file_server
 race:__tree_walk_internal
 race:__evict_queue_empty
 race:__evict_get_ref
 race:__evict_clear_all_walks
 race:__session_clear
+race:__rec_row_leaf_insert
+race:__wt_cache_dirty_decr
+race:__wt_reconcile
+
+# FIXME-WT-14856 Unresolved warnings for ex_all
+race:__wti_conn_reconfig
+race:__wt_session_cursor_cache_sweep
+race:__wti_txn_update_pinned_timestamp
+race:__capacity_config
+
+# FIXME-WT-15772 Issues caused by lack of atomics synchornization for double-checked locking pattern in the TAILQ implementation.
+race:__rts_thread_run
+race:__prefetch_thread_run
+race:__sweep_discard_trees
+
+# FIXME-WT-15771 Issues caused by lack of synchronization between memory accesses and allocation
+race:__wt_page_alloc
+race:__wt_page_modify_alloc
+race:__wt_upd_alloc
+race:__sweep_discard_trees
+race:__wt_conn_dhandle_alloc
+
+# FIXME-WT-15770 Fix python testing non-disagg TSAN warnings
+race:__wt_row_modify
+race:__split_multi_inmem
+race:__wt_leaf_page_can_split
+race:__split_insert
+race:__evict_page_dirty_update
+race:__cache_pool_server
+race:__drop_tiered
 
 # FIXME-WT-13075 Address these warnings separately as they may have perf impacts
 race:hazard.c
 race:__wt_tree_modify_set
 race:__wt_cond_auto_wait_signal
 race:__wt_ref_addr_copy
+race:__wt_row_leaf_key_info
+race:__wt_row_leaf_key
+race:__evict_force_check
+race:__wt_page_evict_clean
+race:__wt_evict_touch_page
+race:__wt_row_search
 
+# FIXME-WT-16311: Check warnings from the test/format implementation
+race:__wt_random
+race:operations
+race:timestamp_minimum_committed
+race:snap_op_init
+race:snap_track
+race:snap_verify_callback
+
+# Recently introduced issues.
+# FIXME-WT-16312: Check synchornization for __cell_unpack_window_cleanup_kv
+race:__cell_unpack_window_cleanup_kv
+# FIXME-WT-16310: Check synchornization around `oldest_timestamp` and `stable_timestamp`.
+race:__txn_check_if_stable_has_moved_ahead_commit_ts
+# FIXME-WT-16305: Synchornization around prepare_timestamp and upd_durable_ts
+race:__txn_apply_prepare_state_update
+
+# Warnings produced by column store related code
+race:__wt_col_modify
+race:__inmem_col_var
+race:__wt_col_search
+
+# Other warnings detected during test/format execution
+race:__wt_cell_type
+race:__posix_file_read
+race:__wt_cell_unpack_safe
+race:__cursor_var_next
+race:__cursor_var_prev
+race:__tombstone_update_alloc
+race:__wt_btcur_modify
+race:__wt_cursor_dhandle_decr_use

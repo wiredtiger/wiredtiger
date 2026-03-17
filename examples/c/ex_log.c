@@ -184,7 +184,7 @@ walk_log(WT_SESSION *session)
          * !!!
          * Minor cheat: the metadata is fileid 0, skip its records.
          */
-        if (fileid != 0 && rectype == WT_LOGREC_COMMIT && optype == WT_LOGOP_ROW_PUT) {
+        if (fileid != WT_METAFILE_ID && rectype == WT_LOGREC_COMMIT && optype == WT_LOGOP_ROW_PUT) {
             if (!in_txn) {
                 error_check(session2->begin_transaction(session2, NULL));
                 in_txn = 1;

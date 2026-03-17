@@ -36,7 +36,6 @@ from wtscenario import make_scenarios
 class test_rollback_to_stable30(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('table-f', dict(keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
         ('table-r', dict(keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
         ('table-S', dict(keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
         ('table-r-complex', dict(keyfmt='r', valfmt=None, dataset=ComplexDataSet)),
@@ -70,8 +69,17 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
             'oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        # Write some data and prepare it.
+        # Position a cursor.
         cursor = self.session.open_cursor(ds.uri)
+        cursor.next()
+
+        # Roll back to stable should fail because there's an active cursor.
+        msg = '/rollback_to_stable illegal with active file cursors/'
+        with self.expectedStdoutPattern('positioned cursors'):
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda:self.conn.rollback_to_stable('threads=' + str(self.threads)), msg)
+
+        # Write some data and prepare it.
         self.session.begin_transaction()
 
         # Modify a row.
@@ -81,8 +89,8 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10))
 
         # Roll back to stable should fail because there's an active transaction.
-        msg = '/rollback_to_stable.*active/'
-        with self.expectedStdoutPattern('transaction state dump'):
+        msg = '/rollback_to_stable illegal with active transactions/'
+        with self.expectedStdoutPattern('transaction'):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:self.conn.rollback_to_stable('threads=' + str(self.threads)), msg)
 
@@ -93,6 +101,9 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
 
         # Commit or abort the prepared transaction.
         resolve()
+
+        # Test roll back to stable succeeds after closing all active cursors and transactions.
+        self.conn.rollback_to_stable('threads=' + str(self.threads))
 
     def test_rts_prepare_commit(self):
         self.prepare_resolve(self.session.commit_transaction)

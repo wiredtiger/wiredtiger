@@ -1,7 +1,3 @@
-project(iaa C CXX)
-
-include(GNUInstallDirs)
-
 config_bool(
     HAVE_BUILTIN_EXTENSION_IAA
     "Builtin iaa compression library."

@@ -5,7 +5,6 @@
  *
  * See the file LICENSE for redistribution information.
  */
-
 #pragma once
 
 /*
@@ -31,6 +30,24 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 }
 
 /*
+ * __cell_assert_tw_has_ts_for_garbage_collection_table --
+ *     Assert that time window has timestamps if garbage collection is enabled for the btree.
+ */
+static WT_INLINE void
+__cell_assert_tw_has_ts_for_garbage_collection_table(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(tw);
+
+    WT_ASSERT(session,
+      tw->start_ts != WT_TS_NONE || tw->start_prepare_ts != WT_TS_NONE ||
+        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+    WT_ASSERT(session,
+      !WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_ts != WT_TS_NONE ||
+        tw->stop_prepare_ts != WT_TS_NONE || !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+}
+
+/*
  * __cell_pack_value_validity --
  *     Pack the validity window for a value.
  */
@@ -38,6 +55,8 @@ static WT_INLINE int
 __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDOW *tw)
 {
     uint8_t flags, *flagsp;
+
+    __cell_assert_tw_has_ts_for_garbage_collection_table(session, tw);
 
     /* Globally visible values have no associated validity window. */
     if (WT_TIME_WINDOW_IS_EMPTY(tw)) {
@@ -53,25 +72,64 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     ++*pp;
 
     flags = 0;
-    if (tw->start_ts != WT_TS_NONE) {
+    /* We pack prepared txn info to stop_ts and durable_stop_ts when:
+     *  - txn is prepared
+     *  - transaction is in delete prepared (meaning it has stop_txn defined)
+     */
+    bool pack_prepare_info_to_stop = WT_TIME_WINDOW_HAS_STOP_PREPARE(tw);
+
+    /* We pack prepared txn info to start_ts and durable start_ts when:
+     *  - txn is prepared
+     *  - transaction is in start prepared (no stop), or both start and delete are prepared, which
+     * means both start and stop transactions are the same
+     */
+    bool pack_prepare_info_to_start = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
+
+    if (pack_prepare_info_to_start && pack_prepare_info_to_stop)
+        WT_ASSERT(session, tw->start_prepared_id == tw->stop_prepared_id);
+
+    wt_timestamp_t reference_ts = tw->start_ts;
+
+    if (pack_prepare_info_to_start) {
+        WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepare_ts));
+        reference_ts = tw->start_prepare_ts;
+        LF_SET(WT_CELL_TS_START);
+    } else if (tw->start_ts != WT_TS_NONE) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_ts));
+        reference_ts = tw->start_ts;
         LF_SET(WT_CELL_TS_START);
     }
     if (tw->start_txn != WT_TXN_NONE) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_txn));
         LF_SET(WT_CELL_TXN_START);
     }
-    if (tw->durable_start_ts != WT_TS_NONE) {
-        WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
+
+    if (pack_prepare_info_to_start) {
+        /*
+         * If the preserve prepared config is enabled, we write prepared_id to durable_start_ts as
+         * well.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
+            WT_ASSERT(session, tw->start_prepared_id != WT_PREPARED_ID_NONE);
+            WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepared_id));
+            LF_SET(WT_CELL_TS_DURABLE_START);
+        } else
+            /* For non preserve_prepared case, there's no durable ts to write here. */
+            WT_ASSERT(session, tw->start_prepare_ts == reference_ts);
+    } else if (tw->durable_start_ts != WT_TS_NONE) {
+        WT_ASSERT(session, reference_ts <= tw->durable_start_ts);
         /* Store differences if any, not absolutes. */
-        if (tw->durable_start_ts - tw->start_ts > 0) {
-            WT_RET(__wt_vpack_uint(pp, 0, tw->durable_start_ts - tw->start_ts));
+        if (tw->durable_start_ts - reference_ts > 0) {
+            WT_RET(__wt_vpack_uint(pp, 0, tw->durable_start_ts - reference_ts));
             LF_SET(WT_CELL_TS_DURABLE_START);
         }
     }
-    if (tw->stop_ts != WT_TS_MAX) {
+    if (pack_prepare_info_to_stop) {
+        WT_RET(__wt_vpack_uint(pp, 0, tw->stop_prepare_ts - reference_ts));
+        LF_SET(WT_CELL_TS_STOP);
+    } else if (tw->stop_ts != WT_TS_MAX) {
         /* Store differences, not absolutes. */
-        WT_RET(__wt_vpack_uint(pp, 0, tw->stop_ts - tw->start_ts));
+        WT_RET(__wt_vpack_uint(pp, 0, tw->stop_ts - reference_ts));
         LF_SET(WT_CELL_TS_STOP);
     }
     if (tw->stop_txn != WT_TXN_MAX) {
@@ -79,7 +137,24 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         WT_RET(__wt_vpack_uint(pp, 0, tw->stop_txn - tw->start_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
-    if (tw->durable_stop_ts != WT_TS_NONE) {
+    /*
+     * We pack the difference if the start is also a prepared. But we pack the full value if only
+     * the stop is prepared. For the latter case, the start durable ts is a different type so we
+     * should not pack the difference.
+     */
+    if (pack_prepare_info_to_stop) {
+        /*
+         * If the preserve prepared config is enabled, we write prepared_id to durable_start_ts as
+         * well.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
+            if (!pack_prepare_info_to_start) {
+                WT_ASSERT(session, tw->stop_prepared_id != WT_PREPARED_ID_NONE);
+                WT_RET(__wt_vpack_uint(pp, 0, tw->stop_prepared_id));
+                LF_SET(WT_CELL_TS_DURABLE_STOP);
+            }
+        }
+    } else if (tw->durable_stop_ts != WT_TS_NONE) {
         WT_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts);
         /* Store differences if any, not absolutes. */
         if (tw->durable_stop_ts - tw->stop_ts > 0) {
@@ -87,7 +162,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
-    if (tw->prepare)
+    if (pack_prepare_info_to_stop || pack_prepare_info_to_start)
         LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;
 
@@ -194,6 +269,308 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
 }
 
 /*
+ * __wt_cell_compress_prefix_key --
+ *     Compress prefix key.
+ */
+static WT_INLINE void
+__wt_cell_compress_prefix_key(WT_ITEM *last_key, const void *data, size_t size,
+  uint8_t key_pfx_last, u_int prefix_compression_min, uint8_t *pfxp)
+{
+    const uint8_t *a, *b;
+    uint8_t pfx = 0;
+    /*
+     * We can't compress out more than 256 bytes, limit the comparison to that.
+     */
+    size_t pfx_max = UINT8_MAX;
+    if (size < pfx_max)
+        pfx_max = size;
+    if (last_key->size < pfx_max)
+        pfx_max = last_key->size;
+    for (a = (const uint8_t *)data, b = (const uint8_t *)last_key->data; pfx < pfx_max; ++pfx)
+        if (*a++ != *b++)
+            break;
+
+    if (pfx < prefix_compression_min)
+        pfx = 0;
+    else if (key_pfx_last != 0 && pfx > key_pfx_last &&
+      pfx < key_pfx_last + WTI_CELL_KEY_PREFIX_PREVIOUS_MINIMUM)
+        pfx = key_pfx_last;
+
+    *pfxp = pfx;
+}
+
+/*
+ * __wt_cell_decompress_prefix_key --
+ *     Decompress prefix key.
+ */
+static WT_INLINE int
+__wt_cell_decompress_prefix_key(
+  WT_SESSION_IMPL *session, WT_ITEM *current_key, const void *data, size_t size, uint8_t key_prefix)
+{
+    /*
+     * If the key has no prefix count, no prefix compression work is needed; else check for a
+     * previously built key big enough cover this key's prefix count.
+     */
+    if (key_prefix == 0) {
+        current_key->data = data;
+        current_key->size = size;
+    } else {
+        WT_ASSERT(session, current_key->size >= key_prefix);
+        /*
+         * Grow the buffer as necessary as well as ensure data has been copied into local buffer
+         * space, then append the suffix to the prefix already in the buffer. Don't grow the buffer
+         * unnecessarily or copy data we don't need, truncate the item's CURRENT data length to the
+         * prefix bytes before growing the buffer.
+         */
+        current_key->size = key_prefix;
+        WT_RET(__wt_buf_grow(session, current_key, key_prefix + size));
+        memcpy((uint8_t *)current_key->mem + key_prefix, data, size);
+        current_key->size = key_prefix + size;
+    }
+
+    return (0);
+}
+
+/*
+ * __wt_cell_pack_leaf_kv --
+ *     This pack leaf KV is for disagg only. It builds the leaf key and leaf value, and then copies
+ *     them directly to the new disk image.
+ */
+static WT_INLINE int
+__wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *key_data,
+  size_t key_size, const void *val_data, size_t val_size, WT_TIME_WINDOW *val_tw,
+  WT_ITEM *new_image, WTI_DISK_LEAF_MERGE_STATE *s)
+{
+    WT_BTREE *btree;
+    WT_CELL_KV key, val;
+    WT_DECL_RET;
+    size_t packed_size;
+    uint8_t pfx;
+
+    btree = S2BT(session);
+    pfx = 0;
+    WT_CLEAR(key);
+    WT_CLEAR(val);
+
+    if (!empty_value)
+        s->all_empty_value = false;
+    else
+        s->any_empty_value = true;
+
+    /*
+     * Build key cell. Do prefix compression on the key. We know by definition the previous key
+     * sorts before the current key, which means the keys must differ and we just need to compare up
+     * to the shorter one of the two keys.
+     */
+    if (s->key_pfx_compress)
+        __wt_cell_compress_prefix_key(
+          s->last_key, key_data, key_size, s->key_pfx_last, btree->prefix_compression_min, &pfx);
+
+    /* Copy the non-prefix bytes into the key buffer. */
+    WT_ERR(__wt_buf_set(session, &key.buf, (uint8_t *)key_data + pfx, key_size - pfx));
+    s->key_pfx_last = pfx;
+    key.cell_len = __wt_cell_pack_leaf_key(&key.cell, pfx, key.buf.size);
+    key.len = key.cell_len + key.buf.size;
+
+    /*
+     * Build value cell. We don't copy the data into the buffer, just re-pointing the buffer's
+     * data/length fields.
+     */
+    if (!empty_value) {
+        val.buf.data = val_data;
+        val.buf.size = val_size;
+        val.cell_len = __wt_cell_pack_value(session, &val.cell, val_tw, 0, val.buf.size);
+        val.len = val.cell_len + val.buf.size;
+    }
+
+    /*
+     * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
+     * pointer).
+     */
+    packed_size = key.len + val.len;
+    if (new_image->size + packed_size > new_image->memsize)
+        WT_ERR(__wt_buf_grow(session, new_image, new_image->size + packed_size));
+
+    /* Recompute write pointer after possible realloc */
+    WT_ASSERT(session, new_image->mem != NULL);
+
+    s->p_ptr = (uint8_t *)new_image->mem + new_image->size;
+    __wt_cell_kv_copy(session, s->p_ptr, &key);
+    s->p_ptr += key.len;
+    s->entries++;
+    if (!empty_value) {
+        __wt_cell_kv_copy(session, s->p_ptr, &val);
+        s->p_ptr += val.len;
+        s->entries++;
+    }
+    new_image->size += packed_size;
+
+    /* Update last key for next prefix compression comparison */
+    WT_ERR(__wt_buf_set(session, s->last_key, key_data, key_size));
+
+err:
+    __wt_buf_free(session, &key.buf);
+    return (ret);
+}
+
+/*
+ * __wt_cell_build_addr_kv --
+ *     Helper to build an address cell for a given unpacked address structure (delta or base).
+ */
+static WT_INLINE void
+__wt_cell_build_addr_kv(WT_SESSION_IMPL *session, WT_CELL_KV *val_kv, uint8_t cell_type,
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, const void *data, size_t data_size)
+{
+    WT_ASSERT(session, val_kv != NULL);
+
+    val_kv->buf.data = data;
+    val_kv->buf.size = data_size;
+
+    val_kv->cell_len = (uint16_t)__wt_cell_build_addr(
+      session, &val_kv->cell, cell_type, WT_RECNO_OOB, page_del, ta, data_size);
+
+    val_kv->len = val_kv->cell_len + data_size;
+}
+
+/*
+ * __cell_build_int_key_from_kv --
+ *     Build an internal key cell and populate a WTI_REC_KV structure.
+ */
+static WT_INLINE int
+__cell_build_int_key_from_kv(
+  WT_SESSION_IMPL *session, WT_CELL_KV *key, const void *data, size_t size)
+{
+    WT_RET(__wt_buf_set(session, &key->buf, data, size));
+
+    /* Build cell header and compute lengths */
+    key->cell_len = __wt_cell_pack_int_key(&key->cell, key->buf.size);
+    key->len = key->cell_len + key->buf.size;
+
+    return (0);
+}
+
+/*
+ * __wt_cell_kv_copy --
+ *     Copy a key/value cell and buffer pair. FIXME-WT-14887: ensure memory safety on the pointer.
+ */
+static WT_INLINE void
+__wt_cell_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WT_CELL_KV *kv)
+{
+    size_t len;
+    uint8_t *t;
+
+    /*
+     * If there's only one chunk of data to copy (because the cell and data are being copied from
+     * the original disk page), the cell length won't be set, the WT_ITEM data/length will reference
+     * the data to be copied.
+     *
+     * WT_CELLs are typically small, 1 or 2 bytes -- don't call memcpy, do the copy in-line.
+     */
+    for (t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
+        *p++ = *t++;
+
+    /* The data can be quite large -- call memcpy. */
+    if (kv->buf.size != 0)
+        memcpy(p, kv->buf.data, kv->buf.size);
+
+    WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
+}
+
+/*
+ * __wt_cell_pack_internal_key_addr --
+ *     Pack a key/value pair (internal page address or delta) directly into new_image.
+ */
+static WT_INLINE int
+__wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
+  WT_CELL_UNPACK_ADDR *base_key, WT_CELL_UNPACK_ADDR *base_val, WT_CELL_UNPACK_DELTA_INT *delta,
+  bool is_delta, uint8_t **pp)
+{
+    WT_CELL_KV key_kv, val_kv;
+    WT_PAGE_DELETED *page_del = NULL;
+    size_t packed_size;
+
+    WT_CLEAR(key_kv);
+    WT_CLEAR(val_kv);
+
+    /* Build packed key */
+    if (is_delta)
+        WT_RET(__cell_build_int_key_from_kv(session, &key_kv, delta->key.data, delta->key.size));
+    else
+        WT_RET(__cell_build_int_key_from_kv(session, &key_kv, base_key->data, base_key->size));
+
+    /* Build packed value */
+    if (is_delta) {
+        page_del = (delta->value.type == WT_CELL_ADDR_DEL) ? &delta->value.page_del : NULL;
+
+        __wt_cell_build_addr_kv(session, &val_kv, delta->value.type, page_del, &delta->value.ta,
+          delta->value.data, delta->value.size);
+
+    } else {
+        page_del = (base_val->type == WT_CELL_ADDR_DEL) ? &base_val->page_del : NULL;
+
+        __wt_cell_build_addr_kv(session, &val_kv, base_val->type, page_del, &base_val->ta,
+          base_val->data, base_val->size);
+    }
+
+    /*
+     * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
+     * pointer)
+     */
+    packed_size = key_kv.len + val_kv.len;
+    if (new_image->size + packed_size > new_image->memsize)
+        WT_RET(__wt_buf_grow(session, new_image, new_image->size + packed_size));
+
+    /* Recompute write pointer after possible realloc */
+    WT_ASSERT(session, new_image->mem != NULL);
+
+    uint8_t *p = (uint8_t *)new_image->mem + new_image->size;
+    __wt_cell_kv_copy(session, p, &key_kv);
+    p += key_kv.len;
+    __wt_cell_kv_copy(session, p, &val_kv);
+    p += val_kv.len;
+
+    *pp = p;
+    new_image->size += packed_size;
+
+    __wt_buf_free(session, &key_kv.buf);
+    __wt_buf_free(session, &val_kv.buf);
+    return (0);
+}
+
+/*
+ * __wt_cell_build_addr --
+ *     Function to build and pack an address cell.
+ */
+static WT_INLINE uint16_t
+__wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type, uint64_t recno,
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t data_size)
+{
+    /*
+     * If passed fast-delete information, override the cell type. We should never see fast-truncate
+     * cell types without fast-truncate information.
+     */
+    WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
+
+    if (page_del != NULL) {
+        /*
+         * We only support fast-truncate leaf pages without overflow items, however, we can write a
+         * proxy cell for a page, evict and then read the internal page, and then checkpoint is
+         * writing it again.
+         */
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
+        cell_type = WT_CELL_ADDR_DEL;
+
+        /* We should never be in an in-progress prepared state. */
+        WT_ASSERT(session,
+          page_del->prepare_state == WT_PREPARE_INIT ||
+            page_del->prepare_state == WT_PREPARE_RESOLVED);
+    }
+
+    /* Just pack and return the cell size. */
+    return (uint16_t)__wt_cell_pack_addr(session, cell, cell_type, recno, page_del, ta, data_size);
+}
+
+/*
  * __wt_cell_pack_addr --
  *     Pack an address cell.
  */
@@ -213,12 +590,12 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      * If passed fast-delete information, append the fast-delete information after the aggregated
      * timestamp information.
      */
-    if (page_del != NULL && __wt_process.fast_truncate_2022) {
+    if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
     }
 
     if (recno == WT_RECNO_OOB)
@@ -611,6 +988,19 @@ __wt_cell_type(WT_CELL *cell)
 }
 
 /*
+ * __wt_delta_cell_type_visible_all --
+ *     Check if the value cell type is WT_CELL_ADDR_DEL_VISIBLE_ALL.
+ */
+static WT_INLINE bool
+__wt_delta_cell_type_visible_all(WT_CELL_UNPACK_DELTA_INT *unpack_delta)
+{
+    u_int cell_type;
+
+    cell_type = __wt_cell_type_raw(unpack_delta->value.cell);
+    return (cell_type == WT_CELL_ADDR_DEL_VISIBLE_ALL);
+}
+
+/*
  * __wt_cell_type_raw --
  *     Return the cell's type.
  */
@@ -795,6 +1185,7 @@ copy_cell_restart:
     /* Check for a validity window. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_DEL:
+    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
@@ -850,36 +1241,119 @@ copy_cell_restart:
             break;
         flags = *p++; /* skip second descriptor byte */
         WT_CELL_LEN_CHK(p, 0, dsk, end);
+        wt_timestamp_t temp_start_ts, temp_durable_start_ts, temp_stop_ts, temp_durable_stop_ts;
+        temp_start_ts = temp_durable_start_ts = temp_durable_stop_ts = WT_TS_NONE;
+        temp_stop_ts = WT_TS_MAX;
 
-        if (LF_ISSET(WT_CELL_PREPARE))
-            tw->prepare = 1;
         if (LF_ISSET(WT_CELL_TS_START))
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_ts));
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_start_ts));
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_txn));
-        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
+        if (LF_ISSET(WT_CELL_TS_DURABLE_START))
             WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->durable_start_ts));
-            tw->durable_start_ts += tw->start_ts;
-        } else
-            tw->durable_start_ts = tw->start_ts;
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_start_ts));
 
-        if (LF_ISSET(WT_CELL_TS_STOP)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->stop_ts));
-            tw->stop_ts += tw->start_ts;
-        }
+        if (LF_ISSET(WT_CELL_TS_STOP))
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_stop_ts));
+
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->stop_txn));
             tw->stop_txn += tw->start_txn;
         }
-        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
+        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP))
             WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->durable_stop_ts));
-            tw->durable_stop_ts += tw->stop_ts;
-        } else if (tw->stop_ts != WT_TS_MAX)
-            tw->durable_stop_ts = tw->stop_ts;
-        else
-            tw->durable_stop_ts = WT_TS_NONE;
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_stop_ts));
+
+        /* Load temporary values to the right fields. */
+        if (LF_ISSET(WT_CELL_PREPARE)) {
+            bool preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
+            /*
+             * We can compare the txn_id only here, but cannot do it everywhere else because when
+             * recovering, all transaction ids are reset to WT_TXN_NONE, so we cannot compare the
+             * transaction ids.
+             */
+            if (tw->start_txn == tw->stop_txn && temp_stop_ts == WT_TS_NONE) {
+                /*
+                 * This is a special case where both transaction start and stop are in prepared
+                 * state. The prepared record is written with the preserve prepared config enabled.
+                 * The same prepared id is packed to WT_CELL_TS_DURABLE_START. Since temp_stop_ts
+                 * here stores the difference between start_prepared_id and stop_prepared_id,
+                 * temp_stop_ts must be 0.
+                 */
+                if (temp_durable_start_ts != WT_TS_NONE) {
+                    WT_ASSERT(session, temp_durable_stop_ts == WT_TS_NONE);
+                    tw->start_prepare_ts = temp_start_ts;
+                    tw->start_prepared_id = temp_durable_start_ts;
+                    tw->stop_prepare_ts = temp_start_ts;
+                    tw->stop_prepared_id = temp_durable_start_ts;
+                } else {
+                    WT_ASSERT_ALWAYS(session, !preserve_prepared,
+                      "Read prepared record with no prepared id when preserve prepared is "
+                      "enabled.");
+                    WT_ASSERT(session, temp_durable_start_ts == temp_durable_stop_ts);
+                    tw->start_prepare_ts = tw->stop_prepare_ts = temp_start_ts;
+                }
+            } else if (tw->stop_txn != WT_TXN_MAX) {
+                /*
+                 * This case happens where the transaction start is committed, but the transaction
+                 * stop is prepared. In this case, we store the start timestamp and durable start
+                 * timestamp in WT_CELL_TS_START and WT_CELL_TS_DURABLE_START, prepare ts in
+                 * WT_CELL_TS_STOP.
+                 */
+                tw->start_ts = temp_start_ts;
+                /*
+                 * The prepared record is written with the preserve prepared config enabled. We
+                 * store the prepared id in WT_CELL_TS_DURABLE_STOP.
+                 */
+                if (temp_durable_start_ts != WT_TS_NONE)
+                    tw->durable_start_ts = temp_durable_start_ts + tw->start_ts;
+                else
+                    tw->durable_start_ts = tw->start_ts;
+
+                WT_ASSERT(session, temp_stop_ts != WT_TS_MAX);
+                tw->stop_prepare_ts = tw->start_ts + temp_stop_ts;
+
+                if (temp_durable_stop_ts != WT_TS_NONE)
+                    tw->stop_prepared_id = temp_durable_stop_ts;
+                else
+                    WT_ASSERT_ALWAYS(session, !preserve_prepared,
+                      "Read prepared record with no prepared id when preserve prepared is "
+                      "enabled.");
+            } else {
+                WT_ASSERT(session, tw->start_ts == WT_TS_NONE);
+                /*
+                 * This case happens when only transaction start is prepared, and there is no
+                 * transaction stop. In this case, we store the prepare ts in WT_CELL_TS_START.
+                 */
+                tw->start_prepare_ts = temp_start_ts;
+                /*
+                 * The prepared record is written with the preserve prepared config enabled. We
+                 * store prepared id in WT_CELL_TS_DURABLE_START.
+                 */
+                if (temp_durable_start_ts != WT_TS_NONE)
+                    tw->start_prepared_id = temp_durable_start_ts;
+                else
+                    WT_ASSERT_ALWAYS(session, !preserve_prepared,
+                      "Read prepared record with no prepared id when preserve prepared is "
+                      "enabled.");
+            }
+        } else {
+            if (LF_ISSET(WT_CELL_TS_START))
+                tw->start_ts = temp_start_ts;
+            if (LF_ISSET(WT_CELL_TS_DURABLE_START))
+                tw->durable_start_ts = temp_durable_start_ts + tw->start_ts;
+            else
+                tw->durable_start_ts = tw->start_ts;
+
+            if (LF_ISSET(WT_CELL_TS_STOP))
+                tw->stop_ts = temp_stop_ts + tw->start_ts;
+            if (LF_ISSET(WT_CELL_TS_DURABLE_STOP))
+                tw->durable_stop_ts = temp_durable_stop_ts + tw->stop_ts;
+            else if (tw->stop_ts != WT_TS_MAX)
+                tw->durable_stop_ts = tw->stop_ts;
+        }
+
+        __cell_assert_tw_has_ts_for_garbage_collection_table(session, tw);
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;
@@ -890,9 +1364,10 @@ copy_cell_restart:
         page_del = &unpack_addr->page_del;
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
-        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
+        WT_RET(
+          __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_start_ts));
         WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_durable_ts));
         page_del->prepare_state = 0; /* No prepare can have been in progress. */
         page_del->committed = true;  /* There is no running transaction. */
         page_del->selected_for_write = true;
@@ -941,6 +1416,7 @@ copy_cell_restart:
         /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
+    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
@@ -1008,12 +1484,12 @@ __cell_page_del_window_cleanup(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_d
             *clearedp = true;
         page_del->txnid = WT_TXN_NONE;
         /* As above, only for non-timestamped tables. */
-        if (page_del->timestamp == WT_TS_MAX) {
-            page_del->timestamp = WT_TS_NONE;
-            WT_ASSERT(session, page_del->durable_timestamp == WT_TS_NONE);
+        if (page_del->pg_del_start_ts == WT_TS_MAX) {
+            page_del->pg_del_start_ts = WT_TS_NONE;
+            WT_ASSERT(session, page_del->pg_del_durable_ts == WT_TS_NONE);
         }
     } else
-        WT_ASSERT(session, page_del->timestamp == WT_TS_MAX);
+        WT_ASSERT(session, page_del->pg_del_start_ts == WT_TS_MAX);
 }
 
 /*
@@ -1087,12 +1563,12 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
              * there shouldn't be any timestamp value as part of durable stop timestamp other than
              * the default value WT_TS_NONE.
              */
-            if (tw->stop_ts == WT_TS_MAX) {
+            if (tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
                 tw->stop_ts = WT_TS_NONE;
                 WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
             }
         } else
-            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
+            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw));
     }
 }
 
@@ -1123,12 +1599,11 @@ __cell_redo_page_del_cleanup(
 }
 
 /*
- * __cell_unpack_window_cleanup --
+ * __cell_unpack_window_need_cleanup --
  *     Clean up cells loaded from a previous run.
  */
-static WT_INLINE void
-__cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
-  WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_KV *unpack_kv)
+static WT_INLINE bool
+__cell_unpack_window_need_cleanup(WT_SESSION_IMPL *session, uint64_t dsk_write_gen)
 {
     uint64_t write_gen;
 
@@ -1166,15 +1641,38 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
     } else
         write_gen = S2BT(session)->base_write_gen;
 
-    WT_ASSERT(session, dsk->write_gen != 0);
-    if (dsk->write_gen > write_gen)
-        return;
+    WT_ASSERT(session, dsk_write_gen != 0);
+    if (dsk_write_gen > write_gen)
+        return (false);
 
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
-        return;
+        return (false);
 
-    __cell_addr_window_cleanup(session, dsk, unpack_addr);
-    __cell_kv_window_cleanup(session, unpack_kv);
+    return (true);
+}
+
+/*
+ * __cell_unpack_window_cleanup_addr --
+ *     Clean up addr cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_unpack_window_cleanup_addr(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unpack_addr)
+{
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
+        __cell_addr_window_cleanup(session, dsk, unpack_addr);
+}
+
+/*
+ * __cell_unpack_window_cleanup_kv --
+ *     Clean up kv cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_unpack_window_cleanup_kv(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_KV *unpack_kv)
+{
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
+        __cell_kv_window_cleanup(session, unpack_kv);
 }
 
 /*
@@ -1191,7 +1689,7 @@ __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
-    __cell_unpack_window_cleanup(session, dsk, unpack_addr, NULL);
+    __cell_unpack_window_cleanup_addr(session, dsk, unpack_addr);
 }
 
 /*
@@ -1230,7 +1728,27 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
-    __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
+    __cell_unpack_window_cleanup_kv(session, dsk, unpack_value);
+}
+
+/*
+ * __wt_cell_unpack_delta_leaf_value --
+ *     Unpack a leaf delta value cell into a structure.
+ */
+static WT_INLINE void
+__wt_cell_unpack_delta_leaf_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
+  WT_CELL *value_cell, WT_CELL_UNPACK_DELTA_LEAF_KV *unpack)
+{
+    WT_DECL_RET;
+
+    /* Unpack the value. */
+    __wt_cell_unpack_kv(session, dsk, value_cell, &unpack->delta_value);
+
+    /* Extract the delta metadata and then the actual delta value from the custom value format. */
+    ret = __wt_struct_unpack(session, unpack->delta_value.data, unpack->delta_value.size,
+      WT_DELTA_LEAF_VALUE_FORMAT, &unpack->flags, &unpack->delta_value_data);
+
+    WT_ASSERT_ALWAYS(session, ret == 0, "Failed to decode the delta leaf value.");
 }
 
 /*
@@ -1258,27 +1776,15 @@ __wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp)
  *     Set a buffer to reference the data from an unpacked cell.
  */
 static WT_INLINE int
-__cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
-  WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
+__cell_data_ref(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
-    bool decoded;
-
     /* Reference the cell's data, optionally decode it. */
     switch (unpack->type) {
     case WT_CELL_KEY:
-        store->data = unpack->data;
-        store->size = unpack->size;
-        if (page_type == WT_PAGE_ROW_INT)
-            return (0);
-        break;
     case WT_CELL_VALUE:
         store->data = unpack->data;
         store->size = unpack->size;
-        break;
-    case WT_CELL_KEY_OVFL:
-        WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
-        if (page_type == WT_PAGE_ROW_INT || decoded)
-            return (0);
         break;
     case WT_CELL_VALUE_OVFL:
         /*
@@ -1286,9 +1792,9 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
          * it may be removed by checkpoint concurrently.
          */
         __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE, NULL);
-        WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
-        if (decoded)
-            return (0);
+        /* FALLTHROUGH */
+    case WT_CELL_KEY_OVFL:
+        WT_RET(__wt_ovfl_read(session, page, unpack, store));
         break;
     default:
         return (__wt_illegal_value(session, unpack->type));
@@ -1302,10 +1808,9 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
  *     Set a buffer to reference the data from an unpacked address cell.
  */
 static WT_INLINE int
-__wt_dsk_cell_data_ref_addr(
-  WT_SESSION_IMPL *session, int page_type, WT_CELL_UNPACK_ADDR *unpack, WT_ITEM *store)
+__wt_dsk_cell_data_ref_addr(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack, WT_ITEM *store)
 {
-    return (__cell_data_ref(session, NULL, page_type, (WT_CELL_UNPACK_COMMON *)unpack, store));
+    return (__cell_data_ref(session, NULL, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*
@@ -1320,12 +1825,11 @@ __wt_dsk_cell_data_ref_addr(
  *     version means it might be.
  */
 static WT_INLINE int
-__wt_dsk_cell_data_ref_kv(
-  WT_SESSION_IMPL *session, int page_type, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
+__wt_dsk_cell_data_ref_kv(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
 {
     WT_ASSERT(session, unpack != NULL);
     WT_ASSERT(session, __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
-    return (__cell_data_ref(session, NULL, page_type, (WT_CELL_UNPACK_COMMON *)unpack, store));
+    return (__cell_data_ref(session, NULL, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*
@@ -1336,20 +1840,49 @@ static WT_INLINE int
 __wt_page_cell_data_ref_kv(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
 {
-    return (__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack, store));
+    return (__cell_data_ref(session, page, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
+#define WT_CELL_FOREACH_DELTA_INT(session, page_dsk, dsk, unpack)                               \
+    do {                                                                                        \
+        uint32_t __i;                                                                           \
+        uint8_t *__cell;                                                                        \
+        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
+             __i -= 2) {                                                                        \
+            WT_CELL_UNPACK_DELTA_INT *t_unpack = &unpack;                                       \
+            __wt_cell_unpack_kv(session, page_dsk, (WT_CELL *)__cell, &t_unpack->key);          \
+            __cell += t_unpack->key.__len;                                                      \
+            __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)__cell, &t_unpack->value);      \
+            __cell += t_unpack->value.__len;
+
+#define WT_CELL_DELTA_LEAF_UNPACK(session, dsk, unpack, cell)                     \
+    do {                                                                          \
+        __wt_cell_unpack_kv(session, dsk, (WT_CELL *)cell, &(unpack)->delta_key); \
+        cell += (unpack)->delta_key.__len;                                        \
+        __wt_cell_unpack_delta_leaf_value(session, dsk, (WT_CELL *)cell, unpack); \
+        cell += (unpack)->delta_value.__len;                                      \
+    } while (0)
+
+#define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                        \
+    do {                                                                                        \
+        uint32_t __i;                                                                           \
+        uint8_t *__cell;                                                                        \
+        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
+             __i -= 2) {                                                                        \
+            WT_CELL_DELTA_LEAF_UNPACK(session, dsk, unpack, __cell);
+
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \
         uint32_t __i;                                                                           \
         uint8_t *__cell;                                                                        \
         for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                 \
-            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));
+             --__i) {                                                                           \
+            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));                  \
+            __cell += (unpack).__len;
 
 #define WT_CELL_FOREACH_KV(session, dsk, unpack)                                                \
     do {                                                                                        \
@@ -1357,14 +1890,6 @@ __wt_page_cell_data_ref_kv(
         uint8_t *__cell;                                                                        \
         for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
              __cell += (unpack).__len, --__i) {                                                 \
-            __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack));
-
-#define WT_CELL_FOREACH_FIX_TIMESTAMPS(session, dsk, aux, unpack)                              \
-    do {                                                                                       \
-        uint32_t __i;                                                                          \
-        uint8_t *__cell;                                                                       \
-        for (__cell = (uint8_t *)(dsk) + (aux)->dataoffset, __i = (aux)->entries * 2; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                \
             __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack));
 
 #define WT_CELL_FOREACH_END \

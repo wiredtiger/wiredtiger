@@ -78,9 +78,11 @@ class test_cc09(test_cc_base):
         # Restart to have everything on disk.
         self.reopen_conn()
 
-        # Open the table as we need the dhandle to be open for checkpoint cleanup to process the
-        # table.
+        # Open the table and perform a read as we need the dhandle to be open for checkpoint cleanup
+        # to process the table.
         cursor = self.session.open_cursor(uri, None, None)
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.reset(), 0)
 
         if self.has_delete:
             self.session.begin_transaction()
@@ -96,8 +98,8 @@ class test_cc09(test_cc_base):
         # disk to clear the obsolete content if allowed to.
         self.wait_for_cc_to_run()
 
-        cc_read_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_read_obsolete_tw)
-        cc_dirty_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
+        cc_read_stat = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_read_obsolete_tw, uri)
+        cc_dirty_stat = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_obsolete_tw, uri)
 
         # We may be expecting cleanup but we have to be in one of the valid scenarios for checkpoint
         # cleanup to do something.

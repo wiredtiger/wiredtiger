@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 class test_bug_031(wttest.WiredTigerTestCase):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
@@ -45,10 +44,7 @@ class test_bug_031(wttest.WiredTigerTestCase):
         uri = "table:test_bug031"
 
         key = 1
-        if self.value_format == '8t':
-            value = 1
-        else:
-            value = "1"
+        value = "1"
 
         self.session.create(uri, 'key_format={},value_format={}'.format(
             self.key_format, self.value_format))
@@ -85,6 +81,7 @@ class test_bug_031(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         cursor[key] = value
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
 
         # Checkpoint.
         self.session.checkpoint()
@@ -97,7 +94,9 @@ class test_bug_031(wttest.WiredTigerTestCase):
         # - A record with a start ts 10 and stop ts 20 in the HS.
 
         # RTS.
-        self.conn.rollback_to_stable()
+        self.reopen_conn()
+
+        cursor = self.session.open_cursor(uri)
 
         # Since the stable timestamp is 10, RTS marks all the updates performed at a time greater
         # time than 10 as aborted. The update chain in memory is:

@@ -183,7 +183,7 @@ struct __wti_log {
 #ifdef HAVE_DIAGNOSTIC
     uint32_t min_fileid; /* Minimum file number needed */
 #endif
-    uint32_t prep_missed;           /* Pre-allocated file misses */
+    wt_shared uint32_t prep_missed; /* Pre-allocated file misses */
     WT_FH *log_fh;                  /* Logging file handle */
     WT_FH *log_dir_fh;              /* Log directory file handle */
     wt_shared WT_FH *log_close_fh;  /* Logging file handle to close */
@@ -328,6 +328,8 @@ extern void __wti_log_slot_free(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot);
 extern void __wti_log_slot_join(
   WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WTI_MYSLOT *myslot);
 extern void __wti_log_wrlsn(WT_SESSION_IMPL *session, int *yield);
+static WT_INLINE bool __wti_log_is_prealloc_enabled(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wti_log_desc_byteswap(WTI_LOG_DESC *desc);
 static WT_INLINE void __wti_log_record_byteswap(WT_LOG_RECORD *record);
 

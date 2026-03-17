@@ -89,22 +89,14 @@ def confirm_does_not_exist(testcase, uri):
 def confirm_empty(testcase, uri):
     testcase.pr('confirm_empty: ' + uri)
     cursor = testcase.session.open_cursor(uri, None)
-    if cursor.value_format == '8t':
-        for key,val in cursor:
-            testcase.assertEqual(val, 0)
-    else:
-        testcase.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+    testcase.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
 # Confirm a URI exists and is not empty.
 def confirm_nonempty(testcase, uri):
     testcase.pr('confirm_nonempty: ' + uri)
     cursor = testcase.session.open_cursor(uri, None)
-    if cursor.value_format == '8t':
-        for key,val in cursor:
-            testcase.assertNotEqual(val, 0)
-    else:
-        testcase.assertNotEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+    testcase.assertNotEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
 # Copy a WT home directory.
@@ -114,8 +106,10 @@ def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
         raise AssertionError(
             'copy_wiredtiger_home: unaligned copy impossible on Windows')
     shutil.rmtree(newdir, ignore_errors=True)
+    # Get the list of files first to avoid recursion.
+    files = list(os.listdir(olddir))
     os.mkdir(newdir)
-    for fname in os.listdir(olddir):
+    for fname in files:
         fullname = os.path.join(olddir, fname)
         # Skip lock file, on Windows it is locked.
         # Skip temporary log files.
@@ -144,6 +138,8 @@ def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
                 cmd_list = ['dd', inpf, outf, 'bs=300']
                 a = subprocess.Popen(cmd_list)
                 a.wait()
+        elif os.path.isdir(fullname):
+            shutil.copytree(fullname, os.path.join(newdir, fname))
 
 # Simulate a crash from olddir and restart in newdir.
 def simulate_crash_restart(testcase, olddir, newdir):
@@ -156,3 +152,24 @@ def simulate_crash_restart(testcase, olddir, newdir):
     testcase.close_conn()
     testcase.conn = testcase.setUpConnectionOpen(newdir)
     testcase.session = testcase.setUpSessionOpen(testcase.conn)
+
+def statistic_uri(uri = ''):
+    return 'statistics:' + uri
+
+class WiredTigerCursor:
+    def __init__(self, session, uri, *args, **kwargs):
+        self.session = session
+        self.uri = uri
+        self.args = args
+        self.kwargs = kwargs
+        self.cursor = None
+
+    def __enter__(self):
+        # Get a cursor
+        self.cursor = self.session.open_cursor(self.uri, *self.args, **self.kwargs)
+        return self.cursor
+
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        # Close the cursor
+        if self.cursor is not None:
+            self.cursor.close()

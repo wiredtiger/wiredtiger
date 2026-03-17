@@ -173,6 +173,26 @@ parse_tiered_random_seeds(TEST_OPTS *opts, const char *seed_str)
 }
 
 /*
+ * parse_and_set_disagg_opt --
+ *     Parse and set opts for the disaggregated storage configurations.
+ */
+static void
+parse_and_set_disagg_opt(TEST_OPTS *opts)
+{
+    TESTUTIL_DISAGG_INIT(opts,
+      /* is_enabled           */ true,
+      /* key_provider         */ true,
+      /* internal_page_delta  */ true,
+      /* leaf_page_delta      */ true,
+      /* mode                 */ "leader",
+      /* page_log             */ "palite",
+      /* page_log_home        */ ".",
+      /* drain_threads        */ 8,
+      /* page_log_map_size_mb */ 2048,
+      /* page_log_verbose     */ 0);
+}
+
+/*
  * parse_tiered_opt --
  *     Parse a command line option for the tiered storage configurations.
  */
@@ -243,16 +263,16 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
 
 #define USAGE_STR(ch, usage) ((strchr(getopts_string, (ch)) == NULL) ? "" : (usage))
 
-    testutil_snprintf(opts->usage, sizeof(opts->usage), "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    testutil_snprintf(opts->usage, sizeof(opts->usage), "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
       USAGE_STR('A', " [-A append thread count]"), USAGE_STR('b', " [-b build directory]"),
       USAGE_STR('C', " [-C]"), USAGE_STR('d', " [-d add data]"), USAGE_STR('h', " [-h home]"),
-      USAGE_STR('m', " [-m]"), USAGE_STR('n', " [-n record count]"),
-      USAGE_STR('o', " [-o op count]"),
+      USAGE_STR('G', " [-G Enable disaggregated storage]"), USAGE_STR('m', " [-m]"),
+      USAGE_STR('n', " [-n record count]"), USAGE_STR('o', " [-o op count]"),
       USAGE_STR('P',
         " [-PT] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
         " [-Pe <force_error>,<error_ms>] [-Po storage source]"),
       USAGE_STR('p', " [-p]"), USAGE_STR('R', " [-R read thread count]"),
-      USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|f|r table type]"),
+      USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|r table type]"),
       USAGE_STR('v', " [-v]"), USAGE_STR('W', " [-W write thread count]"));
 }
 
@@ -290,8 +310,10 @@ testutil_parse_end_opt(TEST_OPTS *opts)
     if (opts->tiered_storage) {
         if (opts->tiered_storage_source == NULL)
             opts->tiered_storage_source = dstrdup(DIR_STORE);
+    }
 
-        /* Deduce the build directory. */
+    if (opts->tiered_storage || opts->disagg.is_enabled) {
+        /* Deduce the build directory (for extension loading). */
         testutil_deduce_build_dir(opts);
     }
 
@@ -323,6 +345,9 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
     case 'd': /* Use data in multi-threaded test programs */
         opts->do_data_ops = true;
         break;
+    case 'G': /* Disaggregated storage options */
+        parse_and_set_disagg_opt(opts);
+        break;
     case 'h': /* Home directory */
         opts->home = dstrdup(__wt_optarg);
         break;
@@ -353,10 +378,6 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
         case 'C':
         case 'c':
             opts->table_type = TABLE_COL;
-            break;
-        case 'F':
-        case 'f':
-            opts->table_type = TABLE_FIX;
             break;
         case 'R':
         case 'r':

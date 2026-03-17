@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 # Test metadata cursor semantics when the underlying metadata is invalid.
 # This can happen after a crash, or if part of a table is dropped separate
 # from dropping the whole table.
+@wttest.skip_for_hook("disagg", "Test is specific to attached storage")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_metadata_cursor02(wttest.WiredTigerTestCase):
     """
@@ -69,8 +70,10 @@ class test_metadata_cursor02(wttest.WiredTigerTestCase):
             # Invalidate the table by dropping part of it
             if self.drop == 'colgroup':
                 self.session.drop('colgroup:' + name[-2:])
+                self.ignoreStdoutPatternIfExists('removing incomplete table')
             else:
                 self.session.drop('file:' + name[-2:] + '.wt')
+                self.ignoreStdoutPatternIfExists('removing incomplete table')
 
             cursor = self.session.open_cursor(self.metauri)
             is_create_cursor = self.metauri.endswith('create')

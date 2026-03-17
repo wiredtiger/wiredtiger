@@ -15,7 +15,30 @@
 static WT_INLINE uint64_t
 __wt_cache_pages_inuse(WT_CACHE *cache)
 {
-    return (cache->pages_inmem - cache->pages_evicted);
+    return (__wt_atomic_load_uint64_relaxed(&cache->pages_inmem) -
+      __wt_atomic_load_uint64_relaxed(&cache->pages_evicted));
+}
+
+/*
+ * __wt_cache_pages_inuse_ingest --
+ *     Return the number of pages in use for the ingest btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_pages_inuse_ingest(WT_CACHE *cache)
+{
+    return (__wt_atomic_load_uint64_relaxed(&cache->pages_inmem_ingest) -
+      __wt_atomic_load_uint64_relaxed(&cache->pages_evicted_ingest));
+}
+
+/*
+ * __wt_cache_pages_inuse_stable --
+ *     Return the number of pages in use for the stable btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_pages_inuse_stable(WT_CACHE *cache)
+{
+    return (__wt_atomic_load_uint64_relaxed(&cache->pages_inmem_stable) -
+      __wt_atomic_load_uint64_relaxed(&cache->pages_evicted_stable));
 }
 
 /*
@@ -38,7 +61,30 @@ __wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t sz)
 static WT_INLINE uint64_t
 __wt_cache_bytes_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_inmem)));
+    return (
+      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem)));
+}
+
+/*
+ * __wt_cache_bytes_inuse_ingest --
+ *     Return the number of bytes in use for the ingest btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_bytes_inuse_ingest(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem_ingest)));
+}
+
+/*
+ * __wt_cache_bytes_inuse_stable --
+ *     Return the number of bytes in use for the stable btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_bytes_inuse_stable(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem_stable)));
 }
 
 /*
@@ -49,9 +95,35 @@ static WT_INLINE uint64_t
 __wt_cache_dirty_inuse(WT_CACHE *cache)
 {
     uint64_t dirty_inuse;
-    dirty_inuse =
-      __wt_atomic_load64(&cache->bytes_dirty_intl) + __wt_atomic_load64(&cache->bytes_dirty_leaf);
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&dirty_inuse)));
+    dirty_inuse = __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl) +
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, dirty_inuse));
+}
+
+/*
+ * __wt_cache_dirty_inuse_ingest --
+ *     Return the number of dirty bytes in use for the ingest btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_dirty_inuse_ingest(WT_CACHE *cache)
+{
+    uint64_t dirty_inuse_ingest;
+    dirty_inuse_ingest = __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl_ingest) +
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf_ingest);
+    return (__wt_cache_bytes_plus_overhead(cache, dirty_inuse_ingest));
+}
+
+/*
+ * __wt_cache_dirty_inuse_stable --
+ *     Return the number of dirty bytes in use for the stable btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_dirty_inuse_stable(WT_CACHE *cache)
+{
+    uint64_t dirty_inuse_stable;
+    dirty_inuse_stable = __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl_stable) +
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf_stable);
+    return (__wt_cache_bytes_plus_overhead(cache, dirty_inuse_stable));
 }
 
 /*
@@ -61,7 +133,30 @@ __wt_cache_dirty_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_dirty_intl_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_dirty_intl)));
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl)));
+}
+
+/*
+ * __wt_cache_dirty_intl_inuse_ingest --
+ *     Return the number of dirty bytes in use by internal pages for the ingest btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_dirty_intl_inuse_ingest(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl_ingest)));
+}
+
+/*
+ * __wt_cache_dirty_intl_inuse_stable --
+ *     Return the number of dirty bytes in use by internal pages for the stable btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_dirty_intl_inuse_stable(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl_stable)));
 }
 
 /*
@@ -71,7 +166,30 @@ __wt_cache_dirty_intl_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_dirty_leaf)));
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf)));
+}
+
+/*
+ * __wt_cache_dirty_leaf_inuse_ingest --
+ *     Return the number of dirty bytes in use by leaf pages for the ingest btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_dirty_leaf_inuse_ingest(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf_ingest)));
+}
+
+/*
+ * __wt_cache_dirty_leaf_inuse_stable --
+ *     Return the number of dirty bytes in use by leaf pages for the stable btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_dirty_leaf_inuse_stable(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf_stable)));
 }
 
 /*
@@ -81,7 +199,30 @@ __wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_bytes_updates(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_updates)));
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_updates)));
+}
+
+/*
+ * __wt_cache_bytes_updates_ingest --
+ *     Return the number of bytes in use for updates for the ingest btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_bytes_updates_ingest(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_updates_ingest)));
+}
+
+/*
+ * __wt_cache_bytes_updates_stable --
+ *     Return the number of bytes in use for updates for the stable btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_bytes_updates_stable(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_updates_stable)));
 }
 
 /*
@@ -92,9 +233,35 @@ static WT_INLINE uint64_t
 __wt_cache_bytes_image(WT_CACHE *cache)
 {
     uint64_t bytes_image;
-    bytes_image =
-      __wt_atomic_load64(&cache->bytes_image_intl) + __wt_atomic_load64(&cache->bytes_image_leaf);
+    bytes_image = __wt_atomic_load_uint64_relaxed(&cache->bytes_image_intl) +
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_image_leaf);
     return (__wt_cache_bytes_plus_overhead(cache, bytes_image));
+}
+
+/*
+ * __wt_cache_bytes_image_ingest --
+ *     Return the number of page image bytes in use for the ingest btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_bytes_image_ingest(WT_CACHE *cache)
+{
+    uint64_t bytes_image_ingest;
+    bytes_image_ingest = __wt_atomic_load_uint64_relaxed(&cache->bytes_image_intl_ingest) +
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_image_leaf_ingest);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_image_ingest));
+}
+
+/*
+ * __wt_cache_bytes_image_stable --
+ *     Return the number of page image bytes in use for the stable btrees.
+ */
+static WT_INLINE uint64_t
+__wt_cache_bytes_image_stable(WT_CACHE *cache)
+{
+    uint64_t bytes_image_stable;
+    bytes_image_stable = __wt_atomic_load_uint64_relaxed(&cache->bytes_image_intl_stable) +
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_image_leaf_stable);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_image_stable));
 }
 
 /*
@@ -106,9 +273,9 @@ __wt_cache_bytes_other(WT_CACHE *cache)
 {
     uint64_t bytes_other, bytes_inmem, bytes_image_intl, bytes_image_leaf;
 
-    bytes_inmem = __wt_atomic_load64(&cache->bytes_inmem);
-    bytes_image_intl = __wt_atomic_load64(&cache->bytes_image_intl);
-    bytes_image_leaf = __wt_atomic_load64(&cache->bytes_image_leaf);
+    bytes_inmem = __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem);
+    bytes_image_intl = __wt_atomic_load_uint64_relaxed(&cache->bytes_image_intl);
+    bytes_image_leaf = __wt_atomic_load_uint64_relaxed(&cache->bytes_image_leaf);
     /*
      * Reads can race with changes to the values, so check that the calculation doesn't go negative.
      */

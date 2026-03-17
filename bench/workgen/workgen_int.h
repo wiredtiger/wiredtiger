@@ -30,9 +30,9 @@
 
 #include <map>
 #include <memory>
-#include <shared_mutex>
 #include <ostream>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 extern "C" {
@@ -75,7 +75,7 @@ struct WorkgenTimeStamp {
         if (ts <= last_ts)
             ts = last_ts + 1;
         last_ts = ts;
-        return ts;
+        return (ts);
     }
 };
 
@@ -244,6 +244,8 @@ struct ContextInternal {
     tint_t _dyn_tint_last;
     // This mutex should be used to protect the access to the dynamic tables set.
     std::shared_mutex* _dyn_mutex;
+    // This mutex should be used to protect setting the global timestamps.
+    std::shared_mutex* _ts_mutex;
     // unique id per context, to work with multiple contexts, starts at 1.
     uint32_t _context_count;
 
@@ -357,7 +359,7 @@ private:
     int create_all(WT_CONNECTION *conn, Context *context);
     int create_table(
       WT_SESSION *session, const std::string &config, const std::string &uri, bool mirror_enabled);
-    void final_report(timespec &);
+    void final_report(timespec &runsecs, timespec &totalsecs);
     void schedule_table_for_drop(const std::map<std::string, tint_t>::iterator &itr,
       std::vector<std::string> &pending_delete);
     void get_stats(Stats *stats);

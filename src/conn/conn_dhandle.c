@@ -37,25 +37,31 @@ static int
 __conn_dhandle_config_set(WT_SESSION_IMPL *session)
 {
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(name_buf);
     WT_DECL_RET;
     char *metaconf, *tmp;
-    const char *base, *cfg[5], *strip;
+    const char *base, *cfg[5], *dhandle_name, *strip;
 
     dhandle = session->dhandle;
+    dhandle_name = dhandle->name;
     base = NULL;
+    metaconf = NULL;
     tmp = NULL;
 
     /* We should never be looking at metadata before it's been recovered. */
-    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING_METADATA),
+    WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_RECOVERING_METADATA),
       "Assert failure: %s: attempt to open data handle during metadata recovery", session->name);
+
+    /* Adjust the dhandle name for disaggregated storage. */
+    WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, NULL, &name_buf));
 
     /*
      * Read the object's entry from the metadata file, we're done if we don't find one.
      */
-    if ((ret = __wt_metadata_search(session, dhandle->name, &metaconf)) != 0) {
+    if ((ret = __wt_metadata_search(session, dhandle_name, &metaconf)) != 0) {
         if (ret == WT_NOTFOUND)
             ret = __wt_set_return(session, ENOENT);
-        WT_RET(ret);
+        WT_ERR(ret);
     }
 
     /*
@@ -70,7 +76,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
      * array, we must free it, after the copy, we don't want to free it.
      */
     WT_ERR(__wt_calloc_def(session, 4, &dhandle->cfg));
-    switch (__wt_atomic_load_enum(&dhandle->type)) {
+    switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
     case WT_DHANDLE_TYPE_TIERED:
         /*
@@ -100,7 +106,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
          */
         cfg[0] = tmp;
         cfg[1] = NULL;
-        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
+        if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
             strip =
               "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,flush_time=,flush_timestamp=,"
               "last=,tiers=()";
@@ -108,6 +114,9 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
             strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,live_restore=";
         WT_ERR(__wt_config_merge(session, cfg, strip, &base));
         __wt_free(session, tmp);
+        break;
+    case WT_DHANDLE_TYPE_LAYERED:
+        WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, layered_meta), &dhandle->cfg[0]));
         break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
@@ -126,12 +135,14 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         dhandle->orig_meta_hash = dhandle->meta_hash;
         dhandle->orig_upd = dhandle->base_upd;
     }
+    __wt_scr_free(session, &name_buf);
     return (0);
 
 err:
     __wt_free(session, base);
     __wt_free(session, metaconf);
     __wt_free(session, tmp);
+    __wt_scr_free(session, &name_buf);
     return (ret);
 }
 
@@ -144,9 +155,12 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
 {
     WT_DECL_RET;
 
-    switch (__wt_atomic_load_enum(&dhandle->type)) {
+    switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
+        break;
+    case WT_DHANDLE_TYPE_LAYERED:
+        __wt_schema_close_layered(session, (WT_LAYERED_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TABLE:
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
@@ -180,6 +194,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
     WT_TABLE *table;
     WT_TIERED *tiered;
     WT_TIERED_TREE *tiered_tree;
@@ -193,19 +208,23 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
         WT_RET(__wt_calloc_one(session, &dhandle));
-        __wt_atomic_store_enum(&dhandle->type, WT_DHANDLE_TYPE_BTREE);
+        __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_BTREE);
+    } else if (WT_PREFIX_MATCH(uri, "layered:")) {
+        WT_RET(__wt_calloc_one(session, &layered));
+        dhandle = (WT_DATA_HANDLE *)layered;
+        __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_LAYERED);
     } else if (WT_PREFIX_MATCH(uri, "table:")) {
         WT_RET(__wt_calloc_one(session, &table));
         dhandle = (WT_DATA_HANDLE *)table;
-        __wt_atomic_store_enum(&dhandle->type, WT_DHANDLE_TYPE_TABLE);
+        __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_TABLE);
     } else if (WT_PREFIX_MATCH(uri, "tier:")) {
         WT_RET(__wt_calloc_one(session, &tiered_tree));
         dhandle = (WT_DATA_HANDLE *)tiered_tree;
-        __wt_atomic_store_enum(&dhandle->type, WT_DHANDLE_TYPE_TIERED_TREE);
+        __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_TIERED_TREE);
     } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
         WT_RET(__wt_calloc_one(session, &tiered));
         dhandle = (WT_DATA_HANDLE *)tiered;
-        __wt_atomic_store_enum(&dhandle->type, WT_DHANDLE_TYPE_TIERED);
+        __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_TIERED);
     } else
         WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
@@ -271,6 +290,20 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
                 continue;
+            if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+                /*
+                 * For read-only stable table checkpoints, they are really outdated when they are
+                 * not in use any more. The pinned shared history store checkpoints may be still
+                 * needed by the readers while the stable table checkpoints may still be needed by
+                 * the checkpoint tracking logic.
+                 */
+                if (WT_DHANDLE_BTREE(dhandle) &&
+                  F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
+                    if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0)
+                        continue;
+                } else
+                    continue;
+            }
             if (dhandle->checkpoint == NULL && strcmp(uri, dhandle->name) == 0) {
                 session->dhandle = dhandle;
                 return (0);
@@ -278,7 +311,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         }
     } else
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
                 continue;
             if (dhandle->checkpoint != NULL && strcmp(uri, dhandle->name) == 0 &&
               strcmp(checkpoint, dhandle->checkpoint) == 0) {
@@ -288,6 +321,34 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         }
 
     return (WT_NOTFOUND);
+}
+
+/*
+ * __wti_conn_dhandle_outdated --
+ *     Mark any data handle matching a URI to be outdated, as the metadata for that URI has changed.
+ */
+int
+__wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+
+    /*
+     * If there is a matching data handle, mark it as outdated. The data handle and cursor caches
+     * will know to ignore it, and it will eventually age out when references are released. Races
+     * are for readonly btrees are benign, cursors in the midst of an open may get an older btree,
+     * and they will continue to work. For layered tables, Having references to an older dhandle for
+     * a stable tree just means some data in the ingest table will be pinned for a longer time.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session,
+      if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
+        WT_DHANDLE_ACQUIRE(session->dhandle));
+    if (ret == 0) {
+        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+        WT_DHANDLE_RELEASE(session->dhandle);
+    } else if (ret != WT_NOTFOUND)
+        WT_RET(ret);
+
+    return (0);
 }
 
 /*
@@ -343,6 +404,16 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
 
         /* Mark the advisory bit that the tree has been evicted. */
         FLD_SET(dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
+
+        /*
+         * Release the history store checkpoint handle, if it exists, before setting the no schema
+         * lock flag. Failing to do so could result in a deadlock if a schema lock is required while
+         * releasing the history store dhandle.
+         */
+        if (btree->hs_checkpoint_name != NULL) {
+            WT_SAVE_DHANDLE(session, ret = __wt_btree_release_hs_dhandle(session, btree));
+            WT_TRET(ret);
+        }
     }
 
     /*
@@ -394,8 +465,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
          *
          */
         if (!discard && !marked_dead) {
-            if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) ||
-              F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
+            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY))
                 discard = true;
             else {
                 WT_TRET(__wt_checkpoint_close(session, final));
@@ -415,10 +485,13 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /* Close the underlying handle. */
-    switch (__wt_atomic_load_enum(&dhandle->type)) {
+    switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
         WT_TRET(__wt_btree_close(session));
         F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
+        break;
+    case WT_DHANDLE_TYPE_LAYERED:
+        __wt_schema_close_layered(session, (WT_LAYERED_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
@@ -459,7 +532,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     if (!marked_dead) {
         F_CLR(dhandle, WT_DHANDLE_OPEN);
         if (dhandle->checkpoint == NULL)
-            __wt_atomic_sub32(&conn->open_btree_count, 1);
+            __wt_atomic_sub_uint32(&conn->open_btree_count, 1);
     }
     WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
@@ -469,8 +542,10 @@ err:
     if (no_schema_lock)
         FLD_CLR(session->lock_flags, WT_SESSION_NO_SCHEMA_LOCK);
 
-    if (is_btree)
+    if (is_btree) {
+        WT_ASSERT(session, session->dhandle != NULL);
         __wt_evict_file_exclusive_off(session);
+    }
 
     return (ret);
 }
@@ -555,7 +630,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     WT_ERR(__conn_dhandle_config_set(session));
     WT_ERR(__conn_dhandle_config_parse_ts(session));
 
-    switch (__wt_atomic_load_enum(&dhandle->type)) {
+    switch (__wt_atomic_load_enum_relaxed(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
         /* Set any special flags on the btree handle. */
         F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
@@ -570,6 +645,9 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
             WT_ERR(__wt_stat_dsrc_init(session, dhandle));
 
         WT_ERR(__wt_btree_open(session, cfg));
+        break;
+    case WT_DHANDLE_TYPE_LAYERED:
+        WT_ERR(__wt_schema_open_layered(session));
         break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_schema_open_table(session));
@@ -599,7 +677,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
      * allowed to be relocked by the same session.
      */
     if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_BTREE_BULK)) {
-        dhandle->excl_session = session;
+        __wt_tsan_suppress_store_pointer((void *)&dhandle->excl_session, (void *)session);
         dhandle->excl_ref = 1;
     }
     F_SET(dhandle, WT_DHANDLE_OPEN);
@@ -609,7 +687,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
      * better to ignore them.
      */
     if (dhandle->checkpoint == NULL)
-        __wt_atomic_add32(&S2C(session)->open_btree_count, 1);
+        __wt_atomic_add_uint32(&S2C(session)->open_btree_count, 1);
 
     if (0) {
 err:
@@ -624,7 +702,7 @@ err:
          * We want to close the Btree for an object that lives in the local directory. It will
          * actually be part of the corresponding tiered Btree.
          */
-        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_BTREE &&
+        if (__wt_atomic_load_enum_relaxed(&dhandle->type) == WT_DHANDLE_TYPE_BTREE &&
           WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
             WT_TRET(__wt_btree_close(session));
     }
@@ -706,7 +784,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 return (0);
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
               dhandle->checkpoint != NULL || strcmp(uri, dhandle->name) != 0)
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
@@ -724,10 +803,12 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 goto done;
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
               !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
               WT_IS_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
+
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
 done:
@@ -825,7 +906,7 @@ __wt_conn_dhandle_close_all(
     }
 
 err:
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
     return (ret);
 }
 
@@ -849,8 +930,8 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 
     /* Check if the handle was reacquired by a session while we waited. */
     if (!final &&
-      (__wt_atomic_loadi32(&dhandle->session_inuse) != 0 ||
-        __wt_atomic_load32(&dhandle->references) != 0))
+      (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
+        __wt_atomic_load_uint32_relaxed(&dhandle->references) != 0))
         return (__wt_set_return(session, EBUSY));
 
     WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket);
@@ -886,13 +967,13 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
     set_pass_intr = false;
     if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST)) {
         set_pass_intr = true;
-        (void)__wt_atomic_addv32(&S2C(session)->evict->pass_intr, 1);
+        (void)__wt_atomic_add_uint32_v(&S2C(session)->evict->pass_intr, 1);
     }
 
     /* Try to remove the handle, protected by the data handle lock. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
     if (set_pass_intr)
-        (void)__wt_atomic_subv32(&S2C(session)->evict->pass_intr, 1);
+        (void)__wt_atomic_sub_uint32_v(&S2C(session)->evict->pass_intr, 1);
     WT_TRET(tret);
 
     /*
@@ -900,7 +981,7 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
      */
     if (ret == 0 || final) {
         WT_TRET(__conn_dhandle_destroy(session, dhandle, final));
-        session->dhandle = NULL;
+        WT_DHANDLE_CLEAR(session);
     }
 #ifdef HAVE_DIAGNOSTIC
     WT_CONN_CLOSE_ABORT(session, ret);
@@ -934,7 +1015,7 @@ __wti_conn_dhandle_discard(WT_SESSION_IMPL *session)
  */
 restart:
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HS_URI) == 0 ||
+        if (WT_IS_METADATA(dhandle) || WT_IS_URI_HS(dhandle->name) ||
           WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
             continue;
 
@@ -1042,9 +1123,9 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
         if (dhandle->checkpoint != NULL)
             WT_RET(__wt_msg(session, "Checkpoint: %s", dhandle->checkpoint));
         WT_RET(__wt_msg(session, "  Handle session and tiered work references: %" PRIu32,
-          __wt_atomic_load32(&dhandle->references)));
+          __wt_atomic_load_uint32_relaxed(&dhandle->references)));
         WT_RET(__wt_msg(session, "  Sessions using handle: %" PRId32,
-          __wt_atomic_loadi32(&dhandle->session_inuse)));
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse)));
         WT_RET(__wt_msg(session, "  Exclusive references to handle: %" PRIu32, dhandle->excl_ref));
         if (dhandle->excl_ref != 0)
             WT_RET(

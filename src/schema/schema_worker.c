@@ -67,6 +67,89 @@ err:
 }
 
 /*
+ * __schema_layered_worker_verify --
+ *     Run a schema worker operation (which is verification) on the layered table.
+ */
+static int
+__schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
+  int (*file_func)(WT_SESSION_IMPL *, const char *[]),
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    int ingest_ret, stable_ret;
+
+    conn = S2C(session);
+    ingest_ret = 0;
+
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
+    WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
+
+    const char *ingest_uri = layered->ingest_uri;
+    const char *stable_uri = layered->stable_uri;
+
+    WT_ASSERT(session, stable_uri != NULL);
+    WT_ASSERT(session, ingest_uri != NULL);
+    WT_ASSERT(session, file_func == __wt_verify);
+
+    /*
+     * Verifying stable tables of layered tables uses the existing verify logic. The same applies to
+     * ingest tables of leaders. However, on followers ingest tables must be empty.
+     */
+
+    /* Verify the stable table of the layered table. */
+    WT_WITHOUT_DHANDLE(session,
+      stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+
+    /* On followers, it is possible not to have any stable table. This is a transient state. */
+    if (!conn->layered_table_manager.leader && stable_ret == ENOENT) {
+        __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
+          "Verify (layered): %s stable table not found on follower, it can be a transient state.",
+          stable_uri);
+        stable_ret = 0;
+    }
+
+    if (stable_ret != 0 && stable_ret != EBUSY)
+        WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed ",
+          stable_uri);
+
+    /*
+     * Verify the ingest table of the layered table on leader.
+     */
+    if (conn->layered_table_manager.leader) {
+        /*
+         * On leader, if verifying ingest returns EBUSY, it means ingest is not empty (dirty
+         * content, or open cursors), which is an invalid state.
+         */
+        WT_WITHOUT_DHANDLE(session,
+          ingest_ret =
+            __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
+
+        WT_ASSERT_ALWAYS(session, ingest_ret != EBUSY,
+          "Verify: %s ingest table on leader cannot be verified. "
+          "Ingest contains dirty content or open cursors, which is an invalid "
+          "state.",
+          ingest_uri);
+
+        WT_ERR_MSG_CHK(session, ingest_ret,
+          "Verify (layered): %s ingest table verification failed. Ingest on leader must be empty.",
+          ingest_uri);
+    }
+
+err:
+    __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
+      "Verify (layered): stable table %s returned %s, ingest table %s returned %s", stable_uri,
+      __wt_wiredtiger_error(stable_ret), ingest_uri, __wt_wiredtiger_error(ingest_ret));
+
+    WT_TRET(__wt_session_release_dhandle(session));
+
+    /* Ingest is expected to never return EBUSY so it's enough to check it for 0 only */
+    ret = ingest_ret != 0 ? ingest_ret : stable_ret;
+
+    return (ret);
+}
+
+/*
  * __wt_schema_worker --
  *     Get Btree handles for the object and cycle through calls to an underlying worker function
  *     with each handle.
@@ -160,6 +243,8 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
                 WT_ERR(
                   __wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
         }
+    } else if (WT_PREFIX_MATCH(uri, "layered:") && file_func == __wt_verify) {
+        WT_ERR(__schema_layered_worker_verify(session, uri, file_func, name_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
         WT_ERR(__schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL) {

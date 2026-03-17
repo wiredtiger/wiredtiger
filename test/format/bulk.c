@@ -39,7 +39,7 @@ bulk_begin_transaction(WT_SESSION *session)
 
     /* Writes require snapshot isolation. */
     wt_wrap_begin_transaction(session, NULL);
-    ts = __wt_atomic_addv64(&g.timestamp, 1);
+    ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts));
 }
 
@@ -52,7 +52,7 @@ bulk_commit_transaction(WT_SESSION *session)
 {
     uint64_t ts;
 
-    ts = __wt_atomic_addv64(&g.timestamp, 1);
+    ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
     testutil_check(session->commit_transaction(session, NULL));
 
@@ -84,7 +84,6 @@ table_load(TABLE *base, TABLE *table)
     WT_ITEM key, value;
     WT_SESSION *session;
     uint32_t committed_keyno, keyno, rows_current, v;
-    uint8_t bitv;
     char config[100], track_buf[128];
     bool is_bulk, report_progress;
 
@@ -104,6 +103,10 @@ table_load(TABLE *base, TABLE *table)
 
     /* No bulk load with custom collators, insertion order won't match collation order. */
     is_bulk = TV(BTREE_REVERSE) == 0;
+
+    /* FIXME-WT-14563: There is no support yet for bulk load with disaggregated storage. */
+    if (TV(DISAGG_ENABLED))
+        is_bulk = false;
     wt_wrap_open_cursor(session, table->uri, is_bulk ? "bulk,append" : NULL, &cursor);
 
     /* Set up the key/value buffers. */
@@ -121,22 +124,14 @@ table_load(TABLE *base, TABLE *table)
         if (table->type == ROW)
             key_gen(table, &key, keyno);
         if (base == NULL)
-            val_gen(table, &g.data_rnd, &value, &bitv, keyno);
+            val_gen(table, &g.data_rnd, &value, keyno);
         else {
             testutil_check(read_op(base_cursor, NEXT, NULL));
             testutil_check(base_cursor->get_value(base_cursor, &value));
-            val_to_flcs(table, &value, &bitv);
         }
 
         /* Insert the key/value pair into the new table. */
         switch (table->type) {
-        case FIX:
-            if (!is_bulk)
-                cursor->set_key(cursor, keyno);
-            cursor->set_value(cursor, bitv);
-            if (FLD_ISSET(g.trace_flags, TRACE_BULK))
-                trace_msg(session, "bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, bitv);
-            break;
         case VAR:
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
@@ -281,6 +276,8 @@ wts_load(void)
     if (!GV(RUNS_IN_MEMORY)) {
         memset(&sap, 0, sizeof(sap));
         wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+        if (GV(PRECISE_CHECKPOINT))
+            timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
         wt_wrap_close_session(session);
     }

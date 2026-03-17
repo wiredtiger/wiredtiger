@@ -45,7 +45,7 @@ __wti_log_record_byteswap(WT_LOG_RECORD *record)
 
 /*
  * __wt_log_cmp --
- *     Compare 2 LSNs, return -1 if lsn1 < lsn2, 0if lsn1 == lsn2 and 1 if lsn1 > lsn2.
+ *     Compare 2 LSNs, return -1 if lsn1 < lsn2, 0 if lsn1 == lsn2 and 1 if lsn1 > lsn2.
  */
 static WT_INLINE int
 __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
@@ -81,7 +81,7 @@ __wt_lsn_string(WT_LSN *lsn, size_t len, char *buf)
 static WT_INLINE uint32_t
 __wt_lsn_file(WT_LSN *lsn)
 {
-    return (__wt_atomic_load32(&lsn->l.file));
+    return (__wt_atomic_load_uint32_relaxed(&lsn->l.file));
 }
 
 /*
@@ -91,5 +91,17 @@ __wt_lsn_file(WT_LSN *lsn)
 static WT_INLINE uint32_t
 __wt_lsn_offset(WT_LSN *lsn)
 {
-    return (__wt_atomic_load32(&lsn->l.offset));
+    return (__wt_atomic_load_uint32_relaxed(&lsn->l.offset));
+}
+
+/*
+ * __wti_log_is_prealloc_enabled --
+ *     Check if pre-allocation is configured using log_mgr->prealloc_init_count. Use the
+ *     log_mgr->prealloc_init_count variable because the log_mgr->prealloc variable performs
+ *     concurrent writes/reads and may induce race conditions.
+ */
+static WT_INLINE bool
+__wti_log_is_prealloc_enabled(WT_SESSION_IMPL *session)
+{
+    return (S2C(session)->log_mgr.prealloc_init_count > 0);
 }

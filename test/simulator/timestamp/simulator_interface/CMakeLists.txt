@@ -1,4 +1,3 @@
-project(simulator_interface CXX)
 
 # Create an executable for the simulator interface.
 add_executable(

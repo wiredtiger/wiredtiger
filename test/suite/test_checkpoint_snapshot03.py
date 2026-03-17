@@ -39,6 +39,7 @@ from wiredtiger import stat
 # test_checkpoint_snapshot03.py
 #   This test is to check RTS skips the unnecessary pages when the table has more than the
 #   checkpoint snapshot.
+@wttest.skip_for_hook("disagg", "rollback to stable not expected to run on disagg; cache unable to evict pages due to invisible updates")
 class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
 
     # Create a table.
@@ -46,7 +47,6 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
     nrows = 500000
 
     format_values = [
-        ('column_fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='S')),
         ('row_string', dict(key_format='S', value_format='S')),
     ]
@@ -66,41 +66,25 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         cursor.close()
 
     def check(self, check_value, uri, nrows):
-        # In FLCS the existence of the invisible extra row causes the table to extend
-        # under it. Until that's fixed, expect (not just allow) this row to exist and
-        # and demand it reads back as zero and not as check_value. When this behavior
-        # is fixed (so the end of the table updates transactionally) the special-case
-        # logic can just be removed.
-        flcs_tolerance = self.value_format == '8t'
-
         session = self.session
         session.begin_transaction()
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
-            if flcs_tolerance and count >= nrows:
-                self.assertEqual(v, 0)
-            else:
-                self.assertEqual(v, check_value)
+            self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
-        self.assertEqual(count, nrows + 1 if flcs_tolerance else nrows)
+        self.assertEqual(count, nrows)
 
     def test_checkpoint_snapshot(self):
-
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
                 config='leaf_page_max=4k')
         ds.populate()
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-            valuec = 99
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
-            valuec = "ccccc" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
 
         session1 = self.conn.open_session()
         session1.begin_transaction()
@@ -151,8 +135,9 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         stat_cursor.close()
 
-        self.assertGreater(inconsistent_ckpt, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertGreaterEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertGreater(pages_skipped, 0)
+        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
+            self.assertGreater(inconsistent_ckpt, 0)
+            self.assertGreater(pages_skipped, 0)

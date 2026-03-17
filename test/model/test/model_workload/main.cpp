@@ -298,7 +298,12 @@ test_workload_generator(void)
 
     while (true) {
         try {
-            std::shared_ptr<model::kv_workload> workload = model::kv_workload_generator::generate();
+            model::kv_workload_generator_spec spec;
+            /* Disaggregated storage needs different config for verification; disable it for now. */
+            spec.disaggregated = 0;
+
+            std::shared_ptr<model::kv_workload> workload =
+              model::kv_workload_generator::generate(spec);
 
             /* Run the workload in the model and in WiredTiger, then verify. */
             std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
@@ -340,6 +345,7 @@ test_workload_parse(void)
              << model::operation::crash() << model::operation::begin_transaction(1)
              << model::operation::insert(
                   k_table1_id, 1, model::data_value((uint64_t)3), model::data_value((uint64_t)3))
+             << model::operation::get(k_table1_id, 5, model::data_value((uint64_t)4))
              << model::operation::truncate(
                   k_table1_id, 2, model::data_value((uint64_t)1), model::data_value((uint64_t)2))
              << model::operation::prepare_transaction(1, 23)

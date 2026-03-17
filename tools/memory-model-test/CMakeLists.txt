@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 3.16)
-project(memory_model_test)
+cmake_minimum_required(VERSION 3.21)
+
+project(memory_model_test LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 

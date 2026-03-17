@@ -155,9 +155,9 @@ __wti_block_configure_first_fit(WT_BLOCK *block, bool on)
      * first-fit allocation as long as any operation wants it.
      */
     if (on)
-        (void)__wt_atomic_add32(&block->allocfirst, 1);
+        (void)__wt_atomic_add_uint32(&block->allocfirst, 1);
     else
-        (void)__wt_atomic_sub32(&block->allocfirst, 1);
+        (void)__wt_atomic_sub_uint32(&block->allocfirst, 1);
 }
 
 /*
@@ -177,6 +177,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     uint32_t flags;
 
     *blockp = NULL;
+
+    WT_ASSERT(session, filename != NULL);
 
     __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
 
@@ -301,7 +303,7 @@ __wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
     WT_DECL_RET;
 
     /* If in-memory, we don't read or write the descriptor structure. */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
@@ -353,7 +355,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
     bool checksum_matched;
 
     /* If in-memory, we don't read or write the descriptor structure. */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
     /*
@@ -370,8 +372,8 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * hits this logic if the relevant data handle isn't already open). However this code gets run
      * in rollback to stable as part of recovery where we want to skip any corrupted data files
      * temporarily to allow MongoDB to initiate salvage. This is why we've been forced into this
-     * situation. We should address this as part of WT-5832 and clarify what error codes we expect
-     * to be returning across the API boundary.
+     * situation. We should address this and clarify what error codes we expect to return across the
+     * API boundary.
      */
     if (block->size < allocsize) {
         if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
@@ -465,7 +467,8 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
     WT_STAT_WRITE(session, stats, block_major, WT_BLOCK_MAJOR_VERSION);
     WT_STAT_WRITE(session, stats, block_minor, WT_BLOCK_MINOR_VERSION);
-    WT_STAT_WRITE(session, stats, block_reuse_bytes, (int64_t)block->live.avail.bytes);
+    WT_STAT_WRITE(session, stats, block_reuse_bytes,
+      (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes)));
     WT_STAT_WRITE(session, stats, block_size, block->size);
 }
 

@@ -6,8 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef __WT_MISC_H
-#define __WT_MISC_H
+#pragma once
 
 /*
  * When compiling for code coverage measurement it is necessary to ensure that inline functions in
@@ -54,6 +53,7 @@
 
 /* Basic constants. */
 #define WT_MILLION_LITERAL 1000000
+#define WT_HUNDRED (100)
 #define WT_THOUSAND (1000)
 #define WT_MILLION (WT_MILLION_LITERAL)
 #define WT_BILLION (1000000000)
@@ -100,7 +100,11 @@
 /* Min, max. */
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
+#define WT_ABS(a) ((a) < 0 ? -(a) : (a))
 #define WT_CLAMP(x, low, high) (WT_MIN(WT_MAX((x), (low)), (high)))
+
+/* Check and reset, implicitly reset to 0. */
+#define WT_CHECK_AND_RESET(a, v) ((a) == (v) ? ((a) = 0, true) : false)
 
 /* Ceil for unsigned/positive real numbers. */
 #define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
@@ -209,10 +213,11 @@
  * with a large performance cost. Define these atomics only for TSan builds as they aren't
  * performance critical and we'll investigate a long term solution separately.
  */
-#define FLD_CLR(field, mask) (void)__wt_atomic_and_generic(&field, (__typeof__(field))(~(mask)))
-#define FLD_MASK(field, mask) (__wt_atomic_load_generic(&field) & (mask))
+#define FLD_CLR(field, mask) \
+    (void)__wt_atomic_and_generic_relaxed(&field, (__typeof__(field))(~(mask)))
+#define FLD_MASK(field, mask) (__wt_atomic_load_generic_relaxed(&field) & (mask))
 #define FLD_ISSET(field, mask) (FLD_MASK(field, (mask)) != 0)
-#define FLD_SET(field, mask) ((void)__wt_atomic_or_generic(&field, (mask)))
+#define FLD_SET(field, mask) ((void)__wt_atomic_or_generic_relaxed(&field, (mask)))
 #else
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
@@ -391,6 +396,13 @@ __wt_string_match(const char *str, const char *bytes, size_t len)
         (dst).size = (src).size; \
     } while (0)
 
+/* Transfer ownership of an item. */
+#define WT_ITEM_MOVE(dst, src) \
+    do {                       \
+        (dst) = (src);         \
+        WT_CLEAR(src);         \
+    } while (0)
+
 /*
  * In diagnostic mode we track the locations from which hazard pointers and scratch buffers were
  * acquired.
@@ -492,9 +504,28 @@ __wt_atomic_decrement_if_positive(uint32_t *valuep)
 {
     uint32_t old_value;
     do {
-        old_value = __wt_atomic_load32(valuep);
+        old_value = __wt_atomic_load_uint32_relaxed(valuep);
         if (old_value == 0)
             break;
-    } while (!__wt_atomic_cas32(valuep, old_value, old_value - 1));
+    } while (!__wt_atomic_cas_uint32(valuep, old_value, old_value - 1));
 }
-#endif /* __WT_MISC_H */
+
+/*
+ *    Calculate max/min statistic values. Currently we use load + store for that purpose since
+ *     statistic is allowed to be fuzzy. FIXME-WT-15755: Consider using relaxed CAS instead to
+ *     ensure it is lossless.
+ */
+#define WT_ATOMIC_STATS_MFUNC(suffix, _type)                                       \
+    static WT_INLINE void __wt_atomic_stats_max_##suffix(_type *stat, _type value) \
+    {                                                                              \
+        if (value > __wt_atomic_load_##suffix##_relaxed(stat))                     \
+            __wt_atomic_store_##suffix##_relaxed(stat, value);                     \
+    }                                                                              \
+    static WT_INLINE void __wt_atomic_stats_min_##suffix(_type *stat, _type value) \
+    {                                                                              \
+        if (value < __wt_atomic_load_##suffix##_relaxed(stat))                     \
+            __wt_atomic_store_##suffix##_relaxed(stat, value);                     \
+    }
+
+WT_ATOMIC_STATS_MFUNC(uint16, uint16_t)
+WT_ATOMIC_STATS_MFUNC(uint64, uint64_t)

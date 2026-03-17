@@ -46,8 +46,6 @@ class test_config06(wttest.WiredTigerTestCase):
         self.bad_session_config('key_format=S,value_format=A')
         self.bad_session_config('key_format=0s,value_format=s')
         self.bad_session_config('key_format=s,value_format=0s')
-        self.bad_session_config('key_format=0t,value_format=4t')
-        self.bad_session_config('key_format=4t,value_format=0t')
 
     # Smoke-test the string formats with length specifiers; both formats should
     # ignore trailing bytes, verify that.
@@ -87,3 +85,11 @@ class test_config06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None)
         cursor[k] = v
         self.assertEqual(cursor[k[:1]], v[:1])
+
+    @wttest.skip_for_hook("disagg", "This case is DSC specified.")
+    def test_storage_tier_config_in_asc(self):
+        # ASC does not support storage_tier configuration.
+        with self.assertRaises(wiredtiger.WiredTigerError):
+            self.session.create(self.uri,
+                "key_format=S,value_format=S,disaggregated=(storage_tier=cold)"
+            )

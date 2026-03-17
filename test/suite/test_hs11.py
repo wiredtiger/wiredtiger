@@ -35,17 +35,17 @@ from wiredtiger import stat
 class test_hs11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('integer-row', dict(key_format='i', value_format='S')),
-        ('string-row', dict(key_format='S', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S')),
     ]
+    value_format='S'
     update_type_values = [
         ('deletion', dict(update_type='deletion')),
         ('update', dict(update_type='update'))
     ]
     long_running_txn_values = [
-       ('long-running', dict(long_run_txn=True)),
+        ('long-running', dict(long_run_txn=True)),
         ('no-long-running', dict(long_run_txn=False))
     ]
     last_update_type_values = [
@@ -56,7 +56,11 @@ class test_hs11(wttest.WiredTigerTestCase):
         ('small-nrows', dict(nrows=100)),
         ('large-nrows', dict(nrows=10000))
     ]
-    scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values, last_update_type_values, nrows)
+    location = [
+        ('insert-list', dict(insert=True)),
+        ('update-list', dict(insert=False))
+    ]
+    scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values, last_update_type_values, nrows, location)
     timestamps = 5
 
     def create_key(self, i):
@@ -87,13 +91,9 @@ class test_hs11(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
-            mod_value = 'm' + 'a' * 499
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        mod_value = 'm' + 'a' * 499
 
         # Apply a series of updates from timestamps 1-4.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
@@ -105,10 +105,11 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Reconcile and flush versions 1-3 to the history store.
         self.session.checkpoint()
-        self.evict_cursor(uri, self.nrows)
+        if not self.insert:
+            self.evict_cursor(uri, self.nrows)
 
         # Apply a modify update at timestamp 5.
-        if self.modify and self.value_format != '8t':
+        if self.modify:
             for i in range(1, self.nrows):
                 with self.transaction(commit_timestamp = 5):
                     cursor.set_key(self.create_key(i))
@@ -154,15 +155,11 @@ class test_hs11(wttest.WiredTigerTestCase):
                     if i % 2 == 0:
                         if self.update_type == 'deletion':
                             cursor.set_key(self.create_key(i))
-                            if self.value_format == '8t':
-                                self.assertEqual(cursor.search(), 0)
-                                self.assertEqual(cursor.get_value(), 0)
-                            else:
-                                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                         else:
                             self.assertEqual(cursor[self.create_key(i)], value2)
                     else:
-                        if ts == 5 and self.modify and self.value_format != '8t':
+                        if ts == 5 and self.modify:
                             self.assertEqual(cursor[self.create_key(i)], mod_value)
                         else:
                             self.assertEqual(cursor[self.create_key(i)], value1)
@@ -176,13 +173,9 @@ class test_hs11(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
-            mod_value = 'm' + 'a' * 499
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        mod_value = 'm' + 'a' * 499
 
         # Apply a series of updates from timestamps 1-4.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
@@ -194,9 +187,11 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Reconcile and flush versions 1-3 to the history store.
         self.session.checkpoint()
+        if not self.insert:
+            self.evict_cursor(uri, self.nrows)
 
         # Apply a modify update at timestamp 5.
-        if self.modify and self.value_format != '8t':
+        if self.modify:
             for i in range(1, self.nrows):
                 with self.transaction(commit_timestamp = 5):
                     cursor.set_key(self.create_key(i))
@@ -216,21 +211,17 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Now apply an update at timestamp 20.
         for i in range(1, self.nrows):
-                with self.transaction(commit_timestamp = 20):
-                    cursor[self.create_key(i)] = value2
+            with self.transaction(commit_timestamp = 20):
+                cursor[self.create_key(i)] = value2
 
         # Ensure that we didn't select old history store content even if it is not blew away.
         with self.transaction(read_timestamp = 10, rollback = True):
             for i in range(1, self.nrows):
                 if i % 2 == 0:
                     cursor.set_key(self.create_key(i))
-                    if self.value_format == '8t':
-                        self.assertEqual(cursor.search(), 0)
-                        self.assertEqual(cursor.get_value(), 0)
-                    else:
-                        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                    self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                 else:
-                    if self.modify and self.value_format != '8t':
+                    if self.modify:
                         self.assertEqual(cursor[self.create_key(i)], mod_value)
                     else:
                         self.assertEqual(cursor[self.create_key(i)], value1)

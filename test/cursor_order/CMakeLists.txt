@@ -1,5 +1,3 @@
-project(test_cursor_order C)
-
 create_test_executable(test_cursor_order
     SOURCES
         cursor_order_file.c
@@ -9,9 +7,8 @@ create_test_executable(test_cursor_order
 
 define_test_variants(test_cursor_order
     VARIANTS
-        "test_cursor_order_row;-tr"
-        "test_cursor_order_var;-tv"
-        "test_cursor_order_fix;-tf"
+        "row|-tr"
+        "var|-tv"
     LABELS
         # Run this during a "ctest check" smoke test.
         check

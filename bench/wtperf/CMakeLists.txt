@@ -1,7 +1,3 @@
-project(wtperf C)
-
-include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
-
 set(wt_perf_flags)
 if(ENABLE_SNAPPY)
     list(APPEND wt_perf_flags "-DSNAPPY_PATH=\"snappy/libwiredtiger_snappy.so\"")
@@ -29,15 +25,10 @@ create_test_executable(wtperf
         ${wt_perf_flags}
 )
 
-if(WT_POSIX)
-    # Need to link math on POSIX systems.
-    target_link_libraries(wtperf m)
-endif()
-
 # Smoke-test wtperf as part of running "ctest check".
 define_test_variants(wtperf
     VARIANTS
-        "test_wtperf_small_btree;-O \"${CMAKE_CURRENT_SOURCE_DIR}/runners/small-btree.wtperf\" -o \"run_time=20\""
+        "small_btree|-O \"${CMAKE_CURRENT_SOURCE_DIR}/runners/small-btree.wtperf\" -o \"run_time=20\""
     LABELS
         check
         wtperf

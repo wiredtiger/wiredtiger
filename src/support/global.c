@@ -33,10 +33,13 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
   {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
+  {"conn_close_stress_log_printf", WT_TIMING_STRESS_CLOSE_STRESS_LOG},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
   {"failpoint_history_delete_key_from_ts",
     WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
+  {"failpoint_rec_before_wrapup", WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP},
+  {"failpoint_rec_split_write", WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE},
   {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
   {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
   {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
@@ -348,7 +351,6 @@ __global_once(void)
 
     /* Run-time configuration. */
 #ifdef WT_STANDALONE_BUILD
-    __wt_process.fast_truncate_2022 = true;
     __wt_process.tiered_shared_2023 = true;
 #endif
 }

@@ -38,13 +38,12 @@ from wtscenario import make_scenarios
 # Test what happens if we create an inconsistent checkpoint and then try to
 # open it for read. No timestamps in this version.
 
+@wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
@@ -63,10 +62,14 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('nonlogged', dict(do_log=False)),
         ('logged', dict(do_log=True)),
     ]
-    scenarios = make_scenarios(format_values, overlap_values, name_values, log_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
+        ('precise', dict(ckpt_config='precise_checkpoint=true')),
+    ]
+    scenarios = make_scenarios(format_values, overlap_values, name_values, log_values, ckpt_precision)
 
     def conn_config(self):
-        cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
+        cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
         if self.do_log:
             cfg += ',log=(enabled=true)'
         return cfg
@@ -94,13 +97,15 @@ class test_checkpoint(wttest.WiredTigerTestCase):
                 seen[v] += 1
             else:
                 seen[v] = 1
-        #for v in seen:
-        #    self.prout("seen {}: {}".format(v if self.value_format == '8t' else v[0], seen[v]))
         self.assertTrue(seen in expected)
         #self.session.rollback_transaction()
         cursor.close()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'precise_checkpoint=true':
+            self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint10'
         nrows = 10000
         overlap = 5000 if self.do_overlap else 0
@@ -112,13 +117,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds.populate()
 
-        if self.value_format == '8t':
-            morerows *= 5
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Write some data.
         self.large_updates(uri, ds, nrows, value_a)
@@ -169,14 +169,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         expected_b = { value_a: nrows - overlap, value_b: overlap + morerows }
         expected = [expected_a, expected_b]
 
-        # For FLCS, because the table expands under uncommitted data, we should
-        # see zeros once the additional data's been written (that is, always strictly
-        # before the checkpoint) if we don't see the actual values.
-        expected_flcs_a = { value_a: nrows, 0: morerows }
-        expected_flcs = [expected_flcs_a, expected_b]
-
         # Now read the checkpoint.
-        self.check(ds, self.second_checkpoint, expected_flcs if self.value_format == '8t' else expected)
+        self.check(ds, self.second_checkpoint, expected)
 
         # If we haven't died yet, pretend to crash and run RTS to see if the
         # checkpoint was inconsistent.

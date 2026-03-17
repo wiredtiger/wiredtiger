@@ -103,6 +103,16 @@ struct __wt_cursor_backup {
     uint32_t flags;
 };
 
+struct __wt_cursor_prepare_discovered {
+    WT_CURSOR iface;
+
+    size_t next; /* Cursor position */
+
+    wt_timestamp_t *list; /* List of prepared transactions available to be claimed. */
+    size_t list_allocated;
+    size_t list_next;
+};
+
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
@@ -230,12 +240,6 @@ struct __wt_cursor_btree {
     uint64_t checkpoint_write_gen;
     uint64_t checkpoint_id;
 
-    /*
-     * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
-     * the space for it now than keep checking to see if we need to grow the buffer.
-     */
-    uint8_t v; /* Fixed-length return value */
-
     uint8_t append_tree; /* Cursor appended to the tree */
 
     /*
@@ -322,14 +326,6 @@ struct __wt_cursor_bulk {
     uint64_t recno; /* Record number */
     uint64_t rle;   /* Variable-length RLE counter */
 
-    /*
-     * Additional fixed-length column store bitmap bulk load support: current entry in memory chunk
-     * count, and the maximum number of records per chunk.
-     */
-    bool bitmap;    /* Bitmap bulk load */
-    uint32_t entry; /* Entry count */
-    uint32_t nrecs; /* Max records per chunk */
-
     void *reconcile; /* Reconciliation support */
     WT_REF *ref;     /* The leaf page */
     WT_PAGE *leaf;
@@ -366,6 +362,7 @@ struct __wt_cursor_hs {
     WT_CURSOR *file_cursor; /* Queries of regular history store data */
     WT_TIME_WINDOW time_window;
     uint32_t btree_id;
+    uint32_t hs_id;
     WT_ITEM *datastore_key;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -468,21 +465,86 @@ struct __wt_cursor_version {
      * debug metadata in the version cursor's key.
      */
     uint64_t upd_stop_txnid;
-    /* The previous traversed update's durable_ts will become the durable_stop_ts. */
-    wt_timestamp_t upd_durable_stop_ts;
-    /* The previous traversed update's start_ts will become the stop_ts. */
-    wt_timestamp_t upd_stop_ts;
+    /*
+     * The previous traversed update's durable timestamp/start timestamp become the durable
+     * stop/stop timestamp. For aborted updates these fields carry rollback timestamp/saved
+     * transaction id instead, mirroring the WT_UPDATE union in btmem.h.
+     */
+    union {
+        struct {
+            wt_timestamp_t durable_stop_ts;
+            wt_timestamp_t stop_ts;
+        } commit;
+        struct {
+            wt_timestamp_t stop_rollback_ts;
+            uint64_t stop_saved_txnid;
+        } prepare_rollback;
+    } stop_u;
 
+#undef curversion_durable_stop_ts
+#define curversion_durable_stop_ts stop_u.commit.durable_stop_ts
+#undef curversion_stop_ts
+#define curversion_stop_ts stop_u.commit.stop_ts
+#undef curversion_stop_rollback_ts
+#define curversion_stop_rollback_ts stop_u.prepare_rollback.stop_rollback_ts
+#undef curversion_stop_saved_txnid
+#define curversion_stop_saved_txnid stop_u.prepare_rollback.stop_saved_txnid
+    /* The previous traversed update's prepare_ts will become the stop_prepare_ts. */
+    wt_timestamp_t upd_stop_prepare_ts;
+    /* The previous traversed update's prepared_id will become the stop_prepared_id. */
+    uint64_t upd_stop_prepared_id;
+    /* Whether the previous traversed update is prepared. */
+    uint8_t upd_stop_prepared;
+
+    /* Don't show the user any keys from before this time. */
+    wt_timestamp_t start_timestamp;
+
+    /* Location. */
 #define WT_CURVERSION_UPDATE_CHAIN 0
 #define WT_CURVERSION_DISK_IMAGE 1
 #define WT_CURVERSION_HISTORY_STORE 2
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CURVERSION_HS_EXHAUSTED 0x1u
-#define WT_CURVERSION_ON_DISK_EXHAUSTED 0x2u
-#define WT_CURVERSION_UPDATE_EXHAUSTED 0x4u
+#define WT_CURVERSION_CROSS_KEY 0x01u
+#define WT_CURVERSION_HS_EXHAUSTED 0x02u
+#define WT_CURVERSION_ON_DISK_EXHAUSTED 0x04u
+#define WT_CURVERSION_SHOW_PREPARED_ROLLBACK 0x08u
+#define WT_CURVERSION_TIMESTAMP_ORDER 0x10u
+#define WT_CURVERSION_UPDATE_EXHAUSTED 0x20u
+#define WT_CURVERSION_VISIBLE_ONLY 0x40u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
+};
+
+/*
+ * WT_CURSOR_LAYERED --
+ *	A layered table cursor.
+ */
+struct __wt_cursor_layered {
+    WT_CURSOR iface;
+
+    WT_DATA_HANDLE *dhandle;
+
+    WT_CURSOR *current_cursor; /* The current cursor for iteration */
+    WT_CURSOR *ingest_cursor;  /* The ingest table */
+    WT_CURSOR *stable_cursor;  /* The stable table */
+
+    int64_t next_random_seed;
+    u_int next_random_sample_size;
+
+    uint64_t snapshot_gen;        /* Snapshot generation on last update */
+    uint64_t checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata */
+    bool leader;                  /* Leader/follower state on last update */
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CLAYERED_ACTIVE 0x01u         /* Incremented the session count */
+#define WT_CLAYERED_ITERATE_NEXT 0x02u   /* Forward iteration */
+#define WT_CLAYERED_ITERATE_PREV 0x04u   /* Backward iteration */
+#define WT_CLAYERED_OPEN_READ 0x08u      /* Open for reads */
+#define WT_CLAYERED_RANDOM 0x10u         /* Random cursor operations only */
+#define WT_CLAYERED_STABLE_NO_CKPT 0x20u /* Stable constituent didn't have a checkpoint */
+                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
 };
 
 #define WT_CURSOR_PRIMARY(cursor) (((WT_CURSOR_TABLE *)(cursor))->cg_cursors[0])

@@ -1,7 +1,3 @@
-project(sodium_encrypt C)
-
-include(GNUInstallDirs)
-
 config_bool(
     HAVE_BUILTIN_EXTENSION_SODIUM
     "Builtin sodium encryption library."

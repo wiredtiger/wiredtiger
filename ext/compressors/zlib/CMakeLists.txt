@@ -1,7 +1,3 @@
-project(zlib C)
-
-include(GNUInstallDirs)
-
 config_bool(
     HAVE_BUILTIN_EXTENSION_ZLIB
     "Builtin zlib compression library."

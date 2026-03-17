@@ -33,10 +33,9 @@ import wttest
 from helper import simulate_crash_restart
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
-
-@wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
+# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate09(wttest.WiredTigerTestCase):
-    # We don't test FLCS, missing records return as 0 values.
     format_values = [
         ('column', dict(key_format='r')),
         ('row_integer', dict(key_format='i')),

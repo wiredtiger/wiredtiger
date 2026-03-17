@@ -1,4 +1,3 @@
-project(wiredtiger_model CXX)
 
 # Create a model library.
 add_library(wiredtiger_model SHARED
@@ -39,12 +38,13 @@ target_include_directories(
 
 target_compile_options(
     wiredtiger_model
-    PUBLIC -std=c++17
+    PUBLIC -std=c++17 -Wnon-virtual-dtor
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
 find_package(Iconv REQUIRED)
 target_link_libraries(wiredtiger_model Iconv::Iconv)
+target_link_libraries(wiredtiger_model ${CMAKE_DL_LIBS})
 target_link_libraries(wiredtiger_model wt::wiredtiger)
 
 # Build the tests and the tools.

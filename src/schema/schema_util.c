@@ -26,7 +26,7 @@ __schema_backup_check_int(WT_SESSION_IMPL *session, const char *name)
      * There is a window at the end of a backup where the list has been cleared from the connection
      * but the flag is still set. It is safe to drop at that point.
      */
-    if (__wt_atomic_load64(&conn->hot_backup_start) == 0 ||
+    if (__wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) == 0 ||
       (backup_list = conn->hot_backup_list) == NULL) {
         return (0);
     }
@@ -51,7 +51,7 @@ __wti_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
     WT_DECL_RET;
 
     conn = S2C(session);
-    if (__wt_atomic_load64(&conn->hot_backup_start) == 0)
+    if (__wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) == 0)
         return (0);
     WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session, ret = __schema_backup_check_int(session, name));
     return (ret);
@@ -184,4 +184,45 @@ __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool chec
 err:
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __wt_is_simple_table --
+ *     Check whether the given table is simple.
+ */
+int
+__wt_is_simple_table(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *colconf, bool *is_simplep)
+{
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM ckey, cval;
+    WT_DECL_RET;
+
+    __wt_config_subinit(session, &cparser, colconf);
+    *is_simplep = true;
+    /* Count the number of columns: tables are "simple" if the columns are not named. */
+    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+        *is_simplep = false;
+        break;
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    return (0);
+}
+
+/*
+ * __wti_debug_crash_if_flag_set --
+ *     Crash during schema operations for debugging purposes.
+ */
+void
+__wti_debug_crash_if_flag_set(
+  WT_SESSION_IMPL *session, uint32_t flag, const char *msg, const char *uri)
+{
+    /* FIXME-WT-12021: Replace this function and its call sites with a proper failpoint once the
+     * framework is available. */
+    if (FLD_ISSET(S2C(session)->debug_flags, flag)) {
+        __wt_verbose_warning(session, WT_VERB_DEFAULT, "Simulating a crash %s '%s'", msg, uri);
+        /* Wait for the previous metadata change to be persisted. */
+        __wt_sleep(2, 0);
+        __wt_abort(session);
+    }
 }

@@ -35,6 +35,7 @@
 #include <sys/resource.h>
 #endif
 #include <signal.h>
+#include <sys/socket.h>
 
 #define BUILDDIR "../../"
 #define EXTPATH BUILDDIR "ext/" /* Extensions path */
@@ -91,8 +92,16 @@
 #define STR(s) #s
 #define XSTR(s) STR(s)
 
+/* Duration of the follower run in disagg switch mode. */
+#define DISAGG_SWITCH_FOLLOWER_OPS_SEC 10
+
+/* Number of RTS threads to use up to 10 (11 is for NULL config). */
+#define RTS_THREADS_MAX 11
+
 /* Session configuration to enable prefetch. */
 #define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
+
+#define MIN_TIMESTAMP 2 /* Minimum timestamp */
 
 #include "config.h"
 extern CONFIG configuration_list[];
@@ -144,17 +153,7 @@ typedef struct {
     const char *track; /* Tag for tracking operation progress */
 } SAP;
 
-/*
- * Default fixed-length column-store value when there's no available base mirror value, something
- * with half the bits set.
- */
-#define FIX_MIRROR_DNE 0x55
-
-/* There's no out-of-band value for FLCS, use 0xff as the least likely to match any existing value.
- */
-#define FIX_VALUE_WRONG 0xff
-
-typedef enum { FIX, ROW, VAR } table_type;
+typedef enum { ROW, VAR } table_type;
 typedef struct {
     u_int id;              /* table ID */
     char uri[32];          /* table URI */
@@ -216,6 +215,11 @@ extern u_int ntables;
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
 typedef struct {
+    wt_shared uint64_t leader_hash;
+    wt_shared uint64_t follower_hash;
+} DISAGG_MULTI_DB_HASH;
+
+typedef struct {
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
 
@@ -240,11 +244,12 @@ typedef struct {
 
     int trace_retain;
 
-    char *home;        /* Home directory */
-    char *home_backup; /* Backup file name */
-    char *home_config; /* Run CONFIG file path */
-    char *home_key;    /* Key file filename */
-    char *home_stats;  /* Statistics file path */
+    char home[FILENAME_MAX];          /* Home directory */
+    char home_backup[FILENAME_MAX];   /* Backup file name */
+    char home_config[FILENAME_MAX];   /* Run CONFIG file path */
+    char home_key[FILENAME_MAX];      /* Key file filename */
+    char home_page_log[FILENAME_MAX]; /* Page and log service home dir (disagg) */
+    char home_stats[FILENAME_MAX];    /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
 
@@ -262,6 +267,7 @@ typedef struct {
     WT_RAND_STATE extra_rnd; /* Global RNG state for extra operations */
 
     uint64_t timestamp;        /* Counter for timestamps */
+    uint64_t prepared_id;      /* Counter for prepared id */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
     uint64_t stable_timestamp; /* Last timestamp used for stable */
 
@@ -305,7 +311,14 @@ typedef struct {
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 
+    bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
+    pid_t follower_pid; /* For multi-node disagg follower process */
+    char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
+    DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
+    int disagg_multi_sync_socket;               /* Socket for leader-follower sync */
+
     bool column_store_config;           /* At least one column-store table configured */
+    bool disagg_storage_config;         /* If disaggregated storage is configured */
     bool multi_table_config;            /* If configuring multiple tables */
     bool tiered_storage_config;         /* If tiered storage is configured */
     bool transaction_timestamps_config; /* If transaction timestamps configured on any table */
@@ -344,7 +357,6 @@ typedef struct {
 
     WT_ITEM key;   /* Generated key for row-store inserts */
     WT_ITEM value; /* If not a delete or truncate, the value. */
-    uint8_t bitv;  /* FLCS */
 } SNAP_OPS;
 
 typedef struct {
@@ -394,7 +406,6 @@ typedef struct {
     WT_ITEM *key, _key;             /* read key */
     WT_ITEM *value, _value;         /* read value */
     WT_ITEM *new_value, _new_value; /* insert, modify or update value */
-    uint8_t bitv;                   /* FLCS insert, modify or update value */
 
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
@@ -433,29 +444,40 @@ WT_THREAD_RET background_compact(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
+WT_THREAD_RET follower(void *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
 
 uint32_t atou32(const char *, const char *, int);
+uint64_t checksum_database(WT_SESSION *);
 void config_clear(void);
 void config_compat(const char **);
 void config_error(void);
 void config_file(const char *);
 void config_print(bool);
+void config_random_generators(void);
 void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+bool disagg_is_mode_switch(void);
+bool disagg_is_multi_node(void);
+void disagg_setup_multi_node(void);
+void disagg_switch_roles(void);
+void disagg_teardown_multi_node(void);
+void disagg_sync_multi_node(WT_SESSION *);
 bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);
+void follower_read_latest_checkpoint(void);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);
 void key_init(TABLE *, void *);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
+void locks_init(WT_CONNECTION *);
 void operations(u_int, u_int, u_int);
 void path_setup(const char *);
 void set_alarm(u_int);
@@ -475,6 +497,7 @@ uint64_t timestamp_minimum_committed(void);
 void timestamp_once(WT_SESSION *, bool, bool);
 void replay_adjust_key(TINFO *, uint64_t);
 uint64_t replay_commit_ts(TINFO *);
+uint64_t replay_rollback_ts(TINFO *);
 void replay_committed(TINFO *);
 void replay_end_timed_run(void);
 void replay_loop_begin(TINFO *, bool);
@@ -494,11 +517,10 @@ void trace_ops_init(TINFO *);
 void trace_teardown(void);
 void track(const char *, uint64_t);
 void track_ops(TINFO *);
-void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint8_t *, uint64_t);
+void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);
-void val_to_flcs(TABLE *, WT_ITEM *, uint8_t *);
 void wt_wrap_open_session(
   WT_CONNECTION *conn, SAP *sap, const char *track, const char *cfg, WT_SESSION **sessionp);
 void wt_wrap_close_session(WT_SESSION *session);
@@ -512,6 +534,7 @@ void wts_open(const char *, WT_CONNECTION **, bool);
 void wts_read_scan(TABLE *, void *);
 void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
+void wts_prepare_discover(WT_CONNECTION *);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, bool);
 void wts_verify_mirrored_truncate(TINFO *tinfo);

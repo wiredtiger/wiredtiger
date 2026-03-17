@@ -1,4 +1,3 @@
-project(libfuzz C)
 
 include(CheckCSourceCompiles)
 

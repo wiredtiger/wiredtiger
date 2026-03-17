@@ -1,5 +1,3 @@
-project(ext C)
-
 # Build the compressor extensions.
 add_subdirectory(compressors/lz4)
 add_subdirectory(compressors/snappy)
@@ -23,7 +21,9 @@ if(WT_POSIX)
     add_subdirectory(encryptors/sodium)
 
     # Build the page log extensions.
-    add_subdirectory(page_log/palm)
+    if(ENABLE_PALITE)
+        add_subdirectory(page_log/palite)
+    endif()
 
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/dir_store)
@@ -42,3 +42,5 @@ if(WT_POSIX)
     # Build the test extensions.
     add_subdirectory(test/fail_fs)
 endif()
+
+add_subdirectory(test/key_provider)

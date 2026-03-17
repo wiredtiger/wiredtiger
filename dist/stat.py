@@ -14,7 +14,7 @@ if not [f for f in filter_if_fast([
             "../dist/dist.py",
             "../dist/stat_data.py",
             "../src/include/stat.h",
-            "../src/include/wiredtiger.in",
+            "../src/include/wiredtiger.h.in",
             "../src/support/stat.c",
         ], prefix="../")]:
     sys.exit(0)
@@ -31,8 +31,25 @@ def check_unique_description(sorted_list):
     temp = ""
     for i in sorted_list:
         if temp == i.desc:
-            print("ERROR: repeated stat description in - '%s'" % (i.desc))
+            raise Exception(f"ERROR: repeated stat description in - '{i.desc}'")
         temp = i.desc
+
+##########################################
+# Check the description format.
+# Removes prefix from description before checking.
+# Checks for leading/trailing whitespace, newlines, and leading/trailing punctation.
+##########################################
+def check_description_format(stat):
+    desc = stat.desc.split(': ', 1)[1]
+    if desc != desc.strip():
+        raise Exception(
+            f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
+    if '\n' in desc:
+        raise Exception(f"ERROR: {stat.name} description contains newline - '{desc}'")
+    punctuation = ('.', ',', ';', ':', '!', '?')
+    if desc.startswith(punctuation) or desc.endswith(punctuation):
+        raise Exception(
+            f"ERROR: {stat.name} description has leading or trailing punctuation - '{desc}'")
 
 ##########################################
 # Remove trailing digits for a string.
@@ -54,12 +71,13 @@ def check_name_sorted(stat_list):
         sorted_stats = sorted(stats, key=lambda stat: remove_suffix_digits(stat.name))
         for sorted_stat, stat in zip(sorted_stats, stats):
             if sorted_stat.name != stat.name:
-                print(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected " \
-                      f"'{sorted_stat.name}' but found '{stat.name}'")
-                return
+                raise Exception(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, " \
+                      f"expected '{sorted_stat.name}' but found '{stat.name}'")
 
 all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
 for stat_list in all_stat_list:
+    for stat in stat_list:
+        check_description_format(stat)
     check_name_sorted(stat_list)
 
 conn_dsrc_stats.sort(key=attrgetter('desc'))
@@ -132,7 +150,7 @@ def print_defines_one(capname, base, stats):
             str(v) + '\n')
 
 def print_defines():
-    '''Print the #defines for the wiredtiger.in file.'''
+    '''Print the #defines for the wiredtiger.h.in file.'''
     f.write('''
 /*!
  * @name Connection statistics
@@ -165,11 +183,11 @@ def print_defines():
     print_defines_one('SESSION', 4000, session_stats)
     f.write('/*! @} */\n')
 
-# Update the #defines in the wiredtiger.in file.
+# Update the #defines in the wiredtiger.h.in file.
 tmp_file = '__tmp_stat' + str(os.getpid())
 f = open(tmp_file, 'w')
 skip = 0
-for line in open('../src/include/wiredtiger.in', 'r'):
+for line in open('../src/include/wiredtiger.h.in', 'r'):
     if not skip:
         f.write(line)
     if line.count('Statistics section: END'):
@@ -181,7 +199,7 @@ for line in open('../src/include/wiredtiger.in', 'r'):
         print_defines()
         f.write('/*\n')
 f.close()
-compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
+compare_srcfile(tmp_file, '../src/include/wiredtiger.h.in')
 
 def print_func(name, handle, statlist, capname=None):
     '''Print the structures/functions for the stat.c file.'''

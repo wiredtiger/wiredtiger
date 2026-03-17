@@ -135,6 +135,7 @@ run "flags.py"
 run "log.py"
 run "stat.py"
 run "verbose.py"
+run "s_format_config"
 run "s_copyright"
 run "s_style"
 run "s_clang_format"
@@ -162,7 +163,6 @@ run --bg "s_longlines" &
 run --bg "s_python" &
 run --bg "s_stat" &
 run --bg "s_string" &
-run --bg "s_tags" &
 run --bg "s_typedef -c" &
 run --bg "s_visibility_checks" &
 run --bg "s_void" &

@@ -815,7 +815,7 @@ FILE_VERSION_FILTER    =
 # DoxygenLayout.xml, doxygen will parse it automatically even if the LAYOUT_FILE
 # tag is left empty.
 
-LAYOUT_FILE            = style/DoxygenLayout.xml
+LAYOUT_FILE            = style/DoxygenLayout.11.xml
 
 # The CITE_BIB_FILES tag can be used to specify one or more bib files containing
 # the reference definitions. This must be a list of .bib files. The .bib
@@ -859,8 +859,7 @@ WARN_IF_UNDOCUMENTED   = YES
 # a documented function twice, or documenting parameters that don't exist or
 # using markup commands wrongly.
 # The default value is: YES.
-
-WARN_IF_DOC_ERROR      = YES
+WARN_IF_DOC_ERROR = YES  
 
 # This WARN_NO_PARAMDOC option can be enabled to get warnings for functions that
 # are documented, but have no documentation for their parameters or return
@@ -871,6 +870,11 @@ WARN_IF_DOC_ERROR      = YES
 # The default value is: NO.
 
 WARN_NO_PARAMDOC       = YES
+
+# This WARN_IF_INCOMPLETE_DOC is used to warn when not all parameters have doc
+# The default value is: YES
+
+WARN_IF_INCOMPLETE_DOC = NO
 
 # If the WARN_AS_ERROR tag is set to YES then doxygen will immediately stop when
 # a warning is encountered. If the WARN_AS_ERROR tag is set to FAIL_ON_WARNINGS
@@ -911,7 +915,7 @@ WARN_LOGFILE           = doxygen.log
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = ../include/wiredtiger.in \
+INPUT                  = ../include/wiredtiger.h.in \
                          ../include/wiredtiger_ext.h \
                          .
 
@@ -2263,7 +2267,8 @@ PREDEFINED             = DOXYGEN \
                          __wt_modify:=WT_MODIFY \
                          __wt_session:=WT_SESSION \
                          __wt_storage_source:=WT_STORAGE_SOURCE \
-                         __wt_txn_notify:=WT_TXN_NOTIFY
+                         __wt_txn_notify:=WT_TXN_NOTIFY \
+                         __F(x)=(*x)
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

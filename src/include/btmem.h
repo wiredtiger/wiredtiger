@@ -81,8 +81,8 @@ struct __wt_page_header {
 #define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
     uint8_t flags;                 /* 25: flags */
 
-    /* A byte of padding, positioned to be added to the flags. */
-    uint8_t unused; /* 26: unused padding */
+    /* FIXME-WT-16512: A byte of padding, reserved to make the header extensible in the future. */
+    uint8_t reserved; /* 26: padding, used for future use (until then, please always set to 0) */
 
 #define WT_PAGE_VERSION_ORIG 0 /* Original version */
 #define WT_PAGE_VERSION_TS 1   /* Timestamps added */
@@ -126,14 +126,22 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
+ * The number of deltas for a base page must be strictly less than or equal to WT_DELTA_LIMIT.
+ * Though we have made the number of consecutive deltas adjustable through the max_consecutive_delta
+ * config, 32 remains the maximum value we support. Thus WT_DELTA_LIMIT can be used to size arrays
+ * that contain the base page plus all associated deltas.
+ */
+#define WT_DELTA_LIMIT 32
+
+/*
  * WT_ADDR --
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
     WT_TIME_AGGREGATE ta;
 
-    uint8_t *addr; /* Block-manager's cookie */
-    uint8_t size;  /* Block-manager's cookie length */
+    uint8_t *block_cookie;     /* Block-manager's cookie */
+    uint8_t block_cookie_size; /* Block-manager's cookie length */
 
 #define WT_ADDR_INT 1     /* Internal page */
 #define WT_ADDR_LEAF 2    /* Leaf page */
@@ -220,13 +228,15 @@ struct __wt_ovfl_reuse {
 #define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
 #define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
 /* Disable logging for history store in the metadata. */
-#define WT_HS_CONFIG                                                   \
+#define WT_HS_CONFIG_COMMON                                            \
     "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
     ",block_compressor=" WT_HS_COMPRESSOR                              \
     ",log=(enabled=false)"                                             \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
+#define WT_HS_CONFIG_LOCAL WT_HS_CONFIG_COMMON
+#define WT_HS_CONFIG_SHARED WT_HS_CONFIG_COMMON ",block_manager=disagg"
 
 /*
  * WT_SAVE_UPD --
@@ -237,7 +247,40 @@ struct __wt_save_upd {
     WT_ROW *rip;    /* Original on-page reference */
     WT_UPDATE *onpage_upd;
     WT_UPDATE *onpage_tombstone;
+    WT_UPDATE *free_upds; /* Updates to be freed */
+    WT_TIME_WINDOW tw;
     bool restore; /* Whether to restore this saved update chain */
+};
+
+/*
+ * WT_PAGE_BLOCK_META --
+ *  Block management metadata associated with a page.
+ */
+struct __wt_page_block_meta {
+    uint64_t page_id;
+    uint64_t disagg_lsn;
+
+    uint64_t backlink_lsn;
+    uint64_t base_lsn;
+
+    uint32_t checksum;
+
+    /* The cumulative size of the page + delta chain. */
+    uint32_t cumulative_size;
+
+    uint8_t delta_count;
+};
+
+/*
+ * WT_PAGE_DISAGG_INFO --
+ *  Page information associated with disaggregated storage.
+ */
+struct __wt_page_disagg_info {
+    uint64_t old_rec_lsn_max; /* The LSN associated with the page's before the most recent
+                                 reconciliation */
+    uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
+
+    WT_PAGE_BLOCK_META block_meta;
 };
 
 /*
@@ -258,6 +301,7 @@ struct __wt_multi {
      * memory.
      */
     void *disk_image;
+    WT_PAGE_BLOCK_META *block_meta; /* the metadata for the disk image */
 
     /*
      * List of unresolved updates. Updates are either a row-store insert or update list, or
@@ -268,10 +312,14 @@ struct __wt_multi {
      * image.
      */
     WT_SAVE_UPD *supd;
-    uint32_t supd_entries;
-    bool supd_restore; /* Whether to restore saved update chains to this page */
-
     WT_ADDR addr; /* Disk image written address */
+    uint32_t supd_entries;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_MULTI_SKIP_WRITE 0x1u
+#define WT_MULTI_SUPD_RESTORE 0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /*
@@ -301,7 +349,7 @@ struct __wt_ovfl_track {
  */
 struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
-    uint64_t first_dirty_txn;
+    wt_shared uint64_t first_dirty_txn;
 
     /* The transaction state last time eviction was attempted. */
     uint64_t last_evict_pass_gen;
@@ -321,12 +369,28 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
+    /*
+     * Track the pinned stable timestamp used for the most recent reconciliation. It's useful to
+     * avoid duplicating work when precise checkpoints are enabled, so we don't re-reconcile pages
+     * when no new content could be written.
+     */
+    wt_timestamp_t rec_pinned_stable_timestamp;
+
+    /*
+     * Track the prune timestamp used for the most recent reconciliation. It's useful to avoid
+     * duplicating work when doing garbage collection on the ingest btree.
+     */
+    wt_timestamp_t rec_prune_timestamp;
+
+    /* An approximate timestamp of the newest update */
+    wt_shared wt_timestamp_t newest_commit_timestamp;
+
     /* The largest update transaction ID (approximate). */
     wt_shared uint64_t update_txn;
 
     /* Dirty bytes added to the cache. */
-    wt_shared size_t bytes_dirty;
-    wt_shared size_t bytes_updates;
+    wt_shared uint64_t bytes_dirty;
+    wt_shared uint64_t bytes_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -395,27 +459,14 @@ struct __wt_page_modify {
 
             /*
              * Updated items in column-stores: variable-length RLE entries can expand to multiple
-             * entries which requires some kind of list we can expand on demand. Updated items in
-             * fixed-length files could be done based on an WT_UPDATE array as in row-stores, but
-             * there can be a very large number of bits on a single page, and the cost of the
-             * WT_UPDATE array would be huge.
+             * entries which requires some kind of list we can expand on demand.
              */
             wt_shared WT_INSERT_HEAD **update;
-
-            /*
-             * Split-saved last column-store page record. If a fixed-length column-store page is
-             * split, we save the first record number moved so that during reconciliation we know
-             * the page's last record and can write any implicitly created deleted records for the
-             * page. No longer used by VLCS.
-             */
-            uint64_t split_recno;
         } column_leaf;
 #undef mod_col_append
 #define mod_col_append u2.column_leaf.append
 #undef mod_col_update
 #define mod_col_update u2.column_leaf.update
-#undef mod_col_split_recno
-#define mod_col_split_recno u2.column_leaf.split_recno
         struct {
             /* Inserted items for row-store. */
             wt_shared WT_INSERT_HEAD **insert;
@@ -468,7 +519,6 @@ struct __wt_page_modify {
  */
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
-#define WT_PAGE_DIRTY 2
     wt_shared uint32_t page_state;
 
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
@@ -526,30 +576,6 @@ struct __wt_col_var_repeat {
     uint32_t nrepeats;     /* repeat slots */
     WT_COL_RLE repeats[0]; /* lookup RLE array */
 };
-
-/*
- * WT_COL_FIX_TW_ENTRY --
- *     This is a single entry in the WT_COL_FIX_TW array. It stores the offset from the page's
- * starting recno and the offset into the page to find the value cell containing the time window.
- */
-struct __wt_col_fix_tw_entry {
-    uint32_t recno_offset;
-    uint32_t cell_offset;
-};
-
-/*
- * WT_COL_FIX_TW --
- *     Fixed-length column-store pages carry an array of page entries that have time windows. This
- * is built when reading the page to avoid the need to walk the page to find a specific entry. We
- * can do a binary search in this array instead.
- */
-struct __wt_col_fix_tw {
-    uint32_t numtws;            /* number of time window slots */
-    WT_COL_FIX_TW_ENTRY tws[0]; /* lookup array */
-};
-
-/* WT_COL_FIX_TW_CELL gets the cell pointer from a WT_COL_FIX_TW_ENTRY. */
-#define WT_COL_FIX_TW_CELL(page, entry) ((WT_CELL *)((uint8_t *)(page)->dsk + (entry)->cell_offset))
 
 #ifdef HAVE_DIAGNOSTIC
 /*
@@ -635,16 +661,17 @@ struct __wt_page {
     } while (0)
 #else
 /* Use WT_ACQUIRE_READ to enforce acquire semantics rather than relying on address dependencies. */
-#define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
+#define WT_INTL_INDEX_GET_SAFE(page, pindex) \
+    (pindex) = __wt_atomic_load_ptr_acquire(&(page)->u.intl.__index)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
         WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
-#define WT_INTL_INDEX_SET(page, v)                               \
-    do {                                                         \
-        WT_RELEASE_BARRIER();                                    \
-        __wt_atomic_store_pointer(&(page)->u.intl.__index, (v)); \
+#define WT_INTL_INDEX_SET(page, v)                                   \
+    do {                                                             \
+        WT_RELEASE_BARRIER();                                        \
+        __wt_atomic_store_ptr_relaxed(&(page)->u.intl.__index, (v)); \
     } while (0)
 #endif
 
@@ -678,20 +705,6 @@ struct __wt_page {
         WT_ROW *row; /* Key/value pairs */
 #undef pg_row
 #define pg_row u.row
-
-        /* Fixed-length column-store leaf page. */
-        struct {
-            uint8_t *fix_bitf;     /* Values */
-            WT_COL_FIX_TW *fix_tw; /* Time window index */
-#define WT_COL_FIX_TWS_SET(page) ((page)->u.col_fix.fix_tw != NULL)
-        } col_fix;
-#undef pg_fix_bitf
-#define pg_fix_bitf u.col_fix.fix_bitf
-#undef pg_fix_numtws
-#define pg_fix_numtws u.col_fix.fix_tw->numtws
-#undef pg_fix_tws
-#define pg_fix_tws u.col_fix.fix_tw->tws
-
         /* Variable-length column-store leaf page. */
         struct {
             WT_COL *col_var;            /* Values */
@@ -719,31 +732,35 @@ struct __wt_page {
     uint32_t prefix_stop;  /* Maximum slot to which the best page prefix applies */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_PAGE_BUILD_KEYS 0x001u         /* Keys have been built in memory */
-#define WT_PAGE_COMPACTION_WRITE 0x002u   /* Writing the page for compaction */
-#define WT_PAGE_DISK_ALLOC 0x004u         /* Disk image in allocated memory */
-#define WT_PAGE_DISK_MAPPED 0x008u        /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_LRU 0x010u          /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_LRU_URGENT 0x020u   /* Page is in the urgent queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x040u  /* Eviction doesn't count as progress */
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x080u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_PREFETCH 0x100u           /* The page is being pre-fetched */
-#define WT_PAGE_SPLIT_INSERT 0x200u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x400u      /* Ignore updates on page discard */
-                                          /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    wt_shared uint16_t flags_atomic;      /* Atomic flags, use F_*_ATOMIC_16 */
+#define WT_PAGE_BUILD_KEYS 0x0001u        /* Keys have been built in memory */
+#define WT_PAGE_COMPACTION_WRITE 0x0002u  /* Writing the page for compaction */
+#define WT_PAGE_DISK_ALLOC 0x0004u        /* Disk image in allocated memory */
+#define WT_PAGE_DISK_MAPPED 0x0008u       /* Disk image in mapped memory */
+#define WT_PAGE_EVICT_LRU 0x0010u         /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_LRU_URGENT 0x0020u  /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x0040u /* Eviction doesn't count as progress */
+#define WT_PAGE_INMEM_SPLIT 0x0080u
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0100u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_INTL_PINDEX_UPDATE 0x0200u /* Page index updated */
+#define WT_PAGE_PREFETCH 0x0400u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x0800u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x1000u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x2000u      /* Ignore updates on page discard */
+                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
 #define WT_PAGE_IS_INTERNAL(page) \
     ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
-#define WT_PAGE_INVALID 0       /* Invalid page */
-#define WT_PAGE_BLOCK_MANAGER 1 /* Block-manager page */
-#define WT_PAGE_COL_FIX 2       /* Col-store fixed-len leaf */
-#define WT_PAGE_COL_INT 3       /* Col-store internal page */
-#define WT_PAGE_COL_VAR 4       /* Col-store var-length leaf page */
-#define WT_PAGE_OVFL 5          /* Overflow page */
-#define WT_PAGE_ROW_INT 6       /* Row-store internal page */
-#define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
-    uint8_t type;               /* Page type */
+#define WT_PAGE_INVALID 0            /* Invalid page */
+#define WT_PAGE_BLOCK_MANAGER 1      /* Block-manager page */
+#define WT_PAGE_COL_FIX_DEPRECATED 2 /* Col-store fixed-len leaf */
+#define WT_PAGE_COL_INT 3            /* Col-store internal page */
+#define WT_PAGE_COL_VAR 4            /* Col-store var-length leaf page */
+#define WT_PAGE_OVFL 5               /* Overflow page */
+#define WT_PAGE_ROW_INT 6            /* Row-store internal page */
+#define WT_PAGE_ROW_LEAF 7           /* Row-store leaf page */
+#define WT_PAGE_TYPE_COUNT 8         /* First value beyond valid for checks */
+    uint8_t type;                    /* Page type */
 
     /* 1 byte hole expected. */
 
@@ -789,6 +806,13 @@ struct __wt_page {
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
+
+    uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
+                                      but fails */
+    uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
+    /* 2 uint16_t hole expected. */
+
+    WT_PAGE_DISAGG_INFO *disagg_info;
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3
@@ -960,10 +984,10 @@ typedef uint8_t WT_REF_STATE;
  */
 
 /* Must be 0, as structures will be default initialized with 0. */
-#define WT_PREPARE_INIT 0
-#define WT_PREPARE_INPROGRESS 1
-#define WT_PREPARE_LOCKED 2
-#define WT_PREPARE_RESOLVED 3
+#define WT_PREPARE_INIT (uint8_t)0
+#define WT_PREPARE_INPROGRESS (uint8_t)1
+#define WT_PREPARE_LOCKED (uint8_t)2
+#define WT_PREPARE_RESOLVED (uint8_t)3
 
 /*
  * Page state.
@@ -1034,8 +1058,26 @@ struct __wt_page_deleted {
      */
     wt_shared volatile uint64_t txnid; /* Transaction ID */
 
-    wt_timestamp_t timestamp; /* Timestamps */
-    wt_timestamp_t durable_timestamp;
+    union {
+        struct {
+            wt_timestamp_t durable_ts; /* timestamps */
+            wt_timestamp_t start_ts;
+        } commit;
+
+        struct {
+            wt_timestamp_t rollback_ts; /* rollback timestamp */
+            uint64_t saved_txnid;       /* transaction id before rollback */
+        } prepare_rollback;
+    } u;
+
+#define pg_del_durable_ts u.commit.durable_ts
+#define pg_del_start_ts u.commit.start_ts
+#define pg_del_rollback_ts u.prepare_rollback.rollback_ts
+#define pg_del_saved_txnid u.prepare_rollback.saved_txnid
+
+    /* Prepared transaction fields */
+    uint64_t prepared_id;
+    wt_timestamp_t prepare_ts;
 
     /*
      * The prepare state is used for transaction prepare to manage visibility and propagating the
@@ -1118,7 +1160,19 @@ struct __wt_ref {
     wt_shared WT_PAGE *volatile home;        /* Reference page */
     wt_shared volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t unused; /* Padding: before the flags field so flags can be easily expanded. */
+/*
+ * A flag used to track a ref has changed during internal page reconciliation. The value is compared
+ * and swapped to WT_REF_REC_CLEAN for each internal page reconciliation. If the flag becomes
+ * WT_REF_REC_DIRTY, this implies that the ref has been changed concurrently and that the ref
+ * remains dirty after internal page reconciliation. It is possible for other operations such as
+ * page splits and fast-truncate to concurrently mark WT_REF_REC_DIRTY to the ref, but depending on
+ * timing or race conditions, it cannot be guaranteed that the new change is included as part of the
+ * reconciliation. The page would need to be reconciled again to ensure that these modifications are
+ * included.
+ */
+#define WT_REF_REC_CLEAN 0
+#define WT_REF_REC_DIRTY 1
+    wt_shared volatile uint8_t rec_state;
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -1127,9 +1181,10 @@ struct __wt_ref {
  * depending on it to be "!leaf" instead.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
-#define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
-                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+#define WT_REF_FLAG_INTERNAL 0x1u     /* Page is an internal page */
+#define WT_REF_FLAG_LEAF 0x2u         /* Page is a leaf page */
+#define WT_REF_FLAG_REC_MULTIPLE 0x4u /* Page has been split in reconciliation */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -1437,8 +1492,33 @@ struct __wt_update {
      */
     wt_shared volatile uint64_t txnid; /* transaction ID */
 
-    wt_timestamp_t durable_ts; /* timestamps */
-    wt_timestamp_t start_ts;
+    union {
+        struct {
+            wt_timestamp_t durable_ts; /* timestamps */
+            wt_timestamp_t start_ts;
+        } commit;
+
+        struct {
+            wt_timestamp_t rollback_ts; /* rollback timestamp */
+            uint64_t saved_txnid;       /* transaction id before rollback */
+        } prepare_rollback;
+    } u;
+
+#undef upd_durable_ts
+#define upd_durable_ts u.commit.durable_ts
+#undef upd_start_ts
+#define upd_start_ts u.commit.start_ts
+#undef upd_rollback_ts
+#define upd_rollback_ts u.prepare_rollback.rollback_ts
+#undef upd_saved_txnid
+#define upd_saved_txnid u.prepare_rollback.saved_txnid
+
+    /*
+     * When transaction is prepared, both prepare_ts and start_ts should be assigned to prepare
+     * timestamp. After commit, start_ts will store the commit_ts.
+     */
+    uint64_t prepared_id;
+    wt_timestamp_t prepare_ts;
 
     /*
      * The durable timestamp of the previous update in the update chain. This timestamp is used for
@@ -1470,16 +1550,21 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x04u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x08u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x10u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x20u         /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x40u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x80u        /* Update needs to be deleted from history store */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
-    uint8_t flags;
+#define WT_UPDATE_DELETE_DURABLE 0x0001u  /* Key has been removed from disk image. */
+#define WT_UPDATE_DS 0x0002u              /* Update has been chosen to the data store. */
+#define WT_UPDATE_DURABLE 0x0004u         /* Update has been durable. */
+#define WT_UPDATE_HS 0x0008u              /* Update has been written to hs. */
+#define WT_UPDATE_HS_MAX_STOP 0x0010u     /* Update has been written to hs with a max stop. */
+#define WT_UPDATE_PREPARE_DURABLE 0x0020u /* Prepared update has been durable. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x0040u /* Prepared update restored from data store. */
+#define WT_UPDATE_PREPARE_ROLLBACK 0x0080u /* Tombstone that rolled back by a prepared update.*/
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0100u /* Fast truncate instantiation. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x0200u       /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x0400u       /* Update restored from history store. */
+#define WT_UPDATE_RESTORED_FROM_INGEST 0x0800u   /* Update restored from ingest btree. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x1000u       /* Used by dry run to mark a would-be abort. */
+                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the
  * disk image:
@@ -1504,7 +1589,7 @@ struct __wt_update {
  */
 #define WT_UPDATE_SELECT_FOR_DS                                                      \
     WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
-      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS
+      WT_UPDATE_RESTORED_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
@@ -1516,7 +1601,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#define WT_UPDATE_SIZE 47
+#define WT_UPDATE_SIZE 64
 
 /*
  * If there is no value, ensure that the memory allocation size matches that returned by sizeof().
@@ -1528,7 +1613,8 @@ struct __wt_update {
  * The memory size of an update: include some padding because this is such a common case that
  * overhead of tiny allocations can swamp our cache overhead calculation.
  */
-#define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
+#define WT_UPDATE_MEMSIZE(upd) \
+    WT_ALIGN(WT_UPDATE_SIZE + __wt_tsan_suppress_load_uint32(&(upd)->size), 32)
 
 /*
  * WT_UPDATE_VALUE --
@@ -1709,75 +1795,12 @@ struct __wt_insert_head {
 #define WT_COL_UPDATE(page, ip) WT_COL_UPDATE_SLOT(page, WT_COL_SLOT(page, ip))
 
 /*
- * WT_COL_UPDATE_SINGLE is a single WT_INSERT list, used for any fixed-length column-store updates
- * for a page.
- */
-#define WT_COL_UPDATE_SINGLE(page) WT_COL_UPDATE_SLOT(page, 0)
-
-/*
- * WT_COL_APPEND is an WT_INSERT list, used for fixed- and variable-length appends.
+ * WT_COL_APPEND is an WT_INSERT list, used for variable-length appends.
  */
 #define WT_COL_APPEND(page)                                             \
     ((page)->modify == NULL || (page)->modify->mod_col_append == NULL ? \
         NULL :                                                          \
         (page)->modify->mod_col_append[0])
-
-/* WT_COL_FIX_FOREACH_BITS walks fixed-length bit-fields on a disk page. */
-#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                            \
-    for ((i) = 0,                                                            \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
-           0;                                                                \
-         (i) < (dsk)->u.entries; ++(i),                                      \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
-           0)
-
-/*
- * FLCS pages with time information have a small additional header after the main page data that
- * holds a version number and cell count, plus the byte offset to the start of the cell data. The
- * latter values are limited by the page size, so need only be 32 bits. One hopes we'll never need
- * 2^32 versions.
- *
- * This struct is the in-memory representation. The number of entries is the number of time windows
- * (there are twice as many cells) and the offsets is from the beginning of the page. The space
- * between the empty offset and the data offset is not used and is expected to be zeroed.
- *
- * This structure is only used when handling on-disk pages; once the page is read in, one should
- * instead use the time window index in the page structure, which is a different type found above.
- */
-struct __wt_col_fix_auxiliary_header {
-    uint32_t version;
-    uint32_t entries;
-    uint32_t emptyoffset;
-    uint32_t dataoffset;
-};
-
-/*
- * The on-disk auxiliary header uses a 1-byte version (the header must always begin with a nonzero
- * byte) and packed integers for the entry count and offset. To make the size of the offset entry
- * predictable (rather than dependent on the total page size) and also as small as possible, we
- * store the distance from the auxiliary data. To avoid complications computing the offset, we
- * include the offset's own storage space in the offset, and to make things simpler all around, we
- * include the whole auxiliary header in the offset; that is, the position of the auxiliary data is
- * computed as the position of the start of the auxiliary header plus the decoded stored offset.
- *
- * Both the entry count and the offset are limited to 32 bits because pages may not exceed 4G, so
- * their maximum encoded lengths are 5 each, so the maximum size of the on-disk header is 11 bytes.
- * It can be as small as 3 bytes, though.
- *
- * We reserve 7 bytes for the header on a full page (not 11) because on a full page the encoded
- * offset is the reservation size, and 7 encodes in one byte. This is enough for all smaller pages:
- * obviously if there's at least 4 extra bytes in the bitmap space any header will fit (4 + 7 = 11)
- * and if there's less the encoded offset is less than 11, which still encodes to one byte.
- */
-
-#define WT_COL_FIX_AUXHEADER_RESERVATION 7
-#define WT_COL_FIX_AUXHEADER_SIZE_MAX 11
-
-/* Values for ->version. Version 0 never appears in an on-disk header. */
-#define WT_COL_FIX_VERSION_NIL 0 /* Original page format with no timestamp data */
-#define WT_COL_FIX_VERSION_TS 1  /* Upgraded format with cells carrying timestamp info */
 
 /*
  * Manage split generation numbers. Splits walk the list of sessions to check when it is safe to

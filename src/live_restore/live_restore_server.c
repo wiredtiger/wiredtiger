@@ -55,7 +55,8 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_SESSION_IMPL *checkpoint_se
         uint64_t time_diff_ms;
         __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
         __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-          "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
+          "Live restore background migration finished restoring %" PRIu64 " files in %" PRIu64
+          " seconds. Live restore will now begin cleanup.",
           S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
 
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_CLEAN_UP));
@@ -79,6 +80,8 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_SESSION_IMPL *checkpoint_se
          */
         WT_RET(__wt_checkpoint_db(checkpoint_session, force_ckpt_cfg, true));
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
+
+        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS, "%s", "Live restore has finished.");
 
         /* FALLTHROUGH */
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
@@ -146,8 +149,8 @@ __live_restore_free_work_item(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_WORK_IT
 
     __wt_free(session, (*work_itemp)->uri);
     __wt_free(session, *work_itemp);
-    WT_STAT_CONN_SET(
-      session, live_restore_work_remaining, __wt_atomic_sub64(&server->work_items_remaining, 1));
+    WT_STAT_CONN_SET(session, live_restore_work_remaining,
+      __wt_atomic_sub_uint64(&server->work_items_remaining, 1));
 
     *work_itemp = NULL;
 }
@@ -253,7 +256,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * again later.
          */
         __wt_spin_lock(session, &server->queue_lock);
-        remain = server->work_items_remaining;
+        remain = __wt_tsan_suppress_load_uint64(&server->work_items_remaining);
         threads = server->threads_working;
         TAILQ_INSERT_TAIL(&server->work_queue, work_item, q);
         __wt_spin_unlock(session, &server->queue_lock);
@@ -342,12 +345,12 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
      * restoring from a backup we don't need to queue it. Otherwise we need to ensure we transfer it
      * over.
      */
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
+    if (!F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), &work_count));
 
     WT_STAT_CONN_SET(session, live_restore_work_remaining, work_count);
-    __wt_atomic_store64(&conn->live_restore_server->work_count, work_count);
-    __wt_atomic_store64(&conn->live_restore_server->work_items_remaining, work_count);
+    __wt_atomic_store_uint64_relaxed(&conn->live_restore_server->work_count, work_count);
+    __wt_atomic_store_uint64_relaxed(&conn->live_restore_server->work_items_remaining, work_count);
 
     if (0) {
 err:
@@ -369,7 +372,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Check that we have a live restore file system before starting the threads or allocating the
      * the server.
      */
-    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
     WT_CONNECTION_IMPL *conn = S2C(session);

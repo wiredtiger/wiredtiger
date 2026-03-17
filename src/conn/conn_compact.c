@@ -248,7 +248,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
 
     /* Check if the file is excluded. */
     if (__background_compact_exclude(session, uri)) {
-        WT_STAT_CONN_INCR(session, background_compact_exclude);
+        WT_STAT_CONN_INCR(session, background_compact_skipped_exclude);
         *skipp = true;
         return (0);
     }
@@ -260,6 +260,10 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
 
     /* Ignore the error if the file no longer exists or in case of permission issues. */
     if (ret == ENOENT || ret == EACCES) {
+        if (ret == ENOENT)
+            WT_STAT_CONN_INCR(session, background_compact_skipped_no_such_file);
+        else
+            WT_STAT_CONN_INCR(session, background_compact_skipped_missing_permissions);
         *skipp = true;
         return (0);
     }
@@ -267,7 +271,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
     WT_RET(ret);
 
     if (file_size <= WT_MEGABYTE) {
-        WT_STAT_CONN_INCR(session, background_compact_skipped);
+        WT_STAT_CONN_INCR(session, background_compact_skipped_small_file);
         *skipp = true;
         return (0);
     }
@@ -301,7 +305,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
       compact_stat->bytes_rewritten < conn->background_compact.bytes_rewritten_ema) {
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
-        WT_STAT_CONN_INCR(session, background_compact_skipped);
+        WT_STAT_CONN_INCR(session, background_compact_skipped_unsuccessful);
         *skipp = true;
         return (0);
     }
@@ -402,6 +406,10 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
           session, background_compact_ema, conn->background_compact.bytes_rewritten_ema);
     }
 
+    __wt_verbose_info(session, WT_VERB_COMPACT_PROGRESS,
+      "%s: background compaction finished (status: %s) - reclaimed %" PRIu64 " bytes", uri,
+      (compact_stat->prev_compact_success ? "success" : "failure"), (uint64_t)bytes_recovered);
+
     return (0);
 }
 
@@ -466,14 +474,21 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
 
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
-    WT_ERR(cursor->search_near(cursor, &exact));
+
+    /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+    WT_WITH_TXN_ISOLATION(
+      session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, &exact));
+    WT_ERR(ret);
 
     /*
      * The given URI may not exist in the metadata file. Since we always want to return a URI that
      * is lexicographically larger the given one, make sure not to go backwards.
      */
-    if (exact <= 0)
-        WT_ERR(cursor->next(cursor));
+    if (exact <= 0) {
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+        WT_ERR(ret);
+    }
 
     /* Loop through the eligible candidates. */
     do {
@@ -496,8 +511,12 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
             WT_ERR(__background_compact_should_skip(session, key, id.val, &skip));
             if (!skip)
                 break;
+            WT_STAT_CONN_INCR(session, background_compact_skipped);
         }
-    } while ((ret = cursor->next(cursor)) == 0);
+
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+    } while (ret == 0);
     WT_ERR(ret);
 
     /* Save the selected uri. */
@@ -523,7 +542,7 @@ __background_compact_server(void *arg)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool cache_pressure, full_iteration, running;
+    bool cache_pressure, full_iteration, running, run_once;
 
     session = arg;
     conn = S2C(session);
@@ -537,11 +556,12 @@ __background_compact_server(void *arg)
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
     for (;;) {
+        run_once = __wt_tsan_suppress_load_bool(&conn->background_compact.run_once);
 
         /* If the server is configured to run once, stop it after a full iteration. */
-        if (full_iteration && conn->background_compact.run_once) {
+        if (full_iteration && run_once) {
             __wt_spin_lock(session, &conn->background_compact.lock);
-            __wt_atomic_storebool(&conn->background_compact.running, false);
+            __wt_atomic_store_bool_relaxed(&conn->background_compact.running, false);
             running = false;
             WT_STAT_CONN_SET(session, background_compact_running, running);
             __wt_spin_unlock(session, &conn->background_compact.lock);
@@ -565,8 +585,8 @@ __background_compact_server(void *arg)
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
                 __background_compact_list_cleanup(session,
-                  conn->background_compact.run_once ? BACKGROUND_COMPACT_CLEANUP_OFF :
-                                                      BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
+                  run_once ? BACKGROUND_COMPACT_CLEANUP_OFF :
+                             BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
             }
 
             if (cache_pressure) {
@@ -585,13 +605,13 @@ __background_compact_server(void *arg)
             break;
 
         __wt_spin_lock(session, &conn->background_compact.lock);
-        running = __wt_atomic_loadbool(&conn->background_compact.running);
+        running = __wt_atomic_load_bool_relaxed(&conn->background_compact.running);
 
         /* The server has been signalled to change state. */
         if (conn->background_compact.signalled) {
 
             /* If configured to run once, start from the beginning. */
-            if (running && conn->background_compact.run_once)
+            if (running && run_once)
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
 
@@ -628,7 +648,7 @@ __background_compact_server(void *arg)
         WT_ERR_NOTFOUND_OK(__background_compact_find_next_uri(session, uri, next_uri), true);
 
         /* All the keys with the specified prefix have been parsed. */
-        if (ret == WT_NOTFOUND) {
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
             full_iteration = true;
             continue;
         }
@@ -672,7 +692,7 @@ __background_compact_server(void *arg)
              */
             else if (ret == WT_ERROR) {
                 __wt_spin_lock(session, &conn->background_compact.lock);
-                running = __wt_atomic_loadbool(&conn->background_compact.running);
+                running = __wt_atomic_load_bool_relaxed(&conn->background_compact.running);
                 __wt_spin_unlock(session, &conn->background_compact.lock);
                 if (!running) {
                     WT_STAT_CONN_INCR(session, background_compact_interrupted);
@@ -713,7 +733,11 @@ __wti_background_compact_server_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+        return (0);
+
+    /* Disable background compact server in disagg mode. */
+    if (__wt_conn_is_disagg(session))
         return (0);
 
     /* Set first, the thread might run before we finish up. */
@@ -759,7 +783,7 @@ __wti_background_compact_server_destroy(WT_SESSION_IMPL *session)
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_COMPACT);
     if (conn->background_compact.tid_set) {
-        __wt_atomic_storebool(&conn->background_compact.running, false);
+        __wt_atomic_store_bool_relaxed(&conn->background_compact.running, false);
         __wt_cond_signal(session, conn->background_compact.cond);
         WT_TRET(__wt_thread_join(session, &conn->background_compact.tid));
         conn->background_compact.tid_set = false;
@@ -796,7 +820,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     stripped_config = NULL;
 
     /* The background compaction server is not compatible with in-memory or readonly databases. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
         __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
           "Background compact cannot be configured for in-memory or readonly databases.");
         return (ENOTSUP);
@@ -807,7 +831,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (conn->background_compact.signalled)
         WT_ERR_MSG(session, EBUSY, "Background compact is busy processing a previous command");
 
-    running = __wt_atomic_loadbool(&conn->background_compact.running);
+    running = __wt_atomic_load_bool_relaxed(&conn->background_compact.running);
 
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
     enable = cval.val;
@@ -828,14 +852,14 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (enable) {
         /* The background compaction server can be configured to run once. */
         WT_ERR(__wt_config_getones(session, stripped_config, "run_once", &cval));
-        conn->background_compact.run_once = cval.val;
+        __wt_tsan_suppress_store_bool(&conn->background_compact.run_once, cval.val);
 
         /* Process excluded tables. */
         WT_ERR(__background_compact_exclude_list_process(session, config));
     }
 
     /* The background compaction has been signalled successfully, update its state. */
-    __wt_atomic_storebool(&conn->background_compact.running, enable);
+    __wt_atomic_store_bool_relaxed(&conn->background_compact.running, enable);
     __wt_free(session, conn->background_compact.config);
     conn->background_compact.config = stripped_config;
     stripped_config = NULL;

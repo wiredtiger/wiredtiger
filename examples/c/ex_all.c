@@ -838,6 +838,9 @@ transaction_ops(WT_SESSION *session_arg)
         error_check(session->begin_transaction(session, NULL));
         cursor->set_key(cursor, "key");
         cursor->set_value(cursor, "value");
+        /*! [transaction prepared_id] */
+        error_check(session->prepared_id_transaction(session, "prepared_id=a"));
+        /*! [transaction prepared_id] */
         error_check(session->prepare_transaction(session, "prepare_timestamp=2a"));
         error_check(
           session->commit_transaction(session, "commit_timestamp=2b,durable_timestamp=2b"));
@@ -917,7 +920,13 @@ transaction_ops(WT_SESSION *session_arg)
 
         error_check(session->begin_transaction(session, NULL));
         /*! [transaction timestamp_uint] */
+        error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, 40));
+        /*! [transaction prepared_id_uint] */
+        error_check(session->prepared_id_transaction_uint(session, 10));
+        error_check(session->prepare_transaction(session, NULL));
+        /*! [transaction prepared_id_uint] */
         error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, 42));
+        error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, 45));
         /*! [transaction timestamp_uint] */
         error_check(session->commit_transaction(session, NULL));
     }
@@ -1044,6 +1053,10 @@ connection_ops(WT_CONNECTION *conn)
     error_check(
       conn->configure_method(conn, "WT_SESSION.open_cursor", "my_data:", "devices", "list", NULL));
     /*! [Configure method configuration] */
+
+    /*! [Set the last materialized LSN by the page log service] */
+    error_check(conn->set_context_uint(conn, WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, 100));
+    /*! [Set the last materialized LSN by the page log service] */
 
     /*! [Close a connection] */
     error_check(conn->close(conn, NULL));

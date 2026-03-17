@@ -123,7 +123,7 @@ track_ops(TINFO *tinfo)
           track_ts_dots(cur_dot_cnt));
     }
     testutil_snprintf_len_set(msg, sizeof(msg), &len,
-      "ops: "
+      "ops%s: "
       "S %" PRIu64
       "%s, "
       "I %" PRIu64
@@ -135,6 +135,7 @@ track_ops(TINFO *tinfo)
       "M %" PRIu64
       "%s, "
       "T %" PRIu64 "%s%s",
+      g.disagg_storage_config ? g.disagg_leader ? "[Leader]" : "[Follower]" : "",
       tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search, tinfo->search > M(9) ? "M" : "",
       tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert, tinfo->insert > M(9) ? "M" : "",
       tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update, tinfo->update > M(9) ? "M" : "",
@@ -174,35 +175,20 @@ track(const char *tag, uint64_t cnt)
 void
 path_setup(const char *home)
 {
-    size_t len;
-    const char *name;
-
     /* Home directory. */
-    g.home = dstrdup(home == NULL ? "RUNDIR" : home);
+    testutil_snprintf(g.home, sizeof(g.home), "%s", home != NULL ? home : "RUNDIR");
 
     /* Backup file. */
-    name = "WiredTiger.backup";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_backup = dmalloc(len);
-    testutil_snprintf(g.home_backup, len, "%s/%s", g.home, name);
+    testutil_snprintf(g.home_backup, sizeof(g.home_backup), "%s/%s", g.home, "WiredTiger.backup");
 
     /* Configuration file. */
-    name = "CONFIG";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_config = dmalloc(len);
-    testutil_snprintf(g.home_config, len, "%s/%s", g.home, name);
+    testutil_snprintf(g.home_config, sizeof(g.home_config), "%s/%s", g.home, "CONFIG");
 
     /* Key length configuration file. */
-    name = "CONFIG.keylen";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_key = dmalloc(len);
-    testutil_snprintf(g.home_key, len, "%s/%s", g.home, name);
+    testutil_snprintf(g.home_key, sizeof(g.home_key), "%s/%s", g.home, "CONFIG.keylen");
 
     /* Statistics file. */
-    name = "OPERATIONS.stats";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_stats = dmalloc(len);
-    testutil_snprintf(g.home_stats, len, "%s/%s", g.home, name);
+    testutil_snprintf(g.home_stats, sizeof(g.home_stats), "%s/%s", g.home, "OPERATIONS.stats");
 }
 
 /*
@@ -307,7 +293,6 @@ table_dump_page(
     wt_wrap_open_cursor(session, tbl->uri, checkpoint == NULL ? NULL : cfg, &cursor);
 
     switch (tbl->type) {
-    case FIX:
     case VAR:
         cursor->set_key(cursor, keyno);
         break;
@@ -325,7 +310,6 @@ table_dump_page(
         fprintf(stderr, "%s: Not dumping (error %d from search_near)\n", tag, ret);
 
     switch (tbl->type) {
-    case FIX:
     case VAR:
         break;
     case ROW:

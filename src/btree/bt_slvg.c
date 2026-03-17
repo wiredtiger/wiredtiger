@@ -75,8 +75,8 @@ struct __wt_track_shared {
  * split the leaf page chunks up, one chunk for each unique key range.
  */
 struct __wt_track {
-#define trk_addr shared->addr.addr
-#define trk_addr_size shared->addr.size
+#define trk_addr shared->addr.block_cookie
+#define trk_addr_size shared->addr.block_cookie_size
 #define trk_gen shared->gen
 #define trk_ovfl_addr shared->ovfl_addr
 #define trk_ovfl_cnt shared->ovfl_cnt
@@ -311,15 +311,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * modification.
      *
      * This requires sorting the page list by key, and secondarily by LSN.
-     *
-     * !!!
-     * It's vanishingly unlikely and probably impossible for fixed-length column-store files
-     * to have overlapping key ranges.  It's possible for an entire key range to go missing (if
-     * a page is corrupted and lost), but because pages can't split, it shouldn't be possible to
-     * find pages where the key ranges overlap.  That said, we check for it and clean up after
-     * it in reconciliation because it doesn't cost much and future column-store formats or
-     * operations might allow for fixed-length format ranges to overlap during salvage, and I
-     * don't want to have to retrofit the code later.
      */
     __wt_qsort(ss->pages, (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_key);
     if (ss->page_type == WT_PAGE_ROW_LEAF)
@@ -334,7 +325,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * number space is gone; look for missing ranges.
      */
     switch (ss->page_type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         __slvg_col_range_missing(session, ss);
         break;
@@ -363,7 +353,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (leaf_cnt != 0)
         switch (ss->page_type) {
-        case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
             WT_WITH_PAGE_INDEX(session, ret = __slvg_col_build_internal(session, leaf_cnt, ss));
             WT_ERR(ret);
@@ -454,7 +443,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
          *
          * Report the block's status to the block manager.
          */
-        if ((ret = __wt_blkcache_read(session, buf, addr, addr_size)) == 0)
+        if ((ret = __wt_blkcache_read(session, buf, NULL, addr, addr_size)) == 0)
             valid = true;
         else {
             valid = false;
@@ -506,7 +495,6 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
           __wt_page_type_string(dsk->type), dsk->write_gen, (const char *)as->data);
 
         switch (dsk->type) {
-        case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
         case WT_PAGE_ROW_LEAF:
             if (ss->page_type == WT_PAGE_INVALID)
@@ -571,13 +559,11 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
   size_t addr_size, WT_STUFF *ss)
 {
     WT_CELL_UNPACK_KV unpack;
-    WT_COL_FIX_AUXILIARY_HEADER auxhdr;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW stable_tw;
     WT_TRACK *trk;
     uint64_t stop_recno;
-    uint32_t cell_num;
 
     page = NULL;
     WT_TIME_WINDOW_INIT(&stable_tw);
@@ -590,65 +576,6 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     WT_RET(__slvg_trk_init(session, dsk, addr, addr_size, ss, &trk));
 
     switch (dsk->type) {
-    case WT_PAGE_COL_FIX:
-        /*
-         * Column-store fixed-sized format: start and stop keys can be taken from the block's
-         * header, and doesn't contain overflow items.
-         */
-        WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
-        trk->col_start = dsk->recno;
-        trk->col_stop = dsk->recno + (dsk->u.entries - 1);
-
-        /*
-         * Read the auxiliary header. Because pages that fail verify are tossed before salvage, we
-         * shouldn't fail.
-         */
-        WT_RET(__wti_col_fix_read_auxheader(session, dsk, &auxhdr));
-
-        switch (auxhdr.version) {
-        case WT_COL_FIX_VERSION_NIL:
-            /*
-             * Nothing to do besides update the time aggregate with a stable timestamp. This is
-             * necessary mechanically because a time aggregate initialized for merging will fail
-             * validation if not touched, and necessary conceptually because we have notionally
-             * iterated through all these values (which are all stable) and aggregated in their
-             * timestamps.
-             */
-            WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
-            __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
-              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-              trk->col_start, trk->col_stop);
-            break;
-        case WT_COL_FIX_VERSION_TS:
-            /*
-             * Visit the time windows. Note: we're going to visit them all and produce the
-             * corresponding time aggregate, even though we might end up discarding some of the
-             * values later. The time aggregate will get updated to reflect that change when the
-             * page is reconciled after salvage, and in the meantime having the time aggregate be
-             * possibly wider than strictly necessary should not cause anything horribly wrong to
-             * happen.
-             */
-            cell_num = 0;
-            WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
-                if (cell_num % 2 == 1) {
-                    if (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
-                        continue;
-                    WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
-                }
-                cell_num++;
-            }
-            WT_CELL_FOREACH_END;
-            if (cell_num / 2 < dsk->u.entries || cell_num == 0) {
-                /* If we have keys with no time windows, or none, aggregate in a stable one. */
-                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
-            }
-            __wt_verbose(session, WT_VERB_SALVAGE,
-              "%s records %" PRIu64 "-%" PRIu64 " and %" PRIu32 " time windows",
-              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-              trk->col_start, trk->col_stop, cell_num / 2);
-            break;
-        }
-        break;
     case WT_PAGE_COL_VAR:
         /*
          * Column-store variable-length format: the start key can be taken from the block's header,
@@ -767,9 +694,9 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
     ovfl_cnt = 0;
     WT_CELL_FOREACH_KV (session, dsk, unpack) {
         if (FLD_ISSET(unpack.flags, WT_CELL_UNPACK_OVERFLOW)) {
-            WT_RET(
-              __wt_memdup(session, unpack.data, unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
-            trk->trk_ovfl_addr[ovfl_cnt].size = (uint8_t)unpack.size;
+            WT_RET(__wt_memdup(
+              session, unpack.data, unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].block_cookie));
+            trk->trk_ovfl_addr[ovfl_cnt].block_cookie_size = (uint8_t)unpack.size;
 
             __wt_verbose(session, WT_VERB_SALVAGE, "%s overflow reference %s",
               __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
@@ -1211,7 +1138,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     addr = NULL;
 
     /* Allocate a column-store root (internal) page and fill it in. */
-    WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
+    WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page, 0));
     WT_ERR(__slvg_modify_init(session, page));
 
     WT_INTL_INDEX_GET_SAFE(page, pindex);
@@ -1225,8 +1152,8 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
-        WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
-        addr->size = trk->trk_addr_size;
+        WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->block_cookie));
+        addr->block_cookie_size = trk->trk_addr_size;
         addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
         ref->addr = addr;
         addr = NULL;
@@ -1748,7 +1675,7 @@ __slvg_row_trk_update_start(WT_SESSION_IMPL *session, WT_ITEM *stop, uint32_t sl
      * the page into memory and we don't want page discard to free it.
      */
     WT_RET(__wt_scr_alloc(session, trk->trk_size, &dsk));
-    WT_ERR(__wt_blkcache_read(session, dsk, trk->trk_addr, trk->trk_addr_size));
+    WT_ERR(__wt_blkcache_read(session, dsk, NULL, trk->trk_addr, trk->trk_addr_size));
     WT_ERR(__wti_page_inmem(session, NULL, dsk->data, 0, &page, NULL));
 
     /*
@@ -1817,7 +1744,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     addr = NULL;
 
     /* Allocate a row-store root (internal) page and fill it in. */
-    WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
+    WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page, 0));
     WT_ERR(__slvg_modify_init(session, page));
 
     WT_INTL_INDEX_GET_SAFE(page, pindex);
@@ -1831,8 +1758,8 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
-        WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
-        addr->size = trk->trk_addr_size;
+        WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->block_cookie));
+        addr->block_cookie_size = trk->trk_addr_size;
         addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
         ref->addr = addr;
         addr = NULL;
@@ -1869,7 +1796,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
          * the reconciliation of the root page. For now, make sure the eviction threads don't see us
          * as a threat.
          */
-        if (__wt_atomic_loadsize(&page->memory_footprint) > WT_MEGABYTE * 2)
+        if (__wt_atomic_load_size_relaxed(&page->memory_footprint) > WT_MEGABYTE * 2)
             __wt_cache_page_inmem_decr(session, page, WT_MEGABYTE);
     }
     __wt_root_ref_init(session, &ss->root_ref, page, false);
@@ -2154,10 +2081,10 @@ __slvg_ovfl_compare(const void *a, const void *b)
     addr = (WT_ADDR *)a;
     trk = *(WT_TRACK **)b;
 
-    len = WT_MIN(trk->trk_addr_size, addr->size);
-    ret = memcmp(addr->addr, trk->trk_addr, len);
-    if (ret == 0 && addr->size != trk->trk_addr_size)
-        ret = addr->size < trk->trk_addr_size ? -1 : 1;
+    len = WT_MIN(trk->trk_addr_size, addr->block_cookie_size);
+    ret = memcmp(addr->block_cookie, trk->trk_addr, len);
+    if (ret == 0 && addr->block_cookie_size != trk->trk_addr_size)
+        ret = addr->block_cookie_size < trk->trk_addr_size ? -1 : 1;
     return (ret);
 }
 
@@ -2221,7 +2148,7 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
 
             __wt_verbose(session, WT_VERB_SALVAGE, "%s references unavailable overflow page %s",
               __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-              __wt_addr_string(session, addr->addr, addr->size, ss->tmp2));
+              __wt_addr_string(session, addr->block_cookie, addr->block_cookie_size, ss->tmp2));
 
             /*
              * Clear the "referenced" flag for any overflow pages already claimed by this leaf page
@@ -2276,7 +2203,6 @@ __slvg_trk_compare_key(const void *a, const void *b)
         return (-1);
 
     switch (a_trk->ss->page_type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         a_recno = a_trk->col_start;
         b_recno = b_trk->col_start;
@@ -2455,7 +2381,7 @@ __slvg_trk_free_addr(WT_SESSION_IMPL *session, WT_TRACK *trk)
 
     if (trk->trk_ovfl_addr != NULL) {
         for (i = 0; i < trk->trk_ovfl_cnt; ++i)
-            __wt_free(session, trk->trk_ovfl_addr[i].addr);
+            __wt_free(session, trk->trk_ovfl_addr[i].block_cookie);
         __wt_free(session, trk->trk_ovfl_addr);
     }
 }

@@ -39,20 +39,27 @@ from wtscenario import make_scenarios
 #
 # - You may not regen or drop a named checkpoint with a cursor open.
 
+@wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
-    conn_config = ''
     session_config = 'isolation=snapshot'
 
     ckptname_values = [
         ('named', dict(checkpoint_name='my_ckpt')),
         ('unnamed', dict(checkpoint_name=None)),
     ]
-    scenarios = make_scenarios(ckptname_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
+        ('precise', dict(ckpt_config='precise_checkpoint=true')),
+    ]
+    scenarios = make_scenarios(ckptname_values, ckpt_precision)
 
     # No need to run this on more than one btree type.
     key_format = 'r'
     value_format = 'S'
+
+    def conn_config(self):
+        return self.ckpt_config
 
     def updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
@@ -74,14 +81,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 10
-            value_b = "bbbbb" * 10
-            value_c = "ccccc" * 10
+        value_a = "aaaaa" * 10
+        value_b = "bbbbb" * 10
+        value_c = "ccccc" * 10
 
         # Set oldest and stable timestamps to 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

@@ -39,14 +39,12 @@ from wtscenario import make_scenarios
 # Make sure each checkpoint has its own snapshot by creating two successive
 # inconsistent checkpoints and reading both of them.
 
+@wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
 
     format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
@@ -56,8 +54,14 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # This doesn't work because there's no way to open the first unnamed checkpoint.
         #('un', dict(first_checkpoint=None, second_checkpoint='second_checkpoint')),
     ]
-    scenarios = make_scenarios(format_values, name_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
+        ('precise', dict(ckpt_config='precise_checkpoint=true')),
+    ]
+    scenarios = make_scenarios(format_values, name_values, ckpt_precision)
 
+    def conn_config(self):
+        return 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
     def large_updates(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -84,6 +88,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'precise_checkpoint=true':
+            self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint14'
         nrows = 10000
 
@@ -93,15 +101,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds.populate()
 
-        if self.value_format == '8t':
-            nrows *= 5
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Write some baseline data.
         self.large_updates(uri, ds, nrows, value_a)

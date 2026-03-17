@@ -20,16 +20,12 @@
 #define WT_REC_IN_MEMORY 0x100u
 #define WT_REC_SCRUB 0x200u
 #define WT_REC_VISIBILITY_ERR 0x400u
-#define WT_REC_VISIBLE_ALL 0x800u
+#define WT_REC_VISIBLE_NO_SNAPSHOT 0x800u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

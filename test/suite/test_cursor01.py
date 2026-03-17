@@ -43,10 +43,8 @@ class test_cursor01(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios([
         ('file-col', dict(tablekind='col',uri='file')),
-        ('file-fix', dict(tablekind='fix',uri='file')),
         ('file-row', dict(tablekind='row',uri='file')),
         ('table-col', dict(tablekind='col',uri='table')),
-        ('table-fix', dict(tablekind='fix',uri='table')),
         ('table-row', dict(tablekind='row',uri='table'))
     ])
 
@@ -57,10 +55,7 @@ class test_cursor01(wttest.WiredTigerTestCase):
             return self.recno(i+1)
 
     def genvalue(self, i):
-        if self.tablekind == 'fix':
-            return int(i & 0xff)
-        else:
-            return 'value' + str(i)
+        return 'value' + str(i)
 
     def assertCursorHasNoKeyValue(self, cursor):
         keymsg = '/requires key be set/'
@@ -87,18 +82,14 @@ class test_cursor01(wttest.WiredTigerTestCase):
             keyformat = 'key_format=S'
         else:
             keyformat = 'key_format=r'  # record format
-        if self.tablekind == 'fix':
-            valformat = 'value_format=8t'
-        else:
-            valformat = 'value_format=S'
-        create_args = keyformat + ',' + valformat
-
+        create_args = keyformat + ',value_format=S'
         self.pr('creating session: ' + create_args)
         self.session_create(tablearg, create_args)
         self.pr('creating cursor')
         cursor = self.session.open_cursor(tablearg, None, None)
         self.assertCursorHasNoKeyValue(cursor)
-        self.assertEqual(cursor.uri, tablearg)
+        if not self.runningHook('disagg'):
+            self.assertEqual(cursor.uri, tablearg)
 
         for i in range(0, self.nentries):
             cursor[self.genkey(i)] = self.genvalue(i)
@@ -130,6 +121,12 @@ class test_cursor01(wttest.WiredTigerTestCase):
     def forward_iter_with_dup(self, cursor):
         cursor.reset()
         self.assertCursorHasNoKeyValue(cursor)
+
+        # Layered tables do not support duplicate cursors
+        if 'layered:' in cursor.uri:
+            self.pr("skipping duplicate cursor testing with layered tables")
+            self.assertTrue(self.runningHook('disagg'))
+            return cursor
 
         i = 0
         while True:
@@ -188,6 +185,12 @@ class test_cursor01(wttest.WiredTigerTestCase):
     def backward_iter_with_dup(self, cursor):
         cursor.reset()
         self.assertCursorHasNoKeyValue(cursor)
+
+        # Layered tables do not support duplicate cursors
+        if 'layered:' in cursor.uri:
+            self.pr("skipping duplicate cursor testing with layered tables")
+            self.assertTrue(self.runningHook('disagg'))
+            return cursor
 
         i = self.nentries - 1
         while True:

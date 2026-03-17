@@ -87,7 +87,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
-            ins_head->tail[i] = new_ins;
+            __wt_tsan_suppress_store_wt_insert_ptr(&ins_head->tail[i], new_ins);
     }
 
     return (0);
@@ -113,7 +113,8 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
      * append.
      */
     if ((recno = WT_INSERT_RECNO(new_ins)) == WT_RECNO_OOB) {
-        recno = WT_INSERT_RECNO(new_ins) = btree->last_recno + 1;
+        recno = btree->last_recno + 1;
+        __wt_tsan_suppress_store_uint64(&WT_INSERT_RECNO(new_ins), recno);
         WT_ASSERT(session,
           WT_SKIP_LAST(ins_head) == NULL || recno > WT_INSERT_RECNO(WT_SKIP_LAST(ins_head)));
         for (i = 0; i < skipdepth; i++)
@@ -139,6 +140,23 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
         btree->last_recno = recno;
 
     return (0);
+}
+
+/*
+ * __wt_page_modify_update_timestamp --
+ *     Set the newest update timestamp to the approximate newest global timestamp, this is only used
+ *     to optimize eviction decisions. It is approximate and that's OK.
+ */
+static WT_INLINE void
+__wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    /* Race is OK here as it is an approximate value. */
+    wt_timestamp_t newest_seen_timestamp =
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.newest_seen_timestamp);
+    if (newest_seen_timestamp >
+      __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp))
+        __wt_atomic_store_uint64_relaxed(
+          &page->modify->newest_commit_timestamp, newest_seen_timestamp);
 }
 
 /*
@@ -182,6 +200,12 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
+
+    /*
+     * Set the newest update timestamp to the approximate newest global timestamp. It's approximate
+     * and used as an eviction heuristic.
+     */
+    __wt_page_modify_update_timestamp(session, page);
 
     return (0);
 }
@@ -235,6 +259,12 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
 
+    /*
+     * Set the newest update timestamp to the approximate newest global timestamp. It's approximate
+     * and used as an eviction heuristic.
+     */
+    __wt_page_modify_update_timestamp(session, page);
+
     return (0);
 }
 
@@ -287,6 +317,20 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     __wt_page_modify_set(session, page);
 
     /*
+     * Set the newest update timestamp to the approximate newest global timestamp. It's approximate
+     * and used as an eviction heuristic.
+     */
+    __wt_page_modify_update_timestamp(session, page);
+
+    /*
+     * If configured, skip checking for obsolete updates and they will be checked as part of the
+     * page reconciliation.
+     */
+    if (F_ISSET_ATOMIC_32(
+          &S2C(session)->cache->cache_eviction_controls, WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK))
+        return (0);
+
+    /*
      * Don't remove obsolete updates in the history store, due to having different visibility rules
      * compared to normal tables. This visibility rule allows different readers to concurrently read
      * globally visible updates, and insert new globally visible updates, due to the reuse of
@@ -325,7 +369,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         page->modify->obsolete_check_txn = WT_TXN_NONE;
     }
 
-    __wt_update_obsolete_check(session, cbt, upd->next, true);
+    __wt_update_obsolete_check(session, cbt, upd->next);
 
     return (0);
 }

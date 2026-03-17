@@ -110,7 +110,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 
     hs_cursor = NULL;
 
-    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+    WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
@@ -141,12 +141,12 @@ err:
 }
 
 /*
- * __wt_hs_verify --
+ * __hs_verify --
  *     Verify the history store. There can't be an entry in the history store without having the
  *     latest value for the respective key in the data store.
  */
-int
-__wt_hs_verify(WT_SESSION_IMPL *session)
+static int
+__hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
 {
     WT_CURSOR *ds_cursor, *hs_cursor;
     WT_DECL_ITEM(buf);
@@ -165,7 +165,7 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     uri_data = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+    WT_ERR(__wt_curhs_open_ext(session, hs_id, 0, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the first record. */
@@ -177,6 +177,7 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
 
     /* Go through the history store and validate each btree. */
     while (ret == 0) {
+        __wt_free(session, uri_data);
         /*
          * The cursor is positioned either from above or left over from the internal call on the
          * first key of a new btree id.
@@ -213,4 +214,25 @@ err:
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
+}
+
+/*
+ * __wt_hs_verify --
+ *     Verify the history store. There can't be an entry in the history store without having the
+ *     latest value for the respective key in the data store.
+ */
+int
+__wt_hs_verify(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    uint32_t hs_id;
+
+    hs_id = 0;
+    for (;;) {
+        ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret == WT_NOTFOUND)
+            return (0);
+        WT_RET(__hs_verify(session, hs_id));
+    }
 }

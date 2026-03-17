@@ -112,11 +112,10 @@ public:
             scoped_cursor &rnd_cursor = rnd_cursors[coll.id];
 
             /* Get the file statistics so we know how much to truncate. */
-            int64_t entries, bytes_avail_reuse, file_size;
-            metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BTREE_ENTRIES, &entries);
-            metrics_monitor::get_stat(
-              stat_cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &bytes_avail_reuse);
-            metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BLOCK_SIZE, &file_size);
+            int64_t entries = metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BTREE_ENTRIES);
+            int64_t bytes_avail_reuse =
+              metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES);
+            int64_t file_size = metrics_monitor::get_stat(stat_cursor, WT_STAT_DSRC_BLOCK_SIZE);
 
             /* Don't truncate if we already have enough free space for compact to do work. */
             const int64_t pct_free_space_threshold = 10;
@@ -138,7 +137,7 @@ public:
             const uint64_t MAX_RETRIES = 100;
             while (tw->running() && keys_truncated < n_keys_to_truncate && retries < MAX_RETRIES) {
                 /* Start a transaction if possible. */
-                tw->txn.try_begin();
+                tw->try_begin();
 
                 /* Choose a random key to delete. */
                 int ret = rnd_cursor->next(rnd_cursor.get());
@@ -150,9 +149,9 @@ public:
                      * starting a new one.
                      */
                     if (ret == WT_NOTFOUND)
-                        testutil_ignore_ret_bool(tw->txn.commit());
+                        testutil_ignore_ret_bool(tw->commit());
                     else if (ret == WT_ROLLBACK)
-                        tw->txn.rollback();
+                        tw->rollback();
                     else
                         testutil_die(ret, "Unexpected error returned from cursor->next()");
 
@@ -173,7 +172,7 @@ public:
                  * If we generate an invalid range or our truncate fails rollback the transaction.
                  */
                 if (end_key == first_key || !tw->truncate(coll.id, first_key, end_key, "")) {
-                    tw->txn.rollback();
+                    tw->rollback();
                     if (end_key == first_key)
                         logger::log_msg(
                           LOG_TRACE, log_prefix + "truncate failed because of an invalid range");
@@ -183,7 +182,7 @@ public:
                     continue;
                 }
 
-                if (tw->txn.commit()) {
+                if (tw->commit()) {
                     logger::log_msg(LOG_TRACE,
                       log_prefix + " committed truncation of " + std::to_string(truncate_range) +
                         " records.");
@@ -211,7 +210,7 @@ public:
         }
 
         /* Make sure the last operation is rolled back now the work is finished. */
-        tw->txn.try_rollback();
+        tw->try_rollback();
     }
 
     void
@@ -257,22 +256,22 @@ public:
 
             uint64_t start_key = ccv[counter].coll.get_key_count();
             uint64_t added_count = 0;
-            tw->txn.begin();
+            tw->begin();
 
             /* Collection cursor. */
             auto &cc = ccv[counter];
-            while (tw->txn.active() && tw->running()) {
+            while (tw->active() && tw->running()) {
                 /* Insert a key value pair, rolling back the transaction if required. */
                 auto key = tw->pad_string(std::to_string(start_key + added_count), tw->key_size);
                 auto value =
                   random_generator::instance().generate_pseudo_random_string(tw->value_size);
                 if (!tw->insert(cc.cursor, cc.coll.id, key, value)) {
                     added_count = 0;
-                    tw->txn.rollback();
+                    tw->rollback();
                 } else {
                     added_count++;
-                    if (tw->txn.can_commit()) {
-                        if (tw->txn.commit())
+                    if (tw->can_commit()) {
+                        if (tw->commit())
                             /*
                              * We need to inform the database model that we've added these keys as
                              * some other thread may rely on the key_count data. Only do so if we
@@ -295,7 +294,7 @@ public:
             testutil_assert(counter < tw_collection_count);
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
-        tw->txn.try_rollback();
+        tw->try_rollback();
     }
 
     void
@@ -326,32 +325,29 @@ public:
         scoped_session session = connection_manager::instance().create_session();
 
         /* Check the background compact statistics. */
-        int64_t bytes_recovered, bytes_rewritten_ema, bytes_written, files_tracked, skipped,
-          success;
         scoped_cursor conn_stat_cursor = session.open_scoped_cursor(STATISTICS_URI);
-
-        metrics_monitor::get_stat(
-          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_BYTES_RECOVERED, &bytes_recovered);
+        int64_t bytes_recovered = metrics_monitor::get_stat(
+          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_BYTES_RECOVERED);
         testutil_assert(bytes_recovered > 0);
 
-        metrics_monitor::get_stat(
-          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_EMA, &bytes_rewritten_ema);
+        int64_t bytes_rewritten_ema =
+          metrics_monitor::get_stat(conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_EMA);
         testutil_assert(bytes_rewritten_ema > 0);
 
-        metrics_monitor::get_stat(
-          conn_stat_cursor, WT_STAT_CONN_BLOCK_BYTE_WRITE_COMPACT, &bytes_written);
+        int64_t bytes_written =
+          metrics_monitor::get_stat(conn_stat_cursor, WT_STAT_CONN_BLOCK_BYTE_WRITE_COMPACT);
         testutil_assert(bytes_written > 0);
 
-        metrics_monitor::get_stat(
-          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_FILES_TRACKED, &files_tracked);
+        int64_t files_tracked = metrics_monitor::get_stat(
+          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_FILES_TRACKED);
         testutil_assert(files_tracked > 0);
 
-        metrics_monitor::get_stat(
-          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED, &skipped);
+        int64_t skipped =
+          metrics_monitor::get_stat(conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED);
         testutil_assert(skipped > 0);
 
-        metrics_monitor::get_stat(
-          conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_SUCCESS, &success);
+        int64_t success =
+          metrics_monitor::get_stat(conn_stat_cursor, WT_STAT_CONN_BACKGROUND_COMPACT_SUCCESS);
         testutil_assert(success > 0);
 
         logger::log_msg(LOG_INFO, "Validation successful.");

@@ -49,10 +49,6 @@
  *	Data cells (a WT_CELL_{VALUE,VALUE_COPY,VALUE_OVFL} cell), or deleted
  * cells (a WT_CELL_DEL cell).
  *
- * WT_PAGE_COL_FIX (Column-store leaf page storing fixed-length data):
- *      Pairs of WT_CELL_KEY and WT_CELL_VALUE, where the key is always a recno,
- * and the value is empty but contains a non-empty time window.
- *
  * Each cell starts with a descriptor byte:
  *
  * Bits 1 and 2 are reserved for "short" key and value cells (that is, a cell
@@ -106,19 +102,20 @@
  * if the two values are the same, we only store them once and have any second and subsequent uses
  * reference the original.
  */
-#define WT_CELL_ADDR_DEL (0)            /* Address: deleted */
-#define WT_CELL_ADDR_INT (1 << 4)       /* Address: internal  */
-#define WT_CELL_ADDR_LEAF (2 << 4)      /* Address: leaf */
-#define WT_CELL_ADDR_LEAF_NO (3 << 4)   /* Address: leaf no overflow */
-#define WT_CELL_DEL (4 << 4)            /* Deleted value */
-#define WT_CELL_KEY (5 << 4)            /* Key */
-#define WT_CELL_KEY_OVFL (6 << 4)       /* Overflow key */
-#define WT_CELL_KEY_OVFL_RM (12 << 4)   /* Overflow key (removed) */
-#define WT_CELL_KEY_PFX (7 << 4)        /* Key with prefix byte */
-#define WT_CELL_VALUE (8 << 4)          /* Value */
-#define WT_CELL_VALUE_COPY (9 << 4)     /* Value copy */
-#define WT_CELL_VALUE_OVFL (10 << 4)    /* Overflow value */
-#define WT_CELL_VALUE_OVFL_RM (11 << 4) /* Overflow value (removed) */
+#define WT_CELL_ADDR_DEL (0)                   /* Address: deleted */
+#define WT_CELL_ADDR_DEL_VISIBLE_ALL (13 << 4) /* Address: deleted visible all */
+#define WT_CELL_ADDR_INT (1 << 4)              /* Address: internal  */
+#define WT_CELL_ADDR_LEAF (2 << 4)             /* Address: leaf */
+#define WT_CELL_ADDR_LEAF_NO (3 << 4)          /* Address: leaf no overflow */
+#define WT_CELL_DEL (4 << 4)                   /* Deleted value */
+#define WT_CELL_KEY (5 << 4)                   /* Key */
+#define WT_CELL_KEY_OVFL (6 << 4)              /* Overflow key */
+#define WT_CELL_KEY_OVFL_RM (12 << 4)          /* Overflow key (removed) */
+#define WT_CELL_KEY_PFX (7 << 4)               /* Key with prefix byte */
+#define WT_CELL_VALUE (8 << 4)                 /* Value */
+#define WT_CELL_VALUE_COPY (9 << 4)            /* Value copy */
+#define WT_CELL_VALUE_OVFL (10 << 4)           /* Overflow value */
+#define WT_CELL_VALUE_OVFL_RM (11 << 4)        /* Overflow value (removed) */
 
 #define WT_CELL_TYPE_MASK (0x0fU << 4) /* Maximum 16 cell types */
 #define WT_CELL_TYPE(v) ((v)&WT_CELL_TYPE_MASK)
@@ -130,6 +127,9 @@
  * smaller size will pack into a single byte instead of two.
  */
 #define WT_CELL_SIZE_ADJUST (WT_CELL_SHORT_MAX + 1)
+
+/* Don't increase key prefix-compression unless there's a significant gain. */
+#define WTI_CELL_KEY_PREFIX_PREVIOUS_MINIMUM 10
 
 /*
  * WT_CELL --
@@ -215,4 +215,41 @@ struct __wt_cell_unpack_kv {
     WT_CELL_COMMON_FIELDS;
 
     WT_TIME_WINDOW tw; /* Value validity window */
+};
+
+/*
+ * WT_CELL_UNPACK_DELTA_INT --
+ *     Unpacked internal delta cell.
+ */
+struct __wt_cell_unpack_delta_int {
+    uint32_t __len;
+    WT_CELL_UNPACK_KV key;
+    WT_CELL_UNPACK_ADDR value;
+};
+
+#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(Bu)
+
+/*
+ * WT_CELL_UNPACK_DELTA_LEAF_KV --
+ *     Unpacked leaf delta k/v pair.
+ */
+struct __wt_cell_unpack_delta_leaf_kv {
+    WT_CELL_UNPACK_KV delta_key;
+    WT_CELL_UNPACK_KV delta_value;
+
+    WT_ITEM delta_value_data;
+
+#define WT_DELTA_LEAF_IS_DELETE 0x1u
+    uint8_t flags;
+};
+
+/*
+ * WT_REC_KV--
+ *	An on-page key/value item we're building.
+ */
+struct __wt_cell_kv {
+    WT_ITEM buf;  /* Data */
+    WT_CELL cell; /* Cell and cell's length */
+    size_t cell_len;
+    size_t len; /* Total length of cell + data */
 };

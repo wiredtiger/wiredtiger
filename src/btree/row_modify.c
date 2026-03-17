@@ -148,23 +148,30 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             __wt_upd_value_assign(cbt->modify_update, upd);
         } else {
             /*
-             * We only update history store records in three cases:
+             * We only update history store records in two cases:
              *  1) Delete the record with a tombstone with WT_TS_NONE.
-             *  2) Update the record's stop time point if the prepared update written to the data
-             * store is committed.
-             *  3) Reinsert an update that has been deleted by a prepared rollback.
+             *  2) Reinsert an update that has been deleted by a prepared commit or rollback.
              */
             WT_ASSERT(session,
+              !WT_IS_HS(S2BT(session)->dhandle) || *upd_entry == NULL ||
+                (*upd_entry)->next == NULL ||
+                ((*upd_entry)->type == WT_UPDATE_STANDARD &&
+                  (*upd_entry)->txnid != WT_TXN_ABORTED) ||
+                ((*upd_entry)->type == WT_UPDATE_TOMBSTONE && (*upd_entry)->txnid == WT_TXN_NONE &&
+                  (*upd_entry)->upd_start_ts == WT_TS_NONE) ||
+                ((*upd_entry)->txnid == WT_TXN_ABORTED &&
+                  (*upd_entry)->next->txnid == WT_TXN_ABORTED) ||
+                ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
+                  (*upd_entry)->txnid != WT_TXN_ABORTED &&
+                  (*upd_entry)->next->type == WT_UPDATE_STANDARD &&
+                  (*upd_entry)->next->txnid != WT_TXN_ABORTED));
+            WT_ASSERT(session,
               !WT_IS_HS(S2BT(session)->dhandle) ||
-                (*upd_entry == NULL ||
-                  ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
-                    (((*upd_entry)->txnid == WT_TXN_NONE && (*upd_entry)->start_ts == WT_TS_NONE) ||
-                      ((*upd_entry)->txnid == WT_TXN_ABORTED &&
-                        (*upd_entry)->next->txnid == WT_TXN_ABORTED)))) ||
-                (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->start_ts == WT_TS_NONE &&
+                (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->upd_start_ts == WT_TS_NONE &&
                   upd_arg->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
-                  upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL));
+                  upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL) ||
+                (upd_arg->type == WT_UPDATE_STANDARD && upd_arg->next == NULL));
 
             upd_size = __wt_update_list_memsize(upd);
 
@@ -175,10 +182,18 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
 
             /*
              * If we restore an update chain in update restore eviction, there should be no update
-             * on the existing update chain.
+             * or a restored tombstone on the existing update chain except for disaggregated btrees
+             * or a prepared update if the preserve prepared config is enabled.
              */
-            WT_ASSERT_ALWAYS(session, !restore || *upd_entry == NULL,
-              "Update found on the existing update chain during an update restore eviction");
+            WT_ASSERT_ALWAYS(session,
+              !restore ||
+                (*upd_entry == NULL ||
+                  (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+                    (*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
+                    F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS)) ||
+                  (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+                    F_ISSET(*upd_entry, WT_UPDATE_PREPARE_RESTORED_FROM_DS))),
+              "Illegal update on chain during update restore eviction");
 
             /*
              * We can either put multiple new updates or a single update on the update chain.
@@ -237,11 +252,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             __wt_upd_value_assign(cbt->modify_update, upd);
         } else {
             /*
-             * We either insert a tombstone with a standard update or only a standard update to the
-             * history store if we write a prepared update to the data store.
+             * If this refers to the disaggregated case, we can skip the following checks. We either
+             * insert a tombstone with a standard update or only a standard update to the history
+             * store if we write a prepared update to the data store.
              */
             WT_ASSERT(session,
-              !WT_IS_HS(S2BT(session)->dhandle) ||
+              F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || !WT_IS_HS(S2BT(session)->dhandle) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_STANDARD && upd_arg->next == NULL));
@@ -347,16 +363,17 @@ err:
  *     Check for obsolete updates and force evict the page if the update list is too long.
  */
 void
-__wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
+__wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
+    WT_BTREE *btree;
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
-    WT_UPDATE *first, *next;
-    size_t size;
+    WT_UPDATE *first;
+    wt_timestamp_t prune_timestamp;
+    uint64_t oldest_id;
     u_int count;
 
-    next = NULL;
+    btree = S2BT(session);
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
@@ -364,6 +381,11 @@ __wt_update_obsolete_check(
     /* If we can't lock it, don't scan, that's okay. */
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
+
+    prune_timestamp = __wt_atomic_load_uint64_relaxed(&CUR2BT(cbt)->prune_timestamp);
+
+    oldest_id = __wt_txn_oldest_id(session);
+
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
      * because this routine is called from inside a serialization function, the caller has
@@ -374,56 +396,61 @@ __wt_update_obsolete_check(
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
-        if (upd->txnid == WT_TXN_ABORTED)
+        uint64_t txnid;
+        /*
+         * This function is only invoked when a new write is made. As a result, there is no risk of
+         * racing with prepared rollback, since no updates should exist in the prepared state at
+         * this point.
+         */
+        if ((txnid = __wt_atomic_load_uint64_v_relaxed(&upd->txnid)) == WT_TXN_ABORTED) {
+            /*
+             * We only need to focus on prepared updates in the ingest table, as it is the only type
+             * of btree that requires draining during the step-up process.
+             */
+            if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                continue;
+
+            if (upd->prepare_state != WT_PREPARE_INPROGRESS)
+                continue;
+
+            /*
+             * In disaggregated storage, we cannot garbage collect an aborted prepared update with a
+             * rollback timestamp greater than the prune timestamp. This is because the update
+             * information is required to roll back the prepared update on the stable table in case
+             * of a step-up.
+             */
+            if (upd->upd_rollback_ts > prune_timestamp)
+                first = NULL;
+
+            continue;
+        }
+
+        /*
+         * Prepare transaction rollback adds a globally visible tombstone to the update chain to
+         * remove the entire key. Treating these globally visible tombstones as obsolete and
+         * trimming update list can cause problems if the update chain is getting accessed somewhere
+         * else. To avoid this problem, skip these globally visible tombstones from the update
+         * obsolete check.
+         */
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK))
             continue;
 
         /*
-         * WiredTiger internal operations such as Rollback to stable and prepare transaction
-         * rollback adds a globally visible tombstone to the update chain to remove the entire key.
-         * Treating these globally visible tombstones as obsolete and trimming update list can cause
-         * problems if the update chain is getting accessed somewhere. To avoid this problem, skip
-         * these globally visible tombstones from the update obsolete check were generated from
-         * prepare transaction rollback and not from RTS, because there are no concurrent operations
-         * run in parallel to the RTS to be affected.
+         * If a table has garbage collection enabled, then trim updates as possible. We should check
+         * the logic here - it might be possible to do something more aggressive?
          */
-        if (upd->txnid == WT_TXN_NONE && upd->start_ts == WT_TS_NONE &&
-          upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
-          upd->next->txnid == WT_TXN_ABORTED && upd->next->prepare_state == WT_PREPARE_INPROGRESS)
-            continue;
-
-        if (__wt_txn_upd_visible_all(session, upd)) {
+        if (__wt_txn_upd_visible_all(session, upd) ||
+          (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
+            (txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
+              upd->upd_durable_ts <= prune_timestamp))) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
         } else
             first = NULL;
 
         /* Cannot truncate the updates if we need to remove the updates from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS))
+        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP))
             first = NULL;
-    }
-
-    /*
-     * We cannot discard this WT_UPDATE structure, we can only discard WT_UPDATE structures
-     * subsequent to it, other threads of control will terminate their walk in this element. Save a
-     * reference to the list we will discard, and terminate the list.
-     */
-    if (first != NULL && (next = first->next) != NULL) {
-        /*
-         * No need to use a compare and swap because we have obtained a lock at the start of the
-         * function.
-         */
-        first->next = NULL;
-
-        /*
-         * Decrement the dirty byte count while holding the page lock, else we can race with
-         * checkpoints cleaning a page.
-         */
-        if (update_accounting) {
-            for (size = 0, upd = next; upd != NULL; upd = upd->next)
-                size += WT_UPDATE_MEMSIZE(upd);
-            if (size != 0)
-                __wt_cache_page_inmem_decr(session, page, size);
-        }
     }
 
     /*
@@ -437,18 +464,17 @@ __wt_update_obsolete_check(
         __wt_evict_page_soon(session, cbt->ref);
     }
 
-    if (next != NULL)
-        __wt_free_update_list(session, &next);
-    else {
+    if (first != NULL && first->next != NULL)
+        __wt_free_obsolete_updates(session, page, first);
+    else if (count > 20) {
         /*
          * If the list is long, don't retry checks on this page until the transaction state has
          * moved forwards.
          */
-        if (count > 20) {
-            page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
-            if (txn_global->has_pinned_timestamp)
-                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
-        }
+        page->modify->obsolete_check_txn =
+          __wt_atomic_load_uint64_v_relaxed(&txn_global->last_running);
+        if (txn_global->has_pinned_timestamp)
+            page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
     }
 
     WT_PAGE_UNLOCK(session, page);

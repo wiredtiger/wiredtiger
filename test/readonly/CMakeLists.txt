@@ -1,4 +1,3 @@
-project(test_readonly C)
 
 # Create packing-test executable.
 create_test_executable(test_readonly

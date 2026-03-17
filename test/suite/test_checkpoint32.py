@@ -39,12 +39,19 @@ from wiredtiger import stat
 class test_checkpoint32(wttest.WiredTigerTestCase):
 
     format_values = [
-        # FLCS doesn't support skipping pages based on aggregated time.
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
 
-    scenarios = make_scenarios(format_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
+        ('precise', dict(ckpt_config='precise_checkpoint=true')),
+    ]
+
+    scenarios = make_scenarios(format_values, ckpt_precision)
+
+    def conn_config(self):
+        return self.ckpt_config
 
     def check(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
@@ -56,6 +63,10 @@ class test_checkpoint32(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'precise_checkpoint=true':
+            self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint32'
         nrows = 1000
 

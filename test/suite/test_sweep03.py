@@ -44,18 +44,23 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
     numkv = 100
     conn_config = 'file_manager=(close_handle_minimum=10,' + \
                   'close_idle_time=0,close_scan_interval=1),' + \
-                  'statistics=(fast),'
+                  'statistics=(fast),' + \
+                  'verbose=(sweep:3)'
 
     types = [
         ('row', dict(tabletype='row',
                     create_params = 'key_format=i,value_format=i')),
         ('var', dict(tabletype='var',
                     create_params = 'key_format=r,value_format=i')),
-        ('fix', dict(tabletype='fix',
-                    create_params = 'key_format=r,value_format=8t')),
     ]
 
     scenarios = make_scenarios(types)
+
+    # We enabled verbose log level DEBUG_3 in this test to catch an invalid pointer in dhandle.
+    # However, this also causes the log line 'session dhandle name' to appear, which we want to ignore.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_SWEEP')
 
     # Wait for the sweep server to run - let it run twice, since the statistic
     # is incremented at the start of a sweep and the test relies on sweep
@@ -99,7 +104,6 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         close1 = stat_cursor[stat.conn.dh_sweep_dead_close][2]
         stat_cursor.close()
-
         # We expect nothing to have been closed.
         self.assertEqual(close1, 0)
 
@@ -134,10 +138,17 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor.close()
 
         # Ensure that the handle has been closed after the drop.
-        self.assertEqual(close2, 1)
+        if self.runningHook('disagg') and self.tabletype == 'row':
+            # In disaggregated mode, both the stable and ingest files are dropped,
+            # so two handles are closed.
+            self.assertEqual(close2, 2)
+        else:
+            self.assertEqual(close2, 1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
 
+    # FIXME-WT-16757: Enable on disagg once issue has been investigated.
+    @wttest.skip_for_hook("disagg", "Fails with disagg")
     @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_disable_idle_timeout_drop(self):
         # Create a table to drop. A drop should close its associated handles

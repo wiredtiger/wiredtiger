@@ -37,10 +37,10 @@ static void config_checksum(TABLE *);
 static void config_chunk_cache(void);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
+static void config_disagg_storage(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
 static const char *config_file_type(u_int);
-static bool config_fix(TABLE *);
 static void config_in_memory(void);
 static void config_in_memory_reset(void);
 static void config_map_backup_incr(const char *, bool *);
@@ -90,7 +90,7 @@ config_random_generator(
  * config_random_generators --
  *     Initialize our global random generators using provided seeds.
  */
-static void
+void
 config_random_generators(void)
 {
     config_random_generator("random.data_seed", GV(RANDOM_DATA_SEED), 0, &g.data_rnd);
@@ -199,8 +199,8 @@ config_table_am(TABLE *table)
 
     /*
      * The runs.type configuration allows more than a single type, for example, choosing from either
-     * RS and VLCS but not FLCS. If there's no table value but there was a global value, re-evaluate
-     * the original global specification, not the choice set for the global table.
+     * RS and VLCS. If there's no table value but there was a global value, re-evaluate the original
+     * global specification, not the choice set for the global table.
      */
     if (!table->v[V_TABLE_RUNS_TYPE].set && tables[0]->v[V_TABLE_RUNS_TYPE].set) {
         testutil_snprintf(buf, sizeof(buf), "runs.type=%s", g.runs_type);
@@ -208,21 +208,16 @@ config_table_am(TABLE *table)
     }
 
     if (!config_explicit(table, "runs.type")) {
-        if (config_explicit(table, "runs.source"))
+        if (config_explicit(table, "runs.source") && DATASOURCE(table, "layered"))
             config_single(table, "runs.type=row", false);
         else
             switch (mmrand(&g.data_rnd, 1, 10)) {
             case 1:
             case 2:
-            case 3: /* 30% */
+            case 3:
+            case 4: /* 40% */
                 if (config_var(table)) {
                     config_single(table, "runs.type=var", false);
-                    break;
-                }
-                /* FALLTHROUGH */
-            case 4: /* 10% */
-                if (config_fix(table)) {
-                    config_single(table, "runs.type=fix", false);
                     break;
                 }
                 /* FALLTHROUGH */ /* 60% */
@@ -431,8 +426,15 @@ config_table(TABLE *table, void *arg)
     config_pct(table);
 
     /* Column-store tables require special row insert resolution. */
-    if (table->type != ROW)
+    if (table->type != ROW) {
         g.column_store_config = true;
+        if (GV(PRECISE_CHECKPOINT)) {
+            if (config_explicit(NULL, "precise_checkpoint"))
+                WARN("turning off precise_checkpoint as table%" PRIu32 " is a column-store",
+                  table->id);
+            config_off(NULL, "precise_checkpoint");
+        }
+    }
 
     /* Only row-store tables support a collation order. */
     if (table->type != ROW)
@@ -446,8 +448,6 @@ config_table(TABLE *table, void *arg)
 void
 config_run(void)
 {
-    config_random_generators(); /* Configure the random number generators. */
-
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
     /*
@@ -487,8 +487,12 @@ config_run(void)
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
+    /* FIXME-WT-12983: Temporarily disable salvage test due to increased failures. */
+    config_off(NULL, "ops.salvage");
+
     /* Order can be important, don't shuffle without careful consideration. */
     config_tiered_storage();                         /* Tiered storage */
+    config_disagg_storage();                         /* Disaggregated storage */
     config_chunk_cache();                            /* Chunk cache */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
@@ -654,6 +658,8 @@ config_cache(void)
 {
     uint64_t cache, workers;
     bool cache_maximum_explicit;
+#define PRECISE_CHECKPOINT_MIN_CACHE ((uint32_t)3072)
+    char buf[64];
 
     /* The maximum cache is only set if it is non-zero and explicitly set. */
     cache_maximum_explicit = GV(CACHE_MAXIMUM) != 0 && config_explicit(NULL, "cache.maximum");
@@ -667,6 +673,10 @@ config_cache(void)
 
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {
+        if (GV(CACHE) < 2048) {
+            config_off(NULL, "preserve_prepared");
+            config_off(NULL, "precise_checkpoint");
+        }
         if (config_explicit(NULL, "cache.minimum") && GV(CACHE) < GV(CACHE_MINIMUM))
             testutil_die(EINVAL, "minimum cache set larger than cache (%" PRIu32 " > %" PRIu32 ")",
               GV(CACHE_MINIMUM), GV(CACHE));
@@ -689,10 +699,12 @@ config_cache(void)
     GV(CACHE) = GV(CACHE_MINIMUM);
 
     /*
-     * If it's an in-memory run, size the cache at 2x the maximum initial data set. This calculation
-     * is done in bytes, convert to megabytes before testing against the cache.
+     * If it's an in-memory run or disaggregated follower mode, size the cache at 2x the maximum
+     * initial data set. This calculation is done in bytes, convert to megabytes before testing
+     * against the cache.
      */
-    if (GV(RUNS_IN_MEMORY)) {
+    if (GV(RUNS_IN_MEMORY) ||
+      (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "follower") == 0)) {
         cache = table_sumv(V_TABLE_BTREE_KEY_MAX) + table_sumv(V_TABLE_BTREE_VALUE_MAX);
         cache *= table_sumv(V_TABLE_RUNS_ROWS);
         cache *= 2;
@@ -714,11 +726,25 @@ config_cache(void)
     cache = table_sumv(V_TABLE_BTREE_MEMORY_PAGE_MAX); /* in MB units, no conversion to cache */
     cache *= workers;
     cache *= 2;
+
+    /*
+     * FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
+     */
+    if (GV(PRECISE_CHECKPOINT))
+        cache *= 2;
+
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
-    if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM))
-        GV(CACHE) = GV(CACHE_MAXIMUM);
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < PRECISE_CHECKPOINT_MIN_CACHE)
+        GV(CACHE) = PRECISE_CHECKPOINT_MIN_CACHE;
+
+    if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM)) {
+        if (GV(PRECISE_CHECKPOINT) && GV(CACHE_MAXIMUM) < PRECISE_CHECKPOINT_MIN_CACHE)
+            config_off(NULL, "cache.maximum");
+        else
+            GV(CACHE) = GV(CACHE_MAXIMUM);
+    }
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
@@ -736,6 +762,22 @@ dirty_eviction_config:
           GV(CACHE));
         config_single(NULL, "cache.eviction_dirty_trigger=40", false);
         config_single(NULL, "cache.eviction_dirty_target=10", false);
+    }
+
+    if (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "follower") == 0) {
+        WARN("%s",
+          "Setting cache.eviction_dirty_trigger=95 and cache.eviction_update_trigger=95. In "
+          "disaggregated follower mode, these eviction trigger thresholds are increased to help "
+          "avoid operation thread stalls.");
+        config_single(NULL, "cache.eviction_dirty_trigger=95", false);
+        config_single(NULL, "cache.eviction_updates_trigger=95", false);
+    }
+
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < PRECISE_CHECKPOINT_MIN_CACHE) {
+        WARN("Setting cache to minimum of %" PRIu32 "MB due to precise_checkpoint",
+          PRECISE_CHECKPOINT_MIN_CACHE);
+        testutil_snprintf(buf, sizeof(buf), "cache=%" PRIu32, PRECISE_CHECKPOINT_MIN_CACHE);
+        config_single(NULL, buf, false);
     }
 }
 
@@ -755,13 +797,19 @@ config_checkpoint(void)
         case 4: /* 20% */
             config_single(NULL, "checkpoint=wiredtiger", false);
             break;
-        case 5: /* 5 % */
+        case 5: /* 5% */
             config_off(NULL, "checkpoint");
             break;
         default: /* 75% */
             config_single(NULL, "checkpoint=on", false);
+            /* 50% */
+            if (mmrand(&g.extra_rnd, 1, 10) > 5)
+                config_single(NULL, "checkpoint=on", false);
             break;
         }
+
+    if (!GV(PRECISE_CHECKPOINT))
+        config_off(NULL, "preserve_prepared");
 }
 
 /*
@@ -889,21 +937,6 @@ config_encryption(void)
 }
 
 /*
- * config_fix --
- *     Fixed-length column-store configuration.
- */
-static bool
-config_fix(TABLE *table)
-{
-    /*
-     * Fixed-length column stores don't support modify operations, and can't be used with
-     * predictable replay with insertions.
-     */
-    return (!config_explicit(table, "ops.pct.modify") &&
-      (!GV(RUNS_PREDICTABLE_REPLAY) || !config_explicit(table, "ops.pct.insert")));
-}
-
-/*
  * config_var --
  *     Variable-length column-store configuration.
  */
@@ -958,6 +991,8 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "ops.verify"))
         return;
+    if (config_explicit(NULL, "precise_checkpoint"))
+        return;
     if (config_explicit(NULL, "runs.mirror"))
         return;
     if (config_explicit(NULL, "runs.predictable_replay"))
@@ -1008,6 +1043,8 @@ config_in_memory_reset(void)
         config_off(NULL, "ops.salvage");
     if (!config_explicit(NULL, "ops.verify"))
         config_off(NULL, "ops.verify");
+    if (!config_explicit(NULL, "precise_checkpoint"))
+        config_off(NULL, "precise_checkpoint");
     if (!config_explicit(NULL, "prefetch"))
         config_off(NULL, "prefetch");
 }
@@ -1040,9 +1077,9 @@ config_mirrors(void)
     for (already_set = false, i = 1; i <= ntables; ++i)
         if (NTV(tables[i], RUNS_MIRROR)) {
             already_set = tables[i]->mirror = true;
-            if (tables[i]->type == FIX || tables[i]->type == VAR)
+            if (tables[i]->type == VAR)
                 g.mirror_col_store = true;
-            if (g.base_mirror == NULL && tables[i]->type != FIX)
+            if (g.base_mirror == NULL)
                 g.base_mirror = tables[i];
         }
     if (already_set) {
@@ -1076,12 +1113,9 @@ config_mirrors(void)
         return;
     }
 
-    /*
-     * We can't mirror if we don't have enough tables. A FLCS table can be a mirror, but it can't be
-     * the source of the bulk-load mirror records. Find the first table we can use as a base.
-     */
+    /* We can't mirror if we don't have enough tables. Find the first table we can use as a base. */
     for (i = 1; i <= ntables; ++i)
-        if (tables[i]->type != FIX && !NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
+        if (!NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
             break;
 
     if (i > ntables) {
@@ -1111,9 +1145,9 @@ config_mirrors(void)
     /* A custom collator would complicate the cursor traversal when comparing tables. */
     config_mirrors_disable_reverse();
 
-    /* Good to go: pick the first non-FLCS table that allows mirroring as our base. */
+    /* Good to go: pick the first table that allows mirroring as our base. */
     for (i = 1; i <= ntables; ++i)
-        if (tables[i]->type != FIX && !NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
+        if (!NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
             break;
     tables[i]->mirror = true;
     config_single(tables[i], "runs.mirror=1", false);
@@ -1130,7 +1164,7 @@ config_mirrors(void)
         if (tables[i] != g.base_mirror) {
             tables[i]->mirror = true;
             config_single(tables[i], "runs.mirror=1", false);
-            if (tables[i]->type == FIX || tables[i]->type == VAR)
+            if (tables[i]->type == VAR)
                 g.mirror_col_store = true;
             if (--mirrors == 0)
                 break;
@@ -1450,6 +1484,72 @@ config_tiered_storage(void)
 }
 
 /*
+ * config_disagg_storage --
+ *     Disaggregated storage configuration.
+ */
+static void
+config_disagg_storage(void)
+{
+    char buf[128];
+    const char *mode, *page_log;
+
+    page_log = GVS(DISAGG_PAGE_LOG);
+
+    g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
+    if (!g.disagg_storage_config)
+        return; /* Disaggregated storage not enabled. */
+
+    if (GV(DISAGG_MULTI) && !GV(RUNS_PREDICTABLE_REPLAY))
+        testutil_die(EINVAL,
+          "Invalid configuration: multi-node in disagg requires predictable replay mode "
+          "(set runs.predictable_replay=1).");
+
+    if (!config_explicit(NULL, "disagg.mode")) {
+        /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */
+        testutil_snprintf(buf, sizeof(buf), "disagg.mode=%s",
+          mmrand(&g.data_rnd, 1, 100) <= 50 ? "leader" : "follower");
+        config_single(NULL, buf, false);
+    }
+
+    mode = GVS(DISAGG_MODE);
+    if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
+        testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
+
+    if (strcmp(mode, "switch") == 0)
+        /* Randomly assign "leader" or "follower". */
+        g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
+    else
+        g.disagg_leader = strcmp(mode, "leader") == 0;
+
+    /* FIXME WT-15189 For disagg, random cursors are problematic. */
+    if (config_explicit(NULL, "ops.random_cursor"))
+        WARN("%s",
+          "turning off ops.random_cursor with disagg as they are currently problematic and can "
+          "cause stalls");
+    config_off(NULL, "ops.random_cursor");
+
+    /* Disaggregated storage requires timestamps. */
+    config_off(NULL, "transaction.implicit");
+    config_single(NULL, "transaction.timestamps=on", true);
+
+    /* It makes sense to do checkpoints. */
+    if (!config_explicit(NULL, "checkpoint"))
+        config_single(NULL, "checkpoint=on", false);
+
+    /* TODO: Some operations are not yet supported for disaggregated storage. */
+    config_off(NULL, "ops.salvage");
+    config_off(NULL, "backup");
+    config_off(NULL, "backup.incremental");
+
+    /* Compaction is not supported for disaggregated storage. */
+    config_off(NULL, "ops.compaction");
+    config_off(NULL, "background_compact");
+
+    /*  Tiered storage is not supported with disagg */
+    config_single(NULL, "tiered_storage.storage_source=off", true);
+}
+
+/*
  * config_transaction --
  *     Transaction configuration.
  */
@@ -1522,8 +1622,17 @@ config_transaction(void)
         config_off(NULL, "ops.salvage");
         config_off(NULL, "logging");
     }
-    if (!GV(TRANSACTION_TIMESTAMPS))
+    if (!GV(TRANSACTION_TIMESTAMPS)) {
         config_off(NULL, "ops.prepare");
+        config_off(NULL, "precise_checkpoint");
+        config_off(NULL, "preserve_prepared");
+    }
+    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
+        if (config_explicit(NULL, "ops.truncate"))
+            WARN("%s", "turning off ops.truncate to work with ops.prepare and precise checkpoint");
+        config_off(NULL, "ops.truncate");
+    }
 
     /* Set a default transaction timeout limit if one is not specified. */
     if (!config_explicit(NULL, "transaction.operation_timeout_ms"))
@@ -1531,6 +1640,7 @@ config_transaction(void)
 
     g.operation_timeout_ms = GV(TRANSACTION_OPERATION_TIMEOUT_MS);
     g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
+    g.prepared_id = 1;
 }
 
 /*
@@ -1937,6 +2047,7 @@ config_single(TABLE *table, const char *s, bool explicit)
             config_map_checkpoint(equalp, &g.checkpoint_config);
         else if (strncmp(s, "runs.source", strlen("runs.source")) == 0 &&
           strncmp("file", equalp, strlen("file")) != 0 &&
+          strncmp("layered", equalp, strlen("layered")) != 0 &&
           strncmp("table", equalp, strlen("table")) != 0) {
             testutil_die(EINVAL, "Invalid data source option: %s", equalp);
         } else if (strncmp(s, "runs.type", strlen("runs.type")) == 0) {
@@ -2060,16 +2171,14 @@ config_map_file_type(const char *s, u_int *vp)
 {
     uint32_t v;
     const char *arg;
-    bool fix, row, var;
+    bool row, var;
 
     arg = s;
 
     /* Accumulate choices. */
-    fix = row = var = false;
+    row = var = false;
     while (*s != '\0') {
-        if (WT_PREFIX_SKIP(s, "fixed-length column-store") || WT_PREFIX_SKIP(s, "fix"))
-            fix = true;
-        else if (WT_PREFIX_SKIP(s, "row-store") || WT_PREFIX_SKIP(s, "row"))
+        if (WT_PREFIX_SKIP(s, "row-store") || WT_PREFIX_SKIP(s, "row"))
             row = true;
         else if (WT_PREFIX_SKIP(s, "variable-length column-store") || WT_PREFIX_SKIP(s, "var"))
             var = true;
@@ -2079,34 +2188,24 @@ config_map_file_type(const char *s, u_int *vp)
         if (*s == ',') /* Allow, but don't require, comma-separators. */
             ++s;
     }
-    if (!fix && !row && !var)
+    if (!row && !var)
         testutil_die(EINVAL, "illegal file type configuration: %s", arg);
 
     /* Check for a single configuration. */
-    if (fix && !row && !var) {
-        *vp = FIX;
-        return;
-    }
-    if (!fix && row && !var) {
+    if (row && !var) {
         *vp = ROW;
         return;
     }
-    if (!fix && !row && var) {
+    if (!row && var) {
         *vp = VAR;
         return;
     }
 
     /*
-     * Handle multiple configurations.
-     *
-     * Fixed-length column-store is 10% in all cases.
-     *
-     * Variable-length column-store is 90% vs. fixed, 30% vs. fixed and row, and 40% vs row.
+     * Handle multiple configurations. Variable-length column-store is 40% vs row.
      */
     v = mmrand(&g.data_rnd, 1, 10);
-    if (fix && v == 1)
-        *vp = FIX;
-    else if (var && (v < 5 || !row))
+    if (var && (v < 5 || !row))
         *vp = VAR;
     else
         *vp = ROW;
@@ -2191,8 +2290,6 @@ static const char *
 config_file_type(u_int type)
 {
     switch (type) {
-    case FIX:
-        return ("fixed-length column-store");
     case VAR:
         return ("variable-length column-store");
     case ROW:

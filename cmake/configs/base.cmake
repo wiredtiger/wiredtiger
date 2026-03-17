@@ -3,6 +3,7 @@ include(cmake/configs/version.cmake)
 
 # Setup defaults based on the build type and available libraries.
 set(default_have_diagnostics ON)
+set(default_have_error_log ON)
 set(default_enable_python OFF)
 set(default_enable_lz4 OFF)
 set(default_enable_snappy OFF)
@@ -13,22 +14,21 @@ set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
 
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
+string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
+
+if(${CMAKE_BUILD_TYPE_UPPER} MATCHES "^(RELEASE|RELWITHDEBINFO)$")
     set(default_have_diagnostics OFF)
 endif()
 
 # Enable python if we have the minimum version.
-set(python_libs)
-set(python_version)
-set(python_executable)
-source_python3_package(python_libs python_version python_executable)
+find_package(Python3 QUIET COMPONENTS Interpreter Development)
 
-if("${python_version}" VERSION_GREATER_EQUAL "3")
+if(Python3_FOUND)
   set(default_enable_python ON)
 endif()
 
 # MSan / UBSan fails on Python tests due to linking issue.
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(MSan|UBSan)$")
+if(${CMAKE_BUILD_TYPE_UPPER} MATCHES "^(MSAN|UBSAN)$")
     set(default_enable_python OFF)
 endif()
 
@@ -48,7 +48,7 @@ if(NOT HAVE_BUILTIN_EXTENSION_IAA)
     set(default_enable_iaa ${HAVE_LIBQPL})
 endif()
 
-if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+if(${CMAKE_BUILD_TYPE_UPPER} STREQUAL "RELEASE")
     set(default_enable_debug_info OFF)
 endif()
 
@@ -85,6 +85,7 @@ config_bool(
     ENABLE_ANTITHESIS
     "Enable the Antithesis random library"
     DEFAULT OFF
+    DEPENDS "WT_POSIX"
 )
 
 config_bool(
@@ -101,6 +102,12 @@ config_bool(
 )
 
 config_bool(
+    HAVE_ERROR_LOG
+    "Enable WiredTiger error logging."
+    DEFAULT ${default_have_error_log}
+)
+
+config_bool(
     HAVE_REF_TRACK
     "Enable WiredTiger to track recent state transitions for WT_REF structures (always enabled in diagnostic build)"
     DEFAULT OFF
@@ -112,12 +119,6 @@ config_bool(
     DEFAULT OFF
     DEPENDS "HAVE_DIAGNOSTIC"
     DEPENDS_ERROR ON "Call log requires diagnostic build to be enabled"
-)
-
-config_bool(
-    NON_BARRIER_DIAGNOSTIC_YIELDS
-    "Don't set a full barrier when yielding threads in diagnostic mode. Requires diagnostic mode to be enabled."
-    DEFAULT OFF
 )
 
 config_bool(
@@ -193,7 +194,14 @@ config_string(
     By default, when this configuration is unset, CMake will preference the \
     highest python version found to be installed in the users system path. \
     Expected format of version string: major[.minor[.patch]]"
-    DEFAULT ""
+    DEPENDS "ENABLE_PYTHON"
+)
+
+config_string(
+    SWIG_REQUIRED_VERSION
+    "SWIG version to use when building Python bindings. \
+    Expected format of version string: major[.minor[.patch]]"
+    DEFAULT "4"
     DEPENDS "ENABLE_PYTHON"
 )
 
@@ -333,6 +341,12 @@ config_bool(
 )
 
 config_bool(
+    ENABLE_PALITE
+    "Build the PALite storage extension (mock implementation of the PALI)"
+    DEFAULT ON
+)
+
+config_bool(
     ENABLE_LLVM
     "Enable compilation of LLVM-based tools and executables i.e. xray & fuzzer."
     DEFAULT OFF
@@ -344,8 +358,21 @@ config_bool(
     DEFAULT ${default_enable_debug_info}
 )
 
+config_string(
+    SQLITE3_REQUIRED_VERSION
+    "SQLite3 version to use when building PALite extension. \
+    Expected format of version string: major[.minor[.patch]]"
+    DEFAULT "3.35.0"   # Minimum version for RETURNING syntax (used in PALite).
+)
+
+config_bool(
+    USE_SYSTEM_SQLITE3
+    "Use system SQLite3 library. If OFF, WiredTiger will use the bundled SQLite3 library."
+    DEFAULT OFF
+)
+
 set(default_optimize_level "-Og")
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
+if(${CMAKE_BUILD_TYPE_UPPER} MATCHES "^(RELEASE|RELWITHDEBINFO)$")
     if(WT_WIN)
         set(default_optimize_level "/O2")
     else()
@@ -362,8 +389,6 @@ config_string(
     "CC optimization level"
     DEFAULT "${default_optimize_level}"
 )
-
-add_compile_options("${CC_OPTIMIZE_LEVEL}")
 
 config_string(
     VERSION_MAJOR
@@ -395,35 +420,88 @@ if (HAVE_DIAGNOSTIC)
 endif()
 
 # Setup debug info if enabled.
-if(ENABLE_DEBUG_INFO)
-    if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
-        # Produce full symbolic debugging information.
-        add_compile_options(/Z7)
-        # Ensure a PDB file can be generated for debugging symbols.
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
-    else()
+# Only set initial debug flags once to preserve user customizations.
+if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
+    set(BUILD_TYPES_WITH_DEBUG_INFO ${BUILD_MODES})
+    list(REMOVE_ITEM BUILD_TYPES_WITH_DEBUG_INFO Release)
+
+    set(DEBUG_INFO_FLAGS)
+    if(GNU_C_COMPILER OR CLANG_C_COMPILER)
         # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including
         # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
         # This needs to be in DWARF version 2 format or later - and should be by default - but
         # we'll specify version 4 here to be safe.
-        add_compile_options(-g3)
-        add_compile_options(-ggdb3)
-        add_compile_options(-gdwarf-4)
-        if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        list(APPEND DEBUG_INFO_FLAGS -g3 -gdwarf-4)
+        if(CLANG_C_COMPILER)
             # Clang requires one additional flag to output macro debug information.
-            add_compile_options(-fdebug-macro)
+            list(APPEND DEBUG_INFO_FLAGS -glldb -fdebug-macro)
+        else()
+            list(APPEND DEBUG_INFO_FLAGS -ggdb3)
         endif()
+
+        add_cmake_compiler_flags(
+            FLAGS ${DEBUG_INFO_FLAGS}
+            LANGUAGES C CXX
+            BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
+        )
     endif()
+
+    # MSVC: ensure linker produces PDBs.
+    if(MSVC_C_COMPILER)
+        add_cmake_linker_flags(
+            FLAGS "/DEBUG"
+            BINARIES EXE SHARED
+            BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
+        )
+    endif()
+
+    # Mark that we've set the initial debug flags
+    set(WT_DEBUG_FLAGS_INITIALIZED TRUE CACHE INTERNAL
+        "WiredTiger debug flags have been initialized")
+endif()
+
+# We want to use the optimization level from CC_OPTIMIZE_LEVEL.
+if(NOT ("${WT_OPTIMIZE_FLAGS_SAVED}" STREQUAL "${CC_OPTIMIZE_LEVEL}"))
+    if(MSVC_C_COMPILER)
+        set(opt_flags "/O3" "/O2")
+    else()
+        set(opt_flags "-O3" "-O2")
+    endif()
+    set(prev_opt_flags "${WT_OPTIMIZE_FLAGS_SAVED}")
+    separate_arguments(prev_opt_flags)
+    list(APPEND opt_flags ${prev_opt_flags})
+
+    set(new_opt_flags "${CC_OPTIMIZE_LEVEL}")
+    separate_arguments(new_opt_flags)
+
+    foreach(lang C CXX)
+        foreach(build_type DEBUG RELEASE RELWITHDEBINFO)
+            replace_compile_options(CMAKE_${lang}_FLAGS_${build_type}
+                REMOVE ${opt_flags}
+                ADD ${new_opt_flags})
+        endforeach()
+    endforeach()
+
+    if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
+        foreach(lang C CXX)
+            add_cmake_flag(CMAKE_${lang}_FLAGS -fno-strict-aliasing)
+        endforeach()
+    endif()
+
+    # Mark that we've set the initial optimize flags
+    set(WT_OPTIMIZE_FLAGS_SAVED "${CC_OPTIMIZE_LEVEL}" CACHE INTERNAL
+        "WiredTiger optimize flags have been initialized")
 endif()
 
 # Ref tracking is always enabled in diagnostic build.
 if (HAVE_DIAGNOSTIC AND NOT HAVE_REF_TRACK)
-    set(HAVE_REF_TRACK ON CACHE STRING "" FORCE)
+    set(HAVE_REF_TRACK ON CACHE BOOL "" FORCE)
     set(HAVE_REF_TRACK_DISABLED OFF CACHE INTERNAL "" FORCE)
 endif()
 
-if (NON_BARRIER_DIAGNOSTIC_YIELDS AND NOT HAVE_DIAGNOSTIC)
-    message(FATAL_ERROR "`NON_BARRIER_DIAGNOSTIC_YIELDS` can only be enabled when `HAVE_DIAGNOSTIC` is enabled.")
+# Error logging is always enabled in diagnostic build.
+if (HAVE_DIAGNOSTIC AND NOT HAVE_ERROR_LOG)
+    set(HAVE_ERROR_LOG ON CACHE BOOL "" FORCE)
 endif()
 
 if (HAVE_UNITTEST_ASSERTS AND NOT HAVE_UNITTEST)
@@ -434,13 +512,15 @@ if(WT_WIN)
     # Check if we a using the dynamic or static run-time library.
     if(DYNAMIC_CRT)
         # Use the multithread-specific and DLL-specific version of the run-time library (MSVCRT.lib).
-        add_compile_options(/MD)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
     else()
         # Use the multithread, static version of the run-time library.
-        add_compile_options(/MT)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
     endif()
 endif()
 
 if(ENABLE_ANTITHESIS)
-    add_compile_options(-fsanitize-coverage=trace-pc-guard)
+    foreach(lang C CXX)
+        add_cmake_flag(CMAKE_${lang}_FLAGS -fsanitize-coverage=trace-pc-guard)
+    endforeach()
 endif()

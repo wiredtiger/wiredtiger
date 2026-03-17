@@ -19,6 +19,26 @@ typedef enum __wt_cache_op {
 #define WT_HS_FILE_MIN (100 * WT_MEGABYTE)
 
 /*
+ * WT_CACHE_EVICTION_CONTROLS --
+ *  Cache eviction controls configuration.
+ *  WT_CACHE_EVICT_INCREMENTAL_APP: Only a part of application threads will participate in cache
+ * management when a cache threshold reaches its trigger limit. WT_CACHE_PREFER_SCRUB_EVICTION:
+ * Change the eviction strategy to scrub eviction when the cache usage is under the target limit.
+ */
+struct __wt_cache_eviction_controls {
+    wt_shared uint8_t cache_tolerance_for_app_eviction; /* cache tolerance for app eviction.*/
+
+    wt_shared uint8_t
+      app_eviction_min_cache_fill_ratio; /* Application eviction minimum cache fill ratio */
+
+/* cache eviction controls bit positions */
+#define WT_CACHE_EVICT_INCREMENTAL_APP 0x1u
+#define WT_CACHE_PREFER_SCRUB_EVICTION 0x2u
+#define WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK 0x4u
+    wt_shared uint32_t flags_atomic;
+};
+
+/*
  * WiredTiger cache structure.
  */
 struct __wt_cache {
@@ -30,28 +50,53 @@ struct __wt_cache {
      */
 
     wt_shared uint64_t bytes_dirty_intl; /* Bytes/pages currently dirty */
+    wt_shared uint64_t bytes_dirty_intl_ingest;
+    wt_shared uint64_t bytes_dirty_intl_stable;
     wt_shared uint64_t bytes_dirty_leaf;
+    wt_shared uint64_t bytes_dirty_leaf_ingest;
+    wt_shared uint64_t bytes_dirty_leaf_stable;
     wt_shared uint64_t bytes_dirty_total;
     wt_shared uint64_t bytes_evict;      /* Bytes/pages discarded by eviction */
     wt_shared uint64_t bytes_image_intl; /* Bytes of disk images (internal) */
+    wt_shared uint64_t bytes_image_intl_ingest;
+    wt_shared uint64_t bytes_image_intl_stable;
     wt_shared uint64_t bytes_image_leaf; /* Bytes of disk images (leaf) */
-    wt_shared uint64_t bytes_inmem;      /* Bytes/pages in memory */
-    wt_shared uint64_t bytes_internal;   /* Bytes of internal pages */
-    wt_shared uint64_t bytes_read;       /* Bytes read into memory */
-    wt_shared uint64_t bytes_updates;    /* Bytes of updates to pages */
+    wt_shared uint64_t bytes_image_leaf_ingest;
+    wt_shared uint64_t bytes_image_leaf_stable;
+    wt_shared uint64_t bytes_inmem; /* Bytes/pages in memory */
+    wt_shared uint64_t bytes_inmem_ingest;
+    wt_shared uint64_t bytes_inmem_stable;
+    wt_shared uint64_t bytes_internal; /* Bytes of internal pages */
+    wt_shared uint64_t bytes_internal_ingest;
+    wt_shared uint64_t bytes_internal_stable;
+    wt_shared uint64_t bytes_read;    /* Bytes read into memory */
+    wt_shared uint64_t bytes_updates; /* Bytes of updates to pages */
+    wt_shared uint64_t bytes_updates_ingest;
+    wt_shared uint64_t bytes_updates_stable;
     wt_shared uint64_t bytes_written;
+
+    WT_CACHE_EVICTION_CONTROLS cache_eviction_controls;
 
     /*
      * History store cache usage. TODO: The values for these variables are cached and potentially
      * outdated.
      */
-    wt_shared uint64_t bytes_hs; /* History store bytes inmem */
-    uint64_t bytes_hs_dirty;     /* History store bytes inmem dirty */
+    wt_shared uint64_t bytes_hs;         /* History store bytes inmem */
+    wt_shared uint64_t bytes_hs_dirty;   /* History store bytes inmem dirty */
+    wt_shared uint64_t bytes_hs_updates; /* History store bytes inmem updates */
 
     wt_shared uint64_t pages_dirty_intl;
+    wt_shared uint64_t pages_dirty_intl_ingest;
+    wt_shared uint64_t pages_dirty_intl_stable;
     wt_shared uint64_t pages_dirty_leaf;
+    wt_shared uint64_t pages_dirty_leaf_ingest;
+    wt_shared uint64_t pages_dirty_leaf_stable;
     wt_shared uint64_t pages_evicted;
+    wt_shared uint64_t pages_evicted_ingest;
+    wt_shared uint64_t pages_evicted_stable;
     wt_shared uint64_t pages_inmem;
+    wt_shared uint64_t pages_inmem_ingest;
+    wt_shared uint64_t pages_inmem_stable;
 
     u_int overhead_pct; /* Cache percent adjustment */
 
@@ -117,3 +162,6 @@ struct __wt_cache_pool {
  * file.
  */
 #define WT_IS_HS(dh) F_ISSET(dh, WT_DHANDLE_HS)
+
+/* Optimize comparisons against the shared metadata store for disaggregated storage. */
+#define WT_IS_DISAGG_META(dh) F_ISSET(dh, WT_DHANDLE_DISAGG_META)

@@ -29,6 +29,7 @@
 import os, re, struct
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from helper import WiredTigerCursor
 
 # test_verify.py
 #    Utilities: wt verify
@@ -79,6 +80,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             f.close()
         return count
 
+    # FIXME-WT-15064:
+    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def open_and_position(self, tablename, pct):
         """
         Open the file for the table, position it at a 4K page
@@ -100,6 +103,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(position)
         return fp
 
+    # FIXME-WT-15064:
+    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def open_and_offset(self, tablename, offset):
         """
         Open the file for the table, position it at the given offset.
@@ -159,6 +164,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         This is our only 'negative' test for verify using the API,
         it's uncertain that we can have reliable tests for this.
         """
+
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
@@ -178,12 +184,15 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             "Read failure while accessing a page from the "), 1)
         self.assertGreaterEqual(self.count_file_contains("stderr.txt", "read checksum error"), 1)
 
+        self.ignoreStdoutPatternIfExists('extent list')
+
     def test_verify_api_read_corrupt_pages(self):
         """
         Test verify via API, on a table that is purposely corrupted in
         multiple places. A verify operation with read_corrupt on should
         result in multiple checksum errors being logged.
         """
+
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
@@ -220,7 +229,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         offset = 0
         lines = open('dump.out').readlines()
         for line in lines:
-            m = re.search('(\d+)-(\d+).*row-store leaf', line)
+            m = re.search(r'(\d+)-(\d+).*row-store leaf', line)
             if m:
                 offset = int((int(m.group(2)) - int(m.group(1)))/2)
                 break
@@ -244,11 +253,14 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
             "Read failure while accessing a page from the "), 1)
 
+        self.ignoreStdoutPatternIfExists('extent list')
+
     def test_verify_process_75pct_null(self):
         """
         Test verify in a 'wt' process on a table that is purposely damaged,
         with nulls at a position about 75% through.
         """
+
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
@@ -259,16 +271,17 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
             "Read failure while accessing a page from the "), 1)
-        self.runWt(["-p", "verify", "-c", "table:" + self.tablename],
-            errfilename="verifyerr.out", failure=True)
-        self.check_non_empty_file("verifyerr.out")
-        self.assertGreaterEqual(self.count_file_contains("verifyerr.out", "read checksum error"), 1)
+        self.runWt(["-p", "verify", "-c", "table:" + self.tablename], outfilename="verifyerr.out",
+            errfilename="verifyerr.err", failure=True)
+        self.check_non_empty_file("verifyerr.err")
+        self.assertGreaterEqual(self.count_file_contains("verifyerr.err", "read checksum error"), 1)
 
     def test_verify_process_25pct_junk(self):
         """
         Test verify in a 'wt' process on a table that is purposely damaged,
         with junk at a position about 25% through.
         """
+
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
@@ -279,10 +292,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
             "Read failure while accessing a page from the "), 1)
-        self.runWt(["-p", "verify", "-c", "table:" + self.tablename],
-            errfilename="verifyerr.out", failure=True)
-        self.check_non_empty_file("verifyerr.out")
-        self.assertGreaterEqual(self.count_file_contains("verifyerr.out", "read checksum error"), 1)
+        self.runWt(["-p", "verify", "-c", "table:" + self.tablename], outfilename="verifyerr.out",
+            errfilename="verifyerr.err", failure=True)
+        self.check_non_empty_file("verifyerr.err")
+        self.assertGreaterEqual(self.count_file_contains("verifyerr.err", "read checksum error"), 1)
 
     def test_verify_process_read_corrupt_pages(self):
         """
@@ -290,6 +303,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         in multiple places. A verify operation with read_corrupt on should
         result in multiple checksum errors being logged.
         """
+
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
@@ -302,34 +316,35 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         with self.open_and_position(self.tablename, 80) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
-        self.runWt(["-p", "verify", "-c", "table:" + self.tablename],
-            errfilename="verifyerr.out", failure=True)
+        self.runWt(["-p", "verify", "-c", "table:" + self.tablename], outfilename="verifyerr.out",
+            errfilename="verifyerr.err", failure=True)
 
         self.runWt(['-p', 'verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'],
             outfilename='dump_corrupt.out', errfilename="dump_corrupt.err", failure=True)
         self.assertEqual(self.count_file_contains("dump_corrupt.out",
             "Read failure while accessing a page from the "), 1)
-        self.check_non_empty_file("verifyerr.out")
+        self.check_non_empty_file("verifyerr.err")
 
         # It is expected that more than one checksum error is logged given
         # that we have corrupted the table in multiple locations, but we may
         # not necessarily detect all three corruptions - e.g. we won't detect
         # a corruption if we overwrite free space or overwrite a page that is
         # a child of another page that we overwrite.
-        self.assertGreaterEqual(self.count_file_contains("verifyerr.out", "read checksum error"), 1)
+        self.assertGreaterEqual(self.count_file_contains("verifyerr.err", "read checksum error"), 1)
 
     def test_verify_process_truncated(self):
         """
         Test verify in a 'wt' process on a table that is purposely damaged,
         truncated about 75% through.
         """
+
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 75) as f:
             f.truncate(0)
         self.runWt(["-p", "verify", "table:" + self.tablename],
-            errfilename="verifyerr.out", failure=True)
+            errfilename="verifyerr.err", failure=True)
         # The test may output the following error message while opening a file that
         # does not exist. Ignore that.
         self.ignoreStderrPatternIfExists('No such file or directory')
@@ -338,21 +353,58 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         """
         Test verify in a 'wt' process on a zero-length table.
         """
+
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 0) as f:
             f.truncate(0)
         self.runWt(["verify", "table:" + self.tablename],
-            errfilename="verifyerr.out", failure=True)
+            errfilename="verifyerr.err", failure=True)
         # The test may output the following error message while opening a file that
         # does not exist. Ignore that.
         self.ignoreStderrPatternIfExists('No such file or directory')
+
+    def test_verify_redacted(self):
+        """
+        Test verify in a 'wt' process on a table with redacted.
+        """
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('requires a diagnostic build as the test uses verify -d dump_pages')
+
+        params = 'key_format=S,value_format=S'
+        self.session.create('table:' + self.tablename, params)
+        self.populate(self.tablename)
+        """
+        Insert some secret entries into the table
+        """
+        with WiredTigerCursor(self.session, 'table:' + self.tablename, None, None) as cursor:
+            cursor['secret_key'] = "#hidden#"
+
+        # stabilize the table with a checkpoint
+        self.session.checkpoint()
+
+        # Check the redacted output
+        self.runWt(["-p", "verify", '-d', 'dump_pages', f"file:{self.tablename}.wt"],
+            outfilename='verify_redacted.out', errfilename="verify_redacted.err", failure=False)
+
+        self.check_empty_file('verify_redacted.err')
+        self.check_file_not_contains('verify_redacted.out', 'secret_key')
+        self.check_file_not_contains('verify_redacted.out', '#hidden#')
+
+        # Check the unredacted output
+        self.runWt(["-p", "verify", '-d', 'dump_pages', '-u', f"file:{self.tablename}.wt"],
+            outfilename='verify_redacted.out', errfilename="verify_redacted.err", failure=False)
+
+        self.check_empty_file('verify_redacted.err')
+        self.check_file_contains('verify_redacted.out', 'secret_key')
+        self.check_file_contains('verify_redacted.out', '#hidden#')
 
     def test_verify_all(self):
         """
         Test verify in a 'wt' process without a specific table URI argument.
         """
+
         params = 'key_format=S,value_format=S'
         ntables = 3
 
@@ -370,8 +422,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
                 for i in range(0, 4096):
                     f.write(struct.pack('B', 0))
 
-        self.runWt(["-p", "verify", "-a"], errfilename="verifyerr.out", failure=True)
-        self.assertEqual(self.count_file_contains("verifyerr.out",
+        self.runWt(["-p", "verify", "-a"], outfilename="verifyerr.out", errfilename="verifyerr.err", failure=True)
+        self.assertEqual(self.count_file_contains("verifyerr.err",
             "table:test_verify.a1: WT_ERROR"), 1)
-        self.assertEqual(self.count_file_contains("verifyerr.out",
+        self.assertEqual(self.count_file_contains("verifyerr.err",
             "table:test_verify.a2: WT_ERROR"), 0)

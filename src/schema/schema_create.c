@@ -30,8 +30,16 @@ __check_imported_ts(
 
     ckptbase = NULL;
     txn_global = &S2C(session)->txn_global;
-    ts = against_stable ? txn_global->stable_timestamp : txn_global->oldest_timestamp;
-    ts_name = against_stable ? "stable" : "oldest";
+
+    if (against_stable) {
+        ts_name = "stable";
+        ts = __wt_get_stable_timestamp(session);
+    } else {
+        ts_name = "oldest";
+        /* FIXME-WT-16776: use an atomic read operation similar to the stable timestamp
+         * implementation. */
+        ts = txn_global->oldest_timestamp;
+    }
 
     WT_ERR_NOTFOUND_OK(
       __wt_meta_ckptlist_get_from_config(session, false, &ckptbase, NULL, config), true);
@@ -73,22 +81,120 @@ err:
  *     Create a new file in the block manager, and track it.
  */
 static int
-__create_file_block_manager(
-  WT_SESSION_IMPL *session, const char *uri, const char *filename, uint32_t allocsize)
+__create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const char *filename,
+  uint32_t allocsize, const char **cfg)
 {
-    WT_RET(__wt_block_manager_create(session, filename, allocsize));
+    WT_CONFIG_ITEM page_log_item;
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npage_log;
 
-    /*
-     * Track the creation of this file.
-     *
-     * If something down the line fails, we're going to need to roll this back. Specifically do NOT
-     * track the op in the import case since we do not want to wipe a data file just because we fail
-     * to import it.
-     */
-    if (WT_META_TRACKING(session))
-        WT_RET(__wt_meta_track_fileop(session, NULL, uri));
+    npage_log = NULL;
+
+    if (WT_PREFIX_MATCH(uri, "file:") && WT_SUFFIX_MATCH(uri, ".wt_stable")) {
+        WT_RET_NOTFOUND_OK(
+          __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
+        if (ret == WT_NOTFOUND || page_log_item.len == 0)
+            npage_log = S2C(session)->disaggregated_storage.npage_log;
+        else
+            WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
+    }
+
+    if (npage_log != NULL) {
+        /*
+         * This is currently a place holder - the page log isn't fully created until the btree is
+         * created and I don't want to pull that forward into this schema code at the moment. So
+         * make a stub call to demonstrate intention, but the subsequent open call will implicitly
+         * create a file if necessary. Using the disaggregated manager also means metadata tracking
+         * isn't currently working. It assumes that the existing default block manager is
+         * responsible for objects.
+         */
+        WT_RET(__wt_block_disagg_manager_create(session, NULL, filename));
+    } else {
+        WT_RET(__wt_block_manager_create(session, filename, allocsize));
+
+        /*
+         * Track the creation of this file.
+         *
+         * If something down the line fails, we're going to need to roll this back. Specifically do
+         * NOT track the op in the import case since we do not want to wipe a data file just because
+         * we fail to import it.
+         */
+        if (WT_META_TRACKING(session))
+            WT_RET(__wt_meta_track_fileop(session, NULL, uri));
+    }
 
     return (0);
+}
+
+/*
+ * __validate_file_id --
+ *     Validates all possible cases to detect unexpected or unsafe table ID generation.
+ */
+static WT_INLINE void
+__validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
+{
+    uint32_t namespace = WT_BTREE_ID_NAMESPACE_ID(namespaced_id);
+    uint32_t unnamespaced_id = WT_BTREE_ID_UNNAMESPACED(namespaced_id);
+
+    WT_UNUSED(namespace);
+    WT_UNUSED(unnamespaced_id);
+
+    /* Assert that only valid namespaces are used. */
+    WT_ASSERT(session,
+      namespace == WT_BTREE_ID_NAMESPACE_LOCAL || namespace == WT_BTREE_ID_NAMESPACE_SHARED ||
+        namespace == WT_BTREE_ID_NAMESPACE_SPECIAL);
+
+    /*
+     * Currently, local and shared namespaces start their IDs from 1, and the 0 ID for the special
+     * namespace is used for the PALI turtle table. Therefore, we can safely assume that any ID
+     * without a namespace is a positive integer.
+     */
+    WT_ASSERT(session, unnamespaced_id > 0);
+
+    /* Check that generated IDs do not contain values reserved elsewhere. */
+    WT_ASSERT(session, namespaced_id != WT_METAFILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_TURTLE_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_SHARED_METADATA_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_SHARED_HS_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID);
+}
+
+/*
+ * __wt_generate_file_id --
+ *     Generate a unique file ID for the provided URI and assign it to all required namespaces.
+ */
+uint32_t
+__wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
+{
+    typedef struct {
+        uint32_t id;
+        const char *uri;
+    } FILE_ID_TO_URI;
+
+    static const FILE_ID_TO_URI special_file_map[] = {
+      {WT_SPECIAL_SHARED_METADATA_FILE_ID, WT_DISAGG_METADATA_URI},
+      {WT_SPECIAL_SHARED_HS_FILE_ID, WT_HS_URI_SHARED}, {0, NULL} /* sentinel */
+    };
+
+    /* Metadata ID is predefined but should be defined in a different place. */
+    WT_ASSERT(session, uri != NULL);
+    WT_ASSERT(session, 0 != strcmp((uri), WT_METAFILE_URI));
+
+    /* Check whether we should use a predefined ID for the provided URI. */
+    for (const FILE_ID_TO_URI *entry = special_file_map; entry->uri != NULL; ++entry) {
+        if (strcmp(uri, entry->uri) == 0) {
+            /* Entry should be already in the namespace here. */
+            WT_ASSERT(
+              session, WT_BTREE_ID_NAMESPACE_ID(entry->id) == WT_BTREE_ID_NAMESPACE_SPECIAL);
+            return (entry->id);
+        }
+    }
+
+    /* Use the counter if there is no predefined ID for the table. */
+    uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
+    uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id, ns);
+    __validate_file_id(session, namespaced_id);
+    return (namespaced_id);
 }
 
 /*
@@ -106,8 +212,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
       *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL},
       *filestripped;
     char *fileconf, *filemeta;
-    uint32_t allocsize;
-    bool against_stable, exists, import, import_repair, is_metadata;
+    uint32_t allocsize, fileid;
+    bool against_stable, exists, import, import_repair, is_metadata, is_shared;
 
     fileconf = filemeta = NULL;
     filestripped = NULL;
@@ -119,6 +225,9 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
 
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
+
+    /* Check for unsupported storage formats. */
+    WT_ERR(__wt_schema_unsupported_format(session, config, true));
 
     /* Check if the file already exists. */
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
@@ -161,7 +270,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
          */
         if (WT_SUFFIX_MATCH(filename, ".wtobj")) {
             if (session->import_list != NULL)
-                WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
+                WT_ERR(__create_file_block_manager(session, uri, filename, allocsize, filecfg));
             else
                 WT_ERR_MSG(session, ENOTSUP,
                   "%s: import without metadata_file not supported on tiered files", uri);
@@ -224,7 +333,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         }
     } else
         /* Create the file. */
-        WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
+        WT_ERR(__create_file_block_manager(session, uri, filename, allocsize, filecfg));
 
     /*
      * If creating an ordinary file, update the file ID and current version numbers and strip
@@ -233,11 +342,14 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
      */
     if (!is_metadata) {
         if (!import_repair) {
+            WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
+            fileid = __wt_generate_file_id(session, uri, is_shared);
+
             WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
               "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
-              ++S2C(session)->next_file_id, WT_BTREE_VERSION_MAX.major,
-              WT_BTREE_VERSION_MAX.minor));
+              fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
@@ -582,13 +694,24 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
                 WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
             }
 
-            sourcecfg[1] = fmt.data;
+            /*
+             * FIXME-WT-16164: __wt_config_merge expects that the config array passed to it is not
+             * sparsely populated. If the first element is NULL the config merge will not return
+             * anything useful. This ternary achieves that semantic. However there is likely a
+             * better, holistic fix here.
+             */
+            sourcecfg[config == NULL ? 0 : 1] = fmt.data;
         }
 
+        __wt_free(session, sourceconf);
         WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
         WT_ERR(__wt_schema_create(session, source, sourceconf));
 
+        __wt_free(session, cgconf);
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
+
+        __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP,
+          "before inserting a colgroup", name);
 
         if (!exists) {
             WT_ERR(__wt_metadata_insert(session, name, cgconf));
@@ -869,6 +992,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     cgname = filename = NULL;
     table = NULL;
 
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
     tablename = uri;
@@ -932,6 +1056,9 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     } else
         WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE,
+      "before inserting a file entry for table", uri);
+
     if (ncolgroups == 0) {
         len = strlen("colgroup:") + strlen(tablename) + 1;
         WT_ERR(__wt_calloc_def(session, len, &cgname));
@@ -960,6 +1087,24 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
         table = NULL;
     }
 
+    /*
+     * Update the table info in the shared metadata if this is a layered table. This has to get done
+     * after the column groups are created, so that the metadata is complete.
+     *
+     * FIXME-WT-16462 We should determine if there is a better way to determine if this is a layered
+     * table and to determine the stable component's URI. The correct logic works well with the
+     * current implementation, but may not be robust to future changes.
+     */
+    if (__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader)
+        if (__wt_config_getones(session, config, "type", &cval) == 0 &&
+          WT_CONFIG_LIT_MATCH("layered", cval)) {
+            __wt_scr_free(session, &tmp);
+            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s.wt_stable", tablename));
+            WT_ERR(__wt_disagg_enqueue_metadata_operation(
+              session, tmp->data, tablename, WT_SHARED_METADATA_CREATE));
+        }
+
 err:
     WT_TRET(__wt_schema_release_table(session, &table));
     __wt_scr_free(session, &tmp);
@@ -969,6 +1114,125 @@ err:
     __wt_free(session, filename);
     __wt_free(session, importcfg);
     __wt_free(session, tablecfg);
+    return (ret);
+}
+
+/*
+ * __create_layered --
+ *     Create a layered tree - such a tree is a pair of underlying btrees, one that holds recently
+ *     ingested data, the other a full set of stable data.
+ */
+static int
+__create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(disagg_config);
+    WT_DECL_ITEM(ingest_uri_buf);
+    WT_DECL_ITEM(stable_uri_buf);
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    char *meta_value;
+    char *tablecfg;
+    const char *constituent_cfg;
+    const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
+    const char *ingest_uri, *stable_uri, *tablename;
+    const char *layered_cfg[5] = {
+      WT_CONFIG_BASE(session, layered_meta), "", config == NULL ? "" : config, NULL, NULL};
+    const char *stable_cfg[5] = {WT_CONFIG_BASE(session, table_meta), "", config, NULL, NULL};
+
+    conn = S2C(session);
+
+    constituent_cfg = NULL;
+    tablecfg = NULL;
+    meta_value = NULL;
+
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+
+    ret = __wt_config_getones(session, config, "log.enabled", &cval);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret == 0 && cval.val > 0)
+        WT_RET_MSG(session, EINVAL, "Logging is not supported for layered.");
+
+    WT_RET(__wt_scr_alloc(session, 0, &disagg_config));
+    WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+
+    /* Check if the layered table already exists. */
+    if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
+        if (exclusive)
+            WT_TRET(EEXIST);
+        goto err;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    tablename = uri;
+    WT_PREFIX_SKIP_REQUIRED(session, tablename, "layered:");
+    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "file:%s.wt_ingest", tablename));
+    ingest_uri = ingest_uri_buf->data;
+    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
+    stable_uri = stable_uri_buf->data;
+
+    WT_ASSERT_ALWAYS(session, !F_ISSET(conn, WT_CONN_READONLY),
+      "Can't create a layered table on a read only connection");
+
+    /* Include the disaggregated storage configuration. */
+    WT_ERR(__wt_buf_fmt(session, disagg_config, "disaggregated=(page_log=%s)",
+      conn->disaggregated_storage.page_log ? conn->disaggregated_storage.page_log : ""));
+    layered_cfg[1] = disagg_config->data;
+
+    /*
+     * These settings are required. We add them after the user configuration to override any values
+     * the user might provide. Disabling logging ensures that we have timestamps on the layered
+     * table.
+     */
+    WT_ERR(__wt_buf_fmt(
+      session, tmp, "ingest=\"%s\",stable=\"%s\",log=(enabled=false)", ingest_uri, stable_uri));
+    layered_cfg[3] = tmp->data;
+
+    WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
+    WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
+
+    /* Disable logging on the ingest table to ensure we have timestamps. */
+    ingest_cfg[2] = "in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
+
+    /*
+     * Pass the full merged configuration string through. Otherwise file-specific metadata will be
+     * stripped out.
+     */
+    WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
+    WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
+    __wt_free(session, constituent_cfg);
+
+    if (conn->layered_table_manager.leader) {
+        stable_cfg[1] = disagg_config->data;
+
+        /* Disable logging on the stable table to ensure we have timestamps. */
+        stable_cfg[3] = "log=(enabled=false)";
+        WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
+        WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
+        __wt_free(session, constituent_cfg);
+
+        /*
+         * Update the shared metadata for the disaggregated storage.
+         *
+         * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a
+         * part of a table creation, it would result in doing extra work.
+         */
+        WT_ERR(__wt_disagg_enqueue_metadata_operation(
+          session, stable_uri, tablename, WT_SHARED_METADATA_CREATE));
+    }
+
+err:
+    __wt_scr_free(session, &disagg_config);
+    __wt_scr_free(session, &ingest_uri_buf);
+    __wt_scr_free(session, &stable_uri_buf);
+    __wt_scr_free(session, &tmp);
+    __wt_free(session, meta_value);
+    __wt_free(session, tablecfg);
+    __wt_free(session, constituent_cfg);
+
     return (ret);
 }
 
@@ -1001,6 +1265,9 @@ __create_object(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     WT_UNUSED(exclusive);
     cfg[1] = config;
 
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
+
     return (__tiered_metadata_insert(session, uri, cfg));
 }
 
@@ -1015,6 +1282,9 @@ __create_tiered_tree(WT_SESSION_IMPL *session, const char *uri, bool exclusive, 
 
     WT_UNUSED(exclusive);
     cfg[1] = config;
+
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
 
     return (__tiered_metadata_insert(session, uri, cfg));
 }
@@ -1033,12 +1303,18 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     char *meta_value;
     const char *cfg[5] = {WT_CONFIG_BASE(session, tiered_meta), NULL, NULL, NULL, NULL};
     const char *metadata;
-    bool free_metadata;
+    bool free_metadata, shared;
 
     conn = S2C(session);
     metadata = NULL;
     tiered = NULL;
+    shared = false;
+    meta_value = NULL;
     free_metadata = true;
+
+    /* FIXME-WT-16351: Fix the mix of WT_RET and WT_ERR */
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
 
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
@@ -1049,10 +1325,17 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     WT_RET_NOTFOUND_OK(ret);
 
     /*
+     * Make sure we're not trying to share a tiered table.
+     */
+    WT_RET(__wt_btree_shared(session, uri, cfg, &shared));
+    if (shared)
+        WT_RET_MSG(session, EINVAL, "sharing tiered tables is unsupported");
+
+    /*
      * We're creating a tiered table. Set the initial tiers list to empty. Opening the table will
      * cause us to create our first file or tiered object.
      */
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY)) {
+    if (!F_ISSET(conn, WT_CONN_READONLY)) {
         if (session->import_list != NULL) {
             WT_RET(__wt_find_import_metadata(session, uri, &metadata));
             free_metadata = false;
@@ -1065,7 +1348,8 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
             WT_ERR(__wt_buf_fmt(session, tmp,
               ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
               ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
-              conn->bstorage->bucket, conn->bstorage->bucket_prefix, ++conn->next_file_id,
+              conn->bstorage->bucket, conn->bstorage->bucket_prefix,
+              WT_BTREE_ID_NAMESPACED(++conn->next_file_id, WT_BTREE_ID_NAMESPACE_LOCAL),
               WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
             cfg[1] = tmp->data;
             cfg[2] = config;
@@ -1212,7 +1496,10 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
         /* Generate a new file ID. */
         if (import_list->entries[i].file_id != prev_file_id) {
             prev_file_id = import_list->entries[i].file_id;
-            new_file_id = ++conn->next_file_id;
+            if (WT_BTREE_ID_SHARED(prev_file_id))
+                WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
+
+            new_file_id = WT_BTREE_ID_NAMESPACED(++conn->next_file_id, WT_BTREE_ID_NAMESPACE_LOCAL);
         }
 
         /* Update config with the new file ID. */
@@ -1267,7 +1554,7 @@ __schema_create_config_check(
   WT_SESSION_IMPL *session, const char *uri, const char *config, bool import)
 {
     WT_CONFIG_ITEM cval;
-    bool file_metadata, is_tiered, tiered_name_set;
+    bool file_metadata, is_tiered, tiered_name_set, storage_tier_set;
 
     file_metadata =
       __wt_config_getones(session, config, "import.file_metadata", &cval) == 0 && cval.val != 0;
@@ -1300,6 +1587,23 @@ __schema_create_config_check(
         WT_RET_MSG(session, ENOTSUP,
           "unsupported type configuration: %.*s: type must be file for tiered storage",
           (int)cval.len, cval.str);
+
+    /* In disaggregated storage we should write everything with a timestamp. */
+    bool write_ts_never =
+      __wt_config_getones(session, config, "write_timestamp_usage", &cval) == 0 &&
+      WT_CONFIG_LIT_MATCH("never", cval);
+    if (__wt_conn_is_disagg(session) && write_ts_never)
+        WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
+          "write_timestamp_usage cannot be set to never when disaggregated storage is enabled");
+
+    /* We only support storage tier of cold in disagg mode. */
+    storage_tier_set =
+      __wt_config_getones(session, config, "disaggregated.storage_tier", &cval) == 0 &&
+      cval.len != 0;
+    if (!__wt_conn_is_disagg(session) && storage_tier_set)
+        if (strncmp("none", cval.str, cval.len) != 0)
+            WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
+              "Cold collections only supported when disaggregated storage is enabled");
 
     return (0);
 }
@@ -1365,6 +1669,8 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
         ret = __create_file(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "index:"))
         ret = __create_index(session, uri, exclusive, config);
+    else if (WT_PREFIX_MATCH(uri, "layered:"))
+        ret = __create_layered(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "object:"))
         ret = __create_object(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "table:"))
@@ -1380,7 +1686,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
         ret = __wt_bad_object_type(session, uri);
 
 err:
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
     if (clear_import_flag)
         F_CLR(session, WT_SESSION_IMPORT);
 

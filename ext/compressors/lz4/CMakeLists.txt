@@ -1,7 +1,3 @@
-project(lz4 C)
-
-include(GNUInstallDirs)
-
 config_bool(
     HAVE_BUILTIN_EXTENSION_LZ4
     "Builtin lz4 compression library."
@@ -47,5 +43,4 @@ if(ENABLE_LZ4)
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
-
 endif()

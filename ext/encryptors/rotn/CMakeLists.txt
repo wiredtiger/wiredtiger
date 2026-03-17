@@ -1,5 +1,3 @@
-project(rotn_encrypt C)
-
 set(sources "rotn_encrypt.c")
 add_library(wiredtiger_rotn MODULE ${sources})
 

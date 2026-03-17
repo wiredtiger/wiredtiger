@@ -56,25 +56,25 @@ function(define_build_mode mode)
 
     # Check if the compiler flags are available to ensure its a valid build mode.
     if(DEFINE_BUILD_C_COMPILER_FLAGS)
-        check_c_compiler_flag("${DEFINE_BUILD_C_COMPILER_FLAGS}" HAVE_BUILD_MODE_C_FLAGS)
-        if(NOT HAVE_BUILD_MODE_C_FLAGS)
+        check_c_compiler_flag("${DEFINE_BUILD_C_COMPILER_FLAGS}" HAVE_BUILD_${mode}_C_FLAGS)
+        if(NOT HAVE_BUILD_${mode}_C_FLAGS)
             message(VERBOSE "Skipping build mode definition due to unavailable C flags: ${mode}")
-            unset(HAVE_BUILD_MODE_C_FLAGS CACHE)
+            unset(HAVE_BUILD_${mode}_C_FLAGS CACHE)
             return()
         endif()
     endif()
     if(DEFINE_BUILD_CXX_COMPILER_FLAGS)
-        check_cxx_compiler_flag("${DEFINE_BUILD_CXX_COMPILER_FLAGS}" HAVE_BUILD_MODE_CXX_FLAGS)
-        if(NOT HAVE_BUILD_MODE_CXX_FLAGS)
+        check_cxx_compiler_flag("${DEFINE_BUILD_CXX_COMPILER_FLAGS}" HAVE_BUILD_${mode}_CXX_FLAGS)
+        if(NOT HAVE_BUILD_${mode}_CXX_FLAGS)
             message(VERBOSE "Skipping build mode definition due to unavailable CXX flags: ${mode}")
-            unset(HAVE_BUILD_MODE_CXX_FLAGS CACHE)
+            unset(HAVE_BUILD_MODE_${mode}_FLAGS CACHE)
             return()
         endif()
     endif()
     unset(CMAKE_REQUIRED_FLAGS)
     unset(CMAKE_REQUIRED_LIBRARIES)
-    unset(HAVE_BUILD_MODE_C_FLAGS CACHE)
-    unset(HAVE_BUILD_MODE_CXX_FLAGS CACHE)
+    unset(HAVE_BUILD_${mode}_C_FLAGS CACHE)
+    unset(HAVE_BUILD_${mode}_CXX_FLAGS CACHE)
 
     string(REPLACE ";" " " c_flags "${DEFINE_BUILD_C_COMPILER_FLAGS}")
     string(REPLACE ";" " " cxx_flags "${DEFINE_BUILD_CXX_COMPILER_FLAGS}")
@@ -110,25 +110,21 @@ function(define_build_mode mode)
     set(BUILD_MODES "${BUILD_MODES};${mode}" CACHE INTERNAL "")
 endfunction()
 
-if(MSVC)
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     set(no_omit_frame_flag "/Oy-")
 else()
     set(no_omit_frame_flag "-fno-omit-frame-pointer")
 endif()
 
 # ASAN build variant flags.
-if(MSVC)
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     set(asan_link_flags "/fsanitize=address")
     set(asan_compiler_c_flag "/fsanitize=address")
     set(asan_compiler_cxx_flag "/fsanitize=address")
-    set(asan_lib_flags "")
 else()
-    set(asan_compiler_c_flag "-fsanitize=address")
-    set(asan_compiler_cxx_flag "-fsanitize=address")
+    set(asan_compiler_c_flag "-fsanitize=address -shared-libasan")
+    set(asan_compiler_cxx_flag "-fsanitize=address -shared-libasan")
     set(asan_link_flags "-fsanitize=address")
-    if(GNU_C_COMPILER AND GNU_CXX_COMPILER)
-        set(asan_lib_flags "-static-libasan")
-    endif()
 endif()
 
 
@@ -152,7 +148,6 @@ define_build_mode(ASan
     C_COMPILER_FLAGS ${asan_compiler_c_flag} ${no_omit_frame_flag}
     CXX_COMPILER_FLAGS ${asan_compiler_cxx_flag} ${no_omit_frame_flag}
     LINK_FLAGS ${asan_link_flags}
-    LIBS ${asan_lib_flags}
 )
 
 define_build_mode(UBSan
@@ -193,6 +188,7 @@ define_build_mode(Coverage
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${BUILD_MODES})
 endif()
 
 if(CMAKE_BUILD_TYPE)
@@ -202,25 +198,3 @@ if(CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CONFIGURATION_TYPES ${BUILD_MODES})
-
-# We want to use the optimization level from CC_OPTIMIZE_LEVEL and our DEBUG settings as well.
-# Remove the default values from Release and RelWithDebInfo.
-if("${WT_OS}" STREQUAL "windows")
-    string(REPLACE "/O3" "" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
-    string(REPLACE "/O3" "" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-    string(REPLACE "/Z7" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
-    string(REPLACE "/Z7" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-    string(REPLACE "/O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
-    string(REPLACE "/O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-else()
-    string(REPLACE "-O3" "" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
-    string(REPLACE "-O3" "" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-    string(REPLACE "-O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
-    string(REPLACE "-O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-    string(REPLACE "-g" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
-    string(REPLACE "-g" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-endif()
-
-if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
-    add_compile_options(-fno-strict-aliasing)
-endif()

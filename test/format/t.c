@@ -126,7 +126,7 @@ format_process_env(void)
  * locks_init --
  *     Initialize locks to single-thread backups and timestamps.
  */
-static void
+void
 locks_init(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
@@ -177,7 +177,7 @@ main(int argc, char *argv[])
     READ_SCAN_ARGS scan_args;
     WT_DECL_RET;
     uint64_t now, start;
-    u_int ops_seconds, reps;
+    u_int leader_ops_seconds, ops_seconds, reps;
     int ch;
     const char *config, *home;
     bool is_backup, quiet_flag, verify_only;
@@ -238,19 +238,13 @@ main(int argc, char *argv[])
         }
     argv += __wt_optind;
 
-    /* format.sh looks for this line in the log file, push it out quickly. */
-    if (!syntax_check) {
-        printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
-        fflush(stdout);
-    }
-
     /*
      * Initialize the RNGs. This is needed early because some random decisions are made while
      * reading configuration. There may be random seeds in the configuration, however, so we will
      * reinitialize the RNGs later.
      */
-    __wt_random_init_default(&g.data_rnd);
-    __wt_random_init_default(&g.extra_rnd);
+    __wt_random_init(NULL, &g.data_rnd);
+    __wt_random_init(NULL, &g.extra_rnd);
 
     /* Initialize lock to ensure single threading during failure handling. */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
@@ -310,6 +304,21 @@ main(int argc, char *argv[])
     if (quiet_flag || !isatty(1))
         GV(QUIET) = 1;
 
+    /* Configure the random number generators. */
+    config_random_generators();
+
+    /*
+     * If disagg is enabled in multi-node, this call forks additional follower processes. Code that
+     * follows runs in each process.
+     */
+    disagg_setup_multi_node();
+
+    /* format.sh looks for this line in the log file, push it out quickly. */
+    if (!syntax_check) {
+        printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
+        fflush(stdout);
+    }
+
     /* Configure the run. */
     config_run();
     g.configured = true;
@@ -334,12 +343,16 @@ main(int argc, char *argv[])
         if (access(g.home_backup, F_OK) == 0)
             is_backup = true;
         wts_open(g.home, &g.wts_conn, !is_backup);
+        /* For disagg follower node pick up the latest checkpoint. */
+        if (g.disagg_storage_config && !g.disagg_leader)
+            follower_read_latest_checkpoint();
         timestamp_init();
         /* Update the oldest and stable timestamps if they have been previously set. */
         ret = timestamp_query("get=oldest_timestamp", &g.oldest_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         ret = timestamp_query("get=stable_timestamp", &g.stable_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+        locks_init(g.wts_conn);
     } else {
         wts_create_home();
         config_print(false);
@@ -348,8 +361,7 @@ main(int argc, char *argv[])
         wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
     }
-
-    locks_init(g.wts_conn);
+    wts_prepare_discover(g.wts_conn);
 
     /*
      * Initialize key/value information. Load and verify initial records (at least a brief scan if
@@ -379,8 +391,25 @@ main(int argc, char *argv[])
      * time and then don't check for timer expiration once the main operations loop completes.
      */
     ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
-    for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
-        operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
+    if (!disagg_is_mode_switch())
+        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
+            operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
+    else {
+        /*
+         * In disagg "switch" mode, we alternate between leader and follower roles. The follower
+         * runs only for a short, fixed duration (i.e. DISAGG_SWITCH_FOLLOWER_OPS_SEC), as it's
+         * expected to generate minimal cache activity. Content written in follower mode is not
+         * evictable, extended time in this role can lead to cache overflow. The leader occupies the
+         * remaining time.
+         */
+        leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_SWITCH_FOLLOWER_OPS_SEC) : 0;
+
+        for (reps = 1; reps <= (FORMAT_OPERATION_REPS * 2); ++reps) {
+            ops_seconds = g.disagg_leader ? leader_ops_seconds : DISAGG_SWITCH_FOLLOWER_OPS_SEC;
+            operations(ops_seconds, reps, (FORMAT_OPERATION_REPS * 2));
+            disagg_switch_roles();
+        }
+    }
 
     /* Copy out the run's statistics. */
     TIMED_MAJOR_OP(wts_stats());
@@ -404,6 +433,8 @@ skip_operations:
         TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
 
     trace_teardown();
+
+    disagg_teardown_multi_node();
 
     /* Overwrite the progress line with a completion line. */
     if (!GV(QUIET))

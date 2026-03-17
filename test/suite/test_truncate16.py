@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 #
 # Make sure that no shenanigans occur if we try to read from a page that's been
 # fast-truncated by a prepared transaction.
-
+# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate16(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
@@ -49,10 +50,8 @@ class test_truncate16(wttest.WiredTigerTestCase):
         #('remove', dict(trunc_with_remove=True)),
     ]
     format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
+        ('column', dict(key_format='r', extraconfig='')),
+        ('integer_row', dict(key_format='i', extraconfig='')),
     ]
     checkpoint_values = [
         ('no_checkpoint', dict(do_checkpoint=False)),
@@ -98,16 +97,12 @@ class test_truncate16(wttest.WiredTigerTestCase):
         # Create a table.
         uri = "table:truncate16"
         ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
+            self, uri, 0, key_format=self.key_format, value_format='S',
             config=self.extraconfig)
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -141,15 +136,14 @@ class test_truncate16(wttest.WiredTigerTestCase):
         self.assertEqual(err, 0)
         session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
 
-        # Make sure we did at least one fast-delete. (Unless we specifically didn't want to,
-        # or running on FLCS where it isn't supported.)
+        # Make sure we did at least one fast-delete. (Unless we specifically didn't want to)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         if self.runningHook('tiered'):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t' or self.trunc_with_remove:
+        elif self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)
@@ -176,7 +170,7 @@ class test_truncate16(wttest.WiredTigerTestCase):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t' or self.trunc_with_remove:
+        elif self.trunc_with_remove:
             self.assertEqual(read_deleted, 0)
         else:
             self.assertEqual(read_deleted, 1)

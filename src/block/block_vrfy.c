@@ -179,12 +179,14 @@ err:
  *     End file verification.
  */
 int
-__wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
+__wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block, bool verify_success)
 {
     WT_DECL_RET;
 
-    /* Confirm we verified every file block. */
-    ret = __verify_filefrag_chk(session, block);
+    /* Only run file fragments check if verify didn't exit early due to any error. */
+    if (verify_success)
+        /* Confirm we verified every file block. */
+        ret = __verify_filefrag_chk(session, block);
 
     block->verify = false;
     block->verify_strict = false;
@@ -298,12 +300,13 @@ __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
  *     Verify work done when a checkpoint is unloaded.
  */
 int
-__wti_verify_ckpt_unload(WT_SESSION_IMPL *session, WT_BLOCK *block)
+__wti_verify_ckpt_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool skip_verify)
 {
     WT_DECL_RET;
 
-    /* Confirm we verified every checkpoint block. */
-    ret = __verify_ckptfrag_chk(session, block);
+    if (!skip_verify)
+        /* Confirm we verified every checkpoint block. */
+        ret = __verify_ckptfrag_chk(session, block);
 
     /* Discard the per-checkpoint fragment list. */
     __wt_free(session, block->fragckpt);
@@ -426,9 +429,6 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
             __bit_set(block->fragfile, last);
         }
 
-        if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
-            continue;
-
         __wt_errx(session, "file range %" PRIuMAX "-%" PRIuMAX " never verified",
           (uintmax_t)WT_FRAG_TO_OFF(block, first), (uintmax_t)WT_FRAG_TO_OFF(block, last));
     }
@@ -436,6 +436,9 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
         return (0);
 
     __wt_errx(session, "file ranges never verified: %" PRIu64, count);
+
+    __wti_block_extlist_dump_all(session, block);
+
     return (block->verify_strict ? WT_ERROR : 0);
 }
 
@@ -511,9 +514,6 @@ __verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
             __bit_clear(block->fragckpt, last);
         }
 
-        if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
-            continue;
-
         __wt_errx(session, "checkpoint range %" PRIuMAX "-%" PRIuMAX " never verified",
           (uintmax_t)WT_FRAG_TO_OFF(block, first), (uintmax_t)WT_FRAG_TO_OFF(block, last));
     }
@@ -522,5 +522,8 @@ __verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
         return (0);
 
     __wt_errx(session, "checkpoint ranges never verified: %" PRIu64, count);
+
+    __wti_block_extlist_dump_all(session, block);
+
     return (block->verify_strict ? WT_ERROR : 0);
 }

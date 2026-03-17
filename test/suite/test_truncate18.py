@@ -58,7 +58,8 @@ from wtscenario import make_scenarios
 # That currently asserts. The fix for this is likely to disable the optimization when in
 # verify, so the only real purpose of this test is to prevent the behavior from regressing.
 # It is therefore not full of scenarios but specific to this one problem.
-
+# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate18(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
@@ -72,8 +73,8 @@ class test_truncate18(wttest.WiredTigerTestCase):
         #('remove', dict(trunc_with_remove=True)),
     ]
     format_values = [
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
+        ('integer_row', dict(key_format='i', extraconfig='')),
+        ('column', dict(key_format='r', extraconfig='')),
     ]
     trunc_range_values = [
         ('front', dict(truncate_front=True)),
@@ -123,16 +124,12 @@ class test_truncate18(wttest.WiredTigerTestCase):
         # Create a table.
         uri = "table:truncate18"
         ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
+            self, uri, 0, key_format=self.key_format, value_format='S',
             config='internal_page_max=4096' + self.extraconfig)
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -165,15 +162,14 @@ class test_truncate18(wttest.WiredTigerTestCase):
         err = self.truncate(ds.uri, ds.key, start_key, end_key, 15, 20)
         self.assertEqual(err, 0)
 
-        # Make sure we did at least one fast-delete. (Unless we specifically didn't want to,
-        # or running on FLCS where it isn't supported.)
+        # Make sure we did at least one fast-delete. (Unless we specifically didn't want to)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         if self.runningHook('tiered'):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t' or self.trunc_with_remove:
+        elif self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)
@@ -215,4 +211,4 @@ class test_truncate18(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         # Now verify the tree. In the problem scenario described above, this will assert.
-        self.session.verify(ds.uri, None)
+        self.verifyUntilSuccess(uri=ds.uri)

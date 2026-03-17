@@ -1,9 +1,3 @@
-project(csuite)
-
-include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
-
-set(c_tests)
-
 define_c_test(
     TARGET test_wt10461_skip_list_stress
     SOURCES wt10461_skip_list_stress/main.c
@@ -381,7 +375,7 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET wt13867_interrupt_eviction_handler
+    TARGET test_wt13867_interrupt_eviction_handler
     SOURCES wt13867_interrupt_eviction_handler/main.c
     DIR_NAME wt13867_interrupt_eviction_handler
     ARGUMENTS

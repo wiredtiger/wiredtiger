@@ -35,8 +35,48 @@ extern "C" {
 
 #include "model/kv_database.h"
 #include "model/kv_transaction.h"
+#include "model/util.h"
 
 namespace model {
+
+/*
+ * kv_database::_default_config --
+ *     The default database configuration.
+ */
+const kv_database_config kv_database::_default_config;
+
+/*
+ * kv_database_config::kv_database_config --
+ *     Create the default database configuration.
+ */
+kv_database_config::kv_database_config()
+{
+    disaggregated = false;
+    leader = true;
+}
+
+/*
+ * kv_database_config::from_string --
+ *     Create the configuration from a string. Throw an exception on error.
+ */
+kv_database_config
+kv_database_config::from_string(const std::string &config)
+{
+    kv_database_config r;
+
+    config_map m = config_map::from_string(config);
+    std::vector<std::string> keys = m.keys();
+    for (std::string &k : keys) {
+        if (k == "disaggregated")
+            r.disaggregated = m.get_bool(k.c_str());
+        else if (k == "leader")
+            r.leader = m.get_bool(k.c_str());
+        else
+            throw std::runtime_error("Invalid database configuration key: " + k);
+    }
+
+    return r;
+}
 
 /*
  * kv_database::create_table --
@@ -64,7 +104,8 @@ kv_database::create_table(const char *name, const kv_table_config &config)
 kv_checkpoint_ptr
 kv_database::create_checkpoint(const char *name)
 {
-    return create_checkpoint(name, txn_snapshot(), _oldest_timestamp, _stable_timestamp);
+    return create_checkpoint(
+      name, txn_snapshot(k_txn_none, true), _oldest_timestamp, _stable_timestamp);
 }
 
 /*
@@ -107,15 +148,9 @@ kv_database::create_checkpoint_nolock(const char *name, kv_transaction_snapshot_
     if (stable_timestamp == k_timestamp_none)
         oldest_timestamp = k_timestamp_none;
 
-    /* Get the highest recno for each FLCS table. */
-    std::map<std::string, uint64_t> highest_recnos;
-    for (auto &p : _tables)
-        if (p.second->type() == kv_table_type::column_fix)
-            highest_recnos[p.first] = p.second->highest_recno();
-
     /* Create the checkpoint. */
-    kv_checkpoint_ptr ckpt = std::make_shared<kv_checkpoint>(
-      name, snapshot, oldest_timestamp, stable_timestamp, std::move(highest_recnos));
+    kv_checkpoint_ptr ckpt =
+      std::make_shared<kv_checkpoint>(name, snapshot, oldest_timestamp, stable_timestamp);
 
     /* Remember it. */
     _checkpoints[ckpt_name] = ckpt;
@@ -173,10 +208,10 @@ kv_database::remove_inactive_transaction(txn_id_t id)
  *     Create a transaction snapshot.
  */
 kv_transaction_snapshot_ptr
-kv_database::txn_snapshot(txn_id_t do_not_exclude)
+kv_database::txn_snapshot(txn_id_t do_not_exclude, bool is_checkpoint)
 {
     std::lock_guard lock_guard(_transactions_lock);
-    return txn_snapshot_nolock(do_not_exclude);
+    return txn_snapshot_nolock(do_not_exclude, is_checkpoint);
 }
 
 /*
@@ -184,15 +219,29 @@ kv_database::txn_snapshot(txn_id_t do_not_exclude)
  *     Create a transaction snapshot. Do not lock, because the caller already has a lock.
  */
 kv_transaction_snapshot_ptr
-kv_database::txn_snapshot_nolock(txn_id_t do_not_exclude)
+kv_database::txn_snapshot_nolock(txn_id_t do_not_exclude, bool is_checkpoint)
 {
     std::unordered_set<txn_id_t> active_txn_ids;
     for (auto &p : _active_transactions) {
         if (p.first == do_not_exclude)
             continue;
         kv_transaction_state state = p.second->state();
-        if (state != kv_transaction_state::committed && state != kv_transaction_state::rolled_back)
+
+        if (state == kv_transaction_state::prepared) {
+            /*
+             * Checkpoints should ignore prepared transactions. They are not restored during
+             * recovery.
+             */
+            if (is_checkpoint)
+                active_txn_ids.insert(p.first);
+        } else if (state == kv_transaction_state::in_progress) {
+            /*
+             * Outside of checkpoints, prepared transactions can be visible under some
+             * circumstances, and the specific read / update / etc operations should handle the
+             * possibility of prepared transactions.
+             */
             active_txn_ids.insert(p.first);
+        }
     }
     return std::make_shared<kv_transaction_snapshot_by_exclusion>(
       _last_transaction_id, std::move(active_txn_ids));
@@ -326,10 +375,7 @@ kv_database::start_nolock()
     if (t == k_timestamp_none)
         t = k_timestamp_latest;
 
-    /* Restore highest recnos for each FLCS. */
-    for (auto &p : ckpt->highest_recnos())
-        table_nolock(p.first)->truncate_recnos_after(p.second);
-
+    /* Run RTS, even for disaggregated storage, which is a way to simulate precise checkpoints. */
     rollback_to_stable_nolock(t, ckpt->snapshot());
 }
 

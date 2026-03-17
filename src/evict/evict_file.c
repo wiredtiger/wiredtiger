@@ -51,6 +51,10 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     /* Make sure the oldest transaction ID is up-to-date. */
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && syncop == WT_SYNC_DISCARD &&
+      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) && !__wt_btree_can_discard(session))
+        WT_RET(__wt_set_return(session, EBUSY));
+
     /* Walk the tree, discarding pages. */
     walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
@@ -83,7 +87,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * history.
              */
             rec_flags = WT_REC_EVICT | WT_REC_EVICT_CALL_CLOSING | WT_REC_CLEAN_AFTER_REC |
-              WT_REC_VISIBLE_ALL;
+              WT_REC_VISIBLE_NO_SNAPSHOT;
             if (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(dhandle))
                 rec_flags |= WT_REC_HS;
             WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags));
@@ -105,13 +109,18 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             break;
         case WT_SYNC_DISCARD:
             /*
-             * Discard the page whether it is dirty or not. The check if the page can be evicted is
-             * not exhaustive, but provides basic checking on the page's status.
+             * Discard the page regardless of whether it is dirty or clean. The check to determine
+             * if the page can be evicted is not comprehensive but performs basic validation of the
+             * page's status. In the disaggregated architecture, there may be situations where a
+             * file needs to be closed even if its pages have not been fully materialized. In such
+             * cases, return an error to ensure the pages remain readable later. Otherwise, you risk
+             * losing access to those pages upon attempting retrieval.
              */
-            WT_ASSERT(session,
+            WT_ASSERT_ALWAYS(session,
               F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
                 F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) ||
-                __wt_page_can_evict(session, ref, NULL));
+                __wt_page_can_evict(session, ref, NULL),
+              "Page should be evictable during discard");
             __wt_ref_out(session, ref);
             break;
         case WT_SYNC_CHECKPOINT:

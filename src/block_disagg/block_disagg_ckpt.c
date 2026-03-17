@@ -1,0 +1,250 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#include "wt_internal.h"
+
+/*
+ * __bmd_checkpoint_pack_raw --
+ *     This function needs to do two things: Create a recovery point in the object store underlying
+ *     this table and create an address cookie that is saved to the metadata (and used to find the
+ *     checkpoint again).
+ */
+static int
+__bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *session,
+  WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, WT_CKPT *ckpt)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
+    uint32_t checksum, size;
+    uint8_t *endp;
+
+    WT_ASSERT(session, block_meta != NULL);
+    WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
+
+    /*
+     * Write the root page out, and get back the address information for that page which will be
+     * written into the block manager checkpoint cookie.
+     */
+    if (root_image == NULL) {
+        ckpt->raw.data = NULL;
+        ckpt->raw.size = 0;
+    } else {
+        /* Copy the checkpoint information into the checkpoint. */
+        WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
+        endp = ckpt->raw.mem;
+        __wt_page_header_byteswap((void *)root_image->data);
+        /*
+         * In disaggregated storage, checkpoint cookie is the same as address cookie of the root
+         * page, and currently we rely on this assumption to discard older checkpoint root page when
+         * the checkpoint becomes redundant.
+         */
+        WT_RET(__wti_block_disagg_write_internal(session, block_disagg, root_image, block_meta,
+          page_image_size, &size, &checksum, true, true));
+        __wt_page_header_byteswap((void *)root_image->data);
+
+        /* Initialize and pack the address cookie for the root page. */
+        WT_CLEAR(root_cookie);
+        root_cookie.page_id = block_meta->page_id;
+        root_cookie.flags = 0;
+        root_cookie.lsn = block_meta->disagg_lsn;
+        root_cookie.base_lsn = block_meta->base_lsn;
+        root_cookie.size = size;
+        root_cookie.checksum = checksum;
+        WT_RET(__wti_block_disagg_ckpt_pack(session, block_disagg, &endp, &root_cookie));
+
+        ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Checkpoint root page: root_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64
+          " root_size=%" PRIu32 " root_checksum=%" PRIx32,
+          block_meta->page_id, block_meta->disagg_lsn, block_meta->base_lsn, size, checksum);
+    }
+    /*
+     * Set the checkpoint size here after all writes are complete. We set it at this point because
+     * we don't expect the size to change until it gets written to metadata, allowing us to validate
+     * consistency.
+     */
+    ckpt->size = __wt_atomic_load_uint64(&S2BT(session)->bytes_total);
+
+    return (0);
+}
+
+/*
+ * __wti_block_disagg_checkpoint --
+ *     This function needs to do three things: Create a recovery point in the object store
+ *     underlying this table and create an address cookie that is saved to the metadata (and used to
+ *     find the checkpoint again) and save the content of the binary data added as a root page that
+ *     can be retrieved to start finding content for the tree.
+ */
+int
+__wti_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
+  WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckptbase, bool data_checksum)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_CKPT *ckpt;
+
+    WT_UNUSED(data_checksum);
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+
+    /*
+     * Generate a checkpoint cookie used to find the checkpoint again (and distinguish it from a
+     * fake checkpoint).
+     */
+    WT_CKPT_FOREACH (ckptbase, ckpt)
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            WT_RET(__bmd_checkpoint_pack_raw(block_disagg, session, root_image, block_meta,
+              root_image == NULL ? 0 : root_image->size, ckpt));
+
+    return (0);
+}
+
+/*
+ * __block_disagg_checkpoint_resolve --
+ *     Resolve the checkpoint. Assumes that the relevant locks are already acquired.
+ */
+static int
+__block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *md_cursor;
+    WT_DECL_RET;
+    size_t len;
+    uint64_t checkpoint_timestamp;
+    char *stable_uri, *table_name;
+    const char *md_value;
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    conn = S2C(session);
+
+    md_cursor = NULL;
+    stable_uri = NULL;
+    table_name = NULL;
+
+    /*
+     * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
+     * related to the given shared table, e.g., the various file, colgroup, table, and layered
+     * entries.
+     */
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    if (failed)
+        return (0);
+
+    /* Allocate a buffer for the metadata key and for the table name. */
+    len = strlen("file:") + strlen(block_disagg->name) + 4;
+    WT_ERR(__wt_calloc_def(session, len, &stable_uri));
+    WT_ERR(__wt_calloc_def(session, len, &table_name));
+
+    /* Construct the URI of the stable/shared table. */
+    WT_ERR(__wt_snprintf(stable_uri, len, "file:%s", block_disagg->name));
+
+    /*
+     * Store the metadata of regular shared tables in the shared metadata table. Store the metadata
+     * of the shared metadata table in the system-level metadata (similar to the turtle file).
+     */
+    if (strcmp(block_disagg->name, WT_DISAGG_METADATA_FILE) == 0) {
+        /* Get the metadata of the stable/shared table. */
+        WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+        md_cursor->set_key(md_cursor, stable_uri);
+        WT_ERR(md_cursor->search(md_cursor));
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+
+        /*
+         * Gather any updated key encryption information so it can be written into the shared
+         * metadata table.
+         */
+        if (conn->key_provider != NULL)
+            WT_ERR(__wt_disagg_put_crypt_helper(session));
+
+        /* Get the config we want to print to the metadata file */
+        WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
+        checkpoint_timestamp = conn->disaggregated_storage.cur_checkpoint_timestamp;
+        WT_ERR(__wt_disagg_put_checkpoint_meta(session, cval.str, cval.len, checkpoint_timestamp));
+    } else {
+        /* Extract the table/layered component name, if applicable. */
+        if (WT_SUFFIX_MATCH(block_disagg->name, ".wt")) {
+            WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
+            table_name[strlen(table_name) - 3] = '\0'; /* Remove the .wt suffix */
+        } else if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
+            WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
+            table_name[strlen(table_name) - 10] = '\0'; /* Remove the .wt_stable suffix */
+        } else
+            /* This can happen if the "file:" is created without a suffix in our tests. */
+            WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
+
+        /* Remember the metadata of the stable/shared table. */
+        WT_SAVE_DHANDLE(session,
+          ret = __wt_disagg_enqueue_metadata_operation(
+            session, stable_uri, table_name, WT_SHARED_METADATA_UPDATE));
+        WT_ERR(ret);
+    }
+
+err:
+    __wt_free(session, stable_uri);
+    __wt_free(session, table_name);
+
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+
+    return (ret);
+}
+
+/*
+ * __wti_block_disagg_checkpoint_resolve --
+ *     Resolve the checkpoint.
+ */
+int
+__wti_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
+{
+    WT_DECL_RET;
+    WT_WITH_SCHEMA_LOCK(session, ret = __block_disagg_checkpoint_resolve(bm, session, failed));
+    return (ret);
+}
+
+/*
+ * __wti_block_disagg_checkpoint_load --
+ *     Load a checkpoint. This involves (1) cracking the checkpoint cookie open (2) loading the root
+ *     page from the object store, (3) re-packing the root page's address cookie into root_addr.
+ */
+int
+__wti_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr,
+  size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
+    uint8_t *endp;
+
+    WT_UNUSED(session);
+    WT_UNUSED(addr_size);
+    WT_UNUSED(checkpoint);
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+
+    *root_addr_sizep = 0;
+
+    if (addr == NULL || addr_size == 0)
+        return (0);
+
+    WT_RET(__wti_block_disagg_ckpt_unpack(session, block_disagg, addr, addr_size, &root_cookie));
+
+    /*
+     * Read root page address.
+     */
+    endp = root_addr;
+    WT_RET(__wti_block_disagg_addr_pack(session, &endp, &root_cookie));
+    *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
+
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Loading checkpoint: root_id=%" PRIu64 " flags=%" PRIx64 " lsn=%" PRIu64 " base_lsn=%" PRIu64
+      " root_size=%" PRIu32 " root_checksum=%" PRIx32,
+      root_cookie.page_id, root_cookie.flags, root_cookie.lsn, root_cookie.base_lsn,
+      root_cookie.size, root_cookie.checksum);
+
+    return (0);
+}

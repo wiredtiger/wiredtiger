@@ -36,11 +36,11 @@ from wtscenario import filter_scenarios, make_scenarios
 class test_overwrite(wttest.WiredTigerTestCase):
     name = 'overwrite'
     keyfmt = [
-        ('fix', dict(keyfmt='r',valuefmt='8t')),
-        ('row', dict(keyfmt='S',valuefmt='S')),
-        ('row-int', dict(keyfmt='i',valuefmt='S')),
-        ('var', dict(keyfmt='r',valuefmt='S')),
+        ('row', dict(keyfmt='S')),
+        ('row-int', dict(keyfmt='i')),
+        ('var', dict(keyfmt='r')),
     ]
+    valuefmt = 'S'
     types = [
         ('file', dict(uri='file:', ds=SimpleDataSet)),
         ('table-complex', dict(uri='table:', ds=ComplexDataSet)),
@@ -78,9 +78,12 @@ class test_overwrite(wttest.WiredTigerTestCase):
         # duplicate a cursor pointing to non-existent records.
         cursor = ds.open_cursor(uri, None, self.cursor_cfg)
         cursor.set_key(ds.key(5))
-        dupc = self.session.open_cursor(None, cursor, "overwrite=true")
-        dupc.set_value(ds.value(1001))
-        self.assertEqual(dupc.insert(), 0)
+        if 'layered:' in cursor.uri:
+            self.pr("skipping duplicate cursor testing with layered tables")
+        else:
+            dupc = self.session.open_cursor(None, cursor, "overwrite=true")
+            dupc.set_value(ds.value(1001))
+            self.assertEqual(dupc.insert(), 0)
 
         # Insert of an existing record with overwrite on succeeds.
         cursor = ds.open_cursor(uri, None)

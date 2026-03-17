@@ -17,6 +17,7 @@
 
 #include "../utils_extlist.h"
 #include "wt_internal.h"
+#include "../../wrappers/mock_session.h"
 
 using namespace utils;
 
@@ -62,7 +63,7 @@ struct SizeListWrapper {
     std::vector<WT_SIZE *> _raw_list;
 };
 
-std::unique_ptr<ExtentWrapper>
+static std::unique_ptr<ExtentWrapper>
 create_new_ext()
 {
     /*
@@ -76,7 +77,7 @@ create_new_ext()
     return std::make_unique<ExtentWrapper>(raw);
 }
 
-std::unique_ptr<SizeWrapper>
+static std::unique_ptr<SizeWrapper>
 create_new_sz()
 {
     auto raw = (WT_SIZE *)malloc(sizeof(WT_SIZE));
@@ -94,7 +95,7 @@ create_new_sz()
  * ...
  * L9: X
  */
-void
+static void
 create_default_test_extent_list(ExtentListWrapper &wrapper)
 {
     auto &head = wrapper._list;
@@ -117,7 +118,7 @@ create_default_test_extent_list(ExtentListWrapper &wrapper)
 }
 
 // As above, but for a size list.
-void
+static void
 create_default_test_size_list(SizeListWrapper &wrapper)
 {
     auto &head = wrapper._list;
@@ -307,6 +308,8 @@ TEST_CASE("Extent Lists: block_off_srch", "[extent_list]")
 TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
 {
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
+    std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
 
     /*
      * Note that we're not checking stack here, since __block_first_srch delegates most of its work
@@ -317,7 +320,7 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
     {
         std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
 
-        REQUIRE(__ut_block_first_srch(&head[0], 0, &stack[0]) == false);
+        REQUIRE(__ut_block_first_srch(session, &head[0], 0, &stack[0]) == false);
     }
 
     SECTION("list with too-small chunks doesn't yield a larger chunk")
@@ -331,7 +334,7 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
         head[1]->size = 2;
         head[2]->size = 3;
 
-        REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == false);
+        REQUIRE(__ut_block_first_srch(session, &head[0], 4, &stack[0]) == false);
     }
 
     SECTION("find an appropriate chunk")
@@ -345,7 +348,7 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
         head[1]->size = 20;
         head[2]->size = 30;
 
-        REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == true);
+        REQUIRE(__ut_block_first_srch(session, &head[0], 4, &stack[0]) == true);
     }
 }
 

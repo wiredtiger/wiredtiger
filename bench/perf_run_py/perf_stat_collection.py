@@ -49,6 +49,72 @@ class PerfStatCollection:
             values = stat.find_stat(test_stat_path=test_stat_path)
             stat.add_values(values=values)
 
+
+    @staticmethod
+    def cache_eviction_stats():
+        return [
+            PerfStat(short_label="app_dirty_attempt",
+                     stat_file='cache_eviction.stat',
+                     pattern=r'App evict dirty attempts\s+:\s+\d+',
+                     input_offset=5,
+                     output_label='App evict dirty attempts'),
+            PerfStat(short_label="app_attempt",
+                     stat_file='cache_eviction.stat',
+                     pattern=r'App evict clean attempts\s+:\s+\d+',
+                     input_offset=5,
+                     output_label='App evict clean attempts'),
+            PerfStat(short_label="trigger_updates",
+                     stat_file='cache_eviction.stat',
+                     pattern=r'Cache updates trigger\s+:\s+\d+',
+                     input_offset=4,
+                     output_label='Cache updates trigger'),
+            PerfStat(short_label="trigger_dirty",
+                     stat_file='cache_eviction.stat',
+                     pattern=r'Cache dirty trigger\s+:\s+\d+',
+                     input_offset=4,
+                     output_label='Cache dirty trigger'),
+            PerfStat(short_label="read_ops",
+                     stat_file='workload.stat',
+                     pattern=r'Executed \d+ read operations \(\d+%\) \d+ ops',
+                     input_offset=5,
+                     output_label='Read ops per sec'),
+            PerfStat(short_label="update_ops",
+                     stat_file='workload.stat',
+                     pattern=r'Executed \d+ update operations \(\d+%\) \d+ ops',
+                     input_offset=5,
+                     output_label='Update ops per sec'),
+            PerfStat(short_label="read_latency_us",
+                     stat_file='latency.stat',
+                     pattern=r'read us count : = \d+',
+                     input_offset=5,
+                     output_label='Read count under ms'),
+            PerfStat(short_label="read_latency_ms",
+                     stat_file='latency.stat',
+                     pattern=r'read ms count : = \d+',
+                     input_offset=5,
+                     output_label='Read count under sec'),
+            PerfStat(short_label="read_latency_sec",
+                     stat_file='latency.stat',
+                     pattern=r'read sec count : = \d+',
+                     input_offset=5,
+                     output_label='Read count over sec'),
+            PerfStat(short_label="update_latency_us",
+                     stat_file='latency.stat',
+                     pattern=r'update us count : = \d+',
+                     input_offset=5,
+                     output_label='Update count under ms'),
+            PerfStat(short_label="update_latency_ms",
+                     stat_file='latency.stat',
+                     pattern=r'update ms count : = \d+',
+                     input_offset=5,
+                     output_label='Update count under sec'),
+            PerfStat(short_label="update_latency_sec",
+                     stat_file='latency.stat',
+                     pattern=r'update sec count : = \d+',
+                     input_offset=5,
+                     output_label='Update count over sec'),
+            ]
+
     @staticmethod
     def all_stats():
         return [
@@ -177,4 +243,4 @@ class PerfStatCollection:
                                    input_offset=11),
             PerfStatDBSize(short_label="database_size",
                            output_label='Database Size (in bytes)')
-        ]
+        ] + PerfStatCollection.cache_eviction_stats()

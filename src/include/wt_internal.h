@@ -79,6 +79,8 @@ struct __wt_backup_target;
 typedef struct __wt_backup_target WT_BACKUP_TARGET;
 struct __wt_blkcache;
 typedef struct __wt_blkcache WT_BLKCACHE;
+struct __wt_blkcache_delta;
+typedef struct __wt_blkcache_delta WT_BLKCACHE_DELTA;
 struct __wt_blkcache_item;
 typedef struct __wt_blkcache_item WT_BLKCACHE_ITEM;
 struct __wt_blkincr;
@@ -89,12 +91,14 @@ struct __wt_block_ckpt;
 typedef struct __wt_block_ckpt WT_BLOCK_CKPT;
 struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
+struct __wt_block_disagg;
+typedef struct __wt_block_disagg WT_BLOCK_DISAGG;
+struct __wt_block_disagg_address_cookie;
+typedef struct __wt_block_disagg_address_cookie WT_BLOCK_DISAGG_ADDRESS_COOKIE;
+struct __wt_block_disagg_header;
+typedef struct __wt_block_disagg_header WT_BLOCK_DISAGG_HEADER;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
-struct __wt_bloom;
-typedef struct __wt_bloom WT_BLOOM;
-struct __wt_bloom_hash;
-typedef struct __wt_bloom_hash WT_BLOOM_HASH;
 struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
@@ -103,16 +107,24 @@ struct __wt_bucket_storage;
 typedef struct __wt_bucket_storage WT_BUCKET_STORAGE;
 struct __wt_cache;
 typedef struct __wt_cache WT_CACHE;
+struct __wt_cache_eviction_controls;
+typedef struct __wt_cache_eviction_controls WT_CACHE_EVICTION_CONTROLS;
 struct __wt_cache_pool;
 typedef struct __wt_cache_pool WT_CACHE_POOL;
 struct __wt_capacity;
 typedef struct __wt_capacity WT_CAPACITY;
 struct __wt_cell;
 typedef struct __wt_cell WT_CELL;
+struct __wt_cell_kv;
+typedef struct __wt_cell_kv WT_CELL_KV;
 struct __wt_cell_unpack_addr;
 typedef struct __wt_cell_unpack_addr WT_CELL_UNPACK_ADDR;
 struct __wt_cell_unpack_common;
 typedef struct __wt_cell_unpack_common WT_CELL_UNPACK_COMMON;
+struct __wt_cell_unpack_delta_int;
+typedef struct __wt_cell_unpack_delta_int WT_CELL_UNPACK_DELTA_INT;
+struct __wt_cell_unpack_delta_leaf_kv;
+typedef struct __wt_cell_unpack_delta_leaf_kv WT_CELL_UNPACK_DELTA_LEAF_KV;
 struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
 struct __wt_checkpoint_cleanup;
@@ -143,12 +155,6 @@ struct __wt_ckpt_snapshot;
 typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
 struct __wt_col;
 typedef struct __wt_col WT_COL;
-struct __wt_col_fix_auxiliary_header;
-typedef struct __wt_col_fix_auxiliary_header WT_COL_FIX_AUXILIARY_HEADER;
-struct __wt_col_fix_tw;
-typedef struct __wt_col_fix_tw WT_COL_FIX_TW;
-struct __wt_col_fix_tw_entry;
-typedef struct __wt_col_fix_tw_entry WT_COL_FIX_TW_ENTRY;
 struct __wt_col_rle;
 typedef struct __wt_col_rle WT_COL_RLE;
 struct __wt_col_var_repeat;
@@ -179,6 +185,8 @@ struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
+struct __wt_crypt_header;
+typedef struct __wt_crypt_header WT_CRYPT_HEADER;
 struct __wt_cursor_backup;
 typedef struct __wt_cursor_backup WT_CURSOR_BACKUP;
 struct __wt_cursor_bounds_state;
@@ -197,8 +205,12 @@ struct __wt_cursor_hs;
 typedef struct __wt_cursor_hs WT_CURSOR_HS;
 struct __wt_cursor_index;
 typedef struct __wt_cursor_index WT_CURSOR_INDEX;
+struct __wt_cursor_layered;
+typedef struct __wt_cursor_layered WT_CURSOR_LAYERED;
 struct __wt_cursor_metadata;
 typedef struct __wt_cursor_metadata WT_CURSOR_METADATA;
+struct __wt_cursor_prepare_discovered;
+typedef struct __wt_cursor_prepare_discovered WT_CURSOR_PREPARE_DISCOVERED;
 struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;
@@ -209,6 +221,16 @@ struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
 typedef struct __wt_data_handle_cache WT_DATA_HANDLE_CACHE;
+struct __wt_dhandle_clear_event;
+typedef struct __wt_dhandle_clear_event WT_DHANDLE_CLEAR_EVENT;
+struct __wt_dhandle_clear_log;
+typedef struct __wt_dhandle_clear_log WT_DHANDLE_CLEAR_LOG;
+struct __wt_disagg_metadata_op;
+typedef struct __wt_disagg_metadata_op WT_DISAGG_METADATA_OP;
+struct __wt_disaggregated_checkpoint_track;
+typedef struct __wt_disaggregated_checkpoint_track WT_DISAGGREGATED_CHECKPOINT_TRACK;
+struct __wt_disaggregated_storage;
+typedef struct __wt_disaggregated_storage WT_DISAGGREGATED_STORAGE;
 struct __wt_dlh;
 typedef struct __wt_dlh WT_DLH;
 struct __wt_dsrc_stats;
@@ -237,6 +259,10 @@ struct __wt_generation_cookie;
 typedef struct __wt_generation_cookie WT_GENERATION_COOKIE;
 struct __wt_generation_drain_cookie;
 typedef struct __wt_generation_drain_cookie WT_GENERATION_DRAIN_COOKIE;
+struct __wt_hash_map;
+typedef struct __wt_hash_map WT_HASH_MAP;
+struct __wt_hash_map_item;
+typedef struct __wt_hash_map_item WT_HASH_MAP_ITEM;
 struct __wt_hazard;
 typedef struct __wt_hazard WT_HAZARD;
 struct __wt_hazard_array;
@@ -261,6 +287,16 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_layered_drain_data;
+typedef struct __wt_layered_drain_data WT_LAYERED_DRAIN_DATA;
+struct __wt_layered_drain_entry;
+typedef struct __wt_layered_drain_entry WT_LAYERED_DRAIN_ENTRY;
+struct __wt_layered_table;
+typedef struct __wt_layered_table WT_LAYERED_TABLE;
+struct __wt_layered_table_manager;
+typedef struct __wt_layered_table_manager WT_LAYERED_TABLE_MANAGER;
+struct __wt_layered_table_manager_entry;
+typedef struct __wt_layered_table_manager_entry WT_LAYERED_TABLE_MANAGER_ENTRY;
 struct __wt_live_restore_fh_meta;
 typedef struct __wt_live_restore_fh_meta WT_LIVE_RESTORE_FH_META;
 struct __wt_log_manager;
@@ -295,22 +331,40 @@ struct __wt_ovfl_track;
 typedef struct __wt_ovfl_track WT_OVFL_TRACK;
 struct __wt_page;
 typedef struct __wt_page WT_PAGE;
+struct __wt_page_block_meta;
+typedef struct __wt_page_block_meta WT_PAGE_BLOCK_META;
 struct __wt_page_deleted;
 typedef struct __wt_page_deleted WT_PAGE_DELETED;
+struct __wt_page_delta_config;
+typedef struct __wt_page_delta_config WT_PAGE_DELTA_CONFIG;
+struct __wt_page_disagg_info;
+typedef struct __wt_page_disagg_info WT_PAGE_DISAGG_INFO;
 struct __wt_page_header;
 typedef struct __wt_page_header WT_PAGE_HEADER;
+struct __wt_page_history;
+typedef struct __wt_page_history WT_PAGE_HISTORY;
+struct __wt_page_history_item;
+typedef struct __wt_page_history_item WT_PAGE_HISTORY_ITEM;
+struct __wt_page_history_key;
+typedef struct __wt_page_history_key WT_PAGE_HISTORY_KEY;
 struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_page_walk_skip_stats;
 typedef struct __wt_page_walk_skip_stats WT_PAGE_WALK_SKIP_STATS;
+struct __wt_pending_prepared_item;
+typedef struct __wt_pending_prepared_item WT_PENDING_PREPARED_ITEM;
+struct __wt_pending_prepared_map;
+typedef struct __wt_pending_prepared_map WT_PENDING_PREPARED_MAP;
 struct __wt_prefetch;
 typedef struct __wt_prefetch WT_PREFETCH;
 struct __wt_prefetch_queue_entry;
 typedef struct __wt_prefetch_queue_entry WT_PREFETCH_QUEUE_ENTRY;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
+struct __wt_reconcile_stats;
+typedef struct __wt_reconcile_stats WT_RECONCILE_STATS;
 struct __wt_reconcile_timeline;
 typedef struct __wt_reconcile_timeline WT_RECONCILE_TIMELINE;
 struct __wt_recovery_timeline;
@@ -381,6 +435,8 @@ struct __wt_txn;
 typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
 typedef struct __wt_txn_global WT_TXN_GLOBAL;
+struct __wt_txn_log;
+typedef struct __wt_txn_log WT_TXN_LOG;
 struct __wt_txn_op;
 typedef struct __wt_txn_op WT_TXN_OP;
 struct __wt_txn_printlog_args;
@@ -389,6 +445,8 @@ struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
 struct __wt_txn_snapshot;
 typedef struct __wt_txn_snapshot WT_TXN_SNAPSHOT;
+struct __wt_txn_time_point;
+typedef struct __wt_txn_time_point WT_TXN_TIME_POINT;
 struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
 struct __wt_update_value;
@@ -397,12 +455,16 @@ struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
 struct __wt_verbose_dump_cookie;
 typedef struct __wt_verbose_dump_cookie WT_VERBOSE_DUMP_COOKIE;
+struct __wt_verbose_message_info;
+typedef struct __wt_verbose_message_info WT_VERBOSE_MESSAGE_INFO;
 struct __wt_verbose_multi_category;
 typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
 struct __wt_verify_info;
 typedef struct __wt_verify_info WT_VERIFY_INFO;
 struct __wt_version;
 typedef struct __wt_version WT_VERSION;
+struct __wti_base_leaf_merge_state;
+typedef struct __wti_base_leaf_merge_state WTI_BASE_LEAF_MERGE_STATE;
 struct __wti_ckpt_handle_stats;
 typedef struct __wti_ckpt_handle_stats WTI_CKPT_HANDLE_STATS;
 struct __wti_ckpt_progress;
@@ -415,6 +477,10 @@ struct __wti_cursor_log;
 typedef struct __wti_cursor_log WTI_CURSOR_LOG;
 struct __wti_delete_hs_upd;
 typedef struct __wti_delete_hs_upd WTI_DELETE_HS_UPD;
+struct __wti_delta_leaf_merge_state;
+typedef struct __wti_delta_leaf_merge_state WTI_DELTA_LEAF_MERGE_STATE;
+struct __wti_disk_leaf_merge_state;
+typedef struct __wti_disk_leaf_merge_state WTI_DISK_LEAF_MERGE_STATE;
 struct __wti_evict_entry;
 typedef struct __wti_evict_entry WTI_EVICT_ENTRY;
 struct __wti_evict_queue;
@@ -445,6 +511,8 @@ struct __wti_rec_kv;
 typedef struct __wti_rec_kv WTI_REC_KV;
 struct __wti_reconcile;
 typedef struct __wti_reconcile WTI_RECONCILE;
+struct __wti_update_select;
+typedef struct __wti_update_select WTI_UPDATE_SELECT;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -502,6 +570,7 @@ typedef uint64_t wt_timestamp_t;
 #endif
 
 #include "misc.h"
+#include "tsan_suppress.h"
 #include "mutex.h"
 
 #include "stat.h"         /* required by dhandle.h */
@@ -509,13 +578,13 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp.h"    /* required by reconcile.h */
 #include "thread_group.h" /* required by rollback_to_stable.h */
 #include "verbose.h"      /* required by rollback_to_stable.h */
+#include "error.h"        /* required by api.h */
 
 #include "api.h"
 #include "bitstring.h"
 #include "block.h"
 #include "block_cache.h"
 #include "block_chunkcache.h"
-#include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
@@ -528,10 +597,11 @@ typedef uint64_t wt_timestamp_t;
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
+#include "crypt_header.h"
 #include "dlh.h"
-#include "error.h"
 #include "futex.h"
 #include "generation.h"
+#include "hash_map.h"
 #include "hazard.h"
 #include "json.h"
 #include "../live_restore/live_restore.h"
@@ -567,7 +637,8 @@ typedef uint64_t wt_timestamp_t;
 #include "../evict/evict_inline.h" /* required by misc_inline.h */
 #include "ctype_inline.h"          /* required by packing_inline.h */
 #include "intpack_inline.h"        /* required by cell_inline.h, packing_inline.h */
-#include "misc_inline.h"           /* required by mutex_inline.h */
+#include "int4bitpack_inline.h"
+#include "misc_inline.h" /* required by mutex_inline.h */
 
 #include "generation_inline.h" /* required by txn_inline.h */
 #include "buf_inline.h"        /* required by cell_inline.h */

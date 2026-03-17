@@ -72,12 +72,11 @@ from wtscenario import make_scenarios
 # This test doesn't use timestamps; it is about transaction-level visibility.
 # There doesn't seem any immediate reason to think timestamps would add anything.
 
+@wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
@@ -89,8 +88,14 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named', dict(second_checkpoint='second_checkpoint')),
         ('unnamed', dict(second_checkpoint=None)),
     ]
-    scenarios = make_scenarios(format_values, first_name_values, second_name_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
+        ('precise', dict(ckpt_config='precise_checkpoint=true')),
+    ]
+    scenarios = make_scenarios(format_values, first_name_values, second_name_values, ckpt_precision)
 
+    def conn_config(self):
+        return self.ckpt_config
 
     def do_checkpoint(self, ckpt_name):
         if ckpt_name is None:
@@ -113,6 +118,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'precise_checkpoint=true':
+            self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint22'
         uri2 = 'table:checkpoint22a'
         nrows = 1000
@@ -129,21 +138,16 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds2.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Write some initial data, and then write more, to crank up the txnid counter.
         cursor = self.session.open_cursor(ds.uri, None, None)
         for i in range(10000 // nrows):
             for k in range(1, nrows + 1):
                 self.session.begin_transaction()
-                cursor[ds.key(k)] = 40 + i if self.value_format == '8t' else str(i) + value_a
+                cursor[ds.key(k)] = str(i) + value_a
                 self.session.commit_transaction()
 
         # Put some material in the second table too to keep things from being degenerate.

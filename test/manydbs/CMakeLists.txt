@@ -1,4 +1,3 @@
-project(test_manydbs C)
 
 create_test_executable(test_manydbs
     SOURCES manydbs.c

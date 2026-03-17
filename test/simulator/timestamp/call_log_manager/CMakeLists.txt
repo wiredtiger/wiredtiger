@@ -1,4 +1,3 @@
-project(call_log_manager CXX)
 
 # Create an executable for the call log manager.
 add_executable(

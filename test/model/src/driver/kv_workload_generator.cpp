@@ -39,6 +39,9 @@ namespace model {
  */
 kv_workload_generator_spec::kv_workload_generator_spec()
 {
+    /* Disagg may be enabled by adding -G disaggregated=1 as a command line argument. */
+    disaggregated = 0;
+
     min_tables = 3;
     max_tables = 10;
 
@@ -49,10 +52,10 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     max_recno = 100'000;
     max_value_uint64 = 1'000'000;
 
-    column_fix = 0.1;
     column_var = 0.1;
 
     finish_transaction = 0.08;
+    get = 0.5;
     insert = 0.75;
     remove = 0.15;
     set_commit_timestamp = 0.05;
@@ -67,8 +70,11 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     set_oldest_timestamp = 0.1;
     set_stable_timestamp = 0.2;
 
+    get_existing = 0.9;
     remove_existing = 0.9;
     update_existing = 0.1;
+
+    conn_logging = 0.5;
 
     prepared_transaction = 0.25;
     max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
@@ -77,16 +83,21 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     prepared_transaction_rollback_after_prepare = 0.1;
     prepared_transaction_rollback_before_prepare = 0.1;
 
-    timing_stress_ckpt_slow = 0.1;
-    timing_stress_ckpt_evict_page = 0.1;
-    timing_stress_ckpt_handle = 0.1;
-    timing_stress_ckpt_stop = 0.1;
-    timing_stress_compact_slow = 0.1;
-    timing_stress_hs_ckpt_delay = 0.1;
-    timing_stress_hs_search = 0.1;
-    timing_stress_hs_sweep_race = 0.1;
-    timing_stress_prepare_ckpt_delay = 0.1;
-    timing_stress_commit_txn_slow = 0.1;
+    /* Relative weights for the timing stress tests, which don't have to add up to 1.0. */
+    weight_init_block(timing_stress_total)
+    {
+        weight_init(timing_stress_ckpt_slow, 0.1f);
+        weight_init(timing_stress_ckpt_evict_page, 0.1f);
+        weight_init(timing_stress_ckpt_handle, 0.1f);
+        weight_init(timing_stress_ckpt_stop, 0.1f);
+        weight_init(timing_stress_compact_slow, 0.1f);
+        weight_init(timing_stress_hs_ckpt_delay, 0.1f);
+        weight_init(timing_stress_hs_search, 0.1f);
+        weight_init(timing_stress_hs_sweep_race, 0.1f);
+        weight_init(timing_stress_prepare_ckpt_delay, 0.1f);
+        weight_init(timing_stress_commit_txn_slow, 0.1f);
+        weight_init(timing_stress_rec_before_wrapup, 0.1f);
+    }
 }
 
 /*
@@ -325,14 +336,14 @@ kv_workload_generator::choose_table(kv_workload_sequence_ptr txn)
 }
 
 /*
- * kv_workload_generator::generate_connection_config --
- *     Generate random WiredTiger connection configurations.
+ * kv_workload_generator::generate_connection_stress_config --
+ *     Generate random time stress configurations.
  */
 std::string
-kv_workload_generator::generate_connection_config()
+kv_workload_generator::generate_connection_stress_config()
 {
     std::string wt_env_config;
-    probability_switch(_random.next_float())
+    probability_switch(_random.next_float() * _spec.timing_stress_total())
     {
         probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
           "timing_stress_for_test=[checkpoint_slow]";
@@ -354,7 +365,24 @@ kv_workload_generator::generate_connection_config()
           "timing_stress_for_test=[prepare_checkpoint_delay]";
         probability_case(_spec.timing_stress_commit_txn_slow) wt_env_config +=
           "timing_stress_for_test=[commit_transaction_slow]";
+        probability_case(_spec.timing_stress_rec_before_wrapup) wt_env_config +=
+          "timing_stress_for_test=[failpoint_rec_before_wrapup]";
     }
+    return wt_env_config;
+}
+
+/*
+ * kv_workload_generator::generate_connection_log_config --
+ *     Generate random WiredTiger log configurations.
+ */
+std::string
+kv_workload_generator::generate_connection_log_config()
+{
+    std::string wt_env_config;
+
+    if (_spec.conn_logging > _random.next_float())
+        wt_env_config = model::join(wt_env_config, "log=(enabled=true)");
+
     return wt_env_config;
 }
 
@@ -373,12 +401,6 @@ kv_workload_generator::create_table()
 
     probability_switch(_random.next_float())
     {
-        probability_case(_spec.column_fix)
-        {
-            key_format = "r";
-            value_format = "8t";
-            type = kv_table_type::column_fix;
-        }
         probability_case(_spec.column_var)
         {
             key_format = "r";
@@ -421,7 +443,7 @@ kv_workload_generator::generate_transaction(size_t seq_no)
     /* Add all operations. But do not actually fill in timestamps; we'll do that later. */
     bool done = false;
     while (!done) {
-        float total = _spec.finish_transaction + _spec.insert + _spec.remove +
+        float total = _spec.finish_transaction + _spec.get + _spec.insert + _spec.remove +
           _spec.set_commit_timestamp + _spec.truncate;
         probability_switch(_random.next_float() * total)
         {
@@ -449,6 +471,14 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                     txn << operation::commit_transaction(txn_id);
                 done = true;
             }
+            probability_case(_spec.get)
+            {
+                table_context_ptr table = choose_table(txn_ptr);
+
+                data_value key = generate_key(table, op_category::get);
+                /* A get operation shouldn't affect context. */
+                txn << operation::get(table->id(), txn_id, key);
+            }
             probability_case(_spec.insert)
             {
                 table_context_ptr table = choose_table(txn_ptr);
@@ -473,23 +503,6 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             {
                 table_context_ptr table = choose_table(txn_ptr);
 
-                /*
-                 * FIXME-WT-13232 Don't use truncate on FLCS tables, because a truncate on an FLCS
-                 * table can conflict with operations adjacent to the truncation range's key range.
-                 * For example, if a user wants to truncate range 10-12 on a table with keys [10,
-                 * 11, 12, 13, 14], a concurrent update to key 13 would result in a conflict (while
-                 * an update to 14 would be able proceed).
-                 *
-                 * FIXME-WT-13350 Similarly, truncating an implicitly created range of keys in an
-                 * FLCS table conflicts with a concurrent insert operation that caused this range of
-                 * keys to be created.
-                 *
-                 * The workload generator cannot currently account for this, so don't use truncate
-                 * with FLCS tables for now.
-                 */
-                if (table->type() == kv_table_type::column_fix)
-                    break;
-
                 data_value start = generate_key(table);
                 data_value stop = generate_key(table);
                 if (start > stop)
@@ -510,6 +523,19 @@ kv_workload_generator::generate_transaction(size_t seq_no)
 void
 kv_workload_generator::run()
 {
+    /* Top-level configuration. */
+    if (_random.next_float() < _spec.disaggregated) {
+        _database_config.disaggregated = true;
+        _workload << operation::config("database", "disaggregated=true");
+
+        /* Adjust the specs based on what's not supported. */
+        _spec.column_var = 0;
+        _spec.rollback_to_stable = 0;
+
+        /* FIXME-WT-15040 Prepared transactions are not yet supported. */
+        _spec.prepared_transaction = 0;
+    }
+
     /* Create tables. */
     uint64_t num_tables = _random.next_uint64(_spec.min_tables, _spec.max_tables);
     for (uint64_t i = 0; i < num_tables; i++)
@@ -539,32 +565,55 @@ kv_workload_generator::run()
      * kinds of database states that can be generated. We would like to generate states and tree
      * shapes that cannot be generated by existing workload generators, so that we can explore as
      * many interesting corner cases as possible.
+     *
+     * For disaggregated storage, we need to ensure that the stable timestamp is set before the
+     * first checkpoint (as this is required by precise checkpoints), and that the checkpoint is
+     * taken before the first crash (as this is required for the tables to exist after crash).
      */
     uint64_t num_sequences = _random.next_uint64(_spec.min_sequences, _spec.max_sequences);
+    bool has_checkpoint = false;
+    bool has_stable_timestamp = false;
     for (uint64_t i = 0; i < num_sequences; i++)
         probability_switch(_random.next_float())
         {
             probability_case(_spec.checkpoint)
             {
+                if (_database_config.disaggregated && !has_stable_timestamp)
+                    break;
+
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint);
                 *p << operation::checkpoint();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
+
+                has_checkpoint = true;
             }
             probability_case(_spec.checkpoint_crash)
             {
+                if (_database_config.disaggregated && !has_checkpoint)
+                    break;
+
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
-                uint64_t random_number = _random.next_uint64(1000);
+                uint64_t random_number = _random.next_uint64(1, 1000);
                 *p << operation::checkpoint_crash(random_number);
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
+
+                if (!has_checkpoint)
+                    has_stable_timestamp = false;
             }
             probability_case(_spec.crash)
             {
+                if (_database_config.disaggregated && !has_checkpoint)
+                    break;
+
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::crash);
                 *p << operation::crash();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
+
+                if (!has_checkpoint)
+                    has_stable_timestamp = false;
             }
             probability_case(_spec.evict)
             {
@@ -573,41 +622,57 @@ kv_workload_generator::run()
                 table_context_ptr table = choose_table(std::move(kv_workload_sequence_ptr()));
                 data_value key = generate_key(table, op_category::evict);
                 *p << operation::evict(table->id(), key);
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.restart)
             {
+                if (_database_config.disaggregated && !has_stable_timestamp)
+                    break; /* Need stable timestamp before shutdown takes a checkpoint. */
+
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::restart);
                 *p << operation::restart();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
+
+                has_checkpoint = true; /* Shutdown takes a checkpoint. */
             }
             probability_case(_spec.rollback_to_stable)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::rollback_to_stable);
                 *p << operation::rollback_to_stable();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.set_oldest_timestamp)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::set_oldest_timestamp);
                 *p << operation::set_oldest_timestamp(k_timestamp_none); /* Placeholder. */
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.set_stable_timestamp)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
                 *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
+
+                has_stable_timestamp = true;
             }
             probability_default
             {
                 _sequences.push_back(generate_transaction(_sequences.size()));
             }
         }
+
+    /* Ensure that the stable timestamp is set for disaggregated storage. */
+    if (_database_config.disaggregated && !has_stable_timestamp) {
+        kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+          _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
+        *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
+        _sequences.push_back(std::move(p));
+        has_stable_timestamp = true;
+    }
 
     /*
      * Now that we have a serial-equivalent schedule, we need to ensure that special,
@@ -733,8 +798,11 @@ kv_workload_generator::run()
             t.complete_one(s);
     }
 
-    /* Validate that we filled in the timestamps in the correct order. */
-    _workload.assert_timestamps();
+    /*
+     * Validate that the workload is correct, such checking that we filled in the timestamps in the
+     * correct order.
+     */
+    _workload.verify();
 }
 
 /*
@@ -753,6 +821,10 @@ kv_workload_generator::generate_key(table_context_ptr table, op_category op)
 
     case op_category::evict:
         p_existing = 1.0;
+        break;
+
+    case op_category::get:
+        p_existing = _spec.get_existing;
         break;
 
     case op_category::remove:

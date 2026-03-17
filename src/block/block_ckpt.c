@@ -170,7 +170,7 @@ err:
          * only allocated memory was in the service of verify, clean that up.
          */
         if (block->verify)
-            WT_TRET(__wti_verify_ckpt_unload(session, block));
+            WT_TRET(__wti_verify_ckpt_unload(session, block, true));
     }
 
     /* Checkpoints don't need the original information, discard it. */
@@ -191,7 +191,7 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 
     /* Verify cleanup. */
     if (block->verify)
-        WT_TRET(__wti_verify_ckpt_unload(session, block));
+        WT_TRET(__wti_verify_ckpt_unload(session, block, false));
 
     /*
      * If it's the live system, truncate to discard any extended blocks and discard the active
@@ -1080,6 +1080,57 @@ done:
     block->ckpt_state = WT_CKPT_NONE;
 err:
     __wt_spin_unlock(session, &block->live_lock);
+
+    return (ret);
+}
+
+/*
+ * __wti_block_checkpoint_extlist_dump --
+ *     Dump all of the available checkpoints extent lists, excluding the specified offset. Extent
+ *     offsets should never be 0, as that is the offset of the file header.
+ */
+int
+__wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_BLOCK_CKPT *ci;
+    WT_CKPT *ckpt_iter, *ckptbase;
+    WT_DECL_RET;
+    size_t ckpt_bytes_allocated;
+
+    ckptbase = NULL;
+
+    WT_ERR(__wt_meta_ckptlist_get(
+      session, session->dhandle->name, false, &ckptbase, &ckpt_bytes_allocated));
+    WT_CKPT_FOREACH (ckptbase, ckpt_iter) {
+        WT_ERR(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ckpt_iter->bpriv));
+        ci = ckpt_iter->bpriv;
+
+        WT_ERR(__wti_block_ckpt_init(session, ci, ckpt_iter->name));
+        WT_ERR(
+          __wti_block_ckpt_unpack(session, block, ckpt_iter->raw.data, ckpt_iter->raw.size, ci));
+
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET &&
+          __wti_block_extlist_read(session, block, &ci->alloc, ci->file_size) == 0)
+            WT_TRET(__wti_block_extlist_dump(session, &ci->alloc));
+
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET &&
+          __wti_block_extlist_read(session, block, &ci->avail, ci->file_size) == 0)
+            WT_TRET(__wti_block_extlist_dump(session, &ci->avail));
+
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET &&
+          __wti_block_extlist_read(session, block, &ci->discard, ci->file_size) == 0)
+            WT_TRET(__wti_block_extlist_dump(session, &ci->discard));
+
+        WT_ERR(ret);
+    }
+
+err:
+    /* Discard any checkpoint information we loaded. */
+    WT_CKPT_FOREACH (ckptbase, ckpt_iter)
+        if ((ci = ckpt_iter->bpriv) != NULL)
+            __wti_block_ckpt_destroy(session, ci);
+
+    __wt_ckptlist_free(session, &ckptbase);
 
     return (ret);
 }
