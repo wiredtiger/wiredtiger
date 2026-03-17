@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -25,38 +25,30 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import contextlib
-import io
-import os
-import sys
-import unittest
 
-# Add tools directory to sys.path so we can import wt_binary_decode
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# test_layered78.py
+#   Test remove returns not found when deleting an non-existent key
 
-import wt_binary_decode
-from py_common.decode_opts import DecodeOptions
+import wiredtiger, wttest
+from helper_disagg import disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
 
+@disagg_test_class
+class test_layered78(wttest.WiredTigerTestCase):
+    conn_config = 'statistics=(all),precise_checkpoint=true,' \
+                  'disaggregated=(role="follower")'
 
-class TestDecodeDisaggDeltaChain(unittest.TestCase):
-    """Unit test for decoding the disagg delta chain log."""
+    uri = 'layered:test_layered78'
 
-    def test_decode_disagg_delta_chain_log(self):
-        cur_dir = os.path.dirname(os.path.abspath(__file__))
-        log_path = os.path.join(cur_dir, "binary_files", "disagg_delta_chain.log")
-        self.assertTrue(os.path.exists(log_path), f"Missing delta chain log at {log_path}")
+    disagg_storages = gen_disagg_storages('test_layered78', disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
 
-        buffer = io.StringIO()
-        with contextlib.redirect_stdout(buffer):
-            wt_binary_decode.wtdecode(log_path, DecodeOptions(disagg=True, dumpin=True))
-        output = buffer.getvalue()
+    def test_delete_non_existent_key(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
-        self.assertGreater(len(output), 0, "Decoder output should not be empty")
-
-        # Validate the full-image block and the number of delta blocks decoded.
-        self.assertIn("magic: 0xdb (full image)", output)
-        self.assertEqual(output.count("magic: 0xdd (delta)"), 10)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+        cursor.close()
