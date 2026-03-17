@@ -924,7 +924,8 @@ __wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        if (!entry->deferred && entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
+        if (!entry->deferred && entry->metadata_op == WT_SHARED_METADATA_REMOVE &&
+          entry->stable_value != NULL) {
             uint64_t size;
             /*
              * A table that was created and dropped without ever being checkpointed won't have a
