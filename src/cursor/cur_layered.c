@@ -139,7 +139,8 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
     WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
 
     if (external_state_change || clayered->ingest_cursor == NULL ||
-      (need_read_stable && clayered->stable_cursor == NULL))
+      (need_read_stable && clayered->stable_cursor == NULL &&
+        clayered->checkpoint_meta_lsn != WT_DISAGG_LSN_NONE))
         WT_RET(__clayered_open_cursors(session, clayered));
 
     if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
