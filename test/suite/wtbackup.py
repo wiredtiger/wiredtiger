@@ -195,6 +195,10 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Optional arguments:
     # backup_cur: A backup cursor that can be given into the function, but function caller
     #    holds responsibility of closing the cursor.
+    # home: The directory to use as the source "home" when copying files. When None,
+    #    the file names returned by the backup cursor are used as-is.
+    #    When set, each key from the backup cursor is joined with this directory
+    #    to form the path to copy from.
     #
     def take_full_backup(self, backup_dir, backup_cur=None, home=None):
         os.makedirs(backup_dir, exist_ok=True)
