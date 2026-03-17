@@ -213,8 +213,8 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
         WT_RELEASE_BARRIER();
         /*
          * Widen the transient LOCKED window (INPROGRESS -> LOCKED -> RESOLVED) so concurrent
-         * readers can reliably observe it under timing stress. Use a fixed 5-second delay so
-         * the regression test can distinguish "blocked" from "skipped".
+         * readers can reliably observe it under timing stress. Use a fixed 5-second delay so the
+         * regression test can distinguish "blocked" from "skipped".
          */
         prepare_locked_delay.tv_sec = 5;
         prepare_locked_delay.tv_nsec = 0;
