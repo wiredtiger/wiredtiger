@@ -60,11 +60,11 @@ __layered_assert_tombstone_has_value_on_stable_btree(
 
 /*
  * __layered_resolve_prepared_on_stable --
- *     After positioning the cursor on the stable table, check if the key has an unresolved prepared
- *     update restored from disk. If so, resolve it by restoring the prior history store value and
- *     applying the committed or rolled-back timestamps from the ingest update chain. This must be
- *     done before copying ingest updates via __wt_row_modify so that reconciliation does not
- *     encounter an unresolved prepare.
+ *     After positioning the cursor on the stable table, find the unresolved prepared update
+ *     restored from disk and resolve it by restoring the prior history store value and applying the
+ *     committed or rolled-back timestamps from the ingest update chain. This must be done before
+ *     copying ingest updates via __wt_row_modify so that reconciliation does not encounter an
+ *     unresolved prepare.
  */
 static int
 __layered_resolve_prepared_on_stable(
@@ -118,8 +118,7 @@ __layered_resolve_prepared_on_stable(
     /*
      * Construct a time point for resolution. The transaction ID and prepared transaction ID are
      * taken from the prepared update on stable. For commit, the ingest chain's head carries the
-     * commit and durable timestamps. For rollback, it carries the rollback timestamp (stored in the
-     * durable timestamp field due to the WT_UPDATE union layout).
+     * commit and durable timestamps. For rollback, it carries the rollback timestamp.
      */
     WT_CLEAR(time_point);
     time_point.id = upd->txnid;
@@ -165,10 +164,9 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
-     * If the ingest table contained a resolved prepared update for this key, the stable table may
-     * still have the unresolved prepared cell from a prior checkpoint. Resolve it now while the
-     * cursor is positioned, before applying the ingest updates. Determine commit versus rollback
-     * from the ingest chain head: a rolled-back prepared update has an aborted transaction ID.
+     * If the ingest table contained a resolved prepared update for this key, the stable table still
+     * has the unresolved prepared cell from a prior checkpoint. Resolve it now before applying the
+     * ingest updates.
      */
     if (resolve_prepare)
         WT_ERR(__layered_resolve_prepared_on_stable(
@@ -425,13 +423,13 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         }
 
         /*
-         * Detect a committed prepared update whose prepare was checkpointed to the stable table but
-         * whose resolution was not. If the prepare timestamp is at or before the last checkpoint
-         * timestamp, the prepared cell is on stable's disk image. The version cursor's
-         * start_timestamp filter ensures there are no more updates for this key after the resolved
-         * prepare, so the next iteration will naturally hit either a new key or end of data. The
-         * key-boundary code passes this flag to __layered_move_updates which resolves the prepared
-         * cell on stable before applying the ingest updates.
+         * Detect a resolved prepared update whose prepare timestamps were checkpointed to the
+         * stable table but the resolution was not. If the prepare timestamp is at or before the
+         * last checkpoint timestamp, the prepared cell is on stable's disk image. The version
+         * cursor's start timestamp filter ensures there are no more updates for this key after the
+         * resolved prepare, so the next iteration will naturally hit either a new key or end of
+         * data. Set the flag to true to mark that we need to resolve the prepared cell on stable
+         * before applying the ingest updates.
          */
         if (start_prepare_ts != WT_TS_NONE && start_prepare_ts <= last_checkpoint_timestamp)
             needs_prepare_resolve = true;
