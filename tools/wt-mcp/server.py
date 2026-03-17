@@ -86,6 +86,21 @@ HOME_DESCRIPTION = """
 The WiredTiger home directory. This is the directory where the WiredTiger database files are stored.
 """
 
+def metadata_search(session, uri):
+    """
+    Look up a URI in the WiredTiger metadata and return its value.
+
+    Returns the metadata value string if found, or None if the URI is not present.
+    """
+    cursor = session.open_cursor("metadata:")
+    try:
+        cursor.set_key(uri)
+        if cursor.search() == 0:
+            return cursor.get_value()
+        return None
+    finally:
+        cursor.close()
+
 @mcp.tool()
 async def list_files(
     ctx: Context, 
@@ -164,7 +179,6 @@ async def get_file_metadata(
     """
     conn = None
     session = None
-    cursor = None
 
     try:
         await ctx.info(f"Getting metadata for {uri} in {home}")
@@ -174,17 +188,13 @@ async def get_file_metadata(
         # Open a WiredTiger connection
         conn = wiredtiger.wiredtiger_open(home, config or "")
         session = conn.open_session()
-        cursor = session.open_cursor("metadata:")
 
-        # Look up the URI directly using search
-        cursor.set_key(uri)
-        if cursor.search() == 0:
-            value = cursor.get_value()
-            file_metadata = {"key": uri, "value": value}
+        value = metadata_search(session, uri)
+        if value is not None:
             return {
                 "content": [{
                     "type": "text",
-                    "text": json.dumps(file_metadata, indent=2)
+                    "text": json.dumps({"key": uri, "value": value}, indent=2)
                 }]
             }
 
@@ -207,8 +217,6 @@ async def get_file_metadata(
         }
 
     finally:
-        if cursor:
-            cursor.close()
         if session:
             session.close()
         if conn:
@@ -436,7 +444,6 @@ async def get_key_value(
     """
     conn = None
     session = None
-    metadata_cursor = None
     cursor = None
 
     try:
@@ -448,36 +455,28 @@ async def get_key_value(
         conn = wiredtiger.wiredtiger_open(home, config or "")
         session = conn.open_session()
 
-        metadata_cursor = session.open_cursor("metadata:")
-        metadata_cursor.set_key(uri)
-        
-        if metadata_cursor.search() == 0:
-            metadata_value = metadata_cursor.get_value()
-            
-            # Extract format information from the metadata
-            schema = {}
-            metadata_parts = metadata_value.split(",")
-            for part in metadata_parts:
-                if "=" in part:
-                    meta_key, meta_value = part.split("=", 1)
-                    if meta_key.strip() in ["key_format", "value_format"]:
-                        schema[meta_key.strip()] = meta_value.strip()
-                        await ctx.debug(f"Found format information: {meta_key.strip()}={meta_value.strip()}")
-            
-            if len(schema) != 2:
-                error_msg = f"Could not retrieve key_format and value_format from metadata for {uri}"
-                await ctx.error(error_msg)
-                raise ValueError(error_msg)
-        else:
+        metadata_value = metadata_search(session, uri)
+        if metadata_value is None:
             error_msg = f"URI {uri} not found in metadata"
             await ctx.error(error_msg)
             raise ValueError(error_msg)
 
-        await ctx.info(f"Schema for {uri}: {schema}")
+        # Extract format information from the metadata
+        schema = {}
+        metadata_parts = metadata_value.split(",")
+        for part in metadata_parts:
+            if "=" in part:
+                meta_key, meta_value = part.split("=", 1)
+                if meta_key.strip() in ["key_format", "value_format"]:
+                    schema[meta_key.strip()] = meta_value.strip()
+                    await ctx.debug(f"Found format information: {meta_key.strip()}={meta_value.strip()}")
 
-        # Close the metadata cursor as we're done with it
-        metadata_cursor.close()
-        metadata_cursor = None
+        if len(schema) != 2:
+            error_msg = f"Could not retrieve key_format and value_format from metadata for {uri}"
+            await ctx.error(error_msg)
+            raise ValueError(error_msg)
+
+        await ctx.info(f"Schema for {uri}: {schema}")
 
         # Convert the key string to the appropriate data type
         converted_key = key
@@ -539,8 +538,6 @@ async def get_key_value(
     finally:
         if cursor:
             cursor.close()
-        if metadata_cursor:
-            metadata_cursor.close()
         if session:
             session.close()
         if conn:
