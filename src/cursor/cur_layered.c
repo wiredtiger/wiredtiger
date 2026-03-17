@@ -1692,7 +1692,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__cursor_needvalue(cursor));
     /*
      * On a follower node, the insert was already validated and applied on the primary. Skip opening
-     * the stable cursor and skip the duplicate key search — both are unnecessary overhead.
+     * the stable cursor and skip the duplicate key search both are unnecessary overhead.
      */
     WT_ERR(__clayered_enter(clayered, false, S2C(session)->layered_table_manager.leader, false));
 
@@ -1750,7 +1750,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__cursor_needvalue(cursor));
     /*
      * On a follower node, the update was already validated and applied on the primary. Skip opening
-     * the stable cursor and skip the key existence search — both are unnecessary overhead.
+     * the stable cursor and skip the key existence search both are unnecessary overhead.
      */
     WT_ERR(__clayered_enter(clayered, false, S2C(session)->layered_table_manager.leader, false));
 
