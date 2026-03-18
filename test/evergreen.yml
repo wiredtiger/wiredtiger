@@ -1552,6 +1552,15 @@ functions:
       args:
       - "./build_and_push_containers.sh"
 
+  "run antithesis container":
+    command: subprocess.exec
+    params:
+      working_dir: wiredtiger/tools/antithesis
+      binary: bash
+      add_expansions_to_env: true
+      args:
+      - "./webhook.sh"
+
   "run workgen test":
     command: shell.exec
     params:
@@ -6669,6 +6678,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "build and push antithesis container"
+      - func: "run antithesis container"
 
   - name: release-with-debug-have-diagnostic
     tags: ["antithesis"]

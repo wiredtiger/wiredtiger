@@ -8,9 +8,10 @@ export WEBHOOK_PAYLOAD=$( \
                   "antithesis.config_image": "wt-test-format-config:debug-have-diagnostic-willk",
                   "antithesis.images": "wt-test-format:debug-have-diagnostic-willk",
                   "antithesis.report.recipients": "will.korteland@mongodb.com",
+                  "custom.compose_env": "poop!!!!!!!"
                 }
               )
             }')
 
           echo "Webhook payload: $WEBHOOK_PAYLOAD"
-          echo $WEBHOOK_PAYLOAD |  curl --fail -u "mongodb:${antithesis_api_password}" -X POST https://mongo.antithesis.com/api/v1/launch/disagg_storage -d @-
+          echo $WEBHOOK_PAYLOAD |  curl --fail -u "mongodb:${antithesis_api_password}" -X POST https://mongo.antithesis.com/api/v1/launch/wiredtiger -d @-

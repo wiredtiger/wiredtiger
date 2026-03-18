@@ -9,8 +9,12 @@ services:
                       - /bin/sh
                       - -c
                       - |
+                        env
+                        echo "format test script args?: $FORMAT_TEST_SCRIPT_ARGS"
                         echo '{"antithesis_setup": { "status": "complete", "details": {"message": "Set up complete - ready for testing!" }}}' >> $ANTITHESIS_OUTPUT_DIR/sdk.jsonl
                         /opt/bin/test.sh -c CONFIG.antithesis -h /data/RUNDIR -T bulk,txn,retain=50
+                environment:
+                    FORMAT_TEST_SCRIPT_ARGS: "${FORMAT_TEST_SCRIPT_ARGS}"
                 volumes:
                   - ./data/wiredtiger:/data/
                   - type: bind
