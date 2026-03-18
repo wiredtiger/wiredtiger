@@ -354,6 +354,8 @@ extern int __wt_chunkcache_teardown(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **namep,
   int64_t *orderp, uint64_t *timep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ckpt_last_size(WT_SESSION_IMPL *session, const char *config, uint64_t *sizep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
   const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
@@ -595,6 +597,8 @@ extern int __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_shared_metadata_queue_drop_size(
+  WT_SESSION_IMPL *session, uint64_t *drop_sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_encrypt(WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t skip,
@@ -1299,7 +1303,8 @@ extern int __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filenam
   const char *cfg[], bool forced_salvage, bool readonly, WT_BLOCK **blockp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  const uint8_t *addr, size_t addr_size, bool is_root)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
