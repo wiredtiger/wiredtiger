@@ -3224,12 +3224,13 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
             if (multi->addr.block_cookie != NULL) {
                 /*
-                 * For disaggregated delta writes, __wti_block_disagg_page_discard decrements
-                 * bytes_total by cookie.size, which is the cumulative chain size (old_cumulative +
-                 * this_delta_size). However, bytes_total was only incremented by this_delta_size
-                 * when the block was written. Compensate by adding back old_cumulative (stored in
-                 * page->disagg_info->block_meta.cumulative_size, which has not yet been updated for
-                 * this failed write) before freeing the block.
+                 * Disaggregated page discards track size cumulatively. The cookie encodes the full
+                 * chain size (base image plus all deltas), so a single discard correctly terminates
+                 * and accounts for the entire chain. On a reconciliation error however, only the
+                 * individual delta size was added when the block was written, not the full chain.
+                 * Discarding by the full chain size therefore over-decrements the total. Compensate
+                 * by adding back the prior cumulative size before the discard so the net effect is
+                 * zero.
                  */
                 if (multi->block_meta != NULL && multi->block_meta->delta_count > 0)
                     __wt_btree_increase_size(
