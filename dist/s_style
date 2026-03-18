@@ -11,7 +11,7 @@ check_fast_mode_flag
 is_main_run && {
     find bench dist examples ext src test tools/checksum_bitflip -name '*.[ch]' -o -name '*.in' \
             -o -name '*.dox' -o -name '*.cxx' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake' \
-            -o -name '*.i' | \
+            -o -name '*.i' -o -name '*.yml' | \
     sed -e '/Makefile.in/d' \
         -e '/test\/3rdparty/d' \
         -e '/test\/checksum\/power8/d' \
