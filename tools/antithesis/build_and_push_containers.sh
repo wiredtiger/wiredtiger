@@ -3,10 +3,10 @@
 set -o errexit
 set -o verbose
 
-tag="${task_name}-latest"
-if [ "${is_patch}" = "true" ]; then
-    tag="${task_name}-patch"
-fi
+tag="${task_name}-willk"
+# if [ "${is_patch}" = "true" ]; then
+#     tag="${task_name}-patch"
+# fi
 
 if [ -n "${antithesis_image_tag:-}" ]; then
     echo "Using provided tag: '$antithesis_image_tag' for docker pushes"
@@ -21,7 +21,7 @@ echo "Revision: ${revision}" >> $VERSION_FILE
 
 # Build the containers
 sudo docker build -f test_format.dockerfile -t wt-test-format:$tag ../..
-sed -i s/wt-latest/$tag/ docker-compose.yaml
+sed -i s/wt-willk/$tag/ docker-compose.yaml
 sudo docker build -f config.docker -t wt-test-format-config:$tag ../..
 
 # login, push, and logout (expecting env var antithesis_repo_key to be available)
