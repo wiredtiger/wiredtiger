@@ -535,7 +535,7 @@ __wti_disagg_fetch_shared_meta(
     /* Validate the checksum. */
     if (ckpt_meta->has_metadata_checksum) {
         const uint32_t checksum = __wt_checksum(item->data, item->size);
-        if (checksum == ckpt_meta->metadata_checksum) {
+        if (checksum != ckpt_meta->metadata_checksum) {
             WT_ERR(__wt_scr_alloc(session, 0, &hex_buf));
             WT_ERR_MSG(session, EIO,
               "Checkpoint metadata corruption detected: lsn=%" PRIu64 ", expected=0x%" PRIx32
