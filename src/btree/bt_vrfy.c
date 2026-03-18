@@ -215,12 +215,12 @@ __verify_disagg_accumulate_size(
 }
 
 /*
- * __wt_verify_disagg_database_size --
+ * __verify_disagg_database_size --
  *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
  *     checkpoint size for every file, then compare the total against the stored database size.
  */
 static int
-__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+__verify_disagg_database_size(WT_SESSION_IMPL *session)
 {
     WT_CKPT *ckpt, *ckptbase, *last_ckpt;
     WT_CONNECTION_IMPL *conn;
@@ -509,7 +509,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * database.
      */
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && strcmp(name, WT_METAFILE_URI) == 0)
-        WT_TRET(__wt_verify_disagg_database_size(session));
+        WT_TRET(__verify_disagg_database_size(session));
 
 done:
 err:
