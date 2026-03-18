@@ -214,6 +214,65 @@ __verify_disagg_accumulate_size(
     return (0);
 }
 
+
+static int
+__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+{
+    WT_CKPT *ckpt, *ckptbase, *last_ckpt;
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t total_size;
+    const char *uri;
+
+    conn = S2C(session);
+    cursor = NULL;
+    ckptbase = NULL;
+    total_size = 0;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+
+        /* Only consider file URIs as only they contribute to database_size. */
+        if (!WT_PREFIX_MATCH(uri, "file:") || strcmp(uri, WT_METAFILE_URI) == 0)
+            continue;
+
+        /* Get the checkpoint list. Skip files with no checkpoints. */
+        WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, uri, false, &ckptbase, NULL), true);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            continue;
+        }
+
+        /* Get last checkpoint. */
+        last_ckpt = NULL;
+        WT_CKPT_FOREACH (ckptbase, ckpt)
+            if ((ckpt + 1)->name == NULL)
+                break;
+            else
+                last_ckpt = ckpt;
+
+        total_size += last_ckpt->size;
+
+        __wt_ckptlist_free(session, &ckptbase);
+        ckptbase = NULL;
+    }
+
+    if (total_size != conn->disaggregated_storage.database_size)
+        WT_ERR_MSG(session, WT_ERROR,
+          "database size mismatch: sum of btree checkpoint sizes %" PRIu64
+          " does not match stored database size %" PRIu64,
+          total_size, conn->disaggregated_storage.database_size);
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    if (ckptbase != NULL)
+        __wt_ckptlist_free(session, &ckptbase);
+    return (ret);
+}
+
 /*
  * __wt_verify --
  *     Verify a file.
