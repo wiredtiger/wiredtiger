@@ -132,13 +132,13 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
     uint64_t found = 0;
     while ((ret = ingest_cursor->next(ingest_cursor)) == 0) {
         ++found;
-        __wt_verbose_error(session, WT_VERB_VERIFY,
-          "Verify (layered): %s unexpected record in ingest table. Key: %s, Value: %s.",
-          ingest_uri,
-          __wt_buf_set_printable(
-            session, ingest_cursor->key.data, ingest_cursor->key.size, false, key_buf),
-          __wt_buf_set_printable(
-            session, ingest_cursor->value.data, ingest_cursor->value.size, false, val_buf));
+        // __wt_verbose_error(session, WT_VERB_VERIFY,
+        //   "Verify (layered): %s unexpected record in ingest table. Key: %s, Value: %s.",
+        //   ingest_uri,
+        //   __wt_buf_set_printable(
+        //     session, ingest_cursor->key.data, ingest_cursor->key.size, false, key_buf),
+        //   __wt_buf_set_printable(
+        //     session, ingest_cursor->value.data, ingest_cursor->value.size, false, val_buf));
     }
     if (ret == WT_NOTFOUND) {
         if (found != 0)
