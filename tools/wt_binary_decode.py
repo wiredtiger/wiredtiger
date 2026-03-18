@@ -89,6 +89,7 @@ def decode_wt_binary_input(filename, opts: DecodeOptions):
     with open_input_file(filename, 'rb') as fileobj:
         file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
 
+
 def wtdecode(filename, opts: DecodeOptions):
     if opts.dumpin:
         decode_dumpin_input(filename, opts)
