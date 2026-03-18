@@ -695,7 +695,6 @@ err:
         WT_TRET(__wti_block_off_free(session, block, objectid, new_offset, (wt_off_t)size));
         __wt_spin_unlock(session, &block->live_lock);
     }
-
     __wt_scr_free(session, &tmp);
     return (ret);
 }
