@@ -381,6 +381,7 @@ __wt_compact(WT_SESSION_IMPL *session)
             i = 0;
         }
 
+        WT_ERR(__wt_evict_check_if_blocking(session));
         /*
          * Pages read for compaction aren't "useful"; don't update the read generation of pages
          * already in memory, and if a page is read, set its generation to a low value so it is

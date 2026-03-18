@@ -228,7 +228,7 @@ __cursor_enter(WT_SESSION_IMPL *session)
      */
     if (session->ncursors == 0)
         WT_RET_ONLY(
-          __wt_evict_app_assist_worker_check(session, false, false, NULL), WT_ROLLBACK);
+            __wt_evict_check_if_blocking(session), WT_ROLLBACK);
     ++session->ncursors;
     return (0);
 }

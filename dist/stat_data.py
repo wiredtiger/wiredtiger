@@ -426,6 +426,7 @@ conn_stats = [
     EvictStat('eviction_threshold_dirty_trigger', 'eviction threshold dirty trigger multiplied by 100 for precision'),
     EvictStat('eviction_threshold_updates_target', 'eviction threshold updates target multiplied by 100 for precision'),
     EvictStat('eviction_threshold_updates_trigger', 'eviction threshold updates trigger multiplied by 100 for precision'),
+    EvictStat('eviction_transaction_blocking', 'transaction blocking eviction progress'),
     EvictStat('eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
     EvictStat('eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),
     EvictStat('eviction_worker_lock_wait_time', 'time eviction worker threads spend waiting for locks (usecs)'),

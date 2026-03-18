@@ -507,7 +507,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     size_t sleep_count;
     uint64_t sleep_usecs, yield_cnt;
     int force_attempts;
-    bool busy, cache_work, evict_skip, read_from_disk, stalled, wont_need;
+    bool busy, evict_skip, read_from_disk, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
@@ -562,7 +562,9 @@ read:
             /*
              * The page isn't in memory, read it.
              */
-            WT_RET(__page_read(session, ref, flags, &wont_need));
+             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
+                 WT_RET(__wt_evict_check_if_blocking(session));
+             WT_RET(__page_read(session, ref, flags, &wont_need));
             read_from_disk = true;
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
@@ -734,15 +736,11 @@ skip_evict:
         }
 
         /*
-         * If stalling and this thread is allowed to do eviction work, check if the cache needs help
-         * evicting clean pages (don't force a read to do dirty eviction). If we do work for the
-         * cache, substitute that for a sleep.
+         * Check if this thread is blocking eviction.
          */
-        if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
-            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, &cache_work));
-            if (cache_work)
-                continue;
-        }
+        if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
+            WT_RET(__wt_evict_check_if_blocking(session));
+
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         ++sleep_count;
         if (sleep_count > 10 * WT_THOUSAND && sleep_count % (10 * WT_THOUSAND) == 0)

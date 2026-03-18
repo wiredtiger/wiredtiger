@@ -744,6 +744,7 @@ struct __wt_connection_stats {
     int64_t cache_pages_dirty;
     int64_t cache_pages_dirty_ingest;
     int64_t cache_pages_dirty_stable;
+    int64_t eviction_transaction_blocking;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t cache_bytes_hs_updates;
