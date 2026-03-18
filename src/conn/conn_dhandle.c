@@ -469,8 +469,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
                 discard = true;
             else {
                 WT_TRET(__wt_checkpoint_close(session, final));
-                if (!final && ret == EBUSY)
+                if (!final && ret == EBUSY) {
+                    __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+                      "Checkpoint failed while closing data handle %s: %d",
+                      dhandle->name, ret);
                     WT_ERR(ret);
+                }
             }
         }
     }
@@ -893,7 +897,11 @@ __wt_conn_dhandle_close_all(
      * Lock the live handle first. This ordering is important: we rely on locking the live handle to
      * fail fast if the tree is busy (e.g., with cursors open or in a checkpoint).
      */
-    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, mark_dead, check_visibility));
+    ret = __conn_dhandle_close_one(session, uri, NULL, removed, mark_dead, check_visibility);
+    if (ret != 0)
+        __wt_verbose_warning(
+          session, WT_VERB_HANDLEOPS, "Failed to close live handle for %s: %d", uri, ret);
+    WT_ERR(ret);
 
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
@@ -901,8 +909,13 @@ __wt_conn_dhandle_close_all(
           F_ISSET(dhandle, WT_DHANDLE_DEAD))
             continue;
 
-        WT_ERR(__conn_dhandle_close_one(
-          session, dhandle->name, dhandle->checkpoint, removed, mark_dead, false));
+        ret = __conn_dhandle_close_one(
+          session, dhandle->name, dhandle->checkpoint, removed, mark_dead, false);
+        if (ret != 0)
+            __wt_verbose_warning(
+              session, WT_VERB_HANDLEOPS, "Failed to close checkpoint handle for %s: %d",
+              dhandle->name, ret);
+        WT_ERR(ret);
     }
 
 err:

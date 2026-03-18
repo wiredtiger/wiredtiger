@@ -65,7 +65,8 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     WT_RET(session->iface.truncate(&session->iface, uri, NULL, NULL, NULL));
 
     WT_RET(__wt_txn_commit(session, NULL));
-
+    __wt_verbose_warning(
+      session, WT_VERB_LAYERED, "Drain: truncate committed for ingest table %s", uri);
     return (0);
 }
 
@@ -274,6 +275,40 @@ err:
     return (ret);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __layered_assert_ingest_table_empty --
+ *     Verify that the ingest table has no records. Called after truncation as a post-condition
+ *     check.
+ */
+static int
+__layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t count;
+
+    count = 0;
+    WT_RET(__wt_open_cursor(session, uri, NULL, NULL, &cursor));
+    while ((ret = cursor->next(cursor)) == 0)
+        ++count;
+    WT_TRET(cursor->close(cursor));
+
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+    WT_RET(ret);
+
+    if (count != 0) {
+        __wt_verbose_error(session, WT_VERB_LAYERED,
+          "Ingest table \"%s\" is not empty after truncation: %" PRIu64 " record(s) remaining", uri,
+          count);
+        WT_ASSERT(session, count == 0);
+    }
+
+    return (0);
+}
+#endif
+
 /*
  * __layered_drain_worker_run --
  *     Run function for drain workers.
@@ -300,6 +335,13 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
       work_item->entry->stable_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
       "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__layered_assert_ingest_table_empty(session, work_item->entry->ingest_uri));
+    __wt_verbose_warning(session, WT_VERB_LAYERED,
+      "Drain: finished draining ingest table %s to stable table %s", work_item->entry->ingest_uri,
+      work_item->entry->stable_uri);
+#endif
 
     WT_ASSERT(session, work_item->entry->pinned_dhandle != NULL);
     WT_WITH_DHANDLE(session, work_item->entry->pinned_dhandle, {
@@ -365,6 +407,8 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     manager = &conn->layered_table_manager;
     group_created = false;
 
+    __wt_sleep(0,250000);
+
     __wt_spin_lock(session, &manager->layered_table_lock);
 
     table_count = manager->open_layered_table_count;
@@ -428,10 +472,11 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
             __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
             TAILQ_INSERT_HEAD(&conn->layered_drain_data.work_queue, work_item, q);
             __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-        } else {
-            __wt_verbose_warning(
-                session, WT_VERB_LAYERED, "No ingest tables to drain at index %zu.", i);
         }
+        //  else {
+        //     __wt_verbose_warning(
+        //         session, WT_VERB_LAYERED, "No ingest tables to drain at index %zu.", i);
+        // }
     }
 
     /*
