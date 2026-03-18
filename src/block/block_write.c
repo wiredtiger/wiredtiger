@@ -329,8 +329,12 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 
     /* Write the block. */
     if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
+        if (!caller_locked)
+            __wt_spin_lock(session, &block->live_lock);
         WT_TRET(
           __wti_block_off_free(session, block, block->objectid, offset, (wt_off_t)align_size));
+        if (!caller_locked)
+            __wt_spin_unlock(session, &block->live_lock);
         WT_RET(ret);
     }
 

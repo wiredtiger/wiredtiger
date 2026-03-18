@@ -657,8 +657,10 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
 #endif
 
     WT_RET(__wti_block_ext_prealloc(session, 5));
+    __wt_spin_lock(session, &block->live_lock);
     WT_TRET(__wti_block_off_free(session, block, objectid, offset, (wt_off_t)size));
 
+    __wt_spin_unlock(session, &block->live_lock);
     return (ret);
 }
 
@@ -674,7 +676,7 @@ __wti_block_off_free(
 
     /* The live lock must be locked, except for when we are running salvage. */
     if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE))
-        __wt_spin_lock(session, &block->live_lock);
+        WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can free blocks. */
     WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
@@ -698,10 +700,8 @@ __wti_block_off_free(
     else if (ret == WT_NOTFOUND)
         ret = __block_merge(session, block, &block->live.discard, offset, size);
 
-    /* Unlock the live lock, if we locked it. */
+    /* Increment the free block statistic when not running salvage. */
     if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE)) {
-        __wt_spin_unlock(session, &block->live_lock);
-        /* Increment the free block statistic when not running salvage. */
         WT_STAT_DSRC_INCR(session, block_free);
     }
 
