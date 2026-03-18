@@ -923,6 +923,14 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     btree->modified = true;
+
+    /* Revert the in-memory root page accounting as we have failed during checkpointing. */
+    if (btree->root_size_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
+        __wt_btree_decrease_size(session, btree->current_root_size);
+        __wt_btree_increase_size(session, btree->previous_root_size);
+
+        btree->current_root_size = btree->previous_root_size;
+    }
     __wt_ckptlist_free(session, &btree->ckpt);
 }
 
@@ -2845,8 +2853,7 @@ err:
                  * the discard logic would also need to be reconsidered.
                  */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
-                    WT_TRET(
-                      __wt_btree_block_free(session, ckpt_temp->raw.data, ckpt_temp->raw.size));
+                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, true));
             }
         }
     }
