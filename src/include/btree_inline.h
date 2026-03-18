@@ -1833,7 +1833,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     WT_PAGE *page;
 
     unpack = &_unpack;
-    page = ref->home;
     copy->del_set = false;
 
     WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
@@ -1843,11 +1842,16 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
      * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
      * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
-     * WT_ADDRs and swapped into place. The content of the two WT_ADDRs are identical, and we don't
-     * care which version we get as long as we don't mix-and-match the two.
+     * WT_ADDRs and swapped into place before ref->home is updated to the new child page. Read
+     * ref->home before ref->addr with an acquire barrier in between, pairing with the release
+     * barrier in __split_ref_prepare before the home update. This ensures that if we observe a new
+     * child page as home, we also observe the corresponding off-page addr. The content of the two
+     * WT_ADDRs are identical, and we don't care which version we get as long as we don't
+     * mix-and-match the two.
      */
-    addr = (WT_ADDR *)ref->addr;
+    page = ref->home;
     WT_ACQUIRE_BARRIER();
+    addr = (WT_ADDR *)ref->addr;
 
     /* If NULL, there is no information. */
     if (addr == NULL)

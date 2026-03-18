@@ -364,6 +364,13 @@ __split_ref_prepare(
 
         WT_PAGE_LOCK(session, child);
 
+        /*
+         * Ensure addr conversions from on-page to off-page (done in __split_ref_move) are visible
+         * to other threads before we update ref->home to this new child page. Pairs with the
+         * acquire barrier in __wt_ref_addr_copy.
+         */
+        WT_RELEASE_BARRIER();
+
         /* Switch the WT_REF's to their new page. */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
