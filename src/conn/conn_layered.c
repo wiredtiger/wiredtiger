@@ -491,7 +491,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     uint64_t pinned_timestamp;
     __wt_txn_pinned_timestamp(session, &pinned_timestamp);
     if (pinned_timestamp != WT_TS_NONE && metadata.oldest_timestamp > pinned_timestamp) {
-        WT_TRET(__wt_verbose_dump_sessions(session, true));
+        WT_TRET(__wt_verbose_dump_sessions(session, false));
         WT_IGNORE_RET(__wt_panic(session, EINVAL,
           "Disaggregated storage checkpoint oldest_timestamp %s is greater than the current pinned "
           "timestamp %s",
