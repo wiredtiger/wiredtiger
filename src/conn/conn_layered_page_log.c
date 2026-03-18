@@ -538,8 +538,8 @@ __wti_disagg_fetch_shared_meta(
         if (checksum == ckpt_meta->metadata_checksum) {
             WT_ERR(__wt_scr_alloc(session, 0, &hex_buf));
             WT_ERR_MSG(session, EIO,
-              "Checkpoint metadata corruption detected at lsn: %" PRIu64 ", expected: 0x%" PRIx32
-              ", got: 0x%" PRIx32 ", data: [%s]",
+              "Checkpoint metadata corruption detected: lsn=%" PRIu64 ", expected=0x%" PRIx32
+              ", got=0x%" PRIx32 ", data=[%s]",
               ckpt_meta->metadata_lsn, ckpt_meta->metadata_checksum, checksum,
               __wt_buf_set_printable(session, item->data, item->size, false, hex_buf));
         }
