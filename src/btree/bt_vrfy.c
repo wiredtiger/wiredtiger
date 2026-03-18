@@ -421,6 +421,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__dump_layout(session, vs));
     }
 
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && strcmp(name, WT_METAFILE_URI) == 0)
+        WT_TRET(__wt_verify_disagg_database_size(session));
+
 done:
 err:
     /* Inform the underlying block manager we're done. */
