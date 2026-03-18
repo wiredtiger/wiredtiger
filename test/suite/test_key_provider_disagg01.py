@@ -56,6 +56,9 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     MAIN_KEK_PAGE_ID = 1
     EXPECTED_KEK_VERSION = 1
 
+    turtle_table = "pages_000002.db" # table for WT_SPECIAL_PALI_TURTLE_FILE_ID
+    key_provider_table = "pages_000026.db" # table for WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID
+
     uri = "layered:test_key_provider_disagg01"
 
     # Load the key provider store extension.
@@ -79,8 +82,8 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         return result_data[0]
 
     def validate_number_elements(self, home="."):
-        shared_meta_count = self.sqlite_fetch_information(home, "pages_000001.db", "SELECT COUNT(*) FROM pages")
-        key_provider_count = self.sqlite_fetch_information(home, "pages_000002.db", "SELECT COUNT(*) FROM pages")
+        shared_meta_count = self.sqlite_fetch_information(home, self.turtle_table, "SELECT COUNT(*) FROM pages")
+        key_provider_count = self.sqlite_fetch_information(home, self.key_provider_table, "SELECT COUNT(*) FROM pages")
 
         if (self.key_expire == 0):
             self.assertEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
@@ -88,7 +91,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
             self.assertGreaterEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
 
     def validate_meta_file(self, home="."):
-        result = self.sqlite_fetch_information(home, "pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
+        result = self.sqlite_fetch_information(home, self.turtle_table, "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
         m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result['page_data'])
 
         self.assertTrue(m)

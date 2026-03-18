@@ -43,11 +43,9 @@
 
 #define WT_DISAGG_METADATA_FILE "WiredTigerShared.wt_stable"     /* Shared metadata table */
 #define WT_DISAGG_METADATA_URI "file:WiredTigerShared.wt_stable" /* Shared metadata table URI */
-#define WT_DISAGG_METADATA_TABLE_ID 1                            /* Table ID for metadata strings */
 #define WT_DISAGG_METADATA_MAIN_PAGE_ID 1                        /* Page ID for the main metadata */
 #define WT_DISAGG_METADATA_MAX_PAGE_ID 1                         /* Max page ID in the metadata */
 
-#define WT_DISAGG_KEY_PROVIDER_TABLE_ID 2     /* Table ID for encryption key data */
 #define WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID 1 /* Page ID for the main key provider table */
 #define WT_DISAGG_KEY_PROVIDER_MAX_PAGE_ID 1  /* Max page ID in the key provider table */
 
@@ -150,4 +148,7 @@ typedef struct __wt_disagg_metadata {
 
     const char *key_provider; /* Key provider metadata string */
     size_t key_provider_len;  /* Length of key provider metadata string */
+
+    int version;            /* Metadata version */
+    int compatible_version; /* Minimum compatible reader version */
 } WT_DISAGG_METADATA;

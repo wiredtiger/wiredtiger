@@ -46,15 +46,18 @@ __wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
 {
     char ts_string[6][WT_TS_INT_STRING_SIZE];
 
-    WT_IGNORE_RET(__wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
-      "start: %s/%s/%s/%" PRIu64 "/%" PRIu64 " | stop: %s/%s/%s/%" PRIu64 "/%" PRIu64 "%s",
-      __wt_timestamp_to_string(tw->durable_start_ts, ts_string[0]),
-      __wt_timestamp_to_string(tw->start_ts, ts_string[1]),
-      __wt_timestamp_to_string(tw->start_prepare_ts, ts_string[2]), tw->start_prepared_id,
-      tw->start_txn, __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[3]),
-      __wt_timestamp_to_string(tw->stop_ts, ts_string[4]),
-      __wt_timestamp_to_string(tw->stop_prepare_ts, ts_string[5]), tw->stop_prepared_id,
-      tw->stop_txn, WT_TIME_WINDOW_HAS_PREPARE(tw) ? ", prepared" : ""));
+    WT_IGNORE_RET(
+      __wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
+        "start: durable_timestamp=%s timestamp=%s prepare_timestamp=%s prepared_id=%" PRIu64
+        " transaction=%" PRIu64 " | stop: durable_timestamp=%s timestamp=%s prepare_timestamp=%s "
+        "prepared_id=%" PRIu64 " transaction=%" PRIu64 "%s",
+        __wt_timestamp_to_string(tw->durable_start_ts, ts_string[0]),
+        __wt_timestamp_to_string(tw->start_ts, ts_string[1]),
+        __wt_timestamp_to_string(tw->start_prepare_ts, ts_string[2]), tw->start_prepared_id,
+        tw->start_txn, __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[3]),
+        __wt_timestamp_to_string(tw->stop_ts, ts_string[4]),
+        __wt_timestamp_to_string(tw->stop_prepare_ts, ts_string[5]), tw->stop_prepared_id,
+        tw->stop_txn, WT_TIME_WINDOW_HAS_PREPARE(tw) ? ", prepared" : ""));
     return (tw_string);
 }
 
@@ -129,21 +132,6 @@ __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *
         WT_RET_MSG(session, EINVAL, __VA_ARGS__); \
     } while (0)
 
-/*
- * __time_stable --
- *     Return the stable timestamp for the system.
- */
-static wt_timestamp_t
-__time_stable(WT_SESSION_IMPL *session)
-{
-    WT_TXN_GLOBAL *txn_global;
-
-    txn_global = &S2C(session)->txn_global;
-
-    return (txn_global->has_stable_timestamp ? txn_global->stable_timestamp :
-                                               txn_global->recovery_timestamp);
-}
-
 #undef WT_TIME_ERROR
 #define WT_TIME_ERROR(tag)                                             \
     WT_TIME_VALIDATE_RET(session,                                      \
@@ -163,7 +151,7 @@ __time_aggregate_validate_parent_stable(
     wt_timestamp_t stable;
     char time_string[WT_TIME_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
 
-    stable = __time_stable(session);
+    stable = __wt_get_stable_timestamp(session);
 
     if (ta->newest_start_durable_ts > stable)
         WT_TIME_ERROR("a newest start durable time after");
@@ -388,7 +376,7 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
     wt_timestamp_t stable;
     char time_string[WT_TIME_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
 
-    stable = __time_stable(session);
+    stable = __wt_get_stable_timestamp(session);
 
     if (tw->durable_start_ts > stable)
         WT_TIME_ERROR("a durable start time after");

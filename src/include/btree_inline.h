@@ -153,6 +153,14 @@ __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_BM *bm;
     WT_BTREE *btree;
 
+    /*
+     * During salvage, reconciliation frees overflow blocks that need special tracking to avoid
+     * double frees. Intercept here rather than overriding the block manager's function pointer as
+     * the previous implementation did.
+     */
+    if (session->salvage_track != NULL)
+        return (__wt_slvg_reconcile_free(session, addr, addr_size));
+
     btree = S2BT(session);
     bm = btree->bm;
 
@@ -1010,8 +1018,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * heuristic and therefore can be a little fuzzy, otherwise this would need to be a compare and
      * swap.
      */
-    if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) < session->txn->id)
-        __wt_atomic_store_uint64_relaxed(&page->modify->update_txn, session->txn->id);
+    if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) < session->txn->time_point.id)
+        __wt_atomic_store_uint64_relaxed(&page->modify->update_txn, session->txn->time_point.id);
 }
 
 /*
