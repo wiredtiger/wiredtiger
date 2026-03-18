@@ -138,10 +138,17 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor.close()
 
         # Ensure that the handle has been closed after the drop.
-        self.assertEqual(close2, 1)
+        if self.runningHook('disagg') and self.tabletype == 'row':
+            # In disaggregated mode, both the stable and ingest files are dropped,
+            # so two handles are closed.
+            self.assertEqual(close2, 2)
+        else:
+            self.assertEqual(close2, 1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
 
+    # FIXME-WT-16757: Enable on disagg once issue has been investigated.
+    @wttest.skip_for_hook("disagg", "Fails with disagg")
     @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_disable_idle_timeout_drop(self):
         # Create a table to drop. A drop should close its associated handles

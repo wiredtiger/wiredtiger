@@ -605,7 +605,7 @@ __conn_get_page_log(WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG **page
 
 /*
  * __wti_conn_remove_page_log --
- *     Remove page_log added by WT_CONNECTION->add_page_log, only used internally.
+ *     Remove all page_log instances added by WT_CONNECTION->add_page_log, only used internally.
  */
 int
 __wti_conn_remove_page_log(WT_SESSION_IMPL *session)
@@ -888,9 +888,6 @@ extern int zstd_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 #ifdef HAVE_BUILTIN_EXTENSION_IAA
 extern int iaa_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 #endif
-#ifdef HAVE_BUILTIN_EXTENSION_PALM
-extern int palm_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
-#endif
 
 /*
  * __conn_builtin_extensions --
@@ -913,9 +910,6 @@ __conn_builtin_extensions(WT_CONNECTION_IMPL *conn, const char *cfg[])
 #endif
 #ifdef HAVE_BUILTIN_EXTENSION_IAA
     WT_RET(__conn_builtin_init(conn, "iaa", iaa_extension_init, cfg));
-#endif
-#ifdef HAVE_BUILTIN_EXTENSION_PALM
-    WT_RET(__conn_builtin_init(conn, "palm", palm_extension_init, cfg));
 #endif
 
     /* Avoid warnings if no builtin extensions are configured. */
@@ -2225,11 +2219,29 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point_colgroup", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.before_insert_colgroup", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP);
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP);
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.before_insert_file", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.after_drop_colgroup", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.after_drop_file", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
@@ -3346,11 +3358,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
     conn->prefetch_available = cval.val != 0;
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && conn->prefetch_available)
-        WT_ERR_MSG(
-          session, EINVAL, "prefetch configuration is incompatible with in-memory configuration");
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
     conn->prefetch_auto_on = cval.val != 0;
+
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch_available || conn->prefetch_auto_on)) {
+        __wt_verbose(session, WT_VERB_PREFETCH, "%s",
+          "prefetch configuration is incompatible with in-memory configuration");
+        WT_CONFIG_DEBUG(session, "%s", "setting prefetch.available and prefetch.default to false");
+        conn->prefetch_auto_on = false;
+        conn->prefetch_available = false;
+    }
+
     if (conn->prefetch_auto_on && !conn->prefetch_available)
         WT_ERR_MSG(session, EINVAL,
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");

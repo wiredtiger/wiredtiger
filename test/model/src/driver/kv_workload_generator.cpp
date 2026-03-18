@@ -39,7 +39,8 @@ namespace model {
  */
 kv_workload_generator_spec::kv_workload_generator_spec()
 {
-    disaggregated = 0; /* FIXME-WT-15042 Enable this when ready. */
+    /* Disagg may be enabled by adding -G disaggregated=1 as a command line argument. */
+    disaggregated = 0;
 
     min_tables = 3;
     max_tables = 10;
@@ -594,7 +595,7 @@ kv_workload_generator::run()
 
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
-                uint64_t random_number = _random.next_uint64(1000);
+                uint64_t random_number = _random.next_uint64(1, 1000);
                 *p << operation::checkpoint_crash(random_number);
                 _sequences.push_back(std::move(p));
 

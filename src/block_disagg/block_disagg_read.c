@@ -26,7 +26,7 @@ __wti_block_disagg_corrupt(
     WT_ERR(__wti_block_disagg_read(bm, session, tmp, &block_meta, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
+    WT_ERR(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
     WT_ERR(__wt_bm_corrupt_dump(
       session, tmp, 0, (wt_off_t)root_cookie.page_id, root_cookie.size, root_cookie.checksum));
 
@@ -108,16 +108,23 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t retry, tmp_count;
+    uint32_t retry, tmp_count, block_size_sum;
     int32_t last, result;
-    uint8_t compatible_version, expected_magic;
-    bool is_delta;
+    uint8_t expected_magic;
+    bool from_cache, is_delta;
 
+    /* This variable is only used in an assertion, diagnostic builders don't like this. */
+    WT_UNUSED(block_size_sum);
+    block_size_sum = 0;
+    from_cache = false;
     time_start = __wt_clock(session);
 
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
     WT_ASSERT(session, block_meta != NULL);
+
+    if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        F_SET(&get_args, WT_PAGE_LOG_COLD);
 
     __wt_verbose(session, WT_VERB_READ,
       "page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32
@@ -133,6 +140,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);
         WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, size);
     }
+    if (F_ISSET(&get_args, WT_PAGE_LOG_COLD))
+        WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
     /*
      * If the page server returns no data but doesn't explicitly fail with an error, retry the read
@@ -167,6 +176,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     last = (int32_t)(*results_count - 1);
 
+    /* Set the cumulative size from the cookie before the loop overwrites the size variable. */
+    block_meta->cumulative_size = size;
+
     /*
      * Walk through all the results from most recent delta backwards to the base page. This makes it
      * easier to do checks.
@@ -176,6 +188,13 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_ASSERT(session, current->size < UINT32_MAX);
         size = (uint32_t)current->size;
         is_delta = (result != 0);
+        block_size_sum += size;
+
+        if (is_delta)
+            __wt_verbose(session, WT_VERB_READ,
+              "Reading delta page at position #%" PRId32 " for page_id %" PRIu64, result, page_id);
+        else
+            __wt_verbose(session, WT_VERB_READ, "Reading base page for page_id %" PRIu64, page_id);
 
         /*
          * Do little- to big-endian handling early on.
@@ -183,11 +202,17 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         blk = WT_BLOCK_HEADER_REF(current->data);
         __wti_block_disagg_header_byteswap_copy(blk, &swap);
 
-        if (swap.checksum == checksum) {
+        /*
+         * TODO(WT-16511): When we have the original checksum stored in the page, we should check
+         * that instead of skipping the check entirely for cached pages.
+         */
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED))
+            from_cache = true;
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) || swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
-                  checksum)) {
+                  swap.checksum)) {
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
@@ -196,40 +221,43 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       swap.magic, expected_magic);
                     goto corrupt;
                 }
-                /* TODO: workaround MacOS build failure when passing macro to a string format. */
-                compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
-                if (swap.compatible_version > compatible_version) {
+                if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
                     __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
                       is_delta, result,
                       "compatible version error, version %" PRIu8
                       " is greater than compatible version of %" PRIu8,
-                      swap.compatible_version, compatible_version);
+                      swap.compatible_version, WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
                     goto corrupt;
                 }
 
                 if (result == last) {
-                    WT_ASSERT(session, get_args.lsn > 0);
-                    WT_ASSERT(session,
-                      (*results_count > 1) == FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
-
-                    /* The server is allowed to set base LSN to 0 for full page images. */
-                    WT_ASSERT(session,
-                      (get_args.base_lsn == 0 && *results_count == 1) ||
-                        get_args.base_lsn == base_lsn);
-
                     /* Set the other metadata returned by the Page Service. */
                     block_meta->page_id = page_id;
                     block_meta->backlink_lsn = get_args.backlink_lsn;
                     block_meta->base_lsn = get_args.base_lsn;
                     block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count = (uint8_t)(*results_count - 1);
+                    block_meta->delta_count = F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) ?
+                      (uint8_t)get_args.delta_count :
+                      (uint8_t)(*results_count - 1);
                     block_meta->checksum = checksum;
-                    block_meta->encryption = get_args.encryption;
-                    if (block_meta->delta_count > 0)
-                        WT_ASSERT(session, get_args.base_lsn > 0);
-                    else
-                        WT_ASSERT(
-                          session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+
+                    WT_ASSERT(session, get_args.lsn > 0);
+                    if (!F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED)) {
+                        WT_ASSERT(session,
+                          (*results_count > 1) ==
+                            FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
+
+                        /* The server is allowed to set base LSN to 0 for full page images. */
+                        WT_ASSERT(session,
+                          (get_args.base_lsn == 0 && *results_count == 1) ||
+                            get_args.base_lsn == base_lsn);
+
+                        if (block_meta->delta_count > 0)
+                            WT_ASSERT(session, get_args.base_lsn > 0);
+                        else
+                            WT_ASSERT(
+                              session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+                    }
                 }
 
                 /*
@@ -262,6 +290,21 @@ corrupt:
             WT_ERR(WT_ERROR);
         WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
     }
+
+    /*
+     * The size contained in the cookie must match the sum of all the individual block sizes,
+     * however this isn't true when the victim cache is enabled and the read is serviced by the
+     * cache. Effectively blocks stored in the victim cache are compressed versions of the in-memory
+     * page which is different to what the cookie size tracks which refers to pages written to the
+     * page service.
+     */
+    if (!from_cache)
+        /*
+         * Since the Victim Cache stores compressed variant of in-memory page representation rather
+         * than what we have in SLS, these numbers will not match.
+         */
+        WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
+
 err:
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_disaggbmread(session, WT_CLOCKDIFF_US(time_stop, time_start));
@@ -303,7 +346,7 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     /* Read the block. */
     WT_RET(

@@ -48,6 +48,112 @@ __btree_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __btree_pin_hs_dhandle --
+ *     Pin the history store dhandle for the stable btree.
+ */
+static int
+__btree_pin_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_DECL_ITEM(hs_uri_buf);
+    WT_DECL_RET;
+    const char *hs_checkpoint_name;
+
+    /* Look up the most recent history store checkpoint. This fetches the exact name to use. */
+    WT_RET(
+      __wt_meta_checkpoint_last_name(session, WT_HS_URI_SHARED, &hs_checkpoint_name, NULL, NULL));
+
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_uri_buf));
+    /*
+     * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the stable
+     * checkpoint, but without it being a traditional checkpoint cursor.
+     */
+    WT_ERR(__wt_buf_fmt(session, hs_uri_buf, "%s/%s", WT_HS_URI_SHARED, hs_checkpoint_name));
+    WT_ERR(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0));
+
+    (void)__wt_atomic_add_int32(&session->dhandle->session_inuse, 1);
+    WT_ERR(__wt_session_release_dhandle(session));
+    btree->hs_checkpoint_name = hs_checkpoint_name;
+
+    __wt_scr_free(session, &hs_uri_buf);
+    return (0);
+
+err:
+    __wt_scr_free(session, &hs_uri_buf);
+    __wt_free(session, hs_checkpoint_name);
+    return (ret);
+}
+
+/*
+ * __wt_btree_release_hs_dhandle --
+ *     Release the history store dhandle for the stable btree.
+ */
+int
+__wt_btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_DECL_ITEM(hs_uri_buf);
+    WT_DECL_RET;
+
+    /*
+     * If the connection is closing, all data is being discarded, and the history store dhandle may
+     * already have been removed. In this case, no further action is necessary.
+     */
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)) {
+        __wt_free(session, btree->hs_checkpoint_name);
+        return (0);
+    }
+
+    WT_RET(__wt_scr_alloc(session, 0, &hs_uri_buf));
+    /*
+     * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the stable
+     * checkpoint, but without it being a traditional checkpoint cursor.
+     */
+    WT_ERR(__wt_buf_fmt(session, hs_uri_buf, "%s/%s", WT_HS_URI_SHARED, btree->hs_checkpoint_name));
+    WT_ERR(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0));
+
+    (void)__wt_atomic_sub_int32(&session->dhandle->session_inuse, 1);
+    WT_ERR(__wt_session_release_dhandle(session));
+    __wt_free(session, btree->hs_checkpoint_name);
+
+err:
+    __wt_scr_free(session, &hs_uri_buf);
+    return (ret);
+}
+
+/*
+ * __btree_pin_hs_dhandle_and_get_meta_checkpoint --
+ *     Pin the history store dhandle for the stable btree and get the stable btree checkpoint
+ *     information.
+ */
+static int
+__btree_pin_hs_dhandle_and_get_meta_checkpoint(WT_SESSION_IMPL *session, WT_BTREE *btree,
+  const char *dhandle_name, const char *checkpoint, WT_CKPT *ckpt,
+  WT_LIVE_RESTORE_FH_META *lr_fh_meta)
+{
+    WT_DECL_RET;
+
+    /* Pin the matching history store dhandle in the session. */
+    if (!WT_IS_URI_HS(dhandle_name))
+        WT_WITHOUT_DHANDLE(session, ret = __btree_pin_hs_dhandle(session, btree));
+    /* The shared history store might be empty and may not have been checkpointed before. */
+    WT_RET_NOTFOUND_OK(ret);
+    /*
+     * A race condition occurs while acquiring a new checkpoint, resulting in the intended
+     * checkpoint no longer being available. Respond with "busy" to prompt the caller to retry.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_meta_checkpoint(session, dhandle_name, checkpoint, ckpt, lr_fh_meta), true);
+    if (ret == WT_NOTFOUND) {
+        /* The history store dhandle is pinned. We must find it. */
+        WT_ASSERT(session, !WT_IS_URI_HS(dhandle_name));
+        return (__wt_set_return(session, EBUSY));
+    }
+    F_SET(btree, WT_BTREE_READONLY);
+
+err:
+    return (ret);
+}
+
+/*
  * __wt_btree_open --
  *     Open a Btree.
  */
@@ -66,12 +172,13 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *dhandle_name, *checkpoint;
-    bool creation, forced_salvage;
+    bool creation, forced_salvage, has_ckpt;
 
     btree = S2BT(session);
     dhandle = session->dhandle;
     dhandle_name = dhandle->name;
     checkpoint = NULL;
+    has_ckpt = false;
     WT_CLEAR(lr_fh_meta);
 
     /*
@@ -97,11 +204,25 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Get the checkpoint information for this name/checkpoint pair. */
     if (checkpoint != NULL) {
-        WT_ERR(__wt_meta_checkpoint(session, dhandle_name, checkpoint, &ckpt, &lr_fh_meta));
-        F_SET(btree, WT_BTREE_READONLY);
+        /*
+         * Acquiring the checkpoint lock to prevent racing with picking up a new checkpoint.
+         *
+         * FIXME-WT-16477: if we directly read from the shared metadata, we can avoid taking the
+         * checkpoint lock here.
+         */
+        WT_ASSERT_ALWAYS(session,
+          !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||
+            FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT),
+          "deadlock");
+        WT_WITH_CHECKPOINT_LOCK(session,
+          ret = __btree_pin_hs_dhandle_and_get_meta_checkpoint(
+            session, btree, dhandle_name, checkpoint, &ckpt, &lr_fh_meta));
+        WT_ERR(ret);
     } else
         WT_ERR(
           __wt_meta_checkpoint(session, dhandle_name, dhandle->checkpoint, &ckpt, &lr_fh_meta));
+
+    has_ckpt = true;
 
     /* Set the order number. */
     dhandle->checkpoint_order = ckpt.order;
@@ -198,7 +319,8 @@ err:
         WT_TRET(__wt_btree_close(session));
     }
     __wt_free(session, lr_fh_meta.bitmap_str);
-    __wt_checkpoint_free(session, &ckpt);
+    if (has_ckpt)
+        __wt_checkpoint_free(session, &ckpt);
 
     __wt_scr_free(session, &name_buf);
     __wt_scr_free(session, &tmp);
@@ -228,6 +350,12 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(btree, WT_BTREE_CLOSED))
         return (0);
+
+    if (btree->hs_checkpoint_name != NULL) {
+        WT_SAVE_DHANDLE(session, ret = __wt_btree_release_hs_dhandle(session, btree));
+        WT_TRET(ret);
+    }
+
     F_SET(btree, WT_BTREE_CLOSED);
 
     /*
@@ -445,12 +573,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * to the history store. Checkpoint will also skip this tree.
      */
     WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
-    if (cval.val)
+    if (cval.val || F_ISSET(conn, WT_CONN_IN_MEMORY))
         F_SET(btree, WT_BTREE_IN_MEMORY);
     else
         F_CLR(btree, WT_BTREE_IN_MEMORY);
 
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+    if (F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         F_SET(btree, WT_BTREE_LOGGED);
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (!cval.val)
@@ -602,6 +730,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (cval.val)
         F_SET(btree, WT_BTREE_READONLY);
 
+    /* Configure disaggregated storage tier. */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_tier", &cval));
+    if (cval.len > 0 && strncmp(cval.str, "cold", cval.len) == 0)
+        btree->storage_tier = WT_BTREE_STORAGE_TIER_COLD;
+    else
+        btree->storage_tier = WT_BTREE_STORAGE_TIER_NONE;
+
     /* Initialize locks. */
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
     WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
@@ -663,6 +798,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         btree->next_page_id = ckpt->next_page_id;
 
+    /* Load the total bytes for disaggregated storage. */
+    if (__wt_conn_is_disagg(session))
+        __wt_btree_set_size(session, ckpt->size);
+
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
      * importing and therefore, the checkpoint data's runtime write generation is meaningless. We
@@ -677,7 +816,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->checkpoint_timestamp =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-        btree->prune_timestamp = btree->checkpoint_timestamp;
+        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, btree->checkpoint_timestamp);
 
     return (0);
 }
@@ -1117,8 +1256,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * items are stored on a different page within the same tree, which cannot be handled by
      * disaggregated storage.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
-      F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+    if (F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_DISAGGREGATED)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);

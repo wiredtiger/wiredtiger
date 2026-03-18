@@ -54,6 +54,7 @@ CAS
 CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
+CGmP
 CHUNKCACHE
 CKPT
 CLAYERED
@@ -77,7 +78,6 @@ Checksums
 CityHash
 ClmSvxz
 CloseHandle
-CmP
 Codec
 Comparator
 Config
@@ -170,6 +170,7 @@ GF
 GIDs
 GLIBC
 Geoff
+GetDiskFreeSpaceExA
 GetEnvironmentVariableA
 GetFileAttributesEx
 GetFileSizeEx
@@ -206,6 +207,7 @@ Iu
 JIRA
 JSON
 Jyrki
+KEK
 KV
 Kanowski's
 Keyedness
@@ -263,6 +265,7 @@ Multithreaded
 Mutex
 Mutexes
 MySecret
+NAMESPACE
 NNN
 NOLINT
 NOLINTNEXTLINE
@@ -276,6 +279,7 @@ NUL
 NUM
 NVRAM
 NZD
+Namespace
 NetBSD
 NoAddr
 Nul
@@ -754,6 +758,7 @@ encryptors
 endian
 endptr
 enomem
+enqueue
 enum
 env
 eof
@@ -813,6 +818,7 @@ foward
 fprintf
 fread
 free'd
+freep
 freopen
 fs
 fscanf
@@ -1295,6 +1301,7 @@ srch
 ss
 ssize
 statlog
+statvfs
 stb
 stdbool
 stderr

@@ -1429,6 +1429,30 @@ __split_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE *last_upd, size_t *
 }
 
 /*
+ * __split_multi_inmem_mod_stats_update --
+ *     Update the reconciliation stats in the page modify structure.
+ */
+static WT_INLINE void
+__split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_modify)
+{
+    /*
+     * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
+     * page.
+     */
+    mod->last_evict_pass_gen = orig_modify->last_evict_pass_gen;
+    mod->last_eviction_id = orig_modify->last_eviction_id;
+    mod->last_eviction_timestamp = orig_modify->last_eviction_timestamp;
+    mod->rec_max_txn = orig_modify->rec_max_txn;
+    mod->rec_max_timestamp = orig_modify->rec_max_timestamp;
+    /*
+     * Ensure the reconciliation timestamps are passed to the new page; otherwise, this information
+     * will be lost following an update restore eviction.
+     */
+    mod->rec_pinned_stable_timestamp = orig_modify->rec_pinned_stable_timestamp;
+    mod->rec_prune_timestamp = orig_modify->rec_prune_timestamp;
+}
+
+/*
  * __split_multi_inmem --
  *     Instantiate a page from a disk image.
  */
@@ -1478,8 +1502,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+      !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
     __wt_evict_inherit_page_state(orig, page);
@@ -1497,8 +1521,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
      * need to restore.
      */
-    if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
+    if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
+        if (page->modify != NULL)
+            __split_multi_inmem_mod_stats_update(page->modify, orig->modify);
         return (0);
+    }
 
     free_size = 0;
 
@@ -1693,19 +1720,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      */
     mod = page->modify;
     mod->first_dirty_txn = WT_TXN_FIRST;
+    __split_multi_inmem_mod_stats_update(mod, orig->modify);
 
-    /*
-     * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
-     * page.
-     */
-    mod->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
-    mod->last_eviction_id = orig->modify->last_eviction_id;
-    mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
-    mod->rec_max_txn = orig->modify->rec_max_txn;
-    mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
-
-    /* Add the update/restore flag to any previous state. */
-    mod->restore_state = orig->modify->restore_state;
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
@@ -1774,31 +1790,30 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
     WT_UPDATE *upd;
     uint32_t i, slot;
 
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-        /* Append the onpage values back to the original update chains. */
-        for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-            /*
-             * We don't need to do anything for update chains that are not restored, or restored
-             * without an onpage value.
-             */
-            if (!supd->restore || supd->onpage_upd == NULL)
-                continue;
+    /* Append the onpage values back to the original update chains. */
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /*
+         * We don't need to do anything for update chains that are not restored, or restored without
+         * an onpage value.
+         */
+        if (!supd->restore || supd->onpage_upd == NULL)
+            continue;
 
-            if (supd->free_upds == NULL)
-                continue;
+        if (supd->free_upds == NULL)
+            continue;
 
-            if (supd->ins == NULL) {
-                /* Note: supd->ins is never null for column-store. */
-                slot = WT_ROW_SLOT(orig, supd->rip);
-                upd = orig->modify->mod_row_update[slot];
-            } else
-                upd = supd->ins->upd;
+        if (supd->ins == NULL) {
+            /* Note: supd->ins is never null for column-store. */
+            slot = WT_ROW_SLOT(orig, supd->rip);
+            upd = orig->modify->mod_row_update[slot];
+        } else
+            upd = supd->ins->upd;
 
-            WT_ASSERT(session, upd != NULL);
-            for (; upd->next != NULL; upd = upd->next)
-                ;
-            upd->next = supd->free_upds;
-        }
+        WT_ASSERT(session, upd != NULL);
+        for (; upd->next != NULL; upd = upd->next)
+            ;
+        upd->next = supd->free_upds;
+    }
 
     /*
      * We failed creating new in-memory pages. For error-handling reasons, we've left the update

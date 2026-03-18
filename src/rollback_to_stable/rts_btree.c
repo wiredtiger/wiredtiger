@@ -380,7 +380,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     __wt_txn_pinned_timestamp(session, &pinned_ts);
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_curhs_open(session, hs_btree_id, NULL, &hs_cursor));
+    WT_ERR(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
     /*
      * Rollback-to-stable operates exclusively (i.e., it is the only active operation in the system)
      * outside the constraints of transactions. Therefore, there is no need for snapshot based
@@ -728,8 +728,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
           tw->durable_start_ts > rollback_timestamp ? "true" : "false",
           !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ? "true" : "false",
           !WT_TIME_WINDOW_HAS_STOP(tw) && prepared ? "true" : "false");
-        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-          !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+        if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
             return (__rts_btree_ondisk_fixup_key(
               session, ref, rip, recno, row_key, vpack, rollback_timestamp));
         else {
@@ -753,8 +752,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         if (WT_TIME_WINDOW_HAS_START_PREPARE(tw) && tw->start_prepared_id == tw->stop_prepared_id &&
           tw->start_prepare_ts == tw->stop_prepare_ts && tw->start_txn == tw->stop_txn) {
             WT_ASSERT(session, prepared);
-            if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-              !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+            if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
                 return (__rts_btree_ondisk_fixup_key(
                   session, ref, rip, recno, row_key, vpack, rollback_timestamp));
             else {

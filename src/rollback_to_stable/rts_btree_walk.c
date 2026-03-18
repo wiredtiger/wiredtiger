@@ -292,7 +292,7 @@ __wti_rts_btree_walk_btree_apply(
     WT_ASSERT(session, rollback_timestamp != WT_TS_NONE);
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
-    if (!WT_BTREE_PREFIX(uri) || WT_IS_URI_HS(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
+    if (!WT_BTREE_PREFIX(uri) || WT_IS_URI_HS(uri) || WT_IS_URI_METADATA(uri))
         return (0);
 
     addr_size = 0;
@@ -474,7 +474,7 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      * does not mark the btree as dirty when checkpoint is happening.
      */
     oldest_id = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.oldest_id);
-    stable_timestamp = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.stable_timestamp);
+    stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ASSERT(session, oldest_id > WT_TXN_NONE);
     btree->rec_max_txn = oldest_id - 1;
     btree->rec_max_timestamp = stable_timestamp;

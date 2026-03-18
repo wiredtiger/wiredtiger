@@ -298,9 +298,9 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
 # Called to replace Session.drop
 def session_drop_replace(orig_session_drop, session_self, uri, config):
-    # uri = replace_uri(uri)
-    # return orig_session_drop(session_self, uri, config)
-    skip_test("drop on disagg tables not yet implemented")
+    if uri.startswith("table:"):
+        uri = replace_uri(uri)
+    return orig_session_drop(session_self, uri, config)
 
 # Called to replace Session.open_cursor.  We skip calls that do backup
 # as that is not yet supported in disaggregated storage.
@@ -320,8 +320,8 @@ def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dup
 
 # Called to replace Session.salvage
 def session_salvage_replace(orig_session_salvage, session_self, uri, config):
-    uri = replace_uri(uri)
-    return orig_session_salvage(session_self, uri, config)
+    # FIXME-WT-14740: Re-enable salvage once implemented.
+    skip_test("salvage on disagg tables not yet implemented")
 
 # Called to replace Session.truncate.
 def session_truncate_replace(orig_session_truncate, session_self, uri, start, stop, config):
@@ -354,7 +354,7 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("layered",              "Layered tests already turn on the proper stuff"),
             ("live_restore",         "Live restore is not supported with disagg storage"),
             ("lsm",                  "LSM is not supported with tiering"),
-            ("modify_smoke_recover", "Copying WT dir doesn't copy the PALM/PALite directory"),
+            ("modify_smoke_recover", "Copying WT dir doesn't copy the PALite directory"),
             ("rollback_to_stable",   "Rollback to stable is not needed at startup"),
             ("test_backup",          "Can't backup a disagg table"),
             ("test_compact",         "Can't compact a disagg table"),
@@ -362,7 +362,7 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_cursor_big",      "Cursor caching verified with stats"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
             ("test_import",          "Can't import a disagg table"),
-            ("test_salvage",         "Salvage tests directly name files ending in '.wt'"),
+            ("test_salvage",         "Salvage is not currently supported for disagg"), # FIXME-WT-14740
             ("tiered",               "Tiered tests do not apply to disagg"),
         ]
 
@@ -501,7 +501,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
             testcase.pr(f'>>>>layered tables: {testcase.layered_uris}<<<<<')
 
     def tableExists(self, name):
-        # TODO: for palm/palite will need to rummage in kv_home files.
+        # TODO: for PALite will need to rummage in kv_home files.
         return False
 
     def initialFileName(self, uri):

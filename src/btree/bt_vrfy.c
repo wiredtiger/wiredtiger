@@ -20,6 +20,9 @@ typedef struct {
 
     uint64_t fcnt; /* Progress counter */
 
+    /* Accumulated size of all blocks in this btree. */
+    uint64_t total_block_size;
+
     /* Configuration options passed in. */
     wt_timestamp_t stable_timestamp; /* Stable timestamp to verify against if desired */
 #define WT_VRFY_DUMP(vs) \
@@ -43,6 +46,7 @@ typedef struct {
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_compare_page_id(const void *, const void *);
+static int __verify_disagg_accumulate_size(WT_SESSION_IMPL *, WT_VSTUFF *, const void *, size_t);
 static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
@@ -61,9 +65,6 @@ static int
 __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 {
     WT_CONFIG_ITEM cval;
-    WT_TXN_GLOBAL *txn_global;
-
-    txn_global = &S2C(session)->txn_global;
 
     WT_RET(__wt_config_gets(session, cfg, "do_not_clear_txn_id", &cval));
     if (cval.val)
@@ -99,10 +100,10 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
     if (cval.val != 0) {
-        if (!txn_global->has_stable_timestamp)
+        vs->stable_timestamp = __wt_get_stable_timestamp(session);
+        if (vs->stable_timestamp == WT_TS_NONE)
             WT_RET_MSG(session, ENOTSUP,
               "cannot verify against the stable timestamp if it has not been set");
-        vs->stable_timestamp = txn_global->stable_timestamp;
     }
     if (vs->dump_all_data && vs->dump_key_data)
         WT_RET_MSG(session, ENOTSUP, "%s",
@@ -186,6 +187,30 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
             WT_RET(__wt_msg(session, "\t%03" WT_SIZET_FMT ": %" PRIu64, i, vs->depth_leaf[i]));
             vs->depth_leaf[i] = 0;
         }
+    return (0);
+}
+
+/*
+ * __verify_disagg_accumulate_size --
+ *     Accumulate the block size from the disagg cookie.
+ */
+static int
+__verify_disagg_accumulate_size(
+  WT_SESSION_IMPL *session, WT_VSTUFF *vs, const void *cookie_data, size_t cookie_size)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_BTREE *btree;
+    const uint8_t *buf;
+
+    btree = S2BT(session);
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    buf = cookie_data;
+    WT_RET(__wt_block_disagg_addr_unpack(session, &buf, cookie_size, &cookie));
+
+    vs->total_block_size += cookie.size;
     return (0);
 }
 
@@ -310,6 +335,21 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
+            /* Account for the root page in the accumulated total block size. */
+            WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
+
+            /* Validate the size of the btree */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
+                /*
+                 * FIXME-WT-16738: verify currently encounters checkpoint size mismatches. Re-enable
+                 * this check once this is resolved.
+                 */
+                if (false)
+                    WT_ERR_MSG(session, WT_ERROR,
+                      "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+                      ckpt->size, vs->total_block_size);
+            }
+
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it, also verify
@@ -328,7 +368,16 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
                 if (!skip_hs) {
                     __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
+#ifndef WT_STANDALONE_BUILD
+                    /* FIXME-WT-16557: Re-enable HS validation at all times. */
+                    if (__wt_conn_is_disagg(session))
+                        __wt_verbose(session, WT_VERB_VERIFY,
+                          "%s: skipping verify against history store in disagg", name);
+                    else
+                        WT_TRET(__wt_hs_verify_one(session, btree->id));
+#else
                     WT_TRET(__wt_hs_verify_one(session, btree->id));
+#endif
                 }
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
@@ -410,6 +459,9 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
 
     /* Tree depth. */
     vs->depth = 1;
+
+    /* Accumulated size of all blocks in the btree. */
+    vs->total_block_size = 0;
 }
 
 /*
@@ -438,6 +490,63 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 err:
     __wt_scr_free(session, &tmp);
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+    return (buf->data);
+}
+
+/*
+ * __verify_disagg_string --
+ *     Format a page's disagg metadata into a printable, nul-terminated string.
+ */
+static const char *
+__verify_disagg_string(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *buf)
+{
+    WT_DECL_RET;
+    WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_DISAGG_INFO *disagg_info;
+
+    if (page == NULL || page->disagg_info == NULL) {
+        WT_ERR(__wt_buf_fmt(session, buf, "Disagg metadata not available"));
+        return (buf->data);
+    }
+
+    disagg_info = page->disagg_info;
+    block_meta = &disagg_info->block_meta;
+    WT_ERR(__wt_buf_fmt(session, buf,
+      "page_id: %" PRIu64 ", disagg_lsn: %" PRIu64 ", backlink_lsn: %" PRIu64 ", base_lsn: %" PRIu64
+      ", delta_count: %" PRIu8 ", old_rec_lsn_max: %" PRIu64 ", rec_lsn_max: %" PRIu64,
+      block_meta->page_id, block_meta->disagg_lsn, block_meta->backlink_lsn, block_meta->base_lsn,
+      block_meta->delta_count, disagg_info->old_rec_lsn_max, disagg_info->rec_lsn_max));
+
+err:
+    return (buf->data);
+}
+
+/*
+ * __verify_block_meta_string --
+ *     Return disagg metadata string if available, otherwise return address string.
+ */
+static const char *
+__verify_block_meta_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_PAGE *page;
+
+    page = ref->page;
+
+    if (page->disagg_info != NULL) {
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ERR(__wt_buf_fmt(session, buf, "%s", __verify_disagg_string(session, page, tmp)));
+        WT_ERR(__wt_buf_catfmt(
+          session, buf, ", addr_cookie: %s", __verify_addr_string(session, ref, tmp)));
+        __wt_scr_free(session, &tmp);
+        return (buf->data);
+    }
+
+    return (__verify_addr_string(session, ref, buf));
+
+err:
+    __wt_scr_free(session, &tmp);
     return (buf->data);
 }
 
@@ -551,14 +660,14 @@ __verify_tree(
     if (__wt_session_prefetch_check(session, ref))
         WT_RET(__wti_btree_prefetch(session, ref));
 
-    __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write gen: %" PRIu64 ", entries: %" PRIu32,
-      __wt_page_type_string(page->type), __verify_addr_string(session, ref, vs->tmp1),
+    __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write_gen: %" PRIu64 ", entries: %" PRIu32,
+      __wt_page_type_string(page->type), __verify_block_meta_string(session, ref, vs->tmp1),
       page->dsk->write_gen, page->entries);
 
     /* Optionally dump address information. */
     if (vs->dump_address)
-        WT_RET(__wt_msg(session, "%s %s write gen: %" PRIu64,
-          __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
+        WT_RET(__wt_msg(session, "%s %s write_gen: %" PRIu64,
+          __verify_block_meta_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
           page->dsk->write_gen));
 
     my_stack_level = WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1);
@@ -608,13 +717,15 @@ __verify_tree(
         if (page->type != WT_PAGE_COL_INT && page->type != WT_PAGE_COL_VAR)
             WT_RET_MSG(session, WT_ERROR,
               "page at %s is a %s, which does not belong in a variable-length column-store tree",
-              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
+              __verify_block_meta_string(session, ref, vs->tmp1),
+              __wt_page_type_string(page->type));
         break;
     case BTREE_ROW:
         if (page->type != WT_PAGE_ROW_INT && page->type != WT_PAGE_ROW_LEAF)
             WT_RET_MSG(session, WT_ERROR,
               "page at %s is a %s, which does not belong in a row-store tree",
-              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
+              __verify_block_meta_string(session, ref, vs->tmp1),
+              __wt_page_type_string(page->type));
         break;
     }
 
@@ -626,7 +737,8 @@ __verify_tree(
             WT_RET_MSG(session, WT_ERROR,
               "page at %s has a starting record of %" PRIu64
               " when the expected starting record is at least %" PRIu64,
-              __verify_addr_string(session, ref, vs->tmp1), ref->ref_recno, vs->records_so_far + 1);
+              __verify_block_meta_string(session, ref, vs->tmp1), ref->ref_recno,
+              vs->records_so_far + 1);
         break;
     }
 
@@ -711,12 +823,13 @@ __verify_tree(
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        if (addr_unpack->raw != WT_CELL_ADDR_INT)
+        if (addr_unpack->raw != WT_CELL_ADDR_INT) {
 celltype_err:
             WT_RET_MSG(session, WT_ERROR,
               "page at %s, of type %s, is referenced in its parent by a cell of type %s",
-              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
+              __verify_block_meta_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
               __wti_cell_type_string(addr_unpack->raw));
+        }
         break;
     }
 
@@ -765,6 +878,12 @@ celltype_err:
             /* Unpack the address block and check timestamps */
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+
+            /*
+             * Accumulate the block size from the disagg cookie. This is used to validate the
+             * checkpoint size at the end of the checkpoint verification.
+             */
+            WT_RET(__verify_disagg_accumulate_size(session, vs, unpack->data, unpack->size));
 
             /* Verify the subtree. */
             ++vs->depth;
@@ -827,6 +946,12 @@ celltype_err:
             /* Unpack the address block and check timestamps */
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+
+            /*
+             * Accumulate the block size from the disagg cookie. This is used to validate the
+             * checkpoint size at the end of the checkpoint verification.
+             */
+            WT_RET(__verify_disagg_accumulate_size(session, vs, unpack->data, unpack->size));
 
             /* Verify the subtree. */
             ++vs->depth;
@@ -1072,7 +1197,7 @@ __verify_key_hs(
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, &hs_cursor));
+    WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
@@ -1342,11 +1467,11 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     WT_RET_NOTFOUND_OK(ret);
 
     /*
-     * Track the number of pages found in the PALM walk. This value is tracked separately because
+     * Track the number of pages found in the PALI walk. This value is tracked separately because
      * WT_ITEM->size must match the allocated memory, while the actual number of pages found may be
      * smaller than that allocation.
      */
-    size_t num_pages_found_in_palm = 0;
+    size_t num_pages_found_in_pali = 0;
     uint64_t checkpoint_lsn;
     checkpoint_lsn =
       S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE ?
@@ -1354,49 +1479,55 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
       S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
 
     WT_DECL_ITEM(item);
-    WT_RET(__wt_scr_alloc(session, num_pages_found_in_palm, &item));
+    WT_RET(__wt_scr_alloc(session, num_pages_found_in_pali, &item));
 
     WT_ASSERT(session, bm->get_page_ids != NULL);
-    /* Get page IDs from PALM. */
-    WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
+    /* Get page IDs from PALI. */
+    WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_pali, checkpoint_lsn));
 
-    if ((uint64_t)num_pages_found_in_palm != num_pages_found_in_btree) {
-        WT_ERR_MSG(session, EINVAL,
+    if ((uint64_t)num_pages_found_in_pali != num_pages_found_in_btree) {
+        __wt_verbose_error(session, WT_VERB_VERIFY,
           "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
           " Btree walk %" PRIu64,
-          (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
+          (uint64_t)num_pages_found_in_pali, num_pages_found_in_btree);
+        WT_TRET(EINVAL);
     }
 
     /*
-     * Sort the btree walk array by page ID in ascending order to match the order used in the PALM
+     * Sort the btree walk array by page ID in ascending order to match the order used in the PALI
      * walk.
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    for (uint32_t index_in_palm = 0, index_in_btree = 0;
-         index_in_palm <= num_pages_found_in_palm && index_in_btree <= num_pages_found_in_btree;) {
-        if (index_in_palm == num_pages_found_in_palm && index_in_btree == num_pages_found_in_btree)
+    for (uint32_t index_in_pali = 0, index_in_btree = 0;
+         index_in_pali <= num_pages_found_in_pali && index_in_btree <= num_pages_found_in_btree;) {
+        if (index_in_pali == num_pages_found_in_pali && index_in_btree == num_pages_found_in_btree)
             break;
-        uint64_t id_in_palm =
-          index_in_palm < num_pages_found_in_palm ? ((uint64_t *)item->data)[index_in_palm] : 0;
+        uint64_t id_in_pali =
+          index_in_pali < num_pages_found_in_pali ? ((uint64_t *)item->data)[index_in_pali] : 0;
         uint64_t id_in_btree =
           index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
 
-        if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
-            WT_ERR_MSG(session, EINVAL,
-              "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
-              id_in_palm);
-            index_in_palm++;
-        } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
-            WT_ERR_MSG(session, EINVAL,
+        if (index_in_btree == num_pages_found_in_btree || id_in_pali < id_in_btree) {
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
+              id_in_pali);
+            WT_TRET(EINVAL);
+            index_in_pali++;
+        } else if (index_in_pali == num_pages_found_in_pali || id_in_pali > id_in_btree) {
+            __wt_verbose_error(session, WT_VERB_VERIFY,
               "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
+            WT_TRET(EINVAL);
             index_in_btree++;
         } else {
-            index_in_palm++;
+            index_in_pali++;
             index_in_btree++;
         }
     }
+
+    if (ret != 0)
+        WT_ERR_MSG(session, ret, "Page discard verification found mismatches");
 
 err:
 

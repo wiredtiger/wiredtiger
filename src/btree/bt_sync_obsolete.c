@@ -185,9 +185,9 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
           __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
-            __wt_atomic_add_uint32_v(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
+            __wt_atomic_add_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
 
-        __wt_atomic_add_uint32_v(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
+        __wt_atomic_add_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
     }
 
@@ -490,11 +490,10 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_REF *ref;
-    uint32_t flags;
-
-    ref = NULL;
-    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    WT_REF *ref = NULL;
+    uint32_t flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    uint32_t pages_visited = 0;
+    uint64_t elapsed_us, end_time, start_time = __wt_clock(session);
 
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
@@ -523,6 +522,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
+        ++pages_visited;
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
         } else {
@@ -538,6 +538,14 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     }
 
 err:
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "checkpoint cleanup btree walk completed (ret=%d), pages_visited=%" PRIu32
+      ", elapsed_us=%" PRIu64,
+      ret, pages_visited, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, pages_visited);
+
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, ref, flags));
     WT_TRET(__wt_session_release_dhandle(session));
@@ -671,14 +679,21 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
 
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
-    WT_ERR(cursor->search_near(cursor, &exact));
+
+    /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+    WT_WITH_TXN_ISOLATION(
+      session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, &exact));
+    WT_ERR(ret);
 
     /*
      * The given URI may not exist in the metadata file. Since we always want to return a URI that
      * is lexicographically larger the given one, make sure not to go backwards.
      */
-    if (exact <= 0)
-        WT_ERR(cursor->next(cursor));
+    if (exact <= 0) {
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+        WT_ERR(ret);
+    }
 
     /* Loop through the eligible candidates. */
     do {
@@ -694,7 +709,10 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         /* Check the given uri needs checkpoint cleanup. */
         if (__checkpoint_cleanup_eligibility(session, key, value))
             break;
-    } while ((ret = cursor->next(cursor)) == 0);
+
+        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+    } while (ret == 0);
     WT_ERR(ret);
 
     /* Save the selected uri. */
@@ -715,6 +733,9 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(uri);
     WT_DECL_RET;
 
+    uint32_t tables_processed = 0;
+    uint64_t elapsed_us, end_time, start_time = __wt_clock(session);
+
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
 
@@ -727,6 +748,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             continue;
         }
         WT_ERR(ret);
+        ++tables_processed;
 
         /* Check if we need to wait before continuing with the next file to minimize impact. */
         if (S2C(session)->cc_cleanup.file_wait_ms > 0) {
@@ -746,6 +768,15 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "checkpoint cleanup full iteration completed (ret=%d), tables_processed=%" PRIu32
+      " elapsed_us=%" PRIu64,
+      ret, tables_processed, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, tables_processed);
+
     __wt_scr_free(session, &uri);
     return (ret);
 }

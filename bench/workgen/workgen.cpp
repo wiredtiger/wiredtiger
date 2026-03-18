@@ -214,6 +214,9 @@ thread_tables_drop_workload(void *arg)
  */
 volatile std::sig_atomic_t signal_raised = 0;
 
+/* Separate control for the timestamp thread. */
+static volatile bool stop_timestamp_thread = false;
+
 void
 signal_handler(int signum)
 {
@@ -767,19 +770,31 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
 int
 WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
 {
-    uint64_t time_us;
     char buf[BUF_SIZE];
+    ContextInternal *icontext = _workload->_context->_internal;
 
-    while (!stopping) {
-        if (_workload->options.oldest_timestamp_lag > 0) {
-            time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIx64, time_us);
-            conn->set_timestamp(conn, buf);
+    while (!stop_timestamp_thread) {
+        uint64_t stable_ts = 0;
+        uint64_t oldest_ts = 0;
+
+        /* Only hold the mutex while computing timestamps, not across WT calls. */
+        if (_workload->options.stable_timestamp_lag > 0 ||
+          _workload->options.oldest_timestamp_lag > 0) {
+            const std::lock_guard<std::shared_mutex> lock(*icontext->_ts_mutex);
+            if (_workload->options.stable_timestamp_lag > 0)
+                stable_ts =
+                  WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
+            if (_workload->options.oldest_timestamp_lag > 0)
+                oldest_ts =
+                  WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
         }
 
-        if (_workload->options.stable_timestamp_lag > 0) {
-            time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
-            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIx64, time_us);
+        if (stable_ts != 0) {
+            snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIx64, stable_ts);
+            conn->set_timestamp(conn, buf);
+        }
+        if (oldest_ts != 0) {
+            snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIx64, oldest_ts);
             conn->set_timestamp(conn, buf);
         }
 
@@ -787,7 +802,6 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     }
     return 0;
 }
-
 static void *
 monitor_main(void *arg)
 {
@@ -933,7 +947,7 @@ Context::operator=(const Context &other)
 ContextInternal::ContextInternal()
     : _tint(), _table_names(), _table_runtime(), _tint_last(0), _dyn_tint(), _dyn_table_names(),
       _dyn_table_runtime(), _dyn_tint_last(0), _context_count(0),
-      _dyn_mutex(new std::shared_mutex())
+      _dyn_mutex(new std::shared_mutex()), _ts_mutex(new std::shared_mutex())
 
 {
     uint32_t count = workgen_atomic_add32(&context_count, 1);
@@ -945,6 +959,7 @@ ContextInternal::ContextInternal()
 ContextInternal::~ContextInternal()
 {
     delete _dyn_mutex;
+    delete _ts_mutex;
 }
 
 int
@@ -1991,16 +2006,29 @@ err:
         if (ret != 0 || op->transaction->_rollback) {
             WT_TRET(_session->rollback_transaction(_session, nullptr));
         } else if (_in_transaction) {
-            // Set prepare, commit and durable timestamp if prepare is set.
+            ContextInternal *icontext = _workload->_context->_internal;
+            /*
+             * Set the prepare, commit, and durable timestamps when prepare is enabled. The same
+             * prepare_timestamp value is reused for both the commit and durable timestamps.
+             */
             if (op->transaction->use_prepare_timestamp) {
-                time_us = WorkgenTimeStamp::get_timestamp();
-                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIx64, time_us);
+                uint64_t prepare_ts;
+                {
+                    const std::lock_guard<std::shared_mutex> lock(*icontext->_ts_mutex);
+                    prepare_ts = WorkgenTimeStamp::get_timestamp();
+                }
+                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIx64, prepare_ts);
                 ret = _session->prepare_transaction(_session, buf);
+
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64,
-                  time_us, time_us);
+                  prepare_ts, prepare_ts);
                 ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
-                uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
+                uint64_t commit_time_us;
+                {
+                    const std::lock_guard<std::shared_mutex> lock(*icontext->_ts_mutex);
+                    commit_time_us = WorkgenTimeStamp::get_timestamp();
+                }
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);
             } else {
@@ -2012,7 +2040,6 @@ err:
             // Commit may fail due to timestamp checks. In such cases, rollback the transaction
             // instead of returning an error.
             ret = 0;
-            WT_TRET(_session->rollback_transaction(_session, nullptr));
         }
         _in_transaction = false;
     }
@@ -3656,7 +3683,6 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     if (options->sample_interval_ms > 0)
         monitor._stop = true;
 
-    // Signal timestamp and idle table cycle thread to stop.
     stopping = true;
 
     // wait for all threads
@@ -3673,6 +3699,8 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
 
     // Wait for the time increment thread
     if (runnerConnection != nullptr) {
+        // Tell the timestamp thread to exit now that we are truly done.
+        stop_timestamp_thread = true;
         WT_TRET(pthread_join(time_thandle, &status));
         delete runnerConnection;
     }

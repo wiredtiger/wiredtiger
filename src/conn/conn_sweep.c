@@ -181,13 +181,24 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+        bool sweep_non_outdated_handle =
+          __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min;
         /*
          * Ignore open files once the btree file count is below the minimum number of handles.
          */
-        if (__wt_atomic_load_uint32_relaxed(&conn->open_btree_count) < conn->sweep_handles_min)
+        if (!__wt_conn_is_disagg(session) && !sweep_non_outdated_handle)
             break;
 
-        if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+        if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
+            continue;
+        /*
+         * Close outdated btrees immediately, even if they are metadata. For trees not marked with
+         * outdated, wait until the idle time has elapsed since time of death.
+         */
+        if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+            if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
+                continue;
+        } else if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
           __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
           now - dhandle->timeofdeath <= conn->sweep_idle_time)
@@ -346,6 +357,7 @@ __sweep_check_session_callback(
 
     last = array_session->last_cursor_big_sweep;
     last_sweep = __wt_atomic_load_uint64_relaxed(&array_session->last_sweep);
+    const char *session_name = __wt_atomic_load_ptr_relaxed(&array_session->name);
 
     /*
      * Get the earlier of the two timestamps, as they refer to sweeps of two different data
@@ -376,10 +388,16 @@ __sweep_check_session_callback(
         if (!array_session->sweep_warning_60min) {
             array_session->sweep_warning_60min = 1;
             WT_STAT_CONN_INCR(session, no_session_sweep_60min);
+            /*
+             * The name in this comment is marked as "possible" because it is obtained using a
+             * relaxed read. This means the name may be outdated with a very small probability;
+             * therefore, it should not be treated as an authoritative source. Please use session id
+             * output instead, as it is more reliable.
+             */
             __wt_verbose_warning(session, WT_VERB_SWEEP,
-              "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
+              "Session %" PRIu32 " (@: 0x%p possible name: %s) did not run a sweep for 60 minutes.",
               array_session->id, (void *)array_session,
-              array_session->name == NULL ? "EMPTY" : array_session->name);
+              session_name == NULL ? "EMPTY" : session_name);
         }
     } else {
         array_session->sweep_warning_60min = 0;
@@ -463,11 +481,12 @@ __sweep_server(void *arg)
             __sweep_mark(session, now);
 
         /*
-         * Close handles if we have reached the configured limit. If sweep_idle_time is 0, handles
-         * never become idle.
+         * Close handles if we have reached the configured limit or in disaggregated storage. If
+         * sweep_idle_time is 0, handles never become idle.
          */
         if (conn->sweep_idle_time != 0 &&
-          __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min)
+          (__wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min ||
+            __wt_conn_is_disagg(session)))
             WT_ERR(__sweep_expire(session, now));
 
         WT_ERR(__sweep_discard_trees(session, &dead_handles));

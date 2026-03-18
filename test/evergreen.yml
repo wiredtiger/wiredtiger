@@ -16,6 +16,7 @@ post:
   - func: "upload test/format config"
   - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
+  - func: "upload stat files"
   - func: "upload artifact"
     vars:
       postfix: -${execution}
@@ -80,6 +81,15 @@ functions:
                 exit 1
               fi
             fi
+
+            # Set extensions to load
+            EXT="extensions=["
+            EXT="$EXT ext/compressors/snappy/libwiredtiger_snappy.so,"
+            EXT="$EXT ext/collators/reverse/libwiredtiger_reverse_collator.so,"
+            EXT="$EXT ext/encryptors/rotn/libwiredtiger_rotn.so,"
+            EXT="$EXT ext/page_log/palite/libwiredtiger_palite.so,"
+            EXT="$EXT ]"
+            export EXT
 
             ${additional_env_vars}
 
@@ -262,6 +272,19 @@ functions:
         echo "BAZELISK_HOME=${workdir}/bazelisk_home" >> ~/.bazeliskrc
 
         bazel build --mongo_toolchain_version=v5 --config=opt --build_enterprise=False install-mongod
+  "checkout develop": &checkout_develop
+    command: shell.exec
+    type: setup
+    params:
+      working_dir: "wiredtiger"
+      shell: bash
+      script: |
+        set -o errexit
+        ${PREPARE_PATH}
+        # Stash local changes first.
+        git stash save "Stashing local changes before checking out develop"
+        echo "Checking out develop branch ..."
+        git checkout develop
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
@@ -292,7 +315,6 @@ functions:
           ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
           ${HAVE_UNITTEST} \
           ${CODE_COVERAGE_FLAGS} \
-          ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
           ${WORDS_BIGENDIAN|} \
           ${GNU_C_VERSION|} \
@@ -435,6 +457,12 @@ functions:
     - *get_automation_scripts
     - *configure_wiredtiger
     - *make_wiredtiger
+  "compile wiredtiger develop":
+    - *gen_github_token
+    - *get_automation_scripts
+    - *checkout_develop
+    - *configure_wiredtiger
+    - *make_wiredtiger
   "dump stacktraces": &dump_stacktraces
     command: shell.exec
     params:
@@ -482,6 +510,35 @@ functions:
       content_type: text/plain
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
       preserve_path: true
+  "upload stat files":
+    - command: shell.exec
+      type: setup
+      params:
+        working_dir: "wiredtiger/cmake_build"
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          mkdir stat_files
+          ${python_binary|python3} ../test/evergreen/collect_stat_files.py -d stat_files
+    - command: archive.targz_pack
+      type: setup
+      params:
+        target: wiredtiger/cmake_build/stat_files.tar.gz
+        source_dir: wiredtiger/cmake_build/stat_files
+        include:
+          - "./**"
+    - command: s3.put
+      type: setup
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: wiredtiger/cmake_build/stat_files.tar.gz
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/stat_files.tar.gz
+        display_name: "Statistics"
 
   "run data validation stress test checkpoint":
     - *fetch_artifacts
@@ -1072,7 +1129,23 @@ functions:
           echo Iteration $i/${times}
           rm -rf RUNDIR
           ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} || fail
-          ./t -R $format_args ${extra_args|} || fail
+          if [ ${reopen|true} = true ]; then
+            ./t -R $format_args ${extra_args|} || fail
+          fi
+        done
+  "timestamp abort disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
+        for i in $(seq ${times|1}); do
+          echo Iteration $i/${times}
+          ./test_timestamp_abort -G -s
         done
   "many dbs test":
     command: shell.exec
@@ -1135,6 +1208,26 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: ${artifacts_name|Artifacts}
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+  "upload artifact for compatibility test":
+    - command: archive.targz_pack
+      type: setup
+      params:
+        target: ${upload_filename|wiredtiger_compat.tgz}
+        source_dir: ${upload_source_dir|.}
+        include:
+          - "wiredtiger/**"
+          - "wiredtiger-develop/**"
+    - command: s3.put
+      type: setup
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: ${upload_filename|wiredtiger_compat.tgz}
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: ${artifacts_name|Artifacts_Compat}
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload wtperf test artifact":
     - command: archive.targz_pack
@@ -1398,6 +1491,33 @@ functions:
           set -o verbose
           ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
+  "run format test to generate datafiles":
+    command: shell.exec
+    params:
+      working_dir: ${format_binary_dir}
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        # Run format test with disagg leader mode for now, which can be extended later.
+        echo "Running format test in ${format_binary_dir} to generate data files ..."
+        ./t -c ${workdir}/${format_config_dir}/CONFIG.disagg disagg.mode=leader runs.timer=1:1
+
+  "verify wt datafiles with binary":
+    command: shell.exec
+    params:
+      working_dir: ${build_dir}
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        # Run wt utility to verify data files generated by a different version of binary.
+        echo "Verifying data files in ${data_dir} using wt binary in ${build_dir} ..."
+        WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} list
+        WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} verify
+
   "install gcp dependencies":
     - command: shell.exec
       type: setup
@@ -1651,13 +1771,9 @@ variables:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=follower runs.timer=5:10
-          num_jobs: 1 # Follower requires a larger cache; parallel execution may limit available cache and cause stalls.
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=follower runs.timer=5:10
+          format_args: disagg.mode=follower runs.ops=500000:2000000
           times: 5
 
   - &format-stress-test-disagg-switch
@@ -1691,6 +1807,7 @@ variables:
         vars:
           format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
           times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   - &format-stress-test-disagg-multi-data-validation
     depends_on:
@@ -1702,6 +1819,16 @@ variables:
           # Validate data with a non-layered table.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
           times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  - &timestamp-abort-test-disagg
+    depends_on:
+        - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "timestamp abort disagg"
+        vars:
+          times: 50
 
 #######################################
 #               Tasks                 #
@@ -1718,9 +1845,16 @@ tasks:
       - func: "upload artifact"
       - func: "cleanup"
 
+  - name: compile-develop
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger develop"
+      - func: "upload artifact"
+      - func: "cleanup"
+
   # production build with --disable-shared
   - name: compile-production-disable-shared
-    tags: ["pull_request"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1731,7 +1865,7 @@ tasks:
 
   # production build with --disable-static
   - name: compile-production-disable-static
-    tags: ["pull_request"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2479,19 +2613,8 @@ tasks:
           unit_test_ignore: test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_args: -v 2 --timeout 1800 --extra-long --hook "disagg=(role=leader)"
-
-  # FIXME-WT-15652 Remove PALM tests when PALite is fully validated.
-  # Run the tests with PALM for comparison with PALite to catch discrepancies.
-  - name: unit-test-palm
-    tags: ["python"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 page_log=palm
+          # FIXME-WT-16228: decrease the timeout when the performance of the disagg leader tests is improved.
+          unit_test_args: -v 2 --timeout 3600 --extra-long --hook "disagg=(role=leader)"
 
   # Run the tests that uses suite_random with a random starting seed
   - name: unit-test-random-seed
@@ -3030,6 +3153,251 @@ tasks:
         vars:
           unit_test_args: -v 2 -b 11/12
 
+  # XSAN testing runs longer and needs more buckets to keep individual task turnaround time reasonable.
+
+  - name: unit-test-xsan-bucket00
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 0/24
+
+  - name: unit-test-xsan-bucket01
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 1/24
+
+  - name: unit-test-xsan-bucket02
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 2/24
+
+  - name: unit-test-xsan-bucket03
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 3/24
+
+  - name: unit-test-xsan-bucket04
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 4/24
+
+  - name: unit-test-xsan-bucket05
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 5/24
+
+  - name: unit-test-xsan-bucket06
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 6/24
+
+  - name: unit-test-xsan-bucket07
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 7/24
+
+  - name: unit-test-xsan-bucket08
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 8/24
+
+  - name: unit-test-xsan-bucket09
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 9/24
+
+  - name: unit-test-xsan-bucket10
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 10/24
+
+  - name: unit-test-xsan-bucket11
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 11/24
+
+  - name: unit-test-xsan-bucket12
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 12/24
+
+  - name: unit-test-xsan-bucket13
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 13/24
+
+  - name: unit-test-xsan-bucket14
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 14/24
+
+  - name: unit-test-xsan-bucket15
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 15/24
+
+  - name: unit-test-xsan-bucket16
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 16/24
+
+  - name: unit-test-xsan-bucket17
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 17/24
+
+  - name: unit-test-xsan-bucket18
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 18/24
+
+  - name: unit-test-xsan-bucket19
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 19/24
+
+  - name: unit-test-xsan-bucket20
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 20/24
+
+  - name: unit-test-xsan-bucket21
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 21/24
+
+  - name: unit-test-xsan-bucket22
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 22/24
+
+  - name: unit-test-xsan-bucket23
+    tags: ["python","pull_request","unit_test_xsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -b 23/24
+
+  # Long running tests are broken out into their own buckets/tasks so that they can be scheduled
+  # to run at a later testing stage, e.g. merge queue testing.
+
   - name: unit-test-long-bucket00
     tags: ["python", "unit_test_long"]
     patch_only: true
@@ -3321,14 +3689,14 @@ tasks:
         vars:
           compat_test_args: -n
 
-  - name: compatibility-test-for-older-releases
+  - name: compatibility-test-for-older-releases-weekly
     commands:
       - func: "get project"
       - func: "compatibility test"
         vars:
           compat_test_args: -o
 
-  - name: compatibility-test-upgrade-to-latest
+  - name: compatibility-test-upgrade-to-latest-daily
     commands:
       - func: "get project"
       - func: "compatibility test"
@@ -3347,7 +3715,7 @@ tasks:
             set -o verbose
             test/compatibility/compatibility_test_for_releases.sh -p
 
-  - name: compatibility-test-suite
+  - name: compatibility-test-suite-daily
     tags: ["python"]
     commands:
       - func: "get project"
@@ -3362,7 +3730,44 @@ tasks:
             ${PREPARE_TEST_ENV}
             ${python_binary|python3} test/compatibility/suite/compatibility_test.py ${compat_suite_args|-v 2} 2>&1
 
-  - name: compatibility-test-for-wt-standalone-releases
+  - name: compatibility-test-against-develop
+    depends_on:
+    - name: compile
+    - name: compile-develop
+    commands:
+      # Fetch artifact for the compile build.
+      - func: "fetch artifacts"
+      # Fetch artifact for the compile-develop build.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-develop
+          destination: "wiredtiger-develop"
+      # Run format using the binary in the compile build.
+      - func: "run format test to generate datafiles"
+        vars:
+          format_binary_dir: "wiredtiger/cmake_build/test/format"
+          format_config_dir: "wiredtiger/test/format"
+      # Run format using the binary in the compile-develop build.
+      - func: "run format test to generate datafiles"
+        vars:
+          format_binary_dir: "wiredtiger-develop/cmake_build/test/format"
+          format_config_dir: "wiredtiger-develop/test/format"
+      # Verify data files generated in wiredtiger-develop using binary built from the compile build.
+      - func: "verify wt datafiles with binary"
+        vars:
+          build_dir: "wiredtiger/cmake_build"
+          data_dir: "wiredtiger-develop/cmake_build/test/format/RUNDIR"
+      # Verify data files generated in wiredtiger using binary built from the compile-develop build.
+      - func: "verify wt datafiles with binary"
+        vars:
+          build_dir: "wiredtiger-develop/cmake_build"
+          data_dir: "wiredtiger/cmake_build/test/format/RUNDIR"
+      # Upload both folders as artifacts.
+      - func: "upload artifact for compatibility test"
+      # To prevent the default post task re-archiving again.
+      - func: "cleanup"
+
+  - name: compatibility-test-for-wt-standalone-releases-weekly
     commands:
       - func: "get project"
       - func: "compatibility test"
@@ -3870,7 +4275,7 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
   - name: azure-gcp-tiered-catch2-unittest-test
-    tags: ["pull_request", "tiered_unittest"]
+    tags: ["tiered_unittest"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -4135,6 +4540,7 @@ tasks:
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-stress-test-tsan
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -4596,7 +5002,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "model test"
         vars:
-          model_test_args: -D -l 2000-3000 -t 3600
+          model_test_args: -G disaggregated=1 -l 2000-3000 -t 3600
 
   - name: model-test-long-random-config
     tags: ["model_checking"]
@@ -4614,7 +5020,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "model test"
         vars:
-          model_test_args: -D -l 100-200 -g -t 3600
+          model_test_args: -G disaggregated=1 -l 100-200 -g -t 3600
 
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
@@ -4794,6 +5200,13 @@ tasks:
     name: format-stress-test-disagg-multi-validation-2
     tags: ["stress-test-disagg-fail"]
 
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-2
+    tags: ["stress-test-disagg-fail"]
+
   - name: format-stress-test-disagg-leader-pull-request
     tags: ["pull_request"]
     depends_on:
@@ -4816,31 +5229,8 @@ tasks:
           # run for 10 minutes.
           format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=follower runs.rows=10000 runs.ops=50000
 
-  - name: format-stress-test-disagg-leader-msan-palm
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          # run for 10 minutes.
-          # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.page_log=palm disagg.mode=leader runs.rows=10000 runs.ops=50000 disk.encryption=none
-          num_jobs: 1  # MSAN builds (with PALM) can cause OOM issues if multiple jobs are run in parallel.
-
-  - name: format-stress-test-disagg-follower-msan-palm
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          # run for 10 minutes.
-          # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.page_log=palm disagg.mode=follower runs.rows=10000 runs.ops=50000 disk.encryption=none
-          num_jobs: 1  # MSAN builds (with PALM) can cause OOM issues if multiple jobs are run in parallel.
-
   - name: format-stress-test-disagg-leader-tsan
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -4868,61 +5258,6 @@ tasks:
           # For sustained throughput over long runs, larger cache and higher eviction triggers help.
           format_args: disagg.mode=leader runs.timer=30:45 cache=10000 cache.eviction_dirty_trigger=50 cache.eviction_updates_trigger=50
           times: 1
-
-  - name: format-stress-test-no-barrier
-    tags: ["stress-test-no-barrier"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-      - func: "format test script"
-        vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
-
-  - name: format-stress-asan-test-no-barrier
-    tags: ["stress-test-asan"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-      - func: "format test script"
-        vars:
-          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
-
-  - name: race-condition-stress-asan-test-no-barrier
-    tags: ["stress-test-asan"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-      - func: "format test script"
-        vars:
-          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -R -t 360
-
-  - name: recovery-stress-test-no-barrier
-    tags: ["stress-test-no-barrier"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-      - func: "recovery stress test script"
-        vars:
-          times: 25
 
   - name: format-abort-recovery-stress-test
     commands:
@@ -5751,226 +6086,6 @@ tasks:
         vars:
           test-name: cache_workload_update_trigger.py
 
-  - name: perf-cache_dirty_trigger_read-10_write-90
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_dirty_trigger_read-10_write-90.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_dirty_trigger_read-10_write-90.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_dirty_trigger_read-10_write-90.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_dirty_trigger_read-25_write-75
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_dirty_trigger_read-25_write-75.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_dirty_trigger_read-25_write-75.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_dirty_trigger_read-25_write-75.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_dirty_trigger_read-50_write-50
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_dirty_trigger_read-50_write-50.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_dirty_trigger_read-50_write-50.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_dirty_trigger_read-50_write-50.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_dirty_trigger_read-75_write-25
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_dirty_trigger_read-75_write-25.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_dirty_trigger_read-75_write-25.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_dirty_trigger_read-75_write-25.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_dirty_trigger_read-90_write-10
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_dirty_trigger_read-90_write-10.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_dirty_trigger_read-90_write-10.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_dirty_trigger_read-90_write-10.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_update_trigger_read-10_write-90
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_update_trigger_read-10_write-90.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_update_trigger_read-10_write-90.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_update_trigger_read-10_write-90.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_update_trigger_read-25_write-75
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_update_trigger_read-25_write-75.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_update_trigger_read-25_write-75.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_update_trigger_read-25_write-75.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_update_trigger_read-50_write-50
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_update_trigger_read-50_write-50.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_update_trigger_read-50_write-50.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_update_trigger_read-50_write-50.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_update_trigger_read-75_write-25
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_update_trigger_read-75_write-25.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_update_trigger_read-75_write-25.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_update_trigger_read-75_write-25.py
-      - func: "upload wtperf test artifact"
-
-  - name: perf-cache_update_trigger_read-90_write-10
-    tags: ["evict-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          test_type: workgen
-          exec_path: ${python_binary|python3}
-          perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_update_trigger_read-90_write-10.py
-          maxruns: 1
-          wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: cache_update_trigger_read-90_write-10.py
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: cache_update_trigger_read-90_write-10.py
-      - func: "upload wtperf test artifact"
-
     ###########################################
     # Performance Tests for log consolidation #
     ###########################################
@@ -6581,11 +6696,13 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tags: ["pull_request"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
     - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
     - name: compile
+    - name: compile-develop
+    - name: compatibility-test-against-develop
     - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
@@ -6636,7 +6753,6 @@ buildvariants:
     - name: csuite-long-running
       batchtime: 1440 # once a day
     - name: live-restore-long
-    - name: unit-test-palm
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -6660,7 +6776,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test !format-mirror-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -6675,8 +6791,7 @@ buildvariants:
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
       distros: ubuntu2004-large
-    # FIXME-WT-16302: Split unit tests into more buckets
-    - name: ".unit_test"
+    - name: ".unit_test_xsan"
     - name: ".unit_test_disagg"
     - name: ".unit_test_long"
 
@@ -6720,7 +6835,6 @@ buildvariants:
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
   display_name: "! Ubuntu 20.04 Minimal"
-  batchtime: 480 # 3 times a day
   run_on:
   - ubuntu2004-test
   expansions:
@@ -6736,11 +6850,14 @@ buildvariants:
     - name: fops
     - name: catch2-test
     - name: examples-c-test
+    - name: ".pull_request_compilers"
+      run_on:
+        - ubuntu2004-wt-build
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for MSAN.
 - name: ubuntu2004-msan
-  display_name: "! Ubuntu 20.04 MSAN"
+  display_name: "Ubuntu 20.04 MSAN"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -6765,15 +6882,13 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    - name: format-stress-test-disagg-leader-msan-palm
-    - name: format-stress-test-disagg-follower-msan-palm
     - name: make-check-test
       distros: ubuntu2004-large
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for UBSAN.
 - name: ubuntu2004-ubsan
-  display_name: "! Ubuntu 20.04 UBSAN"
+  display_name: "Ubuntu 20.04 UBSAN"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -6798,19 +6913,8 @@ buildvariants:
       distros: ubuntu2004-large
     - name: cppsuite-default-all
 
-- name: ubuntu2004-compilers
-  display_name: "! Ubuntu 20.04 Compilers"
-  run_on:
-  - ubuntu2004-wt-build
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tags: ["pull_request"]
-  tasks:
-    - name: ".pull_request_compilers"
-
 - name: ubuntu2004-stress-tests
-  display_name: Ubuntu 20.04 Stress tests
+  display_name: "! Ubuntu 20.04 Stress tests"
   run_on:
   - ubuntu2004-small
   expansions:
@@ -6824,15 +6928,16 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
       distros: ubuntu2004-large
-    - name: ".stress-test-no-barrier"
-      distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
+    - name: ".cppsuite-stress-test"
+      batchtime: 720 # twice a day
+      distros: ubuntu2004-medium
 
 - name: ubuntu2004-stress-tests-arm64
-  display_name: Ubuntu 20.04 Stress tests (ARM64)
+  display_name: "! Ubuntu 20.04 ARM64 Stress tests"
   run_on:
   - ubuntu2004-arm64-large
   expansions:
@@ -6848,31 +6953,8 @@ buildvariants:
     - name: checkpoint-stress-test-tiered
     - name: precise-checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
-
-- name: cppsuite-stress-tests-ubuntu
-  display_name: "Cppsuite Stress Tests Ubuntu 20.04"
-  batchtime: 720 # twice a day
-  run_on:
-  # We run on medium as small has too small a disk.
-  - ubuntu2004-medium
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compile
     - name: ".cppsuite-stress-test"
-
-- name: cppsuite-stress-tests-arm64
-  display_name: "Cppsuite Stress Tests ARM64"
-  batchtime: 720 # twice a day
-  run_on:
-  - ubuntu2004-arm64-large
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compile
-    - name: ".cppsuite-stress-test"
+      batchtime: 720 # twice a day
 
 - name: package
   display_name: "~ Package"
@@ -6883,7 +6965,8 @@ buildvariants:
     - name: package
 
 - name: rhel80
-  display_name: RHEL 8.0
+  display_name: "~ RHEL 8.0"
+  batchtime: 1440 # once a day
   run_on:
   - rhel80-test
   expansions:
@@ -7011,7 +7094,7 @@ buildvariants:
     - name: ".stress-test-zseries-3"
 
 - name: ubuntu2004-arm64
-  display_name: "~ Ubuntu 20.04 ARM64"
+  display_name: "! Ubuntu 20.04 ARM64"
   run_on:
   - ubuntu2004-arm64-small
   batchtime: 1440 # 24 hours
@@ -7019,11 +7102,11 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
+    - name: compile
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
     - name: chunkcache-test
-    - name: compile
     - name: configure-combinations
     - name: fops
     - name: format-failure-configs-test
@@ -7057,54 +7140,8 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: unit-test-zstd
     - name: wtperf-test
-
-- name: ubuntu2004-arm64-memory-model
-  display_name: "Ubuntu 20.04 ARM64 Memory model test"
-  run_on:
-  - ubuntu2004-arm64-small
-  batchtime: 40320 # 28 days
-  expansions:
-    ENABLE_TCMALLOC: 0
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-  tasks:
     - name: memory-model-test
-
-- name: amazon2-arm64
-  display_name: "Amazon Linux 2 ARM64"
-  run_on:
-  - amazon2-arm64-small
-  batchtime: 1440 # 24 hours
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: "Unix Makefiles"
-  # Using large distro for a few tests here as more memory is required.
-  tasks:
-    - name: checkpoint-filetypes-test
-    - name: compile
-    - name: fops
-    - name: format-failure-configs-test
-      distros: amazon2-arm64-large
-    - name: format-smoke-test
-    - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
-    - name: format-stress-test-disagg-follower-pull-request
-    - name: long-test
-      distros: amazon2-arm64-large
-    - name: make-check-test
-      distros: amazon2-arm64-large
-    - name: s3-tiered-storage-extensions-test
-    - name: spinlock-gcc-test
-    - name: spinlock-pthread-adaptive-test
-      distros: amazon2-arm64-large
-    - name: unit-test
-    - name: unit-test-extra-long
-      distros: amazon2-arm64-large
-    - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2-arm64-large
-    - name: unit-test-hook-timing-stress-log
-    - name: unit-test-zstd
-    - name: wtperf-test
+      batchtime: 40320 # 28 days
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
@@ -7121,7 +7158,7 @@ buildvariants:
       cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
 
 - name: ubuntu2004-release
-  display_name: "~ Ubuntu 20.04 (Release Build)"
+  display_name: "! Ubuntu 20.04 (Release Build)"
   run_on:
   - ubuntu2004-small
   batchtime: 720 # 12 hours
@@ -7130,7 +7167,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -7148,7 +7185,7 @@ buildvariants:
     - name: s3-tiered-storage-extensions-test
 
 - name: ubuntu2004-release-arm64
-  display_name: "~ Ubuntu 20.04 (ARM64, Release Build)"
+  display_name: "! Ubuntu 20.04 ARM64 (Release Build)"
   run_on:
   - ubuntu2004-arm64-small
   batchtime: 720 # 12 hours
@@ -7174,7 +7211,7 @@ buildvariants:
     - name: s3-tiered-storage-extensions-test
 
 - name: ubuntu2004-release-stress-tests
-  display_name: Ubuntu 20.04 Stress tests (Release Build)
+  display_name: "! Ubuntu 20.04 Stress tests (Release Build)"
   run_on:
   - ubuntu2004-test
   batchtime: 1440 # 24 hours
@@ -7192,7 +7229,7 @@ buildvariants:
     - name: format-predictable-test
 
 - name: ubuntu2004-release-stress-tests-arm64
-  display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build)
+  display_name: "! Ubuntu 20.04 ARM64 Stress tests (Release Build)"
   run_on:
   - ubuntu2004-arm64-large
   batchtime: 1440 # 24 hours
@@ -7208,7 +7245,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
-  display_name: "Ubuntu 20.04 (Non-standalone)"
+  display_name: "! Ubuntu 20.04 (Non-standalone)"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -7218,7 +7255,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
     - name: compile
     - name: make-check-test
     - name: unit-test-extra-long
@@ -7228,7 +7265,7 @@ buildvariants:
     - name: ".data-validation-stress-test"
 
 - name: ubuntu2004-stress-nonstandalone
-  display_name: "Ubuntu 20.04 Stress tests (Non-standalone)"
+  display_name: " ! Ubuntu 20.04 Stress tests (Non-standalone)"
   run_on:
   - ubuntu2004-small
   expansions:
@@ -7243,15 +7280,13 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
       distros: ubuntu2004-large
-    - name: ".stress-test-no-barrier"
-      distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
       distros: ubuntu2004-medium # Medium is required as a larger disk is required.
 
 - name: ubuntu2004-release-nonstandalone
-  display_name: "Ubuntu 20.04 (Non-standalone, Release Build)"
+  display_name: "Ubuntu 20.04 (Release Build, Non-standalone)"
   run_on:
   - ubuntu2004-small
   expansions:
@@ -7274,7 +7309,7 @@ buildvariants:
     - name: unit-test
 
 - name: ubuntu2004-arm64-nonstandalone
-  display_name: Ubuntu 20.04 (ARM64, Non-standalone)
+  display_name: "! Ubuntu 20.04 ARM64 (Non-standalone)"
   run_on:
   - ubuntu2004-arm64-large
   expansions:
@@ -7295,7 +7330,6 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-test-no-barrier"
     - name: ".stress-test-disagg"
     - name: format-stress-disagg-leader-long-running
     - name: format-abort-recovery-stress-test
@@ -7303,7 +7337,7 @@ buildvariants:
       batchtime: 720 # 12 hours
 
 - name: ubuntu2004-arm64-release-nonstandalone
-  display_name: Ubuntu 20.04 (ARM64, Release Build, Non-standalone)
+  display_name: "Ubuntu 20.04 ARM64 (Release Build, Non-standalone)"
   run_on:
   - ubuntu2004-arm64-small
   expansions:
@@ -7331,32 +7365,10 @@ buildvariants:
     - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-arm64-large
 
-- name: amazon2-arm64-nonstandalone
-  display_name: "Amazon Linux 2 ARM64 Non-standalone"
+- name: amazon2023-arm64-release-nonstandalone
+  display_name: "Amazon2023 ARM64 (Release Build, Non-standalone)"
   run_on:
-  - amazon2-arm64-small
-  batchtime: 1440 # 24 hours
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: "Unix Makefiles"
-    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-    unit_test_variant_args: "--hook nonstandalone"
-  tasks:
-    - name: compile
-    - name: make-check-test
-      # Using large distro as more memory is required.
-      distros: amazon2-arm64-large
-    - name: unit-test
-    - name: unit-test-extra-long
-      distros: amazon2-arm64-large
-    - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2-arm64-large
-
-- name: amazon2023-armv9-release-nonstandalone
-  display_name: (ARMV9) Amazon 2023 (ARM64, Release Build, Non-standalone)
-  run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -7366,27 +7378,26 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".stress-test-1"
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: ".stress-test-2"
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-abort-recovery-stress-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: ".stress-test-disagg"
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-stress-disagg-leader-long-running
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: make-check-test
     - name: unit-test
-    - name: unit-test-palm
     - name: unit-test-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
 
-- name: amazon2023-armv9-nonstandalone
-  display_name: (ARMV9) Amazon Linux 2023 (ARM64, Non-standalone)
+- name: amazon2023-arm64-nonstandalone
+  display_name: "! Amazon2023 ARM64 (Non-standalone)"
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7394,28 +7405,27 @@ buildvariants:
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: compile
-      distros: amazon2023-arm64-latest-small-m8g
+      distros: amazon2023.3-arm64-small
     - name: make-check-test
-      distros: amazon2023-arm64-latest-small-m8g
+      distros: amazon2023.3-arm64-small
     - name: unit-test
-      distros: amazon2023-arm64-latest-small-m8g
+      distros: amazon2023.3-arm64-small
     - name: unit-test-extra-long
     - name: unit-test-hook-disagg-leader-extra-long
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-test-no-barrier"
     - name: ".stress-test-disagg"
     - name: format-stress-disagg-leader-long-running
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
 
-- name: amazon2023-release-armv9
-  display_name: "(ARMV9) Amazon 2023 (ARM64, Release Build)"
+- name: amazon2023-release-arm64
+  display_name: "! Amazon2023 ARM64 (Release Build)"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   batchtime: 720 # 12 hours
   expansions:
     ENABLE_TCMALLOC: 1
@@ -7431,17 +7441,16 @@ buildvariants:
     - name: unit-test-zstd
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: long-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
 
-- name: amazon2023-armv9
-  display_name: "(ARMV9) Amazon Linux 2023 ARM64"
+- name: amazon2023-arm64
+  display_name: "! Amazon2023 ARM64"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
-  batchtime: 1440 # 24 hours
+  - amazon2023.3-arm64-small
   expansions:
     ENABLE_TCMALLOC: 1
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
@@ -7454,13 +7463,13 @@ buildvariants:
     - name: compile
     - name: fops
     - name: format-failure-configs-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
     - name: format-stress-test-disagg-leader-pull-request
     - name: format-stress-test-disagg-follower-pull-request
     - name: long-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: make-check-test
     - name: model-test-failure-workloads
       batchtime: 1440 # 24 hours
@@ -7478,36 +7487,24 @@ buildvariants:
     - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test
     - name: unit-test-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-zstd
     - name: wtperf-test
     - name: checkpoint-filetypes-test
     - name: compile
     - name: fops
     - name: format-failure-configs-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
 
-- name: cppsuite-stress-tests-armv9
-  display_name: "(ARMV9) Cppsuite Stress Tests ARM64"
-  batchtime: 720 # twice a day
+- name: amazon2023-stress-tests-arm64
+  display_name: "! Amazon2023 ARM64 Stress tests"
   run_on:
-  - amazon2023-arm64-latest-large-m8g
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compile
-    - name: ".cppsuite-stress-test"
-
-- name: amazon2023-stress-tests-armv9
-  display_name: (ARMV9) Amazon2023 Stress tests ARM64
-  run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7518,16 +7515,17 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
-    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
+    - name: ".cppsuite-stress-test"
+      batchtime: 720 # twice a day
 
-- name: amazon2023-armv9-asan
-  display_name: "(ARMV9) Amazon Linux 2023 ASAN"
+- name: amazon2023-arm64-asan
+  display_name: "! Amazon2023 ARM64 ASAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
@@ -7545,7 +7543,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7559,18 +7557,17 @@ buildvariants:
     - name: live-restore-long
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
-      distros: amazon2023-arm64-latest-large-m8g
-    # FIXME-WT-16302: Split unit tests into more buckets
+      distros: amazon2023.3-arm64-large
     - name: ".unit_test"
     - name: ".unit_test_disagg"
     - name: ".unit_test_long"
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for TSAN.
-- name: amazon2023-armv9-tsan
-  display_name: "(ARMV9) Amazon Linux 2023 TSAN"
+- name: amazon2023-arm64-tsan
+  display_name: "! Amazon2023 ARM64 TSAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
@@ -7584,17 +7581,17 @@ buildvariants:
     - name: .unit_test_tsan
     # FIXME-WT-16066 Remove unit test tsan once we incorporate TSAN environment variable setting into run.py
     - name: unit-test-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-stress-test-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Enable the common test format tag for TSAN
     # - name: ".stress-test-disagg"
-    #   distros: amazon2023-arm64-latest-large-m8g
+    #   distros: amazon2023.3-arm64-large
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
     - name: generate-tsan-metric-timestamp
@@ -7602,10 +7599,10 @@ buildvariants:
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for MSAN.
-- name: amazon2023-armv9-msan
-  display_name: "(ARMV9) Amazon Linux 2023 MSAN"
+- name: amazon2023-arm64-msan
+  display_name: "Amazon2023 ARM64 MSAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
@@ -7627,21 +7624,19 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    - name: format-stress-test-disagg-leader-msan-palm
-    - name: format-stress-test-disagg-follower-msan-palm
     - name: make-check-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: csuite-long-running
       # Some of the long-running tests require a large instance to run successfully.
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
       batchtime: 1440 # once a day
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for UBSAN.
-- name: amazon2023-armv9-ubsan
-  display_name: "(ARMV9) Amazon Linux 2023 UBSAN"
+- name: amazon2023-arm64-ubsan
+  display_name: "Amazon2023 ARM64 UBSAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
@@ -7660,13 +7655,13 @@ buildvariants:
     - name: format-stress-test-disagg-leader-pull-request
     - name: format-stress-test-disagg-follower-pull-request
     - name: make-check-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: cppsuite-default-all
 
 - name: amazon2023-stress-nonstandalone
-  display_name: "(ARMV9) Amazon Linux 2023 Stress tests (Non-standalone)"
+  display_name: "Amazon2023 ARM64 Stress tests (Non-standalone)"
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7678,16 +7673,15 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
-    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
 
 - name: amazon2023-disagg-stress
-  display_name: "[Failure Expected] (ARMV9) Amazon 2023 Disagg Stress tests"
+  display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
   batchtime: 4320 # once every two days
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7697,10 +7691,10 @@ buildvariants:
     - name: ".stress-test-disagg-fail"
 
 - name: amazon2023-disagg-asan-stress
-  display_name: "[Failure Expected] (ARMV9) Amazon 2023 ASAN Disagg Stress tests"
+  display_name: "[Failure Expected] Amazon2023 ARM64 ASAN Disagg Stress tests"
   batchtime: 4320 # once every three days
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan

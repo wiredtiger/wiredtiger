@@ -44,9 +44,9 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
 
     crash_points = [
-        ('crash_before_key_rotation', dict(crash_point=1)),
-        ('crash_during_key_rotation', dict(crash_point=2)),
-        ('crash_after_key_rotation', dict(crash_point=3)),
+        ('crash_before_key_rotation', dict(crash_point="before_key_rotation")),
+        ('crash_during_key_rotation', dict(crash_point="during_key_rotation")),
+        ('crash_after_key_rotation', dict(crash_point="after_key_rotation")),
     ]
 
     scenarios = make_scenarios(disagg_storages, crash_points)
@@ -71,7 +71,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
         self.sqlite_fetch_shared_meta(write=True)
 
         # Trigger again and crash.
-        self.session.checkpoint(f"debug=(key_provider_trigger_crash_points={self.crash_point})") # Expected to fail
+        self.session.checkpoint(f"debug=(checkpoint_crash_trigger_point={self.crash_point})") # Expected to fail
 
     # Verify results of metadata file. After a crash, the key provider information should be the same.
     def validate_persist_meta_file(self):
@@ -96,7 +96,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     # match Palites SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_shared_meta(self, write):
         sqlite_exe = os.path.join(wt_builddir, "sqlite3")
-        database_home = os.path.join(self.dir, 'kv_home', 'pages_000001.db')
+        database_home = os.path.join(self.dir, 'kv_home', "pages_000002.db") # table for WT_SPECIAL_PALI_TURTLE_FILE_ID
         result = subprocess.run(
             [sqlite_exe, "-json", database_home, "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;"],
             capture_output=True,

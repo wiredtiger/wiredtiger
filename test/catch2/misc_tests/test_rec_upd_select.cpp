@@ -219,7 +219,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
     /* Set up transaction with snapshot for visibility checks */
     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
     session->txn->snapshot_data.snap_max = 200;
-    session->txn->id = 120;
+    session->txn->time_point.id = 120;
     session->txn->isolation = WT_ISO_SNAPSHOT;
     F_CLR(session->dhandle, WT_DHANDLE_HS);
 
@@ -244,7 +244,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
 
     SECTION("In memory, should write oldest update in the list")
     {
-        F_SET(S2C(session), WT_CONN_IN_MEMORY);
+        F_SET(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -259,7 +259,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
     }
     SECTION("Not in-memory, should write newest update in the list")
     {
-        F_CLR(S2C(session), WT_CONN_IN_MEMORY);
+        F_CLR(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -283,7 +283,7 @@ TEST_CASE_METHOD(
     /* Set up transaction with snapshot for visibility checks */
     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
     session->txn->snapshot_data.snap_max = 200;
-    session->txn->id = 120;
+    session->txn->time_point.id = 120;
     session->txn->isolation = WT_ISO_SNAPSHOT;
 
     WTI_RECONCILE r;
@@ -309,7 +309,7 @@ TEST_CASE_METHOD(
 
     SECTION("In-memory, should write oldest update with timestamp > prune timestamp in the list")
     {
-        F_SET(S2C(session), WT_CONN_IN_MEMORY);
+        F_SET(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -332,7 +332,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
     /* Set up transaction with snapshot for visibility checks */
     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
     session->txn->snapshot_data.snap_max = 200;
-    session->txn->id = 120;
+    session->txn->time_point.id = 120;
     session->txn->isolation = WT_ISO_SNAPSHOT;
 
     WTI_RECONCILE r;
@@ -359,7 +359,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
 
     SECTION("In-memory, should write oldest update with timestamp > prune timestamp in the list")
     {
-        F_SET(S2C(session), WT_CONN_IN_MEMORY);
+        F_SET(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -375,7 +375,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
 
     SECTION("Not In-memory, should write newest update")
     {
-        F_CLR(S2C(session), WT_CONN_IN_MEMORY);
+        F_CLR(S2BT(session), WT_BTREE_IN_MEMORY);
         F_SET(&r, WT_REC_EVICT);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);

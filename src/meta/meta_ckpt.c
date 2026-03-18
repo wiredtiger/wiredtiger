@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
-static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **, int64_t *, uint64_t *);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
 static int __ckpt_parse_time(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, uint64_t *);
@@ -185,7 +184,7 @@ __wt_meta_checkpoint_last_name(
     WT_ERR(__ckpt_version_chk(session, fname, config));
 
     /* Retrieve the name of the last unnamed checkpoint. */
-    WT_ERR(__ckpt_last_name(session, config, namep, orderp, timep));
+    WT_ERR(__wt_ckpt_last_name(session, config, namep, orderp, timep));
 
 err:
     __wt_free(session, config);
@@ -401,15 +400,15 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 }
 
 /*
- * __ckpt_last_name --
+ * __wt_ckpt_last_name --
  *     Return the name associated with the file's last unnamed checkpoint. Except: in keeping with
  *     global snapshot/timestamp metadata being about the most recent checkpoint (named or unnamed),
  *     we return the most recent checkpoint (named or unnamed), since all callers need a checkpoint
  *     that matches the snapshot info they're using.
  */
-static int
-__ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **namep, int64_t *orderp,
-  uint64_t *timep)
+int
+__wt_ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **namep,
+  int64_t *orderp, uint64_t *timep)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
@@ -1320,20 +1319,39 @@ int
 __wt_meta_ckptlist_set(
   WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, const char *ckptlsn_str)
 {
+    WT_BTREE *btree;
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    uint64_t prev_ckpt_size;
     const char *fname;
     bool has_lsn;
 
+    btree = S2BT(session);
     fname = dhandle->name;
+    prev_ckpt_size = 0;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
-    /* Add B-tree metadata to any added checkpoint. */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
-            ckpt->next_page_id = S2BT(session)->next_page_id;
+    /*
+     * Add B-tree metadata to any added checkpoint. Track the previous checkpoint's size as we
+     * iterate so we can compute the delta for disaggregated storage.
+     */
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+            ckpt->next_page_id = btree->next_page_id;
+            /*
+             * For disaggregated storage, save the total bytes to the checkpoint size field. Track
+             * the delta between this checkpoint and the previous one, this delta will be applied to
+             * the database level size once the checkpoint succeeds.
+             */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                WT_ASSERT(session, ckpt->size == __wt_atomic_load_uint64(&btree->bytes_total));
+                session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
+            }
+        } else
+            prev_ckpt_size = ckpt->size;
+    }
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 
@@ -1504,15 +1522,9 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
           __meta_sysinfo_update(session, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, valbuf->data));
     }
 
-    /*
-     * Handle the oldest timestamp.
-     *
-     * Cache the oldest timestamp and use an acquire barrier to prevent us from reading two
-     * different values of the oldest timestamp.
-     */
+    /* Handle the oldest timestamp. */
 
-    oldest_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
-    WT_ACQUIRE_BARRIER();
+    oldest_timestamp = __wt_get_oldest_timestamp(session);
     __wt_timestamp_to_hex_string(
       WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
 
@@ -1541,7 +1553,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
       ", oldest timestamp: %s , meta checkpoint timestamp: %s"
       " base write gen: %" PRIu64,
       txn->snapshot_data.snap_min, txn->snapshot_data.snap_max, txn->snapshot_data.snapshot_count,
-      __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
+      __wt_timestamp_to_string(oldest_timestamp, ts_string[0]),
       __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
       conn->base_write_gen);
 

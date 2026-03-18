@@ -591,7 +591,7 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
       &conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
-      __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
+      __wt_timestamp_to_string(oldest_timestamp, ts_string));
 
     return (0);
 }
@@ -692,13 +692,14 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
     __wti_txn_update_pinned_timestamp(session, true);
 
     WT_ASSERT(session,
-      conn->txn_global.has_stable_timestamp == false &&
-        conn->txn_global.stable_timestamp == WT_TS_NONE);
+      !__wt_atomic_load_bool_relaxed(&conn->txn_global.has_stable_timestamp) &&
+        __wt_atomic_load_uint64_relaxed(&conn->txn_global.stable_timestamp) == WT_TS_NONE);
 
+    wt_timestamp_t stable_ts = conn->txn_global.recovery_timestamp;
     /* Set the stable timestamp from recovery timestamp. */
-    conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-    if (conn->txn_global.stable_timestamp != WT_TS_NONE)
-        conn->txn_global.has_stable_timestamp = true;
+    __wt_atomic_store_uint64_relaxed(&conn->txn_global.stable_timestamp, stable_ts);
+    if (stable_ts != WT_TS_NONE)
+        __wt_atomic_store_bool_relaxed(&conn->txn_global.has_stable_timestamp, true);
 
     return (0);
 }
@@ -846,37 +847,72 @@ __recovery_metadata_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *
 static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
+    WT_DECL_ITEM(meta_key_buf);
     WT_DECL_RET;
-    char *cg_meta_value;
+    char *cg_meta_value, *file_meta_value, *tiered_meta_value, *layered_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
-    const char *name;
+    const char *name, *colgroup_msg, *file_msg;
     WT_CONFIG_ITEM cval;
-    WT_ITEM *colgroup;
+    bool is_simple, colgroup_exists, file_exists;
 
-    cg_meta_value = NULL;
-    WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup));
-    /*
-     * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
-     * tiered shared tables.
-     */
-    bool is_simple;
-    WT_ERR(__wt_config_gets(r->session, metadata_cfg, "columns", &cval));
-    WT_ERR(__wt_is_simple_table(r->session, &cval, &is_simple));
-    if (!is_simple || ((ret = __wt_config_gets(r->session, metadata_cfg, "shared", &cval)) == 0))
-        goto done;
-    WT_ERR_NOTFOUND_OK(ret, false);
+    cg_meta_value = file_meta_value = tiered_meta_value = layered_meta_value = NULL;
+    WT_ERR(__wt_scr_alloc(r->session, 0, &meta_key_buf));
 
-    /* Check whether the colgroup exists. */
     name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
-    WT_ERR(__wt_buf_fmt(r->session, colgroup, "colgroup:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup->data, &cg_meta_value), true);
+
+    /* FIXME-WT-16146: Add capability for cleaning up incomplete complex tables. */
+    /* Skip if the table is simple. */
+    WT_ERR(__wt_config_gets(r->session, metadata_cfg, "columns", &cval));
+    WT_ERR(__wt_is_simple_table(r->session, &cval, &is_simple));
+    if (!is_simple)
+        goto done;
+
+    /* Skip if the table is tiered. */
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "tiered:%s", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, meta_key_buf->data, &tiered_meta_value), true);
     if (ret == 0)
         goto done;
 
-    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
-      "removing incomplete table", uri);
+    /* FIXME-WT-16823: Add an assertion to check that we never see an incomplete layered table. */
+    /* Skip if the table is layered. */
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, meta_key_buf->data, &layered_meta_value), true);
+    if (ret == 0)
+        goto done;
+
+    /* Check whether the colgroup exists. */
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "colgroup:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, meta_key_buf->data, &cg_meta_value), true);
+    colgroup_exists = ret == 0;
+
+    /* Check whether the file exists. */
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, meta_key_buf->data, &file_meta_value), true);
+    file_exists = ret == 0;
+
+    /* If all metadata entries are present we are done, otherwise the metadata is incomplete and we
+     * force drop the table. */
+    if (colgroup_exists && file_exists)
+        goto done;
+
+    colgroup_msg = colgroup_exists ? "colgroup exists" : "colgroup missing";
+    file_msg = file_exists ? "file exists" : "file missing";
+
+    /* Cannot drop tables in readonly mode, so log a warning instead. */
+    if (F_ISSET(S2C(r->session), WT_CONN_READONLY)) {
+        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
+          "cannot remove incomplete table '%s' (%s, %s) in readonly mode", uri, colgroup_msg,
+          file_msg);
+        goto done;
+    }
+
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
+      "removing incomplete table '%s' (%s, %s)", uri, colgroup_msg, file_msg);
 
     WT_WITH_SCHEMA_LOCK(r->session,
       WT_WITH_TABLE_WRITE_LOCK(
@@ -886,7 +922,10 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 err:
 done:
     __wt_free(r->session, cg_meta_value);
-    __wt_scr_free(r->session, &colgroup);
+    __wt_free(r->session, file_meta_value);
+    __wt_free(r->session, tiered_meta_value);
+    __wt_free(r->session, layered_meta_value);
+    __wt_scr_free(r->session, &meta_key_buf);
     return (ret);
 }
 
@@ -1290,8 +1329,8 @@ done:
           WT_VERBOSE_INFO,
           "[RECOVERY_RTS] performing recovery rollback_to_stable with stable_timestamp=%s and "
           "oldest_timestamp=%s",
-          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
+          __wt_timestamp_to_string(__wt_get_stable_timestamp(session), ts_string[0]),
+          __wt_timestamp_to_string(__wt_get_oldest_timestamp(session), ts_string[1]));
         rts_executed = true;
         WT_ERR(conn->rts->rollback_to_stable(session, rts_cfg, true));
 
@@ -1304,9 +1343,10 @@ done:
     } else {
         /* Although rollback to stable is not needed, we still need to set the durable timestamp. */
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
+        txn_global->has_durable_timestamp =
+          __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp);
         __wt_atomic_store_uint64_relaxed(
-          &txn_global->durable_timestamp, txn_global->stable_timestamp);
+          &txn_global->durable_timestamp, __wt_get_stable_timestamp(session));
 
         if (disagg)
             __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");

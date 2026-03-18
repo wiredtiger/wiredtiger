@@ -28,7 +28,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      *
      * The WT_REF cannot be the eviction thread's location.
      */
-    WT_ASSERT(session, S2BT(session)->evict_ref != ref);
+    WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_ref) != ref);
 
     /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
@@ -79,7 +79,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     if (page->disagg_info != NULL &&
       !(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
         F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)))
-        if (!__wt_page_materialization_check(session, page->disagg_info->old_rec_lsn_max))
+        if (!__wt_materialization_check(session, page->disagg_info->old_rec_lsn_max))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
     /*
