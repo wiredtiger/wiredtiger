@@ -557,6 +557,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
  *     It is called from multiple places in the code base, such as when initiating file eviction
  *     `__wt_evict_file` or when opening or closing trees.
  */
+#if 0
 void
 __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 {
@@ -589,8 +590,59 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 err:
         (void)__wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
     }
+
+    printf("evict_disabled  = %d\n", btree->evict_data.evict_disabled);
+    fflush (stdout);
+}
+#endif
+
+void
+__wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_EVICT *evict;
+
+    btree = S2BT(session);
+    evict = S2C(session)->evict;
+
+    /*
+     * Hold the exclusive lock to turn off eviction. If this lock becomes a bottleneck, we could
+     * create per-handle exclusive locks.
+     */
+    __wt_spin_lock(session, &evict->evict_exclusive_lock);
+    if (++btree->evict_data.evict_disabled > 1) {
+        __wt_spin_unlock(session, &evict->evict_exclusive_lock);
+        return;
+    }
+
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
+      btree->dhandle->name);
+
+    /*
+     * Special operations don't enable eviction, however the underlying command (e.g. verify) may
+     * choose to turn on eviction. This falls outside of the typical eviction flow, and here
+     * eviction may forcibly remove pages from the cache. Consequently, we may end up evicting
+     * internal pages which still have child pages present on the pre-fetch queue. Remove any refs
+     * still present on the pre-fetch queue so that they are not accidentally accessed in an invalid
+     * way later on.
+     */
+    WT_ERR(__wt_conn_prefetch_clear_tree(session, false));
+
+    /*
+     * We have disabled further eviction: wait for concurrent LRU eviction activity to drain.
+     */
+    while (btree->evict_data.evict_busy > 0)
+        __wt_yield();
+
+    if (0) {
+err:
+        --btree->evict_data.evict_disabled;
+    }
+    __wt_spin_unlock(session, &evict->evict_exclusive_lock);
 }
 
+#if 0
 /* !!!
  * __wt_evict_file_exclusive_off --
  *     Release exclusive access to a file/tree by decrementing the `evict_disabled` count
@@ -605,6 +657,9 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
 
     btree = S2BT(session);
+
+    printf("evict_disabled  = %d\n", btree->evict_data.evict_disabled);
+    fflush (stdout);
 
     /*
      * We have seen subtle bugs with multiple threads racing to turn eviction on/off. Make races
@@ -624,11 +679,49 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
         int32_t v;
 
         v = __wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
-        WT_ASSERT(session, v >= 0);
+        if(v < 0){
+            printf("evict_disabled  = %d\n", btree->evict_data.evict_disabled);
+            fflush (stdout);
+            WT_ASSERT(session, v >= 0);
+        }
     }
 #else
     (void)__wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
 #endif
+}
+#endif
+
+/* !!!
+ * __wt_evict_file_exclusive_off --
+ *     Release exclusive access to a file/tree by decrementing the `evict_disabled` count
+ *     back to zero, allowing eviction to proceed for the tree.
+ *
+ *     It is called from multiple places in the code where exclusive eviction access is no longer
+ *     needed.
+ */
+void
+__wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_EVICT *evict;
+
+    btree = S2BT(session);
+    evict = S2C(session)->evict;
+
+    /*
+     * We have seen subtle bugs with multiple threads racing to turn eviction on/off. Make races
+     * more likely in diagnostic builds.
+     */
+    WT_DIAGNOSTIC_YIELD;
+
+    __wt_spin_lock(session, &evict->evict_exclusive_lock);
+    --btree->evict_data.evict_disabled;
+#if defined(HAVE_DIAGNOSTIC)
+    WT_ASSERT(session, btree->evict_data.evict_disabled >= 0);
+#endif
+    __wt_spin_unlock(session, &evict->evict_exclusive_lock);
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
+      btree->dhandle->name);
 }
 
 #define EVICT_TUNE_BATCH 1 /* Max workers to add each period */

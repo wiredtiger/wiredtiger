@@ -256,16 +256,16 @@ struct __wt_btree {
     uint64_t flush_most_recent_secs; /* Wall clock time for the most recent flush */
     uint64_t flush_most_recent_ts;   /* Timestamp of the most recent flush */
 
+/*
+ * All of the following fields live at the end of the structure so it's easier to clear everything
+ * but the fields that persist.
+ */
+#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, evict_data))
     /*
      * Evict data for this handle. Eviction information is maintained in the btree handle,
      * but owned by eviction, not the btree code.
      */
     struct __wt_evict_handle_data evict_data;
-/*
- * All of the following fields live at the end of the structure so it's easier to clear everything
- * but the fields that persist.
- */
-#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, next_page_id))
 
     wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
 
