@@ -3223,9 +3223,18 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
             if (multi->addr.block_cookie != NULL) {
+                /*
+                 * For disaggregated delta writes, __wti_block_disagg_page_discard decrements
+                 * bytes_total by cookie.size, which is the cumulative chain size (old_cumulative +
+                 * this_delta_size). However, bytes_total was only incremented by this_delta_size
+                 * when the block was written. Compensate by adding back old_cumulative (stored in
+                 * page->disagg_info->block_meta.cumulative_size, which has not yet been updated for
+                 * this failed write) before freeing the block.
+                 */
                 if (multi->block_meta != NULL && multi->block_meta->delta_count > 0)
                     __wt_btree_increase_size(
                       session, page->disagg_info->block_meta.cumulative_size);
+
                 int ret_tmp = __wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size);
                 if (ret_tmp != 0) {
