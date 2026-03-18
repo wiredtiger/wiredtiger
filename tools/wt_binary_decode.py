@@ -83,7 +83,12 @@ def decode_sqlite_input(filename, opts: DecodeOptions):
 def decode_wt_binary_input(filename, opts: DecodeOptions):
     nbytes = 0 if filename == '-' else os.path.getsize(filename)
     input_name = 'stdin' if filename == '-' else filename
-    file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
+    input_size = 'unknown' if filename == '-' else hex(nbytes)
+    print(f'{input_name}, position {hex(opts.offset)}, size {input_size}, '
+          f'pagelimit {opts.pages}')
+    with open_input_file(filename, 'rb') as fileobj:
+        file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
+
 
 def wtdecode(filename, opts: DecodeOptions):
     if opts.dumpin:
@@ -149,6 +154,9 @@ def get_arg_parser():
     inargs.add_argument('--disagg',
         action='store_true',
         help='input comes from disaggregated storage')
+    inargs.add_argument('-f', '--fragment',
+        action='store_true',
+        help='input file is a fragment, does not have a WT file header')
     inargs.add_argument('-o', '--offset',
         type=int,
         default=0,
