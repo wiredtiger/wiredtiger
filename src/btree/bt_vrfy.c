@@ -222,13 +222,21 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t total_size;
+    uint64_t database_size, total_size;
     const char *uri;
 
     conn = S2C(session);
     cursor = NULL;
     ckptbase = NULL;
     total_size = 0;
+
+    /*
+     * If no checkpoint has been taken yet, database_size is 0. Skip verification as there is
+     * nothing to check.
+     */
+    database_size = conn->disaggregated_storage.database_size;
+    if (database_size == 0)
+        return (0);
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
@@ -260,11 +268,11 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         ckptbase = NULL;
     }
 
-    if (total_size != conn->disaggregated_storage.database_size)
+    if (total_size != database_size)
         WT_ERR_MSG(session, WT_ERROR,
           "database size mismatch: sum of btree checkpoint sizes %" PRIu64
           " does not match stored database size %" PRIu64,
-          total_size, conn->disaggregated_storage.database_size);
+          total_size, database_size);
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
