@@ -4409,7 +4409,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 #define	WT_CONFLICT_CHECKPOINT_LOCK	(-32011)
 /*!
  * Read-uncommitted readers do not support reconstructing a record with modifies.
- * This sub-level error indicates that a reader with uncommitted isolation  is
+ * This sub-level error indicates that a reader with uncommitted isolation is
  * trying to reconstruct a record with modifies. This is not supported.
  */
 #define	WT_MODIFY_READ_UNCOMMITTED	(-32012)
