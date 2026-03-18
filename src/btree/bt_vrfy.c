@@ -214,7 +214,11 @@ __verify_disagg_accumulate_size(
     return (0);
 }
 
-
+/*
+ * __wt_verify_disagg_database_size --
+ *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
+ *     checkpoint size for every file, then compare the total against the stored database size.
+ */
 static int
 __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
 {
