@@ -391,6 +391,7 @@ conn_stats = [
     EvictStat('eviction_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if eviction is not in aggressive mode'),
     EvictStat('eviction_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child'),
     EvictStat('eviction_skip_metatdata_with_history', 'eviction server skips metadata pages with history'),
+    EvictStat('eviction_skip_few_updates_no_pressure', 'eviction skips a dirty candidate, because it has few updates and we are not under pressure'),
     EvictStat('eviction_skip_page_again', 'eviction skips a page, because we could not evict it before'),
     EvictStat('eviction_skip_page_cannot_evict', 'eviction skips a page, because it cannot be evicted'),
     EvictStat('eviction_skip_page_checkpoint_timestamp', 'eviction server skips pages that are written with transactions greater than the checkpoint timestamp'),

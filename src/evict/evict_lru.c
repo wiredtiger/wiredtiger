@@ -1054,8 +1054,10 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
                 WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
         }
 
-        if (!high_pressure)
+        if (!high_pressure) {
+            WT_STAT_CONN_INCR(session, eviction_skip_few_updates_no_pressure);
             return (true);
+        }
     }
     return (false);
 }

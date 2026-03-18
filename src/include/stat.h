@@ -588,6 +588,7 @@ struct __wt_connection_stats {
     int64_t eviction_skip_page_hazard;
     int64_t eviction_skip_page_locked_bucket;
     int64_t eviction_skip_empty_bucket;
+    int64_t eviction_skip_few_updates_no_pressure;
     int64_t eviction_skip_page_dirty_not_aggressive;
     int64_t eviction_skip_page_cannot_evict;
     int64_t eviction_skip_page_again;

@@ -1962,6 +1962,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction skipped a page, because a hazard pointer was set",
   "cache: eviction skipped a page, because the bucket was locked",
   "cache: eviction skipped an empty bucket",
+  "cache: eviction skips a dirty candidate, because it has few updates and we are not under "
+  "pressure",
   "cache: eviction skips a dirty page, when we are not aggressive",
   "cache: eviction skips a page, because it cannot be evicted",
   "cache: eviction skips a page, because we could not evict it before",
@@ -2985,6 +2987,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_skip_page_hazard = 0;
     stats->eviction_skip_page_locked_bucket = 0;
     stats->eviction_skip_empty_bucket = 0;
+    stats->eviction_skip_few_updates_no_pressure = 0;
     stats->eviction_skip_page_dirty_not_aggressive = 0;
     stats->eviction_skip_page_cannot_evict = 0;
     stats->eviction_skip_page_again = 0;
@@ -4019,6 +4022,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_skip_page_locked_bucket +=
       WT_STAT_CONN_READ(from, eviction_skip_page_locked_bucket);
     to->eviction_skip_empty_bucket += WT_STAT_CONN_READ(from, eviction_skip_empty_bucket);
+    to->eviction_skip_few_updates_no_pressure +=
+      WT_STAT_CONN_READ(from, eviction_skip_few_updates_no_pressure);
     to->eviction_skip_page_dirty_not_aggressive +=
       WT_STAT_CONN_READ(from, eviction_skip_page_dirty_not_aggressive);
     to->eviction_skip_page_cannot_evict += WT_STAT_CONN_READ(from, eviction_skip_page_cannot_evict);
