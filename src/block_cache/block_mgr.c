@@ -506,6 +506,9 @@ __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     if (blkcache->type != WT_BLKCACHE_UNCONFIGURED)
         __wt_blkcache_remove(session, addr, addr_size);
 
+    /* We should never get here for salvage. */
+    WT_ASSERT(session, session->salvage_track == NULL);
+
     return (__wt_block_free(session, bm->block, addr, addr_size));
 }
 
