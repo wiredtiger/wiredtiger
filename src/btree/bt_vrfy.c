@@ -268,6 +268,12 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         ckptbase = NULL;
     }
 
+    /*
+     * Add the fixed overhead for the KEK table and shared turtle page. These are not tracked in any
+     * btree's checkpoint size but are always included in database_size.
+     */
+    total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+
     if (total_size != database_size)
         WT_ERR_MSG(session, WT_ERROR,
           "database size mismatch: sum of btree checkpoint sizes %" PRIu64
