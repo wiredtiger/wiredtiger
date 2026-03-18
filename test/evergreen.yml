@@ -7119,7 +7119,6 @@ buildvariants:
   tasks:
     - name: ".antithesis"
       cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
-      patchable: false
 
 - name: ubuntu2004-release
   display_name: "~ Ubuntu 20.04 (Release Build)"
