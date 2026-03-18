@@ -254,15 +254,14 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
             continue;
         }
 
-        /* Get last checkpoint. */
+        /* Find most recent non-fake checkpoint. */
         last_ckpt = NULL;
         WT_CKPT_FOREACH (ckptbase, ckpt)
-            if ((ckpt + 1)->name == NULL)
-                break;
-            else
+            if (!F_ISSET(ckpt, WT_CKPT_FAKE))
                 last_ckpt = ckpt;
 
-        total_size += last_ckpt->size;
+        if (last_ckpt != NULL)
+            total_size += last_ckpt->size;
 
         __wt_ckptlist_free(session, &ckptbase);
         ckptbase = NULL;
