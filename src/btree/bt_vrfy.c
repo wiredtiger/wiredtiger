@@ -421,6 +421,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__dump_layout(session, vs));
     }
 
+    /* Verify the database size for disaggregated storage. We calculate the total database size by
+     * summing the individual btree checkpoint sizes, then comparing this calculated sum with the
+     * stored database size. We only verify the database size when verifying the metadata file, as
+     * the metadata file contains the checkpoint information for all the other files in the
+     * database.
+     */
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && strcmp(name, WT_METAFILE_URI) == 0)
         WT_TRET(__wt_verify_disagg_database_size(session));
 
