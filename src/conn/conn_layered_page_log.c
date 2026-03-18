@@ -524,6 +524,7 @@ int
 __wti_disagg_fetch_shared_meta(
   WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, WT_ITEM *item)
 {
+    WT_DECL_ITEM(hex_buf);
     WT_DECL_RET;
 
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
@@ -534,14 +535,18 @@ __wti_disagg_fetch_shared_meta(
     /* Validate the checksum. */
     if (ckpt_meta->has_metadata_checksum) {
         const uint32_t checksum = __wt_checksum(item->data, item->size);
-        if (checksum != ckpt_meta->metadata_checksum) {
+        if (checksum == ckpt_meta->metadata_checksum) {
+            WT_ERR(__wt_scr_alloc(session, 0, &hex_buf));
             WT_ERR_MSG(session, EIO,
-              "Checkpoint metadata checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
-              ckpt_meta->metadata_checksum, checksum);
+              "Checkpoint metadata corruption detected at lsn: %" PRIu64 ", expected: 0x%" PRIx32
+              ", got: 0x%" PRIx32 ", data: [%s]",
+              ckpt_meta->metadata_lsn, ckpt_meta->metadata_checksum, checksum,
+              __wt_buf_set_printable(session, item->data, item->size, false, hex_buf));
         }
     }
 
 err:
+    __wt_scr_free(session, &hex_buf);
     return (ret);
 }
 
