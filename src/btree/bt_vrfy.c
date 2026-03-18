@@ -267,6 +267,11 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         __wt_ckptlist_free(session, &ckptbase);
         ckptbase = NULL;
     }
+    /*
+     * A not found error is okay. cursor->next() returns it once it goes through all the metadata
+     * entries.
+     */
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
      * Add the fixed overhead for the KEK table and shared turtle page. These are not tracked in any
