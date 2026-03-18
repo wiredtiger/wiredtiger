@@ -90,7 +90,7 @@
     /*                                                                                   \
      * Reset the err_info struct back to default only if the prior API call had an error \
      */                                                                                  \
-    if ((s)->err_info.err != 0)                                                          \
+    if ((s)->api_call_counter == 1 && (s)->err_info.err != 0)                            \
         __wt_session_reset_last_error((s));                                              \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
@@ -139,7 +139,7 @@
          * will not be overwritten. The struct can only be overwritten if 0 is passed      \
          * as the error code (this occurs when the err_info struct is reset).              \
          */                                                                                \
-        if ((ret) != 0)                                                                    \
+        if ((s)->api_call_counter == 1 && (ret) != 0)                                      \
             __wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY);             \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                \
             __wt_op_timer_stop(s);                                                         \
