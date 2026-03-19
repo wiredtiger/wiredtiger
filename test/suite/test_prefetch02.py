@@ -48,7 +48,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     value_format = 'i'
-    
+
     stats_cfg = 'statistics=(all),cache_size=2GB'
 
     config_options = [
