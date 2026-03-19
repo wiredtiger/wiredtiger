@@ -668,18 +668,19 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     if (prune_timestamp != WT_TS_NONE) {
         uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
         WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
-        /*
-         * The prune timestamp should be monotonically increasing. It is fine for the user to read
-         * the obsolete value. Therefore, no synchronization is required.
-         */
-        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
-        layered_table->last_ckpt_inuse = ckpt_inuse;
 
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64
           " and checkpoint in use from %" PRId64 " to %" PRId64,
           layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
           layered_table->last_ckpt_inuse, ckpt_inuse);
+
+        /*
+         * The prune timestamp should be monotonically increasing. It is fine for the user to read
+         * the obsolete value. Therefore, no synchronization is required.
+         */
+        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
+        layered_table->last_ckpt_inuse = ckpt_inuse;
     }
 
     WT_ERR(__wt_session_release_dhandle(session));
