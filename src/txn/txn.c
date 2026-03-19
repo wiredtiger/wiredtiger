@@ -2340,7 +2340,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     }
 
     durable_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
-    oldest_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
+    oldest_timestamp = __wt_get_oldest_timestamp(session);
     pinned_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->pinned_timestamp);
 
     if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < pinned_timestamp)
