@@ -268,19 +268,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         goto done;
     }
 
-    if (__wt_page_is_modified(page)) {
+    if (__wt_page_is_modified(page))
         is_dirty = true;
-        // printf("page %p %s (type %d) is dirty in _wt_evict by session %d\n",
-        //     (void *)ref->page, __wt_page_type_string(ref->page->type), ref->page->type, (int)session->id);
-        //fflush(stdout);
-    }
-#if 0
-    else {
-        printf("page %p %s (type %d) is CLEAN in _wt_evict by session %d\n",
-               (void *)ref->page, __wt_page_type_string(ref->page->type), ref->page->type, (int)session->id);
-        fflush(stdout);
-    }
-#endif
+
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
      * force pages out before they're larger than the cache. We don't care about races, it's just a
@@ -1102,7 +1092,6 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         } else
             __wt_txn_bump_snapshot(session);
     } else if (use_snapshot_for_app_thread) {
-        WT_ASSERT(session, 0); /* application threads shouldn't be doing eviction */
         /*
          * If we couldn't make progress with the application thread's existing snapshot, save the
          * existing snapshot and refresh to acquire a new one. Then try eviction again. Once the
