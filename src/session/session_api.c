@@ -2674,6 +2674,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     if (conn->prefetch_auto_on)
         F_SET(session_ret, WT_SESSION_PREFETCH_ENABLED);
+    else
+        F_CLR(session_ret, WT_SESSION_PREFETCH_ENABLED);
 
     /*
      * Configuration: currently, the configuration for open_session is the same as
