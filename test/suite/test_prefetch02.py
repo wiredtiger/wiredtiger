@@ -52,13 +52,13 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     stats_cfg = 'statistics=(all),cache_size=2GB'
 
     config_options = [
-        ('conn_default_on', dict(conn_cfg=f'prefetch=(available=true,default=true),{self.stats_cfg}',
+        ('conn_default_on', dict(conn_cfg=f'prefetch=(available=true,default=true),{stats_cfg}',
                             session_cfg='', prefetch=True)),
-        ('session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=false),{self.stats_cfg}',
+        ('session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=false),{stats_cfg}',
                             session_cfg='prefetch=(enabled=true)', prefetch=True)),
-        ('prefetch_unavailable', dict(conn_cfg=f'prefetch=(available=false,default=false),{self.stats_cfg}',
+        ('prefetch_unavailable', dict(conn_cfg=f'prefetch=(available=false,default=false),{stats_cfg}',
                             session_cfg='', prefetch=False)),
-        ('conn_default_on_null_session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=true),{self.stats_cfg}',
+        ('conn_default_on_null_session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=true),{stats_cfg}',
                             session_cfg=None, prefetch=True)),
     ]
 
