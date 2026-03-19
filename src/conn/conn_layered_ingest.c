@@ -157,26 +157,13 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t count;
 
-    count = 0;
     WT_RET(__wt_open_cursor(session, uri, NULL, NULL, &cursor));
-    while ((ret = cursor->next(cursor)) == 0)
-        ++count;
+    ret = cursor->next(cursor);
+    WT_ASSERT(session, ret == WT_NOTFOUND);
     WT_TRET(cursor->close(cursor));
 
-    if (ret == WT_NOTFOUND)
-        ret = 0;
-    WT_RET(ret);
-
-    if (count != 0) {
-        __wt_verbose_error(session, WT_VERB_LAYERED,
-          "Ingest table \"%s\" is not empty after truncation: %" PRIu64 " record(s) remaining", uri,
-          count);
-        WT_ASSERT(session, false);
-    }
-
-    return (0);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 #endif
 
