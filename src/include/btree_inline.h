@@ -1845,13 +1845,13 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * WT_ADDRs and swapped into place before ref->home is updated to the new child page. Read
      * ref->home before ref->addr with an acquire barrier in between, pairing with the sequentially
      * consistent CAS on ref->addr during split. This ensures that if we observe a new child page as
-     * home, we also observe the corresponding off-page addr. The content of the two WT_ADDRs are
-     * identical, and we don't care which version we get as long as we don't mix-and-match the two.
+     * home, we also observe the corresponding off-page addr. The dangerous combination is reading a
+     * new home with an old addr, as the on-page cell would be misinterpreted as an off-page
+     * address.
      */
-    page = ref->home;
-    WT_ACQUIRE_BARRIER();
-    addr = (WT_ADDR *)ref->addr;
+    page = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
 
+    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&ref->addr);
     /* If NULL, there is no information. */
     if (addr == NULL)
         return (false);
