@@ -55,76 +55,76 @@ class test_layered79(wttest.WiredTigerTestCase):
                                                 self.conn_config_follower)
         self.session_follow = self.conn_follow.open_session()
 
-    # def test_updated_key_on_disk_value_removed_after_gc(self):
-    #     """
-    #     Scenario:
-    #       ts=10  insert key 1  -> eviction -> key is on disk image
-    #       ts=20  update key 1  -> checkpoint -> update propagated to follower
-    #       advance checkpoint   -> update is prunable
-    #       eviction             -> GC path must write tombstone to clear on-disk entry
-    #       verify               -> key 1 must NOT be found
-    #     """
-    #     self.create_follower()
+    def test_updated_key_on_disk_value_removed_after_gc(self):
+        """
+        Scenario:
+          ts=10  insert key 1  -> eviction -> key is on disk image
+          ts=20  update key 1  -> checkpoint -> update propagated to follower
+          advance checkpoint   -> update is prunable
+          eviction             -> GC path must write tombstone to clear on-disk entry
+          verify               -> key 1 must NOT be found
+        """
+        self.create_follower()
 
-    #     self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
-    #     self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
+        self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
 
-    #     self.session.create(self.uri, self.create_config)
-    #     self.session_follow.create(self.uri, self.create_config)
+        self.session.create(self.uri, self.create_config)
+        self.session_follow.create(self.uri, self.create_config)
 
-    #     # --- Step 1: insert key 1 at ts=10, propagate to follower ---
-    #     cursor = self.session.open_cursor(self.uri)
-    #     self.session.begin_transaction()
-    #     cursor[1] = 'value1'
-    #     self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
-    #     cursor.close()
+        # --- Step 1: insert key 1 at ts=10, propagate to follower ---
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[1] = 'value1'
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
+        cursor.close()
 
-    #     # Mirror the insert on the follower ingest layer.
-    #     cursor_follow = self.session_follow.open_cursor(self.uri)
-    #     self.session_follow.begin_transaction()
-    #     cursor_follow[1] = 'value1'
-    #     self.session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
-    #     cursor_follow.close()
+        # Mirror the insert on the follower ingest btree.
+        cursor_follow = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction()
+        cursor_follow[1] = 'value1'
+        self.session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
+        cursor_follow.close()
 
-    #     # --- Step 2: force eviction of key 1 on the follower to build a disk image ---
-    #     session_evict = self.conn_follow.open_session('debug=(release_evict_page)')
-    #     evict_cursor = session_evict.open_cursor(self.uri)
-    #     evict_cursor.set_key(1)
-    #     evict_cursor.search()
-    #     evict_cursor.close()
+        # --- Step 2: force eviction of key 1 on the follower to build a disk image ---
+        session_evict = self.conn_follow.open_session('debug=(release_evict_page)')
+        evict_cursor = session_evict.open_cursor(self.uri)
+        evict_cursor.set_key(1)
+        evict_cursor.search()
+        evict_cursor.close()
 
-    #     # --- Step 3: update key 1 at ts=20, propagate to follower ---
-    #     cursor = self.session.open_cursor(self.uri)
-    #     self.session.begin_transaction()
-    #     cursor[1] = 'value2'
-    #     self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)}')
-    #     cursor.close()
+        # --- Step 3: update key 1 at ts=20, propagate to follower ---
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[1] = 'value2'
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)}')
+        cursor.close()
 
-    #     # Mirror the update on the follower.
-    #     cursor_follow = self.session_follow.open_cursor(self.uri)
-    #     self.session_follow.begin_transaction()
-    #     cursor_follow[1] = 'value2'
-    #     self.session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(20)}')
-    #     cursor_follow.close()
+        # Mirror the update on the follower.
+        cursor_follow = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction()
+        cursor_follow[1] = 'value2'
+        self.session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(20)}')
+        cursor_follow.close()
 
-    #     self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
-    #     self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
+        self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
 
-    #     self.session.checkpoint()
-    #     self.disagg_advance_checkpoint(self.conn_follow)
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
 
-    #     # --- Step 4: force eviction of key 1 on the follower ---
-    #     evict_cursor = session_evict.open_cursor(self.uri)
-    #     evict_cursor.set_key(1)
-    #     evict_cursor.search()
-    #     evict_cursor.close()
-    #     session_evict.close()
+        # --- Step 4: force eviction of key 1 on the follower ---
+        evict_cursor = session_evict.open_cursor(self.uri)
+        evict_cursor.set_key(1)
+        evict_cursor.search()
+        evict_cursor.close()
+        session_evict.close()
 
-    #     # --- Step 5: verify key 1 is not visible in the ingest layer after GC ---
-    #     cursor_check = self.session_follow.open_cursor(self.ingest_uri)
-    #     cursor_check.set_key(1)
-    #     self.assertEqual(cursor_check.search(), wiredtiger.WT_NOTFOUND)
-    #     cursor_check.close()
+        # --- Step 5: verify key 1 is not visible in the ingest btree after GC ---
+        cursor_check = self.session_follow.open_cursor(self.ingest_uri)
+        cursor_check.set_key(1)
+        self.assertEqual(cursor_check.search(), wiredtiger.WT_NOTFOUND)
+        cursor_check.close()
 
     def test_deleted_key_on_disk_value_removed_after_gc(self):
         """
@@ -150,7 +150,7 @@ class test_layered79(wttest.WiredTigerTestCase):
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
         cursor.close()
 
-        # Mirror the insert on the follower ingest layer.
+        # Mirror the insert on the follower ingest btree.
         cursor_follow = self.session_follow.open_cursor(self.uri)
         self.session_follow.begin_transaction()
         cursor_follow[1] = 'value1'
@@ -193,7 +193,7 @@ class test_layered79(wttest.WiredTigerTestCase):
         evict_cursor.close()
         session_evict.close()
 
-        # --- Step 5: verify key 1 is not visible in the ingest layer after GC ---
+        # --- Step 5: verify key 1 is not visible in the ingest btree after GC ---
         cursor_check = self.session_follow.open_cursor(self.ingest_uri)
         cursor_check.set_key(1)
         self.assertEqual(cursor_check.search(), wiredtiger.WT_NOTFOUND)
