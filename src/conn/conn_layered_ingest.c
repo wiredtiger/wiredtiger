@@ -146,6 +146,40 @@ __layered_table_get_constituent_cursor(
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __layered_assert_ingest_table_empty --
+ *     Verify that the ingest table has no records. Called after truncation as a post-condition
+ *     check.
+ */
+static int
+__layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t count;
+
+    count = 0;
+    WT_RET(__wt_open_cursor(session, uri, NULL, NULL, &cursor));
+    while ((ret = cursor->next(cursor)) == 0)
+        ++count;
+    WT_TRET(cursor->close(cursor));
+
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+    WT_RET(ret);
+
+    if (count != 0) {
+        __wt_verbose_error(session, WT_VERB_LAYERED,
+          "Ingest table \"%s\" is not empty after truncation: %" PRIu64 " record(s) remaining", uri,
+          count);
+        WT_ASSERT(session, false);
+    }
+
+    return (0);
+}
+#endif
+
 /*
  * __layered_copy_ingest_table --
  *     Moving all the data from a single ingest table to the corresponding stable table
@@ -372,6 +406,10 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
       work_item->entry->stable_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
       "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__layered_assert_ingest_table_empty(session, work_item->entry->ingest_uri));
+#endif
 
     WT_ASSERT(session, work_item->entry->pinned_dhandle != NULL);
     WT_WITH_DHANDLE(session, work_item->entry->pinned_dhandle, {
