@@ -15,6 +15,7 @@ static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
+static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 
 typedef struct {
@@ -710,7 +711,7 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
  * __checkpoint_progress --
  *     Output a checkpoint progress message.
  */
-static void
+void
 __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 {
     struct timespec cur_time;
@@ -725,13 +726,27 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 
     if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
-          "Checkpoint %s for %" PRIu64 " seconds, wrote %" PRIu64 " pages (%" PRIu64
-          " MB), walked %" PRIu64 " pages and checkpointed %" PRIu64 " files",
+          "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
           closing ? "ran" : "has been running", time_diff, conn->ckpt.progress.write_pages,
-          conn->ckpt.progress.write_bytes / WT_MEGABYTE, conn->ckpt.progress.pages_visited,
-          conn->ckpt.progress.files_checkpointed);
+          conn->ckpt.progress.write_bytes / WT_MEGABYTE);
         conn->ckpt.progress.msg_count++;
     }
+}
+
+/*
+ * __checkpoint_progress_clear --
+ *     Clear checkpoint progress data.
+ */
+void
+__checkpoint_progress_clear(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    conn->ckpt.progress.msg_count = 0;
+    conn->ckpt.progress.write_bytes = 0;
+    conn->ckpt.progress.write_pages = 0;
 }
 
 /*
@@ -853,7 +868,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
 static void
-__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
+__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -882,7 +897,8 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
         int64_t delta;
 
         db = conn->disaggregated_storage.database_size;
-        delta = session->ckpt.ckpt_size_delta;
+        /* Subtract the size of the dropped tables from our delta, we need to account for those. */
+        delta = session->ckpt.ckpt_size_delta - (int64_t)drop_size;
 
         if (delta > 0) {
             WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
@@ -902,6 +918,18 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __checkpoint_process_disagg_metadata --
+ *     Compute the drop size from the shared metadata queue, then process the queue.
+ */
+static int
+__checkpoint_process_disagg_metadata(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+{
+    WT_RET(__wt_disagg_shared_metadata_queue_drop_size(session, drop_sizep));
+    WT_RET(__wt_disagg_shared_metadata_queue_process(session));
+    return (0);
+}
+
+/*
  * __checkpoint_fail_reset --
  *     Reset fields when a failure occurs.
  */
@@ -912,6 +940,14 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     btree->modified = true;
+
+    /* Revert the in-memory root page accounting as we have failed during checkpointing. */
+    if (btree->root_size_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
+        __wt_btree_decrease_size(session, btree->current_root_size);
+        __wt_btree_increase_size(session, btree->previous_root_size);
+
+        btree->current_root_size = btree->previous_root_size;
+    }
     __wt_ckptlist_free(session, &btree->ckpt);
 }
 
@@ -1350,7 +1386,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
-    uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
+    uint64_t ckpt_tree_duration_usecs, drop_size, fsync_duration_usecs, generation,
+      hs_ckpt_duration_usecs;
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
     u_int i;
@@ -1363,6 +1400,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     ckpt_tmp_ts = WT_TS_NONE;
     evict = conn->evict;
+    drop_size = 0;
     hs_size = 0;
     hs_dhandle = hs_dhandle_shared = NULL;
     txn = session->txn;
@@ -1410,7 +1448,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
 
     /* Initialize the checkpoint progress tracking data */
-    WT_CLEAR(conn->ckpt.progress);
+    __checkpoint_progress_clear(session);
 
     /*
      * Get a time (wall time, not a timestamp) for this checkpoint. This will be applied to all the
@@ -1577,10 +1615,12 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * Copy any updated metadata to the shared metadata table.
+     * Copy any updated metadata to the shared metadata table. Compute the drop size first so we can
+     * adjust the overall database size after the checkpoint completes.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_shared_metadata_queue_process(session));
+        WT_WITH_SCHEMA_LOCK(
+          session, ret = __checkpoint_process_disagg_metadata(session, &drop_size));
         WT_ERR(ret);
     }
 
@@ -1771,7 +1811,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
     /* Disaggregated storage database size accounting. */
-    __checkpoint_update_disagg_database_size(session);
+    __checkpoint_update_disagg_database_size(session, drop_size);
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
@@ -2827,7 +2867,7 @@ err:
                  * the discard logic would also need to be reconsidered.
                  */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
-                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size));
+                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, true));
             }
         }
     }
@@ -2921,10 +2961,6 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
      * previous state.
      */
     __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, btree->evict_walk_saved);
-
-    /* Track the number of files successfully checkpointed for progress reporting. */
-    if (ret == 0)
-        ++S2C(session)->ckpt.progress.files_checkpointed;
 
     /*
      * Wake the eviction server, in case application threads have stalled while the eviction server
