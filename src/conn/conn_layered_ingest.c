@@ -157,8 +157,10 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    const char *cursor_config[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL, NULL};
 
-    WT_RET(__wt_open_cursor(session, uri, NULL, NULL, &cursor));
+    WT_RET(__wt_open_cursor(session, uri, NULL, cursor_config, &cursor));
     ret = cursor->next(cursor);
     WT_ASSERT(session, ret == WT_NOTFOUND);
     WT_TRET(cursor->close(cursor));
