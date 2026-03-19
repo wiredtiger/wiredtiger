@@ -312,9 +312,6 @@ retry:
     if (clayered->stable_cursor != NULL) {
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
-        /* Layered cursor is not compatible with cursor_copy config. */
-        F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
-
         if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
             F_SET(clayered->stable_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     }
@@ -560,9 +557,6 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
         WT_ERR(
           __wt_open_cursor(session, layered->ingest_uri, c, ckpt_cfg, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
-
-        /* Layered cursor is not compatible with cursor_copy config. */
-        F_CLR(clayered->ingest_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
 
         if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
             F_SET(clayered->ingest_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
