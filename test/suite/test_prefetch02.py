@@ -48,15 +48,17 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     value_format = 'i'
+    
+    stats_cfg = 'statistics=(all),cache_size=2GB'
 
     config_options = [
-        ('config_a', dict(conn_cfg='prefetch=(available=true,default=true),statistics=(all),cache_size=2GB',
+        ('conn_default_on', dict(conn_cfg=f'prefetch=(available=true,default=true),{self.stats_cfg}',
                             session_cfg='', prefetch=True)),
-        ('config_b', dict(conn_cfg='prefetch=(available=true,default=false),statistics=(all),cache_size=2GB',
+        ('session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=false),{self.stats_cfg}',
                             session_cfg='prefetch=(enabled=true)', prefetch=True)),
-        ('config_c', dict(conn_cfg='prefetch=(available=false,default=false),statistics=(all),cache_size=2GB',
+        ('prefetch_unavailable', dict(conn_cfg=f'prefetch=(available=false,default=false),{self.stats_cfg}',
                             session_cfg='', prefetch=False)),
-        ('config_d', dict(conn_cfg='prefetch=(available=true,default=true),statistics=(all),cache_size=2GB',
+        ('conn_default_on_null_session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=true),{self.stats_cfg}',
                             session_cfg=None, prefetch=True)),
     ]
 
@@ -124,8 +126,9 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         s.commit_transaction()
         s.checkpoint()
 
+        # Close and reopen the connection to evict all cached pages, so the subsequent
+        # traversal reads from disk and triggers pre-fetching rather than serving from cache.
         setup_conn.close()
-
         new_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg)
         s = new_conn.open_session(self.session_cfg)
 
