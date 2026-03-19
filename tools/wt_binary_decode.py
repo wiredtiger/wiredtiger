@@ -227,7 +227,6 @@ if __name__ == '__main__':
                 bson=args.bson,
                 output=output_file,
                 offset=args.offset,
-                fragment=args.fragment,
                 pages=args.pages,
                 keyfile=getattr(args, 'keyfile', None),
                 lsn=args.lsn,
