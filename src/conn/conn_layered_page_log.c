@@ -516,6 +516,9 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
     return (0);
 }
 
+/* Limit the amount of bytes we dump in the metadata page dump. */
+#define WT_DISAGG_META_DUMP_MAX 1024
+
 /*
  * __wti_disagg_fetch_shared_meta --
  *     Fetch the checkpoint metadata page, validate it, and return a zero-terminated buffer copy.
@@ -536,12 +539,14 @@ __wti_disagg_fetch_shared_meta(
     if (ckpt_meta->has_metadata_checksum) {
         const uint32_t checksum = __wt_checksum(item->data, item->size);
         if (checksum != ckpt_meta->metadata_checksum) {
+            const size_t dump_size =
+              item->size > WT_DISAGG_META_DUMP_MAX ? WT_DISAGG_META_DUMP_MAX : item->size;
             WT_ERR(__wt_scr_alloc(session, 0, &hex_buf));
             WT_ERR_MSG(session, EIO,
               "Checkpoint metadata corruption detected: lsn=%" PRIu64 ", expected=0x%" PRIx32
               ", got=0x%" PRIx32 ", data=[%s]",
               ckpt_meta->metadata_lsn, ckpt_meta->metadata_checksum, checksum,
-              __wt_buf_set_printable(session, item->data, item->size, false, hex_buf));
+              __wt_buf_set_printable(session, item->data, dump_size, false, hex_buf));
         }
     }
 
