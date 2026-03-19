@@ -29,12 +29,12 @@ err:
 }
 
 static int
-cursor_api_call_with_set_einval(WT_CURSOR *cursor, WT_SESSION_IMPL *session_impl)
+cursor_api_call_with_set_ebusy(WT_CURSOR *cursor, WT_SESSION_IMPL *session_impl)
 {
     WT_DECL_RET;
     CURSOR_API_CALL(cursor, session_impl, ret, next, NULL);
-    ret = EINVAL;
-    __wt_session_set_last_error(session_impl, ret, WT_NONE, WT_ERROR_INFO_EMPTY);
+    __wt_session_set_last_error(session_impl, EBUSY, WT_NONE, WT_ERROR_INFO_EMPTY);
+    WT_ERR(EBUSY);
 err:
     API_END_RET(session_impl, ret);
 }
@@ -59,13 +59,13 @@ err:
 }
 
 static int
-api_call_nested_with_einval(WT_SESSION_IMPL *session_impl, WT_CURSOR *cursor, int err,
+api_call_nested_with_set_ebusy(WT_SESSION_IMPL *session_impl, WT_CURSOR *cursor, int err,
   int sub_level_err, const char *err_msg_content)
 {
     WT_DECL_RET;
     SESSION_API_CALL_NOCONF(session_impl, log_printf);
 
-    WT_ERR(cursor_api_call_with_set_einval(cursor, session_impl));
+    WT_ERR(cursor_api_call_with_set_ebusy(cursor, session_impl));
 
     ret = err;
     if (err != 0 && err_msg_content != NULL)
@@ -98,6 +98,15 @@ TEST_CASE("API_END_RET nested - test that nested API calls only keep explicitly 
         check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
+    SECTION(
+      "Test nested API call with WT_NOTFOUND inside WT_ERR_NOTFOUND_OK(cursor API), followed by "
+      "EINVAL")
+    {
+        REQUIRE(api_call_nested_with_notfound(
+                  session_impl, cursor, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY, true) == EINVAL);
+        check_error_info(err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
+    }
+
     SECTION("Test nested API call with WT_NOTFOUND inside WT_ERR(cursor API)")
     {
         REQUIRE(api_call_nested_with_notfound(session_impl, cursor, 0, WT_NONE, NULL, false) ==
@@ -105,9 +114,22 @@ TEST_CASE("API_END_RET nested - test that nested API calls only keep explicitly 
         check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
 
-    SECTION("Test nested API call with EINVAL set inside cursor API")
+    SECTION("Test nested API call with WT_NOTFOUND inside WT_ERR(cursor API), followed by EINVAL")
     {
-        REQUIRE(api_call_nested_with_einval(session_impl, cursor, 0, WT_NONE, NULL) == EINVAL);
-        check_error_info(err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
+        REQUIRE(api_call_nested_with_notfound(session_impl, cursor, EINVAL, WT_NONE,
+                  WT_ERROR_INFO_EMPTY, false) == WT_NOTFOUND);
+        check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
+    }
+
+    SECTION("Test nested API call with EBUSY set explicitly inside cursor API")
+    {
+        REQUIRE(api_call_nested_with_set_ebusy(session_impl, cursor, 0, WT_NONE, NULL) == EBUSY);
+        check_error_info(err_info, EBUSY, WT_NONE, WT_ERROR_INFO_EMPTY);
+    }
+
+    SECTION("Test nested API call with EBUSY set explicitly inside cursor API, followed by EINVAL")
+    {
+        REQUIRE(api_call_nested_with_set_ebusy(session_impl, cursor, 0, WT_NONE, NULL) == EBUSY);
+        check_error_info(err_info, EBUSY, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
 }
