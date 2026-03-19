@@ -864,7 +864,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
 static void
-__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
+__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -893,7 +893,8 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
         int64_t delta;
 
         db = conn->disaggregated_storage.database_size;
-        delta = session->ckpt.ckpt_size_delta;
+        /* Subtract the size of the dropped tables from our delta, we need to account for those. */
+        delta = session->ckpt.ckpt_size_delta - (int64_t)drop_size;
 
         if (delta > 0) {
             WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
@@ -903,6 +904,25 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
             __wt_disagg_set_database_size(session, db - (uint64_t)(-delta));
         }
     }
+
+    /*
+     * The database size must never drop below the checkpoint buffer because the checkpoint metadata
+     * itself occupies space that must always be accounted for.
+     */
+    WT_ASSERT(
+      session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+}
+
+/*
+ * __checkpoint_process_disagg_metadata --
+ *     Compute the drop size from the shared metadata queue, then process the queue.
+ */
+static int
+__checkpoint_process_disagg_metadata(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+{
+    WT_RET(__wt_disagg_shared_metadata_queue_drop_size(session, drop_sizep));
+    WT_RET(__wt_disagg_shared_metadata_queue_process(session));
+    return (0);
 }
 
 /*
@@ -916,6 +936,14 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     btree->modified = true;
+
+    /* Revert the in-memory root page accounting as we have failed during checkpointing. */
+    if (btree->root_size_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
+        __wt_btree_decrease_size(session, btree->current_root_size);
+        __wt_btree_increase_size(session, btree->previous_root_size);
+
+        btree->current_root_size = btree->previous_root_size;
+    }
     __wt_ckptlist_free(session, &btree->ckpt);
 }
 
@@ -1053,15 +1081,14 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          */
         wt_timestamp_t stable_timestamp = __wt_get_stable_timestamp(session);
         if (stable_timestamp != WT_TS_NONE) {
+            wt_timestamp_t oldest_timestamp = __wt_get_oldest_timestamp(session);
             /* A checkpoint should never proceed when timestamps are out of order. */
-            if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) &&
-              __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp) > stable_timestamp) {
+            if (oldest_timestamp > stable_timestamp) {
                 __wt_writeunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
                   "oldest timestamp %s must not be later than stable timestamp %s when taking a "
                   "checkpoint",
-                  __wt_timestamp_to_string(
-                    __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp), ts_string[0]),
+                  __wt_timestamp_to_string(oldest_timestamp, ts_string[0]),
                   __wt_timestamp_to_string(stable_timestamp, ts_string[1]));
             }
             __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, stable_timestamp);
@@ -1355,7 +1382,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
-    uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
+    uint64_t ckpt_tree_duration_usecs, drop_size, fsync_duration_usecs, generation,
+      hs_ckpt_duration_usecs;
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
     u_int i;
@@ -1368,6 +1396,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     ckpt_tmp_ts = WT_TS_NONE;
     evict = conn->evict;
+    drop_size = 0;
     hs_size = 0;
     hs_dhandle = hs_dhandle_shared = NULL;
     txn = session->txn;
@@ -1589,10 +1618,12 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * Copy any updated metadata to the shared metadata table.
+     * Copy any updated metadata to the shared metadata table. Compute the drop size first so we can
+     * adjust the overall database size after the checkpoint completes.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_shared_metadata_queue_process(session));
+        WT_WITH_SCHEMA_LOCK(
+          session, ret = __checkpoint_process_disagg_metadata(session, &drop_size));
         WT_ERR(ret);
     }
 
@@ -1783,7 +1814,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
     /* Disaggregated storage database size accounting. */
-    __checkpoint_update_disagg_database_size(session);
+    __checkpoint_update_disagg_database_size(session, drop_size);
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
@@ -2839,7 +2870,7 @@ err:
                  * the discard logic would also need to be reconsidered.
                  */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
-                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size));
+                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, true));
             }
         }
     }

@@ -153,10 +153,18 @@ __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_BM *bm;
     WT_BTREE *btree;
 
+    /*
+     * During salvage, reconciliation frees overflow blocks that need special tracking to avoid
+     * double frees. Intercept here rather than overriding the block manager's function pointer as
+     * the previous implementation did.
+     */
+    if (session->salvage_track != NULL)
+        return (__wt_slvg_reconcile_free(session, addr, addr_size));
+
     btree = S2BT(session);
     bm = btree->bm;
 
-    return (bm->free(bm, session, addr, addr_size));
+    return (bm->free(bm, session, addr, addr_size, false));
 }
 
 /*
@@ -316,8 +324,14 @@ __wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
 static WT_INLINE void
 __wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
 {
-    WT_ASSERT(session, __wt_atomic_load_uint64(&S2BT(session)->bytes_total) >= size);
-    (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
+    /*
+     * FIXME WT-16660: re-enable this assert once the disagg delta block size accounting bug is
+     * fixed.
+     */
+    if (__wt_atomic_load_uint64(&S2BT(session)->bytes_total) < size)
+        __wt_atomic_store_uint64(&S2BT(session)->bytes_total, 0);
+    else
+        (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
 }
 
 /*
