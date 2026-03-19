@@ -1051,7 +1051,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
       compressed_sizep, checkpoint, checkpoint_io, compressed));
 
     if (WT_REC_CKPT_TRACK_TIME(r))
-        r->blkcache_write_time += WT_CLOCKDIFF_US(__wt_clock(session), _write_start);
+        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
 
     return (0);
 }
@@ -2167,7 +2167,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
     if (WT_REC_CKPT_TRACK_TIME(r))
-        r->blkcache_write_time += WT_CLOCKDIFF_US(__wt_clock(session), _write_start);
+        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
 
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;

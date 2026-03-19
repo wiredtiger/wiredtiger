@@ -7424,7 +7424,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: total time (msecs) */
 #define	WT_STAT_CONN_CHECKPOINT_TIME_TOTAL		1431
 /*!
- * checkpoint: total time (usecs) writing pages to stable storage during
+ * checkpoint: total time (msecs) writing pages to stable storage during
  * checkpoint reconciliation
  */
 #define	WT_STAT_CONN_CHECKPOINT_REC_BLKCACHE_WRITE	1432
