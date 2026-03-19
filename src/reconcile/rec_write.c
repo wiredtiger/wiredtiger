@@ -90,8 +90,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
-    /* It's an error to be called with a clean page. */
-    WT_ASSERT(session, __wt_page_is_modified(page));
+    if (!__wt_page_is_modified(page))
+        /* It's an error to be called with a clean page. */
+        WT_ASSERT(session, __wt_page_is_modified(page));
 
     /*
      * Reconciliation acquires and releases pages, and in rare cases that page release triggers

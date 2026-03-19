@@ -159,9 +159,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    clean_page = ebusy_only = false;
+    clean_page = ebusy_only = is_dirty = false;
 
-    if (!closing)
+    //if (!closing)
         WT_ASSERT(
           session, (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(ref) == session));
 
@@ -268,9 +268,19 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         goto done;
     }
 
-    if (__wt_page_is_modified(page))
+    if (__wt_page_is_modified(page)) {
         is_dirty = true;
-
+        // printf("page %p %s (type %d) is dirty in _wt_evict by session %d\n",
+        //     (void *)ref->page, __wt_page_type_string(ref->page->type), ref->page->type, (int)session->id);
+        //fflush(stdout);
+    }
+#if 0
+    else {
+        printf("page %p %s (type %d) is CLEAN in _wt_evict by session %d\n",
+               (void *)ref->page, __wt_page_type_string(ref->page->type), ref->page->type, (int)session->id);
+        fflush(stdout);
+    }
+#endif
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
      * force pages out before they're larger than the cache. We don't care about races, it's just a
