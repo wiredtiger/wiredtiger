@@ -1843,11 +1843,10 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
      * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
      * WT_ADDRs and swapped into place before ref->home is updated to the new child page. Read
-     * ref->home before ref->addr with an acquire barrier in between, pairing with the release
-     * barrier in __split_ref_prepare before the home update. This ensures that if we observe a new
-     * child page as home, we also observe the corresponding off-page addr. The content of the two
-     * WT_ADDRs are identical, and we don't care which version we get as long as we don't
-     * mix-and-match the two.
+     * ref->home before ref->addr with an acquire barrier in between, pairing with the seq-cst CAS
+     * on ref->addr during split. This ensures that if we observe a new child page as home, we also
+     * observe the corresponding off-page addr. The content of the two WT_ADDRs are identical, and
+     * we don't care which version we get as long as we don't mix-and-match the two.
      */
     page = ref->home;
     WT_ACQUIRE_BARRIER();

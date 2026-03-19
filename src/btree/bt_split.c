@@ -268,7 +268,11 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         default:
             WT_ERR(__wt_illegal_value(session, unpack.raw));
         }
-        /* If the compare-and-swap is successful, clear addr to skip the free at the end. */
+        /*
+         * Use a seq-cst CAS to swap the on-page cell pointer to the off-page addr. This ensures the
+         * addr conversion is visible to readers before ref->home is later updated to the new child
+         * page during split. Pairs with the acquire barrier on the read side.
+         */
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }
@@ -363,13 +367,6 @@ __split_ref_prepare(
         locked[cnt++] = child;
 
         WT_PAGE_LOCK(session, child);
-
-        /*
-         * Ensure addr conversions from on-page to off-page (done in __split_ref_move) are visible
-         * to other threads before we update ref->home to this new child page. Pairs with the
-         * acquire barrier in __wt_ref_addr_copy.
-         */
-        WT_RELEASE_BARRIER();
 
         /* Switch the WT_REF's to their new page. */
         j = 0;
