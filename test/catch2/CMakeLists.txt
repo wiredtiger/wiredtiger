@@ -47,6 +47,7 @@ else()
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
+        sub_level_error/unit/test_sub_level_error_nested_api_calls.cpp
         sub_level_error/unit/test_sub_level_error_compact.cpp
         sub_level_error/unit/test_sub_level_error_drop_conflict.cpp
         sub_level_error/unit/test_sub_level_error_drop_uncommitted_dirty.cpp
