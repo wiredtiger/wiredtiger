@@ -1206,7 +1206,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      * If there's an on-page value, we only want to write upd_select if the oldest update is
      * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
      * update and reset upd_select if the update is not visible.
-     * 
+     *
      * If we want to prune the entire key, don't reset upd_select.
      */
     if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
