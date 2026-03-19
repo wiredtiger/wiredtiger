@@ -132,7 +132,7 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
  *     If a page has a pending multiblock split as a result of checkpoint reconciliation, flag it
  *     for eviction. Writing out that split is more efficient than allowing the page to go through
  *     reconciliation again. This also has the desirable effect of increasing the number of deltas
- *     WiredTiger can generate for a workload, essentially the pages that the original page are
+ *     WiredTiger can generate for a workload; essentially, the pages that the original page was
  *     split into can have deltas generated from them.
  */
 static void
