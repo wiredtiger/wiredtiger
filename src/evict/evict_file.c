@@ -31,14 +31,11 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *next_ref, *ref;
-    WT_REF_STATE previous_state;
-    bool must_unlock_ref;
     uint32_t rec_flags, walk_flags;
 
     dhandle = session->dhandle;
     btree = dhandle->handle;
-    previous_state = 0;
-    must_unlock_ref = false;
+
     /*
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
      * has been locked out.
@@ -108,11 +105,6 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         switch (syncop) {
         case WT_SYNC_CLOSE:
             /* Evict the page. */
-            must_unlock_ref = false;
-            if (!(WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(ref) == session)){
-                WT_REF_LOCK(session, ref, &previous_state);
-                must_unlock_ref = true;
-            }
             WT_ERR(__wt_evict(session, ref, WT_REF_GET_STATE(ref), WT_EVICT_CALL_CLOSING));
             break;
         case WT_SYNC_DISCARD:
@@ -140,8 +132,6 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     if (0) {
 err:
-        if (must_unlock_ref)
-            WT_REF_UNLOCK(ref, previous_state);
         /* On error, clear any left-over tree walk. */
         if (next_ref != NULL)
             WT_TRET(__wt_page_release(session, next_ref, walk_flags));

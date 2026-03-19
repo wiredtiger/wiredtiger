@@ -161,7 +161,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     stats_flags = 0;
     clean_page = ebusy_only = is_dirty = false;
 
-    //if (!closing)
+    if (!closing)
         WT_ASSERT(
           session, (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(ref) == session));
 
