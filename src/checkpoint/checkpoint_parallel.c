@@ -217,7 +217,11 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (entry == NULL)
             break;
 
-        /* Begin a transaction, if we don't already have one. */
+        /*
+         * Begin a transaction, if we don't already have one. This transaction will be used for the
+         * entire checkpoint, similarly as in the single-threaded checkpoint case. The main
+         * checkpoint thread is responsible for committing or rolling back this transaction.
+         */
         if (!F_ISSET(session->txn, WT_TXN_RUNNING)) {
             WT_ERR(__wt_txn_begin(session, NULL));
             F_SET(session, WT_SESSION_CHECKPOINT);
