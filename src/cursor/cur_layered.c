@@ -1747,6 +1747,14 @@ __clayered_insert(WT_CURSOR *cursor)
         if (ret == 0) {
             F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
             WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
+        } else if (ret == WT_DUPLICATE_KEY) {
+            /*
+             * On a duplicate key, stable is positioned at the existing record. Copy the existing
+             * key/value to the layered cursor, matching the non-leader behavior.
+             */
+            clayered->current_cursor = stable;
+            if ((ret = __clayered_copy_duplicate_kv(cursor)) == 0)
+                ret = WT_DUPLICATE_KEY;
         }
         goto err;
     }
