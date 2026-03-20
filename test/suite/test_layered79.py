@@ -206,8 +206,9 @@ class test_layered79(wttest.WiredTigerTestCase):
         """
         Scenario:
           ts=10  insert key 1  -> eviction -> key is on disk image
-          ts=0  delete key 1   -> eviction -> delete on the ingest btree on follower
+          ts=0  delete key 1
           advance checkpoint   -> insert is not prunable
+          eviction             -> GC path must write tombstone to clear on-disk entry
           verify               -> key 1 must NOT be found
         """
         self.create_follower()
