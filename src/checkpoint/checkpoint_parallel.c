@@ -204,8 +204,6 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_RET;
     bool signalled;
 
-    WT_UNUSED(thread);
-
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
 
     /* Wait until the next event. */
@@ -245,8 +243,8 @@ err:
 
         if (ret != 0) {
             __wt_verbose(session, WT_VERB_CHECKPOINT,
-              "Checkpoint page reconciliation thread failed to reconcile a page: %s (%d)",
-              __wt_strerror(session, ret, NULL, 0), ret);
+              "Checkpoint page reconciliation thread %u failed to reconcile a page: %s (%d)",
+              thread->id, __wt_strerror(session, ret, NULL, 0), ret);
             break;
         }
 
