@@ -49,16 +49,16 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
 
     value_format = 'i'
 
-    stats_cfg = 'statistics=(all),cache_size=2GB'
+    conn_base_cfg = 'statistics=(all),cache_size=2GB,'
 
     config_options = [
-        ('conn_default_on', dict(conn_cfg=f'prefetch=(available=true,default=true),{stats_cfg}',
+        ('conn_default_on', dict(prefetch_cfg=f'prefetch=(available=true,default=true)',
                             session_cfg='', prefetch=True)),
-        ('session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=false),{stats_cfg}',
+        ('session_cfg', dict(prefetch_cfg=f'prefetch=(available=true,default=false)',
                             session_cfg='prefetch=(enabled=true)', prefetch=True)),
-        ('prefetch_unavailable', dict(conn_cfg=f'prefetch=(available=false,default=false),{stats_cfg}',
+        ('prefetch_unavailable', dict(prefetch_cfg=f'prefetch=(available=false,default=false)',
                             session_cfg='', prefetch=False)),
-        ('conn_default_on_null_session_cfg', dict(conn_cfg=f'prefetch=(available=true,default=true),{stats_cfg}',
+        ('conn_default_on_null_session_cfg', dict(prefetch_cfg=f'prefetch=(available=true,default=true)',
                             session_cfg=None, prefetch=True)),
     ]
 
@@ -69,6 +69,9 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     scenarios = make_scenarios(format_values, config_options, prefetch_scenarios)
+
+    def conn_cfg(self):
+        return self.conn_base_cfg + self.prefetch_cfg
 
     def get_stat(self, stat, session_name):
         stat_cursor = session_name.open_cursor('statistics:')
@@ -114,7 +117,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         os.mkdir(self.new_dir)
         helper.copy_wiredtiger_home(self, '.', self.new_dir)
 
-        setup_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg)
+        setup_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg())
         s = setup_conn.open_session(self.session_cfg)
         s.create(self.uri, 'allocation_size=512,leaf_page_max=512,'
                         'key_format={},value_format={}'.format(self.key_format, self.value_format))
@@ -129,7 +132,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         # Close and reopen the connection to evict all cached pages, so the subsequent
         # traversal reads from disk and triggers pre-fetching rather than serving from cache.
         setup_conn.close()
-        new_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg)
+        new_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg())
         s = new_conn.open_session(self.session_cfg)
 
         if self.scenario_type == 'traversal':
