@@ -231,19 +231,25 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         /* It's not an error if we make no progress. */
         WT_WITH_DHANDLE(session, entry->dhandle,
           ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
-        WT_STAT_CONN_INCR(session, checkpoint_parallel_pages_reconciled);
+        if (ret == 0)
+            WT_STAT_CONN_INCR(session, checkpoint_parallel_pages_reconciled);
         WT_ERR(ret);
 
+err:
         entry->result = ret;
         __checkpoint_parallel_push_done(session, entry);
+
+        if (ret != 0) {
+            __wt_verbose(session, WT_VERB_CHECKPOINT,
+              "Checkpoint page reconciliation thread failed to reconcile a page: %s (%d)",
+              __wt_strerror(session, ret, NULL, 0), ret);
+            break;
+        }
+
+        ret = 0; /* Errors from reconciliation are passed back to the caller via the done queue. */
     }
 
-    if (0) {
-err:
-        WT_RET_PANIC(session, ret, "Checkpoint page reconciliation thread error");
-    }
-
-    return (0);
+    return (ret);
 }
 
 /*
