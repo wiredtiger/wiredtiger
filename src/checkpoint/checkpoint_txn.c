@@ -1465,7 +1465,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /* Flush data-sources before we start the checkpoint. */
-    WT_ERR(__checkpoint_data_source(session, ckpt_cfg.cfg));
+    WT_ERR(__checkpoint_data_source(session, cfg));
 
     /*
      * Try to reduce the amount of dirty data in cache so there is less work do during the critical
@@ -1519,7 +1519,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, &ckpt_cfg));
     WT_ERR(ret);
 
-    WT_ERR(__checkpoint_db_debug_crash_points(session, ckpt_cfg.cfg));
+    WT_ERR(__checkpoint_db_debug_crash_points(session, cfg));
 
     /* Log the final checkpoint prepare progress message if needed. */
     if (conn->ckpt.progress.msg_count > 0)
@@ -1564,7 +1564,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_verbose_track(session, "checkpointing individual trees");
 
     time_start_ckpt_tree = __wt_clock(session);
-    WT_ERR(__checkpoint_apply_to_dhandles(session, ckpt_cfg.cfg, __checkpoint_tree_helper));
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
     time_stop_ckpt_tree = __wt_clock(session);
     ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
     WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
@@ -1597,14 +1597,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
 
-        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, ckpt_cfg.cfg));
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
         if (ret != 0)
             __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
         WT_ERR(ret);
 
         if (hs_dhandle_shared != NULL)
-            WT_WITH_DHANDLE(
-              session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, ckpt_cfg.cfg));
+            WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
 
         __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
         WT_ERR(ret);
@@ -1655,7 +1654,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_snapshot_acquired, 0);
 
     /* Mark all trees as open for business (particularly eviction). */
-    WT_ERR(__checkpoint_apply_to_dhandles(session, ckpt_cfg.cfg, __checkpoint_presync));
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_presync));
 
     __checkpoint_verbose_track(session, "committing transaction");
 
@@ -1666,7 +1665,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     time_start_fsync = __wt_clock(session);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
-    WT_ERR(__checkpoint_apply_to_dhandles(session, ckpt_cfg.cfg, __wt_checkpoint_sync));
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
     /* Sync the history store file. */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
@@ -1761,7 +1760,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
         WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
         if (S2BT(session)->modified)
-            WT_ERR(__wt_checkpoint_file(session, ckpt_cfg.cfg));
+            WT_ERR(__wt_checkpoint_file(session, cfg));
     }
 
     /* Disable metadata tracking during the metadata checkpoint. */
@@ -1769,7 +1768,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     session->meta_track_next = NULL;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_CKPT);
     WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
-      WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, ckpt_cfg.cfg)));
+      WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
     session->meta_track_next = saved_meta_next;
     WT_ERR(ret);
 
