@@ -860,6 +860,16 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, bool forward, uint32_t iter_flag
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, true, true));
 
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        WT_ERR(forward ? stable->next(stable) : stable->prev(stable));
+        WT_ERR(stable->get_key(stable, &cursor->key));
+        WT_ERR(stable->get_value(stable, &cursor->value));
+        clayered->current_cursor = stable;
+        goto err;
+    }
+
     /*
      * FIXME-WT-16158: We currently check whether the entry has been deleted on the current cursor,
      * which may be positioned on either the ingest or the stable table. However, only the ingest
@@ -1341,6 +1351,18 @@ __clayered_search(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered, true, true, false));
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        stable->set_key(stable, &cursor->key);
+        WT_ERR(stable->search(stable));
+        WT_ERR(stable->get_key(stable, &cursor->key));
+        WT_ERR(stable->get_value(stable, &cursor->value));
+        clayered->current_cursor = stable;
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_stable);
+        goto err;
+    }
+
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
     WT_ERR(__clayered_lookup(session, clayered, &cursor->value));
     WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
@@ -1386,6 +1408,18 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, true, true, false));
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
+
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        stable->set_key(stable, &cursor->key);
+        WT_ERR(stable->search_near(stable, exactp));
+        WT_ERR(stable->get_key(stable, &cursor->key));
+        WT_ERR(stable->get_value(stable, &cursor->value));
+        clayered->current_cursor = stable;
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_stable);
+        goto err;
+    }
 
     /*
      * search_near is somewhat fiddly: we can't just use a nearby key from the current constituent
@@ -1698,6 +1732,25 @@ __clayered_insert(WT_CURSOR *cursor)
       S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
       false));
 
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+            F_CLR(stable, WT_CURSTD_OVERWRITE);
+        else
+            WT_ASSERT(session, F_ISSET(stable, WT_CURSTD_OVERWRITE));
+
+        stable->set_key(stable, &cursor->key);
+        stable->set_value(stable, &cursor->value);
+        ret = stable->insert(stable);
+        F_SET(stable, WT_CURSTD_OVERWRITE);
+        if (ret == 0) {
+            F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+            WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
+        }
+        goto err;
+    }
+
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
      * lookup results in an error, and a failed lookup leaves the original key intact.
@@ -1753,6 +1806,29 @@ __clayered_update(WT_CURSOR *cursor)
       S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
       false));
 
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+            F_CLR(stable, WT_CURSTD_OVERWRITE);
+        else
+            WT_ASSERT(session, F_ISSET(stable, WT_CURSTD_OVERWRITE));
+
+        stable->set_key(stable, &cursor->key);
+        stable->set_value(stable, &cursor->value);
+        ret = stable->update(stable);
+        F_SET(stable, WT_CURSTD_OVERWRITE);
+        if (ret == 0) {
+            F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+            WT_ITEM_SET(cursor->key, stable->key);
+            WT_ITEM_SET(cursor->value, stable->value);
+            F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+            clayered->current_cursor = stable;
+            WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
+        }
+        goto err;
+    }
+
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
         /*
@@ -1807,6 +1883,25 @@ __clayered_remove(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
 
     WT_ERR(__clayered_enter(clayered, false, true, false));
+
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+
+        stable->set_key(stable, &cursor->key);
+        ret = stable->remove(stable);
+        clayered->current_cursor = stable;
+        if (ret == 0) {
+            F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+            if (positioned)
+                F_SET(cursor, WT_CURSTD_KEY_INT);
+            else
+                WT_TRET(cursor->reset(cursor));
+            WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
+        }
+        goto err;
+    }
+
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
      * landed on.
@@ -1857,6 +1952,16 @@ __clayered_reserve(WT_CURSOR *cursor)
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     F_CLR(cursor, WT_CURSTD_OVERWRITE);
     WT_ERR(__clayered_enter(clayered, false, S2C(session)->layered_table_manager.leader, false));
+
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        stable->set_key(stable, &cursor->key);
+        WT_ERR(stable->reserve(stable));
+        clayered->current_cursor = stable;
+        goto err;
+    }
+
     WT_ERR(__clayered_lookup(session, clayered, &value));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
@@ -1909,6 +2014,18 @@ __clayered_largest_key(WT_CURSOR *cursor)
     stable_cursor = clayered->stable_cursor;
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
+
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_ERR_NOTFOUND_OK(stable_cursor->largest_key(stable_cursor), true);
+        if (ret == 0) {
+            WT_ERR(__wt_buf_set(session, key, stable_cursor->key.data, stable_cursor->key.size));
+            WT_ERR(cursor->reset(cursor));
+            WT_ERR(__wt_buf_set(session, &cursor->key, key->data, key->size));
+            F_SET(cursor, WT_CURSTD_KEY_EXT);
+        }
+        goto err;
+    }
 
     WT_ERR_NOTFOUND_OK(ingest_cursor->largest_key(ingest_cursor), true);
     if (ret == 0)
@@ -2074,6 +2191,21 @@ __clayered_next_random(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, true));
 
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        WT_ERR(__wti_curfile_next_random(stable));
+
+        WT_ERR(stable->get_key(stable, &cursor->key));
+        WT_ERR(stable->get_value(stable, &cursor->value));
+
+        clayered->current_cursor = stable;
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+
+        goto err;
+    }
+
     for (;;) {
         /* FIXME-WT-14736: consider the size of ingest table in the future. */
         if (clayered->stable_cursor != NULL) {
@@ -2193,6 +2325,26 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     /* Check for a rational modify vector count. */
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
+
+    /* On a leader the ingest table is empty -- forward directly to the stable cursor. */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_CURSOR *stable = clayered->stable_cursor;
+        if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
+            WT_ERR(cursor->search(cursor));
+
+        WT_ASSERT(session, F_ISSET(stable, WT_CURSTD_KEY_INT));
+        WT_ERR(stable->modify(stable, entries, nentries));
+        clayered->current_cursor = stable;
+
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        WT_ITEM_SET(cursor->key, stable->key);
+        WT_ITEM_SET(cursor->value, stable->value);
+
+        F_SET(cursor, WT_CURSTD_KEY_INT);
+        F_SET(cursor, F_MASK(stable, WT_CURSTD_VALUE_SET));
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_modify);
+        goto err;
+    }
 
     /* Do a search if we're not positioned. */
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
