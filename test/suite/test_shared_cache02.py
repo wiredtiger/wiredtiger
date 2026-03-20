@@ -108,15 +108,11 @@ class test_shared_cache02(wttest.WiredTigerTestCase):
             self.add_records(sess, 0, nops)
 
         connection = self.conns[0]
-        # Reconfigure to over-subscribe, call should fail with an error
+        # Reconfigure to over-subscribe, call should fail with an error and the reserve size should
+        # not be updated.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: connection.reconfigure("shared_cache=(name=pool,reserve=40M)"),
             '/Shared cache unable to accommodate this configuration/')
-        # FIXME-WT-16977: Finish implementing the config cursor API.
-        # Ensure that the reserve size was updated.
-        # cursor = self.sessions[0].open_cursor('config:', None, None)
-        # value = cursor['connection']
-        # self.assertTrue(value.find('reserve') != -1)
 
         self.closeConnections()
 
@@ -133,13 +129,8 @@ class test_shared_cache02(wttest.WiredTigerTestCase):
 
         connection = self.conns[0]
 
+        # This should update the reserve size.
         connection.reconfigure("shared_cache=(name=pool,reserve=30M)"),
-
-        # FIXME-WT-16977: Finish implementing the config cursor API.
-        # Ensure that the reserve size was updated.
-        # cursor = self.sessions[0].open_cursor('config:', None, None)
-        # value = cursor['connection']
-        # self.assertTrue(value.find('reserve') != -1)
 
         self.closeConnections()
 
@@ -153,14 +144,9 @@ class test_shared_cache02(wttest.WiredTigerTestCase):
             sess.create(self.uri, "key_format=S,value_format=S")
             self.add_records(sess, 0, nops)
 
+        # This should update the reserve size for both connections.
         self.conns[0].reconfigure("shared_cache=(name=pool,reserve=20M)"),
         self.conns[1].reconfigure("shared_cache=(name=pool,reserve=20M)"),
-
-        # FIXME-WT-16977: Finish implementing the config cursor API.
-        # Ensure that the reserve size was updated.
-        # cursor = self.sessions[0].open_cursor('config:', None, None)
-        # value = cursor['connection']
-        # self.assertTrue(value.find('reserve') != -1)
 
         self.closeConnections()
 
