@@ -31,7 +31,7 @@
 # or during step-up. Closing the ingest dhandle discards all in-memory data for
 # that table (WT-16974, WT-16703).
 
-import time, wttest
+import time, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -50,7 +50,7 @@ class test_layered79(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered79', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def layered_dhandle_not_swept_during_stepup(self):
+    def test_layered_dhandle_not_swept_during_stepup(self):
         """
         Verify that the sweep server does not close the layered dhandle. During
         step-up, the ingest table is drained into the layered table. If the
@@ -84,9 +84,10 @@ class test_layered79(wttest.WiredTigerTestCase):
         # Missing rows indicate the layered dhandle was incorrectly swept.
         cursor = self.session.open_cursor(self.uri)
         count = 0
-        while cursor.next() == 0:
+        while (ret := cursor.next())  == 0:
             count += 1
         cursor.close()
+        self.assertEqual(wiredtiger.WT_NOTFOUND, ret)
         self.assertEqual(count, self.nrows)
 
         self.ignoreStdoutPattern('WT_VERB_SWEEP')
