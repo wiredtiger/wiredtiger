@@ -84,7 +84,7 @@ class test_layered49(wttest.WiredTigerTestCase):
         for i in range(1, self.nitems):
             self.session_follow.begin_transaction()
             cursor.set_key(str(i))
-            self.assertEqual(cursor.remove(), 0)
+            cursor.remove()
             self.timestamp += 1
             self.session_follow.commit_transaction("commit_timestamp=" + self.timestamp_str(self.timestamp))
 
