@@ -1226,7 +1226,9 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
-    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && upd_select->upd == &upd_tombstone)
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+      (upd_select->upd == &upd_tombstone ||
+        (!*has_newer_updatesp && upd_select->upd == NULL && !WT_REC_HAS_ON_DISK(vpack))))
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_update_chain);
 
     return (0);
