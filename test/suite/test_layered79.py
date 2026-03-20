@@ -33,6 +33,7 @@
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
 @disagg_test_class
 class test_layered79(wttest.WiredTigerTestCase):
@@ -65,9 +66,6 @@ class test_layered79(wttest.WiredTigerTestCase):
           verify               -> key 1 must NOT be found
         """
         self.create_follower()
-
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
-        self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
 
         self.session.create(self.uri, self.create_config)
         self.session_follow.create(self.uri, self.create_config)
@@ -126,6 +124,10 @@ class test_layered79(wttest.WiredTigerTestCase):
         self.assertEqual(cursor_check.search(), wiredtiger.WT_NOTFOUND)
         cursor_check.close()
 
+        stat_cursor = self.session_follow.open_cursor('statistics:' + self.uri)
+        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
+        self.assertEqual(garbage_collected, 1)
+
     def test_deleted_key_on_disk_value_removed_after_gc(self):
         """
         Scenario:
@@ -136,9 +138,6 @@ class test_layered79(wttest.WiredTigerTestCase):
           verify               -> key 1 must NOT be found
         """
         self.create_follower()
-
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
-        self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(1)}')
 
         self.session.create(self.uri, self.create_config)
         self.session_follow.create(self.uri, self.create_config)
@@ -198,3 +197,7 @@ class test_layered79(wttest.WiredTigerTestCase):
         cursor_check.set_key(1)
         self.assertEqual(cursor_check.search(), wiredtiger.WT_NOTFOUND)
         cursor_check.close()
+
+        stat_cursor = self.session_follow.open_cursor('statistics:' + self.uri)
+        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
+        self.assertEqual(garbage_collected, 1)
