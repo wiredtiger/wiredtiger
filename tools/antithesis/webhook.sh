@@ -8,7 +8,7 @@ export WEBHOOK_PAYLOAD=$( \
                   "antithesis.config_image": "wt-test-format-config:debug-have-diagnostic-willk",
                   "antithesis.images": "wt-test-format:debug-have-diagnostic-willk",
                   "antithesis.report.recipients": "will.korteland@mongodb.com",
-                  "custom.compose_env": "poop!!!!!!!"
+                  "custom.compose_env": "${test_format_extra_args}"
                 }
               )
             }')

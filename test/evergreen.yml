@@ -1066,20 +1066,24 @@ functions:
       working_dir: "wiredtiger/cmake_build/test/format"
       shell: bash
       script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        ${additional_san_vars}
-        # Fail, show the configuration file.
-        fail() {
-          echo "======= FAILURE =========="
-          [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG
-          exit 1
-        }
+        export WEBHOOK_PAYLOAD=$( \
+          jq -n \
+            '{
+              params: (
+                {
+                  "antithesis.description": "docker-wt-format-test",
+                  "custom.duration": "0.1",
+                  "antithesis.config_image": "wt-test-format-config:debug-have-diagnostic-willk",
+                  "antithesis.images": "wt-test-format:debug-have-diagnostic-willk",
+                  "antithesis.report.recipients": "will.korteland@mongodb.com",
+                  "custom.compose_env": "${test_format_extra_args|}"
+                }
+              )
+            }')
 
-        for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} || fail
-        done
+          echo "Webhook payload: $WEBHOOK_PAYLOAD"
+          echo $WEBHOOK_PAYLOAD | curl --fail -u "mongodb:$antithesis_api_password" -X POST https://mongo.antithesis.com/api/v1/launch/wiredtiger -d @-
+
   "format test predictable":
     command: shell.exec
     params:
@@ -7333,7 +7337,9 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "build and push antithesis container"
-      - func: "run antithesis container"
+      - func: "format test"
+        vars:
+          test_format_extra_args: runs.rows=1000:2500
 
   - name: release-with-debug-have-diagnostic
     tags: ["antithesis"]
