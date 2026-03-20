@@ -64,6 +64,7 @@ def average_slope(y):
     return [average, slope]
 
 @wttest.longtest("lots of files")
+@wttest.skip_for_hook("disagg", "disagg doesn't support opening checkpoint cursor")
 class test_sweep04(wttest.WiredTigerTestCase):
     tablebase = 'test_sweep04'
     uri = 'table:' + tablebase
