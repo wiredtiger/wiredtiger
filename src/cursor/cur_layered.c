@@ -1888,7 +1888,8 @@ __clayered_remove(WT_CURSOR *cursor)
     if (S2C(session)->layered_table_manager.leader) {
         WT_CURSOR *stable = clayered->stable_cursor;
 
-        stable->set_key(stable, &cursor->key);
+        if (!positioned)
+            stable->set_key(stable, &cursor->key);
         ret = stable->remove(stable);
         clayered->current_cursor = stable;
         if (ret == 0) {
