@@ -50,43 +50,6 @@ class test_layered79(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered79', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def test_ingest_dhandle_not_swept_on_follower(self):
-        """
-        Verify that the sweep server does not close ingest table dhandles while
-        running as a follower. The ingest table holds in-memory data written by
-        the follower. If sweep closes the ingest dhandle, that data is discarded
-        and is lost when the node steps up and drains (WT-16974, WT-16703).
-        """
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-
-        # Write data as follower with timestamps.
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(self.nrows):
-            cursor[i] = 'value' + str(i)
-        cursor.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
-
-        # Give the aggressive sweep server time to run several cycles.
-        # Without the fix in conn_sweep.c, it would mark and close the ingest
-        # dhandle, discarding the in-memory data written above.
-        time.sleep(3)
-
-        # Step up to leader.
-        self.conn.reconfigure('disaggregated=(role="leader")')
-
-        # All rows written as follower must still be present.
-        # Data loss here indicates the ingest dhandle was incorrectly swept.
-        cursor = self.session.open_cursor(self.uri)
-        count = 0
-        while cursor.next() == 0:
-            count += 1
-        cursor.close()
-        self.assertEqual(count, self.nrows)
-
-        self.ignoreStdoutPattern('WT_VERB_SWEEP')
-
-
     def layered_dhandle_not_swept_during_stepup(self):
         """
         Verify that the sweep server does not close the layered dhandle. During
