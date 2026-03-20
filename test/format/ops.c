@@ -1403,31 +1403,30 @@ skip_operation:
             snap_repeat_update(tinfo, true);
             break;
         case 5: /* 10% */
-rollback : {
-    bool verify_rollback = attempted_mirrored_truncate && !mirrored_truncate;
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        if (tinfo->quit)
-            goto loop_exit;
-        /* Force a rollback */
-        testutil_assert(intxn);
-        rollback_transaction(tinfo, prepared);
-        if (verify_rollback)
-            /* verify post-rollback */
-            wts_verify_mirrored_truncate(tinfo);
-        intxn = false;
-        ++ntries;
-        replay_pause_after_rollback(tinfo, ntries);
-        ret = 0;
-        goto rollback_retry;
-    }
-    __wt_yield(); /* Encourage races */
-    rollback_transaction(tinfo, prepared);
-    snap_repeat_update(tinfo, false);
-    if (verify_rollback)
-        /* verify post-rollback */
-        wts_verify_mirrored_truncate(tinfo);
-    break;
-}
+rollback:
+            bool verify_rollback = attempted_mirrored_truncate && !mirrored_truncate;
+            if (GV(RUNS_PREDICTABLE_REPLAY)) {
+                if (tinfo->quit)
+                    goto loop_exit;
+                /* Force a rollback */
+                testutil_assert(intxn);
+                rollback_transaction(tinfo, prepared);
+                if (verify_rollback)
+                    /* verify post-rollback */
+                    wts_verify_mirrored_truncate(tinfo);
+                intxn = false;
+                ++ntries;
+                replay_pause_after_rollback(tinfo, ntries);
+                ret = 0;
+                goto rollback_retry;
+            }
+            __wt_yield(); /* Encourage races */
+            rollback_transaction(tinfo, prepared);
+            snap_repeat_update(tinfo, false);
+            if (verify_rollback)
+                /* verify post-rollback */
+                wts_verify_mirrored_truncate(tinfo);
+            break;
         }
 
         if (mirrored_truncate)
