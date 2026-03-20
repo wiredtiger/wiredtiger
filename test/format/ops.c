@@ -1305,8 +1305,6 @@ rollback_retry:
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
-            if (op == TRUNCATE)
-                mirrored_truncate = true;
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
@@ -1317,6 +1315,13 @@ rollback_retry:
                     if (ret == WT_ROLLBACK)
                         break;
                 }
+            /*
+             * Only treat this as a mirrored truncate if all mirror table truncates succeeded. This
+             * avoids calling wts_verify_mirrored_truncate after a truncate that ultimately rolled
+             * back.
+             */
+            if (op == TRUNCATE && ret == 0)
+                mirrored_truncate = true;
         }
 skip_operation:
         table = tinfo->table = NULL;
