@@ -370,6 +370,66 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
 }
 
 /*
+ * __clayered_upgrade_stable --
+ *     Upgrade the stable cursor to a newer checkpoint.
+ */
+static int
+__clayered_upgrade_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool current_leader)
+{
+    WT_CURSOR *old_stable;
+    WT_DECL_RET;
+
+    /*
+     * We can't just close the stable cursor here, as we need to retain any position that the
+     * current stable cursor has. It's easier to keep the old cursor open briefly while we copy the
+     * position.
+     */
+    old_stable = clayered->stable_cursor;
+    clayered->stable_cursor = NULL;
+
+    WT_RET(__clayered_open_stable(clayered, current_leader));
+    WT_ASSERT(session, clayered->stable_cursor != NULL);
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
+
+    /* If the old cursor has a position, copy it to the newly opened cursor. */
+    if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
+        WT_ERR_NOTFOUND_OK(__wt_cursor_dup_position(old_stable, clayered->stable_cursor), true);
+        /*
+         * The key is removed from the new checkpoint. We must be positioned on the ingest table.
+         */
+        if (ret == WT_NOTFOUND)
+            WT_ASSERT_ALWAYS(session,
+              !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
+                clayered->current_cursor == clayered->ingest_cursor,
+              "upgrading a positioned stable cursor");
+    } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
+        WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
+        if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
+            WT_ITEM_SET(clayered->stable_cursor->value, old_stable->value);
+    }
+
+    if (clayered->current_cursor == old_stable) {
+        WT_CURSOR *cursor = (WT_CURSOR *)clayered;
+        WT_CURSOR *new_stable = clayered->stable_cursor;
+        if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+            /* Reset the cursor key to point to the new stable cursor. */
+            WT_ERR(new_stable->get_key(new_stable, &cursor->key));
+            /* Clear the value as the new stable cursor may point to a different one. */
+            F_CLR(cursor, WT_CURSTD_VALUE_INT);
+        }
+        clayered->current_cursor = new_stable;
+    }
+
+    /* Add any bounds for the new cursor. */
+    WT_ERR(__clayered_copy_bounds(clayered));
+err:
+    /* Close the old cursor. */
+    WT_TRET(old_stable->close(old_stable));
+
+    return (ret);
+}
+
+/*
  * __clayered_adjust_state --
  *     Update the state of the cursor to match the state of the disaggregated system. In particular,
  *     if the system has changed in a way that makes constituent cursors out of date, either reopen
@@ -379,8 +439,6 @@ static int
 __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state_updated)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *old_stable;
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t last_checkpoint_meta_lsn, snapshot_gen;
     bool change_ingest, change_stable, current_leader;
@@ -489,54 +547,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     }
 
     if (change_stable) {
-        /*
-         * We can't just close the stable cursor here, as we need to retain any position that the
-         * current stable cursor has. It's easier to keep the old cursor open briefly while we
-         copy
-         * the position.
-         */
-        old_stable = clayered->stable_cursor;
-        clayered->stable_cursor = NULL;
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
-
-        WT_RET(__clayered_open_stable(clayered, current_leader));
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
-
-        /* If the old cursor has a position, copy it to the newly opened cursor. */
-        if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
-            ret = __wt_cursor_dup_position(old_stable, clayered->stable_cursor);
-            /* The key is removed from the new checkpoint. We must be positioned on the ingest
-             * table. */
-            if (ret == WT_NOTFOUND)
-                WT_ASSERT_ALWAYS(session,
-                  !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
-                    clayered->current_cursor == clayered->ingest_cursor,
-                  "upgrading a positioned stable cursor");
-            else
-                WT_RET(ret);
-        } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
-            WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
-            if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
-                WT_ITEM_SET(clayered->stable_cursor->value, old_stable->value);
-        }
-
-        if (clayered->current_cursor == old_stable) {
-            WT_CURSOR *cursor = (WT_CURSOR *)clayered;
-            WT_CURSOR *new_stable = clayered->stable_cursor;
-            if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
-                /* Reset the cursor key to point to the new stable cursor. */
-                WT_RET(new_stable->get_key(new_stable, &cursor->key));
-                /* Clear the value as the new stable cursor may point to a different one. */
-                F_CLR(cursor, WT_CURSTD_VALUE_INT);
-            }
-            clayered->current_cursor = new_stable;
-        }
-
-        /* Close the old cursor. */
-        WT_RET(old_stable->close(old_stable));
-
-        /* Add any bounds for the new cursor. */
-        WT_RET(__clayered_copy_bounds(clayered));
+        WT_RET(__clayered_upgrade_stable(session, clayered, current_leader));
     }
 
     /* Update the state of the layered cursor. */
