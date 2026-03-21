@@ -12,7 +12,6 @@ static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
 static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
-static int __clayered_reset_int(WT_CURSOR *);
 static int __clayered_search_near(WT_CURSOR *, int *);
 // static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
@@ -1010,36 +1009,6 @@ __clayered_reset_cursors(WT_CURSOR_LAYERED *clayered, bool skip_ingest)
 }
 
 /*
- * __clayered_reset_int --
- *     reset method for the layered cursor type.
- */
-static int
-__clayered_reset_int(WT_CURSOR *cursor)
-{
-    WT_CURSOR_LAYERED *clayered;
-    WT_DECL_RET;
-
-    /*
-     * Don't use the normal __clayered_enter path: that is wasted work when all we want to do is
-     * give up our position.
-     */
-    clayered = (WT_CURSOR_LAYERED *)cursor;
-
-    /* Reset any bounds on the top level cursor, and propagate that to constituents */
-    __wt_cursor_bound_reset(cursor);
-    WT_TRET(__clayered_copy_bounds(clayered));
-
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-
-    WT_TRET(__clayered_reset_cursors(clayered, false));
-
-    /* In case we were left positioned, clear that. */
-    __clayered_leave(clayered);
-
-    return (ret);
-}
-
-/*
  * __clayered_reset --
  *     WT_CURSOR->reset method for the layered cursor type.
  */
@@ -1050,15 +1019,24 @@ __clayered_reset(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    clayered = (WT_CURSOR_LAYERED *)cursor;
     /*
      * Don't use the normal __clayered_enter path: that is wasted work when all we want to do is
      * give up our position.
      */
+    clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
+    WT_ASSERT(session, !F_ISSET(clayered, WT_CLAYERED_READ_STABLE));
     WT_ERR(__cursor_copy_release(cursor));
 
-    WT_ERR(__clayered_reset_int(cursor));
+    WT_TRET(__clayered_reset_cursors(clayered, false));
+
+    /* Reset any bounds on the top level cursor, and propagate that to constituents */
+    if (API_USER_ENTRY(session)) {
+        __wt_cursor_bound_reset(cursor);
+        WT_TRET(__clayered_copy_bounds(clayered));
+    }
+
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     // if (clayered->stable_cursor != NULL) {
     //     WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
@@ -1913,7 +1891,7 @@ __clayered_remove(WT_CURSOR *cursor)
     if (positioned)
         F_SET(cursor, WT_CURSTD_KEY_INT);
     else
-        WT_TRET(__clayered_reset_int(cursor));
+        WT_TRET(__clayered_reset_cursors(clayered, false));
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
 
 err:
@@ -2035,7 +2013,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
 
     /* Copy the key as we will reset the cursor after that. */
     WT_ERR(__wt_buf_set(session, key, larger_cursor->key.data, larger_cursor->key.size));
-    WT_TRET(__clayered_reset_int(cursor));
+    WT_TRET(__clayered_reset_cursors(clayered, false));
     WT_ERR(__wt_buf_set(session, &cursor->key, key->data, key->size));
     /* Set the key as external. */
     F_SET(cursor, WT_CURSTD_KEY_EXT);
@@ -2043,8 +2021,10 @@ __clayered_largest_key(WT_CURSOR *cursor)
 err:
     __clayered_leave(clayered);
     __wt_scr_free(session, &key);
-    if (ret != 0)
-        WT_TRET(__clayered_reset_int(cursor));
+    if (ret != 0) {
+        WT_TRET(__clayered_reset_cursors(clayered, false));
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    }
     API_END_RET_STAT(session, ret, cursor_largest_key);
 }
 
@@ -2072,9 +2052,6 @@ __clayered_close_int(WT_CURSOR *cursor)
      */
     if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
         WT_TRET(__clayered_close_cursors(clayered));
-
-    /* In case we were somehow left positioned, clear that. */
-    __clayered_leave(clayered);
 
     __wt_cursor_close(cursor);
 
@@ -2110,6 +2087,7 @@ __clayered_close(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, clayered->dhandle);
     WT_ERR(__cursor_copy_release(cursor));
+    WT_ASSERT(session, !F_ISSET(clayered, WT_CLAYERED_READ_STABLE));
 err:
     if (ret == 0) {
         /*
@@ -2130,8 +2108,6 @@ err:
             if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
                 WT_TRET(__clayered_close_cursors(clayered));
 
-            /* In case we were somehow left positioned, clear that. */
-            __clayered_leave(clayered);
             goto done;
         }
     }
