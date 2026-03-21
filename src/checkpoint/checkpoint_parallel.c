@@ -247,8 +247,6 @@ err:
               thread->id, __wt_strerror(session, ret, NULL, 0), ret);
             break;
         }
-
-        ret = 0; /* Errors from reconciliation are passed back to the caller via the done queue. */
     }
 
     return (ret);
