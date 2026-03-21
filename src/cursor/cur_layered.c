@@ -873,7 +873,6 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool deleted
     WT_DECL_RET;
 
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_CURSOR *cursor = &clayered->iface;
 
     /*
      * FIXME-WT-16158: We currently check whether the entry has been deleted on the current cursor,
@@ -887,9 +886,6 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool deleted
         WT_ERR(__clayered_get_current(session, clayered, iter_flag == WT_CLAYERED_ITERATE_NEXT));
         deleted = __clayered_deleted(clayered, &clayered->current_cursor->value);
     } while (deleted);
-
-    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
 
 err:
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
@@ -919,6 +915,9 @@ __clayered_next(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
 
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT, false));
+
+    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
@@ -959,6 +958,9 @@ __clayered_prev(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
 
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV, false));
+
+    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
