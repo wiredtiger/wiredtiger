@@ -939,11 +939,11 @@ err:
 }
 
 /*
- * __layered_prev --
+ * __clayered_prev --
  *     WT_CURSOR->prev method for the layered cursor type.
  */
 static int
-__layered_prev(WT_CURSOR *cursor)
+__clayered_prev(WT_CURSOR *cursor)
 {
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
@@ -1411,14 +1411,14 @@ err:
 static int
 __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 {
-    WT_CURSOR *closest, *temp_ingest_cursor;
+    WT_CURSOR *closest;
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     int cmp, ingest_cmp, stable_cmp;
     bool deleted, ingest_found, stable_found;
 
-    closest = temp_ingest_cursor = NULL;
+    closest = NULL;
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_cmp = stable_cmp = 0;
     deleted = ingest_found = stable_found = false;
@@ -1477,66 +1477,49 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
             closest = clayered->ingest_cursor;
         else if (stable_cmp == 0)
             closest = clayered->stable_cursor;
-        else if (ingest_cmp > 0 && stable_cmp > 0) {
-            WT_ERR(__clayered_cursor_compare(
-              clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
-            if (cmp <= 0)
-                /* If the cursors were identical, or ingest was closer choose ingest. */
-                closest = clayered->ingest_cursor;
-            else
-                closest = clayered->stable_cursor;
-        } else if (ingest_cmp > 0)
-            closest = clayered->ingest_cursor;
-        else if (stable_cmp > 0)
-            closest = clayered->stable_cursor;
-        else { /* Both cursors were smaller than the search key - choose the bigger one */
-            WT_ERR(__clayered_cursor_compare(
-              clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
-            if (cmp >= 0)
-                /* If the cursors were identical, or ingest was closer choose ingest. */
-                closest = clayered->ingest_cursor;
-            else
-                closest = clayered->stable_cursor;
+        else {
+            if ((ingest_cmp ^ stable_cmp) < 0) {
+                WT_COLLATOR *collator;
+                __clayered_get_collator(clayered, &collator);
+                if (stable_cmp > 0)
+                    WT_ERR_NOTFOUND_OK(
+                      clayered->ingest_cursor->next(clayered->ingest_cursor), true);
+                else
+                    WT_ERR_NOTFOUND_OK(
+                      clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
+
+                if (ret == WT_NOTFOUND) {
+                    closest = clayered->stable_cursor;
+                    goto set_current;
+                } else
+                    WT_ERR(__wt_compare(
+                      session, collator, &clayered->ingest_cursor->key, &cursor->key, &ingest_cmp));
+            }
+
+            if (ingest_cmp > 0 && stable_cmp > 0) {
+                /* Both cursors were larger than the search key - choose the smaller one */
+                WT_ERR(__clayered_cursor_compare(
+                  clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
+                if (cmp <= 0)
+                    /* If the cursors were identical, or ingest was closer choose ingest. */
+                    closest = clayered->ingest_cursor;
+                else
+                    closest = clayered->stable_cursor;
+            } else if (ingest_cmp < 0 && stable_cmp < 0) {
+                /* Both cursors were smaller than the search key - choose the bigger one */
+                WT_ERR(__clayered_cursor_compare(
+                  clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
+                if (cmp >= 0)
+                    /* If the cursors were identical, or ingest was closer choose ingest. */
+                    closest = clayered->ingest_cursor;
+                else
+                    closest = clayered->stable_cursor;
+            } else
+                WT_ASSERT_ALWAYS(session, false, "illegal state");
         }
     }
 
-    /*
-     * Concrete scenario:
-     * Ingest table: K2 (real value), K7 (tombstone)
-     * Stable table: K7 (real value)
-     * Search for K5
-     * Ingest search_near(K5)  K2 (cmp=-3, lands on smaller side). Not a tombstone. deleted=false.
-     * ingest_cmp != 0  search stable.
-     * Stable search_near(K5)  K7 (cmp=2, larger). stable_found=true.
-     * Comparison: ingest < 0, stable > 0. Line 1464: pick stable (larger preferred). closest =
-     * stable at K7.
-     * __clayered_deleted(clayered, &cursor->value)  false (current is stable, line 34 returns
-     * false). Return K7 with cmp=1. But K7 is logically deleted (tombstone in ingest)! Whether
-     * ingest's search_near lands on K2 vs K7 depends on the btree structure at the leaf level. If
-     * it lands on K7, the tombstone is caught (via the deleted check at line 1427). But if it lands
-     * on K2, the tombstone at K7 is invisible to the entire function. Why iteration doesn't have
-     * this bug: The merge-sort in __clayered_get_current guarantees that when both cursors reach
-     * the same key, ingest wins (lines 644-645), and the tombstone loop catches it.
-     *
-     * Fix: After choosing closest from stable, do a point lookup on ingest for the chosen key to
-     * check for a tombstone:
-     */
-    if (closest == clayered->stable_cursor && ingest_found) {
-        WT_ERR(__clayered_open_ingest(session, clayered, &temp_ingest_cursor));
-        temp_ingest_cursor->set_key(temp_ingest_cursor, &clayered->stable_cursor->key);
-        WT_ERR_NOTFOUND_OK(temp_ingest_cursor->search(temp_ingest_cursor), true);
-        if (ret == 0) {
-            WT_ERR(clayered->ingest_cursor->close(clayered->ingest_cursor));
-            clayered->ingest_cursor = temp_ingest_cursor;
-            temp_ingest_cursor = NULL;
-            closest = clayered->ingest_cursor;
-            ingest_cmp = stable_cmp;
-        } else {
-            WT_ERR(temp_ingest_cursor->close(temp_ingest_cursor));
-            temp_ingest_cursor = NULL;
-        }
-    }
-
+set_current:
     WT_ASSERT_ALWAYS(session, closest != NULL, "Layered search near should have found something");
 
     clayered->current_cursor = closest;
@@ -1584,8 +1567,6 @@ done:
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_stable);
 
 err:
-    if (temp_ingest_cursor != NULL)
-        WT_TRET(temp_ingest_cursor->close(temp_ingest_cursor));
     __clayered_leave(clayered);
 
     if (ret == 0) {
@@ -1648,6 +1629,8 @@ __clayered_remove_follower(
     WT_CURSOR *const c = clayered->ingest_cursor;
     WT_DECL_RET;
     WT_ITEM value;
+
+    WT_CLEAR(value);
 
     if (positioned) {
         if (clayered->current_cursor == c) {
@@ -1763,6 +1746,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ITEM value;
     WT_SESSION_IMPL *session;
 
+    WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
@@ -1819,6 +1803,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ITEM value;
     WT_SESSION_IMPL *session;
 
+    WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
@@ -1921,6 +1906,7 @@ __clayered_reserve(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     bool overwrite;
 
+    WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 
@@ -2215,6 +2201,8 @@ __clayered_modify_follower(
     WT_DECL_RET;
     WT_ITEM value;
 
+    WT_CLEAR(value);
+
     /* Do a search if we're not positioned. */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT))
         WT_RET(__clayered_lookup(session, clayered, &value));
@@ -2339,7 +2327,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __clayered_compare,                             /* compare */
       __wt_cursor_equals,                             /* equals */
       __clayered_next,                                /* next */
-      __layered_prev,                                 /* prev */
+      __clayered_prev,                                /* prev */
       __clayered_reset,                               /* reset */
       __clayered_search,                              /* search */
       __clayered_search_near,                         /* search-near */
