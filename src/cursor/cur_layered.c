@@ -916,8 +916,8 @@ __clayered_next(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT, false));
 
-    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
@@ -959,8 +959,8 @@ __clayered_prev(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV, false));
 
-    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
@@ -1393,7 +1393,7 @@ __clayered_search(WT_CURSOR *cursor)
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
     WT_ERR(__clayered_lookup(session, clayered, &cursor->value));
-    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_ingest);
     else {
@@ -1561,8 +1561,8 @@ set_current:
     }
 
 done:
-    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
     if (exactp != NULL)
         *exactp = cmp;
@@ -1729,14 +1729,12 @@ __clayered_copy_duplicate_kv(WT_CURSOR *cursor)
       F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
         F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT));
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    WT_RET(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-    F_SET(cursor, WT_CURSTD_KEY_INT);
-    WT_RET(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
-    F_SET(cursor, WT_CURSTD_VALUE_INT);
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     WT_RET(__wt_cursor_localkey(cursor));
     WT_RET(__cursor_localvalue(cursor));
-    WT_RET(clayered->current_cursor->reset(clayered->current_cursor));
-    clayered->current_cursor = NULL;
+    WT_RET(__clayered_reset_cursors(clayered, false));
 
     return (0);
 }
@@ -2162,8 +2160,8 @@ __clayered_next_random(WT_CURSOR *cursor)
             WT_ERR(__wti_curfile_next_random(c));
         }
 
+        WT_ITEM_SET(cursor->key, c->key);
         F_SET(cursor, WT_CURSTD_KEY_INT);
-        WT_ERR(c->get_key(c, &cursor->key));
 
         /*
          * Search near the current key to resolve any tombstones and position to a valid document.
