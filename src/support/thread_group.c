@@ -71,7 +71,6 @@ static int
 __thread_group_shrink(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_count)
 {
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     WT_THREAD *thread;
     uint32_t current_slot;
 
@@ -120,8 +119,7 @@ __thread_group_shrink(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
         if (thread == NULL)
             continue;
         WT_ASSERT(session, thread->session != NULL);
-        wt_session = (WT_SESSION *)thread->session;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(thread->session));
         thread->session = NULL;
         __wt_free(session, thread);
         group->threads[current_slot] = NULL;
