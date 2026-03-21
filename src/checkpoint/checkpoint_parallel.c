@@ -364,9 +364,8 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     ret = __wt_checkpoint_parallel_finish(session);
     if (ret != 0) {
         __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
-          "Error finishing checkpoint page reconciliation work: %s",
-          __wt_strerror(session, ret, NULL, 0));
-        ret = 0; /* We don't care if finishing the work failed. */
+          "Checkpoint page reconciliation failed: %s", __wt_strerror(session, ret, NULL, 0));
+        ret = 0; /* We don't need to communicate this error to the caller. */
     }
 
     /*
