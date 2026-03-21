@@ -374,7 +374,8 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
  *     Upgrade the stable cursor to a newer checkpoint.
  */
 static int
-__clayered_upgrade_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool current_leader)
+__clayered_upgrade_stable(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool current_leader)
 {
     WT_CURSOR *old_stable;
     WT_DECL_RET;
@@ -397,11 +398,10 @@ __clayered_upgrade_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered,
         /*
          * The key is removed from the new checkpoint. We must be positioned on the ingest table.
          */
-        if (ret == WT_NOTFOUND)
-            WT_ASSERT_ALWAYS(session,
-              !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
-                clayered->current_cursor == clayered->ingest_cursor,
-              "upgrading a positioned stable cursor");
+        WT_ASSERT_ALWAYS(session,
+          ret == 0 || !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
+            clayered->current_cursor == clayered->ingest_cursor,
+          "upgrading a positioned stable cursor");
     } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
         WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
         if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
