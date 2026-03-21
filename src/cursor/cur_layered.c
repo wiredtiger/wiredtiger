@@ -2014,6 +2014,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
     /* Copy the key as we will reset the cursor after that. */
     WT_ERR(__wt_buf_set(session, key, larger_cursor->key.data, larger_cursor->key.size));
     WT_TRET(__clayered_reset_cursors(clayered, false));
+    F_CLR(cursor, WT_CURSTD_KEY_INT);
     WT_ERR(__wt_buf_set(session, &cursor->key, key->data, key->size));
     /* Set the key as external. */
     F_SET(cursor, WT_CURSTD_KEY_EXT);
