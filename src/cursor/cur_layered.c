@@ -1412,16 +1412,15 @@ err:
 }
 
 /*
- * __clayered_search_near --
- *     WT_CURSOR->search_near method for the layered cursor type.
+ * __clayered_search_near_int --
+ *     search near method for the layered cursor type.
  */
 static int
-__clayered_search_near(WT_CURSOR *cursor, int *exactp)
+__clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exactp)
 {
     WT_CURSOR *closest;
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
     int cmp, ingest_cmp, stable_cmp;
     bool deleted, ingest_found, stable_found;
 
@@ -1430,11 +1429,6 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     ingest_cmp = stable_cmp = 0;
     deleted = ingest_found = stable_found = false;
 
-    CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
-    WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__cursor_needkey(cursor));
-    __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, true, true, false));
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     /*
@@ -1561,11 +1555,42 @@ set_current:
     }
 
 done:
-    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
-    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
-
     if (exactp != NULL)
         *exactp = cmp;
+
+err:
+    __clayered_leave(clayered);
+
+    if (ret != 0 && ret != WT_PREPARE_CONFLICT)
+        /* FIXME-WT-16880: Fix layered search_near() incorrectly resetting the cursor. */
+        WT_TRET(__clayered_reset_cursors(clayered, false));
+
+    return (ret);
+}
+
+/*
+ * __clayered_search_near --
+ *     WT_CURSOR->search_near method for the layered cursor type.
+ */
+static int
+__clayered_search_near(WT_CURSOR *cursor, int *exactp)
+{
+    WT_CURSOR_LAYERED *clayered;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
+    WT_ERR(__cursor_needkey(cursor));
+    __cursor_novalue(cursor);
+    WT_ERR(__clayered_enter(clayered, true, true, false));
+
+    WT_ERR(__clayered_search_near_int(session, cursor, exactp));
+
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near);
     /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
@@ -1581,9 +1606,7 @@ err:
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-    } else if (ret != WT_PREPARE_CONFLICT)
-        /* FIXME-WT-16880: Fix layered search_near() incorrectly resetting the cursor. */
-        WT_TRET(__clayered_reset_cursors(clayered, false));
+    }
 
     API_END_RET(session, ret);
 }
@@ -2167,12 +2190,21 @@ __clayered_next_random(WT_CURSOR *cursor)
          * Search near the current key to resolve any tombstones and position to a valid document.
          * If we see a WT_NOTFOUND here that is valid, as the tree has no documents visible to us.
          */
-        WT_ERR(__clayered_search_near(cursor, &exact));
+        WT_ERR(__clayered_search_near_int(session, cursor, &exact));
         break;
     }
 
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+
 err:
     __clayered_leave(clayered);
+    if (ret == 0) {
+        __clayered_deleted_decode(&cursor->value);
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    }
+
     API_END_RET(session, ret);
 }
 
