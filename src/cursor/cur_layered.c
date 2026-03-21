@@ -423,8 +423,14 @@ __clayered_upgrade_stable(
     /* Add any bounds for the new cursor. */
     WT_ERR(__clayered_copy_bounds(clayered));
 err:
-    /* Close the old cursor. */
-    WT_TRET(old_stable->close(old_stable));
+    if (ret == 0)
+        /* Close the old cursor. */
+        WT_TRET(old_stable->close(old_stable));
+    else {
+        /* Give up the upgrade if we fail. */
+        WT_TRET(clayered->stable_cursor->close(clayered->stable_cursor));
+        clayered->stable_cursor = old_stable;
+    }
 
     return (ret);
 }
