@@ -518,6 +518,41 @@ err:
 // }
 
 /*
+ * __clayered_open_ingest --
+ *     Open an ingest cursor.
+ */
+static int
+__clayered_open_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_CURSOR **cursorp)
+{
+    WT_CURSOR *c, *cursor;
+    WT_DECL_ITEM(random_config);
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
+    const char *ckpt_cfg[3] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL};
+
+    c = &clayered->iface;
+    layered = (WT_LAYERED_TABLE *)clayered->dhandle;
+
+    WT_RET(__wt_scr_alloc(session, 0, &random_config));
+    /* Get the configuration for random cursors, if any. */
+    WT_ERR(__clayered_configure_random(session, clayered, random_config));
+    if (random_config->size > 0)
+        ckpt_cfg[1] = random_config->data;
+
+    WT_ERR(__wt_open_cursor(session, layered->ingest_uri, c, ckpt_cfg, &cursor));
+    F_SET(cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+
+    if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
+        F_SET(cursor, WT_CURSTD_DEBUG_RESET_EVICT);
+
+    *cursorp = cursor;
+
+err:
+    __wt_scr_free(session, &random_config);
+    return (ret);
+}
+
+/*
  * __clayered_open_cursors --
  *     Open cursors for the current set of files.
  */
@@ -526,15 +561,10 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
-    WT_DECL_ITEM(random_config);
-    WT_DECL_RET;
-    WT_LAYERED_TABLE *layered;
-    const char *ckpt_cfg[3] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL};
     bool leader;
 
     c = &clayered->iface;
     conn = S2C(session);
-    layered = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     /*
      * Cursors open for updates only open the ingest cursor, cursors open for read open both. If the
@@ -556,24 +586,12 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     /* Always open both the ingest and stable cursors */
-    if (clayered->ingest_cursor == NULL) {
-        WT_RET(__wt_scr_alloc(session, 0, &random_config));
-        /* Get the configuration for random cursors, if any. */
-        WT_ERR(__clayered_configure_random(session, clayered, random_config));
-        if (random_config->size > 0)
-            ckpt_cfg[1] = random_config->data;
-
-        WT_ERR(
-          __wt_open_cursor(session, layered->ingest_uri, c, ckpt_cfg, &clayered->ingest_cursor));
-        F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
-
-        if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
-            F_SET(clayered->ingest_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
-    }
+    if (clayered->ingest_cursor == NULL)
+        WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
 
     if (F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor == NULL) {
         leader = conn->layered_table_manager.leader;
-        WT_ERR(__clayered_open_stable(clayered, leader));
+        WT_RET(__clayered_open_stable(clayered, leader));
     }
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
@@ -598,11 +616,9 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
     /*
      * Set any boundaries for any newly opened cursors.
      */
-    WT_ERR(__clayered_copy_bounds(clayered));
+    WT_RET(__clayered_copy_bounds(clayered));
 
-err:
-    __wt_scr_free(session, &random_config);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1395,14 +1411,14 @@ err:
 static int
 __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 {
-    WT_CURSOR *closest;
+    WT_CURSOR *closest, *temp_ingest_cursor;
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     int cmp, ingest_cmp, stable_cmp;
     bool deleted, ingest_found, stable_found;
 
-    closest = NULL;
+    closest = temp_ingest_cursor = NULL;
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_cmp = stable_cmp = 0;
     deleted = ingest_found = stable_found = false;
@@ -1505,31 +1521,36 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
      * Fix: After choosing closest from stable, do a point lookup on ingest for the chosen key to
      * check for a tombstone:
      */
-    if (closest == clayered->stable_cursor && clayered->ingest_cursor != NULL) {
-        clayered->ingest_cursor->set_key(clayered->ingest_cursor, &clayered->stable_cursor->key);
-        WT_ERR_NOTFOUND_OK(clayered->ingest_cursor->search(clayered->ingest_cursor), true);
-        if (ret == 0 && __wt_clayered_deleted(&clayered->ingest_cursor->value)) {
+    if (closest == clayered->stable_cursor && ingest_found) {
+        WT_ERR(__clayered_open_ingest(session, clayered, &temp_ingest_cursor));
+        temp_ingest_cursor->set_key(temp_ingest_cursor, &clayered->stable_cursor->key);
+        WT_ERR_NOTFOUND_OK(temp_ingest_cursor->search(temp_ingest_cursor), true);
+        if (ret == 0) {
+            WT_ERR(clayered->ingest_cursor->close(clayered->ingest_cursor));
+            clayered->ingest_cursor = temp_ingest_cursor;
+            temp_ingest_cursor = NULL;
             closest = clayered->ingest_cursor;
             ingest_cmp = stable_cmp;
+        } else {
+            WT_ERR(temp_ingest_cursor->close(temp_ingest_cursor));
+            temp_ingest_cursor = NULL;
         }
     }
 
-    /*
-     * If we land on a deleted item, try going forwards or backwards to find one that isn't deleted.
-     * If the whole tree is empty, we'll end up with WT_NOTFOUND, as expected.
-     */
     WT_ASSERT_ALWAYS(session, closest != NULL, "Layered search near should have found something");
-    WT_ERR(closest->get_key(closest, &cursor->key));
-    WT_ERR(closest->get_value(closest, &cursor->value));
+
+    clayered->current_cursor = closest;
 
     /* Get prepared for finalizing the result before fixing up for tombstones. */
     if (closest == clayered->ingest_cursor)
         cmp = ingest_cmp;
-    else
+    else {
+        /* Short cut for stable cursor as it doesn't have any deleted value. */
         cmp = stable_cmp;
-    clayered->current_cursor = closest;
+        goto done;
+    }
 
-    deleted = __clayered_deleted(clayered, &cursor->value);
+    deleted = __clayered_deleted(clayered, &closest->value);
     if (deleted) {
         /* Advance past the deleted record using normal cursor traversal interface */
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
@@ -1547,6 +1568,11 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
         WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV, false));
         cmp = -1;
     }
+
+done:
+    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
+
     if (exactp != NULL)
         *exactp = cmp;
 
@@ -1558,6 +1584,8 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_stable);
 
 err:
+    if (temp_ingest_cursor != NULL)
+        WT_TRET(temp_ingest_cursor->close(temp_ingest_cursor));
     __clayered_leave(clayered);
 
     if (ret == 0) {
