@@ -1058,6 +1058,11 @@ __clayered_reset(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_reset_int(cursor));
 
+    // if (clayered->stable_cursor != NULL) {
+    //     WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
+    //     clayered->stable_cursor = NULL;
+    // }
+
 err:
     API_END_RET(session, ret);
 }
