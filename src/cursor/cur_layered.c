@@ -1479,6 +1479,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
             closest = clayered->stable_cursor;
         else {
             if ((ingest_cmp ^ stable_cmp) < 0) {
+                /* This assumes snapshot isolation. Otherwise, we need to use a loop. */
                 WT_COLLATOR *collator;
                 __clayered_get_collator(clayered, &collator);
                 if (stable_cmp > 0)
