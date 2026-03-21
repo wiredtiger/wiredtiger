@@ -396,7 +396,8 @@ __clayered_upgrade_stable(
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
         WT_ERR_NOTFOUND_OK(__wt_cursor_dup_position(old_stable, clayered->stable_cursor), true);
         /*
-         * The key is removed from the new checkpoint. We must be positioned on the ingest table.
+         * If the key is removed from the new checkpoint, the layered cursor must be positioned on
+         * the ingest table.
          */
         WT_ASSERT_ALWAYS(session,
           ret == 0 || !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
