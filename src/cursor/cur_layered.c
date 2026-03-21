@@ -341,7 +341,8 @@ err:
 //     can_upgrade = false;
 
 //     /*
-//      * First, layered cursors are sometimes paired with read timestamps. When using read timestamps,
+//      * First, layered cursors are sometimes paired with read timestamps. When using read
+//      timestamps,
 //      * it's always safe to update cursors, even during iterations. That's because the view at a
 //      * timestamp is always consistent, the history store covers that.
 //      */
@@ -358,7 +359,8 @@ err:
 //          * have a transactional snapshot, or if the snapshot has changed, we can update.
 //          *
 //          * Why shouldn't we update when in a transaction? We may have read some values, and we'd
-//          * expect to see the same values if we read them again. Reading from a newer checkpoint can
+//          * expect to see the same values if we read them again. Reading from a newer checkpoint
+//          can
 //          * violate that.
 //          */
 //         if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
@@ -396,7 +398,8 @@ err:
 //         last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
 //     /*
-//      * Has any state changed? What is not checked here is the possibility that a step down and step
+//      * Has any state changed? What is not checked here is the possibility that a step down and
+//      step
 //      * up have both occurred since the last check. We don't have a way to detect that (or its
 //      * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
 //      * any changes. FIXME-WT-14545.
@@ -414,7 +417,8 @@ err:
 //         change_ingest = true;
 
 //         /*
-//          * If we're stepping down, then we currently have a R/W stable cursor and all writes would
+//          * If we're stepping down, then we currently have a R/W stable cursor and all writes
+//          would
 //          * go to it. Any writes we were about to make or have made to this table could never be
 //          * committed at this point.
 //          */
@@ -429,12 +433,14 @@ err:
 //          * stable cursor whenever we can.
 //          *
 //          * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
-//          * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write, as
+//          * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
+//          as
 //          * this request was kicked off on the follower, so it must be all reads. But we want to
 //          * discard the stable cursor when we can, as long as we're not breaking transactional
 //          * semantics for cursors.
 //          *
-//          * For step down, we're currently using a R/W stable cursor. After the check above, we know
+//          * For step down, we're currently using a R/W stable cursor. After the check above, we
+//          know
 //          * we've done read operations to this point. So again, we should upgrade if we can.
 //          */
 //     }
@@ -454,7 +460,8 @@ err:
 
 //     if (change_ingest) {
 //         /*
-//          * To reopen the ingest table, all we need to do here is close it. It will be reopened when
+//          * To reopen the ingest table, all we need to do here is close it. It will be reopened
+//          when
 //          * needed. There's never a situation where we need to save its position.
 //          */
 //         WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
@@ -467,7 +474,8 @@ err:
 //     if (change_stable) {
 //         /*
 //          * We can't just close the stable cursor here, as we need to retain any position that the
-//          * current stable cursor has. It's easier to keep the old cursor open briefly while we copy
+//          * current stable cursor has. It's easier to keep the old cursor open briefly while we
+//          copy
 //          * the position.
 //          */
 //         old_stable = clayered->stable_cursor;
@@ -851,9 +859,6 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool deleted
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *cursor = &clayered->iface;
 
-    __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, false, true, true));
-
     /*
      * FIXME-WT-16158: We currently check whether the entry has been deleted on the current cursor,
      * which may be positioned on either the ingest or the stable table. However, only the ingest
@@ -871,7 +876,6 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool deleted
     WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
 
 err:
-    __clayered_leave(clayered);
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
         __clayered_reset_cursors(clayered, false);
 
@@ -892,7 +896,9 @@ __clayered_next(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
+    __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
+    WT_ERR(__clayered_enter(clayered, false, true, true));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
 
@@ -906,6 +912,7 @@ __clayered_next(WT_CURSOR *cursor)
     }
 
 err:
+    __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -929,7 +936,9 @@ __layered_prev(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, prev, clayered->dhandle);
+    __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
+    WT_ERR(__clayered_enter(clayered, false, true, true));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
 
@@ -943,6 +952,7 @@ __layered_prev(WT_CURSOR *cursor)
     }
 
 err:
+    __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -1395,7 +1405,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     closest = NULL;
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_cmp = stable_cmp = 0;
-    ingest_found = stable_found = false;
+    deleted = ingest_found = stable_found = false;
 
     CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
     WT_ERR(__cursor_copy_release(cursor));
@@ -1422,11 +1432,15 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
         clayered->ingest_cursor->set_key(clayered->ingest_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
           clayered->ingest_cursor->search_near(clayered->ingest_cursor, &ingest_cmp), true);
-        ingest_found = ret != WT_NOTFOUND;
+        if (ret == 0) {
+            ingest_found = true;
+            deleted = __clayered_deleted(clayered, &clayered->ingest_cursor->value);
+        } else
+            ingest_found = false;
     }
 
     /* If there wasn't an exact match, check the stable table as well */
-    if ((!ingest_found || ingest_cmp != 0) && clayered->stable_cursor != NULL) {
+    if ((!ingest_found || ingest_cmp != 0 || deleted) && clayered->stable_cursor != NULL) {
         clayered->stable_cursor->set_key(clayered->stable_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
           clayered->stable_cursor->search_near(clayered->stable_cursor, &stable_cmp), true);
@@ -1451,9 +1465,9 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
             WT_ERR(__clayered_cursor_compare(
               clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
             if (cmp <= 0)
+                /* If the cursors were identical, or ingest was closer choose ingest. */
                 closest = clayered->ingest_cursor;
             else
-                /* If the cursors were identical, or ingest was closer choose ingest. */
                 closest = clayered->stable_cursor;
         } else if (ingest_cmp > 0)
             closest = clayered->ingest_cursor;
@@ -1463,10 +1477,40 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
             WT_ERR(__clayered_cursor_compare(
               clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
             if (cmp >= 0)
+                /* If the cursors were identical, or ingest was closer choose ingest. */
                 closest = clayered->ingest_cursor;
             else
-                /* If the cursors were identical, or ingest was closer choose ingest. */
                 closest = clayered->stable_cursor;
+        }
+    }
+
+    /*
+     * Concrete scenario:
+     * Ingest table: K2 (real value), K7 (tombstone)
+     * Stable table: K7 (real value)
+     * Search for K5
+     * Ingest search_near(K5)  K2 (cmp=-3, lands on smaller side). Not a tombstone. deleted=false.
+     * ingest_cmp != 0  search stable.
+     * Stable search_near(K5)  K7 (cmp=2, larger). stable_found=true.
+     * Comparison: ingest < 0, stable > 0. Line 1464: pick stable (larger preferred). closest =
+     * stable at K7.
+     * __clayered_deleted(clayered, &cursor->value)  false (current is stable, line 34 returns
+     * false). Return K7 with cmp=1. But K7 is logically deleted (tombstone in ingest)! Whether
+     * ingest's search_near lands on K2 vs K7 depends on the btree structure at the leaf level. If
+     * it lands on K7, the tombstone is caught (via the deleted check at line 1427). But if it lands
+     * on K2, the tombstone at K7 is invisible to the entire function. Why iteration doesn't have
+     * this bug: The merge-sort in __clayered_get_current guarantees that when both cursors reach
+     * the same key, ingest wins (lines 644-645), and the tombstone loop catches it.
+     *
+     * Fix: After choosing closest from stable, do a point lookup on ingest for the chosen key to
+     * check for a tombstone:
+     */
+    if (closest == clayered->stable_cursor && clayered->ingest_cursor != NULL) {
+        clayered->ingest_cursor->set_key(clayered->ingest_cursor, &clayered->stable_cursor->key);
+        WT_ERR_NOTFOUND_OK(clayered->ingest_cursor->search(clayered->ingest_cursor), true);
+        if (ret == 0 && __wt_clayered_deleted(&clayered->ingest_cursor->value)) {
+            closest = clayered->ingest_cursor;
+            ingest_cmp = stable_cmp;
         }
     }
 
@@ -1486,12 +1530,10 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     clayered->current_cursor = closest;
 
     deleted = __clayered_deleted(clayered, &cursor->value);
-    if (!deleted)
-        __clayered_deleted_decode(&cursor->value);
-    else {
+    if (deleted) {
         /* Advance past the deleted record using normal cursor traversal interface */
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-        if ((ret = __clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT, deleted)) == 0) {
+        if ((ret = __clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT, true)) == 0) {
             cmp = 1;
             deleted = false;
         }
@@ -1501,7 +1543,8 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 
     if (deleted) {
         clayered->current_cursor = NULL;
-        WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV, deleted));
+        WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+        WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV, false));
         cmp = -1;
     }
     if (exactp != NULL)
