@@ -1459,8 +1459,6 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
         else {
             if ((ingest_cmp ^ stable_cmp) < 0) {
                 /* This assumes snapshot isolation. Otherwise, we need to use a loop. */
-                WT_COLLATOR *collator;
-                __clayered_get_collator(clayered, &collator);
                 if (stable_cmp > 0)
                     WT_ERR_NOTFOUND_OK(
                       clayered->ingest_cursor->next(clayered->ingest_cursor), true);
@@ -1472,11 +1470,11 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     closest = clayered->stable_cursor;
                     goto set_current;
                 } else
-                    WT_ERR(__wt_compare(
-                      session, collator, &clayered->ingest_cursor->key, &cursor->key, &ingest_cmp));
+                    ingest_cmp = stable_cmp;
             }
 
-            if (ingest_cmp > 0 && stable_cmp > 0) {
+            if (ingest_cmp > 0) {
+                WT_ASSERT(session, stable_cmp > 0);
                 /* Both cursors were larger than the search key - choose the smaller one */
                 WT_ERR(__clayered_cursor_compare(
                   clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
@@ -1485,7 +1483,8 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     closest = clayered->ingest_cursor;
                 else
                     closest = clayered->stable_cursor;
-            } else if (ingest_cmp < 0 && stable_cmp < 0) {
+            } else {
+                WT_ASSERT(session, ingest_cmp < 0 && stable_cmp < 0);
                 /* Both cursors were smaller than the search key - choose the bigger one */
                 WT_ERR(__clayered_cursor_compare(
                   clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
@@ -1494,8 +1493,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     closest = clayered->ingest_cursor;
                 else
                     closest = clayered->stable_cursor;
-            } else
-                WT_ASSERT_ALWAYS(session, false, "illegal state");
+            }
         }
     }
 
