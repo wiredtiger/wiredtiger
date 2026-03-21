@@ -2185,6 +2185,7 @@ __clayered_next_random(WT_CURSOR *cursor)
 
         WT_ITEM_SET(cursor->key, c->key);
         F_SET(cursor, WT_CURSTD_KEY_INT);
+        WT_ERR(__wt_cursor_localkey(cursor));
 
         /*
          * Search near the current key to resolve any tombstones and position to a valid document.
