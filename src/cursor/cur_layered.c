@@ -13,7 +13,7 @@ static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-// static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
+static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
 /*
  * __clayered_deleted --
@@ -117,9 +117,9 @@ static WT_INLINE int
 __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable, bool iteration)
 {
     WT_SESSION_IMPL *session;
+    bool external_state_change;
 
     session = CUR2S(clayered);
-    WT_UNUSED(iteration);
 
     /* Query operations need a full set of cursors. */
     if (need_read_stable)
@@ -136,9 +136,9 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    // WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
+    WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
 
-    if (clayered->ingest_cursor == NULL ||
+    if (external_state_change || clayered->ingest_cursor == NULL ||
       (need_read_stable && clayered->stable_cursor == NULL &&
         clayered->checkpoint_meta_lsn != WT_DISAGG_LSN_NONE))
         WT_RET(__clayered_open_cursors(session, clayered));
@@ -329,45 +329,45 @@ err:
  *     Return true if the stable cursor can be upgraded at this time. For the most part we mirror
  *     our decision about when we can upgrade by when a snapshot is allowed to be upgraded.
  */
-// static bool
-// __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
-// {
-//     WT_SESSION_IMPL *session;
-//     WT_TXN_SHARED *txn_shared;
-//     bool can_upgrade;
+static bool
+__clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
+{
+    WT_SESSION_IMPL *session;
+    WT_TXN_SHARED *txn_shared;
+    bool can_upgrade;
 
-//     session = CUR2S(clayered);
-//     can_upgrade = false;
+    session = CUR2S(clayered);
+    can_upgrade = false;
 
-//     /*
-//      * First, layered cursors are sometimes paired with read timestamps. When using read
-//      timestamps,
-//      * it's always safe to update cursors, even during iterations. That's because the view at a
-//      * timestamp is always consistent, the history store covers that.
-//      */
-//     txn_shared = WT_SESSION_TXN_SHARED(session);
-//     if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
-//         can_upgrade = true;
-//     else {
-//         /* if this is an iteration, we won't upgrade the cursor, we're done. */
-//         if (iteration)
-//             return (0);
+    /*
+     * First, layered cursors are sometimes paired with read timestamps. When using read
+     timestamps,
+     * it's always safe to update cursors, even during iterations. That's because the view at a
+     * timestamp is always consistent, the history store covers that.
+     */
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
+        can_upgrade = true;
+    else {
+        /* if this is an iteration, we won't upgrade the cursor, we're done. */
+        if (iteration)
+            return (0);
 
-//         /*
-//          * There are other points when it is appropriate to update cursors. If we don't currently
-//          * have a transactional snapshot, or if the snapshot has changed, we can update.
-//          *
-//          * Why shouldn't we update when in a transaction? We may have read some values, and we'd
-//          * expect to see the same values if we read them again. Reading from a newer checkpoint
-//          can
-//          * violate that.
-//          */
-//         if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
-//           (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen))
-//             can_upgrade = true;
-//     }
-//     return (can_upgrade);
-// }
+        /*
+         * There are other points when it is appropriate to update cursors. If we don't currently
+         * have a transactional snapshot, or if the snapshot has changed, we can update.
+         *
+         * Why shouldn't we update when in a transaction? We may have read some values, and we'd
+         * expect to see the same values if we read them again. Reading from a newer checkpoint
+         can
+         * violate that.
+         */
+        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+          (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen))
+            can_upgrade = true;
+    }
+    return (can_upgrade);
+}
 
 /*
  * __clayered_adjust_state --
@@ -375,146 +375,178 @@ err:
  *     if the system has changed in a way that makes constituent cursors out of date, either reopen
  *     them or close them, and let them be opened later as needed.
  */
-// static int
-// __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state_updated)
-// {
-//     WT_CONNECTION_IMPL *conn;
-//     WT_CURSOR *old_stable;
-//     WT_SESSION_IMPL *session;
-//     uint64_t last_checkpoint_meta_lsn, snapshot_gen;
-//     bool change_ingest, change_stable, current_leader;
+static int
+__clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state_updated)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *old_stable;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    uint64_t last_checkpoint_meta_lsn, snapshot_gen;
+    bool change_ingest, change_stable, current_leader;
 
-//     *state_updated = false;
-//     session = CUR2S(clayered);
-//     conn = S2C(session);
-//     current_leader = conn->layered_table_manager.leader;
+    *state_updated = false;
+    session = CUR2S(clayered);
+    conn = S2C(session);
+    current_leader = conn->layered_table_manager.leader;
 
-//     /* Get the current checkpoint LSN. This only matters if we are a follower. */
-//     if (!current_leader)
-//         last_checkpoint_meta_lsn =
-//           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-//     else
-//         last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
+    /* Get the current checkpoint LSN. This only matters if we are a follower. */
+    if (!current_leader)
+        last_checkpoint_meta_lsn =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    else
+        last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
-//     /*
-//      * Has any state changed? What is not checked here is the possibility that a step down and
-//      step
-//      * up have both occurred since the last check. We don't have a way to detect that (or its
-//      * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
-//      * any changes. FIXME-WT-14545.
-//      */
-//     if (current_leader == clayered->leader &&
-//       last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
-//         return (0);
+    /*
+     * Has any state changed? What is not checked here is the possibility that a step down and
+     step
+     * up have both occurred since the last check. We don't have a way to detect that (or its
+     * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
+     * any changes. FIXME-WT-14545.
+     */
+    if (current_leader == clayered->leader &&
+      last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
+        return (0);
 
-//     change_ingest = false;
-//     snapshot_gen = clayered->snapshot_gen;
+    change_ingest = false;
+    snapshot_gen = clayered->snapshot_gen;
 
-//     /* Is this a step up or step down? */
-//     if (current_leader != clayered->leader) {
-//         /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
-//         change_ingest = true;
+    /* Is this a step up or step down? */
+    if (current_leader != clayered->leader) {
+        /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
+        change_ingest = true;
 
-//         /*
-//          * If we're stepping down, then we currently have a R/W stable cursor and all writes
-//          would
-//          * go to it. Any writes we were about to make or have made to this table could never be
-//          * committed at this point.
-//          */
-//         if (!current_leader && session->txn->mod_count != 0) {
-//             __wt_txn_err_set(session, WT_ROLLBACK);
-//             /* Write operations are not allowed after stepping down from leader role. */
-//             WT_RET(WT_ROLLBACK);
-//         }
+        /*
+         * If we're stepping down, then we currently have a R/W stable cursor and all writes
+         would
+         * go to it. Any writes we were about to make or have made to this table could never be
+         * committed at this point.
+         */
+        if (!current_leader && session->txn->mod_count != 0) {
+            __wt_txn_err_set(session, WT_ROLLBACK);
+            /* Write operations are not allowed after stepping down from leader role. */
+            WT_RET(WT_ROLLBACK);
+        }
 
-//         /*
-//          * It turns out that the right choice for step up and step down is always to reopen the
-//          * stable cursor whenever we can.
-//          *
-//          * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
-//          * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
-//          as
-//          * this request was kicked off on the follower, so it must be all reads. But we want to
-//          * discard the stable cursor when we can, as long as we're not breaking transactional
-//          * semantics for cursors.
-//          *
-//          * For step down, we're currently using a R/W stable cursor. After the check above, we
-//          know
-//          * we've done read operations to this point. So again, we should upgrade if we can.
-//          */
-//     }
-//     /*
-//      * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
-//      * follower. And again, we'd like to reopen the stable cursor if we can.
-//      */
-//     change_stable = __clayered_can_stable_upgrade(clayered, iteration);
+        /*
+         * It turns out that the right choice for step up and step down is always to reopen the
+         * stable cursor whenever we can.
+         *
+         * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
+         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
+         as
+         * this request was kicked off on the follower, so it must be all reads. But we want to
+         * discard the stable cursor when we can, as long as we're not breaking transactional
+         * semantics for cursors.
+         *
+         * For step down, we're currently using a R/W stable cursor. After the check above, we
+         know
+         * we've done read operations to this point. So again, we should upgrade if we can.
+         */
+    }
 
-//     /* See if there's nothing to do for the ingest cursor. */
-//     if (clayered->ingest_cursor == NULL)
-//         change_ingest = false;
+    /*
+     * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
+     * follower. And again, we'd like to reopen the stable cursor if we can.
+     */
+    change_stable = __clayered_can_stable_upgrade(clayered, iteration);
 
-//     /* A random stable cursor shouldn't be reopened, it may have additional state. */
-//     if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
-//         change_stable = false;
+    /* See if there's nothing to do for the ingest cursor. */
+    if (clayered->ingest_cursor == NULL)
+        change_ingest = false;
 
-//     if (change_ingest) {
-//         /*
-//          * To reopen the ingest table, all we need to do here is close it. It will be reopened
-//          when
-//          * needed. There's never a situation where we need to save its position.
-//          */
-//         WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
-//         if (clayered->current_cursor == clayered->ingest_cursor)
-//             clayered->current_cursor = NULL;
-//         clayered->ingest_cursor = NULL;
-//         WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_ingest);
-//     }
+    /*
+     * Layered cursor is positioned on the ingest cursor. Changing it may lose the layered cursor
+     * position.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+      clayered->current_cursor == clayered->ingest_cursor)
+        change_ingest = false;
 
-//     if (change_stable) {
-//         /*
-//          * We can't just close the stable cursor here, as we need to retain any position that the
-//          * current stable cursor has. It's easier to keep the old cursor open briefly while we
-//          copy
-//          * the position.
-//          */
-//         old_stable = clayered->stable_cursor;
-//         clayered->stable_cursor = NULL;
-//         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
+    /* A random stable cursor shouldn't be reopened, it may have additional state. */
+    if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
+        change_stable = false;
 
-//         WT_RET(__clayered_open_stable(clayered, current_leader));
-//         WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
+    /*
+     * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
+     * position.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+      clayered->current_cursor == clayered->stable_cursor)
+        change_stable = false;
 
-//         /* If the old cursor has a position, copy it to the newly opened cursor. */
-//         if (F_ISSET(old_stable, WT_CURSTD_KEY_SET))
-//             WT_RET(__wt_cursor_dup_position(old_stable, clayered->stable_cursor));
+    if (change_ingest) {
+        /*
+         * To reopen the ingest table, all we need to do here is close it. It will be reopened
+         when
+         * needed. There's never a situation where we need to save its position.
+         */
+        WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
+        if (clayered->current_cursor == clayered->ingest_cursor)
+            clayered->current_cursor = NULL;
+        clayered->ingest_cursor = NULL;
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_ingest);
+    }
 
-//         if (clayered->current_cursor == old_stable) {
-//             WT_CURSOR *cursor = (WT_CURSOR *)clayered;
-//             WT_CURSOR *new_stable = clayered->stable_cursor;
-//             if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
-//                 /* Reset the cursor key to point to the new stable cursor. */
-//                 WT_RET(new_stable->get_key(new_stable, &cursor->key));
-//                 /* Clear the value as the new stable cursor may point to a different one. */
-//                 F_CLR(cursor, WT_CURSTD_VALUE_INT);
-//             }
-//             clayered->current_cursor = new_stable;
-//         }
+    if (change_stable) {
+        /*
+         * We can't just close the stable cursor here, as we need to retain any position that the
+         * current stable cursor has. It's easier to keep the old cursor open briefly while we
+         copy
+         * the position.
+         */
+        old_stable = clayered->stable_cursor;
+        clayered->stable_cursor = NULL;
+        snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
 
-//         /* Close the old cursor. */
-//         WT_RET(old_stable->close(old_stable));
+        WT_RET(__clayered_open_stable(clayered, current_leader));
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
 
-//         /* Add any bounds for the new cursor. */
-//         WT_RET(__clayered_copy_bounds(clayered));
-//     }
+        /* If the old cursor has a position, copy it to the newly opened cursor. */
+        if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
+            ret = __wt_cursor_dup_position(old_stable, clayered->stable_cursor);
+            /* The key is removed from the new checkpoint. We must be positioned on the ingest
+             * table. */
+            if (ret == WT_NOTFOUND)
+                WT_ASSERT_ALWAYS(session,
+                  !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
+                    clayered->current_cursor == clayered->ingest_cursor,
+                  "upgrading a positioned stable cursor");
+            else
+                WT_RET(ret);
+        } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
+            WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
+            if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
+                WT_ITEM_SET(clayered->stable_cursor->value, old_stable->value);
+        }
 
-//     /* Update the state of the layered cursor. */
-//     clayered->leader = current_leader;
-//     clayered->checkpoint_meta_lsn = last_checkpoint_meta_lsn;
-//     clayered->snapshot_gen = snapshot_gen;
-//     *state_updated = (change_ingest || change_stable);
+        if (clayered->current_cursor == old_stable) {
+            WT_CURSOR *cursor = (WT_CURSOR *)clayered;
+            WT_CURSOR *new_stable = clayered->stable_cursor;
+            if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+                /* Reset the cursor key to point to the new stable cursor. */
+                WT_RET(new_stable->get_key(new_stable, &cursor->key));
+                /* Clear the value as the new stable cursor may point to a different one. */
+                F_CLR(cursor, WT_CURSTD_VALUE_INT);
+            }
+            clayered->current_cursor = new_stable;
+        }
 
-//     return (0);
-// }
+        /* Close the old cursor. */
+        WT_RET(old_stable->close(old_stable));
+
+        /* Add any bounds for the new cursor. */
+        WT_RET(__clayered_copy_bounds(clayered));
+    }
+
+    /* Update the state of the layered cursor. */
+    clayered->leader = current_leader;
+    clayered->checkpoint_meta_lsn = last_checkpoint_meta_lsn;
+    clayered->snapshot_gen = snapshot_gen;
+    *state_updated = (change_ingest || change_stable);
+
+    return (0);
+}
 
 /*
  * __clayered_open_ingest --
@@ -1038,11 +1070,6 @@ __clayered_reset(WT_CURSOR *cursor)
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    // if (clayered->stable_cursor != NULL) {
-    //     WT_ERR(clayered->stable_cursor->close(clayered->stable_cursor));
-    //     clayered->stable_cursor = NULL;
-    // }
-
 err:
     API_END_RET(session, ret);
 }
@@ -1430,8 +1457,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
         if (ret == 0) {
             ingest_found = true;
             deleted = __clayered_deleted(clayered, &clayered->ingest_cursor->value);
-        } else
-            ingest_found = false;
+        }
     }
 
     /* If there wasn't an exact match, check the stable table as well */
