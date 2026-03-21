@@ -2246,6 +2246,8 @@ __clayered_modify_follower(
     /* Do a search if we're not positioned. */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT))
         WT_RET(__clayered_lookup(session, clayered, &value));
+    else
+        WT_ITEM_SET(value, cursor->value);
 
     /* Did the lookup find a value in the ingest table? */
     if (clayered->current_cursor != ingest) {
