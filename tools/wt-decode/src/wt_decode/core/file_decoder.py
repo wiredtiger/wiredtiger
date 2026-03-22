@@ -30,7 +30,7 @@ import logging
 
 from wt_decode.core import binary, btree
 from wt_decode.core.options import DecodeOptions
-from wt_decode.output.text import Printer
+from wt_decode.output.text import Printer, print_page
 from wt_decode.core.stats import PageStats
 
 
@@ -102,9 +102,9 @@ def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
                                              skip_data=opts.skip_data,
                                              cont=opts.cont)
             if page.success:
-                page.print_page(split=opts.split,
-                                decode_as_bson=opts.bson,
-                                disagg=opts.disagg)
+                print_page(page, split=opts.split,
+                           decode_as_bson=opts.bson,
+                           disagg=opts.disagg)
                 if page.pagestats:
                     PageStats.outfile_stats_end(opts.output,
                                                page.page_header,

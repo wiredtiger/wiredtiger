@@ -103,8 +103,15 @@ def wtdecode(filename, opts: DecodeOptions):
 def feature_check(*, bson: bool = False):
     Feature = collections.namedtuple('Feature',
                                      ['available', 'requested', 'message'])
+
+    try:
+        import bson as _bson
+        have_bson = True
+    except ImportError:
+        have_bson = False
+
     features = [
-        Feature(btree.HAVE_BSON, bson,
+        Feature(have_bson, bson,
                 'BSON decoding (--bson) is not available. '
                 'BSON-encoded cell values will be shown as raw bytes. '
                 'Please install the bson library (pip install pymongo).'),

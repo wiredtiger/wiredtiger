@@ -26,9 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import json
 import logging
+import pprint
 
 from wt_decode.core import binary
+from wt_decode.core.binary import binary_to_pretty_string
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +110,14 @@ def raw_bytes(b):
     result = ''
     s = b
     while len(s) > 0 and s[0] >= 0x7f:
-        val, s = binary.unpack_int(s)
-        if result != '':
-            result += ' '
-        result += f'<packed {binary.d_and_h(val)}>'
+        try:
+            val, next_s = binary.unpack_int(s)
+            if result != '':
+                result += ' '
+            result += f'<packed {binary.d_and_h(val)}>'
+            s = next_s
+        except (ValueError, IndexError):
+            break
     if len(s) == 0:
         return result
 
@@ -125,40 +132,101 @@ def raw_bytes(b):
     # The earlier steps failed, so it must be binary data
     return binary_to_pretty_string(b, start_with_line_prefix=False)
 
-# Convert binary data to a multi-line string with hex and printable characters
-def binary_to_pretty_string(b, per_line=16, line_prefix='  ', start_with_line_prefix=True):
-    printable = ''
-    result = ''
-    if start_with_line_prefix:
-        result += line_prefix
-    if len(b) == 0:
-        return result
-    for i in range(0, len(b)):
-        if i > 0:
-            if i % per_line == 0:
-                result += '  ' + printable + '\n' + line_prefix
-                printable = ''
-            else:
-                result += ' '
-        result += '%02x' % b[i]
-        if b[i] >= ord(' ') and b[i] < 0x7f:
-            printable += chr(b[i])
-        else:
-            printable += '.'
-    if i % per_line != per_line - 1:
-        for j in range(i % per_line + 1, per_line):
-            result += '   '
-    result += '  ' + printable
-    return result
 
-def dumpraw_to_log(b, pos):
-    """Dump raw bytes around a position to the logger for debugging (no Printer needed)."""
-    savepos = b.tell()
-    b.seek(pos)
-    i = 0
-    per_line = 16
-    s = binary_to_pretty_string(b.read(256), per_line=per_line, line_prefix='')
-    for line in s.splitlines():
-        logger.error(hex(pos + i) + ':  ' + line)
-        i += per_line
-    b.seek(savepos)
+################################################################
+# Page / cell printing functions
+################################################################
+
+try:
+    import bson
+    _HAVE_BSON = True
+except ImportError:
+    bson = None
+    _HAVE_BSON = False
+
+
+def print_page(page, *, split: bool = False,
+               decode_as_bson: bool = False, disagg: bool = False):
+    """Print a decoded WTPage to stdout."""
+    from wt_decode.core import btree as _btree
+
+    p = Printer(page.raw_bytes, split=split)
+    p.rint(page.page_header)
+    p.rint(page.block_header)
+
+    if page.page_header.type == _btree.PageType.WT_PAGE_INVALID:
+        pass
+    elif page.page_header.type == _btree.PageType.WT_PAGE_BLOCK_MANAGER:
+        if page.extents is not None:
+            print_extents(page, p)
+    elif page.page_header.type in (_btree.PageType.WT_PAGE_ROW_INT, _btree.PageType.WT_PAGE_ROW_LEAF):
+        if page.cells is not None:
+            _print_cells(page, p, _btree=_btree, decode_as_bson=decode_as_bson, disagg=disagg)
+    elif page.page_header.type == _btree.PageType.WT_PAGE_OVFL:
+        if page.page_header.entries > 0:
+            overflow_data = page.raw_bytes.read(page.page_header.entries)
+            p.rint(raw_bytes(overflow_data))
+    else:
+        logger.warning(f'? unimplemented decode for page type {page.page_header.type}')
+
+
+def _print_cells(page, p, *, _btree, decode_as_bson: bool = False, disagg: bool = False):
+    """Print all cells in a page."""
+    for cellnum, cell in enumerate(page.cells):
+        p.begin_cell(cellnum)
+        p.rint(cell.descriptor_string())
+        p.rint(cell.type_string())
+        print_cell_timestamps(cell, p)
+
+        try:
+            if cell.is_value and decode_as_bson and _HAVE_BSON:
+                decoded_data = bson.BSON(cell.data).decode()
+                p.rint(pprint.pformat(decoded_data, indent=2))
+            elif cell.is_address and disagg:
+                addr = _btree.DisaggAddr.parse(cell.data)
+                p.rint(json.dumps(addr.__dict__))
+            else:
+                p.rint(raw_bytes(cell.data))
+        except (IndexError, ValueError):
+            # FIXME-WT-13000
+            pass
+        except Exception as e:
+            if _HAVE_BSON and isinstance(e, bson.InvalidBSON):
+                p.rint(f"cannot decode cell as BSON: {e}")
+                p.rint(raw_bytes(cell.data))
+            else:
+                raise
+
+        p.end_cell()
+
+
+def print_extents(page, p):
+    """Print all extents in a block manager page."""
+    p.rint('extent list follows:')
+    for extnum, extent in enumerate(page.extents):
+        p.begin_cell(extnum)
+        p.rint(f'  {extent.offset}, {extent.size}{extent.extra_stuff}')
+
+
+def print_cell_timestamps(cell, p):
+    """Print timestamp information for a cell."""
+    if cell.extra_descriptor == 0:
+        return
+
+    p.rint('cell has timestamps:')
+    if cell.prepared:
+        p.rint(' prepared')
+
+    if cell.start_ts is not None:
+        p.rint(' start ts: ' + binary.ts(cell.start_ts))
+    if cell.start_txn is not None:
+        p.rint(' start txn: ' + binary.txn(cell.start_txn))
+    if cell.durable_start_ts is not None:
+        p.rint(' durable start ts: ' + binary.ts(cell.durable_start_ts))
+
+    if cell.stop_ts is not None:
+        p.rint(' stop ts: ' + binary.ts(cell.stop_ts))
+    if cell.stop_txn is not None:
+        p.rint(' stop txn: ' + binary.txn(cell.stop_txn))
+    if cell.durable_stop_ts is not None:
+        p.rint(' durable stop ts: ' + binary.ts(cell.durable_stop_ts))

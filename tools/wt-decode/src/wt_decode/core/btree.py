@@ -26,10 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import pprint
 import enum
 import io
-import json
 import logging
 from dataclasses import dataclass
 from typing import Optional, List, Union, Final
@@ -37,7 +35,6 @@ from typing import Optional, List, Union, Final
 # Tools and data structures for reading and decoding the on-disk format of WiredTiger's files.
 from wt_decode.core import binary
 from wt_decode.core.stats import PageStats
-from wt_decode.output.text import Printer, binary_to_pretty_string, raw_bytes, dumpraw_to_log
 from wt_decode.core.compression import snappy_decompress_page
 
 logger = logging.getLogger(__name__)
@@ -47,13 +44,6 @@ try:
     HAVE_CRC32C = True
 except ImportError:
     HAVE_CRC32C = False
-
-try:
-    import bson
-    HAVE_BSON = True
-except ImportError:
-    bson = None
-    HAVE_BSON = False
 
 #
 # Block File Header
@@ -535,7 +525,6 @@ class Cell(object):
                     l = b.read_packed_uint64()
                 else:
                     l = b.read_long_length()
-
                 cell.is_value = True
             elif cell.cell_type == CellType.WT_CELL_KEY:
                 # 64 is WT_CELL_SIZE_ADJUST. If the size was less than that, we would have used the
@@ -636,28 +625,6 @@ class Cell(object):
             return True
         return False
 
-
-    def print_timestamps(self, p):
-        if self.extra_descriptor == 0:
-            return
-
-        p.rint('cell has timestamps:')
-        if self.prepared:
-            p.rint(' prepared')
-
-        if self.start_ts is not None:
-            p.rint(' start ts: ' + binary.ts(self.start_ts))
-        if self.start_txn is not None:
-            p.rint(' start txn: ' + binary.txn(self.start_txn))
-        if self.durable_start_ts is not None:
-            p.rint(' durable start ts: ' + binary.ts(self.durable_start_ts))
-
-        if self.stop_ts is not None:
-            p.rint(' stop ts: ' + binary.ts(self.stop_ts))
-        if self.stop_txn is not None:
-            p.rint(' stop txn: ' + binary.txn(self.stop_txn))
-        if self.durable_stop_ts is not None:
-            p.rint(' durable stop ts: ' + binary.ts(self.durable_stop_ts))
 
     def process_timestamps(self, pagestats: PageStats):
         pagestats.process_timestamps(self)
@@ -865,69 +832,6 @@ class WTPage:
         page.success = True
         return page
 
-    def print_page(self, *, split: bool = False,
-                   decode_as_bson: bool = False, disagg: bool = False):
-        p = Printer(self.raw_bytes, split=split)
-        p.rint(self.page_header)
-        p.rint(self.block_header)
-
-        if self.page_header.type == PageType.WT_PAGE_INVALID:
-            pass    # a blank page: TODO maybe should check that it's all zeros?
-        elif self.page_header.type == PageType.WT_PAGE_BLOCK_MANAGER:
-            if self.extents is not None:
-                self.print_extents(p)
-        elif self.page_header.type == PageType.WT_PAGE_ROW_INT or \
-            self.page_header.type == PageType.WT_PAGE_ROW_LEAF:
-            if self.cells is not None:
-                self.print_cells(p, decode_as_bson=decode_as_bson, disagg=disagg)
-        elif self.page_header.type == PageType.WT_PAGE_OVFL:
-            # Use b_page.read() so that we can also print the raw bytes in the split mode
-            b_page = self.raw_bytes
-            p.rint(raw_bytes(b_page.read(len(self.raw_bytes))))
-        else:
-            logger.warning(f'? unimplemented decode for page type {self.page_header.type}')
-            p.rint(binary_to_pretty_string(self.raw_bytes))
-
-        return
-
-    def print_cells(self, p, *, decode_as_bson: bool = False, disagg: bool = False):
-        for cellnum, cell in enumerate(self.cells):
-            p.begin_cell(cellnum)
-            p.rint(cell.descriptor_string())
-            p.rint(cell.type_string())
-            cell.print_timestamps(p)
-
-            # Print the contents of the cell.
-            try:
-                # Attempt the decode the cell as BSON.
-                if (cell.is_value and decode_as_bson and HAVE_BSON):
-                    decoded_data = bson.BSON(cell.data).decode()
-                    p.rint(pprint.pformat(decoded_data, indent=2))
-                # If the cell is an address and we're in disagg mode, print the cell as a DisaggAddr
-                # type.
-                elif cell.is_address and disagg:
-                    addr = DisaggAddr.parse(cell.data)
-                    p.rint(json.dumps(addr.__dict__))
-                else:
-                    p.rint(raw_bytes(cell.data))
-            except (IndexError, ValueError):
-                # FIXME-WT-13000 theres a bug in raw_bytes
-                pass
-            except Exception as e:
-                if HAVE_BSON and isinstance(e, bson.InvalidBSON):
-                    p.rint(f"cannot decode cell as BSON: {e}")
-                    p.rint(raw_bytes(cell.data))
-                else:
-                    raise
-
-            p.end_cell()
-
-    def print_extents(self, p):
-        p.rint('extent list follows:')
-        for extnum, extent in enumerate(self.extents):
-            p.begin_cell(extnum)
-            p.rint(f'  {extent.offset}, {extent.size}{extent.extra_stuff}')
-
     def is_delta(self):
         if not isinstance(self.block_header, BlockDisaggHeader):
             return False
@@ -954,7 +858,7 @@ class WTPage:
 
             # If the cell cannot be decoded as a valid type, dump the raw bytes and raise an error.
             if not cell.is_valid_type():
-                dumpraw_to_log(b, cellpos)
+                binary.dumpraw_to_log(b, cellpos)
                 raise ValueError('Unexpected cell type')
 
         return cells

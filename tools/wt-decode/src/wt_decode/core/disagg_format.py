@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from wt_decode.core import binary, btree
 from wt_decode.core.options import DecodeOptions
-from wt_decode.output.text import Printer
+from wt_decode.output.text import Printer, print_page
 
 
 logger = logging.getLogger(__name__)
@@ -145,9 +145,9 @@ def process_disagg_pages(disagg_pages, opts: DecodeOptions) -> DisaggTableSummar
                 p.rint(page.page_header)
                 p.rint(page.block_header)
             else:
-                page.print_page(split=opts.split,
-                                decode_as_bson=opts.bson,
-                                disagg=True)
+                print_page(page, split=opts.split,
+                           decode_as_bson=opts.bson,
+                           disagg=True)
             p.rint('')
 
     return table_summary
