@@ -916,11 +916,11 @@ err:
 }
 
 /*
- * __layered_prev --
+ * __clayered_prev --
  *     WT_CURSOR->prev method for the layered cursor type.
  */
 static int
-__layered_prev(WT_CURSOR *cursor)
+__clayered_prev(WT_CURSOR *cursor)
 {
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
@@ -1487,7 +1487,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 
     if (deleted) {
         clayered->current_cursor = NULL;
-        WT_ERR(__layered_prev(cursor));
+        WT_ERR(__clayered_prev(cursor));
         cmp = -1;
     }
     if (exactp != NULL)
@@ -2237,13 +2237,13 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_CONFIG_ITEM cval;
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value,                  /* get-value */
+      __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __clayered_compare,                             /* compare */
       __wt_cursor_equals,                             /* equals */
       __clayered_next,                                /* next */
-      __layered_prev,                                 /* prev */
+      __clayered_prev,                                /* prev */
       __clayered_reset,                               /* reset */
       __clayered_search,                              /* search */
       __clayered_search_near,                         /* search-near */
