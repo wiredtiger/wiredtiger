@@ -453,6 +453,24 @@ err:
 }
 
 /*
+ * __wt_ckpt_last_size --
+ *     Return the size recorded in the most recent checkpoint in the given metadata config string.
+ */
+int
+__wt_ckpt_last_size(WT_SESSION_IMPL *session, const char *config, uint64_t *sizep)
+{
+    WT_CKPT ckpt;
+    WT_CLEAR(ckpt);
+
+    *sizep = 0;
+    WT_RET(__ckpt_last(session, config, &ckpt));
+    *sizep = ckpt.size;
+
+    __wt_checkpoint_free(session, &ckpt);
+    return (0);
+}
+
+/*
  * __wt_meta_block_metadata --
  *     Build a version of the file's metadata for the block manager to store.
  */
