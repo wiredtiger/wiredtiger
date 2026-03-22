@@ -1511,20 +1511,35 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
         else if (stable_cmp == 0)
             closest = clayered->stable_cursor;
         else {
+            WT_COLLATOR *collator;
+            __clayered_get_collator(clayered, &collator);
             if ((ingest_cmp ^ stable_cmp) < 0) {
-                /* This assumes snapshot isolation. Otherwise, we need to use a loop. */
-                if (stable_cmp > 0)
-                    WT_ERR_NOTFOUND_OK(
-                      clayered->ingest_cursor->next(clayered->ingest_cursor), true);
-                else
-                    WT_ERR_NOTFOUND_OK(
-                      clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
+                /*
+                 * When reading with read-uncommitted isolation, concurrent key insertions may
+                 * occur. Continue the walk until the search key is passed.
+                 */
+                if (stable_cmp > 0) {
+                    do {
+                        WT_ERR_NOTFOUND_OK(
+                          clayered->ingest_cursor->next(clayered->ingest_cursor), true);
+                        if (ret == 0)
+                            WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
+                              &cursor->key, &ingest_cmp));
+                    } while (ret == 0 && ingest_cmp < 0);
+                } else {
+                    do {
+                        WT_ERR_NOTFOUND_OK(
+                          clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
+                        if (ret == 0)
+                            WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
+                              &cursor->key, &ingest_cmp));
+                    } while (ret == 0 && ingest_cmp > 0);
+                }
 
                 if (ret == WT_NOTFOUND) {
                     closest = clayered->stable_cursor;
                     goto set_current;
-                } else
-                    ingest_cmp = stable_cmp;
+                }
             }
 
             if (ingest_cmp > 0) {
