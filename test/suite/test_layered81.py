@@ -434,9 +434,112 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
-    # FIXME: Bounds are not preserved after stable cursor upgrade. After the upgrade,
-    # scans return all keys ignoring bounds. This is a pre-existing bug in
-    # __clayered_upgrade_stable / __clayered_copy_bounds interaction.
+    # -----------------------------------------------------------------------
+    # Test: Upgrade preserves bounds.
+    #
+    # Set bounds on cursor, then checkpoint and advance. The new stable
+    # cursor should also have the bounds applied.
+    # Note: cursor.reset() clears bounds per WiredTiger API semantics, so
+    # bounds must be re-applied after reset.
+    # -----------------------------------------------------------------------
+    def test_upgrade_preserves_bounds(self):
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_leader(["A", "B", "C", "D", "E"])
+        self.do_checkpoint()
+
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key("B")
+        cursor.bound("bound=lower")
+        cursor.set_key("D")
+        cursor.bound("bound=upper")
+
+        # Scan within bounds: B, C, D.
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, ["B", "C", "D"])
+
+        # Reset clears bounds. Re-apply them.
+        cursor.reset()
+        cursor.set_key("B")
+        cursor.bound("bound=lower")
+        cursor.set_key("D")
+        cursor.bound("bound=upper")
+
+        # Add more data outside bounds and checkpoint.
+        self.insert_leader(["AA", "EE"])
+        self.do_checkpoint()
+
+        # search triggers the upgrade.
+        cursor.set_key("C")
+        self.assertEqual(cursor.search(), 0)
+        cursor.reset()
+
+        # Re-apply bounds after reset.
+        cursor.set_key("B")
+        cursor.bound("bound=lower")
+        cursor.set_key("D")
+        cursor.bound("bound=upper")
+
+        # After upgrade, bounds should be in effect. AA and EE are outside.
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, ["B", "C", "D"])
+        cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Test: Upgrade with bounds and new data inside bounds.
+    #
+    # Bounds [B, D]. Checkpoint 1: A, C, E. Checkpoint 2: A, B, C, D, E.
+    # After upgrade, scan within bounds should see B, C, D.
+    # -----------------------------------------------------------------------
+    def test_upgrade_bounds_new_data_inside(self):
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_leader(["A", "C", "E"])
+        self.do_checkpoint()
+
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key("B")
+        cursor.bound("bound=lower")
+        cursor.set_key("D")
+        cursor.bound("bound=upper")
+
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, ["C"])
+
+        cursor.reset()
+        cursor.set_key("B")
+        cursor.bound("bound=lower")
+        cursor.set_key("D")
+        cursor.bound("bound=upper")
+
+        # Add B and D inside bounds.
+        self.insert_leader(["B", "D"])
+        self.do_checkpoint()
+
+        # Trigger the upgrade with a search.
+        cursor.set_key("C")
+        self.assertEqual(cursor.search(), 0)
+        cursor.reset()
+
+        # Re-apply bounds after reset.
+        cursor.set_key("B")
+        cursor.bound("bound=lower")
+        cursor.set_key("D")
+        cursor.bound("bound=upper")
+
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, ["B", "C", "D"])
+        cursor.close()
 
     # -----------------------------------------------------------------------
     # Test: Upgrade when positioned cursor value changes.
