@@ -295,9 +295,9 @@ class BinaryFile(object):
         return bytes(result)
 
 def ts(uint64):
-    '''  
-    Return a timestamp as hex.  
-    '''  
+    '''
+    Return a timestamp as hex.
+    '''
     return hex(uint64)
 
 def txn(uint64):

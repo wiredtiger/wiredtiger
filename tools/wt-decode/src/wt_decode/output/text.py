@@ -28,7 +28,7 @@
 
 import logging
 
-from py_common import binary_data
+from wt_decode.core import binary
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +107,10 @@ def raw_bytes(b):
     result = ''
     s = b
     while len(s) > 0 and s[0] >= 0x7f:
-        val, s = binary_data.unpack_int(s)
+        val, s = binary.unpack_int(s)
         if result != '':
             result += ' '
-        result += f'<packed {binary_data.d_and_h(val)}>'
+        result += f'<packed {binary.d_and_h(val)}>'
     if len(s) == 0:
         return result
 

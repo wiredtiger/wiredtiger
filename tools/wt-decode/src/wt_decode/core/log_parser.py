@@ -33,9 +33,9 @@ import re
 import json
 import dataclasses
 
-from py_common import binary_data
-from py_common.decode_opts import DecodeOptions
-from py_common.file_format import wtdecode_file_object
+from wt_decode.core import binary
+from wt_decode.core.options import DecodeOptions
+from wt_decode.core.file_decoder import wtdecode_file_object
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def process_mongod_log(f, opts: DecodeOptions):
         logger.info('No valid byte dump found in MongoDB log')
         return
 
-    b = binary_data.BinaryFile(io.BytesIO(byte_dump))
+    b = binary.BinaryFile(io.BytesIO(byte_dump))
     wtdecode_file_object(b, len(byte_dump),
                          dataclasses.replace(opts, fragment=True))
 
@@ -73,7 +73,7 @@ def process_wiredtiger_log(f, opts: DecodeOptions):
             logger.info('No (more) byte dumps found in WiredTiger log')
             break
 
-        b = binary_data.BinaryFile(io.BytesIO(byte_dump))
+        b = binary.BinaryFile(io.BytesIO(byte_dump))
         wtdecode_file_object(b, len(byte_dump),
                              dataclasses.replace(opts, fragment=True))
 

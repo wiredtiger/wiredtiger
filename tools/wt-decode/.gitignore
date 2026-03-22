@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+*_pb2.py
+*_pb2_grpc.py

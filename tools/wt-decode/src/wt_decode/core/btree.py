@@ -35,10 +35,10 @@ from dataclasses import dataclass
 from typing import Optional, List, Union, Final
 
 # Tools and data structures for reading and decoding the on-disk format of WiredTiger's files.
-from py_common import binary_data
-from py_common.stats import PageStats
-from py_common.printer import Printer, binary_to_pretty_string, raw_bytes, dumpraw_to_log
-from py_common.snappy_util import snappy_decompress_page
+from wt_decode.core import binary
+from wt_decode.core.stats import PageStats
+from wt_decode.output.text import Printer, binary_to_pretty_string, raw_bytes, dumpraw_to_log
+from wt_decode.core.compression import snappy_decompress_page
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class BlockFileHeader(object):
         self.unused = 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile) -> 'BlockFileHeader':
+    def parse(b: binary.BinaryFile) -> 'BlockFileHeader':
         '''
         Parse the file header.
         '''
@@ -153,7 +153,7 @@ class PageHeader(object):
         self.version = 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile) -> 'PageHeader':
+    def parse(b: binary.BinaryFile) -> 'PageHeader':
         '''
         Parse a page header.
         '''
@@ -211,7 +211,7 @@ class BlockHeader(object):
         self.unused = 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile) -> 'BlockHeader':
+    def parse(b: binary.BinaryFile) -> 'BlockHeader':
         '''
         Parse a block header.
         '''
@@ -273,7 +273,7 @@ class BlockDisaggHeader(object):
         self.unused = 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile) -> 'BlockDisaggHeader':
+    def parse(b: binary.BinaryFile) -> 'BlockDisaggHeader':
         '''
         Parse a block header.
         '''
@@ -327,7 +327,7 @@ class ExtentItem(object):
         self.size = 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile) -> 'ExtentItem':
+    def parse(b: binary.BinaryFile) -> 'ExtentItem':
         '''
         Parse an extent list item.
         '''
@@ -464,7 +464,7 @@ class Cell(object):
 
         self.delta_flag = None
 
-    def _parse_timestamps(self, b: binary_data.BinaryFile):
+    def _parse_timestamps(self, b: binary.BinaryFile):
         '''
         Parse timestamps.
         '''
@@ -501,7 +501,7 @@ class Cell(object):
         return self.extra_descriptor != 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile, is_delta: bool = False, ignore_unsupported: bool = False) -> 'Cell':
+    def parse(b: binary.BinaryFile, is_delta: bool = False, ignore_unsupported: bool = False) -> 'Cell':
         '''
         Parse a cell.
         '''
@@ -605,7 +605,7 @@ class Cell(object):
             desc_str += f'extra: 0x{self.extra_descriptor:x} '
             # process_timestamps(p, cell, pagestats)
         if self.run_length is not None:
-            desc_str += f'runlength/addr: {binary_data.d_and_h(self.run_length)} '
+            desc_str += f'runlength/addr: {binary.d_and_h(self.run_length)} '
 
         return desc_str
 
@@ -646,18 +646,18 @@ class Cell(object):
             p.rint(' prepared')
 
         if self.start_ts is not None:
-            p.rint(' start ts: ' + binary_data.ts(self.start_ts))
+            p.rint(' start ts: ' + binary.ts(self.start_ts))
         if self.start_txn is not None:
-            p.rint(' start txn: ' + binary_data.txn(self.start_txn))
+            p.rint(' start txn: ' + binary.txn(self.start_txn))
         if self.durable_start_ts is not None:
-            p.rint(' durable start ts: ' + binary_data.ts(self.durable_start_ts))
+            p.rint(' durable start ts: ' + binary.ts(self.durable_start_ts))
 
         if self.stop_ts is not None:
-            p.rint(' stop ts: ' + binary_data.ts(self.stop_ts))
+            p.rint(' stop ts: ' + binary.ts(self.stop_ts))
         if self.stop_txn is not None:
-            p.rint(' stop txn: ' + binary_data.txn(self.stop_txn))
+            p.rint(' stop txn: ' + binary.txn(self.stop_txn))
         if self.durable_stop_ts is not None:
-            p.rint(' durable stop ts: ' + binary_data.ts(self.durable_stop_ts))
+            p.rint(' durable stop ts: ' + binary.ts(self.durable_stop_ts))
 
     def process_timestamps(self, pagestats: PageStats):
         pagestats.process_timestamps(self)
@@ -701,18 +701,18 @@ class DisaggAddr(object):
 
         # The first byte contains the version and min_version packed into 4b chunks.
         # See block_disagg_addr.c and int4bitpack_inline.h for implementation details.
-        version_array = binary_data.unpack_4b_array((b[:1]), 2)
+        version_array = binary.unpack_4b_array((b[:1]), 2)
         addr.version = version_array[0]
         addr.min_version = version_array[1]
 
         b = b[1:]
 
-        addr.page_id, b = binary_data.unpack_int(b)
-        flags, b = binary_data.unpack_int(b)
+        addr.page_id, b = binary.unpack_int(b)
+        flags, b = binary.unpack_int(b)
         addr.flags = DisaggAddrFlags(flags)
-        addr.lsn, b = binary_data.unpack_int(b)
-        addr.base_lsn, b = binary_data.unpack_int(b)
-        addr.size, b = binary_data.unpack_int(b)
+        addr.lsn, b = binary.unpack_int(b)
+        addr.base_lsn, b = binary.unpack_int(b)
+        addr.size, b = binary.unpack_int(b)
         addr.checksum = int.from_bytes(b, 'little')
 
         return addr
@@ -731,7 +731,7 @@ class DisaggAddr(object):
         return addr_string
 
 
-def verify_block_checksum(b: binary_data.BinaryFile, disk_pos: int, disk_size: int, page,
+def verify_block_checksum(b: binary.BinaryFile, disk_pos: int, disk_size: int, page,
                           *, disagg: bool = False, cont: bool = False) -> bool:
     """Validate block checksum using crc32c when available."""
     if not HAVE_CRC32C:
@@ -776,10 +776,10 @@ class WTPage:
     extents: Optional[List[ExtentItem]] = None
     pagestats: Optional[PageStats] = None
 
-    raw_bytes: binary_data.BinaryFile = None
+    raw_bytes: binary.BinaryFile = None
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile, nbytes: int,
+    def parse(b: binary.BinaryFile, nbytes: int,
               *, disagg: bool = False, skip_data: bool = False, cont: bool = False) -> 'WTPage':
         page = WTPage(success=False)
 
@@ -794,7 +794,7 @@ class WTPage:
             # Size of WT_PAGE_HEADER + size of WT_BLOCK_HEADER
             page_data = bytearray(b.read(40))
         b.saved_bytes()
-        b_page = binary_data.BinaryFile(io.BytesIO(page_data))
+        b_page = binary.BinaryFile(io.BytesIO(page_data))
 
         # WT_PAGE_HEADER in btmem.h (28 bytes)
         page.page_header = PageHeader.parse(b_page)
@@ -846,7 +846,7 @@ class WTPage:
 
         # Add the payload to the page data & reinitialize the stream
         page_data.extend(payload_data)
-        b_page = binary_data.BinaryFile(io.BytesIO(page_data))
+        b_page = binary.BinaryFile(io.BytesIO(page_data))
         b_page.seek(header_length)
 
         # Parse the block contents

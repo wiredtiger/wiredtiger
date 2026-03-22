@@ -111,12 +111,12 @@ class PageStats:
             self.num_txn,
             self.txn_sz,
         ]
-        
+
     @staticmethod
     def outfile_stats_start(output, blockid):
         if output != None:
             output.write("\n" + blockid + ",")
-    
+
     @staticmethod
     def outfile_stats_end(output, pagehead, blockhead, pagestats):
         if output != None:

@@ -39,14 +39,17 @@ import sys
 import collections
 
 from contextlib import nullcontext
-from py_common import mdb_log_parse
-from py_common import binary_data
-from py_common.decode_opts import DecodeOptions
-from py_common import btree_format
-from py_common import snappy_util
-from py_common import file_format
-from py_common import page_service
-from py_common import sqlite_format
+
+# Add the wt-decode package to the path so we can import it without installation.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'wt-decode', 'src'))
+
+from wt_decode.core import log_parser as mdb_log_parse
+from wt_decode.core import binary
+from wt_decode.core.options import DecodeOptions
+from wt_decode.core import btree
+from wt_decode.core import compression as snappy_util
+from wt_decode.core import file_decoder as file_format
+from wt_decode.core import sqlite_reader as sqlite_format
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +74,9 @@ def decode_dumpin_input(filename, opts: DecodeOptions):
 
 
 def decode_disagg_table_input(filename, opts: DecodeOptions):
+    from wt_decode.disagg.page_service import process_disagg_table
     with open_input_file(filename, 'r') as infile:
-        page_service.process_disagg_table(infile, opts)
+        process_disagg_table(infile, opts)
 
 
 def decode_sqlite_input(filename, opts: DecodeOptions):
@@ -82,8 +86,8 @@ def decode_sqlite_input(filename, opts: DecodeOptions):
 
 def decode_wt_binary_input(filename, opts: DecodeOptions):
     nbytes = 0 if filename == '-' else os.path.getsize(filename)
-    input_name = 'stdin' if filename == '-' else filename
-    file_format.wtdecode_file_object(binary_data.BinaryFile(fileobj), nbytes, opts)
+    with open_input_file(filename, 'rb') as infile:
+        file_format.wtdecode_file_object(binary.BinaryFile(infile), nbytes, opts)
 
 def wtdecode(filename, opts: DecodeOptions):
     if opts.dumpin:
@@ -100,7 +104,7 @@ def feature_check(*, bson: bool = False):
     Feature = collections.namedtuple('Feature',
                                      ['available', 'requested', 'message'])
     features = [
-        Feature(btree_format.HAVE_BSON, bson,
+        Feature(btree.HAVE_BSON, bson,
                 'BSON decoding (--bson) is not available. '
                 'BSON-encoded cell values will be shown as raw bytes. '
                 'Please install the bson library (pip install pymongo).'),
@@ -108,7 +112,7 @@ def feature_check(*, bson: bool = False):
                 'Snappy decompression is not available. '
                 'Compressed pages will not be decompressed. '
                 'Please install the snappy library (pip install python-snappy).'),
-        Feature(btree_format.HAVE_CRC32C, True,
+        Feature(btree.HAVE_CRC32C, True,
                 'CRC32C library is not available. '
                 'Checksums will not be verified. '
                 'Please install the crc32c library (pip install crc32c).')
@@ -222,7 +226,7 @@ if __name__ == '__main__':
                 bson=args.bson,
                 output=output_file,
                 offset=args.offset,
-                fragment=args.fragment,
+                fragment=False,
                 pages=args.pages,
                 keyfile=getattr(args, 'keyfile', None),
                 lsn=args.lsn,

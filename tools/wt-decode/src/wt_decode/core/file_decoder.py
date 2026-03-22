@@ -28,10 +28,10 @@
 
 import logging
 
-from py_common import binary_data, btree_format
-from py_common.decode_opts import DecodeOptions
-from py_common.printer import Printer
-from py_common.stats import PageStats
+from wt_decode.core import binary, btree
+from wt_decode.core.options import DecodeOptions
+from wt_decode.output.text import Printer
+from wt_decode.core.stats import PageStats
 
 
 logger = logging.getLogger(__name__)
@@ -39,18 +39,18 @@ logger = logging.getLogger(__name__)
 
 def file_header_decode(p, b):
     # block.h
-    h = btree_format.BlockFileHeader.parse(b)
+    h = btree.BlockFileHeader.parse(b)
     logger.info('magic: ' + str(h.magic))
     logger.info('major: ' + str(h.major))
     logger.info('minor: ' + str(h.minor))
     logger.info('checksum: ' + str(h.checksum))
-    if h.magic != btree_format.BlockFileHeader.WT_BLOCK_MAGIC:
+    if h.magic != btree.BlockFileHeader.WT_BLOCK_MAGIC:
         logger.info('bad magic number')
         return False
-    if h.major != btree_format.BlockFileHeader.WT_BLOCK_MAJOR_VERSION:
+    if h.major != btree.BlockFileHeader.WT_BLOCK_MAJOR_VERSION:
         logger.info('bad major number')
         return False
-    if h.minor != btree_format.BlockFileHeader.WT_BLOCK_MINOR_VERSION:
+    if h.minor != btree.BlockFileHeader.WT_BLOCK_MINOR_VERSION:
         logger.info('bad minor number')
         return False
     if h.unused != 0:
@@ -92,12 +92,12 @@ def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
     outfile_header(opts.output)
 
     while (nbytes == 0 or startblock < nbytes) and (opts.pages == 0 or pagecount < opts.pages):
-        d_h = binary_data.d_and_h(startblock)
+        d_h = binary.d_and_h(startblock)
         PageStats.outfile_stats_start(opts.output, d_h)
         print('Decode at ' + d_h)
         b.seek(startblock)
         try:
-            page = btree_format.WTPage.parse(b, nbytes,
+            page = btree.WTPage.parse(b, nbytes,
                                              disagg=opts.disagg,
                                              skip_data=opts.skip_data,
                                              cont=opts.cont)
@@ -118,7 +118,7 @@ def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
             p.rint('ERROR: ' + str(e))
             exit(1)
         except Exception:
-            p.rint(f'ERROR decoding block at {binary_data.d_and_h(startblock)}')
+            p.rint(f'ERROR decoding block at {binary.d_and_h(startblock)}')
             logger.debug('Exception while decoding block', exc_info=True)
         pos = b.tell()
 

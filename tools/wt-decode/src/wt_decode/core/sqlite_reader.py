@@ -11,8 +11,8 @@ import sys
 
 from typing import Iterable, List, Optional
 
-from py_common import disagg
-from py_common.decode_opts import DecodeOptions
+from wt_decode.core import disagg_format as disagg
+from wt_decode.core.options import DecodeOptions
 
 
 SQLITE3_SIGNATURE = b'SQLite format 3\x00'

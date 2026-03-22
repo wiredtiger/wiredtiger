@@ -11,9 +11,9 @@ import io
 import logging
 from typing import List, Optional
 
-from py_common import binary_data, btree_format
-from py_common.decode_opts import DecodeOptions
-from py_common.printer import Printer
+from wt_decode.core import binary, btree
+from wt_decode.core.options import DecodeOptions
+from wt_decode.output.text import Printer
 
 
 logger = logging.getLogger(__name__)
@@ -79,12 +79,12 @@ def process_disagg_pages(disagg_pages, opts: DecodeOptions) -> DisaggTableSummar
     table_summary = DisaggTableSummary()
 
     for pages in disagg_pages:
-        delta_chain: List[btree_format.WTPage] = []
+        delta_chain: List[btree.WTPage] = []
 
         for disagg_page in pages:
             metadata = disagg_page.metadata
             page_bytes = disagg_page.page_bytes
-            b = binary_data.BinaryFile(io.BytesIO(page_bytes))
+            b = binary.BinaryFile(io.BytesIO(page_bytes))
             p = Printer(b, split=opts.split)
 
             p.rint(metadata)
@@ -96,19 +96,19 @@ def process_disagg_pages(disagg_pages, opts: DecodeOptions) -> DisaggTableSummar
 
                 p.rint('Metadata Table Root Page:')
                 addr_string = page_string.split('addr="')[1].split('"')[0]
-                addr = btree_format.DisaggAddr.parse(bytes.fromhex(addr_string))
+                addr = btree.DisaggAddr.parse(bytes.fromhex(addr_string))
                 p.rint(addr)
                 p.rint('')
                 continue
 
-            page = btree_format.WTPage()
+            page = btree.WTPage()
             page = page.parse(b, len(page_bytes),
                               disagg=True,
                               skip_data=opts.skip_data,
                               cont=opts.cont)
 
             if metadata.is_delta():
-                if page.block_header.magic != btree_format.BlockDisaggHeader.WT_BLOCK_DISAGG_MAGIC_DELTA:
+                if page.block_header.magic != btree.BlockDisaggHeader.WT_BLOCK_DISAGG_MAGIC_DELTA:
                     logger.error(
                         f'Delta page has incorrect block flag: '
                         f'{page.block_header.magic}'
@@ -132,7 +132,7 @@ def process_disagg_pages(disagg_pages, opts: DecodeOptions) -> DisaggTableSummar
 
                 delta_chain.append(page)
             else:
-                if page.block_header.magic != btree_format.BlockDisaggHeader.WT_BLOCK_DISAGG_MAGIC_BASE:
+                if page.block_header.magic != btree.BlockDisaggHeader.WT_BLOCK_DISAGG_MAGIC_BASE:
                     logger.error(
                         'Full page has incorrect block flag: '
                         f'{page.block_header.magic}'
