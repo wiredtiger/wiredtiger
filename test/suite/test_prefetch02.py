@@ -52,13 +52,13 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_cfg = 'statistics=(all),cache_size=2GB,'
 
     config_options = [
-        ('conn_default_on', dict(prefetch_cfg=f'prefetch=(available=true,default=true)',
+        ('conn_default_on', dict(prefetch_cfg='prefetch=(available=true,default=true)',
                             session_cfg='', prefetch=True)),
-        ('session_cfg', dict(prefetch_cfg=f'prefetch=(available=true,default=false)',
+        ('session_cfg', dict(prefetch_cfg='prefetch=(available=true,default=false)',
                             session_cfg='prefetch=(enabled=true)', prefetch=True)),
-        ('prefetch_unavailable', dict(prefetch_cfg=f'prefetch=(available=false,default=false)',
+        ('prefetch_unavailable', dict(prefetch_cfg='prefetch=(available=false,default=false)',
                             session_cfg='', prefetch=False)),
-        ('conn_default_on_null_session_cfg', dict(prefetch_cfg=f'prefetch=(available=true,default=true)',
+        ('conn_default_on_null_session_cfg', dict(prefetch_cfg='prefetch=(available=true,default=true)',
                             session_cfg=None, prefetch=True)),
     ]
 
