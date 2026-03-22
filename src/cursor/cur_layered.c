@@ -1524,10 +1524,13 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
             __clayered_get_collator(clayered, &collator);
             if ((ingest_cmp ^ stable_cmp) < 0) {
                 /*
-                 * When reading with read-uncommitted isolation, concurrent key insertions may
-                 * occur. Continue the walk until the search key is passed.
+                 * The cursors are on opposite sides of the search key. Move the cursor that is on
+                 * the smaller side forward, because a larger key is preferred. When reading with
+                 * read-uncommitted isolation, concurrent key insertions may occur. Continue the
+                 * walk until the search key is passed.
                  */
                 if (stable_cmp > 0) {
+                    /* Stable is larger. Move ingest forward to find a larger key in ingest. */
                     do {
                         WT_ERR_NOTFOUND_OK(
                           clayered->ingest_cursor->next(clayered->ingest_cursor), true);
@@ -1539,25 +1542,34 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
                               &cursor->key, &ingest_cmp));
                     } while (ret == 0 && ingest_cmp < 0);
+
+                    if (ret == WT_NOTFOUND) {
+                        ret = 0;
+                        closest = clayered->stable_cursor;
+                        goto set_current;
+                    } else
+                        ingest_cmp = stable_cmp;
                 } else {
+                    /* Ingest is larger. Move stable forward to find a larger key in stable. */
                     do {
                         WT_ERR_NOTFOUND_OK(
-                          clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
+                          clayered->stable_cursor->next(clayered->stable_cursor), true);
 
                         if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
                             break;
 
                         if (ret == 0)
-                            WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
-                              &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp > 0);
-                }
+                            WT_ERR(__wt_compare(session, collator, &clayered->stable_cursor->key,
+                              &cursor->key, &stable_cmp));
+                    } while (ret == 0 && stable_cmp < 0);
 
-                if (ret == WT_NOTFOUND) {
-                    closest = clayered->stable_cursor;
-                    goto set_current;
-                } else
-                    ingest_cmp = stable_cmp;
+                    if (ret == WT_NOTFOUND) {
+                        ret = 0;
+                        closest = clayered->ingest_cursor;
+                        goto set_current;
+                    } else
+                        stable_cmp = ingest_cmp;
+                }
             }
 
             if (ingest_cmp > 0) {
