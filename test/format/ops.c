@@ -998,11 +998,10 @@ ops(void *arg)
     uint32_t max_rows, ntries, range, rnd;
     u_int i, throttle_delay_max;
     const char *iso_config;
-    bool greater_than, intxn, prepared, mirrored_truncate, attempted_mirrored_truncate;
+    bool greater_than, intxn, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
-    attempted_mirrored_truncate = false;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -1049,7 +1048,6 @@ ops(void *arg)
 rollback_retry:
         prepared = false;
         mirrored_truncate = false;
-        attempted_mirrored_truncate = false;
         if (tinfo->quit)
             break;
 
@@ -1307,9 +1305,16 @@ rollback_retry:
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
+            /*
+             * For mirrored truncates, remember that we executed a truncate in this transaction.
+             * Note: mirrored_truncate is set before we know whether any of the truncate calls will
+             * return WT_ROLLBACK. If a rollback happens later in this transaction,
+             * mirrored_truncate remains true and we will still run wts_verify_mirrored_truncate
+             * after the rollback, so mirrored truncates are verified in both the commit and
+             * rollback cases.
+             */
             if (op == TRUNCATE)
-                /* We started a mirrored truncate */
-                attempted_mirrored_truncate = true;
+                mirrored_truncate = true;
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
@@ -1320,13 +1325,6 @@ rollback_retry:
                     if (ret == WT_ROLLBACK)
                         break;
                 }
-            /*
-             * Only treat this as a mirrored truncate if all mirror table truncates succeeded. This
-             * avoids calling wts_verify_mirrored_truncate after a truncate that ultimately rolled
-             * back.
-             */
-            if (op == TRUNCATE && ret == 0)
-                mirrored_truncate = true;
         }
 skip_operation:
         table = tinfo->table = NULL;
@@ -1404,16 +1402,12 @@ skip_operation:
             break;
         case 5: /* 10% */
 rollback:
-            bool verify_rollback = attempted_mirrored_truncate && !mirrored_truncate;
             if (GV(RUNS_PREDICTABLE_REPLAY)) {
                 if (tinfo->quit)
                     goto loop_exit;
                 /* Force a rollback */
                 testutil_assert(intxn);
                 rollback_transaction(tinfo, prepared);
-                if (verify_rollback)
-                    /* verify post-rollback */
-                    wts_verify_mirrored_truncate(tinfo);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1423,12 +1417,13 @@ rollback:
             __wt_yield(); /* Encourage races */
             rollback_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, false);
-            if (verify_rollback)
-                /* verify post-rollback */
-                wts_verify_mirrored_truncate(tinfo);
             break;
         }
 
+        /*
+         * If this operation was a mirrored truncate, verify the mirrors. This runs after both
+         * successfully committed truncates and truncates that were rolled back.
+         */
         if (mirrored_truncate)
             wts_verify_mirrored_truncate(tinfo);
 
