@@ -37,6 +37,17 @@ __clayered_deleted(WT_CURSOR_LAYERED *clayered, const WT_ITEM *item)
 }
 
 /*
+ * __clayered_is_deleted_encoded --
+ *     Check if the value starts with the tombstone.
+ */
+static WT_INLINE bool
+__clayered_is_deleted_encoded(const WT_ITEM *value)
+{
+    return (value->size > __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
+}
+
+/*
  * __clayered_deleted_encode --
  *     Encode values that are in the encoded name space.
  */
@@ -50,8 +61,7 @@ __clayered_deleted_encode(
      * If value requires encoding, get a scratch buffer of the right size and create a copy of the
      * data with the first byte of the tombstone appended.
      */
-    if (value->size >= __wt_tombstone.size &&
-      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0) {
+    if (__clayered_is_deleted_encoded(value)) {
         WT_RET(__wt_scr_alloc(session, value->size + 1, tmpp));
         tmp = *tmpp;
 
@@ -74,8 +84,7 @@ __clayered_deleted_encode(
 static WT_INLINE void
 __clayered_deleted_decode(WT_ITEM *value)
 {
-    if (value->size > __wt_tombstone.size &&
-      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0)
+    if (__clayered_is_deleted_encoded(value))
         --value->size;
 }
 
@@ -2234,16 +2243,35 @@ err:
  *     Apply a set of modifications on a leader node.
  */
 static int
-__clayered_modify_leader(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+__clayered_modify_leader(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *stable = clayered->stable_cursor;
+    WT_DECL_RET;
+    WT_DECL_ITEM(buf);
 
     stable->set_key(stable, &cursor->key);
-    WT_RET(stable->modify(stable, entries, nentries));
+    /* It's valid to build the modify on an empty value. */
+    WT_ERR_NOTFOUND_OK(stable->search(stable), true);
+
+    /*
+     * Similarly, a delete-encoded value alters the original value and also cannot serve as the base
+     * value for a modify. In these cases, perform a full update instead.
+     */
+    if (ret == 0 && __clayered_is_deleted_encoded(&stable->value)) {
+        __clayered_deleted_decode(&stable->value);
+        WT_ERR(__wt_modify_apply_api(stable, entries, nentries));
+        WT_ERR(__clayered_deleted_encode(session, &stable->value, &stable->value, &buf));
+        F_SET(stable, WT_CURSTD_VALUE_EXT);
+        WT_ERR(stable->update(stable));
+    } else
+        WT_ERR(stable->modify(stable, entries, nentries));
 
     clayered->current_cursor = stable;
 
+err:
+    __wt_scr_free(session, &buf);
     return (0);
 }
 
@@ -2258,44 +2286,53 @@ __clayered_modify_follower(
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_DECL_RET;
+    WT_DECL_ITEM(buf);
     WT_ITEM value;
 
     WT_CLEAR(value);
 
     /* Do a search if we're not positioned. */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT))
-        WT_RET(__clayered_lookup(session, clayered, &value));
+        WT_ERR_NOTFOUND_OK(__clayered_lookup(session, clayered, &value), true);
     else
         WT_ITEM_SET(value, cursor->value);
 
-    /* Did the lookup find a value in the ingest table? */
     if (clayered->current_cursor != ingest) {
-        /* If not, get the base value from the top-level cursor. */
-        ingest->set_key(ingest, &cursor->key);
-        ingest->set_value(ingest, &value);
-        WT_ERR(__wt_modify_apply_api(ingest, entries, nentries));
-
         /*
-         * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway.
+         * Cursor is positioned on the stable table. Compute a full value and write it to the ingest
+         * table.
          */
-        WT_ERR(__clayered_reset_cursors(clayered, true));
-
+        ingest->set_key(ingest, &cursor->key);
+        __clayered_deleted_decode(&value);
+        WT_ITEM_SET(ingest->value, value);
+        WT_ERR(__wt_modify_apply_api(ingest, entries, nentries));
+        WT_ERR(__clayered_deleted_encode(session, &ingest->value, &ingest->value, &buf));
+        F_SET(ingest, WT_CURSTD_VALUE_EXT);
         WT_ERR(ingest->update(ingest));
     } else {
         /*
-         * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway.
+         * A tombstone is a special value in the ingest table, so it cannot be used as a base value
+         * for a modify operation. Similarly, a delete-encoded value alters the original value and
+         * also cannot serve as the base value for a modify. In these cases, perform a full update
+         * instead.
          */
-        WT_ERR(__clayered_reset_cursors(clayered, true));
-
-        /* It did -- we can directly modify the ingest table. */
-        WT_ERR(ingest->modify(ingest, entries, nentries));
+        if (ret == WT_NOTFOUND || __clayered_deleted(clayered, &ingest->value) ||
+          __clayered_is_deleted_encoded(&ingest->value)) {
+            __clayered_deleted_decode(&ingest->value);
+            WT_ERR(__wt_modify_apply_api(ingest, entries, nentries));
+            WT_ERR(__clayered_deleted_encode(session, &ingest->value, &ingest->value, &buf));
+            F_SET(ingest, WT_CURSTD_VALUE_EXT);
+            WT_ERR(ingest->update(ingest));
+        } else
+            WT_ERR(ingest->modify(ingest, entries, nentries));
     }
 
+    /* Clear the stable cursor position. */
+    WT_ERR(__clayered_reset_cursors(clayered, true));
     clayered->current_cursor = ingest;
 
 err:
+    __wt_scr_free(session, &buf);
     if (ret != 0)
         WT_TRET(__clayered_reset_cursors(clayered, false));
     return (ret);
@@ -2309,7 +2346,7 @@ static int
 __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     if (S2C(session)->layered_table_manager.leader)
-        WT_RET(__clayered_modify_leader(cursor, entries, nentries));
+        WT_RET(__clayered_modify_leader(session, cursor, entries, nentries));
     else
         WT_RET(__clayered_modify_follower(session, cursor, entries, nentries));
 
