@@ -543,7 +543,10 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 
     /*
      * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
-     * position.
+     * position. FIXME-WT-16467: If we are not reading with a timestamp and can ensure that we never
+     * select a checkpoint with an oldest timestamp greater than the pinned timestamp, we should
+     * safely advance to a newer checkpoint. This is because the version we intend to read would
+     * still be present in the newer checkpoint.
      */
     if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
       clayered->current_cursor == clayered->stable_cursor)
@@ -1488,7 +1491,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
         }
     }
 
-    /* If there wasn't an exact match, check the stable table as well */
+    /* If there wasn't an exact match or the value is deleted, check the stable table as well */
     if ((!ingest_found || ingest_cmp != 0 || deleted) && clayered->stable_cursor != NULL) {
         clayered->stable_cursor->set_key(clayered->stable_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
@@ -1511,6 +1514,12 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
         else if (stable_cmp == 0)
             closest = clayered->stable_cursor;
         else {
+            /*
+             * If the ingest cursor and stable cursor are positioned on opposite sides of the search
+             * key, adjust the ingest cursor to align with the stable cursor on the same side.
+             * Otherwise, there is a risk of overlooking a closer key on the ingest table that lies
+             * on the opposite side of the search key relative to the stable cursor's position.
+             */
             WT_COLLATOR *collator;
             __clayered_get_collator(clayered, &collator);
             if ((ingest_cmp ^ stable_cmp) < 0) {
@@ -1522,6 +1531,10 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     do {
                         WT_ERR_NOTFOUND_OK(
                           clayered->ingest_cursor->next(clayered->ingest_cursor), true);
+
+                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
+                            break;
+
                         if (ret == 0)
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
                               &cursor->key, &ingest_cmp));
@@ -1530,6 +1543,10 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     do {
                         WT_ERR_NOTFOUND_OK(
                           clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
+
+                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
+                            break;
+
                         if (ret == 0)
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
                               &cursor->key, &ingest_cmp));
@@ -1539,7 +1556,8 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                 if (ret == WT_NOTFOUND) {
                     closest = clayered->stable_cursor;
                     goto set_current;
-                }
+                } else
+                    ingest_cmp = stable_cmp;
             }
 
             if (ingest_cmp > 0) {
@@ -1548,7 +1566,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                 WT_ERR(__clayered_cursor_compare(
                   clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
                 if (cmp <= 0)
-                    /* If the cursors were identical, or ingest was closer choose ingest. */
+                    /* If the cursors were identical, choose ingest. */
                     closest = clayered->ingest_cursor;
                 else
                     closest = clayered->stable_cursor;
@@ -1558,7 +1576,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                 WT_ERR(__clayered_cursor_compare(
                   clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
                 if (cmp >= 0)
-                    /* If the cursors were identical, or ingest was closer choose ingest. */
+                    /* If the cursors were identical, choose ingest. */
                     closest = clayered->ingest_cursor;
                 else
                     closest = clayered->stable_cursor;
