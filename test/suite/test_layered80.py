@@ -37,9 +37,9 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered79(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered80(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'disaggregated=(page_log=palite),'
-    disagg_storages = gen_disagg_storages('test_layered79', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered80', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     uri = 'layered:test_layered_follower_insert_update'
