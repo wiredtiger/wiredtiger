@@ -31,27 +31,17 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered82.py
-#   Test cursor bounds on layered cursors.
+#   Test cursor bounds on layered cursors with a 1000-key dataset.
 #
 #   Bounds are propagated from the layered cursor to both constituent cursors
 #   (ingest and stable) via __clayered_copy_bounds. The constituent btree
 #   cursors enforce bounds during their own next/prev operations.
-#
-#   Key scenarios:
-#   - Bounds with data split across ingest and stable tables.
-#   - Bounds with interleaved keys from both tables.
-#   - Bounds with tombstones inside and outside bounds.
-#   - Lower-only, upper-only, and both bounds.
-#   - Inclusive vs exclusive bound configurations.
-#   - Bounds with search_near.
-#   - Bounds with reverse iteration (prev).
-#   - Clearing bounds.
-#   - Bounds set before constituent cursors are opened.
 
 @disagg_test_class
 class test_layered82(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     uri = 'layered:test_layered82'
+    nkeys = 1000
 
     disagg_storages = gen_disagg_storages('test_layered82', disagg_only=True)
 
@@ -87,11 +77,24 @@ class test_layered82(wttest.WiredTigerTestCase):
         self.ts += 1
         return self.ts
 
+    @staticmethod
+    def fmt_key(i):
+        return f"{i:06d}"
+
+    @staticmethod
+    def fmt_val(i):
+        return f"val_{i:06d}"
+
+    # -----------------------------------------------------------------------
+    # Low-level insert/remove helpers (accept lists of ints).
+    # -----------------------------------------------------------------------
+
     def insert_stable(self, keys, values=None):
-        """Insert keys into stable via leader checkpoint."""
+        """Insert keys (list of ints) into stable via leader checkpoint."""
         cursor = self.session.open_cursor(self.uri)
-        for i, key in enumerate(keys):
-            val = values[i] if values else f"val_{key}"
+        for idx, i in enumerate(keys):
+            key = self.fmt_key(i)
+            val = values[idx] if values else self.fmt_val(i)
             self.session.begin_transaction()
             cursor[key] = val
             self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(self.next_ts())}")
@@ -101,26 +104,52 @@ class test_layered82(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
 
     def insert_ingest(self, keys, values=None):
-        """Insert keys into ingest on the session under test."""
+        """Insert keys (list of ints) into ingest on the session under test."""
         session = self.get_session()
         cursor = session.open_cursor(self.uri)
-        for i, key in enumerate(keys):
-            val = values[i] if values else f"val_{key}"
+        for idx, i in enumerate(keys):
+            key = self.fmt_key(i)
+            val = values[idx] if values else self.fmt_val(i)
             session.begin_transaction()
             cursor[key] = val
             session.commit_transaction(f"commit_timestamp={self.timestamp_str(self.next_ts())}")
         cursor.close()
 
     def remove_ingest(self, keys):
-        """Remove keys on the session under test."""
+        """Remove keys (list of ints) on the session under test."""
         session = self.get_session()
         cursor = session.open_cursor(self.uri)
-        for key in keys:
+        for i in keys:
+            key = self.fmt_key(i)
             session.begin_transaction()
             cursor.set_key(key)
             cursor.remove()
             session.commit_transaction(f"commit_timestamp={self.timestamp_str(self.next_ts())}")
         cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Data population helpers — each creates a common data layout.
+    # -----------------------------------------------------------------------
+
+    def populate_interleaved(self):
+        """Even keys in stable, odd keys in ingest. Returns all expected keys."""
+        self.insert_stable(list(range(0, self.nkeys, 2)))
+        self.insert_ingest(list(range(1, self.nkeys, 2)))
+        return [self.fmt_key(i) for i in range(self.nkeys)]
+
+    def populate_all_stable(self):
+        """All keys in stable. Returns all expected keys."""
+        self.insert_stable(list(range(self.nkeys)))
+        return [self.fmt_key(i) for i in range(self.nkeys)]
+
+    def populate_all_ingest(self):
+        """All keys in ingest. Returns all expected keys."""
+        self.insert_ingest(list(range(self.nkeys)))
+        return [self.fmt_key(i) for i in range(self.nkeys)]
+
+    # -----------------------------------------------------------------------
+    # Cursor helpers.
+    # -----------------------------------------------------------------------
 
     def set_bounds(self, cursor, lower=None, upper=None,
                    lower_inclusive=True, upper_inclusive=True):
@@ -148,546 +177,326 @@ class test_layered82(wttest.WiredTigerTestCase):
             keys.append(cursor.get_key())
         return keys
 
-    # -----------------------------------------------------------------------
-    # Test: Basic bounds with all data in ingest.
-    # -----------------------------------------------------------------------
+    def open_bounded_cursor(self, lower=None, upper=None,
+                            lower_inclusive=True, upper_inclusive=True):
+        """Open a cursor on the session under test and set bounds."""
+        cursor = self.get_session().open_cursor(self.uri)
+        self.set_bounds(cursor, lower, upper, lower_inclusive, upper_inclusive)
+        return cursor
+
+    def expected_range(self, lo, hi):
+        """Return list of formatted keys for range [lo, hi] inclusive."""
+        return [self.fmt_key(i) for i in range(lo, hi + 1)]
+
+    # =====================================================================
+    # Tests
+    # =====================================================================
+
     def test_bounds_ingest_only(self):
+        """Bounds with all data in ingest."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_ingest()
 
-        self.insert_ingest(["A", "B", "C", "D", "E", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="E")
-
-        self.assertEqual(self.scan_forward(cursor), ["B", "C", "D", "E"])
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Basic bounds with all data in stable.
-    # -----------------------------------------------------------------------
     def test_bounds_stable_only(self):
+        """Bounds with all data in stable."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_stable()
 
-        self.insert_stable(["A", "B", "C", "D", "E", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="E")
-
-        self.assertEqual(self.scan_forward(cursor), ["B", "C", "D", "E"])
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Bounds with data split across ingest and stable.
-    #
-    # Stable: A, C, E. Ingest: B, D, F.
-    # Bounds [B, E]. Expected: B, C, D, E.
-    # -----------------------------------------------------------------------
     def test_bounds_split_data(self):
+        """Bounds with even keys in stable, odd in ingest."""
         self.setup_follower()
         self.create_table()
+        self.populate_interleaved()
 
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="E")
-
-        self.assertEqual(self.scan_forward(cursor), ["B", "C", "D", "E"])
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Bounds with interleaved data and reverse iteration.
-    #
-    # Stable: A, C, E. Ingest: B, D, F.
-    # Bounds [B, E]. prev should return E, D, C, B.
-    # -----------------------------------------------------------------------
     def test_bounds_split_data_prev(self):
+        """Bounds with interleaved data, reverse iteration."""
         self.setup_follower()
         self.create_table()
+        self.populate_interleaved()
 
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="E")
-
-        self.assertEqual(self.scan_backward(cursor), ["E", "D", "C", "B"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Lower bound only.
-    #
-    # Data: A-F. Lower bound D. Expected next: D, E, F.
-    # -----------------------------------------------------------------------
-    def test_bounds_lower_only(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="D")
-
-        self.assertEqual(self.scan_forward(cursor), ["D", "E", "F"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Upper bound only.
-    #
-    # Data: A-F. Upper bound C. Expected next: A, B, C.
-    # -----------------------------------------------------------------------
-    def test_bounds_upper_only(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, upper="C")
-
-        self.assertEqual(self.scan_forward(cursor), ["A", "B", "C"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Exclusive lower bound.
-    #
-    # Data: A-F. Lower bound B (exclusive). Expected: C, D, E, F.
-    # -----------------------------------------------------------------------
-    def test_bounds_exclusive_lower(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", lower_inclusive=False)
-
-        self.assertEqual(self.scan_forward(cursor), ["C", "D", "E", "F"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Exclusive upper bound.
-    #
-    # Data: A-F. Upper bound E (exclusive). Expected: A, B, C, D.
-    # -----------------------------------------------------------------------
-    def test_bounds_exclusive_upper(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, upper="E", upper_inclusive=False)
-
-        self.assertEqual(self.scan_forward(cursor), ["A", "B", "C", "D"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Both bounds exclusive.
-    #
-    # Data: A-F. Bounds (B, E) exclusive. Expected: C, D.
-    # -----------------------------------------------------------------------
-    def test_bounds_both_exclusive(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="E",
-                        lower_inclusive=False, upper_inclusive=False)
-
-        self.assertEqual(self.scan_forward(cursor), ["C", "D"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds where bound keys don't exist in the table.
-    #
-    # Data: B, D, F. Bounds [C, E]. Expected: D.
-    # -----------------------------------------------------------------------
-    def test_bounds_nonexistent_keys(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["B", "F"])
-        self.insert_ingest(["D"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="C", upper="E")
-
-        self.assertEqual(self.scan_forward(cursor), ["D"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds that exclude all data.
-    #
-    # Data: A, C, E. Bounds [X, Z]. Expected: empty.
-    # -----------------------------------------------------------------------
-    def test_bounds_no_data_in_range(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "E"])
-        self.insert_ingest(["C"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="X", upper="Z")
-
-        self.assertEqual(self.scan_forward(cursor), [])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds with tombstones inside the range.
-    #
-    # Stable: A, B, C, D, E. Ingest: tombstone(C).
-    # Bounds [B, D]. Expected: B, D (C is deleted).
-    # -----------------------------------------------------------------------
-    def test_bounds_tombstone_inside(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "B", "C", "D", "E"])
-        self.remove_ingest(["C"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="D")
-
-        self.assertEqual(self.scan_forward(cursor), ["B", "D"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds with tombstones at the bound keys themselves.
-    #
-    # Stable: A, B, C, D, E. Ingest: tombstone(B), tombstone(D).
-    # Bounds [B, D] inclusive. B and D are deleted. Expected: C.
-    # -----------------------------------------------------------------------
-    def test_bounds_tombstone_at_bounds(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "B", "C", "D", "E"])
-        self.remove_ingest(["B", "D"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="D")
-
-        self.assertEqual(self.scan_forward(cursor), ["C"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds with all data tombstoned in range.
-    #
-    # Stable: A, B, C, D, E. Ingest: tombstone(B, C, D).
-    # Bounds [B, D]. Expected: empty.
-    # -----------------------------------------------------------------------
-    def test_bounds_all_tombstoned_in_range(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "B", "C", "D", "E"])
-        self.remove_ingest(["B", "C", "D"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="D")
-
-        self.assertEqual(self.scan_forward(cursor), [])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds with tombstones outside the range.
-    #
-    # Stable: A, B, C, D, E. Ingest: tombstone(A), tombstone(E).
-    # Bounds [B, D]. Expected: B, C, D (tombstones outside range).
-    # -----------------------------------------------------------------------
-    def test_bounds_tombstone_outside(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "B", "C", "D", "E"])
-        self.remove_ingest(["A", "E"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="D")
-
-        self.assertEqual(self.scan_forward(cursor), ["B", "C", "D"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Clearing bounds restores full scan.
-    # -----------------------------------------------------------------------
-    def test_bounds_clear(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="C", upper="D")
-
-        self.assertEqual(self.scan_forward(cursor), ["C", "D"])
-
-        # Clear bounds and rescan.
-        cursor.reset()
-        cursor.bound("action=clear")
-
-        self.assertEqual(self.scan_forward(cursor), ["A", "B", "C", "D", "E"])
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: search_near respects bounds.
-    #
-    # Data: A, B, C, D, E. Bounds [C, E].
-    # search_near("A") should not return A (outside bounds).
-    # -----------------------------------------------------------------------
-    def test_bounds_search_near(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="C", upper="E")
-
-        # search_near for a key below bounds should find C.
-        cursor.set_key("A")
-        exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        self.assertGreaterEqual(cursor.get_key(), "C")
-        self.assertLessEqual(cursor.get_key(), "E")
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: search_near respects upper bound.
-    #
-    # Data: A, B, C, D, E. Bounds [A, C].
-    # search_near("E") should not return E (outside bounds).
-    # -----------------------------------------------------------------------
-    def test_bounds_search_near_upper(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="A", upper="C")
-
-        cursor.set_key("E")
-        exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        self.assertGreaterEqual(cursor.get_key(), "A")
-        self.assertLessEqual(cursor.get_key(), "C")
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds with interleaved data, many keys.
-    #
-    # Stable: even keys 00-98. Ingest: odd keys 01-99.
-    # Bounds [20, 30]. Expected: 20-30.
-    # -----------------------------------------------------------------------
-    def test_bounds_many_keys(self):
-        self.setup_follower()
-        self.create_table()
-
-        even_keys = [f"{i:02d}" for i in range(0, 100, 2)]
-        odd_keys = [f"{i:02d}" for i in range(1, 100, 2)]
-        self.insert_stable(even_keys)
-        self.insert_ingest(odd_keys)
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="20", upper="30")
-
-        expected = [f"{i:02d}" for i in range(20, 31)]
-        self.assertEqual(self.scan_forward(cursor), expected)
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Bounds with many keys, reverse iteration.
-    # -----------------------------------------------------------------------
-    def test_bounds_many_keys_prev(self):
-        self.setup_follower()
-        self.create_table()
-
-        even_keys = [f"{i:02d}" for i in range(0, 100, 2)]
-        odd_keys = [f"{i:02d}" for i in range(1, 100, 2)]
-        self.insert_stable(even_keys)
-        self.insert_ingest(odd_keys)
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="20", upper="30")
-
-        expected = [f"{i:02d}" for i in range(30, 19, -1)]
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        expected = [self.fmt_key(i) for i in range(800, 199, -1)]
         self.assertEqual(self.scan_backward(cursor), expected)
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Bounds set before constituent cursors are opened.
-    #
-    # On the follower, if no checkpoint has been picked up yet, the stable
-    # cursor may not be open. Setting bounds first should still work.
-    # -----------------------------------------------------------------------
-    def test_bounds_set_before_data(self):
+    def test_bounds_lower_only(self):
+        """Lower bound only at 500. Expected: 500-999."""
         self.setup_follower()
         self.create_table()
+        self.populate_interleaved()
 
-        # Set bounds on an empty table.
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="C", upper="F")
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(500))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(500, 999))
+        cursor.close()
 
-        # No data yet.
+    def test_bounds_upper_only(self):
+        """Upper bound only at 500. Expected: 0-500."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(upper=self.fmt_key(500))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(0, 500))
+        cursor.close()
+
+    def test_bounds_exclusive_lower(self):
+        """Exclusive lower bound at 200. Expected: 201-999."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), lower_inclusive=False)
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(201, 999))
+        cursor.close()
+
+    def test_bounds_exclusive_upper(self):
+        """Exclusive upper bound at 800. Expected: 0-799."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(upper=self.fmt_key(800), upper_inclusive=False)
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(0, 799))
+        cursor.close()
+
+    def test_bounds_both_exclusive(self):
+        """Both bounds exclusive: (200, 800). Expected: 201-799."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(
+            lower=self.fmt_key(200), upper=self.fmt_key(800),
+            lower_inclusive=False, upper_inclusive=False)
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(201, 799))
+        cursor.close()
+
+    def test_bounds_nonexistent_keys(self):
+        """Bounds at keys that don't exist. Even keys only, bounds [201, 799]."""
+        self.setup_follower()
+        self.create_table()
+        self.insert_stable(list(range(0, self.nkeys, 2)))
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(201), upper=self.fmt_key(799))
+        expected = [self.fmt_key(i) for i in range(202, 800, 2)]
+        self.assertEqual(self.scan_forward(cursor), expected)
+        cursor.close()
+
+    def test_bounds_no_data_in_range(self):
+        """Bounds [1500, 2000] beyond all data. Expected: empty."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(1500), upper=self.fmt_key(2000))
         self.assertEqual(self.scan_forward(cursor), [])
-
-        # Now insert data (some inside, some outside bounds).
-        cursor.close()
-        self.insert_ingest(["A", "B", "C", "D", "E", "F", "G"])
-
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="C", upper="F")
-        self.assertEqual(self.scan_forward(cursor), ["C", "D", "E", "F"])
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Bounds with ingest overriding stable value.
-    #
-    # Stable: C="old". Ingest: C="new".
-    # Bounds [C, C]. Should return C="new".
-    # -----------------------------------------------------------------------
-    def test_bounds_ingest_overrides_stable(self):
+    def test_bounds_tombstone_inside(self):
+        """Tombstone every 3rd key in [200, 800]. Bounds [200, 800]."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest([i for i in range(200, 801) if i % 3 == 0])
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        expected = [self.fmt_key(i) for i in range(200, 801) if i % 3 != 0]
+        self.assertEqual(self.scan_forward(cursor), expected)
+        cursor.close()
+
+    def test_bounds_tombstone_at_bounds(self):
+        """Tombstone the bound keys 200 and 800. Bounds [200, 800]. Expected: 201-799."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest([200, 800])
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(201, 799))
+        cursor.close()
+
+    def test_bounds_all_tombstoned_in_range(self):
+        """Tombstone everything in [200, 800]. Bounds [200, 800]. Expected: empty."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest(list(range(200, 801)))
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), [])
+        cursor.close()
+
+    def test_bounds_tombstone_outside(self):
+        """Tombstone keys outside [200, 800]. Bounds [200, 800]. Range intact."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest(list(range(0, 200)) + list(range(801, self.nkeys)))
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
+        cursor.close()
+
+    def test_bounds_clear(self):
+        """Set bounds, scan, clear bounds, rescan sees all keys."""
+        self.setup_follower()
+        self.create_table()
+        all_keys = self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
+
+        cursor.reset()
+        cursor.bound("action=clear")
+
+        self.assertEqual(self.scan_forward(cursor), all_keys)
+        cursor.close()
+
+    def test_bounds_search_near(self):
+        """search_near below bounds [300, 700] finds key within bounds."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(300), upper=self.fmt_key(700))
+        cursor.set_key(self.fmt_key(100))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        self.assertGreaterEqual(cursor.get_key(), self.fmt_key(300))
+        self.assertLessEqual(cursor.get_key(), self.fmt_key(700))
+        cursor.close()
+
+    def test_bounds_search_near_upper(self):
+        """search_near above bounds [300, 700] finds key within bounds."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(300), upper=self.fmt_key(700))
+        cursor.set_key(self.fmt_key(900))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        self.assertGreaterEqual(cursor.get_key(), self.fmt_key(300))
+        self.assertLessEqual(cursor.get_key(), self.fmt_key(700))
+        cursor.close()
+
+    def test_bounds_many_keys(self):
+        """Bounds [200, 800] on 1000 interleaved keys, forward scan."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
+        cursor.close()
+
+    def test_bounds_many_keys_prev(self):
+        """Bounds [200, 800] on 1000 interleaved keys, reverse scan."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_interleaved()
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        expected = [self.fmt_key(i) for i in range(800, 199, -1)]
+        self.assertEqual(self.scan_backward(cursor), expected)
+        cursor.close()
+
+    def test_bounds_set_before_data(self):
+        """Bounds set before any data is inserted."""
         self.setup_follower()
         self.create_table()
 
-        self.insert_stable(["A", "C", "E"], values=["va", "old", "ve"])
-        self.insert_ingest(["C"], values=["new"])
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), [])
+        cursor.close()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="C", upper="C")
+        self.insert_ingest(list(range(self.nkeys)))
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
+        cursor.close()
 
+    def test_bounds_ingest_overrides_stable(self):
+        """Ingest value overrides stable within bounds."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_all_stable()
+        self.insert_ingest([500], values=["new_500"])
+
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(500), upper=self.fmt_key(500))
         self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), "C")
-        self.assertEqual(cursor.get_value(), "new")
+        self.assertEqual(cursor.get_key(), self.fmt_key(500))
+        self.assertEqual(cursor.get_value(), "new_500")
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Bounds with adjacent inclusive/exclusive.
-    #
-    # Data: A, B, C. Bounds (A, C) both exclusive. Expected: B.
-    # -----------------------------------------------------------------------
     def test_bounds_adjacent_exclusive(self):
+        """Exclusive bounds (199, 201). Expected: only key 200."""
         self.setup_follower()
         self.create_table()
+        self.populate_interleaved()
 
-        self.insert_stable(["A", "C"])
-        self.insert_ingest(["B"])
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="A", upper="C",
-                        lower_inclusive=False, upper_inclusive=False)
-
-        self.assertEqual(self.scan_forward(cursor), ["B"])
+        cursor = self.open_bounded_cursor(
+            lower=self.fmt_key(199), upper=self.fmt_key(201),
+            lower_inclusive=False, upper_inclusive=False)
+        self.assertEqual(self.scan_forward(cursor), [self.fmt_key(200)])
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Single-point bound (lower == upper, both inclusive).
-    #
-    # Data: A, B, C. Bounds [B, B]. Expected: B only.
-    # -----------------------------------------------------------------------
     def test_bounds_single_point(self):
+        """Single-point bounds [500, 500]. Expected: only key 500."""
         self.setup_follower()
         self.create_table()
+        self.populate_interleaved()
 
-        self.insert_stable(["A", "C"])
-        self.insert_ingest(["B"])
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(500), upper=self.fmt_key(500))
+        self.assertEqual(self.scan_forward(cursor), [self.fmt_key(500)])
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="B")
-
-        self.assertEqual(self.scan_forward(cursor), ["B"])
         # Also test prev.
-        self.set_bounds(cursor, lower="B", upper="B")
-        self.assertEqual(self.scan_backward(cursor), ["B"])
+        self.set_bounds(cursor, lower=self.fmt_key(500), upper=self.fmt_key(500))
+        self.assertEqual(self.scan_backward(cursor), [self.fmt_key(500)])
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Bounds with search for key inside range.
-    #
-    # Data: A-E. Bounds [B, D]. search("C") should succeed.
-    # search("A") should fail (outside bounds).
-    # -----------------------------------------------------------------------
     def test_bounds_search(self):
+        """search inside bounds succeeds, outside bounds fails."""
         self.setup_follower()
         self.create_table()
+        self.populate_interleaved()
 
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D"])
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        self.set_bounds(cursor, lower="B", upper="D")
-
-        cursor.set_key("C")
+        cursor.set_key(self.fmt_key(500))
         self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), "val_C")
+        self.assertEqual(cursor.get_value(), self.fmt_val(500))
 
-        # search for key outside bounds should fail.
-        cursor.set_key("A")
+        cursor.set_key(self.fmt_key(100))
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
-        cursor.set_key("E")
+        cursor.set_key(self.fmt_key(900))
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
-    # -----------------------------------------------------------------------
-    # Test: Rebinding bounds narrows the range.
-    # -----------------------------------------------------------------------
     def test_bounds_rebind(self):
+        """Rebind to narrower bounds without clearing first."""
         self.setup_follower()
         self.create_table()
+        all_keys = self.populate_interleaved()
 
-        self.insert_stable(["A", "C", "E"])
-        self.insert_ingest(["B", "D", "F"])
+        cursor = self.open_bounded_cursor(lower=self.fmt_key(0), upper=self.fmt_key(999))
+        self.assertEqual(self.scan_forward(cursor), all_keys)
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        # Wide bounds.
-        self.set_bounds(cursor, lower="A", upper="F")
-        self.assertEqual(self.scan_forward(cursor), ["A", "B", "C", "D", "E", "F"])
-
-        # Narrow bounds without clearing first (rebind is allowed).
-        self.set_bounds(cursor, lower="C", upper="D")
-        self.assertEqual(self.scan_forward(cursor), ["C", "D"])
+        self.set_bounds(cursor, lower=self.fmt_key(400), upper=self.fmt_key(600))
+        self.assertEqual(self.scan_forward(cursor), self.expected_range(400, 600))
         cursor.close()

@@ -32,17 +32,12 @@ from wtscenario import make_scenarios
 
 # test_layered83.py
 #   Test cursor iteration and iteration after search/search_near on layered cursors
-#   with a large dataset (1000 keys split across ingest and stable).
-#
-#   Even-numbered keys go into stable, odd-numbered keys go into ingest.
-#   This exercises the merge sort across many page boundaries in both
-#   constituent btrees.
+#   with a 1000-key dataset (even keys in stable, odd keys in ingest).
 
 @disagg_test_class
 class test_layered83(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     uri = 'layered:test_layered83'
-
     nkeys = 1000
 
     disagg_storages = gen_disagg_storages('test_layered83', disagg_only=True)
@@ -85,6 +80,22 @@ class test_layered83(wttest.WiredTigerTestCase):
     def fmt_val(self, i):
         return f"val_{i:06d}"
 
+    def key_range(self, lo, hi):
+        """Return formatted keys for [lo, hi] inclusive."""
+        return [self.fmt_key(i) for i in range(lo, hi + 1)]
+
+    def all_keys(self):
+        """Return formatted keys for [0, nkeys-1]."""
+        return self.key_range(0, self.nkeys - 1)
+
+    def key_range_reversed(self, lo, hi):
+        """Return formatted keys for [hi, lo] descending, inclusive."""
+        return [self.fmt_key(i) for i in range(hi, lo - 1, -1)]
+
+    # -----------------------------------------------------------------------
+    # Low-level insert/remove helpers.
+    # -----------------------------------------------------------------------
+
     def insert_on(self, session, keys):
         cursor = session.open_cursor(self.uri)
         for k in keys:
@@ -103,76 +114,110 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.close()
 
     def insert_stable(self, keys):
-        """Insert keys into stable via leader checkpoint."""
+        """Insert keys (list of ints) into stable via leader checkpoint."""
         self.insert_on(self.session, keys)
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(self.ts)}')
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
     def insert_ingest(self, keys):
-        """Insert keys into ingest on the session under test."""
+        """Insert keys (list of ints) into ingest on the session under test."""
         self.insert_on(self.get_session(), keys)
 
     def remove_ingest(self, keys):
-        """Remove keys on the session under test."""
+        """Remove keys (list of ints) on the session under test."""
         self.remove_on(self.get_session(), keys)
 
-    def populate(self):
-        """
-        Populate with nkeys keys: even keys in stable, odd keys in ingest.
-        Returns the sorted list of all expected keys as formatted strings.
-        """
-        even = list(range(0, self.nkeys, 2))
-        odd = list(range(1, self.nkeys, 2))
-        self.insert_stable(even)
-        self.insert_ingest(odd)
-        return [self.fmt_key(i) for i in range(self.nkeys)]
+    # -----------------------------------------------------------------------
+    # Data population helpers.
+    # -----------------------------------------------------------------------
+
+    def populate_interleaved(self):
+        """Even keys in stable, odd keys in ingest."""
+        self.insert_stable(list(range(0, self.nkeys, 2)))
+        self.insert_ingest(list(range(1, self.nkeys, 2)))
+
+    def populate_all_stable(self):
+        """All keys in stable."""
+        self.insert_stable(list(range(self.nkeys)))
+
+    # -----------------------------------------------------------------------
+    # Cursor helpers.
+    # -----------------------------------------------------------------------
+
+    def open_cursor(self):
+        """Open a cursor on the session under test."""
+        return self.get_session().open_cursor(self.uri)
+
+    def scan_forward(self, cursor):
+        """Return all keys from forward scan."""
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        return keys
+
+    def scan_backward(self, cursor):
+        """Return all keys from backward scan."""
+        keys = []
+        while cursor.prev() == 0:
+            keys.append(cursor.get_key())
+        return keys
+
+    def walk_next(self, cursor, n):
+        """Call next() n times, returning the list of keys visited."""
+        keys = []
+        for _ in range(n):
+            self.assertEqual(cursor.next(), 0)
+            keys.append(cursor.get_key())
+        return keys
+
+    def walk_prev(self, cursor, n):
+        """Call prev() n times, returning the list of keys visited."""
+        keys = []
+        for _ in range(n):
+            self.assertEqual(cursor.prev(), 0)
+            keys.append(cursor.get_key())
+        return keys
+
+    def search_key(self, cursor, key_int):
+        """Search for a key by integer and verify success."""
+        cursor.set_key(self.fmt_key(key_int))
+        self.assertEqual(cursor.search(), 0)
 
     # =====================================================================
-    # Basic iteration with large dataset
+    # Basic iteration
     # =====================================================================
 
     def test_next_full_scan(self):
         """Forward scan of all 1000 interleaved keys."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        keys = []
-        while cursor.next() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, expected)
+        cursor = self.open_cursor()
+        self.assertEqual(self.scan_forward(cursor), self.all_keys())
         cursor.close()
 
     def test_prev_full_scan(self):
         """Backward scan of all 1000 interleaved keys."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        keys = []
-        while cursor.prev() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, list(reversed(expected)))
+        cursor = self.open_cursor()
+        self.assertEqual(self.scan_backward(cursor), list(reversed(self.all_keys())))
         cursor.close()
 
     def test_next_duplicate_keys(self):
         """Ingest value wins when both tables have the same key."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_stable()
 
-        # Put all keys in stable.
-        all_keys = list(range(self.nkeys))
-        self.insert_stable(all_keys)
-
-        # Override every 10th key in ingest with a different value.
+        # Override every 10th key in ingest.
+        override_keys = list(range(0, self.nkeys, 10))
         session = self.get_session()
         cursor = session.open_cursor(self.uri)
-        override_keys = list(range(0, self.nkeys, 10))
         for k in override_keys:
             session.begin_transaction()
             cursor[self.fmt_key(k)] = f"ingest_{k:06d}"
@@ -181,7 +226,7 @@ class test_layered83(wttest.WiredTigerTestCase):
 
         # Verify.
         override_set = set(override_keys)
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
         count = 0
         while cursor.next() == 0:
             k = int(cursor.get_key())
@@ -198,127 +243,88 @@ class test_layered83(wttest.WiredTigerTestCase):
     # =====================================================================
 
     def test_next_skips_tombstones(self):
-        """Forward scan skips tombstoned keys."""
+        """Forward scan skips every 3rd key (tombstoned)."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_stable()
 
-        all_keys = list(range(self.nkeys))
-        self.insert_stable(all_keys)
+        removed = set(range(0, self.nkeys, 3))
+        self.remove_ingest(list(removed))
 
-        # Remove every 3rd key.
-        removed = list(range(0, self.nkeys, 3))
-        self.remove_ingest(removed)
-
-        removed_set = set(removed)
-        expected = [self.fmt_key(i) for i in range(self.nkeys) if i not in removed_set]
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        keys = []
-        while cursor.next() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, expected)
+        cursor = self.open_cursor()
+        expected = [self.fmt_key(i) for i in range(self.nkeys) if i not in removed]
+        self.assertEqual(self.scan_forward(cursor), expected)
         cursor.close()
 
     def test_prev_skips_tombstones(self):
-        """Backward scan skips tombstoned keys."""
+        """Backward scan skips every 3rd key (tombstoned)."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_stable()
 
-        all_keys = list(range(self.nkeys))
-        self.insert_stable(all_keys)
+        removed = set(range(0, self.nkeys, 3))
+        self.remove_ingest(list(removed))
 
-        removed = list(range(0, self.nkeys, 3))
-        self.remove_ingest(removed)
-
-        removed_set = set(removed)
-        expected = [self.fmt_key(i) for i in range(self.nkeys - 1, -1, -1) if i not in removed_set]
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        keys = []
-        while cursor.prev() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, expected)
+        cursor = self.open_cursor()
+        expected = [self.fmt_key(i) for i in range(self.nkeys - 1, -1, -1) if i not in removed]
+        self.assertEqual(self.scan_backward(cursor), expected)
         cursor.close()
 
     def test_next_all_tombstoned(self):
         """All keys tombstoned returns NOTFOUND."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest(list(range(self.nkeys)))
 
-        all_keys = list(range(self.nkeys))
-        self.insert_stable(all_keys)
-        self.remove_ingest(all_keys)
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
     # =====================================================================
-    # Direction switching with large dataset
+    # Direction switching
     # =====================================================================
 
     def test_direction_switch_next_to_prev(self):
-        """Forward to middle, then switch to backward."""
+        """Forward to key 500, then switch to backward 10 steps."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        self.walk_next(cursor, 501)
+        self.assertEqual(cursor.get_key(), self.fmt_key(500))
 
-        # Walk forward to position 500.
-        for i in range(501):
-            self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), expected[500])
-
-        # Switch to prev and walk back 10 steps.
-        for i in range(10):
-            self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), expected[490])
+        self.walk_prev(cursor, 10)
+        self.assertEqual(cursor.get_key(), self.fmt_key(490))
         cursor.close()
 
     def test_direction_switch_prev_to_next(self):
-        """Backward to middle, then switch to forward."""
+        """Backward to key 499, then switch to forward 10 steps."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        self.walk_prev(cursor, 501)
+        self.assertEqual(cursor.get_key(), self.fmt_key(499))
 
-        # Walk backward to position 499 from end.
-        for i in range(501):
-            self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), expected[499])
-
-        # Switch to next and walk forward 10 steps.
-        for i in range(10):
-            self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), expected[509])
+        self.walk_next(cursor, 10)
+        self.assertEqual(cursor.get_key(), self.fmt_key(509))
         cursor.close()
 
     def test_direction_zigzag(self):
-        """Repeated direction switches at every step."""
+        """Repeated direction switches oscillate between key 500 and 501."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        self.search_key(cursor, 500)
 
-        # Position at key 500.
-        cursor.set_key(expected[500])
-        self.assertEqual(cursor.search(), 0)
-
-        # Zigzag: next, prev, next, prev — should oscillate between 500 and 501.
         for _ in range(20):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[501])
-            self.assertEqual(cursor.prev(), 0)
-            self.assertEqual(cursor.get_key(), expected[500])
+            self.assertEqual(self.walk_next(cursor, 1), [self.fmt_key(501)])
+            self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(500)])
         cursor.close()
 
     # =====================================================================
@@ -326,72 +332,51 @@ class test_layered83(wttest.WiredTigerTestCase):
     # =====================================================================
 
     def test_next_after_search_stable_key(self):
-        """search on a stable key, then next iterates correctly."""
+        """search on a stable key (400, even), then next 10 steps."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        # Search for key 400 (even, in stable).
-        cursor.set_key(expected[400])
-        self.assertEqual(cursor.search(), 0)
+        cursor = self.open_cursor()
+        self.search_key(cursor, 400)
         self.assertEqual(cursor.get_value(), self.fmt_val(400))
 
-        # Iterate forward 10 steps.
-        for i in range(1, 11):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[400 + i])
+        self.assertEqual(self.walk_next(cursor, 10), self.key_range(401, 410))
         cursor.close()
 
     def test_next_after_search_ingest_key(self):
-        """search on an ingest key, then next iterates correctly."""
+        """search on an ingest key (401, odd), then next 10 steps."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        # Search for key 401 (odd, in ingest).
-        cursor.set_key(expected[401])
-        self.assertEqual(cursor.search(), 0)
+        cursor = self.open_cursor()
+        self.search_key(cursor, 401)
         self.assertEqual(cursor.get_value(), self.fmt_val(401))
 
-        for i in range(1, 11):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[401 + i])
+        self.assertEqual(self.walk_next(cursor, 10), self.key_range(402, 411))
         cursor.close()
 
     def test_prev_after_search(self):
-        """search then prev iterates backward correctly."""
+        """search key 500, then prev 10 steps."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        self.search_key(cursor, 500)
 
-        cursor.set_key(expected[500])
-        self.assertEqual(cursor.search(), 0)
-
-        for i in range(1, 11):
-            self.assertEqual(cursor.prev(), 0)
-            self.assertEqual(cursor.get_key(), expected[500 - i])
+        self.assertEqual(self.walk_prev(cursor, 10), self.key_range_reversed(490, 499))
         cursor.close()
 
     def test_prev_after_search_at_start(self):
         """search at first key, then prev returns NOTFOUND."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        cursor.set_key(expected[0])
-        self.assertEqual(cursor.search(), 0)
+        cursor = self.open_cursor()
+        self.search_key(cursor, 0)
         self.assertEqual(cursor.prev(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
@@ -399,37 +384,26 @@ class test_layered83(wttest.WiredTigerTestCase):
         """search at last key, then next returns NOTFOUND."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        cursor.set_key(expected[-1])
-        self.assertEqual(cursor.search(), 0)
+        cursor = self.open_cursor()
+        self.search_key(cursor, self.nkeys - 1)
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
     def test_search_then_direction_switch(self):
-        """search, next a few, then switch to prev."""
+        """search 500, forward 5, then switch to prev 10."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        self.search_key(cursor, 500)
 
-        cursor.set_key(expected[500])
-        self.assertEqual(cursor.search(), 0)
-
-        # Forward 5.
-        for i in range(1, 6):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[500 + i])
-
-        # Now at 505. Switch to prev 10.
-        for i in range(1, 11):
-            self.assertEqual(cursor.prev(), 0)
-            self.assertEqual(cursor.get_key(), expected[505 - i])
+        # Forward 5 steps: 501-505.
+        self.assertEqual(self.walk_next(cursor, 5), self.key_range(501, 505))
+        # Now at 505. Prev 10 steps: 504-495.
+        self.assertEqual(self.walk_prev(cursor, 10), self.key_range_reversed(495, 504))
         cursor.close()
 
     # =====================================================================
@@ -437,106 +411,73 @@ class test_layered83(wttest.WiredTigerTestCase):
     # =====================================================================
 
     def test_next_after_search_near_exact(self):
-        """search_near with exact match, then next."""
+        """search_near with exact match at 600, then next 10."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(600))
+        self.assertEqual(cursor.search_near(), 0)
 
-        cursor.set_key(expected[600])
-        exact = cursor.search_near()
-        self.assertEqual(exact, 0)
-        self.assertEqual(cursor.get_key(), expected[600])
-
-        for i in range(1, 11):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[600 + i])
+        self.assertEqual(self.walk_next(cursor, 10), self.key_range(601, 610))
         cursor.close()
 
     def test_prev_after_search_near_exact(self):
-        """search_near with exact match, then prev."""
+        """search_near with exact match at 600, then prev 10."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(600))
+        self.assertEqual(cursor.search_near(), 0)
 
-        cursor.set_key(expected[600])
-        exact = cursor.search_near()
-        self.assertEqual(exact, 0)
-
-        for i in range(1, 11):
-            self.assertEqual(cursor.prev(), 0)
-            self.assertEqual(cursor.get_key(), expected[600 - i])
+        self.assertEqual(self.walk_prev(cursor, 10), self.key_range_reversed(590, 599))
         cursor.close()
 
     def test_next_after_search_near_larger(self):
-        """search_near lands on larger key, then next."""
+        """search_near for key before all data, lands on first key, then next."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        # Search for a key smaller than everything (space is 0x20, before '0' = 0x30).
+        cursor = self.open_cursor()
         cursor.set_key(" before_all")
-        exact = cursor.search_near()
-        self.assertGreater(exact, 0)
-        # Should have landed on key 0.
-        key = cursor.get_key()
-        self.assertEqual(key, expected[0])
+        self.assertGreater(cursor.search_near(), 0)
+        self.assertEqual(cursor.get_key(), self.fmt_key(0))
 
-        # next should give key 1.
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), expected[1])
+        self.assertEqual(self.walk_next(cursor, 1), [self.fmt_key(1)])
         cursor.close()
 
     def test_prev_after_search_near_smaller(self):
-        """search_near lands on smaller key, then prev."""
+        """search_near for key after all data, lands on last key, then prev."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        # Search for a key larger than everything.
+        cursor = self.open_cursor()
         cursor.set_key("999999_after")
-        exact = cursor.search_near()
-        self.assertLess(exact, 0)
-        key = cursor.get_key()
-        self.assertEqual(key, expected[-1])
+        self.assertLess(cursor.search_near(), 0)
+        self.assertEqual(cursor.get_key(), self.fmt_key(self.nkeys - 1))
 
-        # prev from last key.
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), expected[-2])
+        self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(self.nkeys - 2)])
         cursor.close()
 
     def test_search_near_then_direction_switch(self):
-        """search_near, iterate forward, then switch to backward."""
+        """search_near 700, forward 5, then switch to prev."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(700))
+        self.assertEqual(cursor.search_near(), 0)
 
-        cursor.set_key(expected[700])
-        exact = cursor.search_near()
-        self.assertEqual(exact, 0)
-
-        # Forward 5.
-        for i in range(1, 6):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[700 + i])
-
+        # Forward 5: 701-705.
+        self.assertEqual(self.walk_next(cursor, 5), self.key_range(701, 705))
         # Now at 705. Switch to prev.
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), expected[704])
+        self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(704)])
         cursor.close()
 
     # =====================================================================
@@ -544,74 +485,42 @@ class test_layered83(wttest.WiredTigerTestCase):
     # =====================================================================
 
     def test_next_after_search_with_tombstones(self):
-        """search then next skips consecutive tombstones."""
+        """search 500, next skips tombstoned 501-509, lands on 510."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest(list(range(501, 510)))
 
-        all_keys = list(range(self.nkeys))
-        self.insert_stable(all_keys)
-
-        # Remove keys 501-509.
-        removed = list(range(501, 510))
-        self.remove_ingest(removed)
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        cursor.set_key(self.fmt_key(500))
-        self.assertEqual(cursor.search(), 0)
-
-        # next should skip 501-509 and land on 510.
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), self.fmt_key(510))
+        cursor = self.open_cursor()
+        self.search_key(cursor, 500)
+        self.assertEqual(self.walk_next(cursor, 1), [self.fmt_key(510)])
         cursor.close()
 
     def test_prev_after_search_with_tombstones(self):
-        """search then prev skips consecutive tombstones."""
+        """search 500, prev skips tombstoned 491-499, lands on 490."""
         self.setup_follower()
         self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest(list(range(491, 500)))
 
-        all_keys = list(range(self.nkeys))
-        self.insert_stable(all_keys)
-
-        # Remove keys 491-499.
-        removed = list(range(491, 500))
-        self.remove_ingest(removed)
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        cursor.set_key(self.fmt_key(500))
-        self.assertEqual(cursor.search(), 0)
-
-        # prev should skip 499-491 and land on 490.
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), self.fmt_key(490))
+        cursor = self.open_cursor()
+        self.search_key(cursor, 500)
+        self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(490)])
         cursor.close()
 
     def test_iterate_after_search_near_tombstone(self):
-        """search_near on a tombstoned key, then iterate."""
+        """search_near on tombstoned 500 lands on 501, prev gives 499."""
         self.setup_follower()
         self.create_table()
-
-        all_keys = list(range(self.nkeys))
-        self.insert_stable(all_keys)
-
-        # Remove key 500.
+        self.populate_all_stable()
         self.remove_ingest([500])
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
+        cursor = self.open_cursor()
         cursor.set_key(self.fmt_key(500))
-        exact = cursor.search_near()
-        # 500 is deleted, should land on 501 (next larger).
-        self.assertEqual(exact, 1)
+        self.assertEqual(cursor.search_near(), 1)
         self.assertEqual(cursor.get_key(), self.fmt_key(501))
 
-        # prev should go to 499 (500 is deleted).
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), self.fmt_key(499))
+        self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(499)])
         cursor.close()
 
     # =====================================================================
@@ -619,76 +528,54 @@ class test_layered83(wttest.WiredTigerTestCase):
     # =====================================================================
 
     def test_repeated_search_iterate(self):
-        """Multiple search + next cycles on the same cursor."""
+        """Multiple search + iterate cycles on the same cursor."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
 
-        # Cycle 1: search 100, iterate to 105.
-        cursor.set_key(expected[100])
-        self.assertEqual(cursor.search(), 0)
-        for i in range(1, 6):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[100 + i])
+        # Cycle 1: search 100, next 5 -> 101-105.
+        self.search_key(cursor, 100)
+        self.assertEqual(self.walk_next(cursor, 5), self.key_range(101, 105))
 
-        # Cycle 2: search 800, iterate to 805.
-        cursor.set_key(expected[800])
-        self.assertEqual(cursor.search(), 0)
-        for i in range(1, 6):
-            self.assertEqual(cursor.next(), 0)
-            self.assertEqual(cursor.get_key(), expected[800 + i])
+        # Cycle 2: search 800, next 5 -> 801-805.
+        self.search_key(cursor, 800)
+        self.assertEqual(self.walk_next(cursor, 5), self.key_range(801, 805))
 
-        # Cycle 3: search 300, prev to 295.
-        cursor.set_key(expected[300])
-        self.assertEqual(cursor.search(), 0)
-        for i in range(1, 6):
-            self.assertEqual(cursor.prev(), 0)
-            self.assertEqual(cursor.get_key(), expected[300 - i])
+        # Cycle 3: search 300, prev 5 -> 299-295.
+        self.search_key(cursor, 300)
+        self.assertEqual(self.walk_prev(cursor, 5), self.key_range_reversed(295, 299))
         cursor.close()
 
     def test_mixed_search_near_and_search(self):
-        """search_near + iterate, then search + iterate on same cursor."""
+        """search_near + next, then search + prev on same cursor."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
 
-        # search_near + next.
-        cursor.set_key(expected[200])
+        cursor.set_key(self.fmt_key(200))
         self.assertEqual(cursor.search_near(), 0)
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), expected[201])
+        self.assertEqual(self.walk_next(cursor, 1), [self.fmt_key(201)])
 
-        # search + prev.
-        cursor.set_key(expected[600])
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), expected[599])
+        self.search_key(cursor, 600)
+        self.assertEqual(self.walk_prev(cursor, 1), [self.fmt_key(599)])
         cursor.close()
 
     def test_reset_between_search_iterate(self):
-        """reset between search + iterate cycles."""
+        """reset between search + iterate cycles, then rescan from start."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
+        self.search_key(cursor, 500)
+        self.assertEqual(self.walk_next(cursor, 1), [self.fmt_key(501)])
 
-        cursor.set_key(expected[500])
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), expected[501])
-
-        # Reset, then full scan from start.
         cursor.reset()
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), expected[0])
+        self.assertEqual(self.walk_next(cursor, 1), [self.fmt_key(0)])
         cursor.close()
 
     # =====================================================================
@@ -700,8 +587,7 @@ class test_layered83(wttest.WiredTigerTestCase):
         self.setup_follower()
         self.create_table()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
@@ -710,64 +596,39 @@ class test_layered83(wttest.WiredTigerTestCase):
         self.setup_follower()
         self.create_table()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
+        cursor = self.open_cursor()
         self.assertEqual(cursor.prev(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
     def test_next_after_end_then_rescan(self):
-        """Exhaust forward scan, reset, scan again."""
+        """Exhaust forward scan, reset, scan again produces same result."""
         self.setup_follower()
         self.create_table()
-        expected = self.populate()
+        self.populate_interleaved()
 
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-
-        keys = []
-        while cursor.next() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, expected)
-
+        cursor = self.open_cursor()
+        all_expected = self.all_keys()
+        self.assertEqual(self.scan_forward(cursor), all_expected)
         cursor.reset()
-        keys = []
-        while cursor.next() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, expected)
+        self.assertEqual(self.scan_forward(cursor), all_expected)
         cursor.close()
 
     def test_next_ingest_only(self):
         """Forward scan with all data in ingest only."""
         self.setup_follower()
         self.create_table()
+        self.insert_ingest(list(range(self.nkeys)))
 
-        keys = list(range(self.nkeys))
-        self.insert_ingest(keys)
-
-        expected = [self.fmt_key(i) for i in range(self.nkeys)]
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        result = []
-        while cursor.next() == 0:
-            result.append(cursor.get_key())
-        self.assertEqual(result, expected)
+        cursor = self.open_cursor()
+        self.assertEqual(self.scan_forward(cursor), self.all_keys())
         cursor.close()
 
     def test_next_stable_only(self):
         """Forward scan with all data in stable only."""
         self.setup_follower()
         self.create_table()
+        self.insert_stable(list(range(self.nkeys)))
 
-        keys = list(range(self.nkeys))
-        self.insert_stable(keys)
-
-        expected = [self.fmt_key(i) for i in range(self.nkeys)]
-
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        result = []
-        while cursor.next() == 0:
-            result.append(cursor.get_key())
-        self.assertEqual(result, expected)
+        cursor = self.open_cursor()
+        self.assertEqual(self.scan_forward(cursor), self.all_keys())
         cursor.close()
