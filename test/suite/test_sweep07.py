@@ -33,7 +33,6 @@ import time
 
 # test_sweep07.py
 # Regression test for WT-15647
-@wttest.skip_for_hook("disagg", "disagg doesn't support opening checkpoint cursor")
 class test_sweep07(wttest.WiredTigerTestCase):
     conn_config = 'file_manager=(close_scan_interval=1,close_idle_time=1,close_handle_minimum=1)'
     table_cfg = 'key_format=S,value_format=S'

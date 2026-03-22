@@ -33,7 +33,6 @@ import time
 import wiredtiger, wttest
 
 @wttest.extralongtest('lot of delays')
-@wttest.skip_for_hook("disagg", "disagg doesn't support opening checkpoint cursor")
 class test_sweep05(wttest.WiredTigerTestCase):
     '''
     Test detection of sessions without recent session sweep.
