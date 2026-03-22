@@ -1,0 +1,14 @@
+[defaults]
+proto_paths = [
+    "~/mongo/src/mongo/db/modules/atlas/src/disagg_storage/sls-proto/dist/storage/etc/protos",
+    "/data/db/job0/mongorunner/protos",
+]
+pagedecryptor_paths = [
+    "~/mongo/bazel-bin/src/mongo/db/modules/atlas/src/disagg_storage/encryption/pagedecryptor",
+    "/data/db/job0/mongorunner/pagedecryptor"
+]
+key_file = "/data/db/job0/mongorunner/decrypt_key"
+page_server = "172.17.0.1:20044"
+metadata_table_id = 10
+turtle_table_id = 2
+turtle_page_id = 1
