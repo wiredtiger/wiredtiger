@@ -2272,7 +2272,7 @@ __clayered_modify_leader(
 
 err:
     __wt_scr_free(session, &buf);
-    return (0);
+    return (ret);
 }
 
 /*
