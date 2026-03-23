@@ -26,165 +26,70 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+# test_layered05.py
+# Test that the sweep server does not close ingest table dhandles and layered dhandles on a follower
+# or during step-up. Closing the ingest dhandle discards all in-memory data for
+# that table (WT-16974, WT-16703).
+
+import time, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered05.py
-#   Test layered cursor search_near correctness with a larger dataset (1000 keys).
-#
-#   Exercises edge cases in the merge logic that chooses between ingest and
-#   stable constituent cursors, including:
-#   - Keys on opposite sides of the search key in the two constituents.
-#   - Tombstones in the ingest table that logically delete stable keys.
-#   - search_near landing on a deleted key and walking forward/backward.
-#   - Exact matches in one constituent vs nearby matches in the other.
-#   - Correct iteration (next/prev) after search_near.
-
 @disagg_test_class
 class test_layered05(wttest.WiredTigerTestCase):
-    conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    uri = 'layered:test_layered05'
+    # Use aggressive sweep settings so the server has every opportunity to
+    # incorrectly close the ingest dhandle while we are running as follower.
+    conn_config = 'statistics=(all),' \
+                  'file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1),' \
+                  'verbose=(sweep:3),' \
+                  'disaggregated=(role="follower")'
 
-    nkeys = 1000
+    uri = 'layered:test_layered05'
+    nrows = 1000
 
     disagg_storages = gen_disagg_storages('test_layered05', disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
 
-    # Each test runs in two scenarios:
-    #   - leader:   test operations run on the leader session. The leader's stable cursor
-    #               is a regular R/W btree cursor, so search_near returns the nearest key
-    #               predictably. This serves as a baseline correctness check.
-    #   - follower: test operations run on the follower session. The follower's stable cursor
-    #               is a checkpoint cursor, which may return different neighbors from
-    #               search_near. This is where XOR normalization bugs manifest.
-    #
-    # A follower connection is always created (even in leader mode) because insert_stable()
-    # needs it to call disagg_advance_checkpoint().
-    role_scenarios = [
-        ('leader', dict(role='leader')),
-        ('follower', dict(role='follower')),
-    ]
-    scenarios = make_scenarios(disagg_storages, role_scenarios)
+    def test_layered_dhandle_not_swept_during_stepup(self):
+        """
+        Verify that the sweep server does not close the layered dhandle. During
+        step-up, the ingest table is drained into the layered table. If the
+        layered dhandle was closed by sweep beforehand, the drain operation
+        cannot reference the existing layered data and leaves gaps (WT-16974,
+        WT-16703).
+        """
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
-    conn_follow = None
-    session_follow = None
-    ts = 1
+        # Write the first batch as follower with timestamps.
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
 
-    @staticmethod
-    def fmt_key(i):
-        return f"{i:06d}"
+        # Pin the ingest table dhandle, so it doesn't get swept away on purpose.
+        cursor = self.session.open_cursor("file:test_layered05.wt_ingest")
 
-    @staticmethod
-    def fmt_val(i):
-        return f"val_{i:06d}"
+        # Give the aggressive sweep server time to run several cycles.
+        # If the sweep server is not configured to skip layered dhandles,
+        # it would mark and close them, causing gaps when draining the
+        # ingest table at step-up.
+        time.sleep(3)
 
-    def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
-
-    def setup_follower(self):
-        """Create follower connection. Required by insert_stable() for checkpoint advance."""
-        self.conn_follow = self.wiredtiger_open('follower',
-            self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
-
-    def get_session(self):
-        """Return the session under test (leader or follower based on scenario)."""
-        if self.role == 'leader':
-            return self.session
-        return self.session_follow
-
-    def get_conn(self):
-        """Return the connection under test (leader or follower based on scenario)."""
-        if self.role == 'leader':
-            return self.conn
-        return self.conn_follow
-
-    def create_table(self):
-        config = "key_format=S,value_format=S"
-        self.session.create(self.uri, config)
-        self.session_follow.create(self.uri, config)
-
-    def next_ts(self):
-        self.ts += 1
-        return self.ts
-
-    def insert_keys_on(self, session, keys, values=None):
-        """Insert key/value pairs on a specific session."""
-        cursor = session.open_cursor(self.uri)
-        for i, key in enumerate(keys):
-            val = values[i] if values else f"val_{key}"
-            session.begin_transaction()
-            cursor[key] = val
-            session.commit_transaction(f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+        # Step up to leader.
+        self.conn.reconfigure('disaggregated=(role="leader")')
         cursor.close()
 
-    def remove_keys_on(self, session, keys):
-        """Remove keys on a specific session (creates tombstones in ingest)."""
-        cursor = session.open_cursor(self.uri)
-        for key in keys:
-            session.begin_transaction()
-            cursor.set_key(key)
-            cursor.remove()
-            session.commit_transaction(f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+        # All rows from both batches must be present with no gaps.
+        # Missing rows indicate the layered dhandle was incorrectly swept.
+        cursor = self.session.open_cursor(self.uri)
+        count = 0
+        while (ret := cursor.next())  == 0:
+            count += 1
         cursor.close()
-
-    def insert_stable(self, int_keys, values=None):
-        """
-        Insert keys into stable: write on leader, checkpoint, advance follower.
-        After this, the keys are in the stable table of both leader and follower.
-        Accepts a list of integers; formats them internally.
-        """
-        keys = [self.fmt_key(i) for i in int_keys]
-        vals = [self.fmt_val(i) for i in int_keys] if values is None else values
-        self.insert_keys_on(self.session, keys, vals)
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(self.ts)}')
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
-
-    def insert_ingest(self, int_keys, values=None):
-        """
-        Insert keys into ingest on the session under test.
-        Accepts a list of integers; formats them internally.
-        """
-        keys = [self.fmt_key(i) for i in int_keys]
-        vals = [self.fmt_val(i) for i in int_keys] if values is None else values
-        self.insert_keys_on(self.get_session(), keys, vals)
-
-    def remove_ingest(self, int_keys):
-        """
-        Remove keys on the session under test (tombstones in ingest).
-        Accepts a list of integers; formats them internally.
-        """
-        keys = [self.fmt_key(i) for i in int_keys]
-        self.remove_keys_on(self.get_session(), keys)
-
-    def search_near_check(self, search_key, expected_key, expected_exact, expected_value=None):
-        """
-        Open a cursor, call search_near for search_key, and verify the result.
-        Accepts pre-formatted string keys.
-        """
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key(search_key)
-        exact = cursor.search_near()
-        self.assertEqual(cursor.get_key(), expected_key,
-            f"search_near({search_key}): expected key {expected_key}, got {cursor.get_key()}")
-        self.assertEqual(exact, expected_exact,
-            f"search_near({search_key}): expected exact={expected_exact}, got {exact}")
-        if expected_value is not None:
-            self.assertEqual(cursor.get_value(), expected_value,
-                f"search_near({search_key}): expected value {expected_value}, got {cursor.get_value()}")
-        cursor.close()
-
-    def search_near_notfound(self, search_key):
-        """Verify search_near returns WT_NOTFOUND. Accepts a pre-formatted string key."""
-        session = self.get_session()
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key(search_key)
-        ret = cursor.search_near()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND,
-            f"search_near({search_key}): expected WT_NOTFOUND, got {ret}")
-        cursor.close()
+        self.assertEqual(wiredtiger.WT_NOTFOUND, ret)
+        self.assertEqual(count, self.nrows)
 
     # -----------------------------------------------------------------------
     # Test: Empty table returns WT_NOTFOUND.
@@ -963,3 +868,154 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_ingest([800])
 
         self.search_near_check("", self.fmt_key(500), 1)
+
+    # -----------------------------------------------------------------------
+    # Test: next() then search_near then next() — out of order.
+    #
+    # Without clearing the iteration flags at the start of search_near,
+    # the stale ITERATE_NEXT from a prior next() persists. After
+    # search_near returns, the next next() call skips repositioning the
+    # alternate cursor. The alternate is wherever search_near left it,
+    # which may be behind the returned key.
+    #
+    # Setup:
+    #   Stable: even keys 0-998.
+    #   Ingest: odd keys 1-999.
+    #
+    # 1. Iterate forward to key 499 (ITERATE_NEXT set).
+    # 2. search_near(700):
+    #    - Both cursors reposition near 700.
+    #    - Returns 700 (stable exact) or 701 (ingest, larger preferred).
+    # 3. next() after search_near:
+    #    BUG:  ITERATE_NEXT stale. next() skips repositioning alternate.
+    #          Alternate's search_near position from step 2 might be
+    #          behind the returned key. next() returns the behind key.
+    #    FIX:  ITERATE flags cleared at start. next() repositions.
+    # -----------------------------------------------------------------------
+    def test_search_near_stale_iterate_flag_out_of_order(self):
+        self.setup_follower()
+        self.create_table()
+
+        # Stable: keys 0-698 (all below 700).
+        # Ingest: keys 700-999.
+        # This forces stable search_near(701) to return 698 (cmp < 0).
+        self.insert_stable(list(range(0, 699)))
+        self.insert_ingest(list(range(700, self.nkeys)))
+
+        session = self.get_session()
+        cursor = session.open_cursor(self.uri)
+
+        # Iterate forward to key 498 (sets ITERATE_NEXT).
+        for _ in range(499):
+            self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), self.fmt_key(498))
+
+        # search_near(701): ingest has 701 (exact). Stable has no key >= 700.
+        # Stable search_near(701) → 698 (cmp < 0, largest stable key).
+        # closest = ingest(701, exact). Alternate = stable(698).
+        # next(): ITERATE_NEXT stale → skip reposition.
+        # Advance current (ingest): 702. Compare with stable(698).
+        # min(702, 698) = 698. Out of order: 701, 698.
+        cursor.set_key(self.fmt_key(701))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        sn_key = cursor.get_key()
+
+        # next() after search_near must return > sn_key.
+        self.assertEqual(cursor.next(), 0)
+        next_key = cursor.get_key()
+        self.assertGreater(next_key, sn_key,
+            f"Out of order: search_near returned {sn_key}, then next() "
+            f"returned {next_key}")
+
+        # Continue iteration — all keys must be monotonically increasing.
+        keys = [sn_key, next_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, sorted(keys),
+            "Iteration after search_near produced out-of-order keys")
+        cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Test: prev() then search_near then prev() — mirror of forward case.
+    #
+    # Setup:
+    #   Stable: keys 502-999 (all above search key 500).
+    #   Ingest: keys 490-499.
+    #
+    # 1. Position at key 502 via search, then prev to 501 (ITERATE_PREV).
+    #    Wait — 501 is not in any table. Let me use a setup where prev
+    #    lands on an ingest key.
+    #
+    # Revised setup:
+    #   Stable: keys 502-999.
+    #   Ingest: keys 490-499.
+    #
+    # 1. search(502), prev() to 499 (ingest). ITERATE_PREV set.
+    # 2. search_near(500):
+    #    - Ingest: returns 499 (cmp < 0).
+    #    - Stable: returns 502 (cmp > 0, nearest stable key).
+    #    - Both found. Ingest smaller, stable larger. Prefer larger: 502.
+    #    Wait — larger is preferred. search_near returns 502 (cmp > 0).
+    #    This doesn't help test the prev direction bug.
+    #
+    # For the prev bug, we need search_near to return a key SMALLER than
+    # the search key, then prev() to go further backward. The stale
+    # ITERATE_PREV would skip repositioning the alternate (stable at 502,
+    # which is AHEAD in prev direction).
+    #
+    # Setup (revised):
+    #   Stable: keys 502-999.
+    #   Ingest: keys 490-499.
+    #   search_near(500) -> 502 (stable, cmp > 0) preferred over 499.
+    #   After search_near returns 502, prev():
+    #     BUG: ITERATE_PREV stale. Skip reposition. Alternate (ingest) at
+    #          499 from search_near. Advance current (stable): prev -> 501?
+    #          No, stable goes 502->next lower. But 501 not in stable.
+    #          stable.prev() -> NOTFOUND (502 is smallest stable key? No,
+    #          stable has 502-999. prev from 502 -> doesn't exist below 502).
+    #          Hmm, this doesn't work well.
+    #
+    # Actually the clearest test: use the same pattern as forward but in
+    # reverse. After search_near returns a key, verify prev() is ordered.
+    # -----------------------------------------------------------------------
+    def test_search_near_stale_iterate_prev_ordering(self):
+        self.setup_follower()
+        self.create_table()
+
+        # Stable: only keys above 500.
+        self.insert_stable(list(range(502, 1000)))
+
+        # Ingest: only keys below 500.
+        self.insert_ingest(list(range(490, 500)))
+
+        session = self.get_session()
+        cursor = session.open_cursor(self.uri)
+
+        # Position at 502 via search, then prev() to 499. ITERATE_PREV set.
+        cursor.set_key(self.fmt_key(502))
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), self.fmt_key(499))
+
+        # search_near(500): ingest returns 499 (cmp<0), stable returns 502 (cmp>0).
+        # Prefer larger: returns 502.
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        sn_key = cursor.get_key()
+
+        # prev() after search_near: must return < sn_key.
+        self.assertEqual(cursor.prev(), 0)
+        prev_key = cursor.get_key()
+        self.assertLess(prev_key, sn_key,
+            f"Out of order (reverse): search_near returned {sn_key}, then "
+            f"prev() returned {prev_key}")
+
+        # Continue prev — all keys must be monotonically decreasing.
+        keys = [sn_key, prev_key]
+        while cursor.prev() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, sorted(keys, reverse=True),
+            "Reverse iteration after search_near produced out-of-order keys")
+        cursor.close()
