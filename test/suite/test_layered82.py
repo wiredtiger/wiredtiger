@@ -45,6 +45,14 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered82', disagg_only=True)
 
+    # Each test runs in two scenarios:
+    #   - leader:   test operations run on the leader session (R/W stable cursor).
+    #               Serves as a baseline correctness check for bounds propagation.
+    #   - follower: test operations run on the follower session (checkpoint stable cursor).
+    #               Exercises bounds with checkpoint cursor behavior.
+    #
+    # A follower connection is always created (even in leader mode) because insert_stable()
+    # needs it to call disagg_advance_checkpoint().
     role_scenarios = [
         ('leader', dict(role='leader')),
         ('follower', dict(role='follower')),
@@ -59,6 +67,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def setup_follower(self):
+        """Create follower connection. Required by insert_stable() for checkpoint advance."""
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')

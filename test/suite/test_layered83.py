@@ -42,6 +42,15 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered83', disagg_only=True)
 
+    # Each test runs in two scenarios:
+    #   - leader:   test operations run on the leader session (R/W stable cursor).
+    #               Baseline check that merged iteration produces correct order.
+    #   - follower: test operations run on the follower session (checkpoint stable cursor).
+    #               This is where XOR normalization and alternate cursor positioning bugs
+    #               cause out-of-order keys.
+    #
+    # A follower connection is always created (even in leader mode) because insert_stable()
+    # needs it to call disagg_advance_checkpoint().
     role_scenarios = [
         ('leader', dict(role='leader')),
         ('follower', dict(role='follower')),
@@ -56,6 +65,7 @@ class test_layered83(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def setup_follower(self):
+        """Create follower connection. Required by insert_stable() for checkpoint advance."""
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
@@ -632,3 +642,273 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor = self.open_cursor()
         self.assertEqual(self.scan_forward(cursor), self.all_keys())
         cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Out-of-order iteration tests after search_near.
+    #
+    # These test the scenario where the XOR normalization in search_near
+    # leaves the alternate cursor behind the chosen closest key. If next()
+    # doesn't skip stale positions on the alternate, keys come out of order.
+    # -----------------------------------------------------------------------
+
+    def test_next_after_search_near_xor_alternate_behind(self):
+        """
+        Stable: 200. Ingest: 300, 600. search_near(500).
+        Ingest search_near(500) -> 600 (cmp>0). Stable -> 200 (cmp<0).
+        XOR prev() on ingest: 600 -> 300. Both < 500. Pick bigger: ingest(300).
+        Alternate (stable) is at 200, which is BEHIND 300.
+        next() must not output 200 before 300. Sequence must be monotonic.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_stable([200])
+        self.insert_ingest([300, 600])
+
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        first_key = cursor.get_key()
+
+        # Collect all remaining keys via next().
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        # Verify monotonically increasing order.
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at position {i}: {keys[i]} >= {keys[i + 1]}. Full: {keys}")
+        cursor.close()
+
+    def test_prev_after_search_near_xor_alternate_ahead(self):
+        """
+        Mirror test for prev(). Stable: 800. Ingest: 400, 700. search_near(500).
+        Ingest search_near(500) -> 400 (cmp<0). Stable -> 800 (cmp>0).
+        XOR next() on ingest: 400 -> 700. Both > 500. Pick smaller: ingest(700).
+        Alternate (stable) is at 800, which is AHEAD of 700.
+        prev() must not output 800 after 700. Sequence must be monotonically decreasing.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_stable([800])
+        self.insert_ingest([400, 700])
+
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.prev() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertGreater(keys[i], keys[i + 1],
+                f"Out of order at position {i}: {keys[i]} <= {keys[i + 1]}. Full: {keys}")
+        cursor.close()
+
+    def test_next_after_search_near_both_smaller(self):
+        """
+        Non-XOR "both smaller" case. Stable: 300. Ingest: 400. search_near(500).
+        Both < 500. Pick bigger: ingest(400). Alternate (stable at 300) is behind.
+        next() after 400 must not output 300.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_stable([300])
+        self.insert_ingest([400])
+
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at position {i}: {keys[i]} >= {keys[i + 1]}. Full: {keys}")
+        cursor.close()
+
+    def test_prev_after_search_near_both_larger(self):
+        """
+        Non-XOR "both larger" case. Stable: 700. Ingest: 600. search_near(500).
+        Both > 500. Pick smaller: ingest(600). Alternate (stable at 700) is ahead.
+        prev() after 600 must not output 700.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_stable([700])
+        self.insert_ingest([600])
+
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.prev() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertGreater(keys[i], keys[i + 1],
+                f"Out of order at position {i}: {keys[i]} <= {keys[i + 1]}. Full: {keys}")
+        cursor.close()
+
+    def test_next_after_search_near_xor_many_keys(self):
+        """
+        Large-scale XOR test. Stable: even keys [0, 400]. Ingest: odd keys [501, 999].
+        search_near(450): stable finds ~450, ingest finds 501. Opposite sides.
+        XOR normalization moves ingest backward. After search_near, iterate forward
+        through ALL remaining keys and verify monotonic order.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        stable_keys = list(range(0, 401, 2))     # 0, 2, 4, ..., 400
+        ingest_keys = list(range(501, 1000, 2))   # 501, 503, ..., 999
+        self.insert_stable(stable_keys)
+        self.insert_ingest(ingest_keys)
+
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(450))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at position {i}: {keys[i]} >= {keys[i + 1]}")
+        cursor.close()
+
+    def test_prev_after_search_near_xor_many_keys(self):
+        """
+        Large-scale XOR test (reverse). Stable: even keys [600, 999]. Ingest: odd keys [1, 499].
+        search_near(550): stable finds ~550, ingest finds ~499. Opposite sides.
+        XOR normalization moves ingest forward. After search_near, iterate backward
+        through ALL remaining keys and verify monotonically decreasing order.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        stable_keys = list(range(600, 1000, 2))   # 600, 602, ..., 998
+        ingest_keys = list(range(1, 500, 2))       # 1, 3, ..., 499
+        self.insert_stable(stable_keys)
+        self.insert_ingest(ingest_keys)
+
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(550))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.prev() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertGreater(keys[i], keys[i + 1],
+                f"Out of order at position {i}: {keys[i]} <= {keys[i + 1]}")
+        cursor.close()
+
+    def test_next_after_search_near_xor_with_tombstones(self):
+        """
+        XOR + tombstones. Stable: all keys [0, 999]. Ingest: tombstones [400, 600].
+        search_near(500): ingest finds tombstone. Tombstone walk starts.
+        After resolution, iterate forward and verify monotonic order.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_stable(list(range(self.nkeys)))
+        self.remove_ingest(list(range(400, 601)))
+
+        cursor = self.open_cursor()
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        # The returned key should be outside the tombstoned range.
+        self.assertTrue(first_key < self.fmt_key(400) or first_key > self.fmt_key(600),
+            f"search_near returned tombstoned key: {first_key}")
+
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at position {i}: {keys[i]} >= {keys[i + 1]}")
+
+        # None of the tombstoned keys should appear.
+        tombstoned = set(self.fmt_key(i) for i in range(400, 601))
+        for k in keys:
+            self.assertNotIn(k, tombstoned, f"Tombstoned key appeared: {k}")
+        cursor.close()
+
+    def test_next_after_search_near_interleaved_full_coverage(self):
+        """
+        Full interleaved coverage test. Even keys in stable, odd in ingest.
+        For each search key at positions 0, 100, 250, 500, 750, 999:
+        do search_near then iterate forward, verifying strict monotonic order.
+        """
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_stable(list(range(0, self.nkeys, 2)))
+        self.insert_ingest(list(range(1, self.nkeys, 2)))
+
+        for search_pos in [0, 100, 250, 500, 750, 999]:
+            cursor = self.open_cursor()
+            cursor.set_key(self.fmt_key(search_pos))
+            exact = cursor.search_near()
+            self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+            first_key = cursor.get_key()
+
+            keys = [first_key]
+            while cursor.next() == 0:
+                keys.append(cursor.get_key())
+
+            for i in range(len(keys) - 1):
+                self.assertLess(keys[i], keys[i + 1],
+                    f"search_pos={search_pos}: out of order at {i}: "
+                    f"{keys[i]} >= {keys[i + 1]}")
+            cursor.close()
+
+    def test_prev_after_search_near_interleaved_full_coverage(self):
+        """
+        Same as above but with prev() (reverse iteration).
+        """
+        self.setup_follower()
+        self.create_table()
+
+        self.insert_stable(list(range(0, self.nkeys, 2)))
+        self.insert_ingest(list(range(1, self.nkeys, 2)))
+
+        for search_pos in [0, 100, 250, 500, 750, 999]:
+            cursor = self.open_cursor()
+            cursor.set_key(self.fmt_key(search_pos))
+            exact = cursor.search_near()
+            self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+            first_key = cursor.get_key()
+
+            keys = [first_key]
+            while cursor.prev() == 0:
+                keys.append(cursor.get_key())
+
+            for i in range(len(keys) - 1):
+                self.assertGreater(keys[i], keys[i + 1],
+                    f"search_pos={search_pos}: out of order at {i}: "
+                    f"{keys[i]} <= {keys[i + 1]}")
+            cursor.close()

@@ -53,6 +53,9 @@ class test_layered81(wttest.WiredTigerTestCase):
     nkeys = 1000
 
     disagg_storages = gen_disagg_storages('test_layered81', disagg_only=True)
+    # Follower-only: stable cursor upgrade is a follower concept. The leader's stable
+    # cursor is R/W and never gets upgraded on checkpoint. See test_leader_unaffected_by_checkpoint
+    # for a sanity check that the leader is not impacted.
     scenarios = make_scenarios(disagg_storages)
 
     conn_follow = None
@@ -63,6 +66,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def setup_follower(self):
+        """Create follower connection for stable cursor upgrade testing."""
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')

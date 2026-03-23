@@ -50,6 +50,16 @@ class test_layered80(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered80', disagg_only=True)
 
+    # Each test runs in two scenarios:
+    #   - leader:   test operations run on the leader session. The leader's stable cursor
+    #               is a regular R/W btree cursor, so search_near returns the nearest key
+    #               predictably. This serves as a baseline correctness check.
+    #   - follower: test operations run on the follower session. The follower's stable cursor
+    #               is a checkpoint cursor, which may return different neighbors from
+    #               search_near. This is where XOR normalization bugs manifest.
+    #
+    # A follower connection is always created (even in leader mode) because insert_stable()
+    # needs it to call disagg_advance_checkpoint().
     role_scenarios = [
         ('leader', dict(role='leader')),
         ('follower', dict(role='follower')),
@@ -72,18 +82,19 @@ class test_layered80(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def setup_follower(self):
+        """Create follower connection. Required by insert_stable() for checkpoint advance."""
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
 
     def get_session(self):
-        """Return the session under test."""
+        """Return the session under test (leader or follower based on scenario)."""
         if self.role == 'leader':
             return self.session
         return self.session_follow
 
     def get_conn(self):
-        """Return the connection under test."""
+        """Return the connection under test (leader or follower based on scenario)."""
         if self.role == 'leader':
             return self.conn
         return self.conn_follow
