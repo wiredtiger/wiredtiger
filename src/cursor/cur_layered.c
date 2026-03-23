@@ -526,7 +526,6 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
       last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
         return (0);
 
-    change_stable = false;
     snapshot_gen = clayered->snapshot_gen;
 
     /* Is this a step up or step down? */
