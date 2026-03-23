@@ -334,11 +334,11 @@ err:
 }
 
 /*
- * __clayered_ingest_need_reopen --
+ * __clayered_ingest_check_close --
  *     Return true if the ingest cursor need to be reopened.
  */
 static bool
-__clayered_ingest_need_reopen(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
+__clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
     /* See if there's nothing to do for the ingest cursor. */
     if (clayered->ingest_cursor == NULL)
@@ -353,10 +353,10 @@ __clayered_ingest_need_reopen(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *claye
         return (false);
 
     /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
-    if (S2C(session)->layered_table_manager.leader != clayered->leader)
-        return (true);
+    if (S2C(session)->layered_table_manager.leader == clayered->leader)
+        return (false);
 
-    return (false);
+    return (true);
 }
 
 /*
@@ -522,7 +522,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
       last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
         return (0);
 
-    change_ingest = change_stable = false;
+    change_stable = false;
     snapshot_gen = clayered->snapshot_gen;
 
     /* Is this a step up or step down? */
@@ -556,7 +556,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          */
     }
 
-    if ((change_ingest = __clayered_ingest_need_reopen(session, clayered))) {
+    if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
         /*
          * To reopen the ingest table, all we need to do here is close it. It will be reopened
          when
@@ -1096,6 +1096,7 @@ __clayered_reset(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
+    /* The flag should have been cleared after each cursor operation. */
     WT_ASSERT(session, !F_ISSET(clayered, WT_CLAYERED_READ_STABLE));
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -1373,7 +1374,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
         if (ret == 0) {
             found = true;
-            if (__clayered_deleted(clayered, value))
+            if (__wt_clayered_deleted(value))
                 ret = WT_NOTFOUND;
         }
     } else
@@ -1492,7 +1493,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
           clayered->ingest_cursor->search_near(clayered->ingest_cursor, &ingest_cmp), true);
         if (ret == 0) {
             ingest_found = true;
-            deleted = __clayered_deleted(clayered, &clayered->ingest_cursor->value);
+            deleted = __wt_clayered_deleted(&clayered->ingest_cursor->value);
         }
     }
 
@@ -1749,7 +1750,7 @@ __clayered_remove_follower(
              * If we are erasing a record that is already a tombstone, don't write another one: we
              * don't ever want consecutive tombstones on an update chain.
              */
-            WT_RET(c->get_value(c, &value));
+            WT_ITEM_SET(value, c->value);
             if (__wt_clayered_deleted(&value))
                 return (WT_NOTFOUND);
         }
@@ -2122,10 +2123,8 @@ __clayered_largest_key(WT_CURSOR *cursor)
 err:
     __clayered_leave(clayered);
     __wt_scr_free(session, &key);
-    if (ret != 0) {
+    if (ret != 0)
         WT_TRET(__clayered_reset_cursors(clayered, false));
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    }
     API_END_RET_STAT(session, ret, cursor_largest_key);
 }
 
@@ -2364,7 +2363,7 @@ __clayered_modify_follower(
          * also cannot serve as the base value for a modify. In these cases, perform a full update
          * instead.
          */
-        if (ret == WT_NOTFOUND || __clayered_deleted(clayered, &ingest->value) ||
+        if (ret == WT_NOTFOUND || __wt_clayered_deleted(&ingest->value) ||
           __clayered_is_deleted_encoded(&ingest->value)) {
             __clayered_deleted_decode(&ingest->value);
             WT_ERR(__wt_modify_apply_api(ingest, entries, nentries));
