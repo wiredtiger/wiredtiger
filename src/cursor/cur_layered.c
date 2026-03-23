@@ -16,27 +16,6 @@ static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
 /*
- * __clayered_deleted --
- *     Check whether the current value is a tombstone in the layered cursor.
- */
-static WT_INLINE bool
-__clayered_deleted(WT_CURSOR_LAYERED *clayered, const WT_ITEM *item)
-{
-    /*
-     * We only use tombstone value for ingest table. Therefore, if we don't have an ingest table,
-     * the returned value must be a proper value.
-     */
-    if (clayered->ingest_cursor == NULL)
-        return (false);
-
-    /* If the value is returned from the stable table, it must be a proper value. */
-    if (clayered->current_cursor != clayered->ingest_cursor)
-        return (false);
-
-    return (__wt_clayered_deleted(item));
-}
-
-/*
  * __clayered_is_deleted_encoded --
  *     Check if the value starts with the tombstone.
  */
@@ -441,9 +420,8 @@ __clayered_upgrade_stable(
     old_stable = clayered->stable_cursor;
     clayered->stable_cursor = NULL;
 
-    WT_RET(__clayered_open_stable(clayered, current_leader));
+    WT_ERR(__clayered_open_stable(clayered, current_leader));
     WT_ASSERT(session, clayered->stable_cursor != NULL);
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
 
     /* If the old cursor has a position, copy it to the newly opened cursor. */
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
@@ -485,12 +463,14 @@ __clayered_upgrade_stable(
     }
 
 err:
-    if (ret == 0)
+    if (ret == 0) {
         /* Close the old cursor. */
         WT_TRET(old_stable->close(old_stable));
-    else {
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
+    } else {
         /* Give up the upgrade if we fail. */
-        WT_TRET(clayered->stable_cursor->close(clayered->stable_cursor));
+        if (clayered->stable_cursor != NULL)
+            WT_TRET(clayered->stable_cursor->close(clayered->stable_cursor));
         clayered->stable_cursor = old_stable;
     }
 
@@ -965,7 +945,8 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool deleted
     do {
         WT_ERR(__clayered_iterate_constituents(clayered, iter_flag, deleted));
         WT_ERR(__clayered_get_current(session, clayered, iter_flag == WT_CLAYERED_ITERATE_NEXT));
-        deleted = __clayered_deleted(clayered, &clayered->current_cursor->value);
+        if (clayered->current_cursor == clayered->ingest_cursor)
+            deleted = __wt_clayered_deleted(&clayered->current_cursor->value);
     } while (deleted);
 
 err:
@@ -1634,15 +1615,15 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     clayered->current_cursor = closest;
 
     /* Get prepared for finalizing the result before fixing up for tombstones. */
-    if (closest == clayered->ingest_cursor)
-        cmp = ingest_cmp;
-    else {
+    if (closest == clayered->stable_cursor) {
         /* Short cut for stable cursor as it doesn't have any deleted value. */
         cmp = stable_cmp;
         goto done;
     }
 
-    deleted = __clayered_deleted(clayered, &closest->value);
+    /* Closest is the ingest cursor. */
+    cmp = ingest_cmp;
+    deleted = __wt_clayered_deleted(&closest->value);
     if (deleted) {
         /* Advance past the deleted record using normal cursor traversal interface */
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
