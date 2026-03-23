@@ -583,8 +583,7 @@ __checkpoint_update_evict_triggers_end(
           "Updates trigger was modified during checkpoint, not reverting to original value");
 
     /*
-     * Be paranoid about math calculations and floating point manipulation, save back exactly the
-     * original values as a final step.
+     * Save back exactly the original cache trigger values.
      */
     __wt_atomic_store_double_relaxed(
       &evict->eviction_dirty_trigger, saved_triggers->original_dirty_trigger);
