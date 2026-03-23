@@ -1392,8 +1392,6 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
             F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
         }
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
-        if (ret == 0)
-            found = true;
     }
 
 err:
