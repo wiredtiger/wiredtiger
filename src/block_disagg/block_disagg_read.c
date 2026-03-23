@@ -78,7 +78,7 @@ err:
  *     Check that the LSN is not ahead of the materialization frontier.
  */
 static void
-__block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
+__block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn, uint64_t table_id)
 {
     uint64_t last_materialized_lsn =
       __wt_atomic_load_uint64_acquire(&S2C(session)->disaggregated_storage.last_materialized_lsn);
@@ -88,9 +88,9 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
         /* FIXME-WT-15818 Consider crashing upon this check failure. */
         WT_STAT_CONN_INCR(session, disagg_block_read_ahead_frontier);
         __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "LSN frontier violation: read LSN %" PRIu64
+          "LSN frontier violation: table_id %" PRIu64 ", read LSN %" PRIu64
           " is ahead of the materialization frontier at LSN %" PRIu64,
-          lsn, last_materialized_lsn);
+          table_id, lsn, last_materialized_lsn);
     }
 }
 
@@ -135,7 +135,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_STAT_CONN_INCR(session, disagg_block_get);
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
-    __block_disagg_check_lsn_frontier(session, lsn);
+    __block_disagg_check_lsn_frontier(session, lsn, block_disagg->tableid);
 
     if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);

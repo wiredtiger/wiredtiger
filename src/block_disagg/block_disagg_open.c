@@ -81,7 +81,8 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
 
     WT_ASSERT(session, filename != NULL);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s (%" PRIu32 ")", filename, S2BT(session)->id);
+    __wt_verbose(
+      session, WT_VERB_BLOCK, "open: %s (%" PRIu64 ")", filename, (uint64_t)S2BT(session)->id);
 
     conn = S2C(session);
     hash = __wt_hash_city64(filename, strlen(filename));
