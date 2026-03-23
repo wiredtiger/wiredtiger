@@ -64,12 +64,12 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
 
 static void
 preserve_copy_uri(WT_SESSION *from_session, const char *from_uri, WT_SESSION *to_session,
-  const char *to_uri, int max_entries)
+  const char *to_uri, uint32_t max_entries)
 {
     WT_DECL_RET;
     WT_CURSOR *from, *to;
     WT_ITEM key, value;
-    int entries;
+    uint32_t entries;
     char new_config[256];
 
     ret = from_session->open_cursor(from_session, from_uri, NULL, "raw", &from);
@@ -84,7 +84,7 @@ preserve_copy_uri(WT_SESSION *from_session, const char *from_uri, WT_SESSION *to
     WT_CLEAR(key);
     WT_CLEAR(value);
     testutil_check(to_session->begin_transaction(to_session, NULL));
-    while ((max_entries < 0 || entries < max_entries) && (ret = from->next(from)) == 0) {
+    while (entries < max_entries && (ret = from->next(from)) == 0) {
         from->get_key(from, &key);
         from->get_value(from, &value);
         to->set_key(to, &key);
@@ -111,7 +111,8 @@ preserve_copy_uri(WT_SESSION *from_session, const char *from_uri, WT_SESSION *to
  *     tables found in the metadata. This is typically called after a failure has occurred.
  */
 void
-testutil_disagg_preserve(TEST_OPTS *opts, WT_CONNECTION *conn, const char *subdir, int max_entries)
+testutil_disagg_preserve(
+  TEST_OPTS *opts, WT_CONNECTION *conn, const char *subdir, uint32_t max_entries)
 {
     WT_CONNECTION *dest_conn;
     WT_DECL_RET;
@@ -129,6 +130,7 @@ testutil_disagg_preserve(TEST_OPTS *opts, WT_CONNECTION *conn, const char *subdi
      */
     testutil_snprintf(dest_dir, sizeof(dest_dir), "%s/%s", home, subdir);
     testutil_recreate_dir(dest_dir);
+    fprintf(stderr, "preserving ingest/stable/layered to %s\n", dest_dir);
     testutil_check(wiredtiger_open(dest_dir, NULL, "create", &dest_conn));
     testutil_check(dest_conn->open_session(dest_conn, NULL, NULL, &dest_session));
 
