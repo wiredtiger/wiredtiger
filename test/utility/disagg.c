@@ -63,7 +63,8 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
 }
 
 static void
-preserve_copy_uri(WT_SESSION *session, const char *from_uri, const char *to_uri, int max_entries)
+preserve_copy_uri(WT_SESSION *from_session, const char *from_uri, WT_SESSION *to_session,
+  const char *to_uri, int max_entries)
 {
     WT_DECL_RET;
     WT_CURSOR *from, *to;
@@ -71,24 +72,38 @@ preserve_copy_uri(WT_SESSION *session, const char *from_uri, const char *to_uri,
     int entries;
     char new_config[256];
 
-    testutil_check(session->open_cursor(session, from_uri, NULL, "raw", &from));
+    ret = from_session->open_cursor(from_session, from_uri, NULL, "raw", &from);
+    if (ret == WT_NOTFOUND || ret == ENOENT)
+        return;
+    testutil_check(ret);
     testutil_snprintf(new_config, sizeof(new_config), "key_format=%s,value_format=%s",
       from->key_format, from->value_format);
-    testutil_check(session->create(session, to_uri, new_config));
-    testutil_check(session->open_cursor(session, to_uri, NULL, "raw", &to));
+    testutil_check(to_session->create(to_session, to_uri, new_config));
+    testutil_check(to_session->open_cursor(to_session, to_uri, NULL, "raw", &to));
     entries = 0;
+    WT_CLEAR(key);
+    WT_CLEAR(value);
+    testutil_check(to_session->begin_transaction(to_session, NULL));
     while ((max_entries < 0 || entries < max_entries) && (ret = from->next(from)) == 0) {
         from->get_key(from, &key);
         from->get_value(from, &value);
         to->set_key(to, &key);
         to->set_value(to, &value);
+        //fprintf(stderr, "%s: %.*s\n", to_uri, (int)key.size, (char *)key.data);
         testutil_check(to->insert(to));
         ++entries;
+        if (entries % 1000 == 0) {
+            testutil_check(to_session->commit_transaction(to_session, NULL));
+            testutil_check(to_session->begin_transaction(to_session, NULL));
+        }
     }
+    testutil_check(to_session->commit_transaction(to_session, NULL));
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
     testutil_check(from->close(from));
     testutil_check(to->close(to));
 }
+
+#define LAYERED_PREFIX "layered:"
 
 /*
  * testutil_disagg_preserve --
@@ -97,82 +112,66 @@ preserve_copy_uri(WT_SESSION *session, const char *from_uri, const char *to_uri,
  *     tables found in the metadata. This is typically called after a failure has occurred.
  */
 void
-testutil_disagg_preserve(TEST_OPTS *opts, WT_CONNECTION *conn, int max_entries, uint64_t ts)
+testutil_disagg_preserve(TEST_OPTS *opts, WT_CONNECTION *conn, const char *subdir, int max_entries)
 {
+    WT_CONNECTION *dest_conn;
     WT_DECL_RET;
-    WT_SESSION *session;
-    WT_CURSOR *metacopy, *metacur;
-    const char *home, *uri, *metavalue;
-    char config_buf[256], from_uri[1024], to_uri[1024];
+    WT_SESSION *session, *dest_session;
+    WT_CURSOR *metacur;
+    const char *base, *home, *uri;
+    char dest_dir[1024], from_uri[1024], to_uri[1024];
 
     (void)opts;
     home = conn->get_home(conn);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
-     * First make sure we don't have preserve entries in the metadata table.
+     * Create a new WiredTiger instance to hold the preserved files.
+     */
+    testutil_snprintf(dest_dir, sizeof(dest_dir), "%s/%s", home, subdir);
+    testutil_recreate_dir(dest_dir);
+    testutil_check(wiredtiger_open(dest_dir, NULL, "create", &dest_conn));
+    testutil_check(dest_conn->open_session(dest_conn, NULL, NULL, &dest_session));
+
+    /*
+     * Copy the metadata file first.
+     */
+    preserve_copy_uri(session, "metadata:", dest_session, "file:metadata.preserve.wt", max_entries);
+
+    /*
+     * Now, for each layered table in the metadata, copy its layered component to a newly created
+     * preserve table.
      */
     testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &metacur));
     while ((ret = metacur->next(metacur)) == 0) {
         metacur->get_key(metacur, &uri);
-        testutil_assertfmt(
-          strstr(uri, "_preserve.wt") == NULL, "%s: connection has already been preserved", uri);
-    }
-    testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+        if (strncmp(uri, LAYERED_PREFIX, strlen(LAYERED_PREFIX)) == 0) {
+            /*
+             * Preserved files cannot be named with the strings ".wt_ingest" or
+             * ".wt_stable" embedded in the names, as WiredTiger will treat these specially.
+             */
+            base = uri + strlen(LAYERED_PREFIX);
+            testutil_snprintf(from_uri, sizeof(from_uri), "file:%s.wt_ingest", base);
+            testutil_snprintf(to_uri, sizeof(to_uri), "file:%s.ingest_preserve.wt", base);
+            preserve_copy_uri(session, from_uri, dest_session, to_uri, max_entries);
 
-    /*
-     * Next, remove any preserve files left over from a previous run.
-     */
-    testutil_remove_match(home, "_preserve.wt");
+            testutil_snprintf(from_uri, sizeof(from_uri), "file:%s.wt_stable", base);
+            testutil_snprintf(to_uri, sizeof(to_uri), "file:%s.stable_preserve.wt", base);
+            preserve_copy_uri(session, from_uri, dest_session, to_uri, max_entries);
 
-    session->begin_transaction(session, NULL);
-    to_uri[0] = '\0';
-    testutil_check(__wt_strcat(to_uri, sizeof(to_uri), "file:WiredTiger.wt_preserve"));
-    testutil_check(session->create(session, to_uri, "key_format=S,value_format=S"));
-    testutil_check(session->open_cursor(session, to_uri, NULL, NULL, &metacopy));
-
-    /*
-     * Now, for each layered table in metadata, copy its layered component to a newly created
-     * preserve table.
-     */
-    testutil_check(metacur->reset(metacur));
-    while ((ret = metacur->next(metacur)) == 0) {
-        /* Copy the metadata to a preserve file. */
-        metacur->get_key(metacur, &uri);
-        metacur->get_value(metacur, &metavalue);
-        metacopy->set_key(metacopy, uri);
-        metacopy->set_value(metacopy, metavalue);
-        testutil_check(metacopy->insert(metacopy));
-
-        if (strncmp(uri, "layered:", 8) == 0) {
-            uri += 8;
-            testutil_snprintf(from_uri, sizeof(from_uri), "file:%s.wt_ingest", uri);
-            testutil_snprintf(to_uri, sizeof(to_uri), "file:%s.wt_ingest_preserve", uri);
-            preserve_copy_uri(session, from_uri, to_uri, max_entries);
-
-            testutil_snprintf(from_uri, sizeof(from_uri), "file:%s.wt_stable", uri);
-            testutil_snprintf(to_uri, sizeof(to_uri), "file:%s.wt_stable_preserve", uri);
-            preserve_copy_uri(session, from_uri, to_uri, max_entries);
-
-            testutil_snprintf(from_uri, sizeof(from_uri), "layered:%s", uri);
-            testutil_snprintf(to_uri, sizeof(to_uri), "file:%s.wt_layered_preserve", uri);
-            preserve_copy_uri(session, from_uri, to_uri, max_entries);
+            testutil_snprintf(from_uri, sizeof(from_uri), "layered:%s", base);
+            testutil_snprintf(to_uri, sizeof(to_uri), "file:%s.layered_preserve.wt", base);
+            preserve_copy_uri(session, from_uri, dest_session, to_uri, max_entries);
         }
     }
-    testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+    testutil_assert(ret == WT_NOTFOUND);
     testutil_check(metacur->close(metacur));
-    testutil_check(metacopy->reset(metacopy));
-
-    testutil_snprintf(config_buf, sizeof(config_buf), "commit_timestamp=%" PRIx64, ts);
-    session->commit_transaction(session, config_buf);
 
     /*
-     * At the moment, the only way we have to guarantee that the preserve files are on disk is to
-     * checkpoint.
+     * Final checkpoint for destination and close everything.
      */
-    testutil_snprintf(config_buf, sizeof(config_buf), "stable_timestamp=%" PRIx64, ts);
-    conn->set_timestamp(conn, config_buf);
-    testutil_check(session->checkpoint(session, NULL));
-
     testutil_check(session->close(session, NULL));
+    testutil_check(dest_session->checkpoint(dest_session, NULL));
+    testutil_check(dest_session->close(dest_session, NULL));
+    testutil_check(dest_conn->close(dest_conn, NULL));
 }

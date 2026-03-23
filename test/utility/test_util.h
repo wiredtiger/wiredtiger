@@ -601,7 +601,7 @@ void testutil_deduce_build_dir(TEST_OPTS *opts);
 void testutil_delete_old_backups(int);
 void testutil_disagg_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
-void testutil_disagg_preserve(TEST_OPTS *, WT_CONNECTION *, int, uint64_t);
+void testutil_disagg_preserve(TEST_OPTS *, WT_CONNECTION *, const char *, int);
 bool testutil_exists(const char *, const char *);
 int testutil_general_event_handler(
   WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
@@ -626,7 +626,6 @@ void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
 void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
 void testutil_recreate_dir(const char *);
 void testutil_remove(const char *);
-void testutil_remove_match(const char *, const char *);
 void testutil_sentinel(const char *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);

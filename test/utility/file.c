@@ -633,26 +633,6 @@ remove_on_file(const char *path, const file_info_t *info, void *user_data)
 }
 
 /*
- * remove_on_file_match --
- *     Worker for removing a file if the name matches a string.
- */
-static void
-remove_on_file_match(const char *path, const file_info_t *info, void *user_data)
-{
-    WT_DECL_RET;
-    const char *match;
-
-    WT_UNUSED(info);
-    match = (const char *)user_data;
-
-    if (strstr(path, match) != NULL) {
-        ret = unlink(path);
-        testutil_assertfmt(
-          ret == 0 || errno == ENOENT, "Cannot remove %s: %s", path, strerror(errno));
-    }
-}
-
-/*
  * remove_on_directory_leave --
  *     Worker for removing a directory.
  */
@@ -686,16 +666,6 @@ testutil_remove(const char *path)
           g.gl_pathv[i], NULL, 0, true, remove_on_file, NULL, remove_on_directory_leave, NULL);
 
     globfree(&g);
-}
-
-/*
- * testutil_remove_match --
- *     Remove files containing the matching string in a directory tree. Fail the test on error.
- */
-void
-testutil_remove_match(const char *path, const char *match)
-{
-    process_directory_tree(path, NULL, 0, true, remove_on_file_match, NULL, NULL, (void *)match);
 }
 
 /*

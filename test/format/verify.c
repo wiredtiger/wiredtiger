@@ -319,8 +319,7 @@ table_verify_mirror(
             bool continuing = (base_keyno == table_keyno ||
               (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
             if (!continuing && g.disagg_storage_config)
-                testutil_disagg_preserve(
-                  NULL, conn, 10000, __wt_atomic_add_uint64_v(&g.timestamp, 1));
+                testutil_disagg_preserve(NULL, conn, "preserve", 100000);
 
             /* Dump the cursor pages for the first failure. */
             if (++failures == 1) {
