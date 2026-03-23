@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered80.py
+# test_layered05.py
 #   Test layered cursor search_near correctness with a larger dataset (1000 keys).
 #
 #   Exercises edge cases in the merge logic that chooses between ingest and
@@ -42,13 +42,13 @@ from wtscenario import make_scenarios
 #   - Correct iteration (next/prev) after search_near.
 
 @disagg_test_class
-class test_layered80(wttest.WiredTigerTestCase):
+class test_layered05(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    uri = 'layered:test_layered80'
+    uri = 'layered:test_layered05'
 
     nkeys = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered80', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered05', disagg_only=True)
 
     # Each test runs in two scenarios:
     #   - leader:   test operations run on the leader session. The leader's stable cursor

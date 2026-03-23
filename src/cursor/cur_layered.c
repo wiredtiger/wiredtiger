@@ -344,16 +344,20 @@ __clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *claye
     if (clayered->ingest_cursor == NULL)
         return (false);
 
+    bool leader = S2C(session)->layered_table_manager.leader;
     /*
      * Layered cursor is positioned on the ingest cursor. Changing it may lose the layered cursor
      * position.
      */
     if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-      clayered->current_cursor == clayered->ingest_cursor)
+      clayered->current_cursor == clayered->ingest_cursor) {
+        /* This should not happen on the leader at the moment. */
+        WT_ASSERT(session, !leader);
         return (false);
+    }
 
     /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
-    if (S2C(session)->layered_table_manager.leader == clayered->leader)
+    if (leader == clayered->leader)
         return (false);
 
     return (true);
@@ -1458,7 +1462,8 @@ err:
  *     search near helper function to move the ingest btree to the opposite side of the search key.
  */
 static int
-__clayered_search_near_move_ingest_to_opposite_side(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, int stable_cmp, int *ingest_cmp)
+__clayered_search_near_move_ingest_to_opposite_side(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, int stable_cmp, int *ingest_cmp)
 {
     WT_COLLATOR *collator;
     WT_CURSOR *cursor, *ingest_cursor;
@@ -1580,7 +1585,9 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                  * the other side. When reading with read-uncommitted isolation, concurrent key
                  * insertions may occur. Continue the walk until the search key is passed.
                  */
-                WT_ERR_NOTFOUND_OK(__clayered_search_near_move_ingest_to_opposite_side(session, clayered, stable_cmp, &ingest_cmp), true);
+                WT_ERR_NOTFOUND_OK(__clayered_search_near_move_ingest_to_opposite_side(
+                                     session, clayered, stable_cmp, &ingest_cmp),
+                  true);
 
                 if (ret == WT_NOTFOUND) {
                     ret = 0;
