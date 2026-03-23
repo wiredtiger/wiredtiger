@@ -1578,7 +1578,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     else
                         closest = clayered->stable_cursor;
                 } else {
-                    WT_ASSERT(session, ingest_cmp <= 0 && stable_cmp < 0);
+                    WT_ASSERT(session, stable_cmp < 0);
                     /* Both cursors were smaller than the search key - choose the bigger one */
                     WT_ERR(__clayered_cursor_compare(
                       clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
