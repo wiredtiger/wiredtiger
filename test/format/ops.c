@@ -1306,12 +1306,11 @@ rollback_retry:
         }
         if (ret == 0 && table->mirror) {
             /*
-             * For mirrored truncates, remember that we executed a truncate in this transaction.
-             * Note: mirrored_truncate is set before we know whether any of the truncate calls will
-             * return WT_ROLLBACK. If a rollback happens later in this transaction,
-             * mirrored_truncate remains true and we will still run wts_verify_mirrored_truncate
-             * after the rollback, so mirrored truncates are verified in both the commit and
-             * rollback cases.
+             * For mirrored truncates, we record that a truncate was executed in this transaction.
+             * That record is set before we know whether any of the truncate calls will return
+             * WT_ROLLBACK. If the transaction later rolls back, the record remains set and we still
+             * run the mirrored-truncate verification at the end, so this path is checked for both
+             * committed and rolled-back truncates.
              */
             if (op == TRUNCATE)
                 mirrored_truncate = true;
