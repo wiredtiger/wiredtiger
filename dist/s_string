@@ -55,6 +55,7 @@ l=$(
     find bench dist examples ext src test tools/checksum_bitflip -name '*.[chsy]' | grep -v 'test/3rdparty'
     find src -name '*.in'
     find test -name '*.cpp' | grep -v 'test/3rdparty'
+    find test -name '*.py' | grep -v 'test/3rdparty'
     find test -name '*.yml' | grep -v 'test/3rdparty'
   } | filter_if_fast
 )
