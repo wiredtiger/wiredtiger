@@ -1540,7 +1540,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                         if (ret == 0)
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
                               &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp < 0);
+                    } while (ret == 0 && ingest_cmp <= 0);
                 } else {
                     /* Stable is smaller. Move ingest backward to find a smaller key in ingest. */
                     do {
@@ -1553,7 +1553,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                         if (ret == 0)
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
                               &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp > 0);
+                    } while (ret == 0 && ingest_cmp >= 0);
                 }
 
                 if (ret == WT_NOTFOUND) {
