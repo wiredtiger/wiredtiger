@@ -40,8 +40,9 @@ err:
  *     Print a block disagg read error context in a standard way.
  */
 static void
-__block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint32_t size, uint64_t page_id,
-  uint64_t lsn, bool is_delta, int32_t delta_seq, const char *context_msg_fmt, ...)
+__block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint64_t table_id,
+  uint32_t size, uint64_t page_id, uint64_t lsn, bool is_delta, int32_t delta_seq,
+  const char *context_msg_fmt, ...)
 {
     WT_DECL_RET;
 
@@ -68,8 +69,8 @@ err:
     __wt_errx(session,
       "%s: read error for %" PRIu32
       "B block at "
-      "page %" PRIu64 ", lsn %" PRIu64 ", %s, %s",
-      name, size, page_id, lsn, page_desc, context_msg);
+      "page %" PRIu64 ", lsn %" PRIu64 ", table %" PRIu64 ", %s, %s",
+      name, size, page_id, lsn, table_id, page_desc, context_msg);
 }
 
 /*
@@ -220,14 +221,15 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
-                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
-                      is_delta, result, "magic %" PRIu8 ": doesn't match expected magic of %" PRIu8,
-                      swap.magic, expected_magic);
+                    __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
+                      size, page_id, lsn, is_delta, result,
+                      "magic %" PRIu8 ": doesn't match expected magic of %" PRIu8, swap.magic,
+                      expected_magic);
                     goto corrupt;
                 }
                 if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
-                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
-                      is_delta, result,
+                    __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
+                      size, page_id, lsn, is_delta, result,
                       "compatible version error, version %" PRIu8
                       " is greater than compatible version of %" PRIu8,
                       swap.compatible_version, WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
@@ -274,13 +276,14 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
             }
 
             if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
-                  result,
+                __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+                  page_id, lsn, is_delta, result,
                   "calculated checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
                   swap.checksum, checksum);
         } else if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
-              result, "header checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
+            __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+              page_id, lsn, is_delta, result,
+              "header checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
               swap.checksum, checksum);
 
 corrupt:
