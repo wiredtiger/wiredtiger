@@ -412,6 +412,12 @@ __clayered_upgrade_stable(
           ret == 0 || !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
             clayered->current_cursor == clayered->ingest_cursor,
           "upgrading a positioned stable cursor");
+        /*
+         * If the key is removed in the new checkpoint, clear the iteration flag to reposition it to
+         * the correct location.
+         */
+        if (ret != 0)
+            F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
         WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
         if (F_ISSET(old_stable, WT_CURSTD_VALUE_EXT))
@@ -842,7 +848,7 @@ __clayered_constituent_iter(WT_CURSOR *constituent, bool forward)
  *
  * Subsequent calls to __clayered_prev() or __clayered_next() may skip the positioning step
  *     entirely, since they guarantee that both constituents are properly positioned on exit. To
- *     detect these cases, WT_CLAYERED_ITERATE_PREV/NEXT are used.
+ *     detect these cases, WT_CLAYERED_ITERATE_NEXT/PREV are used.
  *
  * If both `current_cursor` and `alternate_cursor` are positioned on the same key, both should be
  *     advanced to the next position. Otherwise, only `current_cursor` should be advanced.
@@ -919,7 +925,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
 
 done:
     if (!F_ISSET(clayered, iter_flag)) {
-        F_CLR(clayered, WT_CLAYERED_ITERATE_PREV | WT_CLAYERED_ITERATE_NEXT);
+        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
         F_SET(clayered, iter_flag);
     }
     return (0);
@@ -1418,11 +1424,11 @@ __clayered_search(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, search, clayered->dhandle);
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, true, true, false));
-    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
     WT_ERR(__clayered_lookup(session, clayered, &cursor->value));
@@ -1461,8 +1467,6 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_cmp = stable_cmp = 0;
     deleted = ingest_found = stable_found = false;
-
-    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     /*
      * search_near is somewhat fiddly: we can't just use a nearby key from the current constituent
@@ -1628,9 +1632,20 @@ done:
     if (exactp != NULL)
         *exactp = cmp;
 
+    /*
+     * If the search-near operation did not internally invoke cursor iteration, reset the
+     * constituent cursor that is not the current cursor to prevent unnecessarily pinning the page
+     * in memory.
+     */
+    if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV)) {
+        if (clayered->stable_cursor != NULL && clayered->current_cursor == clayered->ingest_cursor)
+            WT_ERR(clayered->stable_cursor->reset(clayered->stable_cursor));
+        else if (clayered->current_cursor == clayered->stable_cursor)
+              WT_ERR(clayered->ingest_cursor->reset(clayered->ingest_cursor));
+    }
+
 err:
     __clayered_leave(clayered);
-
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
         /* FIXME-WT-16880: Fix layered search_near() incorrectly resetting the cursor. */
         WT_TRET(__clayered_reset_cursors(clayered, false));
@@ -1652,6 +1667,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
@@ -1671,7 +1687,6 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 
 err:
     __clayered_leave(clayered);
-
     if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -1699,9 +1714,10 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 
         /*
          * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway.
+         * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
          */
-        WT_RET(__clayered_reset_cursors(clayered, true));
+        if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
+            WT_RET(__clayered_reset_cursors(clayered, true));
     }
 
     c->set_key(c, key);
@@ -1756,9 +1772,10 @@ __clayered_remove_follower(
 
     /*
      * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-     * anyway.
+     * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
      */
-    WT_RET(__clayered_reset_cursors(clayered, true));
+    if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
+        WT_RET(__clayered_reset_cursors(clayered, true));
 
     c->set_value(c, &__wt_tombstone);
     WT_ERR(c->update(c));
@@ -1849,6 +1866,8 @@ __clayered_insert(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
+    /* Insert doesn't keep the cursor positioned. Always clear the iteration flags. */
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
@@ -1906,6 +1925,12 @@ __clayered_update(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
+    /*
+     * Update keeps the cursor positioned. Retain the iteration flags if we are in the middle of a
+     * cursor traversal.
+     */
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
+        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
@@ -1962,6 +1987,12 @@ __clayered_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, ret, clayered->dhandle);
+    /*
+     * Remove keeps the cursor positioned. Retain the iteration flags if we are in the middle of a
+     * cursor traversal.
+     */
+    if (!positioned)
+        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
@@ -2010,6 +2041,11 @@ __clayered_reserve(WT_CURSOR *cursor)
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
+    /*
+     * Since a search will be performed afterward that clears the iteration flags, no point to
+     * retain the flags.
+     */
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
@@ -2062,6 +2098,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
     ingest_found = stable_found = false;
 
     CURSOR_API_CALL(cursor, session, ret, largest_key, clayered->dhandle);
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
@@ -2230,6 +2267,7 @@ __clayered_next_random(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, true));
@@ -2273,6 +2311,9 @@ err:
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    } else {
+        WT_TRET(__clayered_reset_cursors(clayered, false));
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     }
 
     API_END_RET(session, ret);
@@ -2368,7 +2409,8 @@ __clayered_modify_follower(
     }
 
     /* Clear the stable cursor position. */
-    WT_ERR(__clayered_reset_cursors(clayered, true));
+    if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
+        WT_ERR(__clayered_reset_cursors(clayered, true));
     clayered->current_cursor = ingest;
 
 err:
@@ -2403,8 +2445,10 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_CURSOR *current;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool positioned;
 
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
+    positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
     WT_ERR(__cursor_copy_release(cursor));
@@ -2444,6 +2488,12 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 err:
     __clayered_leave(clayered);
+    /*
+     * Modify keeps the cursor positioned. Retain the iteration flags if we are in the middle of a
+     * cursor traversal.
+     */
+    if (!positioned)
+        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_modify);
     return (ret);
 }
