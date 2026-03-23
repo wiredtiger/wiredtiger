@@ -1454,6 +1454,54 @@ err:
 }
 
 /*
+ * __clayered_search_near_move_ingest_to_opposite_side --
+ *     search near helper function to move the ingest btree to the opposite side of the search key.
+ */
+static int
+__clayered_search_near_move_ingest_to_opposite_side(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, int stable_cmp, int *ingest_cmp)
+{
+    WT_COLLATOR *collator;
+    WT_CURSOR *cursor, *ingest_cursor;
+    WT_DECL_RET;
+
+    cursor = &clayered->iface;
+    ingest_cursor = clayered->ingest_cursor;
+
+    __clayered_get_collator(clayered, &collator);
+    if (stable_cmp > 0) {
+        /* Stable is larger. Move ingest forward to find a larger key in ingest. */
+        do {
+            WT_ERR_NOTFOUND_OK(ingest_cursor->next(ingest_cursor), true);
+
+            if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
+                *ingest_cmp = stable_cmp;
+                break;
+            }
+
+            if (ret == 0)
+                WT_ERR(
+                  __wt_compare(session, collator, &ingest_cursor->key, &cursor->key, ingest_cmp));
+        } while (ret == 0 && *ingest_cmp < 0);
+    } else {
+        /* Stable is smaller. Move ingest backward to find a smaller key in ingest. */
+        do {
+            WT_ERR_NOTFOUND_OK(ingest_cursor->prev(ingest_cursor), true);
+
+            if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
+                *ingest_cmp = stable_cmp;
+                break;
+            }
+
+            if (ret == 0)
+                WT_ERR(
+                  __wt_compare(session, collator, &ingest_cursor->key, &cursor->key, ingest_cmp));
+        } while (ret == 0 && *ingest_cmp > 0);
+    }
+err:
+    return (ret);
+}
+
+/*
  * __clayered_search_near_int --
  *     search near method for the layered cursor type.
  */
@@ -1526,45 +1574,13 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
              * Otherwise, there is a risk of overlooking a closer key on the ingest table that lies
              * on the opposite side of the search key relative to the stable cursor's position.
              */
-            WT_COLLATOR *collator;
-            __clayered_get_collator(clayered, &collator);
             if ((ingest_cmp ^ stable_cmp) < 0) {
                 /*
                  * The cursors are on opposite sides of the search key. Move the ingest cursor to
                  * the other side. When reading with read-uncommitted isolation, concurrent key
                  * insertions may occur. Continue the walk until the search key is passed.
                  */
-                if (stable_cmp > 0) {
-                    /* Stable is larger. Move ingest forward to find a larger key in ingest. */
-                    do {
-                        WT_ERR_NOTFOUND_OK(
-                          clayered->ingest_cursor->next(clayered->ingest_cursor), true);
-
-                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
-                            ingest_cmp = stable_cmp;
-                            break;
-                        }
-
-                        if (ret == 0)
-                            WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
-                              &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp < 0);
-                } else {
-                    /* Stable is smaller. Move ingest backward to find a smaller key in ingest. */
-                    do {
-                        WT_ERR_NOTFOUND_OK(
-                          clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
-
-                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
-                            ingest_cmp = stable_cmp;
-                            break;
-                        }
-
-                        if (ret == 0)
-                            WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
-                              &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp > 0);
-                }
+                WT_ERR_NOTFOUND_OK(__clayered_search_near_move_ingest_to_opposite_side(session, clayered, stable_cmp, &ingest_cmp), true);
 
                 if (ret == WT_NOTFOUND) {
                     ret = 0;
