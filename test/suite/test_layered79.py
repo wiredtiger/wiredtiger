@@ -72,8 +72,9 @@ class test_layered79(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor("file:test_layered79.wt_ingest")
 
         # Give the aggressive sweep server time to run several cycles.
-        # Without the fix in conn_sweep.c, it would mark and close the layered
-        # dhandle, causing gaps when draining the ingest table at step-up.
+        # If the sweep server is not configured to skip layered dhandles,
+        # it would mark and close them, causing gaps when draining the
+        # ingest table at step-up.
         time.sleep(3)
 
         # Step up to leader.
