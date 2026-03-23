@@ -128,7 +128,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Data population helpers — each creates a common data layout.
+    # Data population helpers  each creates a common data layout.
     # -----------------------------------------------------------------------
 
     def populate_interleaved(self):
