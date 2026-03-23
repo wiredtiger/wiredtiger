@@ -282,6 +282,7 @@ __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     uint32_t session_flags;
     int checkpoint_threads;
 
@@ -320,12 +321,16 @@ __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg
 
     /* Create the checkpoint thread group. */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
-    WT_RET(__wt_thread_group_create(session, &ckpt_threads->thread_group,
+    WT_ERR(__wt_thread_group_create(session, &ckpt_threads->thread_group,
       "checkpoint-page-reconciliation-threads", ckpt_threads->num_threads,
       ckpt_threads->num_threads, session_flags, __checkpoint_parallel_thread_chk,
       __checkpoint_parallel_thread_run, __checkpoint_parallel_thread_stop));
 
-    return (0);
+    if (0) {
+err:
+        WT_TRET(__wt_checkpoint_parallel_thread_destroy(session));
+    }
+    return (ret);
 }
 
 /*
@@ -358,6 +363,16 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     __wt_cond_signal(session, ckpt_threads->work_cond);
 
     __wt_verbose(session, WT_VERB_CHECKPOINT, "%s", "Waiting for helper threads");
+
+    /*
+     * Process the done queue to release the relevant pages and free the queue entries.
+     */
+    ret = __wt_checkpoint_parallel_finish(session);
+    if (ret != 0) {
+        __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+          "Checkpoint page reconciliation failed: %s", __wt_strerror(session, ret, NULL, 0));
+        ret = 0; /* We don't need to communicate this error to the caller. */
+    }
 
     /*
      * We call the destroy function still holding the write lock. It assumes it is called locked.
