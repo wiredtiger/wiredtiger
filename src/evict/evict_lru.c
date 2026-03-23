@@ -557,7 +557,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
  *     It is called from multiple places in the code base, such as when initiating file eviction
  *     `__wt_evict_file` or when opening or closing trees.
  */
-#if 0
+#if 1
 void
 __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 {
@@ -596,6 +596,7 @@ err:
 }
 #endif
 
+#if 0
 void
 __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 {
@@ -641,8 +642,9 @@ err:
     }
     __wt_spin_unlock(session, &evict->evict_exclusive_lock);
 }
+#endif
 
-#if 0
+#if 1
 /* !!!
  * __wt_evict_file_exclusive_off --
  *     Release exclusive access to a file/tree by decrementing the `evict_disabled` count
@@ -657,9 +659,6 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
 
     btree = S2BT(session);
-
-    printf("evict_disabled  = %d\n", btree->evict_data.evict_disabled);
-    fflush (stdout);
 
     /*
      * We have seen subtle bugs with multiple threads racing to turn eviction on/off. Make races
@@ -688,9 +687,12 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #else
     (void)__wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
 #endif
+    printf("evict_disabled  = %d\n", btree->evict_data.evict_disabled);
+    fflush (stdout);
 }
 #endif
 
+#if 0
 /* !!!
  * __wt_evict_file_exclusive_off --
  *     Release exclusive access to a file/tree by decrementing the `evict_disabled` count
@@ -723,6 +725,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
       btree->dhandle->name);
 }
+#endif
 
 #define EVICT_TUNE_BATCH 1 /* Max workers to add each period */
                            /*
