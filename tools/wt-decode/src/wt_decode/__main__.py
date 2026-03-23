@@ -43,8 +43,6 @@ def main():
         help='input is a full disagg table from GetTableAtLSN endpoint')
     inargs.add_argument('--disagg', action='store_true',
         help='input comes from disaggregated storage')
-    inargs.add_argument('--fragment', action='store_true',
-        help='input is a raw page fragment (no file header)')
     inargs.add_argument('-o', '--offset', type=int, default=0,
         help='seek offset before decoding')
     inargs.add_argument('--page-id', type=int, default=None,
@@ -85,7 +83,6 @@ def main():
             dumpin=args.hex,
             disagg_table=args.disagg_table,
             disagg=args.disagg,
-            fragment=args.fragment,
             skip_data=args.skip_data,
             cont=args.cont,
             split=args.split,
@@ -120,6 +117,10 @@ def main():
             process_sqlite_file(filename, opts)
         else:
             nbytes = 0 if filename == '-' else os.path.getsize(filename)
+            input_name = 'stdin' if filename == '-' else filename
+            input_size = 'unknown' if filename == '-' else hex(nbytes)
+            print(f'{input_name}, position {hex(opts.offset)}, size {input_size}, '
+                    f'pagelimit {opts.pages}')
             with open_input_file(filename, 'rb') as infile:
                 wtdecode_file_object(
                     binary.BinaryFile(infile), nbytes, opts)

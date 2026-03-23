@@ -28,7 +28,6 @@ def make_decode_opts(
         verbose=verbose,
         split=False,
         ext=False,
-        fragment=True,
         disagg=disagg,
         bson=bson,
         debug=debug,

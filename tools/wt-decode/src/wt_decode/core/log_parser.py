@@ -52,7 +52,6 @@ import io
 import logging
 import re
 import json
-import dataclasses
 
 from wt_decode.core import binary
 from wt_decode.core.options import DecodeOptions
@@ -85,7 +84,7 @@ def process_mongod_log(f, opts: DecodeOptions):
 
     b = binary.BinaryFile(io.BytesIO(byte_dump))
     wtdecode_file_object(b, len(byte_dump),
-                         dataclasses.replace(opts, fragment=True))
+                         opts)
 
 def process_wiredtiger_log(f, opts: DecodeOptions):
     while True:
@@ -96,7 +95,7 @@ def process_wiredtiger_log(f, opts: DecodeOptions):
 
         b = binary.BinaryFile(io.BytesIO(byte_dump))
         wtdecode_file_object(b, len(byte_dump),
-                             dataclasses.replace(opts, fragment=True))
+                             opts)
 
 # Specific exceptions for hex dump validation errors, to distinguish from other parsing errors
 # and to provide more specific error messages about what is wrong with the hex dump.

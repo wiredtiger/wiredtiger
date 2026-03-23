@@ -57,9 +57,6 @@ class DecodeOptions:
     dumpin: bool = False
     # Input is a full disagg table from the GetTableAtLSN endpoint.
     disagg_table: bool = False
-    # Treat the input as a fragment with no WT file header.
-    fragment: bool = False
-
     # --- Decode behaviour ---
     # Input comes from disaggregated storage.
     disagg: bool = False
