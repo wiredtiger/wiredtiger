@@ -164,7 +164,7 @@ __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     btree = S2BT(session);
     bm = btree->bm;
 
-    return (bm->free(bm, session, addr, addr_size));
+    return (bm->free(bm, session, addr, addr_size, false));
 }
 
 /*
@@ -324,8 +324,14 @@ __wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
 static WT_INLINE void
 __wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
 {
-    WT_ASSERT(session, __wt_atomic_load_uint64(&S2BT(session)->bytes_total) >= size);
-    (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
+    /*
+     * FIXME WT-16660: re-enable this assert once the disagg delta block size accounting bug is
+     * fixed.
+     */
+    if (__wt_atomic_load_uint64(&S2BT(session)->bytes_total) < size)
+        __wt_atomic_store_uint64(&S2BT(session)->bytes_total, 0);
+    else
+        (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
 }
 
 /*
@@ -1833,7 +1839,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     WT_PAGE *page;
 
     unpack = &_unpack;
-    page = ref->home;
     copy->del_set = false;
 
     WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
@@ -1843,12 +1848,16 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
      * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
      * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
-     * WT_ADDRs and swapped into place. The content of the two WT_ADDRs are identical, and we don't
-     * care which version we get as long as we don't mix-and-match the two.
+     * WT_ADDRs and swapped into place before ref->home is updated to the new child page. Read
+     * ref->home before ref->addr with an acquire barrier in between, pairing with the sequentially
+     * consistent CAS on ref->addr during split. This ensures that if we observe a new child page as
+     * home, we also observe the corresponding off-page addr. The dangerous combination is reading a
+     * new home with an old addr, as the on-page cell would be misinterpreted as an off-page
+     * address.
      */
-    addr = (WT_ADDR *)ref->addr;
-    WT_ACQUIRE_BARRIER();
+    page = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
 
+    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&ref->addr);
     /* If NULL, there is no information. */
     if (addr == NULL)
         return (false);

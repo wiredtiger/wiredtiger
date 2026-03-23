@@ -51,6 +51,8 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf pages",
+  "btree: time spent walking the tree for checkpoint including dirty page reconciliation time "
+  "(usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
   "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
   "cache: application threads eviction requested with cache fill ratio >= 50% and < 75%",
@@ -517,6 +519,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf = 0;
+    /* not clearing btree_checkpoint_reconcile_duration */
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
     stats->cache_eviction_app_threads_fill_ratio_50_75 = 0;
@@ -941,6 +944,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf += from->btree_row_leaf;
+    to->btree_checkpoint_reconcile_duration += from->btree_checkpoint_reconcile_duration;
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       from->cache_eviction_app_threads_fill_ratio_lt_25;
     to->cache_eviction_app_threads_fill_ratio_25_50 +=
@@ -1394,6 +1398,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
     to->btree_row_leaf += WT_STAT_DSRC_READ(from, btree_row_leaf);
+    to->btree_checkpoint_reconcile_duration +=
+      WT_STAT_DSRC_READ(from, btree_checkpoint_reconcile_duration);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
     to->cache_eviction_app_threads_fill_ratio_25_50 +=
@@ -2313,6 +2319,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",
   "checkpoint: total time (msecs)",
+  "checkpoint: total time (msecs) writing pages to stable storage during checkpoint reconciliation",
   "checkpoint: wait cycles while cache dirty level is decreasing",
   "chunk-cache: aggregate number of spanned chunks on read",
   "chunk-cache: chunks evicted",
@@ -3370,6 +3377,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoints_total_failed = 0;
     stats->checkpoints_total_succeed = 0;
     /* not clearing checkpoint_time_total */
+    stats->checkpoint_rec_blkcache_write = 0;
     stats->checkpoint_wait_reduce_dirty = 0;
     stats->chunkcache_spans_chunks_read = 0;
     stats->chunkcache_chunks_evicted = 0;
@@ -4530,6 +4538,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoints_total_failed += WT_STAT_CONN_READ(from, checkpoints_total_failed);
     to->checkpoints_total_succeed += WT_STAT_CONN_READ(from, checkpoints_total_succeed);
     to->checkpoint_time_total += WT_STAT_CONN_READ(from, checkpoint_time_total);
+    to->checkpoint_rec_blkcache_write += WT_STAT_CONN_READ(from, checkpoint_rec_blkcache_write);
     to->checkpoint_wait_reduce_dirty += WT_STAT_CONN_READ(from, checkpoint_wait_reduce_dirty);
     to->chunkcache_spans_chunks_read += WT_STAT_CONN_READ(from, chunkcache_spans_chunks_read);
     to->chunkcache_chunks_evicted += WT_STAT_CONN_READ(from, chunkcache_chunks_evicted);

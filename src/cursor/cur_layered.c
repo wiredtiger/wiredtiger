@@ -312,9 +312,6 @@ retry:
     if (clayered->stable_cursor != NULL) {
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
-        /* Layered cursor is not compatible with cursor_copy config. */
-        F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
-
         if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
             F_SET(clayered->stable_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     }
@@ -560,9 +557,6 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
         WT_ERR(
           __wt_open_cursor(session, layered->ingest_uri, c, ckpt_cfg, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
-
-        /* Layered cursor is not compatible with cursor_copy config. */
-        F_CLR(clayered->ingest_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
 
         if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
             F_SET(clayered->ingest_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
@@ -869,23 +863,20 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, bool forward, uint32_t iter_flag
      */
     do {
         WT_ERR(__clayered_iterate_constituents(clayered, iter_flag, deleted));
-        ret = __clayered_get_current(session, clayered, forward);
+        WT_ERR(__clayered_get_current(session, clayered, forward));
         deleted = __clayered_deleted(clayered, &clayered->current_cursor->value);
-    } while (ret == 0 && deleted);
-    WT_ERR_NOTFOUND_OK(ret, true);
+    } while (deleted);
 
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if (ret == 0) {
-        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-        WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-        WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
-    }
+    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+    WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
 
 err:
     __clayered_leave(clayered);
-    if (ret == 0)
+    if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
-    else {
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    } else {
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         if (ret != WT_PREPARE_CONFLICT)
             __clayered_reset_cursors(clayered, false);
@@ -907,6 +898,7 @@ __clayered_next(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
 
@@ -914,19 +906,21 @@ __clayered_next(WT_CURSOR *cursor)
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
-    else
+    else {
+        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_stable);
+    }
 
 err:
     API_END_RET(session, ret);
 }
 
 /*
- * __layered_prev --
+ * __clayered_prev --
  *     WT_CURSOR->prev method for the layered cursor type.
  */
 static int
-__layered_prev(WT_CURSOR *cursor)
+__clayered_prev(WT_CURSOR *cursor)
 {
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
@@ -935,6 +929,7 @@ __layered_prev(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, prev, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
 
@@ -942,8 +937,10 @@ __layered_prev(WT_CURSOR *cursor)
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
-    else
+    else {
+        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_stable);
+    }
 
 err:
     API_END_RET(session, ret);
@@ -996,6 +993,7 @@ __clayered_reset(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
 
     /* Reset any bounds on the top level cursor, and propagate that to constituents */
     __wt_cursor_bound_reset(cursor);
@@ -1244,7 +1242,6 @@ __clayered_lookup_constituent(WT_CURSOR *c, WT_CURSOR_LAYERED *clayered, WT_ITEM
 
     c->set_key(c, &cursor->key);
     if ((ret = c->search(c)) == 0) {
-        WT_RET(c->get_key(c, &cursor->key));
         WT_RET(c->get_value(c, value));
         clayered->current_cursor = c;
     }
@@ -1260,13 +1257,12 @@ static int
 __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *c, *cursor;
+    WT_CURSOR *c;
     WT_DECL_RET;
     bool found, reset_ignore_prepare;
 
     c = NULL;
     conn = S2C(session);
-    cursor = &clayered->iface;
     found = false;
     reset_ignore_prepare = false;
 
@@ -1311,14 +1307,9 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
 err:
     if (reset_ignore_prepare)
         F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
-    if (ret == 0) {
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-        F_SET(cursor, WT_CURSTD_KEY_INT);
+    if (ret == 0)
         clayered->current_cursor = c;
-
-        if (value == &cursor->value)
-            F_SET(cursor, WT_CURSTD_VALUE_INT);
-    } else if (ret != WT_PREPARE_CONFLICT)
+    else if (ret != WT_PREPARE_CONFLICT)
         WT_TRET(__clayered_reset_cursors(clayered, false));
 
     return (ret);
@@ -1338,24 +1329,29 @@ __clayered_search(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, search, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, true, true, false));
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
-    ret = __clayered_lookup(session, clayered, &cursor->value);
-
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
-    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
+    WT_ERR(__clayered_lookup(session, clayered, &cursor->value));
+    WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_ingest);
-    else
+    else {
+        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_stable);
+    }
 
 err:
     __clayered_leave(clayered);
-    if (ret == 0)
+    if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    }
     API_END_RET(session, ret);
 }
 
@@ -1379,6 +1375,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     stable_found = false;
 
     CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, true, true, false));
@@ -1490,7 +1487,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 
     if (deleted) {
         clayered->current_cursor = NULL;
-        WT_ERR(__layered_prev(cursor));
+        WT_ERR(__clayered_prev(cursor));
         cmp = -1;
     }
     if (exactp != NULL)
@@ -1688,6 +1685,7 @@ __clayered_insert(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clayered_enter(clayered, false,
@@ -1742,6 +1740,7 @@ __clayered_update(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clayered_enter(clayered, false,
@@ -1797,6 +1796,7 @@ __clayered_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, ret, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
@@ -1843,6 +1843,7 @@ __clayered_reserve(WT_CURSOR *cursor)
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
@@ -1895,6 +1896,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, ret, largest_key, clayered->dhandle);
     __cursor_novalue(cursor);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     ingest_cursor = clayered->ingest_cursor;
@@ -2010,6 +2012,7 @@ __clayered_close(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, clayered->dhandle);
+    WT_ERR(__cursor_copy_release(cursor));
 err:
     if (ret == 0) {
         /*
@@ -2062,6 +2065,7 @@ __clayered_next_random(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
     __cursor_novalue(cursor);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, true));
 
     for (;;) {
@@ -2176,7 +2180,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
-
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
@@ -2233,13 +2237,13 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_CONFIG_ITEM cval;
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value,                  /* get-value */
+      __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __clayered_compare,                             /* compare */
       __wt_cursor_equals,                             /* equals */
       __clayered_next,                                /* next */
-      __layered_prev,                                 /* prev */
+      __clayered_prev,                                /* prev */
       __clayered_reset,                               /* reset */
       __clayered_search,                              /* search */
       __clayered_search_near,                         /* search-near */

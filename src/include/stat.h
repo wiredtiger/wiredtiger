@@ -856,6 +856,7 @@ struct __wt_connection_stats {
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
+    int64_t checkpoint_rec_blkcache_write;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t chunkcache_spans_chunks_read;
     int64_t chunkcache_chunks_evicted;
@@ -1481,6 +1482,7 @@ struct __wt_dsrc_stats {
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
     int64_t btree_row_leaf;
+    int64_t btree_checkpoint_reconcile_duration;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;

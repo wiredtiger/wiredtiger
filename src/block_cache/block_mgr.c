@@ -495,8 +495,9 @@ __bm_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session)
  *     Free a block of space to the underlying file.
  */
 static int
-__bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool is_root)
 {
+    WT_UNUSED(is_root);
     WT_BLKCACHE *blkcache;
 
     blkcache = &S2C(session)->blkcache;
@@ -516,10 +517,12 @@ __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
  *     Free a block of space to the underlying file; readonly version.
  */
 static int
-__bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_free_readonly(
+  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool is_root)
 {
     WT_UNUSED(addr);
     WT_UNUSED(addr_size);
+    WT_UNUSED(is_root);
 
     return (__bm_readonly(bm, session));
 }
