@@ -1559,36 +1559,36 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                 if (ret == WT_NOTFOUND) {
                     ret = 0;
                     closest = clayered->stable_cursor;
-                    goto set_current;
                 } else
                     ingest_cmp = stable_cmp;
             }
 
-            if (ingest_cmp > 0) {
-                WT_ASSERT(session, stable_cmp > 0);
-                /* Both cursors were larger than the search key - choose the smaller one */
-                WT_ERR(__clayered_cursor_compare(
-                  clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
-                if (cmp <= 0)
-                    /* If the cursors were identical, choose ingest. */
-                    closest = clayered->ingest_cursor;
-                else
-                    closest = clayered->stable_cursor;
-            } else {
-                WT_ASSERT(session, ingest_cmp < 0 && stable_cmp < 0);
-                /* Both cursors were smaller than the search key - choose the bigger one */
-                WT_ERR(__clayered_cursor_compare(
-                  clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
-                if (cmp >= 0)
-                    /* If the cursors were identical, choose ingest. */
-                    closest = clayered->ingest_cursor;
-                else
-                    closest = clayered->stable_cursor;
+            if (closest == NULL) {
+                if (ingest_cmp > 0) {
+                    WT_ASSERT(session, stable_cmp > 0);
+                    /* Both cursors were larger than the search key - choose the smaller one */
+                    WT_ERR(__clayered_cursor_compare(
+                      clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
+                    if (cmp <= 0)
+                        /* If the cursors were identical, choose ingest. */
+                        closest = clayered->ingest_cursor;
+                    else
+                        closest = clayered->stable_cursor;
+                } else {
+                    WT_ASSERT(session, ingest_cmp < 0 && stable_cmp < 0);
+                    /* Both cursors were smaller than the search key - choose the bigger one */
+                    WT_ERR(__clayered_cursor_compare(
+                      clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
+                    if (cmp >= 0)
+                        /* If the cursors were identical, choose ingest. */
+                        closest = clayered->ingest_cursor;
+                    else
+                        closest = clayered->stable_cursor;
+                }
             }
         }
     }
 
-set_current:
     WT_ASSERT_ALWAYS(session, closest != NULL, "Layered search near should have found something");
 
     clayered->current_cursor = closest;
