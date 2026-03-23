@@ -363,7 +363,7 @@ class test_layered80(wttest.WiredTigerTestCase):
             self.search_near_check(self.fmt_key(500), self.fmt_key(498), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() path — ingest has a key between stable and search.
+    # Test: XOR normalization prev() path  ingest has a key between stable and search.
     #
     # Stable: key 200 (smaller). Ingest: keys 300, 900 (300 < search < 900).
     # search(500): ingest lands on 900 (cmp>0), stable on 200 (cmp<0). Opposite sides.
@@ -384,7 +384,7 @@ class test_layered80(wttest.WiredTigerTestCase):
             self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() path — ingest prev lands before stable.
+    # Test: XOR normalization prev() path  ingest prev lands before stable.
     #
     # Stable: key 200 (smaller). Ingest: keys 100, 900.
     # search(500): ingest lands on 900 (cmp>0), stable on 200 (cmp<0).
@@ -404,7 +404,7 @@ class test_layered80(wttest.WiredTigerTestCase):
             self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() — single key in ingest (NOTFOUND path).
+    # Test: XOR normalization prev()  single key in ingest (NOTFOUND path).
     #
     # Stable: key 200. Ingest: key 900 (only key).
     # search(500): prev() on ingest from 900 -> NOTFOUND. closest = stable(200).
@@ -423,44 +423,44 @@ class test_layered80(wttest.WiredTigerTestCase):
             self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() — ingest prev lands on a key still larger
+    # Test: XOR normalization prev()  ingest prev lands on a key still larger
     # than the search key (i.e. prev doesn't cross past the search key).
     #
     # Stable: key 200. Ingest: keys 600, 900.
     # search(500): ingest lands on 900 (cmp>0), stable on 200 (cmp<0).
     # prev() on ingest from 900 -> 600. compare(600, 500) > 0.
     # ingest_cmp = stable_cmp > 0. Now ingest(600) is > search.
-    # Both "larger" after normalization — pick closer of 600 vs stable.
+    # Both "larger" after normalization  pick closer of 600 vs stable.
     # But stable(200) is actually SMALLER. This tests how the code handles
     # the overwritten stable_cmp.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_still_larger(self):
+        """
+        Stable: 200. Ingest: 600, 900. search(500).
+        Ingest search_near(500) -> 600 (closest, cmp>0). Stable -> 200 (cmp<0).
+        Opposite sides. prev() from 600 -> NOTFOUND (600 is smallest ingest key).
+        closest = stable(200).
+
+        To actually test the "prev lands on key still > search" case, we need
+        ingest to have a key before the search key so prev() doesn't exhaust.
+        Ingest: 300, 600, 900. search_near(500) -> 600 (cmp>0).
+        prev() from 600 -> 300. ingest_cmp = compare(300, 500) < 0.
+        Both < 500. Pick bigger: 300 (ingest) > 200 (stable) -> 300.
+        """
         self.setup_follower()
         self.create_table()
 
         self.insert_stable([200])
-        self.insert_ingest([600, 900])
+        self.insert_ingest([300, 600, 900])
 
         if self.role == 'leader':
+            # Leader sees all keys. 600 is the closest larger key.
             self.search_near_check(self.fmt_key(500), self.fmt_key(600), 1)
         else:
-            # prev() from 900 -> 600. compare(600, 500) > 0. ingest_cmp set to > 0.
-            # Code enters "both larger" branch. Compares ingest(600) vs stable(200).
-            # 600 > 200, so cmp > 0 -> picks stable(200). But 200 < 500!
-            # The result depends on the current code behavior.
-            session = self.get_session()
-            cursor = session.open_cursor(self.uri)
-            cursor.set_key(self.fmt_key(500))
-            exact = cursor.search_near()
-            key = cursor.get_key()
-            # Verify the result is valid and iteration works.
-            self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-            keys = [key]
-            for _ in range(3):
-                if cursor.next() == 0:
-                    keys.append(cursor.get_key())
-            self.assertEqual(keys, sorted(keys))
-            cursor.close()
+            # Follower: ingest search_near(500) -> 600 (cmp>0). stable -> 200 (cmp<0).
+            # prev() from 600 -> 300. ingest_cmp = compare(300, 500) < 0.
+            # Both < 500. Pick bigger: 300 > 200 -> ingest(300).
+            self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
 
     # -----------------------------------------------------------------------
     # Test: XOR normalization prev() with many keys in ingest.
@@ -504,7 +504,7 @@ class test_layered80(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization — stable larger, ingest smaller.
+    # Test: XOR normalization  stable larger, ingest smaller.
     # This exercises the OTHER branch (stable_cmp > 0, ingest_cmp < 0).
     #
     # Stable: key 800. Ingest: keys 100, 300.
@@ -527,7 +527,7 @@ class test_layered80(wttest.WiredTigerTestCase):
             self.search_near_check(self.fmt_key(500), self.fmt_key(800), 1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization — stable larger, ingest next finds a closer key.
+    # Test: XOR normalization  stable larger, ingest next finds a closer key.
     #
     # Stable: key 800. Ingest: keys 100, 300, 600.
     # search(500): ingest lands on 300 (cmp<0), stable on 800 (cmp>0).

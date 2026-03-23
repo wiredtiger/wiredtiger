@@ -1552,8 +1552,8 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
 
                         if (ret == 0)
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
-                              &cursor->key, &stable_cmp));
-                    } while (ret == 0 && stable_cmp < 0);
+                              &cursor->key, &ingest_cmp));
+                    } while (ret == 0 && ingest_cmp > 0);
                 }
 
                 if (ret == WT_NOTFOUND) {
