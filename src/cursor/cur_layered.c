@@ -343,12 +343,11 @@ __clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *claye
 }
 
 /*
- * __clayered_can_stable_upgrade --
- *     Return true if the stable cursor can be upgraded at this time. For the most part we mirror
- *     our decision about when we can upgrade by when a snapshot is allowed to be upgraded.
+ * __clayered_can_stable_advance --
+ *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
 static bool
-__clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
+__clayered_can_stable_advance(WT_CURSOR_LAYERED *clayered, bool iteration)
 {
     WT_SESSION_IMPL *session;
     WT_TXN_SHARED *txn_shared;
@@ -380,7 +379,7 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
     if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
         return (true);
     else {
-        /* if this is an iteration, we won't upgrade the cursor, we're done. */
+        /* if this is an iteration, we won't reopen the cursor, we're done. */
         if (iteration)
             return (false);
 
@@ -402,11 +401,11 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
 }
 
 /*
- * __clayered_upgrade_stable --
- *     Upgrade the stable cursor to a newer checkpoint.
+ * __clayered_advance_stable --
+ *     Advance the stable cursor to a newer checkpoint.
  */
 static int
-__clayered_upgrade_stable(
+__clayered_advance_stable(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool current_leader)
 {
     WT_CURSOR *old_stable;
@@ -466,9 +465,9 @@ err:
     if (ret == 0) {
         /* Close the old cursor. */
         WT_TRET(old_stable->close(old_stable));
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_advance_stable);
     } else {
-        /* Give up the upgrade if we fail. */
+        /* Give up the advancement if we fail. */
         if (clayered->stable_cursor != NULL)
             WT_TRET(clayered->stable_cursor->close(clayered->stable_cursor));
         clayered->stable_cursor = old_stable;
@@ -543,7 +542,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          *
          * For step down, we're currently using a R/W stable cursor. After the check above, we
          know
-         * we've done read operations to this point. So again, we should upgrade if we can.
+         * we've done read operations to this point. So again, we should reopen if we can.
          */
     }
 
@@ -557,16 +556,16 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
         if (clayered->current_cursor == clayered->ingest_cursor)
             clayered->current_cursor = NULL;
         clayered->ingest_cursor = NULL;
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_ingest);
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_reopen_ingest);
     }
 
     /*
      * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
      * follower. And again, we'd like to reopen the stable cursor if we can.
      */
-    if ((change_stable = __clayered_can_stable_upgrade(clayered, iteration))) {
+    if ((change_stable = __clayered_can_stable_advance(clayered, iteration))) {
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
-        WT_RET(__clayered_upgrade_stable(session, clayered, current_leader));
+        WT_RET(__clayered_advance_stable(session, clayered, current_leader));
     }
 
     /* Update the state of the layered cursor. */
@@ -1655,7 +1654,7 @@ done:
         if (clayered->stable_cursor != NULL && clayered->current_cursor == clayered->ingest_cursor)
             WT_ERR(clayered->stable_cursor->reset(clayered->stable_cursor));
         else if (clayered->current_cursor == clayered->stable_cursor)
-              WT_ERR(clayered->ingest_cursor->reset(clayered->ingest_cursor));
+            WT_ERR(clayered->ingest_cursor->reset(clayered->ingest_cursor));
     }
 
 err:

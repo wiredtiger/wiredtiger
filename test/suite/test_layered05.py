@@ -870,7 +870,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check("", self.fmt_key(500), 1)
 
     # -----------------------------------------------------------------------
-    # Test: next() then search_near then next() — out of order.
+    # Test: next() then search_near then next()  out of order.
     #
     # Without clearing the iteration flags at the start of search_near,
     # the stale ITERATE_NEXT from a prior next() persists. After
@@ -911,9 +911,9 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), self.fmt_key(498))
 
         # search_near(701): ingest has 701 (exact). Stable has no key >= 700.
-        # Stable search_near(701) → 698 (cmp < 0, largest stable key).
+        # Stable search_near(701)  698 (cmp < 0, largest stable key).
         # closest = ingest(701, exact). Alternate = stable(698).
-        # next(): ITERATE_NEXT stale → skip reposition.
+        # next(): ITERATE_NEXT stale  skip reposition.
         # Advance current (ingest): 702. Compare with stable(698).
         # min(702, 698) = 698. Out of order: 701, 698.
         cursor.set_key(self.fmt_key(701))
@@ -928,7 +928,7 @@ class test_layered05(wttest.WiredTigerTestCase):
             f"Out of order: search_near returned {sn_key}, then next() "
             f"returned {next_key}")
 
-        # Continue iteration — all keys must be monotonically increasing.
+        # Continue iteration  all keys must be monotonically increasing.
         keys = [sn_key, next_key]
         while cursor.next() == 0:
             keys.append(cursor.get_key())
@@ -937,14 +937,14 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: prev() then search_near then prev() — mirror of forward case.
+    # Test: prev() then search_near then prev()  mirror of forward case.
     #
     # Setup:
     #   Stable: keys 502-999 (all above search key 500).
     #   Ingest: keys 490-499.
     #
     # 1. Position at key 502 via search, then prev to 501 (ITERATE_PREV).
-    #    Wait — 501 is not in any table. Let me use a setup where prev
+    #    Wait  501 is not in any table. Let me use a setup where prev
     #    lands on an ingest key.
     #
     # Revised setup:
@@ -956,7 +956,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     #    - Ingest: returns 499 (cmp < 0).
     #    - Stable: returns 502 (cmp > 0, nearest stable key).
     #    - Both found. Ingest smaller, stable larger. Prefer larger: 502.
-    #    Wait — larger is preferred. search_near returns 502 (cmp > 0).
+    #    Wait  larger is preferred. search_near returns 502 (cmp > 0).
     #    This doesn't help test the prev direction bug.
     #
     # For the prev bug, we need search_near to return a key SMALLER than
@@ -1012,7 +1012,7 @@ class test_layered05(wttest.WiredTigerTestCase):
             f"Out of order (reverse): search_near returned {sn_key}, then "
             f"prev() returned {prev_key}")
 
-        # Continue prev — all keys must be monotonically decreasing.
+        # Continue prev  all keys must be monotonically decreasing.
         keys = [sn_key, prev_key]
         while cursor.prev() == 0:
             keys.append(cursor.get_key())
