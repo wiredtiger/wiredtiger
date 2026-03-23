@@ -1532,38 +1532,40 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                         WT_ERR_NOTFOUND_OK(
                           clayered->ingest_cursor->next(clayered->ingest_cursor), true);
 
-                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
+                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
+                            ingest_cmp = stable_cmp;
                             break;
+                        }
 
                         if (ret == 0)
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
                               &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp <= 0);
+                    } while (ret == 0 && ingest_cmp < 0);
                 } else {
                     /* Stable is smaller. Move ingest backward to find a smaller key in ingest. */
                     do {
                         WT_ERR_NOTFOUND_OK(
                           clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
 
-                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
+                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
+                            ingest_cmp = stable_cmp;
                             break;
+                        }
 
                         if (ret == 0)
                             WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
                               &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp >= 0);
+                    } while (ret == 0 && ingest_cmp > 0);
                 }
 
                 if (ret == WT_NOTFOUND) {
                     ret = 0;
                     closest = clayered->stable_cursor;
-                } else
-                    ingest_cmp = stable_cmp;
+                }
             }
 
             if (closest == NULL) {
-                if (ingest_cmp > 0) {
-                    WT_ASSERT(session, stable_cmp > 0);
+                if (ingest_cmp >= 0 && stable_cmp > 0) {
                     /* Both cursors were larger than the search key - choose the smaller one */
                     WT_ERR(__clayered_cursor_compare(
                       clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
@@ -1573,7 +1575,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     else
                         closest = clayered->stable_cursor;
                 } else {
-                    WT_ASSERT(session, ingest_cmp < 0 && stable_cmp < 0);
+                    WT_ASSERT(session, ingest_cmp <= 0 && stable_cmp < 0);
                     /* Both cursors were smaller than the search key - choose the bigger one */
                     WT_ERR(__clayered_cursor_compare(
                       clayered, clayered->ingest_cursor, clayered->stable_cursor, &cmp));
