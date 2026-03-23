@@ -127,6 +127,7 @@ NUMA
 NoSQL
 OOP
 OPTYPE
+Observability
 PALI
 PALite
 PMU
@@ -220,6 +221,7 @@ autoconf
 autogen
 automake
 backend
+backlink
 basecfg
 basho
 benchmarking
@@ -543,6 +545,7 @@ msec
 msg
 msgs
 multi
+multiblock
 multiprocess
 multithreaded
 multithreading
@@ -719,6 +722,7 @@ subpage
 substring
 subsubsection
 sudo
+supd
 superset
 svg
 sys
