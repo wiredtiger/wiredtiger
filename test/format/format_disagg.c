@@ -183,8 +183,9 @@ disagg_sync_multi_node(WT_SESSION *session)
          * If there's a mismatch, then we're going to assert. Before we do, preserve the state of
          * ingest and stable tables.
          */
-        if (g.disagg_multi_db_hash->leader_hash != g.disagg_multi_db_hash->follower_hash)
-            testutil_disagg_preserve(NULL, session->connection, "preserve", 100000);
+        if (g.disagg_multi_db_hash->leader_hash != g.disagg_multi_db_hash->follower_hash &&
+          GV(DISAGG_PRESERVE) > 0)
+            testutil_disagg_preserve(NULL, session->connection, "preserve", GV(DISAGG_PRESERVE));
         if (g.disagg_leader)
             testutil_assert(hash == g.disagg_multi_db_hash->follower_hash);
         else

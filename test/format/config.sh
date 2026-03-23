@@ -205,6 +205,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 16, 256}
 
+{"disagg.preserve", "set number of records to preserve after data mismatches", C_IGNORE, 0, 0, UINT_MAX}
+
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0}

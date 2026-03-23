@@ -89,7 +89,6 @@ preserve_copy_uri(WT_SESSION *from_session, const char *from_uri, WT_SESSION *to
         from->get_value(from, &value);
         to->set_key(to, &key);
         to->set_value(to, &value);
-        //fprintf(stderr, "%s: %.*s\n", to_uri, (int)key.size, (char *)key.data);
         testutil_check(to->insert(to));
         ++entries;
         if (entries % 1000 == 0) {
@@ -147,8 +146,8 @@ testutil_disagg_preserve(TEST_OPTS *opts, WT_CONNECTION *conn, const char *subdi
         metacur->get_key(metacur, &uri);
         if (strncmp(uri, LAYERED_PREFIX, strlen(LAYERED_PREFIX)) == 0) {
             /*
-             * Preserved files cannot be named with the strings ".wt_ingest" or
-             * ".wt_stable" embedded in the names, as WiredTiger will treat these specially.
+             * Preserved files cannot be named with the strings ".wt_ingest" or ".wt_stable"
+             * embedded in the names, as WiredTiger will treat these specially.
              */
             base = uri + strlen(LAYERED_PREFIX);
             testutil_snprintf(from_uri, sizeof(from_uri), "file:%s.wt_ingest", base);
