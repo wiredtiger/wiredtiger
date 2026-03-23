@@ -277,7 +277,7 @@ CONFIG configuration_list[] = {
 
 {"ops.prepare", "configure transaction prepare", C_BOOL, 5, 0, 0}
 
-{"ops.reserve", "configure cursor reserve", C_BOOL, 10, 0, 0}
+{"ops.reserve", "cursor reserve operations (percentage)", 0, 0, 20, 100}
 
 {"ops.random_cursor", "configure random cursor reads", C_BOOL, 10, 0, 0}
 
