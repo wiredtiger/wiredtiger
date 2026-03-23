@@ -343,10 +343,23 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
 {
     WT_SESSION_IMPL *session;
     WT_TXN_SHARED *txn_shared;
-    bool can_upgrade;
 
     session = CUR2S(clayered);
-    can_upgrade = false;
+
+    /* A random stable cursor shouldn't be reopened, it may have additional state. */
+    if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
+        return (false);
+
+    /*
+     * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
+     * position. FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never
+     * select a checkpoint with an oldest timestamp greater than the pinned timestamp, we should
+     * safely advance to a newer checkpoint. This is because the version we intend to read would
+     * still be present in the newer checkpoint.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+      clayered->current_cursor == clayered->stable_cursor)
+        return (false);
 
     /*
      * First, layered cursors are sometimes paired with read timestamps. When using read
@@ -356,11 +369,11 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
      */
     txn_shared = WT_SESSION_TXN_SHARED(session);
     if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
-        can_upgrade = true;
+        return (true);
     else {
         /* if this is an iteration, we won't upgrade the cursor, we're done. */
         if (iteration)
-            return (0);
+            return (false);
 
         /*
          * There are other points when it is appropriate to update cursors. If we don't currently
@@ -373,9 +386,10 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
          */
         if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
           (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen))
-            can_upgrade = true;
+            return (true);
     }
-    return (can_upgrade);
+
+    return (false);
 }
 
 /*
@@ -425,20 +439,21 @@ __clayered_upgrade_stable(
             WT_ITEM_SET(clayered->stable_cursor->value, old_stable->value);
     }
 
+    /* Add any bounds for the new cursor. */
+    WT_ERR(__clayered_copy_bounds(clayered));
+
     if (clayered->current_cursor == old_stable) {
         WT_CURSOR *cursor = (WT_CURSOR *)clayered;
         WT_CURSOR *new_stable = clayered->stable_cursor;
         if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
             /* Reset the cursor key to point to the new stable cursor. */
-            WT_ERR(new_stable->get_key(new_stable, &cursor->key));
+            WT_ITEM_SET(cursor->key, new_stable->key);
             /* Clear the value as the new stable cursor may point to a different one. */
             F_CLR(cursor, WT_CURSTD_VALUE_INT);
         }
         clayered->current_cursor = new_stable;
     }
 
-    /* Add any bounds for the new cursor. */
-    WT_ERR(__clayered_copy_bounds(clayered));
 err:
     if (ret == 0)
         /* Close the old cursor. */
@@ -543,21 +558,6 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
       clayered->current_cursor == clayered->ingest_cursor)
         change_ingest = false;
-
-    /* A random stable cursor shouldn't be reopened, it may have additional state. */
-    if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
-        change_stable = false;
-
-    /*
-     * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
-     * position. FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never
-     * select a checkpoint with an oldest timestamp greater than the pinned timestamp, we should
-     * safely advance to a newer checkpoint. This is because the version we intend to read would
-     * still be present in the newer checkpoint.
-     */
-    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-      clayered->current_cursor == clayered->stable_cursor)
-        change_stable = false;
 
     if (change_ingest) {
         /*
