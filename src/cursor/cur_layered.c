@@ -1545,7 +1545,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
                     /* Stable is smaller. Move ingest backward to find a smaller key in ingest. */
                     do {
                         WT_ERR_NOTFOUND_OK(
-                          clayered->ingest_cursor->next(clayered->ingest_cursor), true);
+                          clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
 
                         if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
                             break;
