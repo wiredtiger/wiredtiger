@@ -795,8 +795,8 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * work, but doesn't make sense. Reserving a row before a read won't be useful but it's not
          * unexpected. A row cannot be reserved with ignore prepare.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT && tinfo->ignore_prepare == false &&
-          mmrand(&tinfo->data_rnd, 0, 20) == 1) {
+        if (GV(OPS_RESERVE) && intxn && iso_level == ISOLATION_SNAPSHOT &&
+          tinfo->ignore_prepare == false && mmrand(&tinfo->data_rnd, 0, 20) == 1) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
