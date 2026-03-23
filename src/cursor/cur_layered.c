@@ -420,9 +420,8 @@ __clayered_upgrade_stable(
     old_stable = clayered->stable_cursor;
     clayered->stable_cursor = NULL;
 
-    WT_RET(__clayered_open_stable(clayered, current_leader));
+    WT_ERR(__clayered_open_stable(clayered, current_leader));
     WT_ASSERT(session, clayered->stable_cursor != NULL);
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
 
     /* If the old cursor has a position, copy it to the newly opened cursor. */
     if (F_ISSET(old_stable, WT_CURSTD_KEY_INT)) {
@@ -456,12 +455,14 @@ __clayered_upgrade_stable(
     /* Add any bounds for the new cursor. */
     WT_ERR(__clayered_copy_bounds(clayered));
 err:
-    if (ret == 0)
+    if (ret == 0) {
         /* Close the old cursor. */
         WT_TRET(old_stable->close(old_stable));
-    else {
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
+    } else {
         /* Give up the upgrade if we fail. */
-        WT_TRET(clayered->stable_cursor->close(clayered->stable_cursor));
+        if (clayered->stable_cursor != NULL)
+            WT_TRET(clayered->stable_cursor->close(clayered->stable_cursor));
         clayered->stable_cursor = old_stable;
     }
 
