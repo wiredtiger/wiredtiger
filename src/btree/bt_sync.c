@@ -368,7 +368,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
-            /* Update checkpoint IO tracking data. */
+            /*
+             * Update checkpoint IO tracking data. This sync can be executed by a non-checkpoint
+             * session, so we need a identify the session before update the checkpoint progress.
+             */
             if (WT_SESSION_IS_CHECKPOINT(session) && __wt_checkpoint_verbose_timer_started(session))
                 __wt_checkpoint_progress_stats(
                   session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
