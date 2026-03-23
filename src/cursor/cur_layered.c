@@ -543,7 +543,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 
     /*
      * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
-     * position. FIXME-WT-16467: If we are not reading with a timestamp and can ensure that we never
+     * position. FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never
      * select a checkpoint with an oldest timestamp greater than the pinned timestamp, we should
      * safely advance to a newer checkpoint. This is because the version we intend to read would
      * still be present in the newer checkpoint.
@@ -1099,9 +1099,8 @@ __clayered_reset(WT_CURSOR *cursor)
         WT_TRET(__clayered_copy_bounds(clayered));
     }
 
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-
 err:
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     API_END_RET(session, ret);
 }
 
