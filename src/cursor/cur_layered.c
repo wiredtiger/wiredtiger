@@ -334,6 +334,36 @@ err:
 }
 
 /*
+ * __clayered_ingest_check_close --
+ *     Return true if the ingest cursor need to be reopened.
+ */
+static bool
+__clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
+{
+    /* See if there's nothing to do for the ingest cursor. */
+    if (clayered->ingest_cursor == NULL)
+        return (false);
+
+    bool leader = S2C(session)->layered_table_manager.leader;
+    /*
+     * Layered cursor is positioned on the ingest cursor. Changing it may lose the layered cursor
+     * position.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+      clayered->current_cursor == clayered->ingest_cursor) {
+        /* This should not happen on the leader at the moment. */
+        WT_ASSERT(session, !leader);
+        return (false);
+    }
+
+    /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
+    if (leader == clayered->leader)
+        return (false);
+
+    return (true);
+}
+
+/*
  * __clayered_can_stable_upgrade --
  *     Return true if the stable cursor can be upgraded at this time. For the most part we mirror
  *     our decision about when we can upgrade by when a snapshot is allowed to be upgraded.
@@ -504,14 +534,11 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
       last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
         return (0);
 
-    change_ingest = false;
+    change_stable = false;
     snapshot_gen = clayered->snapshot_gen;
 
     /* Is this a step up or step down? */
     if (current_leader != clayered->leader) {
-        /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
-        change_ingest = true;
-
         /*
          * If we're stepping down, then we currently have a R/W stable cursor and all writes
          would
@@ -541,25 +568,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          */
     }
 
-    /*
-     * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
-     * follower. And again, we'd like to reopen the stable cursor if we can.
-     */
-    change_stable = __clayered_can_stable_upgrade(clayered, iteration);
-
-    /* See if there's nothing to do for the ingest cursor. */
-    if (clayered->ingest_cursor == NULL)
-        change_ingest = false;
-
-    /*
-     * Layered cursor is positioned on the ingest cursor. Changing it may lose the layered cursor
-     * position.
-     */
-    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-      clayered->current_cursor == clayered->ingest_cursor)
-        change_ingest = false;
-
-    if (change_ingest) {
+    if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
         /*
          * To reopen the ingest table, all we need to do here is close it. It will be reopened
          when
@@ -572,7 +581,11 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_ingest);
     }
 
-    if (change_stable) {
+    /*
+     * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
+     * follower. And again, we'd like to reopen the stable cursor if we can.
+     */
+    if ((change_stable = __clayered_can_stable_upgrade(clayered, iteration))) {
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
         WT_RET(__clayered_upgrade_stable(session, clayered, current_leader));
     }
@@ -1095,6 +1108,7 @@ __clayered_reset(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
+    /* The flag should have been cleared after each cursor operation. */
     WT_ASSERT(session, !F_ISSET(clayered, WT_CLAYERED_READ_STABLE));
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -1372,7 +1386,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
         if (ret == 0) {
             found = true;
-            if (__clayered_deleted(clayered, value))
+            if (__wt_clayered_deleted(value))
                 ret = WT_NOTFOUND;
         }
     } else
@@ -1452,6 +1466,55 @@ err:
 }
 
 /*
+ * __clayered_search_near_move_ingest_to_opposite_side --
+ *     search near helper function to move the ingest btree to the opposite side of the search key.
+ */
+static int
+__clayered_search_near_move_ingest_to_opposite_side(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, int stable_cmp, int *ingest_cmp)
+{
+    WT_COLLATOR *collator;
+    WT_CURSOR *cursor, *ingest_cursor;
+    WT_DECL_RET;
+
+    cursor = &clayered->iface;
+    ingest_cursor = clayered->ingest_cursor;
+
+    __clayered_get_collator(clayered, &collator);
+    if (stable_cmp > 0) {
+        /* Stable is larger. Move ingest forward to find a larger key in ingest. */
+        do {
+            WT_ERR_NOTFOUND_OK(ingest_cursor->next(ingest_cursor), true);
+
+            if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
+                *ingest_cmp = stable_cmp;
+                break;
+            }
+
+            if (ret == 0)
+                WT_ERR(
+                  __wt_compare(session, collator, &ingest_cursor->key, &cursor->key, ingest_cmp));
+        } while (ret == 0 && *ingest_cmp < 0);
+    } else {
+        /* Stable is smaller. Move ingest backward to find a smaller key in ingest. */
+        do {
+            WT_ERR_NOTFOUND_OK(ingest_cursor->prev(ingest_cursor), true);
+
+            if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
+                *ingest_cmp = stable_cmp;
+                break;
+            }
+
+            if (ret == 0)
+                WT_ERR(
+                  __wt_compare(session, collator, &ingest_cursor->key, &cursor->key, ingest_cmp));
+        } while (ret == 0 && *ingest_cmp > 0);
+    }
+err:
+    return (ret);
+}
+
+/*
  * __clayered_search_near_int --
  *     search near method for the layered cursor type.
  */
@@ -1489,7 +1552,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
           clayered->ingest_cursor->search_near(clayered->ingest_cursor, &ingest_cmp), true);
         if (ret == 0) {
             ingest_found = true;
-            deleted = __clayered_deleted(clayered, &clayered->ingest_cursor->value);
+            deleted = __wt_clayered_deleted(&clayered->ingest_cursor->value);
         }
     }
 
@@ -1522,45 +1585,15 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
              * Otherwise, there is a risk of overlooking a closer key on the ingest table that lies
              * on the opposite side of the search key relative to the stable cursor's position.
              */
-            WT_COLLATOR *collator;
-            __clayered_get_collator(clayered, &collator);
             if ((ingest_cmp ^ stable_cmp) < 0) {
                 /*
                  * The cursors are on opposite sides of the search key. Move the ingest cursor to
                  * the other side. When reading with read-uncommitted isolation, concurrent key
                  * insertions may occur. Continue the walk until the search key is passed.
                  */
-                if (stable_cmp > 0) {
-                    /* Stable is larger. Move ingest forward to find a larger key in ingest. */
-                    do {
-                        WT_ERR_NOTFOUND_OK(
-                          clayered->ingest_cursor->next(clayered->ingest_cursor), true);
-
-                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
-                            ingest_cmp = stable_cmp;
-                            break;
-                        }
-
-                        if (ret == 0)
-                            WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
-                              &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp < 0);
-                } else {
-                    /* Stable is smaller. Move ingest backward to find a smaller key in ingest. */
-                    do {
-                        WT_ERR_NOTFOUND_OK(
-                          clayered->ingest_cursor->prev(clayered->ingest_cursor), true);
-
-                        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED) {
-                            ingest_cmp = stable_cmp;
-                            break;
-                        }
-
-                        if (ret == 0)
-                            WT_ERR(__wt_compare(session, collator, &clayered->ingest_cursor->key,
-                              &cursor->key, &ingest_cmp));
-                    } while (ret == 0 && ingest_cmp > 0);
-                }
+                WT_ERR_NOTFOUND_OK(__clayered_search_near_move_ingest_to_opposite_side(
+                                     session, clayered, stable_cmp, &ingest_cmp),
+                  true);
 
                 if (ret == WT_NOTFOUND) {
                     ret = 0;
@@ -1758,7 +1791,7 @@ __clayered_remove_follower(
              * If we are erasing a record that is already a tombstone, don't write another one: we
              * don't ever want consecutive tombstones on an update chain.
              */
-            WT_RET(c->get_value(c, &value));
+            WT_ITEM_SET(value, c->value);
             if (__wt_clayered_deleted(&value))
                 return (WT_NOTFOUND);
         }
@@ -2152,10 +2185,8 @@ __clayered_largest_key(WT_CURSOR *cursor)
 err:
     __clayered_leave(clayered);
     __wt_scr_free(session, &key);
-    if (ret != 0) {
+    if (ret != 0)
         WT_TRET(__clayered_reset_cursors(clayered, false));
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    }
     API_END_RET_STAT(session, ret, cursor_largest_key);
 }
 
@@ -2398,7 +2429,7 @@ __clayered_modify_follower(
          * also cannot serve as the base value for a modify. In these cases, perform a full update
          * instead.
          */
-        if (ret == WT_NOTFOUND || __clayered_deleted(clayered, &ingest->value) ||
+        if (ret == WT_NOTFOUND || __wt_clayered_deleted(&ingest->value) ||
           __clayered_is_deleted_encoded(&ingest->value)) {
             __clayered_deleted_decode(&ingest->value);
             WT_ERR(__wt_modify_apply_api(ingest, entries, nentries));
