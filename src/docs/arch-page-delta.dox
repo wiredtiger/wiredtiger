@@ -105,6 +105,20 @@ of a sub-tree pointer) is packed into \c r->delta. Two counters track the conten
 \c r->count_internal_page_delta_key_updated, which are flushed to statistics
 when the delta is written.
 
+@section pd_key_files Key files
+
+| File | Role |
+|------|------|
+| \c src/reconcile/rec_write.c | Delta creation decision and writing (\c __rec_build_delta, \c __rec_split_write, \c __rec_write_delta) |
+| \c src/reconcile/rec_row.c | Delta packing per row for internal pages (\c __rec_pack_delta_row_int, \c __rec_build_delta_int) and leaf pages (\c __rec_build_delta_leaf entry helpers) |
+| \c src/reconcile/rec_visibility.c | Update selection and time-window handling used by leaf delta packing |
+| \c src/btree/bt_page.c | Merge helpers on read (\c __wti_page_merge_deltas_with_base_image_leaf, \c __wti_page_merge_deltas_with_base_image_int) |
+| \c src/btree/bt_read.c | Page fault-in and delta reconstruction (\c __page_read_build_full_disk_image) |
+| \c src/include/btmem.h | Chain-tracking structures (\c WT_PAGE_BLOCK_META, \c WT_PAGE_DISAGG_INFO) |
+| \c src/include/connection.h | Connection-level delta config (\c WT_PAGE_DELTA_CONFIG) |
+| \c src/include/btree.h | Enable macros (\c WT_DELTA_LEAF_ENABLED, \c WT_DELTA_INT_ENABLED) |
+| \c src/reconcile/reconcile_private.h | Reconcile-time macros (\c WT_BUILD_DELTA_LEAF, \c WT_BUILD_DELTA_INT, \c WT_REC_RESULT_SINGLE_PAGE) |
+
 @section pd_on_disk On-disk layout and chain tracking
 
 The per-page delta chain state is kept in \c WT_PAGE_BLOCK_META
