@@ -62,12 +62,16 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
     }
 }
 
+/*
+ * preserve_copy_uri --
+ *     Copy a uri from one connection to another, up to a maximum number of entries.
+ */
 static void
 preserve_copy_uri(WT_SESSION *from_session, const char *from_uri, WT_SESSION *to_session,
   const char *to_uri, uint32_t max_entries)
 {
-    WT_DECL_RET;
     WT_CURSOR *from, *to;
+    WT_DECL_RET;
     WT_ITEM key, value;
     uint32_t entries;
     char new_config[256];
@@ -115,11 +119,11 @@ testutil_disagg_preserve(
   TEST_OPTS *opts, WT_CONNECTION *conn, const char *subdir, uint32_t max_entries)
 {
     WT_CONNECTION *dest_conn;
+    WT_CURSOR *metacur;
     WT_DECL_RET;
     WT_SESSION *session, *dest_session;
-    WT_CURSOR *metacur;
-    const char *base, *home, *uri;
     char dest_dir[1024], from_uri[1024], to_uri[1024];
+    const char *base, *home, *uri;
 
     (void)opts;
     home = conn->get_home(conn);
