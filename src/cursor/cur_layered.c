@@ -1505,7 +1505,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     closest = NULL;
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_cmp = stable_cmp = 0;
-    deleted = ingest_found = match_deleted = stable_found = false;
+    ingest_found = match_deleted = stable_found = false;
 
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
