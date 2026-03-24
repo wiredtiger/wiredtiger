@@ -707,8 +707,10 @@ __clayered_get_current(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bo
     if (clayered->stable_cursor != NULL && F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT))
         stable_positioned = true;
 
-    if (!ingest_positioned && !stable_positioned)
+    if (!ingest_positioned && !stable_positioned) {
+        clayered->current_cursor = NULL;
         return (WT_NOTFOUND);
+    }
 
     __clayered_get_collator(clayered, &collator);
 
@@ -938,6 +940,8 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool deleted
         WT_ERR(__clayered_get_current(session, clayered, iter_flag == WT_CLAYERED_ITERATE_NEXT));
         if (clayered->current_cursor == clayered->ingest_cursor)
             deleted = __wt_clayered_deleted(&clayered->current_cursor->value);
+        else
+            deleted = false;
     } while (deleted);
 
 err:
@@ -1496,12 +1500,12 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     int cmp, ingest_cmp, stable_cmp;
-    bool deleted, ingest_found, stable_found;
+    bool deleted, ingest_found, match_deleted, stable_found;
 
     closest = NULL;
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_cmp = stable_cmp = 0;
-    deleted = ingest_found = stable_found = false;
+    deleted = ingest_found = match_deleted = stable_found = false;
 
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
@@ -1525,12 +1529,12 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
           clayered->ingest_cursor->search_near(clayered->ingest_cursor, &ingest_cmp), true);
         if (ret == 0) {
             ingest_found = true;
-            deleted = __wt_clayered_deleted(&clayered->ingest_cursor->value);
+            match_deleted = __wt_clayered_deleted(&clayered->ingest_cursor->value);
         }
     }
 
     /* If there wasn't an exact match or the value is deleted, check the stable table as well */
-    if ((!ingest_found || ingest_cmp != 0 || deleted) && clayered->stable_cursor != NULL) {
+    if ((!ingest_found || ingest_cmp != 0 || match_deleted) && clayered->stable_cursor != NULL) {
         clayered->stable_cursor->set_key(clayered->stable_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
           clayered->stable_cursor->search_near(clayered->stable_cursor, &stable_cmp), true);
@@ -1629,7 +1633,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     }
 
     if (deleted) {
-        clayered->current_cursor = NULL;
+        WT_ASSERT(session, clayered->current_cursor == NULL);
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
         WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV, false));
         cmp = -1;
