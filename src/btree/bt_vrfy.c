@@ -215,12 +215,12 @@ __verify_disagg_accumulate_size(
 }
 
 /*
- * __verify_disagg_database_size --
+ * __wt_verify_disagg_database_size --
  *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
  *     checkpoint size for every file, then compare the total against the stored database size.
  */
-static int
-__verify_disagg_database_size(WT_SESSION_IMPL *session)
+int
+__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
 {
     WT_CKPT *ckpt, *ckptbase, *last_ckpt;
     WT_CONNECTION_IMPL *conn;
@@ -503,15 +503,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         if (vs->dump_layout)
             WT_ERR(__dump_layout(session, vs));
     }
-
-    /* Verify the database size for disaggregated storage. We calculate the total database size by
-     * summing the individual btree checkpoint sizes, then comparing this calculated sum with the
-     * stored database size. We only verify the database size when verifying the metadata file, as
-     * the metadata file contains the checkpoint information for all the other files in the
-     * database.
-     */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && strcmp(name, WT_METAFILE_URI) == 0)
-        WT_TRET(__verify_disagg_database_size(session));
 
 done:
 err:
