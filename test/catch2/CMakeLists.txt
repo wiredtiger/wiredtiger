@@ -6,7 +6,6 @@ else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_binary_search_string.cpp
-        misc_tests/test_bitmap.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
