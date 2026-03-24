@@ -155,8 +155,8 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
  *     Update the local metadata entry with the supplied checkpoint configuration.
  */
 static int
-__disagg_save_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *internal_session,
-  WT_CURSOR *md_cursor, const WT_DISAGG_METADATA *metadata)
+__disagg_save_checkpoint_meta(
+  WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_ITEM(metadata_cfg);
     WT_DECL_RET;
@@ -182,7 +182,7 @@ __disagg_save_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *interna
     WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
     /* Put our new config in */
-    WT_ERR(__wt_metadata_insert(internal_session, metadata_key, cfg_ret));
+    WT_ERR(__wt_metadata_insert(session, metadata_key, cfg_ret));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Updated the local metadata for key \"%s\" to include the new checkpoint: \"%.*s\"",
@@ -382,7 +382,7 @@ err:
  *     Finalize checkpoint bookkeeping after processing shared metadata entries.
  */
 static int
-__disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *internal_session,
+__disagg_update_checkpoint_meta(WT_SESSION_IMPL *session,
   const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_RET;
@@ -413,8 +413,7 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
 
     /* Update ingest tables' prune timestamps. */
     WT_ERR_MSG_CHK(session,
-      __wti_layered_iterate_ingest_tables_for_gc_pruning(
-        internal_session, metadata->checkpoint_timestamp),
+      __wti_layered_iterate_ingest_tables_for_gc_pruning(session, metadata->checkpoint_timestamp),
       "Updating prune timestamp failed");
 
 err:
@@ -433,7 +432,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    WT_SESSION_IMPL *internal_session;
     uint64_t current_meta_lsn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -442,7 +440,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_CLEAR(ts_string);
     WT_CLEAR(metadata_buf);
     WT_CLEAR(metadata);
-    internal_session = NULL;
+
     md_cursor = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
@@ -489,28 +487,25 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
 
-    /* We need an internal session when modifying metadata. */
-    WT_ERR(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
-
     /* Open up a metadata cursor pointing at our table */
-    WT_ERR(__wt_metadata_cursor(internal_session, &md_cursor));
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
 
     /* Update our local metadata with the new checkpoint entry. */
-    WT_ERR(__disagg_save_checkpoint_meta(session, internal_session, md_cursor, &metadata));
+    WT_ERR(__disagg_save_checkpoint_meta(session, md_cursor, &metadata));
 
     /*
      * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
      * Investigate whether we need a separate internal session to pick up the new checkpoint.
      */
-    WT_WITH_SCHEMA_LOCK(internal_session,
-      ret = __disagg_apply_checkpoint_meta(internal_session, md_cursor, ckpt_meta));
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __disagg_apply_checkpoint_meta(session, md_cursor, ckpt_meta));
     WT_ERR(ret);
 
     /*
      * Part 3: Do the bookkeeping.
      */
 
-    WT_ERR(__disagg_update_checkpoint_meta(session, internal_session, ckpt_meta, &metadata));
+    WT_ERR(__disagg_update_checkpoint_meta(session, ckpt_meta, &metadata));
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -530,10 +525,7 @@ err:
     }
 
     if (md_cursor != NULL)
-        WT_TRET(__wt_metadata_cursor_release(internal_session, &md_cursor));
-
-    if (internal_session != NULL)
-        WT_TRET(__wt_session_close_internal(internal_session));
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
 
     __wt_buf_free(session, &metadata_buf);
 
@@ -602,11 +594,13 @@ __disagg_pick_up_checkpoint_meta(
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
+    WT_SESSION_IMPL *internal_session;
     uint64_t metadata_checksum;
     char *meta_str;
 
     WT_CLEAR(ckpt_meta);
     meta_str = NULL;
+    internal_session = NULL;
 
     /* Extract the item into a string. */
     WT_ERR(__wt_strndup(session, meta_data, meta_data_size, &meta_str));
@@ -647,10 +641,16 @@ __disagg_pick_up_checkpoint_meta(
     /* Parse and validate version and compatible_version fields. */
     WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
+    WT_ERR(__wt_open_internal_session(
+      S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
     /* Now actually pick up the checkpoint. */
-    WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
+    WT_WITH_CHECKPOINT_LOCK(
+      internal_session, ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta));
+    WT_ERR(ret);
 
 err:
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
     __wt_free(session, meta_str);
     return (ret);
 }
@@ -1301,10 +1301,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              * still a follower.
              */
             if (!leader) {
-                WT_WITH_CHECKPOINT_LOCK(
-                  session, ret = __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len));
-                WT_ERR_MSG_CHK(session, ret, "Failed to pick up a new checkpoint with config: %.*s",
-                  (int)cval.len, cval.str);
+                WT_ERR_MSG_CHK(session,
+                  __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+                  "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             }
         }
     }
@@ -1394,10 +1393,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval), true);
         if (ret == 0 && cval.len > 0) {
-            WT_WITH_CHECKPOINT_LOCK(
-              session, ret = __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len));
-            WT_ERR_MSG_CHK(session, ret, "Failed to pick up a new checkpoint with config: %.*s",
-              (int)cval.len, cval.str);
+            WT_ERR_MSG_CHK(session, __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+              "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             picked_up = true;
         }
 
@@ -1408,9 +1405,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_ERR_NOTFOUND_OK(ret, true);
             if (ret == 0) {
                 /* Pick up the checkpoint we just found. */
-                WT_WITH_CHECKPOINT_LOCK(session,
-                  ret = __disagg_pick_up_checkpoint_meta(
-                    session, complete_checkpoint_meta.data, complete_checkpoint_meta.size));
+                ret = __disagg_pick_up_checkpoint_meta(
+                  session, complete_checkpoint_meta.data, complete_checkpoint_meta.size);
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
