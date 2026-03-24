@@ -530,6 +530,10 @@ static PyObject *wtRollbackError;
 static int sessionClearHandler(WT_SESSION *session);
 static int cursorClearHandler(WT_CURSOR *cursor);
 static int unpackBytesOrString(PyObject *obj, void **data, size_t *size);
+static int pageLogCompleteCheckpointArgsClearMetadata(
+	WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args);
+static int pageLogCompleteCheckpointArgsSetMetadata(
+	WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args, const WT_ITEM *value);
 
 #define WT_GETATTR(var, parent, name)					\
 	do if ((var = PyObject_GetAttrString(parent, name)) == NULL) {	\
@@ -1485,54 +1489,13 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 		  1, sizeof(struct __wt_page_log_complete_checkpoint_args));
 	}
 	int _set_checkpoint_metadata(const WT_ITEM *value) {
-		WT_ITEM *metadata;
-		size_t size;
-		const void *data;
-
-		if ($self->checkpoint_metadata != NULL) {
-			metadata = (WT_ITEM *)$self->checkpoint_metadata;
-			free(metadata->mem);
-			free(metadata);
-			$self->checkpoint_metadata = NULL;
-		}
-		size = value == NULL ? 0 : value->size;
-		data = value == NULL ? NULL : value->data;
-		metadata = (WT_ITEM *)calloc(1, sizeof(WT_ITEM));
-		if (metadata == NULL)
-			return (ENOMEM);
-		if (size != 0) {
-			metadata->mem = malloc(size);
-			if (metadata->mem == NULL) {
-				free(metadata);
-				return (ENOMEM);
-			}
-			memcpy(metadata->mem, data, size);
-			metadata->data = metadata->mem;
-			metadata->size = size;
-			metadata->memsize = size;
-		}
-		$self->checkpoint_metadata = metadata;
-		return (0);
+		return (pageLogCompleteCheckpointArgsSetMetadata($self, value));
 	}
 	int _clear_checkpoint_metadata() {
-		WT_ITEM *metadata;
-
-		if ($self->checkpoint_metadata != NULL) {
-			metadata = (WT_ITEM *)$self->checkpoint_metadata;
-			free(metadata->mem);
-			free(metadata);
-			$self->checkpoint_metadata = NULL;
-		}
-		return (0);
+		return (pageLogCompleteCheckpointArgsClearMetadata($self));
 	}
 	~__wt_page_log_complete_checkpoint_args() {
-		WT_ITEM *metadata;
-
-		if ($self->checkpoint_metadata != NULL) {
-			metadata = (WT_ITEM *)$self->checkpoint_metadata;
-			free(metadata->mem);
-			free(metadata);
-		}
+		(void)pageLogCompleteCheckpointArgsClearMetadata($self);
 		free($self);
 	}
 }
@@ -1697,6 +1660,43 @@ static int unpackBytesOrString(PyObject *obj, void **datap, size_t *sizep)
 	*datap = data;
 	*sizep = sz;
 	return (0);
+}
+
+static int
+pageLogCompleteCheckpointArgsClearMetadata(WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args)
+{
+	WT_ITEM *metadata;
+
+	if (args == NULL || (metadata = (WT_ITEM *)args->checkpoint_metadata) == NULL)
+		return (0);
+
+	__wt_buf_free(NULL, metadata);
+	__wt_free(NULL, metadata);
+	args->checkpoint_metadata = NULL;
+	return (0);
+}
+
+static int
+pageLogCompleteCheckpointArgsSetMetadata(
+    WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args, const WT_ITEM *value)
+{
+	WT_ITEM *metadata;
+	WT_DECL_RET;
+
+	metadata = NULL;
+	WT_RET(pageLogCompleteCheckpointArgsClearMetadata(args));
+	WT_RET(__wt_calloc_one(NULL, &metadata));
+	if (value != NULL && value->size != 0)
+		WT_ERR(__wt_buf_set(NULL, metadata, value->data, value->size));
+	args->checkpoint_metadata = metadata;
+	return (0);
+
+err:
+	if (metadata != NULL) {
+		__wt_buf_free(NULL, metadata);
+		__wt_free(NULL, metadata);
+	}
+	return (ret);
 }
 
 /* Write to and flush the stream. */
