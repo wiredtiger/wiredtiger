@@ -318,8 +318,8 @@ table_verify_mirror(
              */
             bool continuing = (base_keyno == table_keyno ||
               (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
-            if (!continuing && g.disagg_storage_config && GV(DISAGG_PRESERVE) > 0)
-                testutil_disagg_preserve(NULL, conn, "preserve", GV(DISAGG_PRESERVE));
+            if (!continuing && g.disagg_storage_config && GV(DISAGG_PRESERVE))
+                testutil_disagg_preserve(conn, "preserve");
 
             /* Dump the cursor pages for the first failure. */
             if (++failures == 1) {

@@ -184,8 +184,8 @@ disagg_sync_multi_node(WT_SESSION *session)
          * ingest and stable tables.
          */
         if (g.disagg_multi_db_hash->leader_hash != g.disagg_multi_db_hash->follower_hash &&
-          GV(DISAGG_PRESERVE) > 0)
-            testutil_disagg_preserve(NULL, session->connection, "preserve", GV(DISAGG_PRESERVE));
+          GV(DISAGG_PRESERVE))
+            testutil_disagg_preserve(session->connection, "preserve");
         if (g.disagg_leader)
             testutil_assert(hash == g.disagg_multi_db_hash->follower_hash);
         else

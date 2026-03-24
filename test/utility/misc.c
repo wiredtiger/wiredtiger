@@ -588,6 +588,38 @@ dstrndup(const char *str, size_t len)
 }
 
 /*
+ * testutil_sprintf_item --
+ *     Do sprintf into a WT_ITEM buffer, growing as needed.
+ */
+void
+testutil_sprintf_item(WT_ITEM *item, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)))
+{
+    size_t orig_size;
+    va_list ap;
+
+    orig_size = item->memsize;
+    va_start(ap, fmt);
+    testutil_check(
+      __wt_vsnprintf_len_incr((char *)item->mem, item->memsize, &item->memsize, fmt, ap));
+    va_end(ap);
+    item->size = item->memsize;
+    if (item->memsize > orig_size) {
+        /*
+         * There was not enough room the first time. Realloc and try again, and there should be
+         * exactly enough room.
+         */
+        drealloc(item->mem, item->memsize);
+        va_start(ap, fmt);
+        testutil_check(
+          __wt_vsnprintf_len_incr((char *)item->mem, item->memsize, &item->memsize, fmt, ap));
+        va_end(ap);
+        testutil_assert(item->size == item->memsize);
+    }
+    item->data = item->mem;
+}
+
+/*
  * example_setup --
  *     Set the program name, create a home directory for the example programs.
  */
