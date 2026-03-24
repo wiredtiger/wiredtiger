@@ -2970,8 +2970,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Simulate a checkpoint error between trees to exercise the checkpoint error path. Skip
-     * disaggregated btrees: their checkpoint failure recovery is incomplete and WT-16990 will make
-     * disagg checkpoint errors panic instead. Fire approximately 5% of the time when enabled.
+     * disaggregated btrees: their checkpoint failure recovery is incomplete and disagg checkpoint
+     * errors should panic instead. Fire approximately 5% of the time when enabled.
      *
      * NOTE: If a previous tree in this checkpoint has already passed the block-level point of no
      * return (WT_CKPT_PANIC_ON_FAILURE), this error will cause the system to panic during

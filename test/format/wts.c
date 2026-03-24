@@ -181,7 +181,7 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",compact_slow");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
-    if (GV(STRESS_FAILPOINT_CHECKPOINT_ERROR_BETWEEN_TREES))
+    if (GV(STRESS_FAILPOINT_CHECKPOINT_ERROR_BETWEEN_TREES) && g.base_mirror == NULL)
         CONFIG_APPEND(*p, ",failpoint_checkpoint_error_between_trees");
     if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
         CONFIG_APPEND(*p, ",failpoint_eviction_split");

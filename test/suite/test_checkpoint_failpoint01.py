@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -32,43 +32,41 @@ import wiredtiger, wttest
 # Test that the failpoint_checkpoint_error_between_trees timing stress option exercises the
 # checkpoint reset path and that the system remains consistent after a failed checkpoint
 # followed by a successful one.
+#
+# We use a single user table intentionally. With multiple tables the failpoint can fire after
+# earlier trees have already passed the block-level point of no return (WT_CKPT_PANIC_ON_FAILURE),
+# which correctly causes a panic during checkpoint resolve unroll. That panic path is a known
+# limitation of the current checkpoint error recovery and is tested separately via test/format.
+# This test focuses on the non-panic reset path where the error occurs before any tree has been
+# irrevocably committed.
 class test_checkpoint_failpoint01(wttest.WiredTigerTestCase):
-    uri1 = 'table:test_ckpt_fp_1'
-    uri2 = 'table:test_ckpt_fp_2'
+    uri = 'table:test_ckpt_fp'
     table_config = 'key_format=i,value_format=S'
 
     def test_failpoint_checkpoint_error_between_trees(self):
-        # Create multiple tables so the checkpoint iterates over more than one tree,
-        # giving the failpoint a chance to fire between them.
-        self.session.create(self.uri1, self.table_config)
-        self.session.create(self.uri2, self.table_config)
+        self.session.create(self.uri, self.table_config)
 
-        # Populate both tables and take a clean baseline checkpoint.
-        c1 = self.session.open_cursor(self.uri1)
-        c2 = self.session.open_cursor(self.uri2)
-        for i in range(500):
-            c1[i] = 'a' * 100
-            c2[i] = 'b' * 100
-        c1.close()
-        c2.close()
+        # Populate the table and take a clean baseline checkpoint.
+        c = self.session.open_cursor(self.uri)
+        for k in range(500):
+            c[k] = 'a' * 100
+        c.close()
         self.session.checkpoint()
 
-        # Now enable the failpoint.
+        # Enable the failpoint. With one user table plus internal handles (history store, etc.)
+        # the checkpoint walks a few handles. At 5% per handle, each checkpoint attempt has a
+        # small but non-trivial chance of failure. Over 500 attempts the probability of zero
+        # failures is negligible (~0.98^500 < 0.005%).
         self.conn.reconfigure(
             'timing_stress_for_test=[failpoint_checkpoint_error_between_trees]')
 
-        # Run checkpoints in a loop, inserting fresh data each iteration so the trees are
-        # always dirty and the checkpoint must walk all handles.
         failed = 0
         succeeded = 0
         key = 500
-        for _ in range(80):
-            c1 = self.session.open_cursor(self.uri1)
-            c2 = self.session.open_cursor(self.uri2)
-            c1[key] = 'x' * 100
-            c2[key] = 'y' * 100
-            c1.close()
-            c2.close()
+        for _ in range(500):
+            c = self.session.open_cursor(self.uri)
+            c[key] = 'x' * 100
+            c.close()
             key += 1
 
             try:
@@ -78,18 +76,18 @@ class test_checkpoint_failpoint01(wttest.WiredTigerTestCase):
                 failed += 1
 
         self.pr(f'Checkpoint attempts: {failed} failed, {succeeded} succeeded')
-
-        # With 80 attempts, each touching multiple dirty trees at 5% per tree, the
-        # probability of zero failures is negligible.
         self.assertGreater(failed, 0,
             'Expected at least one failpoint-triggered checkpoint error')
         self.assertGreater(succeeded, 0,
             'Expected at least one successful checkpoint')
 
-        # Disable the failpoint so the final checkpoint and verify are clean.
+        # Disable the failpoint before cleanup so the final checkpoint and verify are clean.
         self.conn.reconfigure('timing_stress_for_test=()')
         self.session.checkpoint()
 
-        # Verify both tables are consistent after the failed+successful checkpoint sequence.
-        self.session.verify(self.uri1)
-        self.session.verify(self.uri2)
+        # Verify the table is consistent after the failed+successful checkpoint sequence.
+        self.session.verify(self.uri)
+
+        # The failpoint produces expected error messages on stderr. Suppress them so the
+        # test framework does not flag them as unexpected output during teardown.
+        self.ignoreStderrPatternIfExists('failpoint: simulated checkpoint error between trees')
