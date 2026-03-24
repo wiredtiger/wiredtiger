@@ -29,7 +29,6 @@
 import os
 import sys
 import unittest
-from types import SimpleNamespace
 
 # Add tools directory to sys.path so we can import py_common
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,27 +38,8 @@ from py_common import binary_data, btree_format
 class TestDecodeDeltaPage(unittest.TestCase):
     """Unit tests for decoding a delta page from disaggregated storage."""
 
-    def make_opts(self) -> SimpleNamespace:
-        """Create an opts object required for decoding a disagg page."""
-        return SimpleNamespace(
-            # Disagg / decoding options
-            disagg=True,
-            disagg_table=False,
-            bson=True,
-            # General decode options
-            skip_data=False,
-            cont=False,
-            debug=False,
-            # Printer options
-            split=False,
-            verbose=True,
-            ext=False,
-            output=None,
-        )
-
     def test_decode_disagg_delta_page(self):
         """Decode delta page from MongoDB oplog."""
-        opts = self.make_opts()
         cur_dir = os.path.dirname(os.path.abspath(__file__))
         page_path = os.path.join(cur_dir, "binary_files", "disagg_delta_oplog.bin")
 
@@ -72,9 +52,9 @@ class TestDecodeDeltaPage(unittest.TestCase):
             b = binary_data.BinaryFile(disagg_file)
             nbytes = os.path.getsize(page_path)
 
-            page = btree_format.WTPage.parse(b, nbytes, opts)
+            page = btree_format.WTPage.parse(b, nbytes, disagg=True)
 
-            page.print_page(opts)
+            page.print_page(decode_as_bson=True, disagg=True)
 
             # Verify the parse succeeded and we can inspect the page
             self.assertTrue(getattr(page, 'success', True), 'WTPage.parse failed')
@@ -82,9 +62,9 @@ class TestDecodeDeltaPage(unittest.TestCase):
             # Check page header fields (from expected output)
             page_header = page.page_header
             self.assertEqual(page_header.recno, 0)
-            self.assertEqual(page_header.write_gen, 8)
-            self.assertEqual(page_header.mem_size, 176)
-            self.assertEqual(page_header.entries, 2)
+            self.assertEqual(page_header.write_gen, 6)
+            self.assertEqual(page_header.mem_size, 2268)
+            self.assertEqual(page_header.entries, 10)
             self.assertEqual(page_header.type.name, 'WT_PAGE_ROW_LEAF')
             self.assertEqual(int(page_header.flags), 0)
             self.assertEqual(page_header.version, 0)
@@ -95,12 +75,12 @@ class TestDecodeDeltaPage(unittest.TestCase):
             self.assertEqual(block_header.version, 1)
             self.assertEqual(block_header.compatible_version, 1)
             self.assertEqual(block_header.header_size, 44)
-            self.assertEqual(block_header.checksum, 2779041603)
-            self.assertEqual(block_header.previous_checksum, 592301193)
+            self.assertEqual(block_header.checksum, 2836552602)
+            self.assertEqual(block_header.previous_checksum, 4000115340)
             self.assertTrue(block_header.flags & btree_format.BlockDisaggFlags.WT_BLOCK_DISAGG_DATA_CKSUM)
 
-            # There should be two cells
-            self.assertEqual(len(page.cells), 2)
+            # There should be ten cells
+            self.assertEqual(len(page.cells), 10)
 
             # First cell: short key 9 bytes, packed 64-bit value which encodes timestamp
             c0 = page.cells[0]
@@ -109,10 +89,10 @@ class TestDecodeDeltaPage(unittest.TestCase):
             # Second cell: value cell with timestamps and BSON payload
             c1 = page.cells[1]
             self.assertTrue(c1.is_value)
-            self.assertEqual(len(c1.data), 103)
+            self.assertEqual(len(c1.data), 419)
             # Check timestamps
             self.assertIsNotNone(c1.start_ts)
-            self.assertEqual(c1.start_ts, 0x69645dcb00000012)
+            self.assertEqual(c1.start_ts, 7613589195910545415)
 
 
 if __name__ == "__main__":
