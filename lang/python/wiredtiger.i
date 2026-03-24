@@ -764,13 +764,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
 %ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, int *);
 %ignore __wt_page_log::get_open_checkpoint(WT_PAGE_LOG *, int *);
-
-/* TODO: workaround for issues getting a Python version of structs working. */
-%ignore __wt_page_log_complete_checkpoint_args::checkpoint_id;
-%ignore __wt_page_log_complete_checkpoint_args::checkpoint_timestamp;
 %ignore __wt_page_log_complete_checkpoint_args::checkpoint_metadata;
-%ignore __wt_page_log_complete_checkpoint_args::checkpoint_oldest_timestamp;
-%ignore __wt_page_log_complete_checkpoint_args::lsn;
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
@@ -1218,11 +1212,6 @@ SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
   (WT_SESSION *session, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args),
   (self, session, args))
 
-/* FIXME-WT-16821: Remember to remove ext. */
-SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint_ext,
-  (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *lsnp),
-  (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, lsnp))
-
 SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),
   (self, session, checkpoint_id))
@@ -1480,6 +1469,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(Connection) __wt_connection;
 %rename(FileHandle) __wt_file_handle;
 %rename(PageLog) __wt_page_log;
+%rename(PageLogCompleteCheckpointArgs) __wt_page_log_complete_checkpoint_args;
 %rename(PageLogDiscardArgs) __wt_page_log_discard_args;
 %rename(PageLogGetArgs) __wt_page_log_get_args;
 %rename(PageLogHandle) __wt_page_log_handle;
@@ -1488,6 +1478,64 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(FileSystem) __wt_file_system;
 
 %include "wiredtiger.h"
+
+%extend __wt_page_log_complete_checkpoint_args {
+	__wt_page_log_complete_checkpoint_args() {
+		return (struct __wt_page_log_complete_checkpoint_args *)calloc(
+		  1, sizeof(struct __wt_page_log_complete_checkpoint_args));
+	}
+	int _set_checkpoint_metadata(const WT_ITEM *value) {
+		WT_ITEM *metadata;
+		size_t size;
+		const void *data;
+
+		if ($self->checkpoint_metadata != NULL) {
+			metadata = (WT_ITEM *)$self->checkpoint_metadata;
+			free(metadata->mem);
+			free(metadata);
+			$self->checkpoint_metadata = NULL;
+		}
+		size = value == NULL ? 0 : value->size;
+		data = value == NULL ? NULL : value->data;
+		metadata = (WT_ITEM *)calloc(1, sizeof(WT_ITEM));
+		if (metadata == NULL)
+			return (ENOMEM);
+		if (size != 0) {
+			metadata->mem = malloc(size);
+			if (metadata->mem == NULL) {
+				free(metadata);
+				return (ENOMEM);
+			}
+			memcpy(metadata->mem, data, size);
+			metadata->data = metadata->mem;
+			metadata->size = size;
+			metadata->memsize = size;
+		}
+		$self->checkpoint_metadata = metadata;
+		return (0);
+	}
+	int _clear_checkpoint_metadata() {
+		WT_ITEM *metadata;
+
+		if ($self->checkpoint_metadata != NULL) {
+			metadata = (WT_ITEM *)$self->checkpoint_metadata;
+			free(metadata->mem);
+			free(metadata);
+			$self->checkpoint_metadata = NULL;
+		}
+		return (0);
+	}
+	~__wt_page_log_complete_checkpoint_args() {
+		WT_ITEM *metadata;
+
+		if ($self->checkpoint_metadata != NULL) {
+			metadata = (WT_ITEM *)$self->checkpoint_metadata;
+			free(metadata->mem);
+			free(metadata);
+		}
+		free($self);
+	}
+}
 
 %extend __wt_page_log_discard_args {
 	__wt_page_log_discard_args() {
@@ -1848,4 +1896,24 @@ _rename_with_prefix('WT_STAT_SESSION_', stat.session)
 _rename_with_prefix('WT_FS_', FileSystem)
 _rename_with_prefix('WT_FILE_HANDLE_', FileHandle)
 del _rename_with_prefix
+
+def _page_log_complete_checkpoint_args_get_metadata(self):
+	return getattr(self, '_checkpoint_metadata_python_value', None)
+
+def _page_log_complete_checkpoint_args_set_metadata(self, value):
+	if value is None:
+		self._clear_checkpoint_metadata()
+		self._checkpoint_metadata_python_value = None
+		return
+	ret = self._set_checkpoint_metadata(value)
+	if ret != 0:
+		raise WiredTigerError(wiredtiger_strerror(ret))
+	self._checkpoint_metadata_python_value = value
+
+PageLogCompleteCheckpointArgs.checkpoint_metadata = property(
+	_page_log_complete_checkpoint_args_get_metadata,
+	_page_log_complete_checkpoint_args_set_metadata)
+
+del _page_log_complete_checkpoint_args_get_metadata
+del _page_log_complete_checkpoint_args_set_metadata
 %}
