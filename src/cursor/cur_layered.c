@@ -1662,7 +1662,6 @@ done:
     }
 
 err:
-    __clayered_leave(clayered);
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
         /* FIXME-WT-16880: Fix layered search_near() incorrectly resetting the cursor. */
         WT_TRET(__clayered_reset_cursors(clayered, false));
