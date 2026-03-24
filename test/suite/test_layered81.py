@@ -1498,7 +1498,7 @@ class test_layered81(wttest.WiredTigerTestCase):
     #      stable), so the stable cursor is the alternate and can be replaced.
     #   4. A new checkpoint was advanced AFTER the cursor started iterating.
     #
-    # Each test uses get_stat() to verify that layered_curs_upgrade_stable
+    # Each test uses get_stat() to verify that layered_curs_advance_stable
     # was actually incremented, confirming the upgrade really triggered.
     # -----------------------------------------------------------------------
 
@@ -1552,7 +1552,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         # Begin transaction with read timestamp.
         self.begin_read_ts_txn()
 
-        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_upgrade_stable)
+        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
 
         cursor = self.session_follow.open_cursor(self.uri)
 
@@ -1575,7 +1575,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         while cursor.next() == 0:
             keys_after.append(cursor.get_key())
 
-        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_upgrade_stable)
+        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
         self.assertGreater(upgrades_after, upgrades_before,
             "Stable cursor upgrade did not trigger during iteration")
 
@@ -1647,7 +1647,7 @@ class test_layered81(wttest.WiredTigerTestCase):
 
         self.begin_read_ts_txn()
 
-        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_upgrade_stable)
+        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
 
         lo, hi = 200, 800
         cursor = self.session_follow.open_cursor(self.uri)
@@ -1668,7 +1668,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         while cursor.next() == 0:
             keys_after.append(cursor.get_key())
 
-        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_upgrade_stable)
+        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
         self.assertGreater(upgrades_after, upgrades_before,
             "Stable cursor upgrade did not trigger during bounded iteration")
 
@@ -1755,7 +1755,7 @@ class test_layered81(wttest.WiredTigerTestCase):
 
         self.begin_read_ts_txn()
 
-        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_upgrade_stable)
+        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
 
         cursor = self.session_follow.open_cursor(self.uri)
         all_keys = []
@@ -1779,7 +1779,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         while cursor.next() == 0:
             all_keys.append(cursor.get_key())
 
-        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_upgrade_stable)
+        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
         self.assertGreater(upgrades_after, upgrades_before,
             "Stable cursor upgrade did not trigger during multi-checkpoint scan")
 
