@@ -1159,3 +1159,134 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.remove_ingest([500])
 
         self.search_near_notfound(self.fmt_key(500))
+
+    # -----------------------------------------------------------------------
+    # Test: Failed search on a tombstoned key must not leave the ingest cursor
+    # positioned. If the ingest cursor stays positioned after a failed lookup,
+    # a subsequent next() starts stable from the beginning while ingest is
+    # mid-table. The desynchronized merge misses the tombstone and returns the
+    # deleted key.
+    #
+    # Stable: all keys 0-999. Ingest: tombstone at 500.
+    # 1. next() to key 499.
+    # 2. search(500) -> NOTFOUND (tombstoned).
+    # 3. Scan forward with next(). Key 500 must NOT appear (tombstone).
+    # -----------------------------------------------------------------------
+    def test_search_tombstone_then_next_no_deleted_key(self):
+        self.setup_follower()
+        self.create_table()
+
+        all_keys = list(range(self.nkeys))
+        self.insert_stable(all_keys)
+        self.remove_ingest([500])
+
+        session = self.get_session()
+        cursor = session.open_cursor(self.uri)
+
+        # Iterate forward to key 499.
+        for _ in range(500):
+            self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), self.fmt_key(499))
+
+        # search(500) should return NOTFOUND because 500 is tombstoned.
+        cursor.set_key(self.fmt_key(500))
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+
+        # Scan forward. Key 500 must never appear (it is tombstoned).
+        # Without the fix, the ingest cursor stays positioned at the tombstone
+        # after the failed search. On next(), stable starts from key 0 while
+        # ingest is at 501. When stable reaches 500, ingest has already passed
+        # the tombstone, so 500 is returned — violating the tombstone.
+        seen = []
+        while cursor.next() == 0:
+            seen.append(cursor.get_key())
+
+        self.assertNotIn(self.fmt_key(500), seen,
+            "Key 500 should be hidden by the tombstone in ingest")
+
+        # Also verify the scan is monotonically increasing.
+        for i in range(1, len(seen)):
+            self.assertGreater(seen[i], seen[i - 1],
+                f"Out-of-order keys: {seen[i - 1]} >= {seen[i]}")
+
+        cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Test: Same scenario but iterate past the tombstone first to verify the
+    # desync is detectable even when resuming from a later position.
+    #
+    # Stable: all keys 0-999. Ingest: tombstone at 500.
+    # 1. next() to key 599 (past the tombstone).
+    # 2. search(500) -> NOTFOUND.
+    # 3. next() repeatedly. Key 500 must not appear.
+    # -----------------------------------------------------------------------
+    def test_search_tombstone_past_position_then_next(self):
+        self.setup_follower()
+        self.create_table()
+
+        all_keys = list(range(self.nkeys))
+        self.insert_stable(all_keys)
+        self.remove_ingest([500])
+
+        session = self.get_session()
+        cursor = session.open_cursor(self.uri)
+
+        # Iterate past the tombstone.
+        for _ in range(600):
+            self.assertEqual(cursor.next(), 0)
+
+        # Search for the tombstoned key — fails.
+        cursor.set_key(self.fmt_key(500))
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+
+        # next() after failed search restarts from the beginning, but key 500
+        # must still be hidden by the tombstone throughout the entire scan.
+        seen = []
+        while cursor.next() == 0:
+            seen.append(cursor.get_key())
+
+        self.assertNotIn(self.fmt_key(500), seen,
+            "Key 500 should be hidden by the tombstone")
+
+        for i in range(1, len(seen)):
+            self.assertGreater(seen[i], seen[i - 1],
+                f"Out-of-order keys: {seen[i - 1]} >= {seen[i]}")
+
+        cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Test: search() for a tombstoned key followed by next(). The tombstoned
+    # key must not appear in the subsequent scan, and all returned keys must
+    # be in monotonically increasing order.
+    # -----------------------------------------------------------------------
+    def test_search_tombstone_desync_merge(self):
+        self.setup_follower()
+        self.create_table()
+
+        # Stable: even keys 0-998. Ingest: odd keys 1-999 plus tombstone at 500.
+        even_keys = list(range(0, self.nkeys, 2))
+        odd_keys = list(range(1, self.nkeys, 2))
+        self.insert_stable(even_keys)
+        self.insert_ingest(odd_keys)
+        self.remove_ingest([500])
+
+        session = self.get_session()
+        cursor = session.open_cursor(self.uri)
+
+        # search(500) returns NOTFOUND because 500 is tombstoned in ingest.
+        cursor.set_key(self.fmt_key(500))
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+
+        # Scan forward. Key 500 must not appear and keys must be ordered.
+        seen = []
+        while cursor.next() == 0:
+            seen.append(cursor.get_key())
+
+        self.assertNotIn(self.fmt_key(500), seen,
+            "Key 500 should be hidden by the tombstone in ingest")
+
+        for i in range(1, len(seen)):
+            self.assertGreater(seen[i], seen[i - 1],
+                f"Out-of-order keys: {seen[i - 1]} >= {seen[i]}")
+
+        cursor.close()

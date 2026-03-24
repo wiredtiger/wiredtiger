@@ -731,14 +731,11 @@ __clayered_get_current(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bo
             current = clayered->ingest_cursor;
         else
             current = clayered->stable_cursor;
-
     } else if (ingest_positioned)
         current = clayered->ingest_cursor;
     else if (stable_positioned)
         current = clayered->stable_cursor;
 
-    WT_ASSERT_ALWAYS(
-      session, current != NULL, "Both constituents are positioned, but we cannot choose current");
     clayered->current_cursor = current;
 
     return (0);
@@ -886,8 +883,11 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      * is positioned.
      */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) && !deleted) {
-        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
+        WT_ASSERT_ALWAYS(session,
+          !F_ISSET(c_ingest, WT_CURSTD_KEY_INT) && !F_ISSET(c_ingest, WT_CURSTD_KEY_INT),
+          "internal cursor positioned");
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
         goto done;
     }
 
@@ -1054,11 +1054,21 @@ __clayered_reset_cursors(WT_CURSOR_LAYERED *clayered, bool skip_ingest)
 {
     WT_CURSOR *c;
     WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(clayered);
+
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     /* Fast path if the cursor is not positioned. */
-    if (clayered->current_cursor == NULL &&
-      !F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
+    if (clayered->current_cursor == NULL) {
+        WT_ASSERT(session,
+          (clayered->ingest_cursor == NULL ||
+            !F_ISSET(clayered->ingest_cursor, WT_CURSTD_KEY_INT)) &&
+            (clayered->stable_cursor == NULL ||
+              !F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT)));
         return (0);
+    }
 
     c = clayered->stable_cursor;
     if (c != NULL && F_ISSET(c, WT_CURSTD_KEY_SET))
@@ -1069,7 +1079,6 @@ __clayered_reset_cursors(WT_CURSOR_LAYERED *clayered, bool skip_ingest)
         WT_TRET(c->reset(c));
 
     clayered->current_cursor = NULL;
-    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     return (ret);
 }
@@ -1091,7 +1100,6 @@ __clayered_reset(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
-    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     /* The flag should have been cleared after each cursor operation. */
     WT_ASSERT(session, !F_ISSET(clayered, WT_CLAYERED_READ_STABLE));
     WT_ERR(__cursor_copy_release(cursor));
@@ -1398,9 +1406,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
 err:
     if (reset_ignore_prepare)
         F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
-    if (ret == 0)
-        clayered->current_cursor = c;
-    else if (ret != WT_PREPARE_CONFLICT)
+    if (ret != 0 && ret != WT_PREPARE_CONFLICT)
         WT_TRET(__clayered_reset_cursors(clayered, false));
 
     return (ret);
