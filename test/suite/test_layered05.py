@@ -963,3 +963,55 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_ingest([800])
 
         self.search_near_check("", self.fmt_key(500), 1)
+
+    # -----------------------------------------------------------------------
+    # Tests: search_near tombstone when there is no stable cursor.
+    #
+    # These tests are follower-only
+    # -----------------------------------------------------------------------
+    def test_search_near_ingest_tombstone_no_stable_forward(self):
+        """Tombstone in ingest-only (no stable), successor exists in ingest. Walk forward."""
+        # Only meaningful for follower: leader has no ingest/stable split.
+        if self.role != 'follower':
+            return
+        self.setup_follower()
+        self.create_table()
+
+        # No checkpoint -> stable cursor is NULL.
+        # Ingest: 100, 500(tombstone), 700.
+        self.insert_ingest([100, 500, 700])
+        self.remove_ingest([500])
+
+        # 500 is tombstoned. Walk forward hits 700. Return 700, cmp=1.
+        self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
+
+    def test_search_near_ingest_tombstone_no_stable_backward(self):
+        """Tombstone is last ingest key (no stable). Must walk backward to predecessor."""
+        # Only meaningful for follower: leader has no ingest/stable split.
+        if self.role != 'follower':
+            return
+        self.setup_follower()
+        self.create_table()
+
+        # No checkpoint -> stable cursor is NULL.
+        # Ingest: 100, 500(tombstone). Nothing after 500.
+        self.insert_ingest([100, 500])
+        self.remove_ingest([500])
+
+        # 500 is tombstoned. Forward walk finds nothing. Walk backward -> 100, cmp=-1.
+        self.search_near_check(self.fmt_key(500), self.fmt_key(100), -1)
+
+    def test_search_near_ingest_tombstone_no_stable_notfound(self):
+        """Only key in ingest-only table is a tombstone. WT_NOTFOUND expected."""
+        # Only meaningful for follower: leader has no ingest/stable split.
+        if self.role != 'follower':
+            return
+        self.setup_follower()
+        self.create_table()
+
+        # No checkpoint -> stable cursor is NULL.
+        # Ingest: 500(tombstone) only. No live keys anywhere.
+        self.insert_ingest([500])
+        self.remove_ingest([500])
+
+        self.search_near_notfound(self.fmt_key(500))
