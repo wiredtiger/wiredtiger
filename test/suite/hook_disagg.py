@@ -146,11 +146,24 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         }
         return str(test_class) in bump_tests
 
+    def should_minimize_fds(test) -> (bool):
+        test_class = str(test).strip().split('.', 1)[0]
+        tests = {
+            'test_schema07', # Creates many tables, which creates many file handles
+        }
+        return str(test_class) in tests
+
     if should_bump_cache(testcase): # bump for specific tests
         if not page_log_config:
             page_log_config = "cache_size_mb=2048"
         elif "cache_size_mb=" not in page_log_config: # don't override user-specified size
             page_log_config = f"cache_size_mb=2048,{page_log_config}"
+
+    if should_minimize_fds(testcase): # minimize fds for specific tests
+        if not page_log_config:
+            page_log_config = "per_thread_connections=false"
+        elif "per_thread_connections=" not in page_log_config: # don't override user-specified field
+            page_log_config = f"per_thread_connections=false,{page_log_config}"
 
     if page_log_config == None:
         ext_lib = f'\"{page_log_extension[0]}\"'

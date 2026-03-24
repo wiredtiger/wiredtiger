@@ -146,6 +146,7 @@
 #include <format>
 #include <functional>
 #include <iostream>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -354,6 +355,7 @@ struct Config {
     uint64_t last_materialized_lsn = 0;    /* The last materialized LSN (0 if not set) */
     int32_t verbose = WT_VERBOSE_INFO;     /* Verbose level */
     bool verbose_msg = true;               /* Send verbose messages to msg callback interface */
+    bool per_thread_connections = true;    /* Use per-thread connections to SQLite databases */
     bool sql_trace = false;                /* Trace all SQLite calls */
     bool verify = true;                    /* Verify integrity of page delta chains */
 
@@ -375,6 +377,7 @@ struct Config {
         configure_value(parser.get(), config, "materialization_delay_ms", materialization_delay_ms);
         configure_value(parser.get(), config, "verbose", verbose);
         configure_value(parser.get(), config, "verbose_msg", verbose_msg);
+        configure_value(parser.get(), config, "per_thread_connections", per_thread_connections);
         configure_value(parser.get(), config, "sql_trace", sql_trace);
         configure_value(parser.get(), config, "verify", verify);
     }
@@ -936,8 +939,9 @@ protected:
     std::filesystem::path table_file;
 
     std::once_flag create_table;
-    std::shared_mutex conn_state; /* protects 'connections' map */
-    std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections;
+    std::shared_mutex conn_state; /* protects 'connections' list and map */
+    std::list<Connection *> connections_shared_list;
+    std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections_per_thread;
 
 public:
     std::shared_mutex access; /* readers-writer mutex for table */
@@ -951,8 +955,14 @@ public:
     void
     close()
     {
-        std::ranges::for_each(connections, [](auto &kv) { kv.second->close(); });
-        connections.clear();
+        std::ranges::for_each(connections_per_thread, [](auto &kv) { kv.second->close(); });
+        std::ranges::for_each(connections_shared_list, [](auto &conn) {
+            conn->close();
+            delete conn;
+        });
+
+        connections_per_thread.clear();
+        connections_shared_list.clear();
     }
 
     enum AccessMode { READ, WRITE, BYPASS };
@@ -962,14 +972,15 @@ protected:
         std::shared_lock<std::shared_mutex> store_lock;
         std::shared_lock<std::shared_mutex> table_read_lock;
         std::unique_lock<std::shared_mutex> table_write_lock;
+        Connection *_conn;
+        Table *_table;
 
     public:
         Connection &conn;
 
-        ~Access() = default;
-        Access(AccessMode mode, Connection &cn, std::shared_mutex &store_access,
-          std::shared_mutex &table_access)
-            : conn(cn)
+        Access(AccessMode mode, Connection *cn, std::shared_mutex &store_access,
+          std::shared_mutex &table_access, Table *table)
+            : _conn(cn), conn(*cn), _table(table)
         {
             switch (mode) {
             case AccessMode::READ:
@@ -988,6 +999,14 @@ protected:
             }
         }
 
+        ~Access()
+        {
+            if (!_table->config.per_thread_connections) {
+                std::lock_guard lock(_table->conn_state);
+                _table->connections_shared_list.push_back(_conn);
+            }
+        }
+
         Access(const Access &) = delete;
         Access &operator=(const Access &) = delete;
     };
@@ -995,30 +1014,57 @@ protected:
     Access
     request(AccessMode mode)
     {
-        return Access{mode, conn(), store_access, access};
+        return Access{mode, get_connection(), store_access, access, this};
     }
 
 private:
-    Connection &
-    conn()
+    Connection *
+    get_connection_from_shared_list()
+    {
+        {
+            std::unique_lock write_lock(conn_state);
+            if (!connections_shared_list.empty()) {
+                Connection *conn = connections_shared_list.front();
+                connections_shared_list.pop_front();
+                return conn;
+            }
+        }
+
+        Connection *new_conn = new Connection(config, table_file);
+        new_conn->configure(static_cast<Traits *>(this)->conn_config());
+
+        std::call_once(
+          create_table,
+          [this](Connection &c) {
+              c.configure(Traits::create_statements);
+              LOG_DEBUG("SQLite database schema initialized: {}", c.db_instance());
+          },
+          *new_conn);
+
+        new_conn->prepare_statements(Traits::sql_statements);
+        return new_conn;
+    }
+
+    Connection *
+    get_connection_from_per_thread_map()
     {
         {
             std::shared_lock read_lock(conn_state);
-            auto it = connections.find(std::this_thread::get_id());
-            if (it != connections.end())
-                return *(it->second);
+            auto it = connections_per_thread.find(std::this_thread::get_id());
+            if (it != connections_per_thread.end())
+                return it->second.get();
         }
 
         {
             std::unique_lock write_lock(conn_state);
-            auto [it, inserted] = connections.try_emplace(
+            auto [it, inserted] = connections_per_thread.try_emplace(
               std::this_thread::get_id(), std::make_unique<Connection>(config, table_file));
 
             if (!inserted)
                 LOG_AND_THROW("Connection already exists for this thread");
 
-            Connection &new_conn = *(it->second);
-            new_conn.configure(static_cast<Traits *>(this)->conn_config());
+            Connection *new_conn = it->second.get();
+            new_conn->configure(static_cast<Traits *>(this)->conn_config());
 
             std::call_once(
               create_table,
@@ -1026,12 +1072,21 @@ private:
                   c.configure(Traits::create_statements);
                   LOG_DEBUG("SQLite database schema initialized: {}", c.db_instance());
               },
-              new_conn);
+              *new_conn);
 
-            new_conn.prepare_statements(Traits::sql_statements);
+            new_conn->prepare_statements(Traits::sql_statements);
 
             return new_conn;
         }
+    }
+
+    Connection *
+    get_connection()
+    {
+        if (config.per_thread_connections)
+            return get_connection_from_per_thread_map();
+        else
+            return get_connection_from_shared_list();
     }
 };
 
