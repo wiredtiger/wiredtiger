@@ -3572,9 +3572,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * which is where disaggregated storage is initialized. The earlier metadata verify (above) runs
      * before disagg is set up, so the check is deferred to here.
      */
-    if (verify_meta && __wt_conn_is_disagg(session)) {
+    if (verify_meta && __wt_conn_is_disagg(session))
         WT_ERR(__wt_verify_disagg_database_size(session));
-    }
 
     /*
      * The hash array sizes needed to be set up very early. Set them in the statistics here. Setting
