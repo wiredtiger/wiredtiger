@@ -2968,6 +2968,21 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
         --session->ckpt.crash_point;
     }
 
+    /*
+     * Simulate a checkpoint error between trees to exercise the checkpoint error path. Skip
+     * disaggregated btrees: their checkpoint failure recovery is incomplete and WT-16990 will make
+     * disagg checkpoint errors panic instead. Fire approximately 5% of the time when enabled.
+     *
+     * NOTE: If a previous tree in this checkpoint has already passed the block-level point of no
+     * return (WT_CKPT_PANIC_ON_FAILURE), this error will cause the system to panic during
+     * checkpoint resolve unroll. This is a known limitation of the current checkpoint error
+     * recovery path, which this failpoint is designed to expose.
+     */
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_CHECKPOINT_ERROR_BETWEEN_TREES, 500)) {
+        WT_RET_MSG(session, EINVAL, "failpoint: simulated checkpoint error between trees");
+    }
+
     /* Are we using a read timestamp for this checkpoint transaction? */
     with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);
 

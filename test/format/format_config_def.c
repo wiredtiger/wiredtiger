@@ -386,6 +386,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_EVICT_REPOSITION},
 
+  {"stress.failpoint_checkpoint_error_between_trees",
+    "stress failpoint checkpoint error between trees", C_BOOL, 30, 0, 0,
+    V_GLOBAL_STRESS_FAILPOINT_CHECKPOINT_ERROR_BETWEEN_TREES},
+
   {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0,
     V_GLOBAL_STRESS_FAILPOINT_EVICTION_SPLIT},
 
