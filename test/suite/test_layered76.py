@@ -115,3 +115,21 @@ class test_layered76(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.verifyUntilSuccess()
+
+    def test_verify_db_size(self):
+        self.session.create(self.uri, self.create_session_config)
+
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(100):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+
+        self.session.checkpoint()
+
+        # Verify the disaggregated database size by reopening with verify_metadata=true.
+        # This triggers __wt_verify_disagg_database_size via the verify_metadata startup path in
+        # conn_api.c, after disaggregated storage has been fully initialized by
+        # __wti_connection_workers. We cannot call session.verify(WT_METAFILE_URI) directly on a
+        # live connection because the metadata dhandle is permanently held open and will always
+        # return EBUSY.
+        self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
