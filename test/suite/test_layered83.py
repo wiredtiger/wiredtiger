@@ -281,7 +281,7 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_next_all_tombstoned(self):
-        """All keys tombstoned returns NOTFOUND."""
+        """All keys tombstoned returns NOTFOUND on forward scan."""
         self.setup_follower()
         self.create_table()
         self.populate_all_stable()
@@ -289,6 +289,17 @@ class test_layered83(wttest.WiredTigerTestCase):
 
         cursor = self.open_cursor()
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+        cursor.close()
+
+    def test_prev_all_tombstoned(self):
+        """All keys tombstoned returns NOTFOUND on backward scan."""
+        self.setup_follower()
+        self.create_table()
+        self.populate_all_stable()
+        self.remove_ingest(list(range(self.nkeys)))
+
+        cursor = self.open_cursor()
+        self.assertEqual(cursor.prev(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
     # =====================================================================
