@@ -133,3 +133,58 @@ class test_layered76(wttest.WiredTigerTestCase):
         # live connection because the metadata dhandle is permanently held open and will always
         # return EBUSY.
         self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
+
+    def test_verify_db_size_multi_table(self):
+        uris = [
+            'layered:test_layered76_a',
+            'layered:test_layered76_b',
+            'layered:test_layered76_c',
+        ]
+        for uri in uris:
+            self.session.create(uri, self.create_session_config)
+
+        # Checkpoint 1: write different amounts to each table.
+        cursor_a = self.session.open_cursor(uris[0])
+        cursor_b = self.session.open_cursor(uris[1])
+        cursor_c = self.session.open_cursor(uris[2])
+        for i in range(500):
+            cursor_a[i] = 'a' * 50
+        for i in range(1000):
+            cursor_b[i] = 'b' * 200
+        for i in range(200):
+            cursor_c[i] = 'c' * 10
+        cursor_a.close()
+        cursor_b.close()
+        cursor_c.close()
+        self.session.checkpoint()
+
+        # Checkpoint 2: update some rows in table_a, delete rows from table_b, leave table_c
+        # untouched. This exercises negative deltas in the database_size accounting.
+        cursor_a = self.session.open_cursor(uris[0])
+        for i in range(0, 500, 2):
+            cursor_a[i] = 'a' * 150
+        cursor_a.close()
+
+        cursor_b = self.session.open_cursor(uris[1])
+        for i in range(0, 500):
+            cursor_b.set_key(i)
+            cursor_b.remove()
+        cursor_b.close()
+        self.session.checkpoint()
+
+        # Checkpoint 3: add a large batch to table_c and overwrite all of table_a.
+        cursor_a = self.session.open_cursor(uris[0])
+        for i in range(500):
+            cursor_a[i] = 'x' * 300
+        cursor_a.close()
+
+        cursor_c = self.session.open_cursor(uris[2])
+        for i in range(200, 1000):
+            cursor_c[i] = 'c' * 100
+        cursor_c.close()
+        self.session.checkpoint()
+
+        # Reopen with verify_metadata=true to run __wt_verify_disagg_database_size. The stored
+        # database_size must equal the sum of the most recent checkpoint size across all
+        # disaggregated btrees plus the fixed WT_DISAGG_CHECKPOINT_SIZE_BUFFER overhead.
+        self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
