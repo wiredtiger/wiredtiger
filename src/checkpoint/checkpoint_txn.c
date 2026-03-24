@@ -523,8 +523,6 @@ __checkpoint_update_evict_triggers_start(
 
     WT_EVICT *evict = conn->evict;
 
-    __wt_spin_lock(session, &conn->reconfig_lock);
-
     /* First save the original values for later restoration. */
     saved_triggers->original_dirty_trigger =
       __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
@@ -543,8 +541,6 @@ __checkpoint_update_evict_triggers_start(
     __wt_atomic_store_double_relaxed(
       &evict->eviction_updates_trigger, saved_triggers->new_updates_trigger);
 
-    __wt_spin_unlock(session, &conn->reconfig_lock);
-
     saved_triggers->applied = true;
 }
 
@@ -562,8 +558,6 @@ __checkpoint_update_evict_triggers_end(
     /* Only reset the triggers if the new ones were applied. */
     if (!saved_triggers->applied)
         return;
-
-    __wt_spin_lock(session, &conn->reconfig_lock);
 
     WT_EVICT *evict = conn->evict;
     double current_dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
@@ -589,8 +583,6 @@ __checkpoint_update_evict_triggers_end(
       &evict->eviction_dirty_trigger, saved_triggers->original_dirty_trigger);
     __wt_atomic_store_double_relaxed(
       &evict->eviction_updates_trigger, saved_triggers->original_updates_trigger);
-
-    __wt_spin_unlock(session, &conn->reconfig_lock);
 }
 
 /*
