@@ -1464,6 +1464,10 @@ __clayered_search_near_move_ingest_to_opposite_side(
     ingest_cursor = clayered->ingest_cursor;
 
     __clayered_get_collator(clayered, &collator);
+    /*
+     * When reading with read-uncommitted isolation, concurrent key insertions may occur. Continue
+     * the walk until the search key is reached or passed.
+     */
     if (stable_cmp > 0) {
         /* Stable is larger. Move ingest forward to find a larger key in ingest. */
         do {
@@ -1571,8 +1575,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
             if ((ingest_cmp ^ stable_cmp) < 0) {
                 /*
                  * The cursors are on opposite sides of the search key. Move the ingest cursor to
-                 * the other side. When reading with read-uncommitted isolation, concurrent key
-                 * insertions may occur. Continue the walk until the search key is passed.
+                 * the other side.
                  */
                 WT_ERR_NOTFOUND_OK(__clayered_search_near_move_ingest_to_opposite_side(
                                      session, clayered, stable_cmp, &ingest_cmp),
