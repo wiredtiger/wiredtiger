@@ -1229,9 +1229,6 @@ __clayered_cache(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
     session = CUR2S(cursor);
 
-    /* In case we were somehow left positioned, clear that. */
-    __clayered_leave(clayered);
-
     WT_TRET(__wti_cursor_cache(cursor, clayered->dhandle));
     WT_TRET(__wt_session_release_dhandle(session));
 
