@@ -654,19 +654,19 @@ connection_runtime_config = [
             type='category', subconfig=[
             Config('before_insert_colgroup', 'false', r'''
                 if true, force crash in table creation before inserting the colgroup metadata entry.
-                This is intended for testing purposes only.''', 
+                This is intended for testing purposes only.''',
                 type='boolean'),
             Config('before_insert_file', 'false', r'''
-                if true, force crash in table creation before inserting the file metadata entry. 
+                if true, force crash in table creation before inserting the file metadata entry.
                 This is intended for testing purposes only.''',
                 type='boolean'),
             Config('after_drop_colgroup', 'false', r'''
                 if true, force crash in table drop after dropping the table metadata entry. This is
-                intended for testing purposes only.''', 
+                intended for testing purposes only.''',
                 type='boolean'),
             Config('after_drop_file', 'false', r'''
-                if true, force crash in table drop after dropping the colgroup metadata entry. This 
-                is intended for testing purposes only.''', 
+                if true, force crash in table drop after dropping the colgroup metadata entry. This
+                is intended for testing purposes only.''',
                 type='boolean')
             ]),
         Config('corruption_abort', 'true', r'''
@@ -1764,6 +1764,10 @@ methods = {
                     Allow version cursos to walk across keys while calling next().
                     ''',
                     type='boolean', undoc=True),
+                Config('show_prepared_rollback', 'false', r'''
+                    Return prepared-aborted updates. Non-prepared aborted
+                    updates will be skipped.''',
+                    type='boolean', undoc=True),
         ]),
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
@@ -2172,6 +2176,14 @@ methods = {
 'WT_CONNECTION.add_page_log' : Method([]),
 'WT_CONNECTION.add_storage_source' : Method([]),
 'WT_CONNECTION.close' : Method([
+    Config('debug', '', r'''
+        configure debug specific behavior on connection close. Generally only used for internal
+        testing purposes.''',
+        type='category', subconfig=[
+        Config('skip_checkpoint', 'false', r'''
+            Skips the checkpoint during shutdown.''',
+            type='boolean'),
+        ]),
     Config('final_flush', 'false', r'''
         wait for final flush_tier to copy objects''',
         type='boolean', undoc=True),

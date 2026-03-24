@@ -579,6 +579,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_pages_checkpoint_timestamp;
     int64_t eviction_server_skip_pages_last_running;
     int64_t eviction_server_skip_pages_prune_timestamp;
+    int64_t eviction_server_skip_pages_prune_timestamp_not_move;
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
     int64_t eviction_server_skip_stable_trees;
@@ -641,6 +642,7 @@ struct __wt_connection_stats {
     int64_t eviction_force_delete;
     int64_t eviction_force;
     int64_t eviction_force_fail;
+    int64_t cache_eviction_blocked_prune_timestamp;
     int64_t cache_eviction_blocked_hazard;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
@@ -853,6 +855,7 @@ struct __wt_connection_stats {
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
+    int64_t checkpoint_rec_blkcache_write;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t chunkcache_spans_chunks_read;
     int64_t chunkcache_chunks_evicted;
@@ -1018,6 +1021,7 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_follower;
     int64_t layered_table_manager_tables;
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
@@ -1477,6 +1481,7 @@ struct __wt_dsrc_stats {
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
     int64_t btree_row_leaf;
+    int64_t btree_checkpoint_reconcile_duration;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
@@ -1510,6 +1515,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
+    int64_t cache_eviction_blocked_prune_timestamp;
     int64_t cache_eviction_blocked_hazard;
     int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
