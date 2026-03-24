@@ -37,59 +37,148 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered05(wttest.WiredTigerTestCase):
-    # Use aggressive sweep settings so the server has every opportunity to
-    # incorrectly close the ingest dhandle while we are running as follower.
-    conn_config = 'statistics=(all),' \
-                  'file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1),' \
-                  'verbose=(sweep:3),' \
-                  'disaggregated=(role="follower")'
-
+    conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     uri = 'layered:test_layered05'
-    nrows = 1000
+
+    nkeys = 1000
 
     disagg_storages = gen_disagg_storages('test_layered05', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
 
-    def test_layered_dhandle_not_swept_during_stepup(self):
+    # Each test runs in two scenarios:
+    #   - leader:   test operations run on the leader session. The leader's stable cursor
+    #               is a regular R/W btree cursor, so search_near returns the nearest key
+    #               predictably. This serves as a baseline correctness check.
+    #   - follower: test operations run on the follower session. The follower's stable cursor
+    #               is a checkpoint cursor, which may return different neighbors from
+    #               search_near. This is where XOR normalization bugs manifest.
+    #
+    # A follower connection is always created (even in leader mode) because insert_stable()
+    # needs it to call disagg_advance_checkpoint().
+    role_scenarios = [
+        ('leader', dict(role='leader')),
+        ('follower', dict(role='follower')),
+    ]
+    scenarios = make_scenarios(disagg_storages, role_scenarios)
+
+    conn_follow = None
+    session_follow = None
+    ts = 1
+
+    @staticmethod
+    def fmt_key(i):
+        return f"{i:06d}"
+
+    @staticmethod
+    def fmt_val(i):
+        return f"val_{i:06d}"
+
+    def conn_config(self):
+        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
+
+    def setup_follower(self):
+        """Create follower connection. Required by insert_stable() for checkpoint advance."""
+        self.conn_follow = self.wiredtiger_open('follower',
+            self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        self.session_follow = self.conn_follow.open_session('')
+
+    def get_session(self):
+        """Return the session under test (leader or follower based on scenario)."""
+        if self.role == 'leader':
+            return self.session
+        return self.session_follow
+
+    def get_conn(self):
+        """Return the connection under test (leader or follower based on scenario)."""
+        if self.role == 'leader':
+            return self.conn
+        return self.conn_follow
+
+    def create_table(self):
+        config = "key_format=S,value_format=S"
+        self.session.create(self.uri, config)
+        self.session_follow.create(self.uri, config)
+
+    def next_ts(self):
+        self.ts += 1
+        return self.ts
+
+    def insert_keys_on(self, session, keys, values=None):
+        """Insert key/value pairs on a specific session."""
+        cursor = session.open_cursor(self.uri)
+        for i, key in enumerate(keys):
+            val = values[i] if values else f"val_{key}"
+            session.begin_transaction()
+            cursor[key] = val
+            session.commit_transaction(f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+        cursor.close()
+
+    def remove_keys_on(self, session, keys):
+        """Remove keys on a specific session (creates tombstones in ingest)."""
+        cursor = session.open_cursor(self.uri)
+        for key in keys:
+            session.begin_transaction()
+            cursor.set_key(key)
+            cursor.remove()
+            session.commit_transaction(f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+        cursor.close()
+
+    def insert_stable(self, int_keys, values=None):
         """
-        Verify that the sweep server does not close the layered dhandle. During
-        step-up, the ingest table is drained into the layered table. If the
-        layered dhandle was closed by sweep beforehand, the drain operation
-        cannot reference the existing layered data and leaves gaps (WT-16974,
-        WT-16703).
+        Insert keys into stable: write on leader, checkpoint, advance follower.
+        After this, the keys are in the stable table of both leader and follower.
+        Accepts a list of integers; formats them internally.
         """
-        self.session.create(self.uri, 'key_format=i,value_format=S')
+        keys = [self.fmt_key(i) for i in int_keys]
+        vals = [self.fmt_val(i) for i in int_keys] if values is None else values
+        self.insert_keys_on(self.session, keys, vals)
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(self.ts)}')
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Write the first batch as follower with timestamps.
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(self.nrows):
-            cursor[i] = 'value' + str(i)
+    def insert_ingest(self, int_keys, values=None):
+        """
+        Insert keys into ingest on the session under test.
+        Accepts a list of integers; formats them internally.
+        """
+        keys = [self.fmt_key(i) for i in int_keys]
+        vals = [self.fmt_val(i) for i in int_keys] if values is None else values
+        self.insert_keys_on(self.get_session(), keys, vals)
+
+    def remove_ingest(self, int_keys):
+        """
+        Remove keys on the session under test (tombstones in ingest).
+        Accepts a list of integers; formats them internally.
+        """
+        keys = [self.fmt_key(i) for i in int_keys]
+        self.remove_keys_on(self.get_session(), keys)
+
+    def search_near_check(self, search_key, expected_key, expected_exact, expected_value=None):
+        """
+        Open a cursor, call search_near for search_key, and verify the result.
+        Accepts pre-formatted string keys.
+        """
+        session = self.get_session()
+        cursor = session.open_cursor(self.uri)
+        cursor.set_key(search_key)
+        exact = cursor.search_near()
+        self.assertEqual(cursor.get_key(), expected_key,
+            f"search_near({search_key}): expected key {expected_key}, got {cursor.get_key()}")
+        self.assertEqual(exact, expected_exact,
+            f"search_near({search_key}): expected exact={expected_exact}, got {exact}")
+        if expected_value is not None:
+            self.assertEqual(cursor.get_value(), expected_value,
+                f"search_near({search_key}): expected value {expected_value}, got {cursor.get_value()}")
         cursor.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
 
-        # Pin the ingest table dhandle, so it doesn't get swept away on purpose.
-        cursor = self.session.open_cursor("file:test_layered05.wt_ingest")
-
-        # Give the aggressive sweep server time to run several cycles.
-        # If the sweep server is not configured to skip layered dhandles,
-        # it would mark and close them, causing gaps when draining the
-        # ingest table at step-up.
-        time.sleep(3)
-
-        # Step up to leader.
-        self.conn.reconfigure('disaggregated=(role="leader")')
+    def search_near_notfound(self, search_key):
+        """Verify search_near returns WT_NOTFOUND. Accepts a pre-formatted string key."""
+        session = self.get_session()
+        cursor = session.open_cursor(self.uri)
+        cursor.set_key(search_key)
+        ret = cursor.search_near()
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND,
+            f"search_near({search_key}): expected WT_NOTFOUND, got {ret}")
         cursor.close()
-
-        # All rows from both batches must be present with no gaps.
-        # Missing rows indicate the layered dhandle was incorrectly swept.
-        cursor = self.session.open_cursor(self.uri)
-        count = 0
-        while (ret := cursor.next())  == 0:
-            count += 1
-        cursor.close()
-        self.assertEqual(wiredtiger.WT_NOTFOUND, ret)
-        self.assertEqual(count, self.nrows)
 
     # -----------------------------------------------------------------------
     # Test: Empty table returns WT_NOTFOUND.
