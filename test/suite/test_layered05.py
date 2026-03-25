@@ -1196,7 +1196,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         # Without the fix, the ingest cursor stays positioned at the tombstone
         # after the failed search. On next(), stable starts from key 0 while
         # ingest is at 501. When stable reaches 500, ingest has already passed
-        # the tombstone, so 500 is returned — violating the tombstone.
+        # the tombstone, so 500 is returned  violating the tombstone.
         seen = []
         while cursor.next() == 0:
             seen.append(cursor.get_key())
@@ -1235,7 +1235,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         for _ in range(600):
             self.assertEqual(cursor.next(), 0)
 
-        # Search for the tombstoned key — fails.
+        # Search for the tombstoned key  fails.
         cursor.set_key(self.fmt_key(500))
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
