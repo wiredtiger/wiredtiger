@@ -166,6 +166,30 @@ class test_layered05(wttest.WiredTigerTestCase):
         """Verify search_near returns WT_NOTFOUND on the leader session."""
         self._search_near_notfound_on(self.session, search_key)
 
+    def _assert_sorted_forward_from(self, search_key, n=5):
+        """Position at search_key via search_near, then verify n forward steps are sorted."""
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(search_key)
+        cursor.search_near()
+        keys = [cursor.get_key()]
+        for _ in range(n):
+            self.assertEqual(cursor.next(), 0)
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, sorted(keys))
+        cursor.close()
+
+    def _assert_sorted_backward_from(self, search_key, n=5):
+        """Position at search_key via search_near, then verify n backward steps are sorted in reverse."""
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(search_key)
+        cursor.search_near()
+        keys = [cursor.get_key()]
+        for _ in range(n):
+            self.assertEqual(cursor.prev(), 0)
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, sorted(keys, reverse=True))
+        cursor.close()
+
     # -----------------------------------------------------------------------
     # Test: Empty table returns WT_NOTFOUND.
     # -----------------------------------------------------------------------
@@ -271,17 +295,8 @@ class test_layered05(wttest.WiredTigerTestCase):
         # XOR: ingest.prev() from 501 -> 499. Both < search. Pick bigger: 500 (stable).
         self.search_near_check("000500x", self.fmt_key(500), -1)
 
-        # Verify iteration from that position produces sorted keys.
-        session = self.session_follow
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key("000500x")
-        cursor.search_near()
-        keys = [cursor.get_key()]
-        for _ in range(5):
-            self.assertEqual(cursor.next(), 0)
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, sorted(keys))
-        cursor.close()
+        # Verify forward iteration from that position produces sorted keys.
+        self._assert_sorted_forward_from("000500x")
 
     # -----------------------------------------------------------------------
     # Test: Cursors on opposite sides of search key (the XOR normalization).
@@ -307,17 +322,8 @@ class test_layered05(wttest.WiredTigerTestCase):
         # Only stable result remains: 499.
         self.search_near_check("000499x", self.fmt_key(499), -1)
 
-        # Verify iteration from that position produces sorted keys.
-        session = self.session_follow
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key("000499x")
-        cursor.search_near()
-        keys = [cursor.get_key()]
-        for _ in range(5):
-            self.assertEqual(cursor.next(), 0)
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, sorted(keys))
-        cursor.close()
+        # Verify forward iteration from that position produces sorted keys.
+        self._assert_sorted_forward_from("000499x")
 
     # -----------------------------------------------------------------------
     # Test: Opposite sides, but only one key in each table.
@@ -631,29 +637,9 @@ class test_layered05(wttest.WiredTigerTestCase):
         # ingest on 501 (cmp>0). XOR: ingest.prev() -> 499. Both < search. Pick bigger: 500.
         self.search_near_check("000500x", self.fmt_key(500), -1)
 
-        session = self.session_follow
-
-        # Verify forward iteration from that position.
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key("000500x")
-        cursor.search_near()
-        keys = [cursor.get_key()]
-        for _ in range(5):
-            self.assertEqual(cursor.next(), 0)
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, sorted(keys))
-        cursor.close()
-
-        # Verify backward iteration from that position.
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key("000500x")
-        cursor.search_near()
-        keys = [cursor.get_key()]
-        for _ in range(5):
-            self.assertEqual(cursor.prev(), 0)
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, sorted(keys, reverse=True))
-        cursor.close()
+        # Verify forward and backward iteration from that position.
+        self._assert_sorted_forward_from("000500x")
+        self._assert_sorted_backward_from("000500x")
 
     # -----------------------------------------------------------------------
     # Test: search_near with tombstone, then iterate past it.
@@ -694,23 +680,10 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_stable(all_keys)
         self.remove_ingest(tombstoned)
 
-        # When search_near finds an exact tombstone match, it walks forward first,
-        # then backward if forward yields nothing. 400-600 are tombstoned, so the
-        # forward walk reaches 601.
-        # search_near(fmt_key(500)) -> 400-600 deleted, 601 is next non-deleted larger key
-        self.search_near_check(self.fmt_key(500), self.fmt_key(601), 1)
-
-        # When search_near finds an exact tombstone match, it walks forward first,
-        # then backward if forward yields nothing. 400-600 are tombstoned, so the
-        # forward walk reaches 601.
-        # search_near(fmt_key(400)) -> 400-600 deleted, 601 is next non-deleted larger key
-        self.search_near_check(self.fmt_key(400), self.fmt_key(601), 1)
-
-        # When search_near finds an exact tombstone match, it walks forward first,
-        # then backward if forward yields nothing. 400-600 are tombstoned, so the
-        # forward walk reaches 601.
-        # search_near(fmt_key(600)) -> 600 deleted, 601 is next
-        self.search_near_check(self.fmt_key(600), self.fmt_key(601), 1)
+        # All three search keys hit tombstones: search_near walks forward to 601.
+        self.search_near_check(self.fmt_key(400), self.fmt_key(601), 1)  # 400 is start of range
+        self.search_near_check(self.fmt_key(500), self.fmt_key(601), 1)  # 500 is middle of range
+        self.search_near_check(self.fmt_key(600), self.fmt_key(601), 1)  # 600 is end of range
 
     # -----------------------------------------------------------------------
     # Test: Verify full forward and backward scan with interleaved data.
@@ -794,35 +767,35 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check("", self.fmt_key(500), 1)
 
     # -----------------------------------------------------------------------
-    # Tests: search_near tombstone when there is no stable cursor.
+    # Test: Tombstone in ingest-only (no stable), successor exists in ingest.
+    # No checkpoint -> stable cursor is NULL. Ingest: 100, 500(tombstone), 700.
+    # Walk forward from 500 hits 700.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_forward(self):
-        """Tombstone in ingest-only (no stable), successor exists in ingest. Walk forward."""
 
-        # No checkpoint -> stable cursor is NULL.
-        # Ingest: 100, 500(tombstone), 700.
         self.insert_ingest([100, 500, 700])
         self.remove_ingest([500])
 
-        # 500 is tombstoned. Walk forward hits 700. Return 700, cmp=1.
         self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
 
+    # -----------------------------------------------------------------------
+    # Test: Tombstone is the last ingest key (no stable). Walk backward.
+    # No checkpoint -> stable cursor is NULL. Ingest: 100, 500(tombstone).
+    # Forward walk finds nothing; backward walk returns 100.
+    # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_backward(self):
-        """Tombstone is last ingest key (no stable). Must walk backward to predecessor."""
 
-        # No checkpoint -> stable cursor is NULL.
-        # Ingest: 100, 500(tombstone). Nothing after 500.
         self.insert_ingest([100, 500])
         self.remove_ingest([500])
 
-        # 500 is tombstoned. Forward walk finds nothing. Walk backward -> 100, cmp=-1.
         self.search_near_check(self.fmt_key(500), self.fmt_key(100), -1)
 
+    # -----------------------------------------------------------------------
+    # Test: Only key in ingest-only table is a tombstone. WT_NOTFOUND.
+    # No checkpoint -> stable cursor is NULL. Ingest: 500(tombstone) only.
+    # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_notfound(self):
-        """Only key in ingest-only table is a tombstone. WT_NOTFOUND expected."""
 
-        # No checkpoint -> stable cursor is NULL.
-        # Ingest: 500(tombstone) only. No live keys anywhere.
         self.insert_ingest([500])
         self.remove_ingest([500])
 
