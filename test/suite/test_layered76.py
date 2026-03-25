@@ -127,11 +127,10 @@ class test_layered76(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Verify the disaggregated database size by reopening with verify_metadata=true.
-        # This triggers __wt_verify_disagg_database_size via the verify_metadata startup path in
-        # conn_api.c, after disaggregated storage has been fully initialized by
-        # __wti_connection_workers. We cannot call session.verify(WT_METAFILE_URI) directly on a
-        # live connection because the metadata dhandle is permanently held open and will always
-        # return EBUSY.
+        # This triggers the database size check via the verify_metadata startup path, after
+        # disaggregated storage has been fully initialized. We cannot call session.verify on
+        # the metadata URI directly on a live connection because the metadata dhandle is
+        # permanently held open and will always return EBUSY.
         self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
 
     def test_verify_db_size_no_checkpoint(self):
@@ -144,13 +143,12 @@ class test_layered76(wttest.WiredTigerTestCase):
 
         # Step down to follower before closing so WiredTiger skips the implicit shutdown
         # checkpoint. This leaves database_size=0 in the shared metadata and no btree
-        # checkpoint sizes in the local metadata. __wt_verify_disagg_database_size should
-        # detect that both are zero and skip the comparison, rather than treating
-        # WT_DISAGG_CHECKPOINT_SIZE_BUFFER as a mismatch against a zero stored size.
+        # checkpoint sizes in the local metadata. The database size verify should detect
+        # that both are zero and skip the comparison entirely.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
-        # Open fresh conn, no checkpoint_meta since no checkpoint was ever taken.
+        # Open fresh — no checkpoint_meta since no checkpoint was ever taken.
         self.open_conn(config=self.conn_config + ',verify_metadata=true')
 
     def test_verify_db_size_deferred_checkpoint(self):
@@ -164,14 +162,14 @@ class test_layered76(wttest.WiredTigerTestCase):
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
-        # Open fresh conn, database_size is 0 and no btree checkpoints exist, so
-        # __wt_verify_disagg_database_size skips the comparison entirely.
+        # Open fresh — database_size is 0 and no btree checkpoints exist, so the database
+        # size verify skips the comparison entirely.
         self.open_conn(config=self.conn_config + ',verify_metadata=true')
 
-        # The table was never checkpointed to shared metadata, so it did not survive the
-        # non-checkpointed close. Recreate it and take the first real checkpoint.
-        # __checkpoint_update_disagg_database_size will initialize database_size to
-        # WT_DISAGG_CHECKPOINT_SIZE_BUFFER and then apply the btree size delta on top.
+        # The table was never checkpointed to shared metadata so it did not survive the
+        # non-checkpointed close. Recreate it and take the first real checkpoint. The
+        # checkpoint will initialize database_size to the fixed overhead buffer and then
+        # apply the btree size delta on top.
         self.session.create(self.uri, self.create_session_config)
         cursor = self.session.open_cursor(self.uri)
         for i in range(100):
@@ -179,8 +177,8 @@ class test_layered76(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.checkpoint()
 
-        # Verify that the stored database_size now correctly equals
-        # WT_DISAGG_CHECKPOINT_SIZE_BUFFER + sum of btree checkpoint sizes.
+        # Verify that the stored database_size now correctly reflects the fixed overhead
+        # plus the sum of btree checkpoint sizes.
         self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
 
     def test_verify_db_size_multi_table(self):
@@ -233,7 +231,7 @@ class test_layered76(wttest.WiredTigerTestCase):
         cursor_c.close()
         self.session.checkpoint()
 
-        # Reopen with verify_metadata=true to run __wt_verify_disagg_database_size. The stored
-        # database_size must equal the sum of the most recent checkpoint size across all
-        # disaggregated btrees plus the fixed WT_DISAGG_CHECKPOINT_SIZE_BUFFER overhead.
+        # Reopen with verify_metadata=true. The stored database_size must equal the sum of
+        # the most recent checkpoint size across all disaggregated btrees plus the fixed
+        # overhead buffer.
         self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
