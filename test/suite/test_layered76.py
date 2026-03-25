@@ -134,6 +134,25 @@ class test_layered76(wttest.WiredTigerTestCase):
         # return EBUSY.
         self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
 
+    def test_verify_db_size_no_checkpoint(self):
+        self.session.create(self.uri, self.create_session_config)
+
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(100):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+
+        # Step down to follower before closing so WiredTiger skips the implicit shutdown
+        # checkpoint. This leaves database_size=0 in the shared metadata and no btree
+        # checkpoint sizes in the local metadata. __wt_verify_disagg_database_size should
+        # detect that both are zero and skip the comparison, rather than treating
+        # WT_DISAGG_CHECKPOINT_SIZE_BUFFER as a mismatch against a zero stored size.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.close_conn()
+
+        # Open fresh conn, no checkpoint_meta since no checkpoint was ever taken.
+        self.open_conn(config=self.conn_config + ',verify_metadata=true')
+
     def test_verify_db_size_multi_table(self):
         uris = [
             'layered:test_layered76_a',
