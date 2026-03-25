@@ -530,6 +530,11 @@ __checkpoint_update_evict_triggers_start(
       __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
 
     /*
+     * FIXME-WT-17015 We should update how eviction triggers are accessed so they are consistently
+     * modified and read.
+     */
+
+    /*
      * Be careful of ordering, update the dirty trigger first. Only update the trigger (upper bound)
      * for now. Add an upper bound to how high the trigger can go (in terms of percentages, even
      * though these values can be absolute).
@@ -575,6 +580,11 @@ __checkpoint_update_evict_triggers_end(
     if (!restore_updates_trigger)
         __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
           "Updates trigger was modified during checkpoint, not reverting to original value");
+
+    /*
+     * FIXME-WT-17015 We should update how eviction triggers are accessed so they are consistently
+     * modified and read.
+     */
 
     /*
      * Save back exactly the original cache trigger values.
