@@ -148,7 +148,7 @@ class test_layered76(wttest.WiredTigerTestCase):
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
-        # Open fresh — no checkpoint_meta since no checkpoint was ever taken.
+        # Open fresh connection, no checkpoint_meta since no checkpoint was ever taken.
         self.open_conn(config=self.conn_config + ',verify_metadata=true')
 
     def test_verify_db_size_deferred_checkpoint(self):
@@ -162,7 +162,7 @@ class test_layered76(wttest.WiredTigerTestCase):
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
-        # Open fresh — database_size is 0 and no btree checkpoints exist, so the database
+        # Open fresh connection, database_size is 0 and no btree checkpoints exist, so the database
         # size verify skips the comparison entirely.
         self.open_conn(config=self.conn_config + ',verify_metadata=true')
 
