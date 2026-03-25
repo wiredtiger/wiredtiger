@@ -232,13 +232,7 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
     cursor = NULL;
     total_size = 0;
 
-    /*
-     * If no checkpoint has been taken yet, database_size is 0. Skip verification as there is
-     * nothing to check.
-     */
     database_size = conn->disaggregated_storage.database_size;
-    if (database_size == 0)
-        return (0);
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
@@ -264,6 +258,23 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
+     * Three cases to consider after the metadata walk:
+     *
+     * 1. database_size == 0 and total_size == 0: the database has never been checkpointed.
+     *    Both values are zero, which is a valid pre-checkpoint state. Skip the comparison.
+     *
+     * 2. database_size > 0 but total_size == 0: checkpoints exist in the stored size but
+     *    no matching btree checkpoint sizes were found in metadata. This indicates a
+     *    mismatch and is caught by the comparison below after adding the buffer.
+     *
+     * 3. database_size == 0 but total_size > 0: btree checkpoints exist in metadata but
+     *    the stored database_size was not written (e.g. metadata corruption). The comparison
+     *    below will catch this because total_size + WT_DISAGG_CHECKPOINT_SIZE_BUFFER != 0.
+     */
+    if (database_size == 0 && total_size == 0)
+        goto done;
+
+    /*
      * Add the fixed overhead for the KEK table and shared turtle page. These are not tracked in any
      * btree's checkpoint size but are always included in database_size.
      */
@@ -275,6 +286,7 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
           " does not match stored database size %" PRIu64,
           total_size, database_size);
 
+done:
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
