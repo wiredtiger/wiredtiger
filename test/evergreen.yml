@@ -4931,22 +4931,6 @@ tasks:
                 ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: chunkcache-test
-    tags: ["pull_request"]
-    exec_timeout_secs: 1200 # 20 minutes
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ${python_binary|python3} chunkcache_simple.py
-
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
     # Set 5 hours timeout (60 * 60 * 5)
@@ -6198,46 +6182,6 @@ tasks:
         vars:
           test-name: log.wtperf
 
-    #####################################
-    # Performance Tests for chunk cache #
-    #####################################
-
-  - name: perf-test-chunk-cache
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-
-  - name: perf-test-chunk-cache-base
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads-base.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
-
     ###########################################
     #        Performance Long Tests           #
     ###########################################
@@ -6736,7 +6680,6 @@ buildvariants:
     - name: bench-tiered-push-pull
     - name: bench-tiered-push-pull-s3
     - name: unit-test-hook-tiered-s3
-    - name: chunkcache-test
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
@@ -6776,7 +6719,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test !format-mirror-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7106,7 +7049,6 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: configure-combinations
     - name: fops
     - name: format-failure-configs-test
@@ -7460,7 +7402,6 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: compile
     - name: fops
     - name: format-failure-configs-test
@@ -7544,7 +7485,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
