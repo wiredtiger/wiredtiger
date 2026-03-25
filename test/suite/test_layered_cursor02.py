@@ -30,10 +30,8 @@
 #   Test layered cursor walks on a follower with an advanced checkpoint, exercising the
 #   two-cursor merge path. Verifies correct behavior when:
 #   - An overwrite update positions only the ingest cursor, then next() forces the stable
-#     cursor to open (the old code would crash or skip keys).
-#   - A prepared conflict occurs mid-walk and the cursor retries after the prepare resolves
-#     (the old code would crash or produce wrong results because the reset logic failed to
-#     clean up the positioned-but-flagless btree cursor left behind by the prepare conflict).
+#     cursor to open.
+#   - A prepared conflict occurs mid-walk and the cursor retries after the prepare resolves.
 
 import os
 import wiredtiger
@@ -126,8 +124,8 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         """
         On a follower with an advanced checkpoint, an overwrite update only opens the ingest
         cursor. A subsequent next() call needs the stable cursor, which forces it to be opened.
-        The old code would crash during this transition. Verify that next() after an overwrite
-        update does not crash and returns the correct remaining keys.
+        Verify that the cursor position is preserved across the stable cursor open and that
+        next() returns the correct remaining keys.
         """
         all_keys = [1, 2, 3, 4, 5]
         self.populate_leader_and_checkpoint(all_keys)
@@ -136,8 +134,8 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         # Position the cursor with a search (opens both ingest and stable, sets the layered
         # cursor's internal tracking to the ingest cursor). Then do an overwrite update in the
         # same transaction (keeps ingest positioned). Commit, advance the checkpoint so the stable
-        # cursor needs to be reopened, then call next(). The old code would crash when reopening
-        # stable because the key save logic incorrectly cleared the position flags.
+        # cursor needs to be reopened, then call next(). The cursor position must be preserved
+        # when the stable cursor is reopened.
         follow_cursor = session_follow.open_cursor(self.uri, None, 'overwrite=true')
         session_follow.begin_transaction()
 
@@ -157,7 +155,7 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
 
-        # next() needs to reopen the stable cursor. The old code would crash here.
+        # next() needs to reopen the stable cursor while the ingest cursor is still positioned.
         session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(25))
         keys = []
         while follow_cursor.next() != wiredtiger.WT_NOTFOUND:
@@ -165,7 +163,6 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         session_follow.rollback_transaction()
 
         # After positioned at key 3, next() should return the remaining keys.
-        # The old code would crash before returning any result.
         self.assertTrue(len(keys) > 0, "next() should return keys after the positioned key")
         for key in keys:
             self.assertGreater(key, 3, f"next() returned key {key} which is not after position 3")
@@ -177,15 +174,11 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
     def test_next_walk_prepare_conflict_mid_scan(self):
         """
         Forward cursor walk on a follower where ingest has a sparse subset of keys and
-        stable has the full set. When the prepared key on ingest causes a conflict, the
-        stable cursor is already positioned on a key that hasn't been returned yet. If the
-        layered cursor incorrectly takes the fresh-start path (advancing both cursors), the
-        stable cursor's current key is skipped and never returned.
-
-        Stable: [1, 2, 3, 4, 5, 6], Ingest: [2, 4(prepared), 6]
-        Walk returns 1, 2 from the merge. Then c_stable advances to 3 and c_ingest tries
-        to advance to 4 (prepared) -> PREPARE_CONFLICT. The old code would enter the
-        fresh-start path and call c_stable->next(), advancing it from 3 to 4, skipping key 3.
+        stable has the full set. A prepared conflict on the ingest cursor occurs while the
+        stable cursor is positioned on a key that hasn't been returned yet (key 3, which
+        only exists in stable). After the prepare resolves, verify that the walk returns
+        every key — including the one that the stable cursor was sitting on at the time
+        of the conflict.
         """
         all_keys = [1, 2, 3, 4, 5, 6]
         self.populate_leader_and_checkpoint(all_keys)
@@ -231,8 +224,8 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         session_follow.rollback_transaction()
         cursor.close()
 
-        # The old code would miss key 3 (only in stable) because the fresh-start path
-        # advanced the stable cursor past it.
+        # Key 3 only exists in stable and was positioned on but not yet returned when the
+        # conflict occurred. Verify it is not skipped.
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
             f"Missing keys. Before: {keys_before}, After: {keys_after}")
