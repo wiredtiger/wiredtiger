@@ -60,6 +60,25 @@ __wt_semaphore_destroy(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 int
 __wt_semaphore_post(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 {
+    DWORD windows_error;
+
+    if (ReleaseSemaphore(sem->sem, 1, NULL) == 0) {
+        windows_error = __wt_getlasterror();
+        __wt_errx(session, "%s: ReleaseSemaphore: %s", sem->name,
+          __wt_formatmessage(session, windows_error));
+        return (__wt_map_windows_error(windows_error));
+    }
+
+    return (0);
+}
+
+/*
+ * __wt_semaphore_wait --
+ *     Wait on a semaphore.
+ */
+int
+__wt_semaphore_wait(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
+{
     DWORD wait_result, windows_error;
 
     wait_result = WaitForSingleObject(sem->sem, INFINITE);
@@ -75,25 +94,6 @@ __wt_semaphore_post(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
         __wt_errx(session, "%s: WaitForSingleObject: Unexpected wait result %" PRIu32, sem->name,
           (uint32_t)wait_result);
         return (ETIMEDOUT);
-    }
-
-    return (0);
-}
-
-/*
- * __wt_semaphore_wait --
- *     Wait on a semaphore.
- */
-int
-__wt_semaphore_wait(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
-{
-    DWORD windows_error;
-
-    if (ReleaseSemaphore(sem->sem, 1, NULL) == 0) {
-        windows_error = __wt_getlasterror();
-        __wt_errx(session, "%s: ReleaseSemaphore: %s", sem->name,
-          __wt_formatmessage(session, windows_error));
-        return (__wt_map_windows_error(windows_error));
     }
 
     return (0);
