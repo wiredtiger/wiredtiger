@@ -250,6 +250,9 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
             continue;
 
         total_size += ckpt_size;
+
+        __wt_verbose_debug3(session, WT_VERB_VERIFY,
+          "disagg database size verify: %s checkpoint size %" PRIu64, uri, ckpt_size);
     }
     /*
      * A not found error is okay. cursor->next() returns it once it goes through all the metadata
