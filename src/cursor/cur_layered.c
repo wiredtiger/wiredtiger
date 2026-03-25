@@ -878,7 +878,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * prepared conflict occurs. Prepared updates are always ignored on the stable cursor, making it
      * safe to check the WT_CURSTD_KEY_INT flag.
      */
-    if (((WT_CURSOR_BTREE *)c_ingest)->ref != NULL && !F_ISSET(c_stable, WT_CURSTD_KEY_INT)) {
+    if (((WT_CURSOR_BTREE *)c_ingest)->ref == NULL && !F_ISSET(c_stable, WT_CURSTD_KEY_INT)) {
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
         goto done;
@@ -891,11 +891,12 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      */
     if (clayered->current_cursor == NULL) {
         WT_ASSERT(session, ((WT_CURSOR_BTREE *)c_ingest)->ref != NULL);
-        c_current = clayered->ingest_cursor;
-    } else
+        c_current = c_ingest;
+    } else {
         c_current = clayered->current_cursor;
+        WT_ASSERT(session, F_ISSET(c_current, WT_CURSTD_KEY_INT));
+    }
     WT_ASSERT(session, c_current == c_stable || c_current == c_ingest);
-    WT_ASSERT(session, F_ISSET(c_current, WT_CURSTD_KEY_SET));
 
     /* Identify alternate cursor. */
     c_alternate = (c_current == c_stable) ? c_ingest : c_stable;
@@ -1057,35 +1058,21 @@ __clayered_reset_cursors(WT_CURSOR_LAYERED *clayered, bool skip_ingest)
 {
     WT_CURSOR *c;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(clayered);
-
-    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
-
-    /* Fast path if the cursor is not positioned. */
-    if (clayered->current_cursor == NULL) {
-        WT_ASSERT(session,
-          (clayered->ingest_cursor == NULL ||
-            !F_ISSET(clayered->ingest_cursor, WT_CURSTD_KEY_INT)) &&
-            (clayered->stable_cursor == NULL ||
-              !F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT)));
-        return (0);
-    }
 
     /*
      * Reset constituents that are positioned. Check both KEY_SET and the btree ref, because a
      * prepare conflict clears KEY_SET while leaving the btree cursor positioned (ref != NULL).
      */
     c = clayered->stable_cursor;
-    if (c != NULL && (F_ISSET(c, WT_CURSTD_KEY_SET) || ((WT_CURSOR_BTREE *)c)->ref != NULL))
+    if (c != NULL && F_ISSET(c, WT_CURSTD_KEY_SET))
         WT_TRET(c->reset(c));
 
     c = clayered->ingest_cursor;
-    if (!skip_ingest && (F_ISSET(c, WT_CURSTD_KEY_SET) || ((WT_CURSOR_BTREE *)c)->ref != NULL))
+    if (!skip_ingest && c != NULL && ((WT_CURSOR_BTREE *)c)->ref != NULL)
         WT_TRET(c->reset(c));
 
     clayered->current_cursor = NULL;
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     return (ret);
 }
