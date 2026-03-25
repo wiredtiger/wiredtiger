@@ -31,19 +31,13 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered81.py
-#   Test stable cursor upgrade to a new checkpoint on followers.
-#
-#   When a follower picks up a new checkpoint, existing layered cursors must
-#   transparently upgrade their stable constituent to the newer checkpoint.
-#   The upgrade happens inside __clayered_adjust_state / __clayered_upgrade_stable,
-#   and is triggered when the checkpoint_meta_lsn changes.
+#   Test that follower cursors see updated data after a new checkpoint is applied.
 #
 #   Key scenarios:
-#   - Unpositioned cursor sees new stable data after checkpoint advance.
-#   - Positioned cursor on ingest upgrades stable on next operation.
-#   - With read timestamp, even iteration triggers upgrade.
-#   - Data added/updated/removed across checkpoints is visible after upgrade.
-#   - Cursor position is preserved correctly after upgrade.
+#   - Unpositioned cursor sees new data after checkpoint advance.
+#   - Cursor preserves position correctly when checkpoint advances.
+#   - With read timestamp, iteration triggers the upgrade.
+#   - Data added/updated/removed across checkpoints is visible after advance.
 
 @disagg_test_class
 class test_layered81(wttest.WiredTigerTestCase):
@@ -53,9 +47,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     nkeys = 1000
 
     disagg_storages = gen_disagg_storages('test_layered81', disagg_only=True)
-    # Follower-only: stable cursor upgrade is a follower concept. The leader's stable
-    # cursor is R/W and never gets upgraded on checkpoint. See test_leader_unaffected_by_checkpoint
-    # for a sanity check that the leader is not impacted.
     scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):
@@ -106,7 +97,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     def insert_follower(self, keys, values=None):
-        """Insert keys on the follower (into follower's ingest). keys is a list of integers."""
+        """Insert keys on the follower (local writes). keys is a list of integers."""
         cursor = self.session_follow.open_cursor(self.uri)
         for idx, k in enumerate(keys):
             key = self.fmt_key(k)
@@ -118,7 +109,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     def remove_follower(self, keys):
-        """Remove keys on the follower (tombstones in follower's ingest). keys is a list of integers."""
+        """Remove keys on the follower (local deletes). keys is a list of integers."""
         cursor = self.session_follow.open_cursor(self.uri)
         for k in keys:
             key = self.fmt_key(k)
@@ -280,32 +271,28 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Cursor positioned on ingest preserves position after upgrade.
+    # Test: Cursor preserves usability when checkpoint advances while follower has local writes.
     #
-    # 500 keys in stable. Follower writes 500 more to ingest, then upgrade.
+    # Checkpoint 1: keys 0-499. Follower writes 500-999 locally.
+    # Checkpoint 2: adds key 1000. The cursor should see it.
     # -----------------------------------------------------------------------
     def test_upgrade_positioned_on_ingest(self):
 
-        # Checkpoint 1: keys 0-499 in stable.
         stable_keys = list(range(500))
         self.insert_leader(stable_keys)
         self.do_checkpoint()
 
-        # Follower writes keys 500-999 to ingest.
-        ingest_keys = list(range(500, self.nkeys))
-        self.insert_follower(ingest_keys)
+        follower_keys = list(range(500, self.nkeys))
+        self.insert_follower(follower_keys)
 
-        # Position cursor on an ingest key.
         cursor = self.session_follow.open_cursor(self.uri)
         cursor.set_key(self.fmt_key(750))
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), self.fmt_val(750))
 
-        # Checkpoint 2: add key 1000 to stable.
         self.insert_leader([1000])
         self.do_checkpoint()
 
-        # Cursor is positioned on ingest. Use search to trigger upgrade.
         cursor.reset()
         cursor.set_key(self.fmt_key(1000))
         self.assertEqual(cursor.search(), 0)
@@ -356,11 +343,8 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Cursor upgrade with interleaved ingest and stable data.
-    #
-    # Checkpoint 1: even keys 0-998. Follower adds some odd keys to ingest.
-    # Checkpoint 2: all keys 0-999 (odd keys now also in stable).
-    # After upgrade, iteration should produce correct merged order.
+    # Test: Checkpoint 1: even keys 0-998. Follower adds some odd keys locally.
+    # Checkpoint 2: all keys 0-999. After advance, iteration shows all keys in order.
     # -----------------------------------------------------------------------
     def test_upgrade_interleaved(self):
 
@@ -368,7 +352,6 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(even_keys)
         self.do_checkpoint()
 
-        # Follower writes some odd keys (first 100 odd keys) to ingest.
         follower_odd = list(range(1, 200, 2))
         self.insert_follower(follower_odd)
 
@@ -376,13 +359,10 @@ class test_layered81(wttest.WiredTigerTestCase):
                           [self.fmt_key(i) for i in follower_odd])
         self.assertEqual(self.scan_keys(self.session_follow), expected)
 
-        # Leader adds all odd keys, then checkpoints.
         all_odd = list(range(1, self.nkeys, 2))
         self.insert_leader(all_odd)
         self.do_checkpoint()
 
-        # After advance, scan should show all 1000 keys.
-        # Odd keys in ingest overlap with stable; ingest wins for those.
         all_keys = [self.fmt_key(i) for i in range(self.nkeys)]
         self.assertEqual(self.scan_keys(self.session_follow), all_keys)
 
@@ -402,8 +382,13 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor = self.session_follow.open_cursor(self.uri)
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
-        # 500 doesn't exist yet, should get a neighbor.
+        # 500 doesn't exist yet; nearest neighbor is either 499 or 501.
+        self.assertIn(cursor.get_key(), [self.fmt_key(499), self.fmt_key(501)])
         self.assertNotEqual(exact, 0)
+        if cursor.get_key() == self.fmt_key(499):
+            self.assertEqual(exact, -1)
+        else:
+            self.assertEqual(exact, 1)
         cursor.reset()
 
         # Add 500 and checkpoint.
@@ -503,7 +488,6 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader([1001, 1002])
         self.do_checkpoint()
 
-        # search triggers the upgrade.
         cursor.set_key(self.fmt_key(500))
         self.assertEqual(cursor.search(), 0)
         cursor.reset()
@@ -555,7 +539,6 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(odd_keys)
         self.do_checkpoint()
 
-        # Trigger the upgrade with a search.
         cursor.set_key(self.fmt_key(500))
         self.assertEqual(cursor.search(), 0)
         cursor.reset()
@@ -574,10 +557,8 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Follower ingest tombstone hides stable key after upgrade.
-    #
-    # 1000 keys in stable. Follower deletes a range of keys.
-    # Checkpoint adds more keys on leader. Tombstones persist.
+    # Test: 1000 keys checkpointed. Follower deletes keys 400-599 locally.
+    # Checkpoint 2 adds more keys. Locally deleted keys stay hidden; new keys appear.
     # -----------------------------------------------------------------------
     def test_upgrade_tombstone_persists(self):
 
@@ -585,28 +566,22 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(stable_keys)
         self.do_checkpoint()
 
-        # Follower deletes keys 400-599.
         delete_range = list(range(400, 600))
         self.remove_follower(delete_range)
 
         expected = [self.fmt_key(i) for i in range(self.nkeys) if i < 400 or i >= 600]
         self.assertEqual(self.scan_keys(self.session_follow), expected)
 
-        # Checkpoint 2: adds keys 1000-1099 on leader.
         new_keys = list(range(1000, 1100))
         self.insert_leader(new_keys)
         self.do_checkpoint()
 
-        # Deleted keys still hidden by follower's ingest tombstone. New keys visible.
         expected_after = expected + [self.fmt_key(i) for i in new_keys]
         self.assertEqual(self.scan_keys(self.session_follow), expected_after)
 
     # -----------------------------------------------------------------------
-    # Test: Upgrade does not affect leader.
-    #
-    # 500 keys, checkpoint, add 500 more.
-    # Leader's stable cursor is R/W and does not get upgraded on checkpoint.
-    # Verify leader still works correctly across checkpoints.
+    # Test: Leader sees its own writes immediately across checkpoints.
+    # 500 keys, checkpoint, then add 500 more. Leader cursor sees all 1000.
     # -----------------------------------------------------------------------
     def test_leader_unaffected_by_checkpoint(self):
 
@@ -624,7 +599,6 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(second_half)
         self.do_checkpoint()
 
-        # Leader sees new keys immediately (it wrote them).
         cursor.set_key(self.fmt_key(999))
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), self.fmt_val(999))

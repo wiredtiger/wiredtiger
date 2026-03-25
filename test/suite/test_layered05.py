@@ -33,12 +33,9 @@ from wtscenario import make_scenarios
 # test_layered05.py
 #   Test layered cursor search_near correctness with a larger dataset (1000 keys).
 #
-#   Exercises edge cases in the merge logic that chooses between ingest and
-#   stable constituent cursors, including:
-#   - Keys on opposite sides of the search key in the two constituents.
-#   - Tombstones in the ingest table that logically delete stable keys.
-#   - search_near landing on a deleted key and walking forward/backward.
-#   - Exact matches in one constituent vs nearby matches in the other.
+#   Exercises edge cases including:
+#   - Non-exact searches where the nearest key is on either side.
+#   - Deleted keys: search_near must skip tombstones and return a live neighbor.
 #   - Correct iteration (next/prev) after search_near.
 
 @disagg_test_class
@@ -166,6 +163,25 @@ class test_layered05(wttest.WiredTigerTestCase):
         """Verify search_near returns WT_NOTFOUND on the leader session."""
         self._search_near_notfound_on(self.session, search_key)
 
+    def search_near_check_either(self, search_key, key_lower, key_upper):
+        """
+        Verify search_near on the follower returns either key_lower (cmp=-1) or
+        key_upper (cmp=1). Used when both adjacent neighbors are valid results.
+        """
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(search_key)
+        exact = cursor.search_near()
+        key = cursor.get_key()
+        self.assertIn(key, [key_lower, key_upper],
+            f"search_near({search_key}): expected {key_lower} or {key_upper}, got {key}")
+        if key == key_lower:
+            self.assertEqual(exact, -1,
+                f"search_near({search_key}): key={key} (lower) but exact={exact}, expected -1")
+        else:
+            self.assertEqual(exact, 1,
+                f"search_near({search_key}): key={key} (upper) but exact={exact}, expected 1")
+        cursor.close()
+
     def _assert_sorted_forward_from(self, search_key, n=5):
         """Position at search_key via search_near, then verify n forward steps are sorted."""
         cursor = self.session_follow.open_cursor(self.uri)
@@ -204,34 +220,30 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_notfound("anything")
 
     # -----------------------------------------------------------------------
-    # Test: All data in ingest only (no checkpoint yet).
+    # Test: No checkpoint. Table has odd keys 1,3,...,999.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_only(self):
 
         odd_keys = list(range(1, self.nkeys, 2))
         self.insert_ingest(odd_keys)
 
-        # Exact match on middle odd key
+        # Exact match on an odd key.
         mid = 501
         self.search_near_check(self.fmt_key(mid), self.fmt_key(mid), 0, self.fmt_val(mid))
 
-        # Key smaller than all ingest keys: search for key 0, should return key 1 (larger)
+        # Key before all: only one valid answer.
         self.search_near_check(self.fmt_key(0), self.fmt_key(1), 1)
 
-        # Key larger than all ingest keys: search for key 1000, should return key 999 (smaller)
+        # Key after all: only one valid answer.
         self.search_near_check(self.fmt_key(1000), self.fmt_key(999), -1)
 
-        # Key between two odd keys (e.g. 500 is between 499 and 501): should return 501 (larger)
-        self.search_near_check(self.fmt_key(500), self.fmt_key(501), 1)
-
-        # Key between two odd keys (e.g. 100 is between 99 and 101): should return 101 (larger)
-        self.search_near_check(self.fmt_key(100), self.fmt_key(101), 1)
+        # Key between two odd keys: either neighbor is valid.
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(499), self.fmt_key(501))
+        self.search_near_check_either(self.fmt_key(100), self.fmt_key(99), self.fmt_key(101))
 
     # -----------------------------------------------------------------------
-    # Test: All data in stable only (everything checkpointed, no new ingest).
-    # With only one constituent, the btree search_near may return either
-    # neighbor for a non-exact search. Verify exact matches and that non-exact
-    # searches return a valid adjacent key.
+    # Test: All data checkpointed, no local writes.
+    # For a non-exact search, either adjacent neighbor is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_stable_only(self):
 
@@ -243,31 +255,16 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(0), self.fmt_key(0), 0, self.fmt_val(0))
         self.search_near_check(self.fmt_key(998), self.fmt_key(998), 0, self.fmt_val(998))
 
-        # Beyond boundaries: only one possible answer.
-        # Key before all: search for a key that sorts before "000000"
+        # Key before all: only one possible answer.
         self.search_near_check("", self.fmt_key(0), 1)
-        # Key after all: search for key 1000 (beyond 998)
+        # Key after all: only one possible answer.
         self.search_near_check(self.fmt_key(1000), self.fmt_key(998), -1)
 
-        # Between keys: the checkpoint cursor's search_near is deterministic but can return either
-        # neighbor depending on the B-tree leaf traversal. Accept both valid adjacent keys.
-        # Verify the returned key is a valid neighbor (e.g. search for 501, neighbors are 500 and 502).
-        session = self.session_follow
-        cursor = session.open_cursor(self.uri)
-        cursor.set_key(self.fmt_key(501))
-        exact = cursor.search_near()
-        key = cursor.get_key()
-        self.assertIn(key, [self.fmt_key(500), self.fmt_key(502)],
-            f"search_near({self.fmt_key(501)}): expected {self.fmt_key(500)} or {self.fmt_key(502)}, got {key}")
-        if key == self.fmt_key(500):
-            self.assertEqual(exact, -1)
-        else:
-            self.assertEqual(exact, 1)
-        cursor.close()
+        # Key between two existing keys: either neighbor is valid.
+        self.search_near_check_either(self.fmt_key(501), self.fmt_key(500), self.fmt_key(502))
 
     # -----------------------------------------------------------------------
-    # Test: Data split across ingest and stable.
-    # Stable: even keys 0,2,...,998. Ingest: odd keys 1,3,...,999.
+    # Test: Table has all keys 0-999 (even checkpointed, odd written locally).
     # search_near for a gap key should find the correct neighbor.
     # -----------------------------------------------------------------------
     def test_search_near_split_data(self):
@@ -277,7 +274,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_stable(even_keys)
         self.insert_ingest(odd_keys)
 
-        # Exact match on an ingest key
+        # Exact match on an odd key.
         self.search_near_check(self.fmt_key(501), self.fmt_key(501), 0, self.fmt_val(501))
 
         # Exact match on a stable key
@@ -289,23 +286,16 @@ class test_layered05(wttest.WiredTigerTestCase):
         # Key after all
         self.search_near_check(self.fmt_key(1100), self.fmt_key(999), -1)
 
-        # Search for a key between two adjacent keys (e.g. between 500 and 501).
-        # "000500x" sorts after "000500" and before "000501".
-        # Stable lands on 500 (cmp<0), ingest lands on 501 (cmp>0). Opposite sides.
-        # XOR: ingest.prev() from 501 -> 499. Both < search. Pick bigger: 500 (stable).
-        self.search_near_check("000500x", self.fmt_key(500), -1)
+        # "000500x" sorts between 500 and 501: either neighbor is valid.
+        self.search_near_check_either("000500x", self.fmt_key(500), self.fmt_key(501))
 
         # Verify forward and backward iteration from that position.
         self._assert_sorted_forward_from("000500x")
         self._assert_sorted_backward_from("000500x")
 
     # -----------------------------------------------------------------------
-    # Test: Cursors on opposite sides of search key (the XOR normalization).
-    #
-    # Stable has lower half keys 0-499, ingest has upper half keys 500-999.
-    # search_near(fmt_key(500)) should find exact match 500 in ingest.
-    # For a gap key, the XOR normalization moves ingest forward via next(),
-    # so the result may be the next ingest key after the search key.
+    # Test: Keys 0-499 are checkpointed; keys 500-999 are written locally.
+    # Exact match and non-exact searches across the boundary.
     # -----------------------------------------------------------------------
     def test_search_near_opposite_sides(self):
 
@@ -314,116 +304,78 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_stable(lower_keys)
         self.insert_ingest(upper_keys)
 
-        # Exact match in ingest should still work.
+        # Exact match.
         self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0)
 
-        # Search for a gap key: "000499x" is between stable 499 and ingest 500.
-        # Stable lands on 499 (cmp<0), ingest lands on 500 (cmp>0). Opposite sides.
-        # XOR: ingest.prev() from 500 -> NOTFOUND (500 is first ingest key).
-        # Only stable result remains: 499.
-        self.search_near_check("000499x", self.fmt_key(499), -1)
+        # Key between 499 and 500: either neighbor is valid.
+        self.search_near_check_either("000499x", self.fmt_key(499), self.fmt_key(500))
 
         # Verify forward iteration from that position produces sorted keys.
         self._assert_sorted_forward_from("000499x")
 
     # -----------------------------------------------------------------------
-    # Test: Opposite sides, but only one key in each table.
-    # Stable has key 498 (smaller), ingest has key 900 (larger).
-    # On the follower: XOR normalization moves ingest forward via next() ->
-    # NOTFOUND (only key). Falls back to stable -> 498.
-    # On the leader: ingest is skipped, stable search_near returns 498.
+    # Test: Table has keys 498 and 900. search_near(500).
+    # 498 is much nearer (distance 2 vs 400). Returns 498.
     # -----------------------------------------------------------------------
     def test_search_near_opposite_sides_farther(self):
 
         self.insert_stable([498])
         self.insert_ingest([900])
 
-        # XOR normalization moves ingest.next() -> NOTFOUND (only key is 900),
-        # falls back to stable key 498.
         self.search_near_check(self.fmt_key(500), self.fmt_key(498), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() path  ingest has a key between stable and search.
-    #
-    # Stable: key 200 (smaller). Ingest: keys 300, 900 (300 < search < 900).
-    # search(500): ingest lands on 900 (cmp>0), stable on 200 (cmp<0). Opposite sides.
-    # prev() on ingest from 900 -> 300. Both now < search. Pick bigger: 300 (ingest).
+    # Test: Table has keys 200, 300, 900. search_near(500): nearest key below 500 is 300.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_between(self):
 
         self.insert_stable([200])
         self.insert_ingest([300, 900])
 
-        # prev() from 900 -> 300. Both < 500. Pick bigger: 300.
         self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() path  ingest prev lands before stable.
-    #
-    # Stable: key 200 (smaller). Ingest: keys 100, 900.
-    # search(500): ingest lands on 900 (cmp>0), stable on 200 (cmp<0).
-    # prev() on ingest from 900 -> 100. Both < 500. Pick bigger: 200 (stable).
+    # Test: Table has keys 100, 200, 900. search_near(500): nearest key below 500 is 200.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_before_stable(self):
 
         self.insert_stable([200])
         self.insert_ingest([100, 900])
 
-        # prev() from 900 -> 100. Both < 500. Pick bigger: 200 (stable).
         self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() path  ingest has multiple keys above the
-    # search key and search_near returns the nearest one.
-    #
-    # Stable: key 200 (smaller). Ingest: keys 300, 600, 900.
-    # search(500): ingest search_near(500) -> 600 (nearest above, cmp>0), stable -> 200 (cmp<0).
-    # Opposite sides. prev() on ingest from 600 -> 300. Both < search. Pick bigger: 300 (ingest).
+    # Test: Table has keys 200, 300, 600, 900. search_near(500): nearest key below 500 is 300.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_nearest_above(self):
 
         self.insert_stable([200])
         self.insert_ingest([300, 600, 900])
 
-        # ingest search_near(500) -> 600 (cmp>0). stable -> 200 (cmp<0).
-        # prev() from 600 -> 300. ingest_cmp = compare(300, 500) < 0.
-        # Both < 500. Pick bigger: 300 > 200 -> ingest(300).
         self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization  stable larger, ingest next exhausted (NOTFOUND path).
-    #
-    # Stable: key 800. Ingest: keys 100, 300.
-    # search(500): ingest lands on 300 (cmp<0), stable on 800 (cmp>0). Opposite sides.
-    # next() on ingest from 300 -> NOTFOUND (no ingest keys > 300). closest = stable(800).
+    # Test: Table has keys 100, 300, 800. search_near(500): nearest key above 500 is 800.
     # -----------------------------------------------------------------------
     def test_search_near_xor_next_notfound(self):
 
         self.insert_stable([800])
         self.insert_ingest([100, 300])
 
-        # next() from 300 -> NOTFOUND. closest = stable(800).
         self.search_near_check(self.fmt_key(500), self.fmt_key(800), 1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization  stable larger, ingest next finds a closer key.
-    #
-    # Stable: key 800. Ingest: keys 100, 300, 600.
-    # search(500): ingest lands on 300 (cmp<0), stable on 800 (cmp>0).
-    # next() on ingest from 300 -> 600. Both > 500. Pick closer: 600.
+    # Test: Table has keys 100, 300, 600, 800. search_near(500): nearest key above 500 is 600.
     # -----------------------------------------------------------------------
     def test_search_near_xor_next_closer(self):
 
         self.insert_stable([800])
         self.insert_ingest([100, 300, 600])
 
-        # Both roles: ingest next from 300 -> 600. Compare 600 vs 800. 600 < 800 -> pick ingest(600).
         self.search_near_check(self.fmt_key(500), self.fmt_key(600), 1)
 
     # -----------------------------------------------------------------------
-    # Test: Both constituents on same side (both larger).
-    # Stable: key 800, Ingest: key 600. Search for 500.
-    # Both are larger, should return closer one: 600.
+    # Test: Table has keys 600 and 800. search_near(500): both are above 500, returns nearest: 600.
     # -----------------------------------------------------------------------
     def test_search_near_both_larger(self):
 
@@ -433,9 +385,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(600), 1)
 
     # -----------------------------------------------------------------------
-    # Test: Both constituents on same side (both smaller).
-    # Stable: key 100, Ingest: key 400. Search for 500.
-    # No larger key exists. Should return bigger of the two: 400.
+    # Test: Table has keys 100 and 400. search_near(500): both are below 500, returns nearest: 400.
     # -----------------------------------------------------------------------
     def test_search_near_both_smaller(self):
 
@@ -445,28 +395,19 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(400), -1)
 
     # -----------------------------------------------------------------------
-    # Test: Exact match in ingest is a tombstone, stable has the same key.
-    #
-    # Stable: keys 200, 500, 700. Ingest: tombstone(500).
-    # search_near(fmt_key(500)):
-    #   - ingest_cmp == 0, but value is a tombstone (deleted == true).
-    #   - Tombstone walk iterates forward: merge sees 700 in stable. Return 700.
+    # Test: Stable: keys 200, 500, 700. Ingest: delete 500.
+    # search_near(500): exact match is deleted; either neighbor 200 or 700 is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted(self):
 
         self.insert_stable([200, 500, 700])
         self.remove_ingest([500])
 
-        # 500 is an exact match in ingest but deleted. Next larger is 700.
-        self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(200), self.fmt_key(700))
 
     # -----------------------------------------------------------------------
-    # Test: Exact match in ingest is a tombstone, stable has key but nothing
-    # larger. Should walk backward.
-    #
-    # Stable: keys 200, 500. Ingest: tombstone(500).
-    # search_near(fmt_key(500)):
-    #   - Exact ingest match is tombstone. Walk forward: nothing. Walk backward: 200.
+    # Test: Stable: keys 200, 500. Ingest: delete 500.
+    # search_near(500): exact match is deleted; only smaller neighbor 200 exists.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted_walk_backward(self):
 
@@ -476,30 +417,19 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
 
     # -----------------------------------------------------------------------
-    # Test: Exact match in ingest is a tombstone, stable does NOT have that
-    # key but has neighbors.
-    #
-    # Stable: keys 300, 700. Ingest: key 500(inserted then deleted).
-    # search_near(fmt_key(500)):
-    #   - ingest_cmp == 0 (exact on 500 tombstone), deleted == true.
-    #   - Walk forward: merge finds 700.
+    # Test: Table has keys 300 and 700; key 500 was inserted then deleted.
+    # search_near(500): exact match is deleted; 300 and 700 are equidistant, either is valid.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted_stable_no_match(self):
 
         self.insert_stable([300, 700])
         self.insert_ingest([500])
-        # Insert 500 in ingest and delete it in ingest (no checkpoint).
         self.remove_ingest([500])
 
-        # 500 is tombstoned in ingest, not in stable. Walk forward -> 700.
-        self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(300), self.fmt_key(700))
 
     # -----------------------------------------------------------------------
-    # Test: Exact match in ingest is a tombstone, only ingest has data.
-    # All other ingest keys are also tombstoned.
-    #
-    # Stable: keys 300, 500, 700. Ingest: tombstones for all three.
-    # Everything is logically deleted -> WT_NOTFOUND.
+    # Test: Keys 300, 500, 700 were checkpointed then all deleted. Table is empty -> WT_NOTFOUND.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted_all_tombstoned(self):
 
@@ -509,8 +439,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_notfound(self.fmt_key(500))
 
     # -----------------------------------------------------------------------
-    # Test: All keys are tombstoned -> WT_NOTFOUND.
-    # Insert 1000 keys into stable, remove all of them in ingest.
+    # Test: All 1000 keys checkpointed then all deleted. Table is empty -> WT_NOTFOUND.
     # -----------------------------------------------------------------------
     def test_search_near_all_deleted(self):
 
@@ -521,30 +450,19 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_notfound(self.fmt_key(500))
 
     # -----------------------------------------------------------------------
-    # Test: Tombstone in ingest hides stable key that is NOT the search key.
-    #
-    # Stable: keys 200, 700. Ingest: key 200(overwritten), tombstone(700).
-    # search_near(fmt_key(500)):
-    #   - ingest may land on 200 (cmp<0). Not a tombstone.
-    #   - stable lands on 700 (cmp>0, larger, preferred).
-    #   - But 700 is logically deleted by the tombstone in ingest!
-    # The XOR normalization should handle this correctly.
+    # Test: Stable: keys 200, 700. Ingest: update 200, delete 700.
+    # search_near(500): 700 is logically deleted; only 200 is live.
     # -----------------------------------------------------------------------
     def test_search_near_tombstone_cross_table(self):
 
         self.insert_stable([200, 700])
-
-        # Overwrite 200 in ingest (so it exists in both), and tombstone 700
         self.insert_ingest([200], values=["updated_000200"])
         self.remove_ingest([700])
 
-        # 700 is deleted. 200 is the only live key. search_near(500) -> 200 (cmp=-1).
         self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
 
     # -----------------------------------------------------------------------
     # Test: search_near followed by next/prev iteration produces correct order.
-    # This verifies that after search_near positions both constituents, the
-    # merge iteration works correctly.
     # Stable: even keys 0,2,...,998. Ingest: odd keys 1,3,...,999.
     # -----------------------------------------------------------------------
     def test_search_near_then_iterate(self):
@@ -557,7 +475,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         session = self.session_follow
         cursor = session.open_cursor(self.uri)
 
-        # search_near(fmt_key(500)) -> exact match on 500 (in stable)
+        # search_near(500) -> exact match.
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         self.assertEqual(exact, 0)
@@ -590,10 +508,9 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: search_near with tombstone, then iterate past it.
-    # Stable: all keys 0-999. Ingest: tombstone(500).
-    # search_near(fmt_key(500)) -> skip tombstone, land on 501 (cmp=1).
-    # prev from 501 -> 499. No 500 should appear.
+    # Test: Stable: all keys 0-999. Ingest: delete 500.
+    # search_near(500): exact match is deleted; returns nearest neighbor 501.
+    # Iterating backward from 501 skips the deleted 500 and returns 499.
     # -----------------------------------------------------------------------
     def test_search_near_tombstone_then_iterate(self):
 
@@ -604,13 +521,11 @@ class test_layered05(wttest.WiredTigerTestCase):
         session = self.session_follow
         cursor = session.open_cursor(self.uri)
 
-        # search_near(fmt_key(500)) -> 500 is deleted, next is 501
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         self.assertEqual(exact, 1)
         self.assertEqual(cursor.get_key(), self.fmt_key(501))
 
-        # prev should go to 499 (500 is deleted)
         self.assertEqual(cursor.prev(), 0)
         self.assertEqual(cursor.get_key(), self.fmt_key(499))
 
@@ -628,10 +543,10 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_stable(all_keys)
         self.remove_ingest(tombstoned)
 
-        # All three search keys hit tombstones: search_near walks forward to 601.
-        self.search_near_check(self.fmt_key(400), self.fmt_key(601), 1)  # 400 is start of range
-        self.search_near_check(self.fmt_key(500), self.fmt_key(601), 1)  # 500 is middle of range
-        self.search_near_check(self.fmt_key(600), self.fmt_key(601), 1)  # 600 is end of range
+        # All three search keys fall in the deleted range; nearest live key is 601.
+        self.search_near_check(self.fmt_key(400), self.fmt_key(601), 1)
+        self.search_near_check(self.fmt_key(500), self.fmt_key(601), 1)
+        self.search_near_check(self.fmt_key(600), self.fmt_key(601), 1)
 
     # -----------------------------------------------------------------------
     # Test: Verify full forward and backward scan with interleaved data.
@@ -675,9 +590,8 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: search_near with duplicate key in both ingest and stable.
-    # Stable has old value, ingest has new value. Ingest should win.
-    # Use 1000 keys in stable, override all of them in ingest.
+    # Test: 1000 keys checkpointed with old values, then all overwritten locally with new values.
+    # search_near returns the new value (local writes take precedence over checkpointed data).
     # -----------------------------------------------------------------------
     def test_search_near_ingest_overrides_stable(self):
 
@@ -690,9 +604,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0, f"new_{self.fmt_key(500)}")
 
     # -----------------------------------------------------------------------
-    # Test: search_near on a key larger than everything, data in both tables.
-    # Stable: lower half 0-499. Ingest: key 700.
-    # search_near(fmt_key(1100)) -> should return 700 (closest smaller, from ingest).
+    # Test: Table has keys 0-499 and 700. search_near(1100): key is beyond all keys, returns 700.
     # -----------------------------------------------------------------------
     def test_search_near_beyond_max(self):
 
@@ -703,9 +615,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(1100), self.fmt_key(700), -1)
 
     # -----------------------------------------------------------------------
-    # Test: search_near on a key smaller than everything, data in both tables.
-    # Stable: key 500. Ingest: key 800.
-    # search_near for a key before all -> should return 500 (closest larger, from stable).
+    # Test: Table has keys 500 and 800. search_near(""): key is before all keys, returns 500.
     # -----------------------------------------------------------------------
     def test_search_near_before_min(self):
 
@@ -715,9 +625,8 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check("", self.fmt_key(500), 1)
 
     # -----------------------------------------------------------------------
-    # Test: Tombstone in ingest-only (no stable), successor exists in ingest.
-    # No checkpoint -> stable cursor is NULL. Ingest: 100, 500(tombstone), 700.
-    # Walk forward from 500 hits 700.
+    # Test: No checkpoint. Table has keys 100, 700; key 500 is deleted.
+    # search_near(500): exact match is deleted; returns nearest neighbor 700.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_forward(self):
 
@@ -727,9 +636,8 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
 
     # -----------------------------------------------------------------------
-    # Test: Tombstone is the last ingest key (no stable). Walk backward.
-    # No checkpoint -> stable cursor is NULL. Ingest: 100, 500(tombstone).
-    # Forward walk finds nothing; backward walk returns 100.
+    # Test: No checkpoint. Table has key 100; key 500 is deleted.
+    # search_near(500): exact match is deleted; only smaller neighbor 100 exists.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_backward(self):
 
@@ -739,8 +647,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(100), -1)
 
     # -----------------------------------------------------------------------
-    # Test: Only key in ingest-only table is a tombstone. WT_NOTFOUND.
-    # No checkpoint -> stable cursor is NULL. Ingest: 500(tombstone) only.
+    # Test: No checkpoint. Only key 500 was inserted then deleted. Table is empty -> WT_NOTFOUND.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_notfound(self):
 

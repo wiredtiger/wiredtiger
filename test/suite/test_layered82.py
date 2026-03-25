@@ -32,10 +32,6 @@ from wtscenario import make_scenarios
 
 # test_layered82.py
 #   Test cursor bounds on layered cursors with a 1000-key dataset.
-#
-#   Bounds are propagated from the layered cursor to both constituent cursors
-#   (ingest and stable) via __clayered_copy_bounds. The constituent btree
-#   cursors enforce bounds during their own next/prev operations.
 
 @disagg_test_class
 class test_layered82(wttest.WiredTigerTestCase):
@@ -91,7 +87,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
 
     def insert_ingest(self, keys, values=None):
-        """Insert keys (list of ints) into the follower ingest table."""
+        """Insert keys (list of ints) into the follower's local table."""
         session = self.session_follow
         cursor = session.open_cursor(self.uri)
         for idx, i in enumerate(keys):
@@ -103,7 +99,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     def remove_ingest(self, keys):
-        """Remove keys (list of ints) from the follower ingest table (creates tombstones)."""
+        """Remove keys (list of ints) from the follower's local table (creates tombstones)."""
         session = self.session_follow
         cursor = session.open_cursor(self.uri)
         for i in keys:
@@ -119,18 +115,18 @@ class test_layered82(wttest.WiredTigerTestCase):
     # -----------------------------------------------------------------------
 
     def populate_interleaved(self):
-        """Even keys in stable, odd keys in ingest. Returns all expected keys."""
+        """Checkpointed even keys and locally-written odd keys. Returns all expected keys."""
         self.insert_stable(list(range(0, self.nkeys, 2)))
         self.insert_ingest(list(range(1, self.nkeys, 2)))
         return [self.fmt_key(i) for i in range(self.nkeys)]
 
     def populate_all_stable(self):
-        """All keys in stable. Returns all expected keys."""
+        """All keys checkpointed. Returns all expected keys."""
         self.insert_stable(list(range(self.nkeys)))
         return [self.fmt_key(i) for i in range(self.nkeys)]
 
     def populate_all_ingest(self):
-        """All keys in ingest. Returns all expected keys."""
+        """All keys written locally (no checkpoint). Returns all expected keys."""
         self.insert_ingest(list(range(self.nkeys)))
         return [self.fmt_key(i) for i in range(self.nkeys)]
 
@@ -180,7 +176,7 @@ class test_layered82(wttest.WiredTigerTestCase):
     # =====================================================================
 
     def test_bounds_ingest_only(self):
-        """Bounds with all data in ingest."""
+        """Bounds with all data written locally (no checkpoint)."""
         self.populate_all_ingest()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -188,7 +184,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_bounds_stable_only(self):
-        """Bounds with all data in stable."""
+        """Bounds with all data checkpointed."""
         self.populate_all_stable()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -196,7 +192,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_bounds_split_data(self):
-        """Bounds with even keys in stable, odd in ingest."""
+        """Bounds with interleaved data (checkpointed even keys, locally-written odd keys)."""
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -322,27 +318,25 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_bounds_search_near(self):
-        """search_near below bounds [300, 700] finds key within bounds."""
+        """search_near below bounds [300, 700]: nearest key within bounds is 300 (cmp=1)."""
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(300), upper=self.fmt_key(700))
         cursor.set_key(self.fmt_key(100))
         exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        self.assertGreaterEqual(cursor.get_key(), self.fmt_key(300))
-        self.assertLessEqual(cursor.get_key(), self.fmt_key(700))
+        self.assertEqual(cursor.get_key(), self.fmt_key(300))
+        self.assertEqual(exact, 1)
         cursor.close()
 
     def test_bounds_search_near_upper(self):
-        """search_near above bounds [300, 700] finds key within bounds."""
+        """search_near above bounds [300, 700]: nearest key within bounds is 700 (cmp=-1)."""
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(300), upper=self.fmt_key(700))
         cursor.set_key(self.fmt_key(900))
         exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        self.assertGreaterEqual(cursor.get_key(), self.fmt_key(300))
-        self.assertLessEqual(cursor.get_key(), self.fmt_key(700))
+        self.assertEqual(cursor.get_key(), self.fmt_key(700))
+        self.assertEqual(exact, -1)
         cursor.close()
 
     def test_bounds_set_before_data(self):
@@ -358,7 +352,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_bounds_ingest_overrides_stable(self):
-        """Ingest value overrides stable within bounds."""
+        """Local write overrides checkpointed value within bounds."""
         self.populate_all_stable()
         self.insert_ingest([500], values=["new_500"])
 

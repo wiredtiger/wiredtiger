@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 
 # test_layered83.py
 #   Test cursor iteration and iteration after search/search_near on layered cursors
-#   with a 1000-key dataset (even keys in stable, odd keys in ingest).
+#   with a 1000-key dataset.
 
 @disagg_test_class
 class test_layered83(wttest.WiredTigerTestCase):
@@ -110,11 +110,11 @@ class test_layered83(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
 
     def insert_ingest(self, keys):
-        """Insert keys (list of ints) into the follower ingest table."""
+        """Insert keys (list of ints) into the follower's local table."""
         self.insert_on(self.session_follow, keys)
 
     def remove_ingest(self, keys):
-        """Remove keys (list of ints) from the follower ingest table (creates tombstones)."""
+        """Remove keys (list of ints) from the follower's local table (creates tombstones)."""
         self.remove_on(self.session_follow, keys)
 
     # -----------------------------------------------------------------------
@@ -122,7 +122,7 @@ class test_layered83(wttest.WiredTigerTestCase):
     # -----------------------------------------------------------------------
 
     def populate_interleaved(self):
-        """Even keys in stable, odd keys in ingest."""
+        """Checkpointed even keys and locally-written odd keys."""
         self.insert_stable(list(range(0, self.nkeys, 2)))
         self.insert_ingest(list(range(1, self.nkeys, 2)))
 
@@ -194,10 +194,10 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_next_duplicate_keys(self):
-        """Ingest value wins when both tables have the same key."""
+        """Local write takes precedence over checkpointed value for the same key."""
         self.populate_all_stable()
 
-        # Override every 10th key in ingest.
+        # Override every 10th key with a local write.
         override_keys = list(range(0, self.nkeys, 10))
         session = self.session_follow
         cursor = session.open_cursor(self.uri)
@@ -312,7 +312,7 @@ class test_layered83(wttest.WiredTigerTestCase):
     # =====================================================================
 
     def test_next_after_search_stable_key(self):
-        """search on a stable key (400, even), then next 10 steps."""
+        """search on key 400, then next 10 steps."""
         self.populate_interleaved()
 
         cursor = self.open_cursor()
@@ -323,7 +323,7 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_next_after_search_ingest_key(self):
-        """search on an ingest key (401, odd), then next 10 steps."""
+        """search on key 401, then next 10 steps."""
         self.populate_interleaved()
 
         cursor = self.open_cursor()
@@ -554,7 +554,7 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_next_ingest_only(self):
-        """Forward scan with all data in ingest only."""
+        """Forward scan with all data written locally (no checkpoint)."""
         self.insert_ingest(list(range(self.nkeys)))
 
         cursor = self.open_cursor()
@@ -570,20 +570,14 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Out-of-order iteration tests after search_near.
-    #
-    # These test the scenario where the XOR normalization in search_near
-    # leaves the alternate cursor behind the chosen closest key. If next()
-    # doesn't skip stale positions on the alternate, keys come out of order.
+    # These tests verify that forward and backward iteration after search_near
+    # produces keys in correct order.
     # -----------------------------------------------------------------------
 
     def test_next_after_search_near_xor_alternate_behind(self):
         """
-        Stable: 200. Ingest: 300, 600. search_near(500).
-        Ingest search_near(500) -> 600 (cmp>0). Stable -> 200 (cmp<0).
-        XOR prev() on ingest: 600 -> 300. Both < 500. Pick bigger: ingest(300).
-        Alternate (stable) is at 200, which is BEHIND 300.
-        next() must not output 200 before 300. Sequence must be monotonic.
+        Table has keys 200, 300, 600. search_near(500): nearest key below 500 is 300 (cmp=-1).
+        Forward iteration must continue in ascending order.
         """
 
         self.insert_stable([200])
@@ -593,6 +587,8 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         first_key = cursor.get_key()
+        self.assertEqual(first_key, self.fmt_key(300))
+        self.assertEqual(exact, -1)
 
         # Collect all remaining keys via next().
         keys = [first_key]
@@ -607,11 +603,8 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_prev_after_search_near_xor_alternate_ahead(self):
         """
-        Mirror test for prev(). Stable: 800. Ingest: 400, 700. search_near(500).
-        Ingest search_near(500) -> 400 (cmp<0). Stable -> 800 (cmp>0).
-        XOR next() on ingest: 400 -> 700. Both > 500. Pick smaller: ingest(700).
-        Alternate (stable) is at 800, which is AHEAD of 700.
-        prev() must not output 800 after 700. Sequence must be monotonically decreasing.
+        Table has keys 400, 700, 800. search_near(500): nearest key above 500 is 700 (cmp=1).
+        Backward iteration must continue in descending order.
         """
 
         self.insert_stable([800])
@@ -621,6 +614,8 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         first_key = cursor.get_key()
+        self.assertEqual(first_key, self.fmt_key(700))
+        self.assertEqual(exact, 1)
 
         keys = [first_key]
         while cursor.prev() == 0:
@@ -633,9 +628,8 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_next_after_search_near_both_smaller(self):
         """
-        Non-XOR "both smaller" case. Stable: 300. Ingest: 400. search_near(500).
-        Both < 500. Pick bigger: ingest(400). Alternate (stable at 300) is behind.
-        next() after 400 must not output 300.
+        Table has keys 300 and 400. search_near(500): nearest key below 500 is 400 (cmp=-1).
+        Forward iteration must continue in ascending order.
         """
 
         self.insert_stable([300])
@@ -645,6 +639,8 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         first_key = cursor.get_key()
+        self.assertEqual(first_key, self.fmt_key(400))
+        self.assertEqual(exact, -1)
 
         keys = [first_key]
         while cursor.next() == 0:
@@ -657,9 +653,8 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_prev_after_search_near_both_larger(self):
         """
-        Non-XOR "both larger" case. Stable: 700. Ingest: 600. search_near(500).
-        Both > 500. Pick smaller: ingest(600). Alternate (stable at 700) is ahead.
-        prev() after 600 must not output 700.
+        Table has keys 600 and 700. search_near(500): nearest key above 500 is 600 (cmp=1).
+        Backward iteration must continue in descending order.
         """
 
         self.insert_stable([700])
@@ -669,6 +664,8 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         first_key = cursor.get_key()
+        self.assertEqual(first_key, self.fmt_key(600))
+        self.assertEqual(exact, 1)
 
         keys = [first_key]
         while cursor.prev() == 0:
@@ -681,10 +678,9 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_next_after_search_near_xor_many_keys(self):
         """
-        Large-scale XOR test. Stable: even keys [0, 400]. Ingest: odd keys [501, 999].
-        search_near(450): stable finds ~450, ingest finds 501. Opposite sides.
-        XOR normalization moves ingest backward. After search_near, iterate forward
-        through ALL remaining keys and verify monotonic order.
+        Table has even keys [0, 400] and odd keys [501, 999].
+        search_near(450): nearest key below 450 is 400 (cmp=-1).
+        Forward iteration must continue in ascending order.
         """
 
         stable_keys = list(range(0, 401, 2))     # 0, 2, 4, ..., 400
@@ -695,8 +691,9 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor = self.open_cursor()
         cursor.set_key(self.fmt_key(450))
         exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
         first_key = cursor.get_key()
+        self.assertEqual(first_key, self.fmt_key(400))
+        self.assertEqual(exact, -1)
 
         keys = [first_key]
         while cursor.next() == 0:
@@ -709,10 +706,9 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_prev_after_search_near_xor_many_keys(self):
         """
-        Large-scale XOR test (reverse). Stable: even keys [600, 999]. Ingest: odd keys [1, 499].
-        search_near(550): stable finds ~550, ingest finds ~499. Opposite sides.
-        XOR normalization moves ingest forward. After search_near, iterate backward
-        through ALL remaining keys and verify monotonically decreasing order.
+        Table has odd keys [1, 499] and even keys [600, 998].
+        search_near(550): nearest key above 550 is 600 (cmp=1).
+        Backward iteration must continue in descending order.
         """
 
         stable_keys = list(range(600, 1000, 2))   # 600, 602, ..., 998
@@ -723,8 +719,9 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor = self.open_cursor()
         cursor.set_key(self.fmt_key(550))
         exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
         first_key = cursor.get_key()
+        self.assertEqual(first_key, self.fmt_key(600))
+        self.assertEqual(exact, 1)
 
         keys = [first_key]
         while cursor.prev() == 0:
@@ -737,9 +734,9 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_next_after_search_near_xor_with_tombstones(self):
         """
-        XOR + tombstones. Stable: all keys [0, 999]. Ingest: tombstones [400, 600].
-        search_near(500): ingest finds tombstone. Tombstone walk starts.
-        After resolution, iterate forward and verify monotonic order.
+        Table has keys [0, 999] with [400, 600] deleted.
+        search_near(500): exact match is deleted; nearest live key above 500 is 601 (cmp=1).
+        Forward iteration must continue in ascending order.
         """
 
         self.insert_stable(list(range(self.nkeys)))
@@ -748,12 +745,9 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor = self.open_cursor()
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
         first_key = cursor.get_key()
-
-        # The returned key should be outside the tombstoned range.
-        self.assertTrue(first_key < self.fmt_key(400) or first_key > self.fmt_key(600),
-            f"search_near returned tombstoned key: {first_key}")
+        self.assertEqual(first_key, self.fmt_key(601))
+        self.assertEqual(exact, 1)
 
         keys = [first_key]
         while cursor.next() == 0:
@@ -771,9 +765,8 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_next_after_search_near_interleaved_full_coverage(self):
         """
-        Full interleaved coverage test. Even keys in stable, odd in ingest.
-        For each search key at positions 0, 100, 250, 500, 750, 999:
-        do search_near then iterate forward, verifying strict monotonic order.
+        Table has all 1000 keys. For each search key at positions 0, 100, 250, 500, 750, 999:
+        search_near returns exact match; forward iteration must be in ascending order.
         """
 
         self.insert_stable(list(range(0, self.nkeys, 2)))
@@ -783,8 +776,9 @@ class test_layered83(wttest.WiredTigerTestCase):
             cursor = self.open_cursor()
             cursor.set_key(self.fmt_key(search_pos))
             exact = cursor.search_near()
-            self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
             first_key = cursor.get_key()
+            self.assertEqual(first_key, self.fmt_key(search_pos))
+            self.assertEqual(exact, 0)
 
             keys = [first_key]
             while cursor.next() == 0:
@@ -798,7 +792,8 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_prev_after_search_near_interleaved_full_coverage(self):
         """
-        Same as above but with prev() (reverse iteration).
+        Table has all 1000 keys. For each search key at positions 0, 100, 250, 500, 750, 999:
+        search_near returns exact match; backward iteration must be in descending order.
         """
 
         self.insert_stable(list(range(0, self.nkeys, 2)))
@@ -808,8 +803,9 @@ class test_layered83(wttest.WiredTigerTestCase):
             cursor = self.open_cursor()
             cursor.set_key(self.fmt_key(search_pos))
             exact = cursor.search_near()
-            self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
             first_key = cursor.get_key()
+            self.assertEqual(first_key, self.fmt_key(search_pos))
+            self.assertEqual(exact, 0)
 
             keys = [first_key]
             while cursor.prev() == 0:
