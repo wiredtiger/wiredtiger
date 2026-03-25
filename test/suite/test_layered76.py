@@ -153,6 +153,36 @@ class test_layered76(wttest.WiredTigerTestCase):
         # Open fresh conn, no checkpoint_meta since no checkpoint was ever taken.
         self.open_conn(config=self.conn_config + ',verify_metadata=true')
 
+    def test_verify_db_size_deferred_checkpoint(self):
+        self.session.create(self.uri, self.create_session_config)
+
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(100):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.close_conn()
+
+        # Open fresh conn, database_size is 0 and no btree checkpoints exist, so
+        # __wt_verify_disagg_database_size skips the comparison entirely.
+        self.open_conn(config=self.conn_config + ',verify_metadata=true')
+
+        # The table was never checkpointed to shared metadata, so it did not survive the
+        # non-checkpointed close. Recreate it and take the first real checkpoint.
+        # __checkpoint_update_disagg_database_size will initialize database_size to
+        # WT_DISAGG_CHECKPOINT_SIZE_BUFFER and then apply the btree size delta on top.
+        self.session.create(self.uri, self.create_session_config)
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(100):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+        self.session.checkpoint()
+
+        # Verify that the stored database_size now correctly equals
+        # WT_DISAGG_CHECKPOINT_SIZE_BUFFER + sum of btree checkpoint sizes.
+        self.reopen_conn(config=self.conn_config + ',verify_metadata=true')
+
     def test_verify_db_size_multi_table(self):
         uris = [
             'layered:test_layered76_a',
