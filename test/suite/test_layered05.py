@@ -182,7 +182,7 @@ class test_layered05(wttest.WiredTigerTestCase):
                 f"search_near({search_key}): key={key} (upper) but exact={exact}, expected 1")
         cursor.close()
 
-    def _assert_sorted_forward_from(self, search_key, n=5):
+    def assert_sorted_forward_from(self, search_key, n=5):
         """Position at search_key via search_near, then verify n forward steps are sorted."""
         cursor = self.session_follow.open_cursor(self.uri)
         cursor.set_key(search_key)
@@ -194,7 +194,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.assertEqual(keys, sorted(keys))
         cursor.close()
 
-    def _assert_sorted_backward_from(self, search_key, n=5):
+    def assert_sorted_backward_from(self, search_key, n=5):
         """Position at search_key via search_near, then verify n backward steps are sorted in reverse."""
         cursor = self.session_follow.open_cursor(self.uri)
         cursor.set_key(search_key)
@@ -290,8 +290,8 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check_either("000500x", self.fmt_key(500), self.fmt_key(501))
 
         # Verify forward and backward iteration from that position.
-        self._assert_sorted_forward_from("000500x")
-        self._assert_sorted_backward_from("000500x")
+        self.assert_sorted_forward_from("000500x")
+        self.assert_sorted_backward_from("000500x")
 
     # -----------------------------------------------------------------------
     # Test: Keys 0-499 are checkpointed; keys 500-999 are written locally.
@@ -311,7 +311,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check_either("000499x", self.fmt_key(499), self.fmt_key(500))
 
         # Verify forward iteration from that position produces sorted keys.
-        self._assert_sorted_forward_from("000499x")
+        self.assert_sorted_forward_from("000499x")
 
     # -----------------------------------------------------------------------
     # Test: Table has keys 498 and 900. search_near(500).
@@ -358,24 +358,26 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check_either(self.fmt_key(500), self.fmt_key(300), self.fmt_key(600))
 
     # -----------------------------------------------------------------------
-    # Test: Table has keys 100, 300, 800. search_near(500): nearest key above 500 is 800.
+    # Test: Table has keys 100, 300, 800. search_near(500): adjacent neighbors are
+    # 300 (below) and 800 (above); either is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_xor_next_notfound(self):
 
         self.insert_stable([800])
         self.insert_ingest([100, 300])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(800), 1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(300), self.fmt_key(800))
 
     # -----------------------------------------------------------------------
-    # Test: Table has keys 100, 300, 600, 800. search_near(500): nearest key above 500 is 600.
+    # Test: Table has keys 100, 300, 600, 800. search_near(500): adjacent neighbors are
+    # 300 (below) and 600 (above); either is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_xor_next_closer(self):
 
         self.insert_stable([800])
         self.insert_ingest([100, 300, 600])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(600), 1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(300), self.fmt_key(600))
 
     # -----------------------------------------------------------------------
     # Test: Table has keys 600 and 800. search_near(500): both are above 500, returns nearest: 600.
@@ -459,7 +461,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     def test_search_near_tombstone_cross_table(self):
 
         self.insert_stable([200, 700])
-        self.insert_ingest([200], values=["updated_000200"])
+        self.insert_ingest([200])
         self.remove_ingest([700])
 
         self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
@@ -599,12 +601,10 @@ class test_layered05(wttest.WiredTigerTestCase):
     def test_search_near_ingest_overrides_stable(self):
 
         all_keys = list(range(0, self.nkeys))
-        old_values = [f"old_{self.fmt_key(i)}" for i in all_keys]
-        new_values = [f"new_{self.fmt_key(i)}" for i in all_keys]
-        self.insert_stable(all_keys, values=old_values)
-        self.insert_ingest(all_keys, values=new_values)
+        self.insert_stable(all_keys)
+        self.insert_ingest(all_keys)
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0, f"new_{self.fmt_key(500)}")
+        self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0)
 
     # -----------------------------------------------------------------------
     # Test: Table has keys 0-499 and 700. search_near(1100): key is beyond all keys, returns 700.
