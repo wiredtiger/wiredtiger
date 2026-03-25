@@ -248,7 +248,7 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_key(cursor, &uri));
 
         /* Only consider file URIs as only they contribute to database_size. */
-        if (!WT_PREFIX_MATCH(uri, "file:") || strstr(uri, ".wt_stable") == NULL)
+        if (!WT_PREFIX_MATCH(uri, "file:") || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
             continue;
 
         /* Get the checkpoint list. Skip files with no checkpoints. */
