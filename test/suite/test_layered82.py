@@ -381,6 +381,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         self.assertEqual(self.scan_forward(cursor), [self.fmt_key(500)])
 
         # Also test prev.
+        cursor.reset()
         self.set_bounds(cursor, lower=self.fmt_key(500), upper=self.fmt_key(500))
         self.assertEqual(self.scan_backward(cursor), [self.fmt_key(500)])
         cursor.close()

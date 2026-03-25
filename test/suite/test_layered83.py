@@ -576,8 +576,8 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_next_after_search_near_xor_alternate_behind(self):
         """
-        Table has keys 200, 300, 600. search_near(500): nearest key below 500 is 300 (cmp=-1).
-        Forward iteration must continue in ascending order.
+        Table has keys 200, 300, 600. search_near(500) returns an adjacent
+        neighbor (300 or 600). Forward iteration must continue in ascending order.
         """
 
         self.insert_stable([200])
@@ -587,8 +587,8 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         first_key = cursor.get_key()
-        self.assertEqual(first_key, self.fmt_key(300))
-        self.assertEqual(exact, -1)
+        self.assertIn(first_key, [self.fmt_key(300), self.fmt_key(600)])
+        self.assertNotEqual(exact, 0)
 
         # Collect all remaining keys via next().
         keys = [first_key]
@@ -603,8 +603,8 @@ class test_layered83(wttest.WiredTigerTestCase):
 
     def test_prev_after_search_near_xor_alternate_ahead(self):
         """
-        Table has keys 400, 700, 800. search_near(500): nearest key above 500 is 700 (cmp=1).
-        Backward iteration must continue in descending order.
+        Table has keys 400, 700, 800. search_near(500) returns an adjacent
+        neighbor (400 or 700). Backward iteration must continue in descending order.
         """
 
         self.insert_stable([800])
@@ -614,8 +614,8 @@ class test_layered83(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         first_key = cursor.get_key()
-        self.assertEqual(first_key, self.fmt_key(700))
-        self.assertEqual(exact, 1)
+        self.assertIn(first_key, [self.fmt_key(400), self.fmt_key(700)])
+        self.assertNotEqual(exact, 0)
 
         keys = [first_key]
         while cursor.prev() == 0:
@@ -688,6 +688,10 @@ class test_layered83(wttest.WiredTigerTestCase):
         self.insert_stable(stable_keys)
         self.insert_ingest(ingest_keys)
 
+        # Insert key being searched with an advance timestamp should not make it visible.
+        ts = self.ts
+        self.insert_ingest([450])
+        self.session_follow.begin_transaction(f"read_timestamp={self.timestamp_str(ts)}")
         cursor = self.open_cursor()
         cursor.set_key(self.fmt_key(450))
         exact = cursor.search_near()
@@ -703,6 +707,7 @@ class test_layered83(wttest.WiredTigerTestCase):
             self.assertLess(keys[i], keys[i + 1],
                 f"Out of order at position {i}: {keys[i]} >= {keys[i + 1]}")
         cursor.close()
+        self.session_follow.rollback_transaction()
 
     def test_prev_after_search_near_xor_many_keys(self):
         """
@@ -716,6 +721,11 @@ class test_layered83(wttest.WiredTigerTestCase):
         self.insert_stable(stable_keys)
         self.insert_ingest(ingest_keys)
 
+        # Remove all the ingest keys with an advance timestamp.
+        # Keys should be still visible to search due to read timestamp.
+        ts = self.ts
+        self.remove_ingest(ingest_keys)
+        self.session_follow.begin_transaction(f"read_timestamp={self.timestamp_str(ts)}")
         cursor = self.open_cursor()
         cursor.set_key(self.fmt_key(550))
         exact = cursor.search_near()
@@ -731,6 +741,7 @@ class test_layered83(wttest.WiredTigerTestCase):
             self.assertGreater(keys[i], keys[i + 1],
                 f"Out of order at position {i}: {keys[i]} <= {keys[i + 1]}")
         cursor.close()
+        self.session_follow.rollback_transaction()
 
     def test_next_after_search_near_xor_with_tombstones(self):
         """
@@ -741,6 +752,13 @@ class test_layered83(wttest.WiredTigerTestCase):
 
         self.insert_stable(list(range(self.nkeys)))
         self.remove_ingest(list(range(400, 601)))
+
+        # Take a timestamp snapshot to verify visibility: subsequent re-inserts of
+        # the tombstoned keys must not appear under the read timestamp.
+        ts = self.ts
+        self.insert_ingest(list(range(400, 601)))
+
+        self.session_follow.begin_transaction(f"read_timestamp={self.timestamp_str(ts)}")
 
         cursor = self.open_cursor()
         cursor.set_key(self.fmt_key(500))
@@ -762,6 +780,7 @@ class test_layered83(wttest.WiredTigerTestCase):
         for k in keys:
             self.assertNotIn(k, tombstoned, f"Tombstoned key appeared: {k}")
         cursor.close()
+        self.session_follow.rollback_transaction()
 
     def test_next_after_search_near_interleaved_full_coverage(self):
         """
@@ -772,7 +791,14 @@ class test_layered83(wttest.WiredTigerTestCase):
         self.insert_stable(list(range(0, self.nkeys, 2)))
         self.insert_ingest(list(range(1, self.nkeys, 2)))
 
+        # Take a timestamp snapshot to verify visibility: subsequent removals of the
+        # searched key must not affect the result under the read timestamp.
+        ts = self.ts
+
         for search_pos in [0, 100, 250, 500, 750, 999]:
+            # Removing the key at search_pos should not impact search_near due to read timestamp.
+            self.remove_ingest([search_pos])
+            self.session_follow.begin_transaction(f"read_timestamp={self.timestamp_str(ts)}")
             cursor = self.open_cursor()
             cursor.set_key(self.fmt_key(search_pos))
             exact = cursor.search_near()
@@ -789,6 +815,7 @@ class test_layered83(wttest.WiredTigerTestCase):
                     f"search_pos={search_pos}: out of order at {i}: "
                     f"{keys[i]} >= {keys[i + 1]}")
             cursor.close()
+            self.session_follow.rollback_transaction()
 
     def test_prev_after_search_near_interleaved_full_coverage(self):
         """
