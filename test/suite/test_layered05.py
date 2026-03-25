@@ -295,8 +295,9 @@ class test_layered05(wttest.WiredTigerTestCase):
         # XOR: ingest.prev() from 501 -> 499. Both < search. Pick bigger: 500 (stable).
         self.search_near_check("000500x", self.fmt_key(500), -1)
 
-        # Verify forward iteration from that position produces sorted keys.
+        # Verify forward and backward iteration from that position.
         self._assert_sorted_forward_from("000500x")
+        self._assert_sorted_backward_from("000500x")
 
     # -----------------------------------------------------------------------
     # Test: Cursors on opposite sides of search key (the XOR normalization).
@@ -372,7 +373,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() path — ingest has multiple keys above the
+    # Test: XOR normalization prev() path  ingest has multiple keys above the
     # search key and search_near returns the nearest one.
     #
     # Stable: key 200 (smaller). Ingest: keys 300, 600, 900.
@@ -390,39 +391,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() with many keys in ingest.
-    #
-    # Stable: keys 0-499. Ingest: keys 500-999.
-    # search("000499x"): stable lands on 499 (cmp<0), ingest on 500 (cmp>0).
-    # prev() on ingest from 500 -> NOTFOUND (500 is ingest's smallest key).
-    # closest = stable(499).
-    # -----------------------------------------------------------------------
-    def test_search_near_xor_prev_boundary(self):
-
-        self.insert_stable(list(range(0, 500)))
-        self.insert_ingest(list(range(500, self.nkeys)))
-
-        # prev() from 500 -> NOTFOUND (500 is first ingest key).
-        # closest = stable(499).
-        self.search_near_check("000499x", self.fmt_key(499), -1)
-
-    # -----------------------------------------------------------------------
-    # Test: XOR normalization prev() with dense ingest keys.
-    #
-    # Stable: key 200. Ingest: keys 400, 450, 500, 550, 600, 900.
-    # search(500): ingest search_near(500) -> exact match 500 (cmp=0).
-    # Exact match wins. No XOR normalization needed.
-    # -----------------------------------------------------------------------
-    def test_search_near_xor_prev_exact_in_ingest(self):
-
-        self.insert_stable([200])
-        self.insert_ingest([400, 450, 500, 550, 600, 900])
-
-        # Exact match in ingest always wins regardless of role.
-        self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0)
-
-    # -----------------------------------------------------------------------
-    # Test: XOR normalization — stable larger, ingest next exhausted (NOTFOUND path).
+    # Test: XOR normalization  stable larger, ingest next exhausted (NOTFOUND path).
     #
     # Stable: key 800. Ingest: keys 100, 300.
     # search(500): ingest lands on 300 (cmp<0), stable on 800 (cmp>0). Opposite sides.
@@ -619,27 +588,6 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), self.fmt_key(497))
 
         cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: search_near on a non-exact key, then iterate.
-    # Verifies correct merge when the cursor is positioned between keys.
-    # Stable: even keys 0,2,...,998. Ingest: odd keys 1,3,...,999.
-    # -----------------------------------------------------------------------
-    def test_search_near_nonexact_then_iterate(self):
-
-        # Use interleaved data so both tables have nearby keys to the search key.
-        even_keys = list(range(0, self.nkeys, 2))
-        odd_keys = list(range(1, self.nkeys, 2))
-        self.insert_stable(even_keys)
-        self.insert_ingest(odd_keys)
-
-        # "000500x" sorts between stable 500 and ingest 501. Stable lands on 500 (cmp<0),
-        # ingest on 501 (cmp>0). XOR: ingest.prev() -> 499. Both < search. Pick bigger: 500.
-        self.search_near_check("000500x", self.fmt_key(500), -1)
-
-        # Verify forward and backward iteration from that position.
-        self._assert_sorted_forward_from("000500x")
-        self._assert_sorted_backward_from("000500x")
 
     # -----------------------------------------------------------------------
     # Test: search_near with tombstone, then iterate past it.

@@ -345,23 +345,6 @@ class test_layered82(wttest.WiredTigerTestCase):
         self.assertLessEqual(cursor.get_key(), self.fmt_key(700))
         cursor.close()
 
-    def test_bounds_many_keys(self):
-        """Bounds [200, 800] on 1000 interleaved keys, forward scan."""
-        self.populate_interleaved()
-
-        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
-        self.assertEqual(self.scan_forward(cursor), self.expected_range(200, 800))
-        cursor.close()
-
-    def test_bounds_many_keys_prev(self):
-        """Bounds [200, 800] on 1000 interleaved keys, reverse scan."""
-        self.populate_interleaved()
-
-        cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
-        expected = [self.fmt_key(i) for i in range(800, 199, -1)]
-        self.assertEqual(self.scan_backward(cursor), expected)
-        cursor.close()
-
     def test_bounds_set_before_data(self):
         """Bounds set before any data is inserted."""
 

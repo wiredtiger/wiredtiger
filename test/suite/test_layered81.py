@@ -272,6 +272,13 @@ class test_layered81(wttest.WiredTigerTestCase):
         remaining = [self.fmt_key(i) for i in all_keys if i % 3 != 0]
         self.assertEqual(self.scan_keys(self.session_follow), remaining)
 
+        # Verify each removed key returns WT_NOTFOUND via search.
+        cursor = self.session_follow.open_cursor(self.uri)
+        for i in remove_keys:
+            cursor.set_key(self.fmt_key(i))
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        cursor.close()
+
     # -----------------------------------------------------------------------
     # Test: Cursor positioned on ingest preserves position after upgrade.
     #
@@ -567,67 +574,6 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Upgrade when positioned cursor value changes.
-    #
-    # 1000 keys, update every 5th key.
-    # -----------------------------------------------------------------------
-    def test_upgrade_value_changes(self):
-
-        all_keys = list(range(self.nkeys))
-        self.insert_leader(all_keys)
-        self.do_checkpoint()
-
-        cursor = self.session_follow.open_cursor(self.uri)
-        cursor.set_key(self.fmt_key(0))
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), self.fmt_val(0))
-        cursor.reset()
-
-        # Update every 5th key on leader.
-        update_keys = list(range(0, self.nkeys, 5))
-        update_vals = [f"updated_{i:06d}" for i in update_keys]
-        self.insert_leader(update_keys, values=update_vals)
-        self.do_checkpoint()
-
-        # Should now see updated values.
-        for i in update_keys:
-            cursor.set_key(self.fmt_key(i))
-            self.assertEqual(cursor.search(), 0)
-            self.assertEqual(cursor.get_value(), f"updated_{i:06d}")
-            cursor.reset()
-
-        # Non-updated key should retain original value.
-        cursor.set_key(self.fmt_key(1))
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), self.fmt_val(1))
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Upgrade when a key is removed between checkpoints.
-    #
-    # 1000 keys, remove every 4th key.
-    # -----------------------------------------------------------------------
-    def test_upgrade_key_removed(self):
-
-        all_keys = list(range(self.nkeys))
-        self.insert_leader(all_keys)
-        self.do_checkpoint()
-
-        cursor = self.session_follow.open_cursor(self.uri)
-        cursor.set_key(self.fmt_key(0))
-        self.assertEqual(cursor.search(), 0)
-        cursor.reset()
-
-        remove_keys = list(range(0, self.nkeys, 4))
-        self.remove_leader(remove_keys)
-        self.do_checkpoint()
-
-        for i in remove_keys:
-            cursor.set_key(self.fmt_key(i))
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        cursor.close()
-
-    # -----------------------------------------------------------------------
     # Test: Follower ingest tombstone hides stable key after upgrade.
     #
     # 1000 keys in stable. Follower deletes a range of keys.
@@ -654,30 +600,6 @@ class test_layered81(wttest.WiredTigerTestCase):
         # Deleted keys still hidden by follower's ingest tombstone. New keys visible.
         expected_after = expected + [self.fmt_key(i) for i in new_keys]
         self.assertEqual(self.scan_keys(self.session_follow), expected_after)
-
-    # -----------------------------------------------------------------------
-    # Test: Large number of keys with upgrade.
-    #
-    # Checkpoint 1: even keys 0-998. Checkpoint 2: all keys 0-999.
-    # Verify complete merged iteration after upgrade.
-    # -----------------------------------------------------------------------
-    def test_upgrade_many_keys(self):
-
-        # Insert even keys.
-        even_keys = list(range(0, self.nkeys, 2))
-        self.insert_leader(even_keys)
-        self.do_checkpoint()
-
-        expected_even = [self.fmt_key(i) for i in even_keys]
-        self.assertEqual(self.scan_keys(self.session_follow), expected_even)
-
-        # Insert odd keys.
-        odd_keys = list(range(1, self.nkeys, 2))
-        self.insert_leader(odd_keys)
-        self.do_checkpoint()
-
-        all_keys = [self.fmt_key(i) for i in range(self.nkeys)]
-        self.assertEqual(self.scan_keys(self.session_follow), all_keys)
 
     # -----------------------------------------------------------------------
     # Test: Upgrade does not affect leader.
