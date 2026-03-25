@@ -222,16 +222,14 @@ __verify_disagg_accumulate_size(
 int
 __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
 {
-    WT_CKPT *ckpt, *ckptbase, *last_ckpt;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t database_size, total_size;
-    const char *uri;
+    uint64_t database_size, ckpt_size, total_size;
+    const char *uri, *value;
 
     conn = S2C(session);
     cursor = NULL;
-    ckptbase = NULL;
     total_size = 0;
 
     /*
@@ -251,22 +249,13 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         if (!WT_PREFIX_MATCH(uri, "file:") || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
             continue;
 
-        /* Get the checkpoint list. Skip files with no checkpoints. */
-        WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, uri, false, &ckptbase, NULL), true);
+        /* Look up the metadata string and extract the most recent checkpoint size. */
+        WT_ERR(cursor->get_value(cursor, &value));
+        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, value, &ckpt_size), true);
         if (ret == WT_NOTFOUND)
             continue;
 
-        /* Find most recent non-fake checkpoint. */
-        last_ckpt = NULL;
-        WT_CKPT_FOREACH (ckptbase, ckpt)
-            if (!F_ISSET(ckpt, WT_CKPT_FAKE))
-                last_ckpt = ckpt;
-
-        if (last_ckpt != NULL)
-            total_size += last_ckpt->size;
-
-        __wt_ckptlist_free(session, &ckptbase);
-        ckptbase = NULL;
+        total_size += ckpt_size;
     }
     /*
      * A not found error is okay. cursor->next() returns it once it goes through all the metadata
@@ -288,8 +277,6 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    if (ckptbase != NULL)
-        __wt_ckptlist_free(session, &ckptbase);
     return (ret);
 }
 
