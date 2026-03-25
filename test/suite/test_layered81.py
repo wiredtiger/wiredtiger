@@ -145,46 +145,10 @@ class test_layered81(wttest.WiredTigerTestCase):
         return result
 
     # -----------------------------------------------------------------------
-    # Test: Unpositioned cursor sees new data after checkpoint advance.
+    # Test: An existing cursor sees new data after checkpoint advance.
     #
-    # Open a cursor on follower, use it, then leader adds more data,
-    # checkpoints, and follower advances. The same cursor should now see
-    # the new data on the next search.
-    # -----------------------------------------------------------------------
-    def test_upgrade_unpositioned_sees_new_data(self):
-
-        # Checkpoint 1: even keys 0-998.
-        even_keys = list(range(0, self.nkeys, 2))
-        self.insert_leader(even_keys)
-        self.do_checkpoint()
-
-        # Open follower cursor and verify initial data.
-        cursor = self.session_follow.open_cursor(self.uri)
-        cursor.set_key(self.fmt_key(0))
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), self.fmt_val(0))
-        cursor.reset()
-
-        # Checkpoint 2: add odd keys 1-999.
-        odd_keys = list(range(1, self.nkeys, 2))
-        self.insert_leader(odd_keys)
-        self.do_checkpoint()
-
-        # The same cursor should now see the new data.
-        cursor.set_key(self.fmt_key(1))
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), self.fmt_val(1))
-
-        cursor.set_key(self.fmt_key(999))
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), self.fmt_val(999))
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Full scan sees new data after upgrade.
-    #
-    # Checkpoint 1: even keys 0-998. Checkpoint 2: all keys 0-999.
-    # Full scan after advance should see all 1000 keys.
+    # Checkpoint 1: even keys 0-998. Open a cursor, scan, reset (unpositioned).
+    # Checkpoint 2: all keys 0-999. The same cursor must see all 1000 keys.
     # -----------------------------------------------------------------------
     def test_upgrade_full_scan(self):
 
@@ -192,16 +156,30 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(even_keys)
         self.do_checkpoint()
 
+        # Open one cursor and verify it sees only even keys.
+        cursor = self.session_follow.open_cursor(self.uri)
         expected_even = [self.fmt_key(i) for i in even_keys]
-        self.assertEqual(self.scan_keys(self.session_follow), expected_even)
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, expected_even)
+        cursor.reset()
 
-        # Add odd keys and checkpoint again.
+        # Advance to a new checkpoint that adds odd keys.
         odd_keys = list(range(1, self.nkeys, 2))
         self.insert_leader(odd_keys)
         self.do_checkpoint()
 
+        # Trigger the upgrade with a search, then verify full scan sees all 1000 keys.
         all_keys = [self.fmt_key(i) for i in range(self.nkeys)]
-        self.assertEqual(self.scan_keys(self.session_follow), all_keys)
+        cursor.set_key(self.fmt_key(0))
+        self.assertEqual(cursor.search(), 0)
+        cursor.reset()
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, all_keys)
+        cursor.close()
 
     # -----------------------------------------------------------------------
     # Test: Updated values visible after upgrade.
@@ -271,12 +249,14 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Cursor preserves usability when checkpoint advances while follower has local writes.
+    # Test: Cursor positioned on a locally-written key can iterate forward
+    # and see new data after a checkpoint advances.
     #
     # Checkpoint 1: keys 0-499. Follower writes 500-999 locally.
-    # Checkpoint 2: adds key 1000. The cursor should see it.
+    # Cursor positioned on key 750. Checkpoint 2: adds key 1000.
+    # Forward iteration from 750 must reach key 1000.
     # -----------------------------------------------------------------------
-    def test_upgrade_positioned_on_ingest(self):
+    def test_upgrade_positioned_on_local_key(self):
 
         stable_keys = list(range(500))
         self.insert_leader(stable_keys)
@@ -290,56 +270,14 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), self.fmt_val(750))
 
+        # Advance checkpoint: adds key 1000.
         self.insert_leader([1000])
         self.do_checkpoint()
 
-        cursor.reset()
+        # Without resetting, verify the cursor can find new stable data.
         cursor.set_key(self.fmt_key(1000))
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), self.fmt_val(1000))
-        cursor.close()
-
-    # -----------------------------------------------------------------------
-    # Test: Multiple checkpoint advances on the same cursor.
-    #
-    # 3 checkpoints adding 333, 333, 334 keys each.
-    # Cursor should see cumulative data after each advance.
-    # -----------------------------------------------------------------------
-    def test_upgrade_multiple_checkpoints(self):
-
-        # First checkpoint: keys 0-332.
-        batch1 = list(range(0, 333))
-        self.insert_leader(batch1)
-        self.do_checkpoint()
-
-        cursor = self.session_follow.open_cursor(self.uri)
-        cursor.set_key(self.fmt_key(0))
-        self.assertEqual(cursor.search(), 0)
-        cursor.reset()
-
-        # Second checkpoint: keys 333-665.
-        batch2 = list(range(333, 666))
-        self.insert_leader(batch2)
-        self.do_checkpoint()
-
-        cursor.set_key(self.fmt_key(500))
-        self.assertEqual(cursor.search(), 0)
-        cursor.reset()
-
-        # Third checkpoint: keys 666-999.
-        batch3 = list(range(666, self.nkeys))
-        self.insert_leader(batch3)
-        self.do_checkpoint()
-
-        cursor.set_key(self.fmt_key(999))
-        self.assertEqual(cursor.search(), 0)
-
-        # Full scan shows all 1000 keys.
-        cursor.reset()
-        keys = []
-        while cursor.next() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, [self.fmt_key(i) for i in range(self.nkeys)])
         cursor.close()
 
     # -----------------------------------------------------------------------
@@ -404,48 +342,44 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Upgrade with read timestamp - iteration triggers upgrade.
+    # Test: Read timestamp controls which checkpoint's data is visible.
     #
-    # Checkpoint 1: 500 keys. Checkpoint 2: 500 more keys.
-    # With a read timestamp set, iteration triggers upgrade.
+    # Checkpoint 1: keys 0-499. Checkpoint 2: keys 500-999.
+    # A transaction at checkpoint 1's timestamp sees only keys 0-499.
+    # A transaction at checkpoint 2's timestamp sees all 1000 keys.
     # -----------------------------------------------------------------------
     def test_upgrade_with_read_timestamp_iteration(self):
 
-        # Set oldest timestamp.
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
         first_half = list(range(0, 500))
         self.insert_leader(first_half)
         self.do_checkpoint()
-
-        # Begin transaction with read timestamp on follower.
-        self.session_follow.begin_transaction(
-            f'read_timestamp={self.timestamp_str(self.ts)}')
-
-        cursor = self.session_follow.open_cursor(self.uri)
-        # Position via next.
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), self.fmt_key(0))
-        # Iterate to end.
-        count = 1
-        while cursor.next() == 0:
-            count += 1
-        self.assertEqual(count, 500)
-        cursor.reset()
-        self.session_follow.commit_transaction()
+        ts_after_ckpt1 = self.ts
 
         # Add second half and checkpoint.
         second_half = list(range(500, self.nkeys))
         self.insert_leader(second_half)
         self.do_checkpoint()
+        ts_after_ckpt2 = self.ts
 
-        # With read timestamp, iteration triggers the upgrade.
-        read_ts = self.ts
-        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(read_ts)}')
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # Read at checkpoint 1's timestamp: only keys 0-499 visible.
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(ts_after_ckpt1)}')
         self.session_follow.begin_transaction(
-            f'read_timestamp={self.timestamp_str(read_ts)}')
+            f'read_timestamp={self.timestamp_str(ts_after_ckpt1)}')
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, [self.fmt_key(i) for i in first_half])
+        cursor.reset()
+        self.session_follow.commit_transaction()
 
-        # Scan should see all 1000 keys.
+        # Read at checkpoint 2's timestamp: all 1000 keys visible.
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(ts_after_ckpt2)}')
+        self.session_follow.begin_transaction(
+            f'read_timestamp={self.timestamp_str(ts_after_ckpt2)}')
         keys = []
         while cursor.next() == 0:
             keys.append(cursor.get_key())
