@@ -410,6 +410,9 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor = self.open_bounded_cursor(lower=self.fmt_key(0), upper=self.fmt_key(999))
         self.assertEqual(self.scan_forward(cursor), all_keys)
 
+        # Reset the bounds.
+        cursor.reset()
+
         self.set_bounds(cursor, lower=self.fmt_key(400), upper=self.fmt_key(600))
         self.assertEqual(self.scan_forward(cursor), self.expected_range(400, 600))
         cursor.close()
