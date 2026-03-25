@@ -340,22 +340,23 @@
         __atomic_store_n(vp, v, __ATOMIC_SEQ_CST);                                         \
     }
 
-#define WT_ATOMIC_CAS_FUNC(suffix, _type)                                                              \
-    static inline bool __wt_atomic_cas_##suffix(_type *vp, _type old, _type newv)                      \
-    {                                                                                                  \
-        return (ATOMIC_CAS(vp, &old, newv));                                                           \
-    }                                                                                                  \
-    static inline bool __wt_atomic_cas_##suffix##_relaxed(_type *vp, _type old, _type newv)            \
-    {                                                                                                  \
-        return (ATOMIC_CAS_RELAXED(vp, &old, newv));                                                   \
-    }                                                                                                  \
-    static inline bool __wt_atomic_cas_##suffix##_v(volatile _type *vp, _type old, _type newv)         \
-    {                                                                                                  \
-        return (ATOMIC_CAS(vp, &old, newv));                                                           \
-    }                                                                                                  \
-    static inline bool __wt_atomic_cas_##suffix##_v_relaxed(volatile _type *vp, _type old, _type newv) \
-    {                                                                                                  \
-        return (ATOMIC_CAS_RELAXED(vp, &old, newv));                                                   \
+#define WT_ATOMIC_CAS_FUNC(suffix, _type)                                                      \
+    static inline bool __wt_atomic_cas_##suffix(_type *vp, _type old, _type newv)              \
+    {                                                                                          \
+        return (ATOMIC_CAS(vp, &old, newv));                                                   \
+    }                                                                                          \
+    static inline bool __wt_atomic_cas_##suffix##_relaxed(_type *vp, _type old, _type newv)    \
+    {                                                                                          \
+        return (ATOMIC_CAS_RELAXED(vp, &old, newv));                                           \
+    }                                                                                          \
+    static inline bool __wt_atomic_cas_##suffix##_v(volatile _type *vp, _type old, _type newv) \
+    {                                                                                          \
+        return (ATOMIC_CAS(vp, &old, newv));                                                   \
+    }                                                                                          \
+    static inline bool __wt_atomic_cas_##suffix##_v_relaxed(                                   \
+      volatile _type *vp, _type old, _type newv)                                               \
+    {                                                                                          \
+        return (ATOMIC_CAS_RELAXED(vp, &old, newv));                                           \
     }
 
 #define WT_ATOMIC_FUNC(suffix, _type)                                                     \
