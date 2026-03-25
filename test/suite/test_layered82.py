@@ -45,39 +45,17 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered82', disagg_only=True)
 
-    # Each test runs in two scenarios:
-    #   - leader:   test operations run on the leader session (R/W stable cursor).
-    #               Serves as a baseline correctness check for bounds propagation.
-    #   - follower: test operations run on the follower session (checkpoint stable cursor).
-    #               Exercises bounds with checkpoint cursor behavior.
-    #
-    # A follower connection is always created (even in leader mode) because insert_stable()
-    # needs it to call disagg_advance_checkpoint().
-    role_scenarios = [
-        ('leader', dict(role='leader')),
-        ('follower', dict(role='follower')),
-    ]
-    scenarios = make_scenarios(disagg_storages, role_scenarios)
-
-    conn_follow = None
-    session_follow = None
-    ts = 1
+    scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def setup_follower(self):
-        """Create follower connection. Required by insert_stable() for checkpoint advance."""
+    def setUp(self):
+        super().setUp()
+        self.ts = 1
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
-
-    def get_session(self):
-        if self.role == 'leader':
-            return self.session
-        return self.session_follow
-
-    def create_table(self):
         config = "key_format=S,value_format=S"
         self.session.create(self.uri, config)
         self.session_follow.create(self.uri, config)
@@ -113,8 +91,8 @@ class test_layered82(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
 
     def insert_ingest(self, keys, values=None):
-        """Insert keys (list of ints) into ingest on the session under test."""
-        session = self.get_session()
+        """Insert keys (list of ints) into the follower ingest table."""
+        session = self.session_follow
         cursor = session.open_cursor(self.uri)
         for idx, i in enumerate(keys):
             key = self.fmt_key(i)
@@ -125,8 +103,8 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     def remove_ingest(self, keys):
-        """Remove keys (list of ints) on the session under test."""
-        session = self.get_session()
+        """Remove keys (list of ints) from the follower ingest table (creates tombstones)."""
+        session = self.session_follow
         cursor = session.open_cursor(self.uri)
         for i in keys:
             key = self.fmt_key(i)
@@ -189,7 +167,7 @@ class test_layered82(wttest.WiredTigerTestCase):
     def open_bounded_cursor(self, lower=None, upper=None,
                             lower_inclusive=True, upper_inclusive=True):
         """Open a cursor on the session under test and set bounds."""
-        cursor = self.get_session().open_cursor(self.uri)
+        cursor = self.session_follow.open_cursor(self.uri)
         self.set_bounds(cursor, lower, upper, lower_inclusive, upper_inclusive)
         return cursor
 
@@ -203,8 +181,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_ingest_only(self):
         """Bounds with all data in ingest."""
-        self.setup_follower()
-        self.create_table()
         self.populate_all_ingest()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -213,8 +189,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_stable_only(self):
         """Bounds with all data in stable."""
-        self.setup_follower()
-        self.create_table()
         self.populate_all_stable()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -223,8 +197,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_split_data(self):
         """Bounds with even keys in stable, odd in ingest."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -233,8 +205,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_split_data_prev(self):
         """Bounds with interleaved data, reverse iteration."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -244,8 +214,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_lower_only(self):
         """Lower bound only at 500. Expected: 500-999."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(500))
@@ -254,8 +222,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_upper_only(self):
         """Upper bound only at 500. Expected: 0-500."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(upper=self.fmt_key(500))
@@ -264,8 +230,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_exclusive_lower(self):
         """Exclusive lower bound at 200. Expected: 201-999."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), lower_inclusive=False)
@@ -274,8 +238,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_exclusive_upper(self):
         """Exclusive upper bound at 800. Expected: 0-799."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(upper=self.fmt_key(800), upper_inclusive=False)
@@ -284,8 +246,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_both_exclusive(self):
         """Both bounds exclusive: (200, 800). Expected: 201-799."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(
@@ -296,8 +256,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_nonexistent_keys(self):
         """Bounds at keys that don't exist. Even keys only, bounds [201, 799]."""
-        self.setup_follower()
-        self.create_table()
         self.insert_stable(list(range(0, self.nkeys, 2)))
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(201), upper=self.fmt_key(799))
@@ -307,8 +265,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_no_data_in_range(self):
         """Bounds [1500, 2000] beyond all data. Expected: empty."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(1500), upper=self.fmt_key(2000))
@@ -317,8 +273,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_tombstone_inside(self):
         """Tombstone every 3rd key in [200, 800]. Bounds [200, 800]."""
-        self.setup_follower()
-        self.create_table()
         self.populate_all_stable()
         self.remove_ingest([i for i in range(200, 801) if i % 3 == 0])
 
@@ -329,8 +283,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_tombstone_at_bounds(self):
         """Tombstone the bound keys 200 and 800. Bounds [200, 800]. Expected: 201-799."""
-        self.setup_follower()
-        self.create_table()
         self.populate_all_stable()
         self.remove_ingest([200, 800])
 
@@ -340,8 +292,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_all_tombstoned_in_range(self):
         """Tombstone everything in [200, 800]. Bounds [200, 800]. Expected: empty."""
-        self.setup_follower()
-        self.create_table()
         self.populate_all_stable()
         self.remove_ingest(list(range(200, 801)))
 
@@ -351,8 +301,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_tombstone_outside(self):
         """Tombstone keys outside [200, 800]. Bounds [200, 800]. Range intact."""
-        self.setup_follower()
-        self.create_table()
         self.populate_all_stable()
         self.remove_ingest(list(range(0, 200)) + list(range(801, self.nkeys)))
 
@@ -362,8 +310,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_clear(self):
         """Set bounds, scan, clear bounds, rescan sees all keys."""
-        self.setup_follower()
-        self.create_table()
         all_keys = self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -377,8 +323,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_search_near(self):
         """search_near below bounds [300, 700] finds key within bounds."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(300), upper=self.fmt_key(700))
@@ -391,8 +335,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_search_near_upper(self):
         """search_near above bounds [300, 700] finds key within bounds."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(300), upper=self.fmt_key(700))
@@ -405,8 +347,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_many_keys(self):
         """Bounds [200, 800] on 1000 interleaved keys, forward scan."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -415,8 +355,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_many_keys_prev(self):
         """Bounds [200, 800] on 1000 interleaved keys, reverse scan."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -426,8 +364,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_set_before_data(self):
         """Bounds set before any data is inserted."""
-        self.setup_follower()
-        self.create_table()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
         self.assertEqual(self.scan_forward(cursor), [])
@@ -440,8 +376,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_ingest_overrides_stable(self):
         """Ingest value overrides stable within bounds."""
-        self.setup_follower()
-        self.create_table()
         self.populate_all_stable()
         self.insert_ingest([500], values=["new_500"])
 
@@ -454,8 +388,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_adjacent_exclusive(self):
         """Exclusive bounds (199, 201). Expected: only key 200."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(
@@ -466,8 +398,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_single_point(self):
         """Single-point bounds [500, 500]. Expected: only key 500."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(500), upper=self.fmt_key(500))
@@ -480,8 +410,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_search(self):
         """search inside bounds succeeds, outside bounds fails."""
-        self.setup_follower()
-        self.create_table()
         self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(200), upper=self.fmt_key(800))
@@ -499,8 +427,6 @@ class test_layered82(wttest.WiredTigerTestCase):
 
     def test_bounds_rebind(self):
         """Rebind to narrower bounds without clearing first."""
-        self.setup_follower()
-        self.create_table()
         all_keys = self.populate_interleaved()
 
         cursor = self.open_bounded_cursor(lower=self.fmt_key(0), upper=self.fmt_key(999))

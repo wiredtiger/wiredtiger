@@ -58,28 +58,25 @@ class test_layered81(wttest.WiredTigerTestCase):
     # for a sanity check that the leader is not impacted.
     scenarios = make_scenarios(disagg_storages)
 
-    conn_follow = None
-    session_follow = None
-    ts = 1
-
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def setup_follower(self):
-        """Create follower connection for stable cursor upgrade testing."""
+    def setUp(self):
+        super().setUp()
+        self.ts = 1
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
-
-    def create_table(self):
         config = "key_format=S,value_format=S"
         self.session.create(self.uri, config)
         self.session_follow.create(self.uri, config)
 
-    def fmt_key(self, i):
+    @staticmethod
+    def fmt_key(i):
         return f"{i:06d}"
 
-    def fmt_val(self, i):
+    @staticmethod
+    def fmt_val(i):
         return f"val_{i:06d}"
 
     def next_ts(self):
@@ -164,8 +161,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # the new data on the next search.
     # -----------------------------------------------------------------------
     def test_upgrade_unpositioned_sees_new_data(self):
-        self.setup_follower()
-        self.create_table()
 
         # Checkpoint 1: even keys 0-998.
         even_keys = list(range(0, self.nkeys, 2))
@@ -201,8 +196,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Full scan after advance should see all 1000 keys.
     # -----------------------------------------------------------------------
     def test_upgrade_full_scan(self):
-        self.setup_follower()
-        self.create_table()
 
         even_keys = list(range(0, self.nkeys, 2))
         self.insert_leader(even_keys)
@@ -227,8 +220,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # After advance, follower should see the updated values.
     # -----------------------------------------------------------------------
     def test_upgrade_updated_value(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -266,8 +257,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Follower should not see removed keys after advance.
     # -----------------------------------------------------------------------
     def test_upgrade_deleted_key(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -289,8 +278,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # 500 keys in stable. Follower writes 500 more to ingest, then upgrade.
     # -----------------------------------------------------------------------
     def test_upgrade_positioned_on_ingest(self):
-        self.setup_follower()
-        self.create_table()
 
         # Checkpoint 1: keys 0-499 in stable.
         stable_keys = list(range(500))
@@ -325,8 +312,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Cursor should see cumulative data after each advance.
     # -----------------------------------------------------------------------
     def test_upgrade_multiple_checkpoints(self):
-        self.setup_follower()
-        self.create_table()
 
         # First checkpoint: keys 0-332.
         batch1 = list(range(0, 333))
@@ -371,8 +356,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # After upgrade, iteration should produce correct merged order.
     # -----------------------------------------------------------------------
     def test_upgrade_interleaved(self):
-        self.setup_follower()
-        self.create_table()
 
         even_keys = list(range(0, self.nkeys, 2))
         self.insert_leader(even_keys)
@@ -404,8 +387,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Checkpoint 2: adds key 500. search_near(500) -> exact match.
     # -----------------------------------------------------------------------
     def test_upgrade_search_near(self):
-        self.setup_follower()
-        self.create_table()
 
         keys_without_500 = [i for i in range(self.nkeys) if i != 500]
         self.insert_leader(keys_without_500)
@@ -437,8 +418,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # With a read timestamp set, iteration triggers upgrade.
     # -----------------------------------------------------------------------
     def test_upgrade_with_read_timestamp_iteration(self):
-        self.setup_follower()
-        self.create_table()
 
         # Set oldest timestamp.
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
@@ -488,8 +467,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # 1000 keys, bounds [200, 800].
     # -----------------------------------------------------------------------
     def test_upgrade_preserves_bounds(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -543,8 +520,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Even keys first, odd keys added in checkpoint 2, bounds [200, 800].
     # -----------------------------------------------------------------------
     def test_upgrade_bounds_new_data_inside(self):
-        self.setup_follower()
-        self.create_table()
 
         even_keys = list(range(0, self.nkeys, 2))
         self.insert_leader(even_keys)
@@ -597,8 +572,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # 1000 keys, update every 5th key.
     # -----------------------------------------------------------------------
     def test_upgrade_value_changes(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -635,8 +608,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # 1000 keys, remove every 4th key.
     # -----------------------------------------------------------------------
     def test_upgrade_key_removed(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -663,8 +634,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Checkpoint adds more keys on leader. Tombstones persist.
     # -----------------------------------------------------------------------
     def test_upgrade_tombstone_persists(self):
-        self.setup_follower()
-        self.create_table()
 
         stable_keys = list(range(self.nkeys))
         self.insert_leader(stable_keys)
@@ -693,8 +662,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Verify complete merged iteration after upgrade.
     # -----------------------------------------------------------------------
     def test_upgrade_many_keys(self):
-        self.setup_follower()
-        self.create_table()
 
         # Insert even keys.
         even_keys = list(range(0, self.nkeys, 2))
@@ -720,8 +687,6 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Verify leader still works correctly across checkpoints.
     # -----------------------------------------------------------------------
     def test_leader_unaffected_by_checkpoint(self):
-        self.setup_follower()
-        self.create_table()
 
         first_half = list(range(0, 500))
         self.insert_leader(first_half)

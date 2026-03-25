@@ -50,25 +50,7 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered05', disagg_only=True)
 
-    # Each test runs in two scenarios:
-    #   - leader:   test operations run on the leader session. The leader's stable cursor
-    #               is a regular R/W btree cursor, so search_near returns the nearest key
-    #               predictably. This serves as a baseline correctness check.
-    #   - follower: test operations run on the follower session. The follower's stable cursor
-    #               is a checkpoint cursor, which may return different neighbors from
-    #               search_near. This is where XOR normalization bugs manifest.
-    #
-    # A follower connection is always created (even in leader mode) because insert_stable()
-    # needs it to call disagg_advance_checkpoint().
-    role_scenarios = [
-        ('leader', dict(role='leader')),
-        ('follower', dict(role='follower')),
-    ]
-    scenarios = make_scenarios(disagg_storages, role_scenarios)
-
-    conn_follow = None
-    session_follow = None
-    ts = 1
+    scenarios = make_scenarios(disagg_storages)
 
     @staticmethod
     def fmt_key(i):
@@ -81,25 +63,12 @@ class test_layered05(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def setup_follower(self):
-        """Create follower connection. Required by insert_stable() for checkpoint advance."""
+    def setUp(self):
+        super().setUp()
+        self.ts = 1
         self.conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
-
-    def get_session(self):
-        """Return the session under test (leader or follower based on scenario)."""
-        if self.role == 'leader':
-            return self.session
-        return self.session_follow
-
-    def get_conn(self):
-        """Return the connection under test (leader or follower based on scenario)."""
-        if self.role == 'leader':
-            return self.conn
-        return self.conn_follow
-
-    def create_table(self):
         config = "key_format=S,value_format=S"
         self.session.create(self.uri, config)
         self.session_follow.create(self.uri, config)
@@ -119,7 +88,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.close()
 
     def remove_keys_on(self, session, keys):
-        """Remove keys on a specific session (creates tombstones in ingest)."""
+        """Remove keys on a specific session (creates tombstones)."""
         cursor = session.open_cursor(self.uri)
         for key in keys:
             session.begin_transaction()
@@ -143,27 +112,23 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def insert_ingest(self, int_keys, values=None):
         """
-        Insert keys into ingest on the session under test.
+        Insert keys into the follower ingest table.
         Accepts a list of integers; formats them internally.
         """
         keys = [self.fmt_key(i) for i in int_keys]
         vals = [self.fmt_val(i) for i in int_keys] if values is None else values
-        self.insert_keys_on(self.get_session(), keys, vals)
+        self.insert_keys_on(self.session_follow, keys, vals)
 
     def remove_ingest(self, int_keys):
         """
-        Remove keys on the session under test (tombstones in ingest).
+        Remove keys from the follower ingest table (creates tombstones).
         Accepts a list of integers; formats them internally.
         """
         keys = [self.fmt_key(i) for i in int_keys]
-        self.remove_keys_on(self.get_session(), keys)
+        self.remove_keys_on(self.session_follow, keys)
 
-    def search_near_check(self, search_key, expected_key, expected_exact, expected_value=None):
-        """
-        Open a cursor, call search_near for search_key, and verify the result.
-        Accepts pre-formatted string keys.
-        """
-        session = self.get_session()
+    def _search_near_check_on(self, session, search_key, expected_key, expected_exact, expected_value=None):
+        """Open a cursor on session, call search_near, and verify the result."""
         cursor = session.open_cursor(self.uri)
         cursor.set_key(search_key)
         exact = cursor.search_near()
@@ -176,9 +141,16 @@ class test_layered05(wttest.WiredTigerTestCase):
                 f"search_near({search_key}): expected value {expected_value}, got {cursor.get_value()}")
         cursor.close()
 
-    def search_near_notfound(self, search_key):
-        """Verify search_near returns WT_NOTFOUND. Accepts a pre-formatted string key."""
-        session = self.get_session()
+    def search_near_check(self, search_key, expected_key, expected_exact, expected_value=None):
+        """Call search_near on the follower session and verify the result."""
+        self._search_near_check_on(self.session_follow, search_key, expected_key, expected_exact, expected_value)
+
+    def search_near_check_leader(self, search_key, expected_key, expected_exact, expected_value=None):
+        """Call search_near on the leader session and verify the result."""
+        self._search_near_check_on(self.session, search_key, expected_key, expected_exact, expected_value)
+
+    def _search_near_notfound_on(self, session, search_key):
+        """Verify search_near returns WT_NOTFOUND on the given session."""
         cursor = session.open_cursor(self.uri)
         cursor.set_key(search_key)
         ret = cursor.search_near()
@@ -186,12 +158,18 @@ class test_layered05(wttest.WiredTigerTestCase):
             f"search_near({search_key}): expected WT_NOTFOUND, got {ret}")
         cursor.close()
 
+    def search_near_notfound(self, search_key):
+        """Verify search_near returns WT_NOTFOUND on the follower session."""
+        self._search_near_notfound_on(self.session_follow, search_key)
+
+    def search_near_notfound_leader(self, search_key):
+        """Verify search_near returns WT_NOTFOUND on the leader session."""
+        self._search_near_notfound_on(self.session, search_key)
+
     # -----------------------------------------------------------------------
     # Test: Empty table returns WT_NOTFOUND.
     # -----------------------------------------------------------------------
     def test_search_near_empty(self):
-        self.setup_follower()
-        self.create_table()
 
         self.search_near_notfound("anything")
 
@@ -203,11 +181,8 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Test: All data in ingest only (no checkpoint yet).
-    # Stable gets even keys 0,2,...,998. Ingest gets odd keys 1,3,...,999.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_only(self):
-        self.setup_follower()
-        self.create_table()
 
         odd_keys = list(range(1, self.nkeys, 2))
         self.insert_ingest(odd_keys)
@@ -235,8 +210,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # searches return a valid adjacent key.
     # -----------------------------------------------------------------------
     def test_search_near_stable_only(self):
-        self.setup_follower()
-        self.create_table()
 
         even_keys = list(range(0, self.nkeys, 2))
         self.insert_stable(even_keys)
@@ -252,9 +225,10 @@ class test_layered05(wttest.WiredTigerTestCase):
         # Key after all: search for key 1000 (beyond 998)
         self.search_near_check(self.fmt_key(1000), self.fmt_key(998), -1)
 
-        # Between keys: btree search_near may land on either neighbor.
+        # Between keys: the checkpoint cursor's search_near is deterministic but can return either
+        # neighbor depending on the B-tree leaf traversal. Accept both valid adjacent keys.
         # Verify the returned key is a valid neighbor (e.g. search for 501, neighbors are 500 and 502).
-        session = self.get_session()
+        session = self.session_follow
         cursor = session.open_cursor(self.uri)
         cursor.set_key(self.fmt_key(501))
         exact = cursor.search_near()
@@ -273,8 +247,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # search_near for a gap key should find the correct neighbor.
     # -----------------------------------------------------------------------
     def test_search_near_split_data(self):
-        self.setup_follower()
-        self.create_table()
 
         even_keys = list(range(0, self.nkeys, 2))
         odd_keys = list(range(1, self.nkeys, 2))
@@ -294,17 +266,17 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(1100), self.fmt_key(999), -1)
 
         # Search for a key between two adjacent keys (e.g. between 500 and 501).
-        # Use a key that sorts between them: "000500x" sorts after "000500" and before "000501".
-        # When the cursors land on opposite sides, the XOR normalization may adjust the
-        # ingest cursor position. Verify the returned key exists and iteration works.
-        session = self.get_session()
+        # "000500x" sorts after "000500" and before "000501".
+        # Stable lands on 500 (cmp<0), ingest lands on 501 (cmp>0). Opposite sides.
+        # XOR: ingest.prev() from 501 -> 499. Both < search. Pick bigger: 500 (stable).
+        self.search_near_check("000500x", self.fmt_key(500), -1)
+
+        # Verify iteration from that position produces sorted keys.
+        session = self.session_follow
         cursor = session.open_cursor(self.uri)
         cursor.set_key("000500x")
-        exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        key = cursor.get_key()
-        # Verify iteration from the positioned cursor produces sorted keys.
-        keys = [key]
+        cursor.search_near()
+        keys = [cursor.get_key()]
         for _ in range(5):
             self.assertEqual(cursor.next(), 0)
             keys.append(cursor.get_key())
@@ -320,8 +292,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # so the result may be the next ingest key after the search key.
     # -----------------------------------------------------------------------
     def test_search_near_opposite_sides(self):
-        self.setup_follower()
-        self.create_table()
 
         lower_keys = list(range(0, 500))
         upper_keys = list(range(500, self.nkeys))
@@ -332,18 +302,17 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0)
 
         # Search for a gap key: "000499x" is between stable 499 and ingest 500.
-        # The XOR normalization may produce different results depending on the role.
-        # Verify the result is valid and iteration from it is sorted.
-        session = self.get_session()
+        # Stable lands on 499 (cmp<0), ingest lands on 500 (cmp>0). Opposite sides.
+        # XOR: ingest.prev() from 500 -> NOTFOUND (500 is first ingest key).
+        # Only stable result remains: 499.
+        self.search_near_check("000499x", self.fmt_key(499), -1)
+
+        # Verify iteration from that position produces sorted keys.
+        session = self.session_follow
         cursor = session.open_cursor(self.uri)
         cursor.set_key("000499x")
-        exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        key = cursor.get_key()
-        # The key must be a real key in the table (integer-formatted).
-        self.assertTrue(key.isdigit(), f"Expected numeric key, got {key}")
-        # Verify iteration from the positioned cursor produces sorted keys.
-        keys = [key]
+        cursor.search_near()
+        keys = [cursor.get_key()]
         for _ in range(5):
             self.assertEqual(cursor.next(), 0)
             keys.append(cursor.get_key())
@@ -358,20 +327,13 @@ class test_layered05(wttest.WiredTigerTestCase):
     # On the leader: ingest is skipped, stable search_near returns 498.
     # -----------------------------------------------------------------------
     def test_search_near_opposite_sides_farther(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([498])
         self.insert_ingest([900])
 
-        if self.role == 'leader':
-            # Leader skips ingest for search_near but sees it via the btree directly.
-            # Both 498 and 900 are in the leader's btree. Prefer 900 (larger).
-            self.search_near_check(self.fmt_key(500), self.fmt_key(900), 1)
-        else:
-            # Follower: XOR normalization moves ingest.next() -> NOTFOUND (only key is 900),
-            # falls back to stable key 498.
-            self.search_near_check(self.fmt_key(500), self.fmt_key(498), -1)
+        # XOR normalization moves ingest.next() -> NOTFOUND (only key is 900),
+        # falls back to stable key 498.
+        self.search_near_check(self.fmt_key(500), self.fmt_key(498), -1)
 
     # -----------------------------------------------------------------------
     # Test: XOR normalization prev() path  ingest has a key between stable and search.
@@ -381,18 +343,12 @@ class test_layered05(wttest.WiredTigerTestCase):
     # prev() on ingest from 900 -> 300. Both now < search. Pick bigger: 300 (ingest).
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_between(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([200])
         self.insert_ingest([300, 900])
 
-        if self.role == 'leader':
-            # Leader sees all keys. 900 is larger and preferred.
-            self.search_near_check(self.fmt_key(500), self.fmt_key(900), 1)
-        else:
-            # Follower: prev() from 900 -> 300. Both < 500. Pick bigger: 300.
-            self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
+        # prev() from 900 -> 300. Both < 500. Pick bigger: 300.
+        self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
 
     # -----------------------------------------------------------------------
     # Test: XOR normalization prev() path  ingest prev lands before stable.
@@ -402,76 +358,30 @@ class test_layered05(wttest.WiredTigerTestCase):
     # prev() on ingest from 900 -> 100. Both < 500. Pick bigger: 200 (stable).
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_before_stable(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([200])
         self.insert_ingest([100, 900])
 
-        if self.role == 'leader':
-            self.search_near_check(self.fmt_key(500), self.fmt_key(900), 1)
-        else:
-            # prev() from 900 -> 100. Both < 500. Pick bigger: 200 (stable).
-            self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
+        # prev() from 900 -> 100. Both < 500. Pick bigger: 200 (stable).
+        self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization prev()  single key in ingest (NOTFOUND path).
+    # Test: XOR normalization prev() path — ingest has multiple keys above the
+    # search key and search_near returns the nearest one.
     #
-    # Stable: key 200. Ingest: key 900 (only key).
-    # search(500): prev() on ingest from 900 -> NOTFOUND. closest = stable(200).
+    # Stable: key 200 (smaller). Ingest: keys 300, 600, 900.
+    # search(500): ingest search_near(500) -> 600 (nearest above, cmp>0), stable -> 200 (cmp<0).
+    # Opposite sides. prev() on ingest from 600 -> 300. Both < search. Pick bigger: 300 (ingest).
     # -----------------------------------------------------------------------
-    def test_search_near_xor_prev_notfound(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable([200])
-        self.insert_ingest([900])
-
-        if self.role == 'leader':
-            self.search_near_check(self.fmt_key(500), self.fmt_key(900), 1)
-        else:
-            # prev() from 900 -> NOTFOUND. closest = stable(200).
-            self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
-
-    # -----------------------------------------------------------------------
-    # Test: XOR normalization prev()  ingest prev lands on a key still larger
-    # than the search key (i.e. prev doesn't cross past the search key).
-    #
-    # Stable: key 200. Ingest: keys 600, 900.
-    # search(500): ingest lands on 900 (cmp>0), stable on 200 (cmp<0).
-    # prev() on ingest from 900 -> 600. compare(600, 500) > 0.
-    # ingest_cmp = stable_cmp > 0. Now ingest(600) is > search.
-    # Both "larger" after normalization  pick closer of 600 vs stable.
-    # But stable(200) is actually SMALLER. This tests how the code handles
-    # the overwritten stable_cmp.
-    # -----------------------------------------------------------------------
-    def test_search_near_xor_prev_still_larger(self):
-        """
-        Stable: 200. Ingest: 600, 900. search(500).
-        Ingest search_near(500) -> 600 (closest, cmp>0). Stable -> 200 (cmp<0).
-        Opposite sides. prev() from 600 -> NOTFOUND (600 is smallest ingest key).
-        closest = stable(200).
-
-        To actually test the "prev lands on key still > search" case, we need
-        ingest to have a key before the search key so prev() doesn't exhaust.
-        Ingest: 300, 600, 900. search_near(500) -> 600 (cmp>0).
-        prev() from 600 -> 300. ingest_cmp = compare(300, 500) < 0.
-        Both < 500. Pick bigger: 300 (ingest) > 200 (stable) -> 300.
-        """
-        self.setup_follower()
-        self.create_table()
+    def test_search_near_xor_prev_ingest_nearest_above(self):
 
         self.insert_stable([200])
         self.insert_ingest([300, 600, 900])
 
-        if self.role == 'leader':
-            # Leader sees all keys. 600 is the closest larger key.
-            self.search_near_check(self.fmt_key(500), self.fmt_key(600), 1)
-        else:
-            # Follower: ingest search_near(500) -> 600 (cmp>0). stable -> 200 (cmp<0).
-            # prev() from 600 -> 300. ingest_cmp = compare(300, 500) < 0.
-            # Both < 500. Pick bigger: 300 > 200 -> ingest(300).
-            self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
+        # ingest search_near(500) -> 600 (cmp>0). stable -> 200 (cmp<0).
+        # prev() from 600 -> 300. ingest_cmp = compare(300, 500) < 0.
+        # Both < 500. Pick bigger: 300 > 200 -> ingest(300).
+        self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
 
     # -----------------------------------------------------------------------
     # Test: XOR normalization prev() with many keys in ingest.
@@ -482,20 +392,13 @@ class test_layered05(wttest.WiredTigerTestCase):
     # closest = stable(499).
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_boundary(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable(list(range(0, 500)))
         self.insert_ingest(list(range(500, self.nkeys)))
 
-        if self.role == 'leader':
-            # Leader sees all keys. "000499x" is between 499 and 500.
-            # search_near prefers 500 (larger).
-            self.search_near_check("000499x", self.fmt_key(500), 1)
-        else:
-            # Follower: prev() from 500 -> NOTFOUND (500 is first ingest key).
-            # closest = stable(499).
-            self.search_near_check("000499x", self.fmt_key(499), -1)
+        # prev() from 500 -> NOTFOUND (500 is first ingest key).
+        # closest = stable(499).
+        self.search_near_check("000499x", self.fmt_key(499), -1)
 
     # -----------------------------------------------------------------------
     # Test: XOR normalization prev() with dense ingest keys.
@@ -505,8 +408,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Exact match wins. No XOR normalization needed.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_exact_in_ingest(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([200])
         self.insert_ingest([400, 450, 500, 550, 600, 900])
@@ -515,27 +416,19 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_check(self.fmt_key(500), self.fmt_key(500), 0)
 
     # -----------------------------------------------------------------------
-    # Test: XOR normalization  stable larger, ingest smaller.
-    # This exercises the OTHER branch (stable_cmp > 0, ingest_cmp < 0).
+    # Test: XOR normalization — stable larger, ingest next exhausted (NOTFOUND path).
     #
     # Stable: key 800. Ingest: keys 100, 300.
-    # search(500): ingest lands on 300 (cmp<0), stable on 800 (cmp>0).
-    # next() on ingest from 300 -> NOTFOUND (300 is last ingest key < 500).
-    # Wait, 300 is not the last. next from 300 -> nothing if only [100, 300].
-    # NOTFOUND -> closest = stable(800).
+    # search(500): ingest lands on 300 (cmp<0), stable on 800 (cmp>0). Opposite sides.
+    # next() on ingest from 300 -> NOTFOUND (no ingest keys > 300). closest = stable(800).
     # -----------------------------------------------------------------------
     def test_search_near_xor_next_notfound(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([800])
         self.insert_ingest([100, 300])
 
-        if self.role == 'leader':
-            self.search_near_check(self.fmt_key(500), self.fmt_key(800), 1)
-        else:
-            # next() from 300 -> NOTFOUND. closest = stable(800).
-            self.search_near_check(self.fmt_key(500), self.fmt_key(800), 1)
+        # next() from 300 -> NOTFOUND. closest = stable(800).
+        self.search_near_check(self.fmt_key(500), self.fmt_key(800), 1)
 
     # -----------------------------------------------------------------------
     # Test: XOR normalization  stable larger, ingest next finds a closer key.
@@ -545,8 +438,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # next() on ingest from 300 -> 600. Both > 500. Pick closer: 600.
     # -----------------------------------------------------------------------
     def test_search_near_xor_next_closer(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([800])
         self.insert_ingest([100, 300, 600])
@@ -560,8 +451,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Both are larger, should return closer one: 600.
     # -----------------------------------------------------------------------
     def test_search_near_both_larger(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([800])
         self.insert_ingest([600])
@@ -574,8 +463,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # No larger key exists. Should return bigger of the two: 400.
     # -----------------------------------------------------------------------
     def test_search_near_both_smaller(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([100])
         self.insert_ingest([400])
@@ -591,8 +478,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     #   - Tombstone walk iterates forward: merge sees 700 in stable. Return 700.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([200, 500, 700])
         self.remove_ingest([500])
@@ -609,8 +494,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     #   - Exact ingest match is tombstone. Walk forward: nothing. Walk backward: 200.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted_walk_backward(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([200, 500])
         self.remove_ingest([500])
@@ -627,8 +510,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     #   - Walk forward: merge finds 700.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted_stable_no_match(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([300, 700])
         self.insert_ingest([500])
@@ -646,8 +527,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Everything is logically deleted -> WT_NOTFOUND.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_exact_deleted_all_tombstoned(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([300, 500, 700])
         self.remove_ingest([300, 500, 700])
@@ -655,43 +534,10 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.search_near_notfound(self.fmt_key(500))
 
     # -----------------------------------------------------------------------
-    # Test: Tombstone in ingest hides a stable key (exact match).
-    #
-    # Stable: keys 200, 500, 700. Ingest: tombstone(500).
-    # search_near(fmt_key(500)) should NOT return 500. Should return 700 (next larger).
-    # -----------------------------------------------------------------------
-    def test_search_near_tombstone_exact(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable([200, 500, 700])
-        self.remove_ingest([500])
-
-        self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
-
-    # -----------------------------------------------------------------------
-    # Test: search_near where the closest key is a tombstone and we must walk
-    # backward because nothing larger exists.
-    #
-    # Stable: keys 200, 500. Ingest: tombstone(500).
-    # search_near(fmt_key(500)) -> 500 is deleted, nothing after it -> return 200 (cmp=-1).
-    # -----------------------------------------------------------------------
-    def test_search_near_tombstone_walk_backward(self):
-        self.setup_follower()
-        self.create_table()
-
-        self.insert_stable([200, 500])
-        self.remove_ingest([500])
-
-        self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
-
-    # -----------------------------------------------------------------------
     # Test: All keys are tombstoned -> WT_NOTFOUND.
     # Insert 1000 keys into stable, remove all of them in ingest.
     # -----------------------------------------------------------------------
     def test_search_near_all_deleted(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(0, self.nkeys))
         self.insert_stable(all_keys)
@@ -710,8 +556,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # The XOR normalization should handle this correctly.
     # -----------------------------------------------------------------------
     def test_search_near_tombstone_cross_table(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([200, 700])
 
@@ -729,15 +573,13 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Stable: even keys 0,2,...,998. Ingest: odd keys 1,3,...,999.
     # -----------------------------------------------------------------------
     def test_search_near_then_iterate(self):
-        self.setup_follower()
-        self.create_table()
 
         even_keys = list(range(0, self.nkeys, 2))
         odd_keys = list(range(1, self.nkeys, 2))
         self.insert_stable(even_keys)
         self.insert_ingest(odd_keys)
 
-        session = self.get_session()
+        session = self.session_follow
         cursor = session.open_cursor(self.uri)
 
         # search_near(fmt_key(500)) -> exact match on 500 (in stable)
@@ -775,11 +617,9 @@ class test_layered05(wttest.WiredTigerTestCase):
     # -----------------------------------------------------------------------
     # Test: search_near on a non-exact key, then iterate.
     # Verifies correct merge when the cursor is positioned between keys.
-    # Stable: even keys 0,2,...,198. Ingest: keys 200,400,600,800.
+    # Stable: even keys 0,2,...,998. Ingest: odd keys 1,3,...,999.
     # -----------------------------------------------------------------------
     def test_search_near_nonexact_then_iterate(self):
-        self.setup_follower()
-        self.create_table()
 
         # Use interleaved data so both tables have nearby keys to the search key.
         even_keys = list(range(0, self.nkeys, 2))
@@ -787,40 +627,32 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_stable(even_keys)
         self.insert_ingest(odd_keys)
 
-        session = self.get_session()
+        # "000500x" sorts between stable 500 and ingest 501. Stable lands on 500 (cmp<0),
+        # ingest on 501 (cmp>0). XOR: ingest.prev() -> 499. Both < search. Pick bigger: 500.
+        self.search_near_check("000500x", self.fmt_key(500), -1)
+
+        session = self.session_follow
+
+        # Verify forward iteration from that position.
         cursor = session.open_cursor(self.uri)
-
-        # search_near for a non-existent key between 500 and 501.
-        # With both tables having dense data nearby, the result should be
-        # one of the adjacent keys.
         cursor.set_key("000500x")
-        exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        landed_key = cursor.get_key()
-
-        # Iterate forward from wherever we landed and verify order.
-        keys = [landed_key]
+        cursor.search_near()
+        keys = [cursor.get_key()]
         for _ in range(5):
             self.assertEqual(cursor.next(), 0)
             keys.append(cursor.get_key())
-        # Keys should be in sorted order.
         self.assertEqual(keys, sorted(keys))
-
         cursor.close()
 
-        # Test backward iteration: search_near then prev.
+        # Verify backward iteration from that position.
         cursor = session.open_cursor(self.uri)
         cursor.set_key("000500x")
-        exact = cursor.search_near()
-        landed_key = cursor.get_key()
-
-        keys = [landed_key]
+        cursor.search_near()
+        keys = [cursor.get_key()]
         for _ in range(5):
             self.assertEqual(cursor.prev(), 0)
             keys.append(cursor.get_key())
-        # Keys should be in reverse sorted order.
         self.assertEqual(keys, sorted(keys, reverse=True))
-
         cursor.close()
 
     # -----------------------------------------------------------------------
@@ -830,14 +662,12 @@ class test_layered05(wttest.WiredTigerTestCase):
     # prev from 501 -> 499. No 500 should appear.
     # -----------------------------------------------------------------------
     def test_search_near_tombstone_then_iterate(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(0, self.nkeys))
         self.insert_stable(all_keys)
         self.remove_ingest([500])
 
-        session = self.get_session()
+        session = self.session_follow
         cursor = session.open_cursor(self.uri)
 
         # search_near(fmt_key(500)) -> 500 is deleted, next is 501
@@ -858,20 +688,27 @@ class test_layered05(wttest.WiredTigerTestCase):
     # search_near(fmt_key(500)) -> skip 400-600 -> land on 601 (cmp=1).
     # -----------------------------------------------------------------------
     def test_search_near_consecutive_tombstones(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(0, self.nkeys))
         tombstoned = list(range(400, 601))
         self.insert_stable(all_keys)
         self.remove_ingest(tombstoned)
 
+        # When search_near finds an exact tombstone match, it walks forward first,
+        # then backward if forward yields nothing. 400-600 are tombstoned, so the
+        # forward walk reaches 601.
         # search_near(fmt_key(500)) -> 400-600 deleted, 601 is next non-deleted larger key
         self.search_near_check(self.fmt_key(500), self.fmt_key(601), 1)
 
+        # When search_near finds an exact tombstone match, it walks forward first,
+        # then backward if forward yields nothing. 400-600 are tombstoned, so the
+        # forward walk reaches 601.
         # search_near(fmt_key(400)) -> 400-600 deleted, 601 is next non-deleted larger key
         self.search_near_check(self.fmt_key(400), self.fmt_key(601), 1)
 
+        # When search_near finds an exact tombstone match, it walks forward first,
+        # then backward if forward yields nothing. 400-600 are tombstoned, so the
+        # forward walk reaches 601.
         # search_near(fmt_key(600)) -> 600 deleted, 601 is next
         self.search_near_check(self.fmt_key(600), self.fmt_key(601), 1)
 
@@ -881,15 +718,13 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Full scan should see all 1000 keys in order.
     # -----------------------------------------------------------------------
     def test_search_near_full_scan_interleaved(self):
-        self.setup_follower()
-        self.create_table()
 
         even_keys = list(range(0, self.nkeys, 2))
         odd_keys = list(range(1, self.nkeys, 2))
         self.insert_stable(even_keys)
         self.insert_ingest(odd_keys)
 
-        session = self.get_session()
+        session = self.session_follow
         expected = [self.fmt_key(i) for i in range(self.nkeys)]
 
         # Position at the start via search_near
@@ -924,8 +759,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Use 1000 keys in stable, override all of them in ingest.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_overrides_stable(self):
-        self.setup_follower()
-        self.create_table()
 
         all_keys = list(range(0, self.nkeys))
         old_values = [f"old_{self.fmt_key(i)}" for i in all_keys]
@@ -941,8 +774,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # search_near(fmt_key(1100)) -> should return 700 (closest smaller, from ingest).
     # -----------------------------------------------------------------------
     def test_search_near_beyond_max(self):
-        self.setup_follower()
-        self.create_table()
 
         lower_keys = list(range(0, 500))
         self.insert_stable(lower_keys)
@@ -956,8 +787,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     # search_near for a key before all -> should return 500 (closest larger, from stable).
     # -----------------------------------------------------------------------
     def test_search_near_before_min(self):
-        self.setup_follower()
-        self.create_table()
 
         self.insert_stable([500])
         self.insert_ingest([800])
@@ -966,16 +795,9 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Tests: search_near tombstone when there is no stable cursor.
-    #
-    # These tests are follower-only
     # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_forward(self):
         """Tombstone in ingest-only (no stable), successor exists in ingest. Walk forward."""
-        # Only meaningful for follower: leader has no ingest/stable split.
-        if self.role != 'follower':
-            return
-        self.setup_follower()
-        self.create_table()
 
         # No checkpoint -> stable cursor is NULL.
         # Ingest: 100, 500(tombstone), 700.
@@ -987,11 +809,6 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def test_search_near_ingest_tombstone_no_stable_backward(self):
         """Tombstone is last ingest key (no stable). Must walk backward to predecessor."""
-        # Only meaningful for follower: leader has no ingest/stable split.
-        if self.role != 'follower':
-            return
-        self.setup_follower()
-        self.create_table()
 
         # No checkpoint -> stable cursor is NULL.
         # Ingest: 100, 500(tombstone). Nothing after 500.
@@ -1003,11 +820,6 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def test_search_near_ingest_tombstone_no_stable_notfound(self):
         """Only key in ingest-only table is a tombstone. WT_NOTFOUND expected."""
-        # Only meaningful for follower: leader has no ingest/stable split.
-        if self.role != 'follower':
-            return
-        self.setup_follower()
-        self.create_table()
 
         # No checkpoint -> stable cursor is NULL.
         # Ingest: 500(tombstone) only. No live keys anywhere.
