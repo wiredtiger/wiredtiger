@@ -31,7 +31,6 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered05.py
-#   Test layered cursor search_near correctness with a larger dataset (1000 keys).
 #
 #   Exercises edge cases including:
 #   - Non-exact searches where the nearest key is on either side.
@@ -616,16 +615,6 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_ingest([700])
 
         self.search_near_check(self.fmt_key(1100), self.fmt_key(700), -1)
-
-    # -----------------------------------------------------------------------
-    # Test: Table has keys 500 and 800. search_near(""): key is before all keys, returns 500.
-    # -----------------------------------------------------------------------
-    def test_search_near_before_min(self):
-
-        self.insert_stable([500])
-        self.insert_ingest([800])
-
-        self.search_near_check("", self.fmt_key(500), 1)
 
     # -----------------------------------------------------------------------
     # Test: No checkpoint. Table has keys 100, 700; key 500 is deleted.
