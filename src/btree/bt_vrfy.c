@@ -274,22 +274,20 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
      *    the stored database_size was not written (e.g. metadata corruption). The comparison
      *    below will catch this because total_size + WT_DISAGG_CHECKPOINT_SIZE_BUFFER != 0.
      */
-    if (database_size == 0 && total_size == 0)
-        goto done;
+    if (database_size != 0 || total_size != 0) {
+        /*
+         * Add the fixed overhead for the KEK table and shared turtle page. These are not tracked in
+         * any btree's checkpoint size but are always included in database_size.
+         */
+        total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
-    /*
-     * Add the fixed overhead for the KEK table and shared turtle page. These are not tracked in any
-     * btree's checkpoint size but are always included in database_size.
-     */
-    total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+        if (total_size != database_size)
+            WT_ERR_MSG(session, WT_ERROR,
+              "database size mismatch: sum of btree checkpoint sizes %" PRIu64
+              " does not match stored database size %" PRIu64,
+              total_size, database_size);
+    }
 
-    if (total_size != database_size)
-        WT_ERR_MSG(session, WT_ERROR,
-          "database size mismatch: sum of btree checkpoint sizes %" PRIu64
-          " does not match stored database size %" PRIu64,
-          total_size, database_size);
-
-done:
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
