@@ -439,6 +439,9 @@ __clayered_advance_stable(
             WT_ITEM_SET(clayered->stable_cursor->value, old_stable->value);
     }
 
+    /* Add any bounds for the new cursor. */
+    WT_ERR(__clayered_copy_bounds(clayered));
+
     if (clayered->current_cursor == old_stable) {
         WT_CURSOR *cursor = (WT_CURSOR *)clayered;
         WT_CURSOR *new_stable = clayered->stable_cursor;
@@ -451,8 +454,6 @@ __clayered_advance_stable(
         clayered->current_cursor = new_stable;
     }
 
-    /* Add any bounds for the new cursor. */
-    WT_ERR(__clayered_copy_bounds(clayered));
 err:
     if (ret == 0) {
         /* Close the old cursor. */
