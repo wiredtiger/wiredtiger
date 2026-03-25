@@ -941,7 +941,7 @@ protected:
     std::once_flag create_table;
     std::shared_mutex conn_state; /* protects 'connections' list and map */
     std::list<Connection *> connections_shared_list;
-    std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections_per_thread;
+    std::unordered_map<std::thread::id, Connection *> connections_per_thread;
 
 public:
     std::shared_mutex access; /* readers-writer mutex for table */
@@ -955,7 +955,12 @@ public:
     void
     close()
     {
-        std::ranges::for_each(connections_per_thread, [](auto &kv) { kv.second->close(); });
+        std::unique_lock write_lock(conn_state);
+
+        std::ranges::for_each(connections_per_thread, [](auto &kv) {
+            kv.second->close();
+            delete kv.second;
+        });
         std::ranges::for_each(connections_shared_list, [](auto &conn) {
             conn->close();
             delete conn;
@@ -1052,18 +1057,18 @@ private:
             std::shared_lock read_lock(conn_state);
             auto it = connections_per_thread.find(std::this_thread::get_id());
             if (it != connections_per_thread.end())
-                return it->second.get();
+                return it->second;
         }
 
         {
             std::unique_lock write_lock(conn_state);
             auto [it, inserted] = connections_per_thread.try_emplace(
-              std::this_thread::get_id(), std::make_unique<Connection>(config, table_file));
+              std::this_thread::get_id(), new Connection(config, table_file));
 
             if (!inserted)
                 LOG_AND_THROW("Connection already exists for this thread");
 
-            Connection *new_conn = it->second.get();
+            Connection *new_conn = it->second;
             new_conn->configure(static_cast<Traits *>(this)->conn_config());
 
             std::call_once(
