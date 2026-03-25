@@ -253,10 +253,8 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
 
         /* Get the checkpoint list. Skip files with no checkpoints. */
         WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, uri, false, &ckptbase, NULL), true);
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
+        if (ret == WT_NOTFOUND)
             continue;
-        }
 
         /* Find most recent non-fake checkpoint. */
         last_ckpt = NULL;
