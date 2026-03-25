@@ -773,6 +773,7 @@ err:
 static int
 __clayered_position_alternate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *alternate, bool forward)
 {
+    WT_DECL_RET;
     int cmp;
 
     WT_CURSOR *current = clayered->current_cursor;
@@ -780,7 +781,11 @@ __clayered_position_alternate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *alternate,
 
     WT_ASSERT(session, F_ISSET(current, WT_CURSTD_KEY_SET));
     alternate->set_key(alternate, &current->key);
-    WT_RET(alternate->search_near(alternate, &cmp));
+    ret = alternate->search_near(alternate, &cmp);
+    /* Cleanup the key state if not found is returned. */
+    if (ret == WT_NOTFOUND)
+        F_CLR(alternate, WT_CURSTD_KEY_EXT);
+    WT_RET(ret);
 
     while (forward ? cmp < 0 : cmp > 0) {
         WT_RET(forward ? alternate->next(alternate) : alternate->prev(alternate));
