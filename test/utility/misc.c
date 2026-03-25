@@ -595,27 +595,29 @@ void
 testutil_sprintf_item(WT_ITEM *item, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)))
 {
-    size_t orig_size;
-    va_list ap;
+    size_t needed;
+    va_list ap, ap_copy;
 
-    orig_size = item->memsize;
     va_start(ap, fmt);
-    testutil_check(
-      __wt_vsnprintf_len_incr((char *)item->mem, item->memsize, &item->memsize, fmt, ap));
+    va_copy(ap_copy, ap);
+
+    /* First call with a zero-size buffer to measure the required length. */
+    needed = 0;
+    testutil_check(__wt_vsnprintf_len_incr(NULL, 0, &needed, fmt, ap));
     va_end(ap);
-    item->size = item->memsize;
-    if (item->memsize > orig_size) {
-        /*
-         * There was not enough room the first time. Realloc and try again, and there should be
-         * exactly enough room.
-         */
-        drealloc(item->mem, item->memsize);
-        va_start(ap, fmt);
-        testutil_check(
-          __wt_vsnprintf_len_incr((char *)item->mem, item->memsize, &item->memsize, fmt, ap));
-        va_end(ap);
-        testutil_assert(item->size == item->memsize);
+
+    /* Grow the buffer if needed, accounting for the null terminator. */
+    if (needed + 1 > item->memsize) {
+        item->mem = drealloc(item->mem, needed + 1);
+        item->memsize = needed + 1;
     }
+
+    /* Second call: write the string into the buffer. */
+    item->size = 0;
+    testutil_check(
+      __wt_vsnprintf_len_incr((char *)item->mem, item->memsize, &item->size, fmt, ap_copy));
+    va_end(ap_copy);
+
     item->data = item->mem;
 }
 
