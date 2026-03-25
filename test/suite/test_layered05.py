@@ -315,44 +315,47 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Test: Table has keys 498 and 900. search_near(500).
-    # 498 is much nearer (distance 2 vs 400). Returns 498.
+    # Both adjacent neighbors are valid results: 498 (below) or 900 (above).
     # -----------------------------------------------------------------------
     def test_search_near_opposite_sides_farther(self):
 
         self.insert_stable([498])
         self.insert_ingest([900])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(498), -1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(498), self.fmt_key(900))
 
     # -----------------------------------------------------------------------
-    # Test: Table has keys 200, 300, 900. search_near(500): nearest key below 500 is 300.
+    # Test: Table has keys 200, 300, 900. search_near(500): adjacent neighbors are
+    # 300 (below) and 900 (above); either is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_between(self):
 
         self.insert_stable([200])
         self.insert_ingest([300, 900])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(300), self.fmt_key(900))
 
     # -----------------------------------------------------------------------
-    # Test: Table has keys 100, 200, 900. search_near(500): nearest key below 500 is 200.
+    # Test: Table has keys 100, 200, 900. search_near(500): adjacent neighbors are
+    # 200 (below) and 900 (above); either is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_before_stable(self):
 
         self.insert_stable([200])
         self.insert_ingest([100, 900])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(200), -1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(200), self.fmt_key(900))
 
     # -----------------------------------------------------------------------
-    # Test: Table has keys 200, 300, 600, 900. search_near(500): nearest key below 500 is 300.
+    # Test: Table has keys 200, 300, 600, 900. search_near(500): adjacent neighbors are
+    # 300 (below) and 600 (above); either is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_xor_prev_ingest_nearest_above(self):
 
         self.insert_stable([200])
         self.insert_ingest([300, 600, 900])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(300), -1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(300), self.fmt_key(600))
 
     # -----------------------------------------------------------------------
     # Test: Table has keys 100, 300, 800. search_near(500): nearest key above 500 is 800.
