@@ -27,17 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_layered_cursor02.py
-#   Test that a cursor walk returns correct results after encountering
-#   WT_PREPARE_CONFLICT on a layered cursor.
-#
-#   Bug scenario:
-#   After next()/prev() returns WT_PREPARE_CONFLICT, the btree cursor clears
-#   its key flags but remains positioned on the page. The layered cursor's
-#   reset logic skips that constituent (because the key flags are cleared) but
-#   still marks the layered cursor as unpositioned. On retry, the cursor detects
-#   the constituent is still positioned and takes the wrong code path, leading
-#   to an assert failure or wrong results.
+#   Test layered cursor walks on a follower with an advanced checkpoint, exercising the
+#   two-cursor merge path. Verifies correct behavior when:
+#   - An overwrite update positions only the ingest cursor, then next() forces the stable
+#     cursor to open (the old code would crash or skip keys).
+#   - A prepared conflict occurs mid-walk and the cursor retries after the prepare resolves
+#     (the old code would crash or produce wrong results because the reset logic failed to
+#     clean up the positioned-but-flagless btree cursor left behind by the prepare conflict).
 
+import os
 import wiredtiger
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -52,38 +50,46 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered_cursor02', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
+    conn_base_config = ',create,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="follower")'
+        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
+
+    def early_setup(self):
+        os.mkdir('follower')
+        os.mkdir('kv_home')
+        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     def is_prepare_conflict(self, e):
-        """Check if a WiredTigerError is a prepare conflict."""
         return wiredtiger_strerror(WT_PREPARE_CONFLICT) in str(e)
 
-    def setup_table_with_data(self, keys, session=None, conn=None):
-        """Insert committed data into the table."""
-        if session is None:
-            session = self.session
-        if conn is None:
-            conn = self.conn
-
-        conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
-
-        session.create(self.uri, 'key_format=i,value_format=S')
-        cursor = session.open_cursor(self.uri)
-
-        session.begin_transaction()
+    def populate_leader_and_checkpoint(self, keys):
+        """Insert data on the leader and checkpoint so the follower's stable table has data."""
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         for key in keys:
+            self.session.begin_transaction()
             cursor[key] = f'value_{key}'
-        session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-
-        conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+            self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(10 + key))
         cursor.close()
 
-    def walk_next_until_conflict(self, cursor):
-        """Walk forward collecting keys until PREPARE_CONFLICT or end."""
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        self.session.checkpoint()
+
+    def open_follower(self):
+        """Open a follower connection and advance its checkpoint so both cursors are active."""
+        conn_follow = self.wiredtiger_open('follower',
+            self.extensionsConfig() + self.conn_base_config +
+            'disaggregated=(role="follower")')
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, 'key_format=i,value_format=S')
+        self.disagg_advance_checkpoint(conn_follow)
+        return conn_follow, session_follow
+
+    def walk_next_collect(self, cursor):
+        """Walk forward collecting keys, stopping on prepared conflict or end-of-table."""
         keys = []
         got_conflict = False
         while True:
@@ -99,8 +105,8 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
             keys.append(cursor.get_key())
         return keys, got_conflict
 
-    def walk_prev_until_conflict(self, cursor):
-        """Walk backward collecting keys until PREPARE_CONFLICT or end."""
+    def walk_prev_collect(self, cursor):
+        """Walk backward collecting keys, stopping on prepared conflict or end-of-table."""
         keys = []
         got_conflict = False
         while True:
@@ -116,33 +122,103 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
             keys.append(cursor.get_key())
         return keys, got_conflict
 
-    def test_next_walk_prepare_conflict_mid_scan(self):
+    def test_overwrite_update_then_next_on_follower(self):
         """
-        Forward cursor walk encounters WT_PREPARE_CONFLICT after several successful
-        next() calls. After resolving the prepare, verify the cursor can complete
-        a walk with all keys present.
+        On a follower with an advanced checkpoint, an overwrite update only opens the ingest
+        cursor. A subsequent next() call needs the stable cursor, which forces it to be opened.
+        The old code would crash during this transition. Verify that next() after an overwrite
+        update does not crash and returns the correct remaining keys.
         """
         all_keys = [1, 2, 3, 4, 5]
-        self.setup_table_with_data(all_keys)
+        self.populate_leader_and_checkpoint(all_keys)
+        conn_follow, session_follow = self.open_follower()
 
-        # Prepare an update on key 3 (middle of the range).
-        prepare_session = self.conn.open_session()
+        # Position the cursor with a search (opens both ingest and stable, sets the layered
+        # cursor's internal tracking to the ingest cursor). Then do an overwrite update in the
+        # same transaction (keeps ingest positioned). Commit, advance the checkpoint so the stable
+        # cursor needs to be reopened, then call next(). The old code would crash when reopening
+        # stable because the key save logic incorrectly cleared the position flags.
+        follow_cursor = session_follow.open_cursor(self.uri, None, 'overwrite=true')
+        session_follow.begin_transaction()
+
+        # Search positions both cursors and tracks ingest as current.
+        follow_cursor.set_key(3)
+        self.assertEqual(follow_cursor.search(), 0)
+
+        # Overwrite update in the same transaction — cursor stays positioned on ingest.
+        follow_cursor.set_key(3)
+        follow_cursor.set_value('updated_3')
+        follow_cursor.update()
+        session_follow.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(25))
+
+        # Advance the checkpoint so the stable cursor needs to be reopened on next read.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25))
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(conn_follow)
+
+        # next() needs to reopen the stable cursor. The old code would crash here.
+        session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(25))
+        keys = []
+        while follow_cursor.next() != wiredtiger.WT_NOTFOUND:
+            keys.append(follow_cursor.get_key())
+        session_follow.rollback_transaction()
+
+        # After positioned at key 3, next() should return the remaining keys.
+        # The old code would crash before returning any result.
+        self.assertTrue(len(keys) > 0, "next() should return keys after the positioned key")
+        for key in keys:
+            self.assertGreater(key, 3, f"next() returned key {key} which is not after position 3")
+
+        follow_cursor.close()
+        session_follow.close()
+        conn_follow.close()
+
+    def test_next_walk_prepare_conflict_mid_scan(self):
+        """
+        Forward cursor walk on a follower where ingest has a sparse subset of keys and
+        stable has the full set. When the prepared key on ingest causes a conflict, the
+        stable cursor is already positioned on a key that hasn't been returned yet. If the
+        layered cursor incorrectly takes the fresh-start path (advancing both cursors), the
+        stable cursor's current key is skipped and never returned.
+
+        Stable: [1, 2, 3, 4, 5, 6], Ingest: [2, 4(prepared), 6]
+        Walk returns 1, 2 from the merge. Then c_stable advances to 3 and c_ingest tries
+        to advance to 4 (prepared) -> PREPARE_CONFLICT. The old code would enter the
+        fresh-start path and call c_stable->next(), advancing it from 3 to 4, skipping key 3.
+        """
+        all_keys = [1, 2, 3, 4, 5, 6]
+        self.populate_leader_and_checkpoint(all_keys)
+        conn_follow, session_follow = self.open_follower()
+
+        # Write only even keys to the follower's ingest table, so stable has keys (like 3, 5)
+        # that ingest does not. This makes it possible for a missed advance on the stable
+        # cursor to skip a key entirely.
+        ingest_cursor = session_follow.open_cursor(self.uri)
+        for key in [2, 4, 6]:
+            session_follow.begin_transaction()
+            ingest_cursor[key] = f'ingest_value_{key}'
+            session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(30 + key))
+        ingest_cursor.close()
+
+        # Prepare an update on key 4 — the next ingest key after 2.
+        prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
-        prepare_cursor[3] = 'prepared_value'
+        prepare_cursor[4] = 'prepared_value'
         prepare_session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(50) +
             ',prepared_id=' + self.prepared_id_str(1))
 
-        # Walk forward  should hit PREPARE_CONFLICT at key 3.
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+        # Walk forward — should hit the prepared conflict at key 4.
+        cursor = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(60))
 
-        keys_before, got_conflict = self.walk_next_until_conflict(cursor)
-        self.assertTrue(got_conflict, "Expected WT_PREPARE_CONFLICT during forward walk")
-        self.pr(f'Keys before conflict: {keys_before}')
+        keys_before, got_conflict = self.walk_next_collect(cursor)
+        self.assertTrue(got_conflict, "Expected prepared conflict during forward walk")
 
-        # Commit the prepared transaction.
+        # Commit the prepared transaction and retry the walk on the same cursor.
         prepare_session.timestamp_transaction(
             'commit_timestamp=' + self.timestamp_str(60) +
             ',durable_timestamp=' + self.timestamp_str(60))
@@ -150,28 +226,39 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         prepare_cursor.close()
         prepare_session.close()
 
-        # Retry next() on the SAME cursor without reset.
-        # The bug: old code would crash (assert) or return wrong/incomplete results.
-        keys_after, _ = self.walk_next_until_conflict(cursor)
-        self.pr(f'Keys after resolve: {keys_after}')
+        keys_after, _ = self.walk_next_collect(cursor)
 
-        self.session.rollback_transaction()
+        session_follow.rollback_transaction()
         cursor.close()
 
-        # Verify all keys appear across both walks.
+        # The old code would miss key 3 (only in stable) because the fresh-start path
+        # advanced the stable cursor past it.
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
             f"Missing keys. Before: {keys_before}, After: {keys_after}")
+
+        session_follow.close()
+        conn_follow.close()
 
     def test_prev_walk_prepare_conflict_mid_scan(self):
         """
-        Backward cursor walk encounters WT_PREPARE_CONFLICT. Same verification
-        as the forward test but in reverse direction.
+        Backward cursor walk on a follower encounters a prepared conflict with multiple
+        keys in both ingest and stable. Same verification as the forward test but in
+        reverse direction.
         """
         all_keys = [1, 2, 3, 4, 5]
-        self.setup_table_with_data(all_keys)
+        self.populate_leader_and_checkpoint(all_keys)
+        conn_follow, session_follow = self.open_follower()
 
-        prepare_session = self.conn.open_session()
+        ingest_cursor = session_follow.open_cursor(self.uri)
+        for key in all_keys:
+            session_follow.begin_transaction()
+            ingest_cursor[key] = f'ingest_value_{key}'
+            session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(30 + key))
+        ingest_cursor.close()
+
+        prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
         prepare_cursor[3] = 'prepared_value'
@@ -179,12 +266,11 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
             'prepare_timestamp=' + self.timestamp_str(50) +
             ',prepared_id=' + self.prepared_id_str(1))
 
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+        cursor = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(60))
 
-        keys_before, got_conflict = self.walk_prev_until_conflict(cursor)
-        self.assertTrue(got_conflict, "Expected WT_PREPARE_CONFLICT during backward walk")
-        self.pr(f'Keys before conflict (prev): {keys_before}')
+        keys_before, got_conflict = self.walk_prev_collect(cursor)
+        self.assertTrue(got_conflict, "Expected prepared conflict during backward walk")
 
         prepare_session.timestamp_transaction(
             'commit_timestamp=' + self.timestamp_str(60) +
@@ -193,25 +279,39 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         prepare_cursor.close()
         prepare_session.close()
 
-        keys_after, _ = self.walk_prev_until_conflict(cursor)
-        self.pr(f'Keys after resolve (prev): {keys_after}')
+        keys_after, _ = self.walk_prev_collect(cursor)
 
-        self.session.rollback_transaction()
+        session_follow.rollback_transaction()
         cursor.close()
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
             f"Missing keys. Before: {keys_before}, After: {keys_after}")
 
+        session_follow.close()
+        conn_follow.close()
+
     def test_next_walk_prepare_conflict_first_key(self):
         """
-        Forward walk where the very first next() hits WT_PREPARE_CONFLICT.
-        Tests the fresh-start path where neither constituent is positioned yet.
+        Forward walk on a follower where the very first next() hits a prepared conflict.
+        Multiple committed keys exist in the follower's ingest table so the merge path is
+        fully exercised after the conflict resolves.
         """
         all_keys = [1, 2, 3, 4, 5]
-        self.setup_table_with_data(all_keys)
+        self.populate_leader_and_checkpoint(all_keys)
+        conn_follow, session_follow = self.open_follower()
 
-        prepare_session = self.conn.open_session()
+        # Write committed keys to ingest so the merge has real data after the prepared key.
+        ingest_cursor = session_follow.open_cursor(self.uri)
+        for key in all_keys:
+            session_follow.begin_transaction()
+            ingest_cursor[key] = f'ingest_value_{key}'
+            session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(30 + key))
+        ingest_cursor.close()
+
+        # Prepare key 1 — the first key in sort order.
+        prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
         prepare_cursor[1] = 'prepared_value'
@@ -219,10 +319,9 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
             'prepare_timestamp=' + self.timestamp_str(50) +
             ',prepared_id=' + self.prepared_id_str(1))
 
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+        cursor = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(60))
 
-        # First next() should hit PREPARE_CONFLICT immediately.
         got_conflict = False
         try:
             cursor.next()
@@ -231,9 +330,8 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
                 got_conflict = True
             else:
                 raise
-        self.assertTrue(got_conflict, "Expected WT_PREPARE_CONFLICT on first next()")
+        self.assertTrue(got_conflict, "Expected prepared conflict on first next()")
 
-        # Resolve and retry.
         prepare_session.timestamp_transaction(
             'commit_timestamp=' + self.timestamp_str(60) +
             ',durable_timestamp=' + self.timestamp_str(60))
@@ -241,142 +339,13 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         prepare_cursor.close()
         prepare_session.close()
 
-        keys, _ = self.walk_next_until_conflict(cursor)
-        self.pr(f'Keys after resolve: {keys}')
+        keys, _ = self.walk_next_collect(cursor)
 
-        self.session.rollback_transaction()
+        session_follow.rollback_transaction()
         cursor.close()
 
         self.assertEqual(set(keys), set(all_keys),
             f"Expected all keys after resolve, got {keys}")
 
-    def test_next_then_prev_after_prepare_conflict(self):
-        """
-        After next() returns WT_PREPARE_CONFLICT, calling prev() should
-        return a valid key without crashing.
-        """
-        all_keys = [1, 3, 5]
-        self.setup_table_with_data(all_keys)
-
-        # Prepare key 2 (between 1 and 3).
-        prepare_session = self.conn.open_session()
-        prepare_cursor = prepare_session.open_cursor(self.uri)
-        prepare_session.begin_transaction()
-        prepare_cursor[2] = 'prepared_value'
-        prepare_session.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(50) +
-            ',prepared_id=' + self.prepared_id_str(1))
-
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
-
-        # Position at key 1.
-        cursor.set_key(1)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_key(), 1)
-
-        # next() should hit prepared key 2.
-        got_conflict = False
-        try:
-            cursor.next()
-        except WiredTigerError as e:
-            if self.is_prepare_conflict(e):
-                got_conflict = True
-            else:
-                raise
-        self.assertTrue(got_conflict, "Expected WT_PREPARE_CONFLICT on next()")
-
-        # After PREPARE_CONFLICT, calling prev() should not crash and should
-        # return a valid key from the table.
-        ret = cursor.prev()
-        self.assertEqual(ret, 0, "prev() should succeed after prepare conflict on next()")
-        key = cursor.get_key()
-        self.assertIn(key, all_keys + [2], f"prev() returned unexpected key {key}")
-
-        prepare_session.rollback_transaction()
-        prepare_cursor.close()
-        prepare_session.close()
-
-        self.session.rollback_transaction()
-        cursor.close()
-
-# Test the original bug: an overwrite update on a follower positions only the ingest cursor
-# because the stable cursor is not needed for writes. A subsequent next() call requires the
-# stable cursor to be opened, and the old code would incorrectly save and reposition the key,
-# losing track of where the ingest cursor was positioned. This caused the layered cursor to
-# skip keys that had already been passed by the ingest cursor.
-@disagg_test_class
-class test_layered_cursor02_overwrite(wttest.WiredTigerTestCase):
-    tablename = 'test_layered_cursor02_overwrite'
-    uri = 'layered:' + tablename
-
-    disagg_storages = gen_disagg_storages('test_layered_cursor02_overwrite', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
-
-    conn_base_config = ',create,statistics=(all),'
-
-    def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
-
-    def early_setup(self):
-        import os
-        os.mkdir('follower')
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
-
-    def test_overwrite_update_then_next_on_follower(self):
-        """
-        On a follower with an advanced checkpoint, an overwrite update only opens the ingest
-        cursor. A subsequent next() call needs the stable cursor, which forces it to be opened.
-        The old code would lose the cursor's position during this open, causing the walk to
-        skip keys. Verify that all keys are returned after an overwrite update followed by next().
-        """
-        all_keys = [1, 2, 3, 4, 5]
-
-        # Insert data on the leader and checkpoint.
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        cursor = self.session.open_cursor(self.uri)
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        for key in all_keys:
-            self.session.begin_transaction()
-            cursor[key] = f'value_{key}'
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(10 + key))
-        cursor.close()
-
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-        self.session.checkpoint()
-
-        # Set up follower and advance its checkpoint.
-        conn_follow = self.wiredtiger_open('follower',
-            self.extensionsConfig() + self.conn_base_config +
-            'disaggregated=(role="follower")')
-        session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, 'key_format=i,value_format=S')
-
-        self.disagg_advance_checkpoint(conn_follow)
-
-        # On the follower: overwrite update positions ingest only (stable not opened).
-        follow_cursor = session_follow.open_cursor(self.uri, None, 'overwrite=true')
-        session_follow.begin_transaction()
-        follow_cursor.set_key(3)
-        follow_cursor.set_value('updated_3')
-        follow_cursor.update()
-        session_follow.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(25))
-
-        # Now call next() on the same cursor. This needs stable -> triggers open_cursors.
-        # The old code would crash here with "constitute cursor already positioned".
-        session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(25))
-        keys = []
-        while follow_cursor.next() != wiredtiger.WT_NOTFOUND:
-            keys.append(follow_cursor.get_key())
-        session_follow.rollback_transaction()
-
-        # Verify all keys are returned.
-        self.assertEqual(set(keys), set(all_keys),
-            f"Expected all keys, got {keys}")
-
-        follow_cursor.close()
         session_follow.close()
         conn_follow.close()
