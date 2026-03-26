@@ -28,7 +28,6 @@ struct __wt_verbose_message_info {
     "WT_VERB_CHECKPOINT", \
     "WT_VERB_CHECKPOINT_CLEANUP", \
     "WT_VERB_CHECKPOINT_PROGRESS", \
-    "WT_VERB_CHUNKCACHE", \
     "WT_VERB_COMPACT", \
     "WT_VERB_COMPACT_PROGRESS", \
     "WT_VERB_CONFIGURATION", \

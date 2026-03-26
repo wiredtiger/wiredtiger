@@ -10186,7 +10186,6 @@ typedef enum {
     WT_VERB_CHECKPOINT,             /*!< Checkpoint messages. */
     WT_VERB_CHECKPOINT_CLEANUP,
     WT_VERB_CHECKPOINT_PROGRESS,    /*!< Checkpoint progress messages. */
-    WT_VERB_CHUNKCACHE,             /*!< Chunk cache messages. */
     WT_VERB_COMPACT,                /*!< Compact messages. */
     WT_VERB_COMPACT_PROGRESS,       /*!< Compact progress messages. */
     WT_VERB_CONFIGURATION,
