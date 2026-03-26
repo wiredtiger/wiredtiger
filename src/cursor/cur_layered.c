@@ -343,11 +343,11 @@ __clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *claye
 }
 
 /*
- * __clayered_can_stable_advance --
+ * __clayered_can_advance_stable --
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
 static bool
-__clayered_can_stable_advance(WT_CURSOR_LAYERED *clayered, bool iteration)
+__clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
 {
     WT_SESSION_IMPL *session;
     WT_TXN_SHARED *txn_shared;
@@ -565,7 +565,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
      * follower. And again, we'd like to reopen the stable cursor if we can.
      */
-    if ((change_stable = __clayered_can_stable_advance(clayered, iteration))) {
+    if ((change_stable = __clayered_can_advance_stable(clayered, iteration))) {
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
         WT_RET(__clayered_advance_stable(session, clayered, current_leader));
     }
