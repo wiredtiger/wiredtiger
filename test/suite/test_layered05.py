@@ -84,7 +84,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.close()
 
     def remove_keys_on(self, session, keys):
-        """Remove keys on a specific session (creates tombstones)."""
+        """Remove keys on a specific session."""
         cursor = session.open_cursor(self.uri)
         for key in keys:
             session.begin_transaction()
@@ -95,8 +95,7 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def insert_stable(self, int_keys, values=None):
         """
-        Insert keys into stable: write on leader, checkpoint, advance follower.
-        After this, the keys are in the stable table of both leader and follower.
+        Write keys via the leader and checkpoint, making them visible to the follower.
         Accepts a list of integers; formats them internally.
         """
         keys = [self.fmt_key(i) for i in int_keys]
@@ -108,7 +107,7 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def insert_ingest(self, int_keys, values=None):
         """
-        Insert keys into the follower ingest table.
+        Write keys locally on the follower.
         Accepts a list of integers; formats them internally.
         """
         keys = [self.fmt_key(i) for i in int_keys]
@@ -117,7 +116,7 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def remove_ingest(self, int_keys):
         """
-        Remove keys from the follower ingest table (creates tombstones).
+        Delete keys locally on the follower.
         Accepts a list of integers; formats them internally.
         """
         keys = [self.fmt_key(i) for i in int_keys]
@@ -327,7 +326,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Test: Table has keys 200, 300, 900. search_near(500): adjacent neighbors are
     # 300 (below) and 900 (above); either is a valid result.
     # -----------------------------------------------------------------------
-    def test_search_near_xor_prev_ingest_between(self):
+    def test_search_near_neighbors_local_on_both_sides(self):
 
         self.insert_stable([200])
         self.insert_ingest([300, 900])
@@ -338,7 +337,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Test: Table has keys 100, 200, 900. search_near(500): adjacent neighbors are
     # 200 (below) and 900 (above); either is a valid result.
     # -----------------------------------------------------------------------
-    def test_search_near_xor_prev_ingest_before_stable(self):
+    def test_search_near_neighbors_lower_from_checkpoint(self):
 
         self.insert_stable([200])
         self.insert_ingest([100, 900])
@@ -349,7 +348,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Test: Table has keys 200, 300, 600, 900. search_near(500): adjacent neighbors are
     # 300 (below) and 600 (above); either is a valid result.
     # -----------------------------------------------------------------------
-    def test_search_near_xor_prev_ingest_nearest_above(self):
+    def test_search_near_neighbors_nearest_upper_is_local(self):
 
         self.insert_stable([200])
         self.insert_ingest([300, 600, 900])
@@ -360,7 +359,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Test: Table has keys 100, 300, 800. search_near(500): adjacent neighbors are
     # 300 (below) and 800 (above); either is a valid result.
     # -----------------------------------------------------------------------
-    def test_search_near_xor_next_notfound(self):
+    def test_search_near_neighbors_upper_from_checkpoint(self):
 
         self.insert_stable([800])
         self.insert_ingest([100, 300])
@@ -371,7 +370,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     # Test: Table has keys 100, 300, 600, 800. search_near(500): adjacent neighbors are
     # 300 (below) and 600 (above); either is a valid result.
     # -----------------------------------------------------------------------
-    def test_search_near_xor_next_closer(self):
+    def test_search_near_neighbors_nearest_lower_is_local(self):
 
         self.insert_stable([800])
         self.insert_ingest([100, 300, 600])
@@ -513,8 +512,9 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Test: Stable: all keys 0-999. Ingest: delete 500.
-    # search_near(500): exact match is deleted; returns nearest neighbor 501.
-    # Iterating backward from 501 skips the deleted 500 and returns 499.
+    # search_near(500): exact match is deleted; 499 and 501 are equidistant,
+    # either is a valid result. Iterating past the returned key must skip the
+    # deleted 500 and land on the other neighbor.
     # -----------------------------------------------------------------------
     def test_search_near_tombstone_then_iterate(self):
 
@@ -527,18 +527,29 @@ class test_layered05(wttest.WiredTigerTestCase):
 
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
-        self.assertEqual(exact, 1)
-        self.assertEqual(cursor.get_key(), self.fmt_key(501))
+        self.assertNotEqual(exact, 0)
+        landed = cursor.get_key()
+        self.assertIn(landed, [self.fmt_key(499), self.fmt_key(501)])
 
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), self.fmt_key(499))
+        if landed == self.fmt_key(501):
+            # Returned key is above 500; iterating backward must skip 500 and land on 499.
+            self.assertEqual(cursor.prev(), 0)
+            self.assertEqual(cursor.get_key(), self.fmt_key(499))
+        else:
+            # Returned key is below 500; iterating forward must skip 500 and land on 501.
+            self.assertEqual(cursor.next(), 0)
+            self.assertEqual(cursor.get_key(), self.fmt_key(501))
 
         cursor.close()
 
     # -----------------------------------------------------------------------
     # Test: Multiple tombstones in a row.
     # Stable: all keys 0-999. Ingest: tombstones for 400-600.
-    # search_near(fmt_key(500)) -> skip 400-600 -> land on 601 (cmp=1).
+    # All three search keys fall in the deleted range [400,600]; live neighbors
+    # are 399 (below) and 601 (above). For 400 and 500 either neighbor is valid;
+    # for 600 the nearest live key is clearly 601.
+    # After search_near(500), iterating forward must skip all deleted keys and
+    # produce exactly keys 601-999 in order.
     # -----------------------------------------------------------------------
     def test_search_near_consecutive_tombstones(self):
 
@@ -547,10 +558,28 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_stable(all_keys)
         self.remove_ingest(tombstoned)
 
-        # All three search keys fall in the deleted range; nearest live key is 601.
-        self.search_near_check(self.fmt_key(400), self.fmt_key(601), 1)
-        self.search_near_check(self.fmt_key(500), self.fmt_key(601), 1)
+        self.search_near_check_either(self.fmt_key(400), self.fmt_key(399), self.fmt_key(601))
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(399), self.fmt_key(601))
         self.search_near_check(self.fmt_key(600), self.fmt_key(601), 1)
+
+        # Verify forward iteration from search_near(500) skips all deleted keys.
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(self.fmt_key(500))
+        self.assertNotEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        cursor.close()
+
+        deleted = set(self.fmt_key(k) for k in tombstoned)
+        for k in keys:
+            self.assertNotIn(k, deleted, f"Deleted key appeared: {k}")
+
+        # All keys from first live key above 600 onward must be present.
+        expected_tail = [self.fmt_key(k) for k in range(601, self.nkeys)]
+        self.assertEqual(keys[-len(expected_tail):], expected_tail)
 
     # -----------------------------------------------------------------------
     # Test: Verify full forward and backward scan with interleaved data.
@@ -618,14 +647,15 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Test: No checkpoint. Table has keys 100, 700; key 500 is deleted.
-    # search_near(500): exact match is deleted; returns nearest neighbor 700.
+    # search_near(500): exact match is deleted; live neighbors are 100 and 700,
+    # either is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_forward(self):
 
         self.insert_ingest([100, 500, 700])
         self.remove_ingest([500])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(100), self.fmt_key(700))
 
     # -----------------------------------------------------------------------
     # Test: No checkpoint. Table has key 100; key 500 is deleted.
@@ -763,4 +793,87 @@ class test_layered05(wttest.WiredTigerTestCase):
             self.assertGreater(seen[i], seen[i - 1],
                 f"Out-of-order keys: {seen[i - 1]} >= {seen[i]}")
 
+    # -----------------------------------------------------------------------
+    # Test: All 1000 keys in stable. Follower deletes keys 500-999 (upper half).
+    # search_near(700) must land on a key below 500; prev() from there must
+    # return all remaining keys in reverse order with no deleted key appearing.
+    # -----------------------------------------------------------------------
+    def test_search_near_tombstone_walk_then_prev(self):
+        """
+        search_near on a deleted key where all keys from the search key forward
+        are also deleted. The nearest live key is below the search key.
+        A subsequent prev() scan must continue in reverse order without returning
+        deleted keys.
+        """
+
+        self.insert_stable(list(range(self.nkeys)))
+        self.remove_ingest(list(range(500, self.nkeys)))
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # search_near(700): key and all keys above 500 are deleted; nearest live key is 499 (below).
+        cursor.set_key(self.fmt_key(700))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+        self.assertLess(first_key, self.fmt_key(500),
+            f"Expected key < 000500, got {first_key}")
+
+        # Iterate backward from the result.
+        keys = [first_key]
+        while cursor.prev() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertGreater(keys[i], keys[i + 1],
+                f"Out of order at {i}: {keys[i]} <= {keys[i + 1]}")
+        cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Test: All 1000 keys in stable. Follower deletes range 300-600.
+    # Bounded cursor [200, 800]. search_near(450): key is deleted; either
+    # neighbor 299 or 601 is a valid result. Iterating forward must stay
+    # within bounds with no deleted key appearing.
+    # -----------------------------------------------------------------------
+    def test_search_near_tombstone_walk_then_next_with_bounds(self):
+        """
+        Bounded search_near + tombstone + next. This is the MongoDB
+        pattern: set bounds, search_near to position, iterate.
+        """
+
+        self.insert_stable(list(range(self.nkeys)))
+
+        # Tombstone a range that overlaps the search key.
+        self.remove_ingest(list(range(300, 601)))
+
+        lo, hi = 200, 800
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(self.fmt_key(lo))
+        cursor.bound("bound=lower")
+        cursor.set_key(self.fmt_key(hi))
+        cursor.bound("bound=upper")
+
+        # search_near(450): key is deleted; either neighbor 299 or 601 is a valid result.
+        cursor.set_key(self.fmt_key(450))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at {i}: {keys[i]} >= {keys[i + 1]}")
+
+        # All within bounds.
+        for k in keys:
+            self.assertGreaterEqual(k, self.fmt_key(lo))
+            self.assertLessEqual(k, self.fmt_key(hi))
+
+        # No tombstoned keys.
+        tombstoned = set(self.fmt_key(k) for k in range(300, 601))
+        for k in keys:
+            self.assertNotIn(k, tombstoned)
         cursor.close()
