@@ -2014,7 +2014,7 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_EVICT *evict = conn->evict;
-#define APP_HELP 0
+#define APP_HELP 1
 #if APP_HELP
     double pct_full;
 #endif
@@ -2038,8 +2038,11 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
 
 #if APP_HELP
     if (!F_ISSET(conn, WT_CONN_RECOVERING) && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
-        __wt_evict_needed(session, false, false /*FIX*/, &pct_full) && pct_full > 95) {
-        if (session->id % 2 == 0)
+        __wt_evict_needed(session, false, false /*FIX*/, &pct_full)
+        && pct_full > 95) {
+        uint32_t session_cnt;
+        WT_READ_ONCE(session_cnt, conn->session_array.cnt);
+        if ((session->id % (session_cnt / WT_EVICT_EXPECTED_CONTENTION)) == 0)
             WT_RET_BUSY_OK(__evict_page(session, false));
     }
 #endif
