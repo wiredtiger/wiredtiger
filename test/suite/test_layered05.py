@@ -512,8 +512,9 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Test: Stable: all keys 0-999. Ingest: delete 500.
-    # search_near(500): exact match is deleted; returns nearest neighbor 501.
-    # Iterating backward from 501 skips the deleted 500 and returns 499.
+    # search_near(500): exact match is deleted; 499 and 501 are equidistant,
+    # either is a valid result. Iterating past the returned key must skip the
+    # deleted 500 and land on the other neighbor.
     # -----------------------------------------------------------------------
     def test_search_near_tombstone_then_iterate(self):
 
@@ -526,18 +527,29 @@ class test_layered05(wttest.WiredTigerTestCase):
 
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
-        self.assertEqual(exact, 1)
-        self.assertEqual(cursor.get_key(), self.fmt_key(501))
+        self.assertNotEqual(exact, 0)
+        landed = cursor.get_key()
+        self.assertIn(landed, [self.fmt_key(499), self.fmt_key(501)])
 
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), self.fmt_key(499))
+        if landed == self.fmt_key(501):
+            # Returned key is above 500; iterating backward must skip 500 and land on 499.
+            self.assertEqual(cursor.prev(), 0)
+            self.assertEqual(cursor.get_key(), self.fmt_key(499))
+        else:
+            # Returned key is below 500; iterating forward must skip 500 and land on 501.
+            self.assertEqual(cursor.next(), 0)
+            self.assertEqual(cursor.get_key(), self.fmt_key(501))
 
         cursor.close()
 
     # -----------------------------------------------------------------------
     # Test: Multiple tombstones in a row.
     # Stable: all keys 0-999. Ingest: tombstones for 400-600.
-    # search_near(fmt_key(500)) -> skip 400-600 -> land on 601 (cmp=1).
+    # All three search keys fall in the deleted range [400,600]; live neighbors
+    # are 399 (below) and 601 (above). For 400 and 500 either neighbor is valid;
+    # for 600 the nearest live key is clearly 601.
+    # After search_near(500), iterating forward must skip all deleted keys and
+    # produce exactly keys 601-999 in order.
     # -----------------------------------------------------------------------
     def test_search_near_consecutive_tombstones(self):
 
@@ -546,10 +558,28 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.insert_stable(all_keys)
         self.remove_ingest(tombstoned)
 
-        # All three search keys fall in the deleted range; nearest live key is 601.
-        self.search_near_check(self.fmt_key(400), self.fmt_key(601), 1)
-        self.search_near_check(self.fmt_key(500), self.fmt_key(601), 1)
+        self.search_near_check_either(self.fmt_key(400), self.fmt_key(399), self.fmt_key(601))
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(399), self.fmt_key(601))
         self.search_near_check(self.fmt_key(600), self.fmt_key(601), 1)
+
+        # Verify forward iteration from search_near(500) skips all deleted keys.
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(self.fmt_key(500))
+        self.assertNotEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        cursor.close()
+
+        deleted = set(self.fmt_key(k) for k in tombstoned)
+        for k in keys:
+            self.assertNotIn(k, deleted, f"Deleted key appeared: {k}")
+
+        # All keys from first live key above 600 onward must be present.
+        expected_tail = [self.fmt_key(k) for k in range(601, self.nkeys)]
+        self.assertEqual(keys[-len(expected_tail):], expected_tail)
 
     # -----------------------------------------------------------------------
     # Test: Verify full forward and backward scan with interleaved data.
@@ -617,14 +647,15 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Test: No checkpoint. Table has keys 100, 700; key 500 is deleted.
-    # search_near(500): exact match is deleted; returns nearest neighbor 700.
+    # search_near(500): exact match is deleted; live neighbors are 100 and 700,
+    # either is a valid result.
     # -----------------------------------------------------------------------
     def test_search_near_ingest_tombstone_no_stable_forward(self):
 
         self.insert_ingest([100, 500, 700])
         self.remove_ingest([500])
 
-        self.search_near_check(self.fmt_key(500), self.fmt_key(700), 1)
+        self.search_near_check_either(self.fmt_key(500), self.fmt_key(100), self.fmt_key(700))
 
     # -----------------------------------------------------------------------
     # Test: No checkpoint. Table has key 100; key 500 is deleted.
@@ -685,8 +716,9 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     # -----------------------------------------------------------------------
     # Test: All 1000 keys in stable. Follower deletes range 300-600.
-    # Bounded cursor [200, 800]. search_near(450) must land on 601;
-    # next() from there must stay within bounds with no deleted key appearing.
+    # Bounded cursor [200, 800]. search_near(450): key is deleted; either
+    # neighbor 299 or 601 is a valid result. Iterating forward must stay
+    # within bounds with no deleted key appearing.
     # -----------------------------------------------------------------------
     def test_search_near_tombstone_walk_then_next_with_bounds(self):
         """
@@ -706,7 +738,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(hi))
         cursor.bound("bound=upper")
 
-        # search_near(450): key is deleted; nearest live key within bounds is at 601.
+        # search_near(450): key is deleted; either neighbor 299 or 601 is a valid result.
         cursor.set_key(self.fmt_key(450))
         exact = cursor.search_near()
         self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)

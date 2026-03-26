@@ -845,7 +845,7 @@ class test_layered83(wttest.WiredTigerTestCase):
             cursor.close()
 
     # =====================================================================
-    # Write mid-scan
+    # Writes during an active scan
     # =====================================================================
 
     def test_positioned_update_mid_scan(self):
