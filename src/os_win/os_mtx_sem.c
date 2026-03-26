@@ -60,21 +60,13 @@ __wt_semaphore_destroy(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 int
 __wt_semaphore_post(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 {
-    DWORD wait_result, windows_error;
+    DWORD windows_error;
 
-    wait_result = WaitForSingleObject(sem->sem, INFINITE);
-    if (wait_result == WAIT_FAILED) {
+    if (ReleaseSemaphore(sem->sem, 1, NULL) == 0) {
         windows_error = __wt_getlasterror();
-        __wt_errx(session, "%s: WaitForSingleObject: %s", sem->name,
+        __wt_errx(session, "%s: ReleaseSemaphore: %s", sem->name,
           __wt_formatmessage(session, windows_error));
         return (__wt_map_windows_error(windows_error));
-    }
-    if (wait_result != WAIT_OBJECT_0) {
-        /* This can happen if the wait was abandoned, or if it timed out. */
-        windows_error = __wt_getlasterror();
-        __wt_errx(session, "%s: WaitForSingleObject: Unexpected wait result %" PRIu32, sem->name,
-          (uint32_t)wait_result);
-        return (ETIMEDOUT);
     }
 
     return (0);
@@ -87,14 +79,39 @@ __wt_semaphore_post(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 int
 __wt_semaphore_wait(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 {
-    DWORD windows_error;
+    DWORD wait_result, windows_error;
 
-    if (ReleaseSemaphore(sem->sem, 1, NULL) == 0) {
+    wait_result = WaitForSingleObject(sem->sem, INFINITE);
+    if (wait_result == WAIT_FAILED) {
         windows_error = __wt_getlasterror();
-        __wt_errx(session, "%s: ReleaseSemaphore: %s", sem->name,
+        __wt_errx(session, "%s: WaitForSingleObject: %s", sem->name,
           __wt_formatmessage(session, windows_error));
         return (__wt_map_windows_error(windows_error));
     }
 
-    return (0);
+    /* Check for success. */
+    if (wait_result == WAIT_OBJECT_0)
+        return (0);
+
+    /* Error handling. */
+    __wt_errx(session, "%s: WaitForSingleObject: Unexpected wait result %" PRIu32, sem->name,
+      (uint32_t)wait_result);
+
+    switch (wait_result) {
+    case WAIT_ABANDONED:
+        /*
+         * The wait was abandoned, because the thread that owned the mutex terminated without
+         * releasing it.
+         */
+        return (EOWNERDEAD);
+    case WAIT_TIMEOUT:
+        /*
+         * The wait timed out, but we passed INFINITE, so this should not happen. Handle this case
+         * in case we ever change the timeout value.
+         */
+        return (ETIMEDOUT);
+    default:
+        windows_error = __wt_getlasterror();
+        return (__wt_map_windows_error(windows_error));
+    }
 }
