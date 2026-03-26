@@ -1416,7 +1416,6 @@ __checkpoint_hs(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_
     WT_ERR(ret);
 
 err:
-
     __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
 
     uint64_t time_stop_hs = __wt_clock(session);
