@@ -1391,11 +1391,9 @@ static int
 __checkpoint_hs(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_dhandle,
   WT_DATA_HANDLE *hs_dhandle_shared)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t hs_ckpt_duration_usecs, time_start_hs, time_stop_hs;
 
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
 
     /*
      * It is possible that we don't have a history store file in certain recovery scenarios. As such
@@ -1404,26 +1402,26 @@ __checkpoint_hs(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_
     if (!F_ISSET(hs_dhandle, WT_DHANDLE_OPEN))
         return (0);
 
-    time_start_hs = __wt_clock(session);
+    uint64_t time_start_hs = __wt_clock(session);
+
     __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
+
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
 
     WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
-    if (ret != 0)
-        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
     WT_ERR(ret);
 
     if (hs_dhandle_shared != NULL)
         WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
-
-    __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
     WT_ERR(ret);
 
-    time_stop_hs = __wt_clock(session);
-    hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
-    WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
-
 err:
+
+    __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
+
+    uint64_t time_stop_hs = __wt_clock(session);
+    uint64_t hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+    WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
 
     return (ret);
 }
