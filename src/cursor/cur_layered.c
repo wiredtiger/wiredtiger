@@ -965,7 +965,6 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     bool deleted;
 
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    deleted = false;
 
     /*
      * FIXME-WT-16158: We currently check whether the entry has been deleted on the current cursor,
