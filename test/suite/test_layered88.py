@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from itertools import permutations, combinations_with_replacement
 from wtscenario import make_scenarios
 
-# test_layered81.py
+# test_layered88.py
 #    Test layered cursor iteration.
 #
 # A follower layered table is more complex than on a leader. In a layered table on a follower
@@ -102,7 +102,7 @@ def batched(lst, nbatches):
     return result
 
 @disagg_test_class
-class test_layered81(wttest.WiredTigerTestCase):
+class test_layered88(wttest.WiredTigerTestCase):
 
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
@@ -118,7 +118,7 @@ class test_layered81(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(nbatches_values)
 
     # Test timestamps
-    def test_layered81(self):
+    def test_layered88(self):
         # Create the follower
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + \
                   ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
