@@ -163,7 +163,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         """
         On a follower, search on a key, overwrite-update it in the same transaction, then
         advance the checkpoint and call next(). The walk must return only the keys that
-        sort after the searched key — no keys before the position, no duplicates.
+        sort after the searched key  no keys before the position, no duplicates.
         """
         all_keys = [1, 2, 3, 4, 5]
         self.populate_leader_and_checkpoint(all_keys)
@@ -208,7 +208,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         """
         Forward walk on a follower where the follower has committed writes only on even keys
         and the leader has all keys. A prepared conflict occurs mid-walk. After the conflict
-        resolves, every key — including odd keys that exist only in the leader's data — must
+        resolves, every key  including odd keys that exist only in the leader's data  must
         appear exactly once across the full walk.
         """
         all_keys = [1, 2, 3, 4, 5, 6]
@@ -225,7 +225,7 @@ class test_layered84(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(30 + key))
         ingest_cursor.close()
 
-        # Prepare an update on key 4 — the next follower key after 2.
+        # Prepare an update on key 4  the next follower key after 2.
         prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
@@ -234,7 +234,7 @@ class test_layered84(wttest.WiredTigerTestCase):
             'prepare_timestamp=' + self.timestamp_str(50) +
             ',prepared_id=' + self.prepared_id_str(1))
 
-        # Walk forward — conflict expected at key 4.
+        # Walk forward  conflict expected at key 4.
         cursor = session_follow.open_cursor(self.uri)
         session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(60))
 
@@ -342,7 +342,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
+                f"Key {k} appears twice  each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
@@ -380,7 +380,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
+                f"Key {k} appears twice  each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
@@ -400,7 +400,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         self.populate_leader_and_checkpoint(stable_keys)
         conn_follow, session_follow = self.open_follower()
 
-        # Commit new even keys — follower-only keys that interleave with stable keys.
+        # Commit new even keys  follower-only keys that interleave with stable keys.
         ingest_cursor = session_follow.open_cursor(self.uri)
         for key in [2, 4]:
             session_follow.begin_transaction()
@@ -409,7 +409,7 @@ class test_layered84(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(30 + key))
         ingest_cursor.close()
 
-        # Prepare key 6 — a follower-only key beyond the end of stable.
+        # Prepare key 6  a follower-only key beyond the end of stable.
         prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
@@ -446,7 +446,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
+                f"Key {k} appears twice  each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, {1, 2, 3, 4, 5, 6},
@@ -516,7 +516,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
+                f"Key {k} appears twice  each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
@@ -555,7 +555,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
+                f"Key {k} appears twice  each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
@@ -617,7 +617,7 @@ class test_layered84(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(30 + key))
         ingest_cursor.close()
 
-        # Prepare key 1 — the first key in sort order — so the conflict fires immediately.
+        # Prepare key 1  the first key in sort order  so the conflict fires immediately.
         prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
