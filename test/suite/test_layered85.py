@@ -157,7 +157,7 @@ class test_layered85(wttest.WiredTigerTestCase):
     # Begin transaction with read timestamp. Iterate 100 keys. Advance
     # checkpoint. Continue scanning. All keys must be in increasing order.
     # -----------------------------------------------------------------------
-    def test_advance_stable_during_scan_positioned_on_follower(self):
+    def test_checkpoint_advance_during_scan_positioned_on_follower(self):
         """
         Forward and backward scans with a read timestamp each remain monotonically
         ordered across a mid-scan checkpoint advance.
@@ -231,7 +231,7 @@ class test_layered85(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
-    def test_advance_stable_during_bounded_scan_positioned_on_follower(self):
+    def test_checkpoint_advance_during_bounded_scan_positioned_on_follower(self):
         """
         Bounded forward and backward scans with bounds [200, 800] and a mid-scan
         checkpoint advance each. All returned keys must be within bounds and in
@@ -316,7 +316,7 @@ class test_layered85(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
-    def test_advance_stable_during_scan_with_tombstones_on_follower(self):
+    def test_checkpoint_advance_during_scan_with_tombstones_on_follower(self):
         """
         Forward scan with deleted keys and a mid-scan checkpoint advance.
         Leader: even keys 0-998. Follower deletes even keys 400-600 and writes
@@ -363,7 +363,7 @@ class test_layered85(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
-    def test_multiple_advance_stable_during_scan_on_follower(self):
+    def test_multiple_checkpoint_advances_during_scan_on_follower(self):
         """
         Forward scan across multiple mid-scan checkpoint advances. Verifies
         monotonic order throughout and that at least one checkpoint switch occurred.
