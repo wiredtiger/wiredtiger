@@ -1384,6 +1384,51 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_hs --
+ *     Checkpoint the history store.
+ */
+static int
+__checkpoint_hs(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_dhandle,
+  WT_DATA_HANDLE *hs_dhandle_shared)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    uint64_t hs_ckpt_duration_usecs, time_start_hs, time_stop_hs;
+
+    conn = S2C(session);
+
+    /*
+     * It is possible that we don't have a history store file in certain recovery scenarios. As such
+     * we could get a dhandle that is not opened.
+     */
+    if (!F_ISSET(hs_dhandle, WT_DHANDLE_OPEN))
+        return (0);
+
+    time_start_hs = __wt_clock(session);
+    __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
+
+    WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
+    if (ret != 0)
+        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
+    WT_ERR(ret);
+
+    if (hs_dhandle_shared != NULL)
+        WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
+
+    __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
+    WT_ERR(ret);
+
+    time_stop_hs = __wt_clock(session);
+    hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+    WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+
+err:
+
+    return (ret);
+}
+
+/*
  * __checkpoint_db_internal --
  *     Checkpoint a database or a list of objects in the database.
  */
@@ -1402,13 +1447,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
-    uint64_t ckpt_tree_duration_usecs, drop_size, fsync_duration_usecs, generation,
-      hs_ckpt_duration_usecs;
-    uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
-      time_stop_fsync, time_stop_hs;
+    uint64_t ckpt_tree_duration_usecs, drop_size, fsync_duration_usecs, generation;
+    uint64_t time_start_ckpt_tree, time_start_fsync, time_stop_ckpt_tree, time_stop_fsync;
     u_int i;
-    bool failed, idle, logging, tracking;
     char ts_string[WT_TS_INT_STRING_SIZE];
+    bool failed, idle, logging, tracking;
     void *saved_meta_next;
 
     WT_CLEAR(ckpt_cfg);
@@ -1604,30 +1647,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT, false);
     hs_dhandle = session->dhandle;
 
-    /*
-     * It is possible that we don't have a history store file in certain recovery scenarios. As such
-     * we could get a dhandle that is not opened.
-     */
-    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
-        time_start_hs = __wt_clock(session);
-        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
-        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
-
-        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
-        if (ret != 0)
-            __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
-        WT_ERR(ret);
-
-        if (hs_dhandle_shared != NULL)
-            WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
-
-        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
-        WT_ERR(ret);
-
-        time_stop_hs = __wt_clock(session);
-        hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
-        WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
-    }
+    WT_ERR(__checkpoint_hs(session, cfg, hs_dhandle, hs_dhandle_shared));
 
     /*
      * Copy any updated metadata to the shared metadata table. Compute the drop size first so we can
