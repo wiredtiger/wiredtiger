@@ -418,7 +418,8 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
         internal_session, metadata->checkpoint_timestamp),
       "Updating prune timestamp failed");
 
-    /* Alter our next file ID if necessary. It's OK if we've made a bunch of files since this checkpoint was generated. */
+    /* Alter our next file ID if necessary. It's OK if we've made a bunch of files since this
+     * checkpoint was generated. */
     file_id_current = __wt_atomic_load_uint32_relaxed(&conn->next_file_id);
     if (file_id_current < metadata->largest_file_id) {
         file_id_delta = metadata->largest_file_id - file_id_current;
