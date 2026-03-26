@@ -99,7 +99,7 @@ class test_layered82(wttest.WiredTigerTestCase):
         cursor.close()
 
     def remove_ingest(self, keys):
-        """Remove keys (list of ints) from the follower's local table (creates tombstones)."""
+        """Remove keys (list of ints) from the follower's local table."""
         session = self.session_follow
         cursor = session.open_cursor(self.uri)
         for i in keys:
@@ -457,4 +457,48 @@ class test_layered82(wttest.WiredTigerTestCase):
         for k in all_keys:
             self.assertGreaterEqual(k, self.fmt_key(lo))
             self.assertLessEqual(k, self.fmt_key(hi))
+        cursor.close()
+
+    def test_search_near_tombstone_walk_then_next(self):
+        """
+        search_near on a deleted key in a contiguous deleted range returns the
+        next live key after the range. A subsequent next() scan must continue in
+        order from that key and must not return any deleted keys.
+        """
+
+        self.insert_stable(list(range(self.nkeys)))
+
+        # Delete a contiguous range of keys on the follower.
+        self.remove_ingest(list(range(400, 601)))
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # search_near(500): key is deleted; nearest live key is > 600.
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        # The returned key must be outside the deleted range.
+        self.assertGreater(first_key, self.fmt_key(600),
+            f"Expected key > 000600, got {first_key}")
+
+        # Iterate forward from the search_near result.
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        # Verify strict monotonic order.
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at {i}: {keys[i]} >= {keys[i + 1]}")
+
+        # Deleted keys must not appear.
+        deleted = set(self.fmt_key(k) for k in range(400, 601))
+        for k in keys:
+            self.assertNotIn(k, deleted, f"Deleted key appeared: {k}")
+
+        # All keys from 601 to 999 must be present.
+        expected_remaining = [self.fmt_key(k) for k in range(601, self.nkeys)]
+        self.assertEqual(keys, expected_remaining)
         cursor.close()

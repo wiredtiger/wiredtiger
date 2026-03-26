@@ -114,7 +114,7 @@ class test_layered83(wttest.WiredTigerTestCase):
         self.insert_on(self.session_follow, keys)
 
     def remove_ingest(self, keys):
-        """Remove keys (list of ints) from the follower's local table (creates tombstones)."""
+        """Remove keys (list of ints) from the follower's local table."""
         self.remove_on(self.session_follow, keys)
 
     # -----------------------------------------------------------------------
@@ -848,7 +848,7 @@ class test_layered83(wttest.WiredTigerTestCase):
     # Write mid-scan
     # =====================================================================
 
-    def test_iterate_update_iterate(self):
+    def test_positioned_update_mid_scan(self):
         """
         Forward scan, positioned update mid-scan, continue scanning. Verifies
         that a write at the cursor's current position does not disrupt iteration

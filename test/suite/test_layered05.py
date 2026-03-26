@@ -84,7 +84,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.close()
 
     def remove_keys_on(self, session, keys):
-        """Remove keys on a specific session (creates tombstones)."""
+        """Remove keys on a specific session."""
         cursor = session.open_cursor(self.uri)
         for key in keys:
             session.begin_transaction()
@@ -107,7 +107,7 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def insert_ingest(self, int_keys, values=None):
         """
-        Write keys locally on the follower (non-checkpointed writes).
+        Write keys locally on the follower.
         Accepts a list of integers; formats them internally.
         """
         keys = [self.fmt_key(i) for i in int_keys]
@@ -116,7 +116,7 @@ class test_layered05(wttest.WiredTigerTestCase):
 
     def remove_ingest(self, int_keys):
         """
-        Delete keys locally on the follower (creates tombstones).
+        Delete keys locally on the follower.
         Accepts a list of integers; formats them internally.
         """
         keys = [self.fmt_key(i) for i in int_keys]
@@ -646,55 +646,6 @@ class test_layered05(wttest.WiredTigerTestCase):
         self.remove_ingest([500])
 
         self.search_near_notfound(self.fmt_key(500))
-
-    # -----------------------------------------------------------------------
-    # Test: All 1000 keys in stable. Follower deletes contiguous range 400-600.
-    # search_near(500) must land on key 601; next() from there must return
-    # all remaining keys in order with no deleted key appearing.
-    # -----------------------------------------------------------------------
-    def test_search_near_tombstone_walk_then_next(self):
-        """
-        search_near on a deleted key in a contiguous deleted range returns the
-        next live key after the range. A subsequent next() scan must continue in
-        order from that key and must not return any deleted keys.
-        """
-
-        self.insert_stable(list(range(self.nkeys)))
-
-        # Delete a contiguous range of keys on the follower.
-        self.remove_ingest(list(range(400, 601)))
-
-        cursor = self.session_follow.open_cursor(self.uri)
-
-        # search_near(500): key is deleted; nearest live key is > 600.
-        cursor.set_key(self.fmt_key(500))
-        exact = cursor.search_near()
-        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
-        first_key = cursor.get_key()
-
-        # The returned key must be outside the deleted range.
-        self.assertGreater(first_key, self.fmt_key(600),
-            f"Expected key > 000600, got {first_key}")
-
-        # Iterate forward from the search_near result.
-        keys = [first_key]
-        while cursor.next() == 0:
-            keys.append(cursor.get_key())
-
-        # Verify strict monotonic order.
-        for i in range(len(keys) - 1):
-            self.assertLess(keys[i], keys[i + 1],
-                f"Out of order at {i}: {keys[i]} >= {keys[i + 1]}")
-
-        # Deleted keys must not appear.
-        deleted = set(self.fmt_key(k) for k in range(400, 601))
-        for k in keys:
-            self.assertNotIn(k, deleted, f"Deleted key appeared: {k}")
-
-        # All keys from 601 to 999 must be present.
-        expected_remaining = [self.fmt_key(k) for k in range(601, self.nkeys)]
-        self.assertEqual(keys, expected_remaining)
-        cursor.close()
 
     # -----------------------------------------------------------------------
     # Test: All 1000 keys in stable. Follower deletes keys 500-999 (upper half).
