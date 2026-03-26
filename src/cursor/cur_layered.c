@@ -956,7 +956,7 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     } while (deleted);
 
 err:
-    if (ret != 0)
+    if (ret != 0 && ret != WT_PREPARE_CONFLICT)
         __clayered_reset_cursors(clayered, false);
 
     return (ret);
@@ -1663,7 +1663,6 @@ done:
 
 err:
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
-        /* FIXME-WT-16880: Fix layered search_near() incorrectly resetting the cursor. */
         WT_TRET(__clayered_reset_cursors(clayered, false));
 
     return (ret);
