@@ -789,7 +789,7 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
               metadata->largest_file_id);
 
             if (cfg_value.len > 0)
-                metadata->largest_file_id = cfg_value.val;
+                metadata->largest_file_id = (uint32_t)cfg_value.val;
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->key_provider == NULL,
               "Duplicate key_provider entry in disaggregated storage metadata");
