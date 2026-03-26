@@ -342,10 +342,10 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_eviction_subconfigs[] = {
     250, INT64_MIN, INT64_MAX, NULL},
   {"skip_update_obsolete_check", "boolean", NULL, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_BOOLEAN, 251, INT64_MIN, INT64_MAX, NULL},
-  {"threads_max", "int", NULL, "min=1,max=64", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 247, 1,
-    64, NULL},
-  {"threads_min", "int", NULL, "min=1,max=64", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 248, 1,
-    64, NULL},
+  {"threads_max", "int", NULL, "min=1,max=128", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 247, 1,
+    128, NULL},
+  {"threads_min", "int", NULL, "min=1,max=128", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 248, 1,
+    128, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_eviction_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {

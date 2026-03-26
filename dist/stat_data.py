@@ -349,6 +349,8 @@ conn_stats = [
     ##########################################
     EvictStat('eviction_active_workers', 'eviction worker thread active', 'no_clear'),
     EvictStat('eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
+    EvictStat('eviction_app_evict_attempt', 'evict page attempts by application threads'),
+    EvictStat('eviction_app_evict_fail', 'evict page failures by application threads'),
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     EvictStat('eviction_enqueued_page', 'number of calls to enqueue a page'),
@@ -377,9 +379,6 @@ conn_stats = [
     EvictStat('eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),
     EvictStat('eviction_pages_set_clean', 'pages transitioned from dirty to clean'),
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
-    # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
-    EvictStat('eviction_server_evict_attempt', 'evict page attempts by eviction server'),
-    EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
     EvictStat('eviction_server_race_reconfigure_disagg', 'eviction server races with the reconfigure API call in disagg'),
     EvictStat('eviction_server_readgen', 'eviction server read generation'),
     EvictStat('eviction_server_slept', 'eviction server slept'),

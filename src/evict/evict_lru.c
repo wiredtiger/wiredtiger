@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref);
 static int __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server);
-static int __evict_page(WT_SESSION_IMPL *session);
+static int __evict_page(WT_SESSION_IMPL *session, bool is_server);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
@@ -347,7 +347,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
         WT_RET(__evict_update_work(session, &eviction_needed));
         if (!eviction_needed)
             break;
-        if ((ret = __evict_page(session)) == EBUSY)
+        if ((ret = __evict_page(session, true)) == EBUSY)
             ret = 0;
         if (is_server)
             break;
@@ -357,8 +357,9 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     WT_TRET(__wt_session_release_resources(session));
 
     /* If a worker thread is here, there is no work to do; pause. */
-    if (ret == WT_NOTFOUND && !is_server && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION))
+    if (ret == WT_NOTFOUND && !is_server && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION)) {
         __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+    }
 
     WT_TRACK_OP_END(session);
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -589,9 +590,6 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 err:
         (void)__wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
     }
-
-    printf("evict_disabled  = %d\n", btree->evict_data.evict_disabled);
-    fflush (stdout);
 }
 
 /* !!!
@@ -636,8 +634,6 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #else
     (void)__wt_atomic_sub_int32(&btree->evict_data.evict_disabled, 1);
 #endif
-    printf("evict_disabled  = %d\n", btree->evict_data.evict_disabled);
-    fflush (stdout);
 }
 
 #define EVICT_TUNE_BATCH 1 /* Max workers to add each period */
@@ -1341,7 +1337,7 @@ done:
  *     Called by both eviction and application threads to evict a page.
  */
 static int
-__evict_page(WT_SESSION_IMPL *session)
+__evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1354,6 +1350,12 @@ __evict_page(WT_SESSION_IMPL *session)
 
     flags = 0;
 
+    if (is_server)
+        WT_STAT_CONN_INCR(session, eviction_worker_evict_attempt);
+    else
+        WT_STAT_CONN_INCR(session, eviction_app_evict_attempt);
+
+
     WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
     WT_ASSERT(session, (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(ref) == session));
 
@@ -1362,7 +1364,10 @@ __evict_page(WT_SESSION_IMPL *session)
     (void)__wt_atomic_sub_uint32_v(&btree->evict_data.evict_busy, 1);
 
     if (WT_UNLIKELY(ret != 0)) {
-        WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
+        if (is_server)
+            WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
+        else
+            WT_STAT_CONN_INCR(session, eviction_app_evict_fail);
     } else
         __wt_atomic_add_uint64(&S2C(session)->evict->evicted_pages, 1);
 
@@ -1997,4 +2002,46 @@ __evict_internal_page_has_cached_children(WT_SESSION_IMPL *session, WT_REF *ref)
     }
     WT_LEAVE_PAGE_INDEX(session);
     return (has_cached_children);
+}
+
+/* !!!
+ * __wt_evict_check_if_blocking
+ *    Check if this session is blocking eviction.
+ */
+int
+__wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_EVICT *evict = conn->evict;
+#define APP_HELP 0
+#if APP_HELP
+    double pct_full;
+#endif
+    /*
+     * If eviction is stuck, check if this thread is likely causing problems and should be
+     * rolled back. Ignore if in recovery, those transactions can't be rolled back.
+     */
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
+        ret = __wt_txn_is_blocking(session);
+        if (ret == WT_ROLLBACK) {
+            __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
+            if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                                    session->err_info.err_msg);
+        }
+    }
+    if (ret != 0) {
+        printf("Transaction blocking eviction\n");
+        WT_STAT_CONN_INCR(session, eviction_transaction_blocking);
+    }
+
+#if APP_HELP
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
+        __wt_evict_needed(session, false, false /*FIX*/, &pct_full) && pct_full > 95) {
+        if (session->id % 2 == 0)
+            WT_RET_BUSY_OK(__evict_page(session, false));
+    }
+#endif
+    return (ret);
 }

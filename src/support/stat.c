@@ -1912,9 +1912,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: dirty bytes belonging to the history store table in the cache",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
-  "cache: evict page attempts by eviction server",
+  "cache: evict page attempts by application threads",
   "cache: evict page attempts by eviction worker threads",
-  "cache: evict page failures by eviction server",
+  "cache: evict page failures by application threads",
   "cache: evict page failures by eviction worker threads",
   "cache: eviction calls to get a page could not find a page",
   "cache: eviction currently operating in aggressive mode",
@@ -2945,9 +2945,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
-    stats->eviction_server_evict_attempt = 0;
+    stats->eviction_app_evict_attempt = 0;
     stats->eviction_worker_evict_attempt = 0;
-    stats->eviction_server_evict_fail = 0;
+    stats->eviction_app_evict_fail = 0;
     stats->eviction_worker_evict_fail = 0;
     stats->eviction_get_ref_empty = 0;
     /* not clearing eviction_aggressive_set */
@@ -3953,9 +3953,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
-    to->eviction_server_evict_attempt += WT_STAT_CONN_READ(from, eviction_server_evict_attempt);
+    to->eviction_app_evict_attempt += WT_STAT_CONN_READ(from, eviction_app_evict_attempt);
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
-    to->eviction_server_evict_fail += WT_STAT_CONN_READ(from, eviction_server_evict_fail);
+    to->eviction_app_evict_fail += WT_STAT_CONN_READ(from, eviction_app_evict_fail);
     to->eviction_worker_evict_fail += WT_STAT_CONN_READ(from, eviction_worker_evict_fail);
     to->eviction_get_ref_empty += WT_STAT_CONN_READ(from, eviction_get_ref_empty);
     to->eviction_aggressive_set += WT_STAT_CONN_READ(from, eviction_aggressive_set);

@@ -791,33 +791,3 @@ __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
       ((uint64_t)(conn->evict->eviction_dirty_trigger * bytes_max) / 100));
 }
 
-/* !!!
- * __wt_evict_check_if_blocking
- *    Check if this session is blocking eviction.
- */
-static WT_INLINE int
-__wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_EVICT *evict = conn->evict;
-
-    /*
-     * If eviction is stuck, check if this thread is likely causing problems and should be
-     * rolled back. Ignore if in recovery, those transactions can't be rolled back.
-     */
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
-        ret = __wt_txn_is_blocking(session);
-        if (ret == WT_ROLLBACK) {
-            __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
-            if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                                    session->err_info.err_msg);
-        }
-    }
-    if (ret != 0) {
-        printf("Transaction blocking eviction\n");
-        WT_STAT_CONN_INCR(session, eviction_transaction_blocking);
-    }
-    return (ret);
-}
