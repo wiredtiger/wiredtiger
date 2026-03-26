@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered_cursor02.py
+# test_layered84.py
 #   Test layered cursor walks on a follower with an advanced checkpoint, exercising the
 #   two-cursor merge path. Verifies correct behavior when:
 #   - An overwrite update positions only the ingest cursor, then next() forces the stable
@@ -41,11 +41,11 @@ from wiredtiger import WiredTigerError, wiredtiger_strerror, WT_PREPARE_CONFLICT
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_cursor02(wttest.WiredTigerTestCase):
-    tablename = 'test_layered_cursor02'
+class test_layered84(wttest.WiredTigerTestCase):
+    tablename = 'test_layered84'
     uri = 'layered:' + tablename
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor02', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered84', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_base_config = ',create,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
@@ -143,7 +143,7 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         follow_cursor.set_key(3)
         self.assertEqual(follow_cursor.search(), 0)
 
-        # Overwrite update in the same transaction — cursor stays positioned on ingest.
+        # Overwrite update in the same transaction  cursor stays positioned on ingest.
         follow_cursor.set_key(3)
         follow_cursor.set_value('updated_3')
         follow_cursor.update()
@@ -177,7 +177,7 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
         stable has the full set. A prepared conflict on the ingest cursor occurs while the
         stable cursor is positioned on a key that hasn't been returned yet (key 3, which
         only exists in stable). After the prepare resolves, verify that the walk returns
-        every key — including the one that the stable cursor was sitting on at the time
+        every key  including the one that the stable cursor was sitting on at the time
         of the conflict.
         """
         all_keys = [1, 2, 3, 4, 5, 6]
@@ -195,7 +195,7 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(30 + key))
         ingest_cursor.close()
 
-        # Prepare an update on key 4 — the next ingest key after 2.
+        # Prepare an update on key 4  the next ingest key after 2.
         prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
@@ -204,7 +204,7 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
             'prepare_timestamp=' + self.timestamp_str(50) +
             ',prepared_id=' + self.prepared_id_str(1))
 
-        # Walk forward — should hit the prepared conflict at key 4.
+        # Walk forward  should hit the prepared conflict at key 4.
         cursor = session_follow.open_cursor(self.uri)
         session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(60))
 
@@ -303,7 +303,7 @@ class test_layered_cursor02(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(30 + key))
         ingest_cursor.close()
 
-        # Prepare key 1 — the first key in sort order.
+        # Prepare key 1  the first key in sort order.
         prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()

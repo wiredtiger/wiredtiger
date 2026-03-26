@@ -770,11 +770,11 @@ err:
  *     Position an alternate cursor to the right position according to the current one.
  */
 static int
-__clayered_position_alternate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *alternate, bool forward)
+__clayered_position_alternate(
+  WT_CURSOR_LAYERED *clayered, WT_CURSOR *current, WT_CURSOR *alternate, bool forward)
 {
     int cmp;
 
-    WT_CURSOR *current = clayered->current_cursor;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
     WT_ASSERT(session, F_ISSET(current, WT_CURSTD_KEY_SET));
@@ -842,10 +842,13 @@ static int
 __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 {
     WT_CURSOR *c_alternate, *c_current;
+    WT_DECL_RET;
     int cmp;
+    bool current_moved, forward;
 
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    bool forward = (iter_flag == WT_CLAYERED_ITERATE_NEXT);
+    current_moved = false;
+    forward = (iter_flag == WT_CLAYERED_ITERATE_NEXT);
     WT_CURSOR *c_ingest = clayered->ingest_cursor;
     WT_CURSOR *c_stable = clayered->stable_cursor;
 
@@ -878,7 +881,17 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * safe to check the WT_CURSTD_KEY_INT flag.
      */
     if (((WT_CURSOR_BTREE *)c_ingest)->ref == NULL && !F_ISSET(c_stable, WT_CURSTD_KEY_INT)) {
-        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
+        /*
+         * When starting with an unpositioned cursor, ensure that the ingest cursor is moved first.
+         * If a prepared conflict is encountered on its first key, reset both cursors to their
+         * original state. This approach prevents unnecessary movement of the stable cursor.
+         */
+        ret = __clayered_constituent_iter(c_ingest, forward);
+        if (ret == WT_PREPARE_CONFLICT) {
+            WT_TRET(__clayered_reset_cursors(clayered, false));
+            return (ret);
+        } else
+            WT_RET_NOTFOUND_OK(ret);
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
         goto done;
     }
@@ -893,7 +906,9 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
         c_current = c_ingest;
     } else {
         c_current = clayered->current_cursor;
-        WT_ASSERT(session, F_ISSET(c_current, WT_CURSTD_KEY_INT));
+        WT_ASSERT(session,
+          F_ISSET(c_current, WT_CURSTD_KEY_INT) ||
+            (c_current == c_ingest && ((WT_CURSOR_BTREE *)c_current)->ref != NULL));
     }
     WT_ASSERT(session, c_current == c_stable || c_current == c_ingest);
 
@@ -902,11 +917,23 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     WT_ASSERT(session, c_alternate != c_current);
 
     /*
+     * Move the current cursor ahead of the alternate cursor if its motion was previously blocked by
+     * a prepared conflict. This ensures the current cursor has a valid key, which is necessary for
+     * properly positioning the alternate cursor. Failing to do so would result in a situation where
+     * the alternate cursor cannot be placed due to the absence of a key from the current cursor.
+     */
+    if (!F_ISSET(c_current, WT_CURSTD_KEY_INT)) {
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
+        current_moved = true;
+    }
+
+    /*
      * The cursor is positioned, but `iter_flag` is not set so we cannot rely on alternate cursor
      * and need to position it.
      */
     if (!F_ISSET(clayered, iter_flag))
-        WT_RET_NOTFOUND_OK(__clayered_position_alternate(clayered, c_alternate, forward));
+        WT_RET_NOTFOUND_OK(
+          __clayered_position_alternate(clayered, c_current, c_alternate, forward));
 
     /* If the alternate cursor's key is equal to the current one, we should move it as well. */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT)) {
@@ -915,8 +942,9 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
             WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward));
     }
 
-    /* Move the current cursor. */
-    WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
+    /* Move the current cursor if we haven't done so. */
+    if (!current_moved)
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
 
 done:
     if (!F_ISSET(clayered, iter_flag)) {
