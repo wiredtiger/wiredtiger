@@ -421,6 +421,7 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
+    conn->txn_global.last_ckpt_timestamp = metadata->checkpoint_timestamp;
 
     /* Set the database size. */
     if (ckpt_meta->has_database_size)
@@ -542,9 +543,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       ckpt_meta->metadata_lsn);
 
 err:
-    if (ret == 0)
+    if (ret == 0) {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
-    else {
+        if (!conn->layered_table_manager.leader)
+            WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_follower);
+    } else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_ERROR,
           "Failed to pick up disaggregated storage checkpoint for metadata_lsn=%" PRIu64 ": ret=%d",
@@ -938,6 +941,44 @@ err:
 }
 
 /*
+ * __wt_disagg_shared_metadata_queue_drop_size --
+ *     Walk the metadata queue and sum the checkpoint sizes of non-deferred drop operations. This is
+ *     a read-only operation on the queue.
+ */
+int
+__wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry;
+
+    conn = S2C(session);
+    *drop_sizep = 0;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        if (!entry->deferred && entry->metadata_op == WT_SHARED_METADATA_REMOVE &&
+          entry->stable_value != NULL) {
+            uint64_t size;
+            /*
+             * A table that was created and dropped without ever being checkpointed won't have a
+             * checkpoint entry in its metadata, so WT_NOTFOUND is expected.
+             */
+            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
+            *drop_sizep += size;
+        }
+    }
+
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (ret);
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list.
  */
@@ -1194,23 +1235,66 @@ err:
 }
 
 /*
+ * __disagg_mark_btrees_readonly_then_step_down --
+ *     Mark all disaggregated btrees as readonly. This must be called during leader step-down. And
+ *     then step down to the follower mode.
+ */
+static void
+__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    for (dhandle = NULL;;) {
+        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+        if (dhandle == NULL)
+            break;
+
+        /* Only care about open disaggregated btree dhandles. */
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+            continue;
+
+        btree = (WT_BTREE *)dhandle->handle;
+
+        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET(btree, WT_BTREE_READONLY))
+            continue;
+
+        WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
+        WT_IGNORE_RET(ret);
+
+        /* Mark the disaggregated as readonly. */
+        F_SET(btree, WT_BTREE_READONLY);
+
+        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+    }
+
+    /* Step down to the follower mode. */
+    conn->layered_table_manager.leader = false;
+    WT_STAT_CONN_SET(session, disagg_role_leader, 0);
+}
+
+/*
  * __disagg_step_down --
  *     Step down to the follower mode.
  */
 static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
 
-    conn->layered_table_manager.leader = false;
-    WT_STAT_CONN_SET(session, disagg_role_leader, 0);
+    /*
+     * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
+     * eviction paths, especially parent split path, from dirtying pages during the step-down
+     * window.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_mark_btrees_readonly_then_step_down(session));
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);
@@ -1644,6 +1728,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_DECL_ITEM(meta);
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
+    WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS complete_args;
     wt_timestamp_t checkpoint_timestamp;
     uint64_t meta_lsn;
     uint32_t meta_checksum;
@@ -1651,6 +1736,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
+    WT_CLEAR(complete_args);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -1683,8 +1769,23 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
           WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION,
           max_table_id));
-        WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
-          &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
+        /*
+         * FIXME-WT-16821: Remove the if branch keep non-ext version only.
+         */
+        if (disagg->npage_log->page_log->pl_complete_checkpoint != NULL) {
+            complete_args.checkpoint_id = 0;
+            complete_args.checkpoint_timestamp = checkpoint_timestamp;
+            complete_args.checkpoint_metadata = meta;
+            complete_args.checkpoint_oldest_timestamp =
+              conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
+            complete_args.lsn = 0;
+            WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint(
+              disagg->npage_log->page_log, &session->iface, &complete_args));
+        } else
+            WT_ERR(
+              disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
+                &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
+
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 

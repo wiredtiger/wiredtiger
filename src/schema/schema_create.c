@@ -24,21 +24,17 @@ __check_imported_ts(
 {
     WT_CKPT *ckptbase, *ckpt;
     WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t ts;
     const char *ts_name;
 
     ckptbase = NULL;
-    txn_global = &S2C(session)->txn_global;
 
     if (against_stable) {
         ts_name = "stable";
         ts = __wt_get_stable_timestamp(session);
     } else {
         ts_name = "oldest";
-        /* FIXME-WT-16776: use an atomic read operation similar to the stable timestamp
-         * implementation. */
-        ts = txn_global->oldest_timestamp;
+        ts = __wt_get_oldest_timestamp(session);
     }
 
     WT_ERR_NOTFOUND_OK(
@@ -711,14 +707,8 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         __wt_free(session, cgconf);
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
 
-        /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-        if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP)) {
-            __wt_verbose_warning(session, WT_VERB_DEFAULT,
-              "Simulating a crash before inserting column group metadata entry '%s'", name);
-            /* Wait for the file metadata entry to be persisted. */
-            __wt_sleep(2, 0);
-            __wt_abort(session);
-        }
+        __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP,
+          "before inserting a colgroup", name);
 
         if (!exists) {
             WT_ERR(__wt_metadata_insert(session, name, cgconf));
@@ -1062,6 +1052,9 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
         WT_ERR(__wt_metadata_insert(session, uri, tmp->mem));
     } else
         WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
+
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE,
+      "before inserting a file entry for table", uri);
 
     if (ncolgroups == 0) {
         len = strlen("colgroup:") + strlen(tablename) + 1;

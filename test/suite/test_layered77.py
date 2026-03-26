@@ -26,67 +26,82 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re
-import wiredtiger
-import wttest
-from metadata_helper import extract_id
+import time, wttest
+from eviction_util import eviction_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered77.py
-# Make sure that a follower picks up and applies new file IDs.
-@disagg_test_class
-class test_layered77(wttest.WiredTigerTestCase):
-    conn_config = 'disaggregated=(role="leader")'
-    conn_config_follower = 'disaggregated=(role="follower")'
 
-    uri = "layered:test_layered77"
+# Test that leader-to-follower role transition doesn't crash when eviction
+# processes pages that were split during a prior checkpoint.
+@disagg_test_class
+class test_layered77(eviction_util, wttest.WiredTigerTestCase):
+    conn_base_config = 'cache_size=10MB,'
 
     disagg_storages = gen_disagg_storages('test_layered77', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
+    uri='layered:test_layered77'
 
-    def test_standby_uses_table_id_high_water_mark(self):
-        # Make 100 tables, then checkpoint.
-        for i in range(0, 100):
-            self.session.create(f"layered:test_layered77_{i}", 'key_format=S,value_format=S')
-        self.conn.set_timestamp('stable_timestamp=1') # Don't upset precise checkpoint
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
+
+    def conn_config_follower(self):
+        return self.conn_base_config + 'disaggregated=(role="follower"),'
+
+    def test_step_down_dirty_eviction(self):
+        """
+        Test that transitioning from leader to follower role doesn't crash when
+        eviction processes pages that were split during a prior checkpoint.
+
+        During the role transition window, eviction threads may still be processing
+        pages that have pending split state from checkpoint. This test verifies that
+        the transition is handled safely without assertion failures.
+        """
+        create_params = 'key_format=i,value_format=S,block_manager=disagg'
+        nrows = 10000
+        value = 'k' * 1024  # 1KB per row, ~10MB total fills the 10MB cache
+
+        self.session.create(self.uri, create_params)
+
+        # Write data as leader.
+        self.populate(self.uri, 0, nrows, value)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows))
+
+        # Checkpoint to create pages with pending split state.
+        # After checkpoint, some pages may have been split into multiple blocks
+        # but are marked clean. When eviction encounters these pages later, it
+        # needs to handle the split state properly.
         self.session.checkpoint()
 
-        # Make a follower and feed it the latest checkpoint.
-        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
-                                                self.conn_config_follower)
-        self.session_follow = self.conn_follow.open_session('')
-        self.disagg_advance_checkpoint(self.conn_follow)
+        # Make eviction aggressive to increase the chance of encountering
+        # split pages during the role transition.
+        self.conn.reconfigure(
+            'eviction_dirty_target=1,eviction_dirty_trigger=5,'
+            'eviction_updates_target=1,eviction_updates_trigger=5'
+        )
 
-        # Record the highest file ID and kill the leader.
-        md_cursor = self.session.open_cursor('metadata:', None, None)
-        max_file_id = 0
-        for key, value in md_cursor:
-            if not key.startswith('file:') and not key == 'metadata:':
-                continue
+        # Capture checkpoint metadata while still the leader.
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
-            curr_file_id = extract_id(value)
-            if curr_file_id > max_file_id:
-                max_file_id = curr_file_id
-        self.session.close()
-        self.conn.close()
+        # Transition from leader to follower role.
+        # Eviction threads running concurrently should not crash when they
+        # encounter pages with pending split state during this transition.
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
-        # Follower step-up to leader.
-        self.conn_follow.reconfigure('disaggregated=(role="leader")')
+        # Allow time for eviction to process pages during the transition window.
+        time.sleep(0.5)
 
-        # Make a new table on the (new) leader. Checkpoint.
-        self.conn_follow.set_timestamp('stable_timestamp=1') # Don't upset precise checkpoint
-        self.session_follow.create(f"layered:test_layered77_101", 'key_format=S,value_format=S')
-        self.session_follow.checkpoint()
+        self.close_conn()
 
-        # Make sure the table ID is higher than what we saw from the old leader
-        md_cursor = self.session_follow.open_cursor('metadata:', None, None)
-        follower_max_file_id = 0
-        for key, value in md_cursor:
-            if not key.startswith('file:') and not key == 'metadata:':
-                continue
+        # Reopen as follower with the captured checkpoint metadata.
+        config = (self.conn_config_follower() +
+                  f'disaggregated=(checkpoint_meta="{checkpoint_meta}"),')
+        self.open_conn(".", config)
 
-            curr_file_id = extract_id(value)
-            if curr_file_id > follower_max_file_id:
-                follower_max_file_id = curr_file_id
-        self.assertTrue(follower_max_file_id > max_file_id)
+        # Verify all data is readable from the follower.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        count = 0
+        while cursor.next() == 0:
+            count += 1
+        cursor.close()
+        self.assertEqual(count, nrows)

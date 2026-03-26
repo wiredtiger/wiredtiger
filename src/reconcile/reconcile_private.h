@@ -182,6 +182,9 @@ struct __wti_reconcile {
     uint64_t max_txn;
     wt_timestamp_t max_ts;
 
+    /* Track the total time in msecs spent in block writes */
+    uint64_t blkcache_write_time;
+
     /*
      * When we do not find any update to be written for the whole page, we would like to mark
      * eviction failed in the case of update-restore unless all the updates for a key are found
@@ -293,6 +296,14 @@ struct __wti_reconcile {
     uint32_t count_stop_txn;
     uint32_t count_prepare;
 
+    uint32_t count_delta_durable_start_ts;
+    uint32_t count_delta_start_ts;
+    uint32_t count_delta_start_txn;
+    uint32_t count_delta_durable_stop_ts;
+    uint32_t count_delta_stop_ts;
+    uint32_t count_delta_stop_txn;
+    uint32_t count_delta_prepare;
+
     /*
      * Counters for tracking the number of key deletions and key insertions or updates in internal
      * page deltas.
@@ -314,6 +325,7 @@ struct __wti_reconcile {
 #define WTI_REC_TIME_PREPARE 0x40u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t ts_usage_flags;
+    uint16_t delta_ts_usage_flags;
 
     /*
      * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each

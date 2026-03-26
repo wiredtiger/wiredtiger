@@ -341,8 +341,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Validate the size of the btree */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
                 /*
-                 * FIXME-WT-16738: verify currently encounters checkpoint size mismatches. Re-enable
-                 * this check once this is resolved.
+                 * FIXME-WT-16660: We are seeing mismatches due to nuanced reconciliation issues,
+                 * where bytes_total increments happen before the reconciliation panic boundary,
+                 * leaving us in an inconsistent state if reconciliation fails after the increment
+                 * but before completion. Re-enable this check once this is resolved.
                  */
                 if (false)
                     WT_ERR_MSG(session, WT_ERROR,
@@ -494,6 +496,63 @@ err:
 }
 
 /*
+ * __verify_disagg_string --
+ *     Format a page's disagg metadata into a printable, nul-terminated string.
+ */
+static const char *
+__verify_disagg_string(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *buf)
+{
+    WT_DECL_RET;
+    WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_DISAGG_INFO *disagg_info;
+
+    if (page == NULL || page->disagg_info == NULL) {
+        WT_ERR(__wt_buf_fmt(session, buf, "Disagg metadata not available"));
+        return (buf->data);
+    }
+
+    disagg_info = page->disagg_info;
+    block_meta = &disagg_info->block_meta;
+    WT_ERR(__wt_buf_fmt(session, buf,
+      "page_id: %" PRIu64 ", disagg_lsn: %" PRIu64 ", backlink_lsn: %" PRIu64 ", base_lsn: %" PRIu64
+      ", delta_count: %" PRIu8 ", old_rec_lsn_max: %" PRIu64 ", rec_lsn_max: %" PRIu64,
+      block_meta->page_id, block_meta->disagg_lsn, block_meta->backlink_lsn, block_meta->base_lsn,
+      block_meta->delta_count, disagg_info->old_rec_lsn_max, disagg_info->rec_lsn_max));
+
+err:
+    return (buf->data);
+}
+
+/*
+ * __verify_block_meta_string --
+ *     Return disagg metadata string if available, otherwise return address string.
+ */
+static const char *
+__verify_block_meta_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_PAGE *page;
+
+    page = ref->page;
+
+    if (page->disagg_info != NULL) {
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ERR(__wt_buf_fmt(session, buf, "%s", __verify_disagg_string(session, page, tmp)));
+        WT_ERR(__wt_buf_catfmt(
+          session, buf, ", addr_cookie: %s", __verify_addr_string(session, ref, tmp)));
+        __wt_scr_free(session, &tmp);
+        return (buf->data);
+    }
+
+    return (__verify_addr_string(session, ref, buf));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (buf->data);
+}
+
+/*
  * __verify_addr_ts --
  *     Check an address block's timestamps.
  */
@@ -603,14 +662,14 @@ __verify_tree(
     if (__wt_session_prefetch_check(session, ref))
         WT_RET(__wti_btree_prefetch(session, ref));
 
-    __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write gen: %" PRIu64 ", entries: %" PRIu32,
-      __wt_page_type_string(page->type), __verify_addr_string(session, ref, vs->tmp1),
+    __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write_gen: %" PRIu64 ", entries: %" PRIu32,
+      __wt_page_type_string(page->type), __verify_block_meta_string(session, ref, vs->tmp1),
       page->dsk->write_gen, page->entries);
 
     /* Optionally dump address information. */
     if (vs->dump_address)
-        WT_RET(__wt_msg(session, "%s %s write gen: %" PRIu64,
-          __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
+        WT_RET(__wt_msg(session, "%s %s write_gen: %" PRIu64,
+          __verify_block_meta_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
           page->dsk->write_gen));
 
     my_stack_level = WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1);
@@ -644,7 +703,8 @@ __verify_tree(
      *
      * Report progress occasionally.
      */
-    WT_RET(__wt_progress_backoff(session, NULL, ++vs->fcnt));
+    if (__wt_counter_backoff(++vs->fcnt, 100))
+        WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
 #ifdef HAVE_DIAGNOSTIC
     /* Optionally dump the blocks or page in debugging mode. */
@@ -660,13 +720,15 @@ __verify_tree(
         if (page->type != WT_PAGE_COL_INT && page->type != WT_PAGE_COL_VAR)
             WT_RET_MSG(session, WT_ERROR,
               "page at %s is a %s, which does not belong in a variable-length column-store tree",
-              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
+              __verify_block_meta_string(session, ref, vs->tmp1),
+              __wt_page_type_string(page->type));
         break;
     case BTREE_ROW:
         if (page->type != WT_PAGE_ROW_INT && page->type != WT_PAGE_ROW_LEAF)
             WT_RET_MSG(session, WT_ERROR,
               "page at %s is a %s, which does not belong in a row-store tree",
-              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
+              __verify_block_meta_string(session, ref, vs->tmp1),
+              __wt_page_type_string(page->type));
         break;
     }
 
@@ -678,7 +740,8 @@ __verify_tree(
             WT_RET_MSG(session, WT_ERROR,
               "page at %s has a starting record of %" PRIu64
               " when the expected starting record is at least %" PRIu64,
-              __verify_addr_string(session, ref, vs->tmp1), ref->ref_recno, vs->records_so_far + 1);
+              __verify_block_meta_string(session, ref, vs->tmp1), ref->ref_recno,
+              vs->records_so_far + 1);
         break;
     }
 
@@ -763,12 +826,13 @@ __verify_tree(
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        if (addr_unpack->raw != WT_CELL_ADDR_INT)
+        if (addr_unpack->raw != WT_CELL_ADDR_INT) {
 celltype_err:
             WT_RET_MSG(session, WT_ERROR,
               "page at %s, of type %s, is referenced in its parent by a cell of type %s",
-              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
+              __verify_block_meta_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
               __wti_cell_type_string(addr_unpack->raw));
+        }
         break;
     }
 

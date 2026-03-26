@@ -316,6 +316,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (!session->evict_timeline.reentry_hs_eviction)
         session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
+    if (F_ISSET(r, WT_REC_CHECKPOINT))
+        WT_STAT_CONN_SET(session, checkpoint_rec_blkcache_write, r->blkcache_write_time);
+
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
      */
@@ -465,7 +468,13 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      */
     mod->rec_max_txn = r->max_txn;
     mod->rec_max_timestamp = r->max_ts;
+
+    /*
+     * Track the timestamps used in the current reconciliation to decide if we can skip the next
+     * reconciliation.
+     */
     mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
+    mod->rec_prune_timestamp = r->rec_prune_timestamp;
 
     /* Track the page's most recent LSN. */
     if (page->disagg_info != NULL) {
@@ -748,6 +757,9 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->max_txn = WT_TXN_NONE;
     r->max_ts = WT_TS_NONE;
 
+    /* Track time spent writing to the block cache during checkpoints. */
+    r->blkcache_write_time = 0;
+
     /* Track if updates were used and/or uncommitted. */
     r->update_used = false;
 
@@ -958,6 +970,8 @@ __rec_destroy_session(WT_SESSION_IMPL *session)
     return (__rec_destroy(session, &session->reconcile));
 }
 
+#define WT_REC_CKPT_TRACK_TIME(r) ((r) != NULL && F_ISSET(r, WT_REC_CHECKPOINT))
+
 /*
  * __rec_write --
  *     Write a block, with optional diagnostic checks.
@@ -972,10 +986,13 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     size_t result_len;
+    WTI_RECONCILE *r;
+    uint64_t _write_start = 0;
 
     dsk = buf->mem;
     btree = S2BT(session);
     result_len = 0;
+    r = session->reconcile;
 
     if (dsk->type == WT_PAGE_INVALID || dsk->type >= WT_PAGE_TYPE_COUNT)
         return (__wt_illegal_value(session, dsk->type));
@@ -1027,8 +1044,16 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
         WT_RET(ret);
     }
 
-    return (__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
+    if (WT_REC_CKPT_TRACK_TIME(r))
+        _write_start = __wt_clock(session);
+
+    WT_RET(__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
       compressed_sizep, checkpoint, checkpoint_io, compressed));
+
+    if (WT_REC_CKPT_TRACK_TIME(r))
+        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+
+    return (0);
 }
 
 /*
@@ -2119,6 +2144,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_MULTI *multi;
     WT_PAGE_BLOCK_META *block_meta;
     uint64_t delta_pct;
+    uint64_t _write_start = 0;
 
     conn = S2C(session);
     multi = &r->multi[r->multi_next - 1];
@@ -2136,8 +2162,13 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     ++multi->block_meta->delta_count;
 
     /* Get the checkpoint ID. */
+    if (WT_REC_CKPT_TRACK_TIME(r))
+        _write_start = __wt_clock(session);
     WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+    if (WT_REC_CKPT_TRACK_TIME(r))
+        r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
+
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;
 
@@ -2555,7 +2586,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
           session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
 
     /* Update the per-page reconciliation time statistics now that we've written something. */
-    __rec_page_time_stats(session, r);
+    __rec_page_time_stats(session, r, build_delta);
 
 copy_image:
 #ifdef HAVE_DIAGNOSTIC
@@ -2996,7 +3027,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                      * the one held on page->disagg_info appears to be from the previous block, and
                      * the one on the multi->block_meta appears to be from the current block.
                      */
-                    if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count == 0 &&
+                    if (r->multi_next == 1 && r->multi->block_meta != NULL &&
+                      r->multi->block_meta->delta_count == 0 &&
                       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
 
 #ifdef HAVE_DIAGNOSTIC
@@ -3335,6 +3367,12 @@ __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV
 
     /* Track if page has overflow items. */
     r->ovfl_items = true;
+
+    /*
+     * Disaggregated trees are not allowed to create overflow keys or values. In diagnostic builds,
+     * assert if reconciliation ever tries to do so.
+     */
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED));
 
     /*
      * See if this overflow record has already been written and reuse it if possible, otherwise
