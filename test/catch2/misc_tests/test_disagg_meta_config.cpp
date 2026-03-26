@@ -173,7 +173,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
     SECTION("Unknown keys ignored if version doesn't match")
     {
         const std::string metadata_str =
-          "version=2,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,another_"
+          "version=3,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,another_"
           "unknown="
           "bar,";
 
@@ -194,7 +194,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
     SECTION("Unknown keys are an error if version matches")
     {
         const std::string metadata_str =
-          "version=1,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,";
+          "version=2,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,";
 
         WT_ITEM metadata_buf{};
         metadata_buf.data = (const void *)metadata_str.data();
