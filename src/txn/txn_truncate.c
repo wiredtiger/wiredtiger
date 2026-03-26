@@ -108,6 +108,9 @@ err:
  * __wt_layered_table_truncate_detect_write_conflict --
  *     Search if the current key we are modifying conflicts with any uncommitted truncates in the
  *     layered table truncate list.
+ *
+ * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing so
+ *     would remove the write cursor operations dependency on the truncate list.
  */
 int
 __wt_layered_table_truncate_detect_write_conflict(
