@@ -2441,7 +2441,10 @@ __clayered_modify_follower(
             WT_ERR(ingest->modify(ingest, entries, nentries));
     }
 
-    /* Clear the stable cursor position. */
+    /*
+     * Clear the stable cursor position. Keep the cursor position if we are in the middle of a
+     * cursor traversal.
+     */
     if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
         WT_ERR(__clayered_reset_cursors(clayered, true));
     clayered->current_cursor = ingest;
@@ -2478,12 +2481,16 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_CURSOR *current;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool positioned;
 
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
-    positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
+    /*
+     * Modify keeps the cursor positioned. Retain the iteration flags if we are in the middle of a
+     * cursor traversal.
+     */
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
+        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
@@ -2521,12 +2528,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 err:
     __clayered_leave(clayered);
-    /*
-     * Modify keeps the cursor positioned. Retain the iteration flags if we are in the middle of a
-     * cursor traversal.
-     */
-    if (!positioned)
-        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_modify);
     return (ret);
 }
