@@ -212,7 +212,7 @@ class test_layered81(wttest.WiredTigerTestCase):
                 self.assertEqual(k, v)
                 got.append(k)
 
-            self.tty(f'For {uri}, expected {expect}, got {got}')
+            # self.tty(f'For {uri}, expected {expect}, got {got}')
             self.assertEqual(expect, got)
             c.close()
 
