@@ -36,8 +36,8 @@ from wtscenario import make_scenarios
 #   Key scenarios:
 #   - Unpositioned cursor sees new data after checkpoint advance.
 #   - Cursor preserves position correctly when checkpoint advances.
-#   - With read timestamp, iteration triggers the upgrade.
-#   - Data added/updated/removed across checkpoints is visible after advance.
+#   - With read timestamp, iteration triggers a checkpoint advance.
+#   - Data added/updated/removed across checkpoints is visible after checkpoint advances.
 
 @disagg_test_class
 class test_layered81(wttest.WiredTigerTestCase):
@@ -150,7 +150,7 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Checkpoint 1: even keys 0-998. Open a cursor, scan, reset (unpositioned).
     # Checkpoint 2: all keys 0-999. The same cursor must see all 1000 keys.
     # -----------------------------------------------------------------------
-    def test_upgrade_full_scan(self):
+    def test_checkpoint_advance_full_scan(self):
 
         even_keys = list(range(0, self.nkeys, 2))
         self.insert_leader(even_keys)
@@ -170,7 +170,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(odd_keys)
         self.do_checkpoint()
 
-        # Trigger the upgrade with a search, then verify full scan sees all 1000 keys.
+        # Trigger the cursor to pick up the new checkpoint via search, then verify full scan sees all 1000 keys.
         all_keys = [self.fmt_key(i) for i in range(self.nkeys)]
         cursor.set_key(self.fmt_key(0))
         self.assertEqual(cursor.search(), 0)
@@ -182,13 +182,13 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Updated values visible after upgrade.
+    # Test: Updated values visible after checkpoint advance.
     #
     # Checkpoint 1: 1000 keys with original values.
     # Checkpoint 2: every 10th key updated with new value.
-    # After advance, follower should see the updated values.
+    # After checkpoint advance, follower should see the updated values.
     # -----------------------------------------------------------------------
-    def test_upgrade_updated_value(self):
+    def test_checkpoint_advance_updated_value(self):
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -206,7 +206,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(update_keys, values=update_vals)
         self.do_checkpoint()
 
-        # After upgrade, should see new values for updated keys.
+        # After checkpoint advance, should see new values for updated keys.
         for i in update_keys:
             cursor.set_key(self.fmt_key(i))
             self.assertEqual(cursor.search(), 0)
@@ -220,12 +220,12 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Deleted key disappears after upgrade.
+    # Test: Deleted key disappears after checkpoint advance.
     #
     # Checkpoint 1: 1000 keys. Checkpoint 2: every 3rd key removed.
-    # Follower should not see removed keys after advance.
+    # Follower should not see removed keys after checkpoint advance.
     # -----------------------------------------------------------------------
-    def test_upgrade_deleted_key(self):
+    def test_checkpoint_advance_deleted_key(self):
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -256,7 +256,7 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Cursor positioned on key 750. Checkpoint 2: adds key 1000.
     # Forward iteration from 750 must reach key 1000.
     # -----------------------------------------------------------------------
-    def test_upgrade_positioned_on_local_key(self):
+    def test_checkpoint_advance_positioned_on_local_key(self):
 
         stable_keys = list(range(500))
         self.insert_leader(stable_keys)
@@ -284,7 +284,7 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Test: Checkpoint 1: even keys 0-998. Follower adds some odd keys locally.
     # Checkpoint 2: all keys 0-999. After advance, iteration shows all keys in order.
     # -----------------------------------------------------------------------
-    def test_upgrade_interleaved(self):
+    def test_checkpoint_advance_interleaved(self):
 
         even_keys = list(range(0, self.nkeys, 2))
         self.insert_leader(even_keys)
@@ -305,13 +305,13 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(self.scan_keys(self.session_follow), all_keys)
 
     # -----------------------------------------------------------------------
-    # Test: search_near after upgrade finds new closer key.
+    # Test: search_near after checkpoint advance finds new closer key.
     #
     # Checkpoint 1: 1000 keys missing key 500.
     # search_near(500) -> gets a neighbor.
     # Checkpoint 2: adds key 500. search_near(500) -> exact match.
     # -----------------------------------------------------------------------
-    def test_upgrade_search_near(self):
+    def test_checkpoint_advance_search_near(self):
 
         keys_without_500 = [i for i in range(self.nkeys) if i != 500]
         self.insert_leader(keys_without_500)
@@ -333,7 +333,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader([500])
         self.do_checkpoint()
 
-        # After upgrade, search_near should find exact match.
+        # After checkpoint advance, search_near should find exact match.
         cursor.set_key(self.fmt_key(500))
         exact = cursor.search_near()
         self.assertEqual(exact, 0)
@@ -348,7 +348,7 @@ class test_layered81(wttest.WiredTigerTestCase):
     # A transaction at checkpoint 1's timestamp sees only keys 0-499.
     # A transaction at checkpoint 2's timestamp sees all 1000 keys.
     # -----------------------------------------------------------------------
-    def test_upgrade_with_read_timestamp_iteration(self):
+    def test_checkpoint_advance_with_read_timestamp_iteration(self):
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -388,11 +388,11 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction()
 
     # -----------------------------------------------------------------------
-    # Test: Upgrade preserves bounds.
+    # Test: Advance preserves bounds.
     #
     # 1000 keys, bounds [200, 800].
     # -----------------------------------------------------------------------
-    def test_upgrade_preserves_bounds(self):
+    def test_checkpoint_advance_preserves_bounds(self):
 
         all_keys = list(range(self.nkeys))
         self.insert_leader(all_keys)
@@ -432,7 +432,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.set_key(self.fmt_key(800))
         cursor.bound("bound=upper")
 
-        # After upgrade, bounds should be in effect. 1001 and 1002 are outside.
+        # After checkpoint advance, bounds should be in effect. 1001 and 1002 are outside.
         keys = []
         while cursor.next() == 0:
             keys.append(cursor.get_key())
@@ -440,11 +440,11 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Upgrade with bounds and new data inside bounds.
+    # Test: Advance with bounds and new data inside bounds.
     #
     # Even keys first, odd keys added in checkpoint 2, bounds [200, 800].
     # -----------------------------------------------------------------------
-    def test_upgrade_bounds_new_data_inside(self):
+    def test_checkpoint_advance_bounds_new_data_inside(self):
 
         even_keys = list(range(0, self.nkeys, 2))
         self.insert_leader(even_keys)
@@ -494,7 +494,7 @@ class test_layered81(wttest.WiredTigerTestCase):
     # Test: 1000 keys checkpointed. Follower deletes keys 400-599 locally.
     # Checkpoint 2 adds more keys. Locally deleted keys stay hidden; new keys appear.
     # -----------------------------------------------------------------------
-    def test_upgrade_tombstone_persists(self):
+    def test_checkpoint_advance_tombstone_persists(self):
 
         stable_keys = list(range(self.nkeys))
         self.insert_leader(stable_keys)
@@ -506,11 +506,12 @@ class test_layered81(wttest.WiredTigerTestCase):
         expected = [self.fmt_key(i) for i in range(self.nkeys) if i < 400 or i >= 600]
         self.assertEqual(self.scan_keys(self.session_follow), expected)
 
-        new_keys = list(range(1000, 1100))
+        # Advance the checkpoint with new leader keys; locally deleted keys must stay hidden.
+        new_keys = list(range(self.nkeys, self.nkeys + 100))
         self.insert_leader(new_keys)
         self.do_checkpoint()
 
-        expected_after = expected + [self.fmt_key(i) for i in new_keys]
+        expected_after = sorted(expected + [self.fmt_key(i) for i in new_keys])
         self.assertEqual(self.scan_keys(self.session_follow), expected_after)
 
     # -----------------------------------------------------------------------
@@ -537,3 +538,4 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), self.fmt_val(999))
         cursor.close()
+
