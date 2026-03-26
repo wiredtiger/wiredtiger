@@ -77,7 +77,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
     def open_follower(self):
-        """Open a follower connection and advance its checkpoint so both cursors are active."""
+        """Open a follower connection and advance its checkpoint so it sees the leader's data."""
         conn_follow = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config +
             'disaggregated=(role="follower")')
@@ -161,40 +161,34 @@ class test_layered84(wttest.WiredTigerTestCase):
 
     def test_overwrite_update_then_next_on_follower(self):
         """
-        On a follower with an advanced checkpoint, an overwrite update only opens the ingest
-        cursor. A subsequent next() call needs the stable cursor, which forces it to be opened.
-        Verify that the cursor position is preserved across the stable cursor open and that
-        next() returns the correct remaining keys.
+        On a follower, search on a key, overwrite-update it in the same transaction, then
+        advance the checkpoint and call next(). The walk must return only the keys that
+        sort after the searched key — no keys before the position, no duplicates.
         """
         all_keys = [1, 2, 3, 4, 5]
         self.populate_leader_and_checkpoint(all_keys)
         conn_follow, session_follow = self.open_follower()
 
-        # Position the cursor with a search (opens both ingest and stable, sets the layered
-        # cursor's internal tracking to the ingest cursor). Then do an overwrite update in the
-        # same transaction (keeps ingest positioned). Commit, advance the checkpoint so the stable
-        # cursor needs to be reopened, then call next(). The cursor position must be preserved
-        # when the stable cursor is reopened.
+        # Search positions the cursor on key 3; the overwrite update keeps it there.
         follow_cursor = session_follow.open_cursor(self.uri, None, 'overwrite=true')
         session_follow.begin_transaction()
 
-        # Search positions both cursors and tracks ingest as current.
         follow_cursor.set_key(3)
         self.assertEqual(follow_cursor.search(), 0)
 
-        # Overwrite update in the same transaction  cursor stays positioned on ingest.
+        # Overwrite update in the same transaction keeps the cursor positioned on key 3.
         follow_cursor.set_key(3)
         follow_cursor.set_value('updated_3')
         follow_cursor.update()
         session_follow.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(25))
 
-        # Advance the checkpoint so the stable cursor needs to be reopened on next read.
+        # Advance the checkpoint so the follower sees the latest leader data.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25))
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
 
-        # next() needs to reopen the stable cursor while the ingest cursor is still positioned.
+        # next() must resume from key 3 and return only higher keys.
         session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(25))
         keys = []
         while follow_cursor.next() != wiredtiger.WT_NOTFOUND:
@@ -212,20 +206,17 @@ class test_layered84(wttest.WiredTigerTestCase):
 
     def test_next_walk_prepare_conflict_mid_scan(self):
         """
-        Forward cursor walk on a follower where ingest has a sparse subset of keys and
-        stable has the full set. A prepared conflict on the ingest cursor occurs while the
-        stable cursor is positioned on a key that hasn't been returned yet (key 3, which
-        only exists in stable). After the prepare resolves, verify that the walk returns
-        every key  including the one that the stable cursor was sitting on at the time
-        of the conflict.
+        Forward walk on a follower where the follower has committed writes only on even keys
+        and the leader has all keys. A prepared conflict occurs mid-walk. After the conflict
+        resolves, every key — including odd keys that exist only in the leader's data — must
+        appear exactly once across the full walk.
         """
         all_keys = [1, 2, 3, 4, 5, 6]
         self.populate_leader_and_checkpoint(all_keys)
         conn_follow, session_follow = self.open_follower()
 
-        # Write only even keys to the follower's ingest table, so stable has keys (like 3, 5)
-        # that ingest does not. This makes it possible for a missed advance on the stable
-        # cursor to skip a key entirely.
+        # Write only even keys on the follower so that odd keys (3, 5) exist only in the
+        # leader's data. If the walk drops its position on conflict, odd keys can be skipped.
         ingest_cursor = session_follow.open_cursor(self.uri)
         for key in [2, 4, 6]:
             session_follow.begin_transaction()
@@ -234,7 +225,7 @@ class test_layered84(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(30 + key))
         ingest_cursor.close()
 
-        # Prepare an update on key 4  the next ingest key after 2.
+        # Prepare an update on key 4 — the next follower key after 2.
         prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
@@ -243,7 +234,7 @@ class test_layered84(wttest.WiredTigerTestCase):
             'prepare_timestamp=' + self.timestamp_str(50) +
             ',prepared_id=' + self.prepared_id_str(1))
 
-        # Walk forward  should hit the prepared conflict at key 4.
+        # Walk forward — conflict expected at key 4.
         cursor = session_follow.open_cursor(self.uri)
         session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(60))
 
@@ -263,8 +254,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         session_follow.rollback_transaction()
         cursor.close()
 
-        # Key 3 only exists in stable and was positioned on but not yet returned when the
-        # conflict occurred. Verify it is not skipped.
+        # Key 3 exists only in the leader's data; it must not be skipped by the conflict.
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
             f"Missing keys. Before: {keys_before}, After: {keys_after}")
@@ -274,9 +264,9 @@ class test_layered84(wttest.WiredTigerTestCase):
 
     def test_prev_walk_prepare_conflict_mid_scan(self):
         """
-        Backward cursor walk on a follower encounters a prepared conflict with multiple
-        keys in both ingest and stable. Same verification as the forward test but in
-        reverse direction.
+        Backward walk on a follower with committed writes on all keys and a prepared
+        conflict mid-scan. Every key must appear exactly once across both segments of
+        the walk, mirroring the forward test in the reverse direction.
         """
         all_keys = [1, 2, 3, 4, 5]
         self.populate_leader_and_checkpoint(all_keys)
@@ -347,12 +337,12 @@ class test_layered84(wttest.WiredTigerTestCase):
         session_follow.rollback_transaction()
         cursor.close()
 
-        # Each key must appear at most once across both segments.  If a key
-        # returned before the conflict reappears after, the walk position was
-        # not preserved and the scan restarted from scratch.
+        # A complete walk must visit each key exactly once.  A duplicate
+        # across the two segments means a key was returned both before and
+        # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} seen twice — walk position was not preserved across conflict")
+                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
@@ -385,12 +375,12 @@ class test_layered84(wttest.WiredTigerTestCase):
         session_follow.rollback_transaction()
         cursor.close()
 
-        # Each key must appear at most once across both segments.  If a key
-        # returned before the conflict reappears after, the walk position was
-        # not preserved and the scan restarted from scratch.
+        # A complete walk must visit each key exactly once.  A duplicate
+        # across the two segments means a key was returned both before and
+        # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} seen twice — walk position was not preserved across conflict")
+                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, set(all_keys),
@@ -451,12 +441,12 @@ class test_layered84(wttest.WiredTigerTestCase):
         session_follow.rollback_transaction()
         cursor.close()
 
-        # Each key must appear at most once across both segments.  If a key
-        # returned before the conflict reappears after, the walk position was
-        # not preserved and the scan restarted from scratch.
+        # A complete walk must visit each key exactly once.  A duplicate
+        # across the two segments means a key was returned both before and
+        # after the conflict, violating the uniqueness contract of a scan.
         for k in keys_after:
             self.assertNotIn(k, set(keys_before),
-                f"Key {k} seen twice — walk position was not preserved across conflict")
+                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
 
         all_returned = set(keys_before + keys_after)
         self.assertEqual(all_returned, {1, 2, 3, 4, 5, 6},
@@ -465,17 +455,160 @@ class test_layered84(wttest.WiredTigerTestCase):
         session_follow.close()
         conn_follow.close()
 
+    def test_next_walk_conflict_at_start(self):
+        """
+        Forward walk where the follower's lowest key is prepared and all other keys are
+        committed.  The very first next() must raise a prepared conflict with no keys
+        returned beforehand.  After the conflict resolves, all five keys must be
+        returned without error.  (This test covers conflict recovery when the conflict
+        fires before any key is seen; it does not test position preservation, since
+        there is no prior position when the conflict fires on the first step.)
+        """
+        all_keys = [1, 2, 3, 4, 5]
+        # prepared_key=1 sorts first, so the conflict fires before any committed key.
+        conn_follow, session_follow, cursor, prepare_session, prepare_cursor = \
+            self.setup_committed_then_prepared(all_keys, [2, 3, 4, 5], 1)
+
+        keys_before, got_conflict = self.walk_next_collect(cursor)
+        self.assertTrue(got_conflict, "Expected prepared conflict on the first next()")
+        self.assertEqual(keys_before, [],
+            "No key should be returned before the conflict at the lowest key")
+
+        self.commit_prepared(prepare_session, prepare_cursor)
+
+        keys_after, _ = self.walk_next_collect(cursor)
+        session_follow.rollback_transaction()
+        cursor.close()
+
+        self.assertEqual(set(keys_after), set(all_keys),
+            f"All keys must appear after the conflict resolves: {keys_after}")
+
+        session_follow.close()
+        conn_follow.close()
+
+    def test_prev_walk_conflict_at_end(self):
+        """
+        Backward walk where the follower's lowest key is prepared and higher keys are
+        committed.  The walk must return the committed higher keys first, then raise a
+        prepared conflict at the lowest key.  After the conflict resolves, the
+        previously-prepared key must appear and no key may be returned twice.
+        """
+        all_keys = [1, 2, 3, 4, 5]
+        # prepared_key=1 sorts last in backward order, so the conflict fires only
+        # after all committed keys 2-5 have been returned.
+        conn_follow, session_follow, cursor, prepare_session, prepare_cursor = \
+            self.setup_committed_then_prepared(all_keys, [2, 3, 4, 5], 1)
+
+        keys_before, got_conflict = self.walk_prev_collect(cursor)
+        self.assertTrue(got_conflict,
+            "Expected prepared conflict at the lowest key after committed keys 2-5")
+        self.assertEqual(set(keys_before), {2, 3, 4, 5},
+            f"Expected committed keys 2-5 before conflict, got {keys_before}")
+
+        self.commit_prepared(prepare_session, prepare_cursor)
+
+        keys_after, _ = self.walk_prev_collect(cursor)
+        session_follow.rollback_transaction()
+        cursor.close()
+
+        # A complete walk must visit each key exactly once.  A duplicate
+        # across the two segments means a key was returned both before and
+        # after the conflict, violating the uniqueness contract of a scan.
+        for k in keys_after:
+            self.assertNotIn(k, set(keys_before),
+                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
+
+        all_returned = set(keys_before + keys_after)
+        self.assertEqual(all_returned, set(all_keys),
+            f"Missing keys. Before: {keys_before}, After: {keys_after}")
+
+        session_follow.close()
+        conn_follow.close()
+
+    def test_next_walk_conflict_at_end(self):
+        """
+        Forward walk where lower keys in the follower are committed and the highest
+        key is prepared.  The walk must return all committed keys first, then raise a
+        prepared conflict at the highest key.  After the conflict resolves, the
+        previously-prepared key must appear and no key may be returned twice.
+        """
+        all_keys = [1, 2, 3, 4, 5]
+        # prepared_key=5 sorts last in forward order, so the conflict fires only
+        # after all committed keys 1-4 have been returned.
+        conn_follow, session_follow, cursor, prepare_session, prepare_cursor = \
+            self.setup_committed_then_prepared(all_keys, [1, 2, 3, 4], 5)
+
+        keys_before, got_conflict = self.walk_next_collect(cursor)
+        self.assertTrue(got_conflict,
+            "Expected prepared conflict at the highest key after committed keys 1-4")
+        self.assertEqual(set(keys_before), {1, 2, 3, 4},
+            f"Expected committed keys 1-4 before conflict, got {keys_before}")
+
+        self.commit_prepared(prepare_session, prepare_cursor)
+
+        keys_after, _ = self.walk_next_collect(cursor)
+        session_follow.rollback_transaction()
+        cursor.close()
+
+        # A complete walk must visit each key exactly once.  A duplicate
+        # across the two segments means a key was returned both before and
+        # after the conflict, violating the uniqueness contract of a scan.
+        for k in keys_after:
+            self.assertNotIn(k, set(keys_before),
+                f"Key {k} appears twice — each key must appear exactly once in a complete walk")
+
+        all_returned = set(keys_before + keys_after)
+        self.assertEqual(all_returned, set(all_keys),
+            f"Missing keys. Before: {keys_before}, After: {keys_after}")
+
+        session_follow.close()
+        conn_follow.close()
+
+    def test_prev_walk_conflict_at_start(self):
+        """
+        Backward walk where the follower's highest key is prepared and all other keys
+        are committed.  The very first prev() must raise a prepared conflict with no
+        keys returned beforehand.  After the conflict resolves, all five keys must be
+        returned without error.  (This test covers conflict recovery when the conflict
+        fires before any key is seen; it does not test position preservation, since
+        there is no prior position when the conflict fires on the first step.)
+        """
+        all_keys = [1, 2, 3, 4, 5]
+        # prepared_key=5 sorts first in backward order, so the conflict fires before
+        # any committed key.
+        conn_follow, session_follow, cursor, prepare_session, prepare_cursor = \
+            self.setup_committed_then_prepared(all_keys, [1, 2, 3, 4], 5)
+
+        keys_before, got_conflict = self.walk_prev_collect(cursor)
+        self.assertTrue(got_conflict, "Expected prepared conflict on the first prev()")
+        self.assertEqual(keys_before, [],
+            "No key should be returned before the conflict at the highest key")
+
+        self.commit_prepared(prepare_session, prepare_cursor)
+
+        keys_after, _ = self.walk_prev_collect(cursor)
+        session_follow.rollback_transaction()
+        cursor.close()
+
+        self.assertEqual(set(keys_after), set(all_keys),
+            f"All keys must appear after the conflict resolves: {keys_after}")
+
+        session_follow.close()
+        conn_follow.close()
+
     def test_next_walk_prepare_conflict_first_key(self):
         """
-        Forward walk on a follower where the very first next() hits a prepared conflict.
-        Multiple committed keys exist in the follower's ingest table so the merge path is
-        fully exercised after the conflict resolves.
+        Forward walk on a follower where the very first next() raises a prepared conflict and
+        committed writes exist at all keys. After the conflict resolves, every key must be
+        returned without error.  (This test covers conflict recovery when the conflict fires
+        before any key is seen; it does not test position preservation, since there is no
+        prior position when the conflict fires on the first step.)
         """
         all_keys = [1, 2, 3, 4, 5]
         self.populate_leader_and_checkpoint(all_keys)
         conn_follow, session_follow = self.open_follower()
 
-        # Write committed keys to ingest so the merge has real data after the prepared key.
+        # Commit values for all keys on the follower so there is data beyond the prepared key.
         ingest_cursor = session_follow.open_cursor(self.uri)
         for key in all_keys:
             session_follow.begin_transaction()
@@ -484,7 +617,7 @@ class test_layered84(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(30 + key))
         ingest_cursor.close()
 
-        # Prepare key 1  the first key in sort order.
+        # Prepare key 1 — the first key in sort order — so the conflict fires immediately.
         prepare_session = conn_follow.open_session()
         prepare_cursor = prepare_session.open_cursor(self.uri)
         prepare_session.begin_transaction()
