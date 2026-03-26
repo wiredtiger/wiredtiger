@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static void __set_file_id(WT_SESSION_IMPL *session, uint32_t ckpt_file_id);
-
 /*
  * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from an existing layered table configuration.
@@ -150,25 +148,6 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
 {
     S2C(session)->disaggregated_storage.database_size = database_size;
     WT_STAT_CONN_SET(session, disagg_database_size, database_size);
-}
-
-/*
- * __set_file_id --
- *     Set the next file ID based on the high water mark in checkpoint metadata.
- */
-static void
-__set_file_id(WT_SESSION_IMPL *session, uint32_t ckpt_file_id)
-{
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    uint32_t current_file_id = __wt_atomic_load_uint32_relaxed(&conn->next_file_id);
-
-    /* It's OK if we've made a bunch of files since this checkpoint was generated. */
-    if (current_file_id >= ckpt_file_id)
-        return;
-
-    /* If the connection's ID gets bumped in the meantime, it's OK to "skip" those IDs. */
-    uint32_t delta = ckpt_file_id - current_file_id;
-    WT_UNUSED(__wt_atomic_add_uint32(&conn->next_file_id, delta));
 }
 
 /*
@@ -408,6 +387,7 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
+    uint32_t file_id_current, file_id_delta;
 
     /*
      * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
@@ -427,10 +407,6 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
     if (ckpt_meta->has_database_size)
         __wt_disagg_set_database_size(session, ckpt_meta->database_size);
 
-    /* Set the file ID high water mark. */
-    if (ckpt_meta->has_largest_file_id)
-        __set_file_id(session, ckpt_meta->largest_file_id);
-
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
     WT_ERR(__wt_strndup(session, metadata->checkpoint, metadata->checkpoint_len,
@@ -441,6 +417,13 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
       __wti_layered_iterate_ingest_tables_for_gc_pruning(
         internal_session, metadata->checkpoint_timestamp),
       "Updating prune timestamp failed");
+
+    /* Alter our next file ID if necessary. It's OK if we've made a bunch of files since this checkpoint was generated. */
+    file_id_current = __wt_atomic_load_uint32_relaxed(&conn->next_file_id);
+    if (file_id_current < metadata->largest_file_id) {
+        file_id_delta = metadata->largest_file_id - file_id_current;
+        WT_UNUSED(__wt_atomic_add_uint32(&conn->next_file_id, file_id_delta));
+    }
 
 err:
     return (ret);
@@ -505,11 +488,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s"
-      ", oldest_timestamp=%" PRIu64 " %s, root=\"%.*s\"",
+      ", oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", root=\"%.*s\"",
       ckpt_meta->metadata_lsn, metadata.checkpoint_timestamp,
       __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string[0]),
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
-      (int)metadata.checkpoint_len, metadata.checkpoint);
+      metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
@@ -668,14 +651,6 @@ __disagg_pick_up_checkpoint_meta(
          */
         ckpt_meta.has_database_size = true;
         ckpt_meta.database_size = (uint64_t)cval.val;
-    }
-
-    /* Extract the largest file ID, if it exists. */
-    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "largest_file_id", &cval), true);
-    if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0) {
-        /* FIXME-WT-16562: same as above, but for the file ID. */
-        ckpt_meta.has_largest_file_id = true;
-        ckpt_meta.largest_file_id = (uint32_t)cval.val;
     }
 
     /* Parse and validate version and compatible_version fields. */
@@ -1757,18 +1732,15 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_ASSERT(session, meta_lsn > 0); /* The metadata page should be written by now. */
 
     if (ckpt_success) {
-        uint32_t max_table_id = __wt_atomic_load_uint32(&conn->next_file_id);
-
         /*
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
         WT_ERR(__wt_buf_fmt(session, meta,
           "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
-          ",version=%d,compatible_version=%d,largest_file_id=%" PRIu32,
+          ",version=%d,compatible_version=%d",
           meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
-          WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION,
-          max_table_id));
+          WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
         /*
          * FIXME-WT-16821: Remove the if branch keep non-ext version only.
          */

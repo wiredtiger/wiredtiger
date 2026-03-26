@@ -242,9 +242,6 @@ typedef struct __wt_disagg_checkpoint_meta {
     uint32_t version;       /* The version of the checkpoint_meta. */
     uint32_t
       compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
-
-    bool has_largest_file_id; /* Whether the metadata page has a largest file ID. */
-    uint32_t largest_file_id; /* The stored largest file ID as of this checkpoint. */
 } WT_DISAGG_CHECKPOINT_META;
 
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
