@@ -842,7 +842,6 @@ static int
 __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 {
     WT_CURSOR *c_alternate, *c_current;
-    WT_DECL_RET;
     int cmp;
     bool current_moved, forward;
 
@@ -882,17 +881,11 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      */
     if (((WT_CURSOR_BTREE *)c_ingest)->ref == NULL && !F_ISSET(c_stable, WT_CURSTD_KEY_INT)) {
         /*
-         * When starting with an unpositioned cursor, ensure that the ingest cursor is moved first.
-         * If a prepared conflict is encountered on its first key, reset both cursors to their
-         * original state. This approach prevents unnecessary movement of the stable cursor.
+         * Move the stable cursor first to ensure it is advanced, even if a prepared conflict occurs
+         * on the ingest cursor.
          */
-        ret = __clayered_constituent_iter(c_ingest, forward);
-        if (ret == WT_PREPARE_CONFLICT) {
-            WT_TRET(__clayered_reset_cursors(clayered, false));
-            return (ret);
-        } else
-            WT_RET_NOTFOUND_OK(ret);
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
         goto done;
     }
 
