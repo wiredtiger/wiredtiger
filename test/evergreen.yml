@@ -1696,7 +1696,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
+          format_test_script_args: -t 360 -- debug.realloc_exact=0
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
