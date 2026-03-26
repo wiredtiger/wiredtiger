@@ -1162,16 +1162,15 @@ struct __wt_ref {
 
 /*
  * A flag used to track whether a ref has been dirtied while reconciling an internal page. The value
- * is compared and swapped to WT_REF_DIRTY_CLEAN for each internal page reconciliation. If the flag
- * becomes WT_REF_DIRTY_DIRTY, this implies that the ref has been changed concurrently and remains
- * dirty after internal page reconciliation. Other operations, such as page splits and
- * fast-truncate, can also concurrently mark the ref WT_REF_DIRTY_DIRTY, but depending on timing or
- * race conditions, it cannot be guaranteed that the new change is included as part of the
- * reconciliation. The page would need to be reconciled again to ensure that these modifications are
- * included.
+ * is compared and swapped to WT_REF_CLEAN for each internal page reconciliation. If the flag
+ * becomes WT_REF_DIRTY, this implies that the ref has been changed concurrently and remains dirty
+ * after internal page reconciliation. Other operations, such as page splits and fast-truncate, can
+ * also concurrently mark the ref WT_REF_DIRTY, but depending on timing or race conditions, it
+ * cannot be guaranteed that the new change is included as part of the reconciliation. The page
+ * would need to be reconciled again to ensure that these modifications are included.
  */
-#define WT_REF_DIRTY_CLEAN 0
-#define WT_REF_DIRTY_DIRTY 1
+#define WT_REF_CLEAN 0
+#define WT_REF_DIRTY 1
     wt_shared volatile uint8_t dirty_state;
 
 /*
