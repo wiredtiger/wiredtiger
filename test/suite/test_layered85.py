@@ -163,10 +163,10 @@ class test_layered85(wttest.WiredTigerTestCase):
         ordered across a mid-scan checkpoint advance.
 
         Setup: even keys 0-998 from leader, odd keys 1-999 from follower.
-        Forward pass: iterate 100 keys, advance checkpoint, complete scan —
+        Forward pass: iterate 100 keys, advance checkpoint, complete scan
         verify increasing order and that the checkpoint switch stat incremented.
         Backward pass (same cursor, reset): iterate 100 keys, advance checkpoint
-        again, complete scan — verify decreasing order.
+        again, complete scan  verify decreasing order.
         """
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
