@@ -437,7 +437,7 @@ __clayered_advance_stable(
          * If the key is removed in the new checkpoint, clear the iteration flag to reposition it to
          * the correct location.
          */
-        if (ret != 0)
+        if (ret == WT_NOTFOUND)
             F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     } else if (F_ISSET(old_stable, WT_CURSTD_KEY_EXT)) {
         WT_ITEM_SET(clayered->stable_cursor->key, old_stable->key);
