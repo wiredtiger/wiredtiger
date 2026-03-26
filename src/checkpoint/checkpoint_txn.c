@@ -2871,6 +2871,8 @@ fake:
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm) {
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_RESOLVE);
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
 
         /*
