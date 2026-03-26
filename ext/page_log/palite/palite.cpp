@@ -946,10 +946,15 @@ protected:
 public:
     std::shared_mutex access; /* readers-writer mutex for table */
 
-    ~Table() = default;
     Table(Config &cfg, std::shared_mutex &str_access, const std::filesystem::path &file)
         : config(cfg), store_access(str_access), table_file(file)
     {
+    }
+
+    ~Table()
+    {
+        /* Close all connections, in case they have not been closed already. */
+        close();
     }
 
     void
