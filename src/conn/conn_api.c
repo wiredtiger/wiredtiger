@@ -1266,8 +1266,6 @@ err:
      */
     WT_TRET(__wt_config_gets(session, cfg, "final_flush", &cval));
     WT_TRET(__wti_tiered_storage_destroy(session, cval.val));
-    WT_TRET(__wt_chunkcache_teardown(session));
-    WT_TRET(__wti_chunkcache_metadata_destroy(session));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
@@ -2389,9 +2387,8 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
     static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
       {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
-      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
-      {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
-      {"configuration", WT_VERB_CONFIGURATION},
+      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
+      {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"configuration", WT_VERB_CONFIGURATION},
       {"disaggregated_storage", WT_VERB_DISAGGREGATED_STORAGE},
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"eviction", WT_VERB_EVICTION},
       {"extension", WT_VERB_EXTENSION}, {"fileops", WT_VERB_FILEOPS},
@@ -3547,14 +3544,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads, run recovery, and initialize the disaggregated storage. */
     WT_ERR(__wti_connection_workers(session, cfg));
-
-    /*
-     * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
-     * metadata operation that should be done after metadata, transactions, schema, etc. are all up
-     * and running.
-     */
-    if (F_ISSET(conn, WT_CONN_SALVAGE))
-        WT_ERR(__wt_chunkcache_salvage(session));
 
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
