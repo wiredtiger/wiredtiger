@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -671,23 +671,19 @@ class test_layered05(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.next(), 0)
         self.assertEqual(cursor.get_key(), self.fmt_key(499))
 
-        # search(500) should return NOTFOUND because 500 is tombstoned.
+        # search() on the deleted key must return NOTFOUND.
         cursor.set_key(self.fmt_key(500))
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
-        # Scan forward. Key 500 must never appear (it is tombstoned).
-        # Without the fix, the ingest cursor stays positioned at the tombstone
-        # after the failed search. On next(), stable starts from key 0 while
-        # ingest is at 501. When stable reaches 500, ingest has already passed
-        # the tombstone, so 500 is returned  violating the tombstone.
+        # Scan forward; key 500 must not appear.
         seen = []
         while cursor.next() == 0:
             seen.append(cursor.get_key())
 
         self.assertNotIn(self.fmt_key(500), seen,
-            "Key 500 should be hidden by the tombstone in ingest")
+            "Key 500 should not appear (it was deleted)")
 
-        # Also verify the scan is monotonically increasing.
+        # Verify the scan is monotonically increasing.
         for i in range(1, len(seen)):
             self.assertGreater(seen[i], seen[i - 1],
                 f"Out-of-order keys: {seen[i - 1]} >= {seen[i]}")

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -566,28 +566,21 @@ class test_layered81(wttest.WiredTigerTestCase):
         return val[2]
 
     def begin_read_ts_txn(self):
-        """
-        Begin a transaction with a read timestamp on the follower.
-        With a read timestamp, the stable cursor upgrade is allowed
-        even during iteration.
-        """
+        """Begin a transaction with a read timestamp on the follower."""
         read_ts = self.ts
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(read_ts)}')
         self.session_follow.begin_transaction(
             f'read_timestamp={self.timestamp_str(read_ts)}')
 
+    # -----------------------------------------------------------------------
+    # Test: Forward scan with a read timestamp stays monotonically ordered
+    # across a mid-scan checkpoint advance.
+    #
+    # Checkpoint 1: even keys 0-998. Follower writes odd keys 1-999.
+    # Begin transaction with read timestamp. Iterate 100 keys. Advance
+    # checkpoint. Continue scanning. All keys must be in increasing order.
+    # -----------------------------------------------------------------------
     def test_upgrade_during_forward_scan_positioned_on_ingest(self):
-        """
-        Verify that a forward scan with a read timestamp remains monotonically
-        ordered across a mid-scan checkpoint advance.
-
-        1. Checkpoint 1: even keys 0-998 in stable.
-        2. Follower writes odd keys 1-999.
-        3. Begin transaction with a read timestamp.
-        4. Iterate forward through 100 keys.
-        5. Advance the checkpoint with new leader keys.
-        6. Continue scanning. Verify all keys are in monotonically increasing order.
-        """
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -632,11 +625,11 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
+    # -----------------------------------------------------------------------
+    # Test: Same as forward scan but with prev(). Monotonically decreasing
+    # order must be maintained across a mid-scan checkpoint advance.
+    # -----------------------------------------------------------------------
     def test_upgrade_during_backward_scan_positioned_on_ingest(self):
-        """
-        Same as the forward scan test but with prev(). Verify monotonically
-        decreasing order is maintained across a mid-scan checkpoint advance.
-        """
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -670,12 +663,11 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
+    # -----------------------------------------------------------------------
+    # Test: Bounded forward scan [200, 800] stays ordered and within bounds
+    # across a mid-scan checkpoint advance.
+    # -----------------------------------------------------------------------
     def test_upgrade_during_bounded_scan_positioned_on_ingest(self):
-        """
-        Bounded forward scan with mid-iteration stable upgrade.
-        Bounds [200, 800]. Cursor positioned on ingest. Checkpoint advance
-        triggers upgrade. All keys must be within bounds and monotonic.
-        """
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -723,13 +715,14 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
+    # -----------------------------------------------------------------------
+    # Test: Forward scan with deleted keys and a mid-scan checkpoint advance.
+    #
+    # Checkpoint 1: even keys 0-998. Follower deletes even keys 400-600 and
+    # adds odd keys 1-999. Checkpoint 2 adds keys 1000-1099.
+    # Scan must be monotonically ordered and must exclude deleted keys.
+    # -----------------------------------------------------------------------
     def test_upgrade_during_scan_with_tombstones_on_ingest(self):
-        """
-        Forward scan with deleted keys and a mid-scan checkpoint advance.
-        Stable: even keys 0-998. Follower deletes even keys 400-600 and inserts
-        odd keys 1-999. Verifies monotonic order and that deleted keys are hidden
-        after a checkpoint advance mid-scan.
-        """
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -770,11 +763,11 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
+    # -----------------------------------------------------------------------
+    # Test: Forward scan across multiple mid-scan checkpoint advances.
+    # Order must be monotonic throughout and at least one upgrade must occur.
+    # -----------------------------------------------------------------------
     def test_multiple_upgrades_during_scan_on_ingest(self):
-        """
-        Forward scan across multiple mid-scan checkpoint advances. Verifies
-        monotonic order throughout and that at least one upgrade occurred.
-        """
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -822,12 +815,11 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
         self.session_follow.commit_transaction()
 
+    # -----------------------------------------------------------------------
+    # Test: A positioned update mid-scan must not disrupt iteration order.
+    # The scan must continue forward from the same position after the write.
+    # -----------------------------------------------------------------------
     def test_iterate_update_iterate_follower(self):
-        """
-        Forward scan, positioned update mid-scan, continue scanning. Verifies
-        that a write while the cursor is positioned does not disrupt iteration
-        order, and that the scan continues from the same position.
-        """
 
         # Even keys in stable, odd keys in follower ingest.
         self.insert_leader(list(range(0, self.nkeys, 2)))
@@ -867,11 +859,11 @@ class test_layered81(wttest.WiredTigerTestCase):
             f"First key after update {keys[0]} went backward from {pos_before_update}")
         cursor.close()
 
+    # -----------------------------------------------------------------------
+    # Test: Bounded scan [200, 800], positioned update mid-scan, continue.
+    # Iteration must remain monotonic and within bounds after the write.
+    # -----------------------------------------------------------------------
     def test_iterate_update_iterate_bounded_follower(self):
-        """
-        Bounded scan on follower, positioned update, continue.
-        Closest to MongoDB collection scan: bounded cursor, iterate, write, iterate.
-        """
 
         self.insert_leader(list(range(0, self.nkeys, 2)))
         self.do_checkpoint()
@@ -910,12 +902,15 @@ class test_layered81(wttest.WiredTigerTestCase):
             self.assertLessEqual(k, self.fmt_key(hi))
         cursor.close()
 
+    # -----------------------------------------------------------------------
+    # Test: search_near on a deleted key in a contiguous deleted range returns
+    # the next live key. next() from that position must continue in order
+    # and must not return any deleted keys.
+    #
+    # Stable: keys 0-999. Follower deletes 400-600.
+    # search_near(500) -> key > 600. next() scans 601-999 in order.
+    # -----------------------------------------------------------------------
     def test_search_near_tombstone_walk_then_next(self):
-        """
-        search_near on a deleted key in a contiguous deleted range returns the
-        next live key after the range. A subsequent next() scan must continue in
-        order from that key and must not return any deleted keys.
-        """
 
         # Stable: all 1000 keys. Follower deletes a contiguous range (400-600).
         self.insert_leader(list(range(self.nkeys)))
@@ -956,13 +951,15 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(keys, expected_remaining)
         cursor.close()
 
+    # -----------------------------------------------------------------------
+    # Test: search_near on a deleted key where all forward keys are also deleted.
+    # The nearest live key is below the search key.
+    # prev() from that position must scan in reverse order without deleted keys.
+    #
+    # Stable: keys 0-999. Follower deletes 500-999.
+    # search_near(700) -> key < 500. prev() scans downward in order.
+    # -----------------------------------------------------------------------
     def test_search_near_tombstone_walk_then_prev(self):
-        """
-        search_near on a deleted key where all keys from the search key forward
-        are also deleted. The nearest live key is below the search key.
-        A subsequent prev() scan must continue in reverse order without returning
-        deleted keys.
-        """
 
         # Stable: keys 0-999. Ingest: tombstone everything from 500 onward.
         self.insert_leader(list(range(self.nkeys)))
@@ -989,11 +986,13 @@ class test_layered81(wttest.WiredTigerTestCase):
                 f"Out of order at {i}: {keys[i]} <= {keys[i + 1]}")
         cursor.close()
 
+    # -----------------------------------------------------------------------
+    # Test: Bounded search_near on a deleted key followed by next().
+    # Bounds [200, 800]. Follower deletes 300-600.
+    # search_near(450) -> nearest live key within bounds.
+    # next() must remain ordered and within bounds, skipping deleted keys.
+    # -----------------------------------------------------------------------
     def test_search_near_tombstone_walk_then_next_with_bounds(self):
-        """
-        Bounded search_near + tombstone + next. This is the MongoDB
-        pattern: set bounds, search_near to position, iterate.
-        """
 
         self.insert_leader(list(range(self.nkeys)))
         self.do_checkpoint()
@@ -1034,19 +1033,15 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test that a forward scan remains complete when a key visible at scan
-    # start is removed and a new checkpoint is applied mid-scan.
+    # Test: A forward scan remains complete when a key visible at scan start
+    # is removed and a new checkpoint is applied mid-scan.
+    #
+    # Stable: even keys 0-998. Follower: odd keys 1-999.
+    # Scan past key 500. Leader removes an even key and checkpoints.
+    # Restart scan at a new read timestamp. All remaining even keys must appear.
     # -----------------------------------------------------------------------
 
     def test_upgrade_dup_position_fails(self):
-        """
-        Stable: even keys 0-998. Follower: odd keys 1-999.
-        1. Begin a read transaction and scan forward past key 500.
-        2. The leader removes an even key and checkpoints.
-        3. Restart the scan with a new read timestamp that sees the delete.
-        4. Continue scanning. All expected even keys after the removed key
-           must still appear in the scan.
-        """
 
         self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
