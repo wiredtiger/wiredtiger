@@ -36,14 +36,19 @@ from wtscenario import make_scenarios
 #
 # When a connection is opened, __metadata_clean_incomplete_table runs for every
 # table: entry in the metadata. For layered tables it asserts that whenever a
-# layered: entry is present, the corresponding file:*.wt_ingest and
-# file:*.wt_stable entries also exist.
+# layered: entry is present, the corresponding file:*.wt_ingest entry also exists.
+# On a leader, it additionally asserts that file:*.wt_stable exists. On a follower,
+# stable table metadata is not required (followers don't create stable tables; they
+# only appear after a checkpoint pickup from a leader), so missing stable is not an
+# error.
+#
+# A follower creating a layered table naturally produces the "ingest but no stable"
+# state without requiring any metadata corruption, so we use that to drive the tests.
 #
 # Tests:
-#   test_complete_metadata  - happy path: all entries present, recovery passes cleanly.
-#   test_missing_ingest     - file:*.wt_ingest removed; expects abort on reopen.
-#   test_missing_stable     - file:*.wt_stable removed; expects abort on reopen.
-#   test_missing_both       - both file entries removed; expects abort on reopen.
+#   test_leader_complete   - leader creates complete table; reopen as leader succeeds.
+#   test_follower_complete - follower creates table (no stable); reopen as follower succeeds.
+#   test_leader_missing_stable - follower creates table (no stable); reopen as LEADER aborts.
 
 @disagg_test_class
 class test_layered90(wttest.WiredTigerTestCase, suite_subprocess):
@@ -63,8 +68,13 @@ class test_layered90(wttest.WiredTigerTestCase, suite_subprocess):
     # Helpers
     # -----------------------------------------------------------------------
 
+    def _reopen_config(self, role):
+        """Build a reopen config that preserves the page_log alongside the given role."""
+        return (self.conn_base_config +
+            f'disaggregated=(role="{role}"),disaggregated=(page_log={self.page_log()})')
+
     def _create_layered_table(self):
-        """Create a complete layered table with a small data set and checkpoint."""
+        """Create a layered table with a small data set and checkpoint."""
         self.session.create(
             self.uri,
             'key_format=S,value_format=S,block_manager=disagg,type=layered')
@@ -74,102 +84,62 @@ class test_layered90(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
         self.session.checkpoint()
 
-    def _remove_metadata_key(self, key):
-        """Directly remove a single entry from the metadata store."""
-        meta = self.session.open_cursor('metadata:create')
-        meta.set_key(key)
-        meta.remove()
-        meta.close()
-
-    def _check_metadata(self, keys_present):
-        """Assert that every key in the list exists in the metadata."""
-        meta = self.session.open_cursor('metadata:')
-        for key in keys_present:
-            meta.set_key(key)
-            self.assertEqual(meta.search(), 0, 'Expected metadata key missing: ' + key)
-        meta.close()
-
     # -----------------------------------------------------------------------
     # Subprocess methods
     #
-    # Each of these runs inside a child process launched by run_subprocess_function.
-    # They create a complete layered table, remove one or more metadata entries to
-    # simulate an incomplete state, close the connection cleanly (persisting the
-    # corrupt metadata to disk), then reopen it.  The assertion in
-    # __metadata_clean_incomplete_table fires and the process aborts with a
-    # non-zero exit code.
+    # Each runs inside a child process launched by run_subprocess_function.
+    #
+    # Followers don't create stable table metadata when they create a layered
+    # table  stable tables are only created by leaders or populated via
+    # checkpoint pickup.  This gives us a natural "ingest present, stable
+    # absent" state without needing to corrupt existing metadata.
     # -----------------------------------------------------------------------
 
-    def subprocess_missing_ingest(self):
+    def subprocess_leader_complete(self):
+        """Create a complete layered table as leader, then reopen as leader."""
         self._create_layered_table()
-        self._remove_metadata_key('file:' + self.basename + '.wt_ingest')
-        self.close_conn()
-        self.open_conn()   # assertion fires, process aborts
+        self.reopen_conn(config=self._reopen_config('leader'))
 
-    def subprocess_missing_stable(self):
+    def subprocess_follower_complete(self):
+        """Create a layered table as follower (no stable), then reopen as follower."""
+        self.reopen_conn(config=self._reopen_config('follower'))
         self._create_layered_table()
-        self._remove_metadata_key('file:' + self.basename + '.wt_stable')
-        self.close_conn()
-        self.open_conn()   # assertion fires, process aborts
+        self.reopen_conn(config=self._reopen_config('follower'))
 
-    def subprocess_missing_both(self):
+    def subprocess_leader_missing_stable(self):
+        """Create a layered table as follower (no stable), then reopen as leader.
+
+        The leader asserts that file:*.wt_stable exists in metadata, so this
+        should abort.
+        """
+        self.reopen_conn(config=self._reopen_config('follower'))
         self._create_layered_table()
-        self._remove_metadata_key('file:' + self.basename + '.wt_ingest')
-        self._remove_metadata_key('file:' + self.basename + '.wt_stable')
-        self.close_conn()
-        self.open_conn()   # assertion fires, process aborts
+        self.reopen_conn(config=self._reopen_config('leader'))
 
     # -----------------------------------------------------------------------
     # Tests
     # -----------------------------------------------------------------------
 
-    def test_complete_metadata(self):
-        """A fully-created layered table passes the recovery assertion cleanly."""
-        self._create_layered_table()
+    def test_leader_complete(self):
+        """Leader with complete metadata reopens cleanly."""
+        subdir = 'SUBPROCESS_leader_complete'
+        func = 'test_layered90.test_layered90.subprocess_leader_complete'
+        [returncode, _] = self.run_subprocess_function(subdir, func, silent=True)
+        self.assertEqual(returncode, 0,
+            'Expected subprocess to succeed: complete leader table should reopen cleanly')
 
-        # Reopen as follower.  During open, __wt_txn_recover calls
-        # __recovery_file_scan -> __metadata_clean_incomplete_table for every
-        # table: entry.  For the layered table it asserts that both
-        # file:*.wt_ingest and file:*.wt_stable exist.
-        self.reopen_conn(
-            config=self.conn_base_config + 'disaggregated=(role="follower")')
+    def test_follower_complete(self):
+        """Follower with no stable metadata reopens cleanly."""
+        subdir = 'SUBPROCESS_follower_complete'
+        func = 'test_layered90.test_layered90.subprocess_follower_complete'
+        [returncode, _] = self.run_subprocess_function(subdir, func, silent=True)
+        self.assertEqual(returncode, 0,
+            'Expected subprocess to succeed: missing stable metadata is valid on follower')
 
-        self._check_metadata([
-            self.uri,
-            'colgroup:' + self.basename,
-            'layered:' + self.basename,
-            'file:' + self.basename + '.wt_ingest',
-            'file:' + self.basename + '.wt_stable',
-        ])
-
-        cursor = self.session.open_cursor(self.uri)
-        count = 0
-        for (k, v) in cursor:
-            self.assertEqual(k, v)
-            count += 1
-        cursor.close()
-        self.assertEqual(count, self.nitems)
-
-    def test_missing_ingest(self):
-        """Removing file:*.wt_ingest causes an abort on the next open."""
-        subdir = 'SUBPROCESS_missing_ingest'
-        func = 'test_layered90.test_layered90.subprocess_missing_ingest'
+    def test_leader_missing_stable(self):
+        """Leader finding a table with no stable metadata aborts."""
+        subdir = 'SUBPROCESS_leader_missing_stable'
+        func = 'test_layered90.test_layered90.subprocess_leader_missing_stable'
         [returncode, _] = self.run_subprocess_function(subdir, func, silent=True)
         self.assertNotEqual(returncode, 0,
-            'Expected subprocess to abort due to incomplete layered table metadata')
-
-    def test_missing_stable(self):
-        """Removing file:*.wt_stable causes an abort on the next open."""
-        subdir = 'SUBPROCESS_missing_stable'
-        func = 'test_layered90.test_layered90.subprocess_missing_stable'
-        [returncode, _] = self.run_subprocess_function(subdir, func, silent=True)
-        self.assertNotEqual(returncode, 0,
-            'Expected subprocess to abort due to incomplete layered table metadata')
-
-    def test_missing_both(self):
-        """Removing both file entries causes an abort on the next open."""
-        subdir = 'SUBPROCESS_missing_both'
-        func = 'test_layered90.test_layered90.subprocess_missing_both'
-        [returncode, _] = self.run_subprocess_function(subdir, func, silent=True)
-        self.assertNotEqual(returncode, 0,
-            'Expected subprocess to abort due to incomplete layered table metadata')
+            'Expected subprocess to abort: leader must have stable metadata for each layered table')

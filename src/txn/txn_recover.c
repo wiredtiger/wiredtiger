@@ -886,9 +886,11 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_ingest", name));
         WT_ASSERT(r->session,
           __wt_metadata_search(r->session, meta_key_buf->data, &ingest_meta_value) == 0);
-        WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_stable", name));
-        WT_ASSERT(r->session,
-          __wt_metadata_search(r->session, meta_key_buf->data, &stable_meta_value) == 0);
+        if (S2C(r->session)->layered_table_manager.leader) {
+            WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_stable", name));
+            WT_ASSERT(r->session,
+              __wt_metadata_search(r->session, meta_key_buf->data, &stable_meta_value) == 0);
+        }
         goto done;
     }
 
