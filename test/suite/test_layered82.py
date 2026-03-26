@@ -416,3 +416,45 @@ class test_layered82(wttest.WiredTigerTestCase):
         self.set_bounds(cursor, lower=self.fmt_key(400), upper=self.fmt_key(600))
         self.assertEqual(self.scan_forward(cursor), self.expected_range(400, 600))
         cursor.close()
+
+    def test_bounds_positioned_update_mid_scan(self):
+        """
+        Bounded scan, positioned update mid-scan, continue scanning. Verifies
+        that a write while the cursor is positioned within a bounded scan does
+        not disrupt iteration order, and that all returned keys stay within bounds.
+        """
+
+        # Interleaved: even keys checkpointed, odd keys written locally.
+        self.insert_stable(list(range(0, self.nkeys, 2)))
+        self.insert_ingest(list(range(1, self.nkeys, 2)))
+
+        lo, hi = 200, 800
+        cursor = self.session_follow.open_cursor(self.uri)
+        self.set_bounds(cursor, lower=self.fmt_key(lo), upper=self.fmt_key(hi))
+
+        keys_before = []
+        for _ in range(100):
+            self.assertEqual(cursor.next(), 0)
+            keys_before.append(cursor.get_key())
+
+        # Positioned update at the current cursor position mid-scan.
+        self.session_follow.begin_transaction()
+        cursor.set_value("updated")
+        cursor.update()
+        self.session_follow.commit_transaction(
+            f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+
+        keys_after = []
+        while cursor.next() == 0:
+            keys_after.append(cursor.get_key())
+
+        all_keys = keys_before + keys_after
+        for i in range(len(all_keys) - 1):
+            self.assertLess(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} >= {all_keys[i + 1]}")
+
+        # All keys must stay within the declared bounds.
+        for k in all_keys:
+            self.assertGreaterEqual(k, self.fmt_key(lo))
+            self.assertLessEqual(k, self.fmt_key(hi))
+        cursor.close()

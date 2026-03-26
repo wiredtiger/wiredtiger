@@ -843,3 +843,45 @@ class test_layered83(wttest.WiredTigerTestCase):
                     f"search_pos={search_pos}: out of order at {i}: "
                     f"{keys[i]} <= {keys[i + 1]}")
             cursor.close()
+
+    # =====================================================================
+    # Write mid-scan
+    # =====================================================================
+
+    def test_iterate_update_iterate(self):
+        """
+        Forward scan, positioned update mid-scan, continue scanning. Verifies
+        that a write at the cursor's current position does not disrupt iteration
+        order and that the scan resumes from the same position.
+        """
+        # Even keys checkpointed, odd keys written locally.
+        self.insert_stable(list(range(0, self.nkeys, 2)))
+        self.insert_ingest(list(range(1, self.nkeys, 2)))
+
+        cursor = self.open_cursor()
+
+        # Position at key 500, then advance 5 more steps.
+        self.search_key(cursor, 500)
+        self.walk_next(cursor, 5)
+        pos_before_update = cursor.get_key()
+
+        # Perform a positioned update at the current cursor position.
+        self.session_follow.begin_transaction()
+        cursor.set_value("updated")
+        cursor.update()
+        self.session_follow.commit_transaction(
+            f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+
+        # Continue iterating after the update.
+        keys = [cursor.get_key()]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order after update at {i}: {keys[i]} >= {keys[i + 1]}")
+
+        # The scan must not go backward from the position where the update occurred.
+        self.assertGreaterEqual(keys[0], pos_before_update,
+            f"First key after update {keys[0]} went backward from {pos_before_update}")
+        cursor.close()
