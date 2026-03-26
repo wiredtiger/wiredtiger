@@ -74,7 +74,9 @@ class test_layered84(wttest.WiredTigerTestCase):
         self.session_follow = self.conn_follow.open_session('')
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Kill the leader.
+        # Kill the leader. Skip the closing checkpoint -- otherwise, when the follower connection
+        # is closed, we'll discard unclean pages twice. These pages can have the same ID, which
+        # makes PALite think it's seeing a double-free.
         self.session.close()
         self.conn.close('debug=(skip_checkpoint=true)')
 

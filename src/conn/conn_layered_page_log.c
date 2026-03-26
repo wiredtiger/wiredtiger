@@ -644,7 +644,6 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_oldest_timestamp, oldest_timestamp);
     disagg->last_checkpoint_meta_checksum = checksum; /* Protected by the checkpoint lock. */
 
-    // TODO add file ID
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s, oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", checksum=%" PRIx32
