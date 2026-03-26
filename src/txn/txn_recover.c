@@ -849,14 +849,16 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 {
     WT_DECL_ITEM(meta_key_buf);
     WT_DECL_RET;
-    char *cg_meta_value, *file_meta_value, *tiered_meta_value, *layered_meta_value;
+    char *cg_meta_value, *file_meta_value, *tiered_meta_value, *layered_meta_value,
+      *ingest_meta_value, *stable_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name, *colgroup_msg, *file_msg;
     WT_CONFIG_ITEM cval;
     bool is_simple, colgroup_exists, file_exists;
 
-    cg_meta_value = file_meta_value = tiered_meta_value = layered_meta_value = NULL;
+    cg_meta_value = file_meta_value = tiered_meta_value = layered_meta_value = ingest_meta_value =
+      stable_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &meta_key_buf));
 
     name = uri;
@@ -876,13 +878,19 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     if (ret == 0)
         goto done;
 
-    /* FIXME-WT-16823: Add an assertion to check that we never see an incomplete layered table. */
-    /* Skip if the table is layered. */
+    /* If the table is layered, assert that it is complete. */
     WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "layered:%s", name));
     WT_ERR_NOTFOUND_OK(
       __wt_metadata_search(r->session, meta_key_buf->data, &layered_meta_value), true);
-    if (ret == 0)
+    if (ret == 0) {
+        WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_ingest", name));
+        WT_ASSERT(r->session,
+          __wt_metadata_search(r->session, meta_key_buf->data, &ingest_meta_value) == 0);
+        WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_stable", name));
+        WT_ASSERT(r->session,
+          __wt_metadata_search(r->session, meta_key_buf->data, &stable_meta_value) == 0);
         goto done;
+    }
 
     /* Check whether the colgroup exists. */
     WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "colgroup:%s", name));
@@ -925,6 +933,8 @@ done:
     __wt_free(r->session, file_meta_value);
     __wt_free(r->session, tiered_meta_value);
     __wt_free(r->session, layered_meta_value);
+    __wt_free(r->session, ingest_meta_value);
+    __wt_free(r->session, stable_meta_value);
     __wt_scr_free(r->session, &meta_key_buf);
     return (ret);
 }
