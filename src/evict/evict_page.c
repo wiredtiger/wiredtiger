@@ -121,6 +121,14 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         return;
 
     /*
+     * Skip pages that were read by read_once cursors. The reader indicated this data won't be
+     * needed again, so storing it in the victim cache would waste memory and pollute the cache with
+     * data that is unlikely to be re-read.
+     */
+    if (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_WONT_NEED)
+        return;
+
+    /*
      * Victim cache: store evicted pages in disagg cache. The format must match what disagg read
      * path expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
      */
