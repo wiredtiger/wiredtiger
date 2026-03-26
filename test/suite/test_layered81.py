@@ -506,11 +506,12 @@ class test_layered81(wttest.WiredTigerTestCase):
         expected = [self.fmt_key(i) for i in range(self.nkeys) if i < 400 or i >= 600]
         self.assertEqual(self.scan_keys(self.session_follow), expected)
 
-        new_keys = list(range(1000, 1100))
+        # Advance the checkpoint with new leader keys; locally deleted keys must stay hidden.
+        new_keys = list(range(self.nkeys, self.nkeys + 100))
         self.insert_leader(new_keys)
         self.do_checkpoint()
 
-        expected_after = expected + [self.fmt_key(i) for i in new_keys]
+        expected_after = sorted(expected + [self.fmt_key(i) for i in new_keys])
         self.assertEqual(self.scan_keys(self.session_follow), expected_after)
 
     # -----------------------------------------------------------------------
@@ -537,3 +538,586 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), self.fmt_val(999))
         cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Tests for stable cursor upgrade during iteration (collection scan).
+    #
+    # To trigger a mid-iteration upgrade, ALL of these conditions must hold:
+    #   1. Cursor is positioned and actively iterating.
+    #   2. A read timestamp is set (with a read timestamp, the stable cursor
+    #      can be safely upgraded even during iteration because the view at
+    #      a given timestamp is always consistent).
+    #   3. The layered cursor is currently returning data from ingest (not
+    #      stable), so the stable cursor is the alternate and can be replaced.
+    #   4. A new checkpoint was advanced AFTER the cursor started iterating.
+    #
+    # Each test uses get_stat() to verify that layered_curs_advance_stable
+    # was actually incremented, confirming the upgrade really triggered.
+    # -----------------------------------------------------------------------
+
+    def get_stat(self, stat_key):
+        """Read a connection-level statistic from the follower."""
+        stat_cursor = self.session_follow.open_cursor('statistics:')
+        stat_cursor.set_key(stat_key)
+        stat_cursor.search()
+        val = stat_cursor.get_value()
+        stat_cursor.close()
+        # val is (description, type_string, value)
+        return val[2]
+
+    def begin_read_ts_txn(self):
+        """
+        Begin a transaction with a read timestamp on the follower.
+        With a read timestamp, the stable cursor upgrade is allowed
+        even during iteration.
+        """
+        read_ts = self.ts
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(read_ts)}')
+        self.session_follow.begin_transaction(
+            f'read_timestamp={self.timestamp_str(read_ts)}')
+
+    def test_upgrade_during_forward_scan_positioned_on_ingest(self):
+        """
+        Verify that a forward scan with a read timestamp remains monotonically
+        ordered across a mid-scan checkpoint advance.
+
+        1. Checkpoint 1: even keys 0-998 in stable.
+        2. Follower writes odd keys 1-999.
+        3. Begin transaction with a read timestamp.
+        4. Iterate forward through 100 keys.
+        5. Advance the checkpoint with new leader keys.
+        6. Continue scanning. Verify all keys are in monotonically increasing order.
+        """
+
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        # Checkpoint 1: even keys 0-998.
+        self.insert_leader(list(range(0, self.nkeys, 2)))
+        self.do_checkpoint()
+
+        # Follower writes odd keys to ingest.
+        self.insert_follower(list(range(1, self.nkeys, 2)))
+
+        # Begin transaction with read timestamp.
+        self.begin_read_ts_txn()
+
+        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # Iterate forward past several keys.
+        keys_before = []
+        for _ in range(100):
+            self.assertEqual(cursor.next(), 0)
+            keys_before.append(cursor.get_key())
+
+        # Advance checkpoint mid-scan.
+        self.insert_leader(list(range(1000, 1100)))
+        self.do_checkpoint()
+
+        # Continue scanning after the checkpoint advance.
+        keys_after = []
+        while cursor.next() == 0:
+            keys_after.append(cursor.get_key())
+
+        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
+        self.assertGreater(upgrades_after, upgrades_before,
+            "Stable cursor upgrade did not trigger during iteration")
+
+        all_keys = keys_before + keys_after
+        for i in range(len(all_keys) - 1):
+            self.assertLess(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} >= {all_keys[i + 1]}")
+
+        cursor.close()
+        self.session_follow.commit_transaction()
+
+    def test_upgrade_during_backward_scan_positioned_on_ingest(self):
+        """
+        Same as the forward scan test but with prev(). Verify monotonically
+        decreasing order is maintained across a mid-scan checkpoint advance.
+        """
+
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        # Stable: even keys 0-998.
+        self.insert_leader(list(range(0, self.nkeys, 2)))
+        self.do_checkpoint()
+
+        # Follower: odd keys 1-999. Key 999 is the largest; prev() begins there.
+        self.insert_follower(list(range(1, self.nkeys, 2)))
+
+        self.begin_read_ts_txn()
+
+        cursor = self.session_follow.open_cursor(self.uri)
+        keys_before = []
+        for _ in range(100):
+            self.assertEqual(cursor.prev(), 0)
+            keys_before.append(cursor.get_key())
+
+        self.insert_leader(list(range(1000, 1100)))
+        self.do_checkpoint()
+
+        keys_after = []
+        while cursor.prev() == 0:
+            keys_after.append(cursor.get_key())
+
+        all_keys = keys_before + keys_after
+        for i in range(len(all_keys) - 1):
+            self.assertGreater(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} <= {all_keys[i + 1]}")
+
+        cursor.close()
+        self.session_follow.commit_transaction()
+
+    def test_upgrade_during_bounded_scan_positioned_on_ingest(self):
+        """
+        Bounded forward scan with mid-iteration stable upgrade.
+        Bounds [200, 800]. Cursor positioned on ingest. Checkpoint advance
+        triggers upgrade. All keys must be within bounds and monotonic.
+        """
+
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        self.insert_leader(list(range(0, self.nkeys, 2)))
+        self.do_checkpoint()
+
+        self.insert_follower(list(range(1, self.nkeys, 2)))
+
+        self.begin_read_ts_txn()
+
+        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
+
+        lo, hi = 200, 800
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(self.fmt_key(lo))
+        cursor.bound("bound=lower")
+        cursor.set_key(self.fmt_key(hi))
+        cursor.bound("bound=upper")
+
+        keys_before = []
+        for _ in range(50):
+            self.assertEqual(cursor.next(), 0)
+            keys_before.append(cursor.get_key())
+
+        self.insert_leader(list(range(1000, 1100)))
+        self.do_checkpoint()
+
+        keys_after = []
+        while cursor.next() == 0:
+            keys_after.append(cursor.get_key())
+
+        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
+        self.assertGreater(upgrades_after, upgrades_before,
+            "Stable cursor upgrade did not trigger during bounded iteration")
+
+        all_keys = keys_before + keys_after
+        for i in range(len(all_keys) - 1):
+            self.assertLess(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} >= {all_keys[i + 1]}")
+
+        for k in all_keys:
+            self.assertGreaterEqual(k, self.fmt_key(lo))
+            self.assertLessEqual(k, self.fmt_key(hi))
+
+        cursor.close()
+        self.session_follow.commit_transaction()
+
+    def test_upgrade_during_scan_with_tombstones_on_ingest(self):
+        """
+        Forward scan with deleted keys and a mid-scan checkpoint advance.
+        Stable: even keys 0-998. Follower deletes even keys 400-600 and inserts
+        odd keys 1-999. Verifies monotonic order and that deleted keys are hidden
+        after a checkpoint advance mid-scan.
+        """
+
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        # Checkpoint 1: even keys 0-998 in stable.
+        self.insert_leader(list(range(0, self.nkeys, 2)))
+        self.do_checkpoint()
+
+        # Follower ingest: odd keys + tombstones for even keys 400-600.
+        self.insert_follower(list(range(1, self.nkeys, 2)))
+        self.remove_follower(list(range(400, 601, 2)))
+
+        self.begin_read_ts_txn()
+
+        cursor = self.session_follow.open_cursor(self.uri)
+        keys_before = []
+        for _ in range(250):
+            self.assertEqual(cursor.next(), 0)
+            keys_before.append(cursor.get_key())
+
+        # Checkpoint 2: leader adds more keys.
+        self.insert_leader(list(range(1000, 1100)))
+        self.do_checkpoint()
+
+        keys_after = []
+        while cursor.next() == 0:
+            keys_after.append(cursor.get_key())
+
+        all_keys = keys_before + keys_after
+        for i in range(len(all_keys) - 1):
+            self.assertLess(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} >= {all_keys[i + 1]}")
+
+        # Deleted even keys 400-600 must not appear.
+        tombstoned = set(self.fmt_key(k) for k in range(400, 601, 2))
+        for k in all_keys:
+            self.assertNotIn(k, tombstoned, f"Tombstoned key appeared: {k}")
+
+        cursor.close()
+        self.session_follow.commit_transaction()
+
+    def test_multiple_upgrades_during_scan_on_ingest(self):
+        """
+        Forward scan across multiple mid-scan checkpoint advances. Verifies
+        monotonic order throughout and that at least one upgrade occurred.
+        """
+
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        # Checkpoint 1: keys 0-299 in stable.
+        self.insert_leader(list(range(300)))
+        self.do_checkpoint()
+
+        # Follower ingest: odd keys 301-999.
+        self.insert_follower(list(range(301, self.nkeys, 2)))
+
+        self.begin_read_ts_txn()
+
+        upgrades_before = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
+
+        cursor = self.session_follow.open_cursor(self.uri)
+        all_keys = []
+
+        for _ in range(150):
+            self.assertEqual(cursor.next(), 0)
+            all_keys.append(cursor.get_key())
+
+        # Checkpoint 2: add keys 300-599 to stable.
+        self.insert_leader(list(range(300, 600)))
+        self.do_checkpoint()
+
+        for _ in range(200):
+            self.assertEqual(cursor.next(), 0)
+            all_keys.append(cursor.get_key())
+
+        # Checkpoint 3: add keys 600-999 to stable.
+        self.insert_leader(list(range(600, self.nkeys)))
+        self.do_checkpoint()
+
+        while cursor.next() == 0:
+            all_keys.append(cursor.get_key())
+
+        upgrades_after = self.get_stat(wiredtiger.stat.conn.layered_curs_advance_stable)
+        self.assertGreater(upgrades_after, upgrades_before,
+            "Stable cursor upgrade did not trigger during multi-checkpoint scan")
+
+        for i in range(len(all_keys) - 1):
+            self.assertLess(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} >= {all_keys[i + 1]}")
+
+        cursor.close()
+        self.session_follow.commit_transaction()
+
+    def test_iterate_update_iterate_follower(self):
+        """
+        Forward scan, positioned update mid-scan, continue scanning. Verifies
+        that a write while the cursor is positioned does not disrupt iteration
+        order, and that the scan continues from the same position.
+        """
+
+        # Even keys in stable, odd keys in follower ingest.
+        self.insert_leader(list(range(0, self.nkeys, 2)))
+        self.do_checkpoint()
+        self.insert_follower(list(range(1, self.nkeys, 2)))
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # Iterate to around key 500.
+        cursor.set_key(self.fmt_key(500))
+        self.assertEqual(cursor.search(), 0)
+
+        # Advance to a mid-scan position.
+        for _ in range(5):
+            self.assertEqual(cursor.next(), 0)
+
+        pos_before_update = cursor.get_key()
+
+        # Perform a positioned update at the current cursor position.
+        self.session_follow.begin_transaction()
+        cursor.set_value("updated")
+        cursor.update()
+        self.session_follow.commit_transaction(
+            f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+
+        # Continue iterating after the update.
+        keys = [cursor.get_key()]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order after update at {i}: {keys[i]} >= {keys[i + 1]}")
+
+        # First key after update must be >= the position before update.
+        self.assertGreaterEqual(keys[0], pos_before_update,
+            f"First key after update {keys[0]} went backward from {pos_before_update}")
+        cursor.close()
+
+    def test_iterate_update_iterate_bounded_follower(self):
+        """
+        Bounded scan on follower, positioned update, continue.
+        Closest to MongoDB collection scan: bounded cursor, iterate, write, iterate.
+        """
+
+        self.insert_leader(list(range(0, self.nkeys, 2)))
+        self.do_checkpoint()
+        self.insert_follower(list(range(1, self.nkeys, 2)))
+
+        lo, hi = 200, 800
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(self.fmt_key(lo))
+        cursor.bound("bound=lower")
+        cursor.set_key(self.fmt_key(hi))
+        cursor.bound("bound=upper")
+
+        keys_before = []
+        for _ in range(100):
+            self.assertEqual(cursor.next(), 0)
+            keys_before.append(cursor.get_key())
+
+        # Positioned update mid-bounded-scan.
+        self.session_follow.begin_transaction()
+        cursor.set_value("updated")
+        cursor.update()
+        self.session_follow.commit_transaction(
+            f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+
+        keys_after = []
+        while cursor.next() == 0:
+            keys_after.append(cursor.get_key())
+
+        all_keys = keys_before + keys_after
+        for i in range(len(all_keys) - 1):
+            self.assertLess(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} >= {all_keys[i + 1]}")
+
+        for k in all_keys:
+            self.assertGreaterEqual(k, self.fmt_key(lo))
+            self.assertLessEqual(k, self.fmt_key(hi))
+        cursor.close()
+
+    def test_search_near_tombstone_walk_then_next(self):
+        """
+        search_near on a deleted key in a contiguous deleted range returns the
+        next live key after the range. A subsequent next() scan must continue in
+        order from that key and must not return any deleted keys.
+        """
+
+        # Stable: all 1000 keys. Follower deletes a contiguous range (400-600).
+        self.insert_leader(list(range(self.nkeys)))
+        self.do_checkpoint()
+
+        # Delete a contiguous range of keys on the follower.
+        self.remove_follower(list(range(400, 601)))
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # search_near(500): key is deleted; nearest live key is > 600.
+        cursor.set_key(self.fmt_key(500))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        # The returned key must be outside the deleted range.
+        self.assertGreater(first_key, self.fmt_key(600),
+            f"Expected key > 000600, got {first_key}")
+
+        # Iterate forward from the search_near result.
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        # Verify strict monotonic order.
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at {i}: {keys[i]} >= {keys[i + 1]}")
+
+        # Deleted keys must not appear.
+        deleted = set(self.fmt_key(k) for k in range(400, 601))
+        for k in keys:
+            self.assertNotIn(k, deleted, f"Deleted key appeared: {k}")
+
+        # All keys from 601 to 999 must be present.
+        expected_remaining = [self.fmt_key(k) for k in range(601, self.nkeys)]
+        self.assertEqual(keys, expected_remaining)
+        cursor.close()
+
+    def test_search_near_tombstone_walk_then_prev(self):
+        """
+        search_near on a deleted key where all keys from the search key forward
+        are also deleted. The nearest live key is below the search key.
+        A subsequent prev() scan must continue in reverse order without returning
+        deleted keys.
+        """
+
+        # Stable: keys 0-999. Ingest: tombstone everything from 500 onward.
+        self.insert_leader(list(range(self.nkeys)))
+        self.do_checkpoint()
+        self.remove_follower(list(range(500, self.nkeys)))
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # search_near(700): key and all keys above 500 are deleted; nearest live key is 499 (below).
+        cursor.set_key(self.fmt_key(700))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+        self.assertLess(first_key, self.fmt_key(500),
+            f"Expected key < 000500, got {first_key}")
+
+        # Iterate backward from the result.
+        keys = [first_key]
+        while cursor.prev() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertGreater(keys[i], keys[i + 1],
+                f"Out of order at {i}: {keys[i]} <= {keys[i + 1]}")
+        cursor.close()
+
+    def test_search_near_tombstone_walk_then_next_with_bounds(self):
+        """
+        Bounded search_near + tombstone + next. This is the MongoDB
+        pattern: set bounds, search_near to position, iterate.
+        """
+
+        self.insert_leader(list(range(self.nkeys)))
+        self.do_checkpoint()
+
+        # Tombstone a range that overlaps the search key.
+        self.remove_follower(list(range(300, 601)))
+
+        lo, hi = 200, 800
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(self.fmt_key(lo))
+        cursor.bound("bound=lower")
+        cursor.set_key(self.fmt_key(hi))
+        cursor.bound("bound=upper")
+
+        # search_near(450): key is deleted; nearest live key within bounds is at 601.
+        cursor.set_key(self.fmt_key(450))
+        exact = cursor.search_near()
+        self.assertNotEqual(exact, wiredtiger.WT_NOTFOUND)
+        first_key = cursor.get_key()
+
+        keys = [first_key]
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+
+        for i in range(len(keys) - 1):
+            self.assertLess(keys[i], keys[i + 1],
+                f"Out of order at {i}: {keys[i]} >= {keys[i + 1]}")
+
+        # All within bounds.
+        for k in keys:
+            self.assertGreaterEqual(k, self.fmt_key(lo))
+            self.assertLessEqual(k, self.fmt_key(hi))
+
+        # No tombstoned keys.
+        tombstoned = set(self.fmt_key(k) for k in range(300, 601))
+        for k in keys:
+            self.assertNotIn(k, tombstoned)
+        cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Test that a forward scan remains complete when a key visible at scan
+    # start is removed and a new checkpoint is applied mid-scan.
+    # -----------------------------------------------------------------------
+
+    def test_upgrade_dup_position_fails(self):
+        """
+        Stable: even keys 0-998. Follower: odd keys 1-999.
+        1. Begin a read transaction and scan forward past key 500.
+        2. The leader removes an even key and checkpoints.
+        3. Restart the scan with a new read timestamp that sees the delete.
+        4. Continue scanning. All expected even keys after the removed key
+           must still appear in the scan.
+        """
+
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        # Checkpoint 1: even keys 0-998 in stable.
+        even_keys = list(range(0, self.nkeys, 2))
+        self.insert_leader(even_keys)
+        self.do_checkpoint()
+
+        # Follower ingest: odd keys 1-999.
+        self.insert_follower(list(range(1, self.nkeys, 2)))
+
+        # Read timestamp AFTER the ingest writes so they're visible.
+        read_ts = self.ts
+
+        # Begin transaction with read timestamp. This is required so that
+        # the stable cursor upgrade is allowed during iteration.
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(read_ts)}')
+        self.session_follow.begin_transaction(
+            f'read_timestamp={self.timestamp_str(read_ts)}')
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        # Iterate forward past key 500.
+        keys_before = []
+        for _ in range(502):
+            self.assertEqual(cursor.next(), 0)
+            keys_before.append(cursor.get_key())
+
+        last_key = keys_before[-1]
+        last_key_int = int(last_key)
+        key_to_remove = last_key_int + 1 if last_key_int % 2 == 1 else last_key_int
+
+        # Commit the current transaction so we can start a new one later
+        # with a higher read timestamp that sees the delete.
+        self.session_follow.commit_transaction()
+
+        # Remove the key on the leader and checkpoint.
+        self.remove_leader([key_to_remove])
+        self.do_checkpoint()
+
+        # Start a new transaction with a read timestamp after the remove,
+        # so the deleted key is not visible in the new scan.
+        new_read_ts = self.ts
+        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(new_read_ts)}')
+        self.session_follow.begin_transaction(
+            f'read_timestamp={self.timestamp_str(new_read_ts)}')
+
+        # Continue scanning from the repositioned cursor.
+        keys_after = []
+        while cursor.next() == 0:
+            keys_after.append(cursor.get_key())
+
+        all_keys = keys_before + keys_after
+        # Check monotonic order.
+        for i in range(len(all_keys) - 1):
+            self.assertLess(all_keys[i], all_keys[i + 1],
+                f"Out of order at {i}: {all_keys[i]} >= {all_keys[i + 1]}")
+
+        # Even keys after the removed key must still appear.
+        even_keys_after = [k for k in keys_after if int(k) % 2 == 0]
+        self.assertGreater(len(even_keys_after), 0,
+            f"No even keys found after upgrade  stable cursor was not repositioned. "
+            f"Removed key: {key_to_remove}")
+
+        # Specifically, even keys like 700, 702, ... 998 should be present
+        # (they were not removed).
+        expected_even_after = [self.fmt_key(k) for k in range(key_to_remove + 2, self.nkeys, 2)]
+        found_even_after = set(even_keys_after)
+        for k in expected_even_after:
+            self.assertIn(k, found_even_after,
+                f"Even key {k} missing after upgrade  stable cursor not repositioned")
+
+        cursor.close()
+        self.session_follow.commit_transaction()
