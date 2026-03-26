@@ -2024,6 +2024,8 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
      */
     if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
         ret = __wt_txn_is_blocking(session);
+        if (ret == EBUSY)
+            ret = 0;
         if (ret == WT_ROLLBACK) {
             __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
             if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
@@ -2047,5 +2049,5 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
             WT_RET_BUSY_OK(__evict_page(session, false));
     }
 #endif
-    return (ret);
+    return ret;
 }
