@@ -52,13 +52,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=1') # Don't upset precise checkpoint
         self.session.checkpoint()
 
-        # Make a follower and feed it the latest checkpoint.
-        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
-                                                self.conn_config_follower)
-        self.session_follow = self.conn_follow.open_session('')
-        self.disagg_advance_checkpoint(self.conn_follow)
-
-        # Record the highest file ID and kill the leader.
+        # Record the highest file ID.
         md_cursor = self.session.open_cursor('metadata:', None, None)
         max_file_id = 0
         for key, value in md_cursor:
@@ -68,6 +62,19 @@ class test_layered81(wttest.WiredTigerTestCase):
             curr_file_id = extract_id(value)
             if curr_file_id > max_file_id:
                 max_file_id = curr_file_id
+
+        # Drop those tables, checkpoint again.
+        for i in range(0, 100):
+            self.session.drop(f"layered:test_layered81_{i}")
+        self.session.checkpoint()
+
+        # Make a follower and feed it the latest checkpoint.
+        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+                                                self.conn_config_follower)
+        self.session_follow = self.conn_follow.open_session('')
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # Kill the leader.
         self.session.close()
         self.conn.close('debug=(skip_checkpoint=true)')
 
@@ -75,7 +82,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.conn_follow.reconfigure('disaggregated=(role="leader")')
 
         # Make a new table on the (new) leader. Checkpoint.
-        self.conn_follow.set_timestamp('stable_timestamp=1') # Don't upset precise checkpoint
+        self.conn_follow.set_timestamp('stable_timestamp=2') # Don't upset precise checkpoint
         self.session_follow.create(f"layered:test_layered81_101", 'key_format=S,value_format=S')
         self.session_follow.checkpoint()
 

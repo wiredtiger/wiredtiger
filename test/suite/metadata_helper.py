@@ -35,4 +35,3 @@ def extract_id(metadata_value):
 
     match = re.search(r',id=(\d+)', metadata_value)
     return int(match.group(1))
-
