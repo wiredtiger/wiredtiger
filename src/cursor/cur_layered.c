@@ -626,13 +626,6 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 
     conn = S2C(session);
 
-    /*
-     * Cursors open for updates only open the ingest cursor, cursors open for read open both. If the
-     * right cursors are already open we are done. NOTE: This should become more complex as the
-     * stable cursor can have the checkpoint updated in that case this code will close the current
-     * stable cursor and open a new one to get the more recent checkpoint information and allow for
-     * garbage collection.
-     */
     if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
         return (0);
 
