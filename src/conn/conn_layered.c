@@ -327,6 +327,7 @@ __disagg_apply_checkpoint_meta(
     WT_ERR(__wt_open_cursor(session, metadata_uri_buf->data, NULL, cfg, &cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
+    WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
@@ -367,7 +368,6 @@ __disagg_apply_checkpoint_meta(
              */
             if (__disagg_discard_old_checkpoint_check(
                   session, current_value, cfg_ret, &checkpoint_name)) {
-                WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
                 WT_WITHOUT_DHANDLE(
                   session, ret = __wti_conn_dhandle_outdated(session, old_uri_buf->data));
