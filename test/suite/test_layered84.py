@@ -159,6 +159,44 @@ class test_layered84(wttest.WiredTigerTestCase):
         prepare_cursor.close()
         prepare_session.close()
 
+    def rollback_prepared(self, prepare_session, prepare_cursor):
+        """Roll back a prepared transaction."""
+        prepare_session.rollback_transaction()
+        prepare_cursor.close()
+        prepare_session.close()
+
+    def setup_prepared_rollback(self, committed_keys, prepared_key):
+        """
+        Set up a follower with committed writes on committed_keys and a prepared write on
+        prepared_key. prepared_key must not be in committed_keys — it has no committed state,
+        so after rollback it must not appear in any scan.
+        Returns (conn_follow, session_follow, cursor, prepare_session, prepare_cursor)
+        with the main session's transaction begun at read_timestamp=60.
+        """
+        self.populate_leader_and_checkpoint(committed_keys)
+        conn_follow, session_follow = self.open_follower()
+
+        write_cursor = session_follow.open_cursor(self.uri)
+        for key in committed_keys:
+            session_follow.begin_transaction()
+            write_cursor[key] = f'committed_{key}'
+            session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(30 + key))
+        write_cursor.close()
+
+        prepare_session = conn_follow.open_session()
+        prepare_cursor = prepare_session.open_cursor(self.uri)
+        prepare_session.begin_transaction()
+        prepare_cursor[prepared_key] = 'prepared_value'
+        prepare_session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(50) +
+            ',prepared_id=' + self.prepared_id_str(1))
+
+        cursor = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+
+        return conn_follow, session_follow, cursor, prepare_session, prepare_cursor
+
     def test_overwrite_update_then_next_on_follower(self):
         """
         On a follower, search on a key, overwrite-update it in the same transaction, then
@@ -653,6 +691,74 @@ class test_layered84(wttest.WiredTigerTestCase):
 
         self.assertEqual(set(keys), set(all_keys),
             f"Expected all keys after resolve, got {keys}")
+
+        session_follow.close()
+        conn_follow.close()
+
+    def test_next_walk_prepare_conflict_then_rollback(self):
+        """
+        Forward walk where a prepared conflict is encountered mid-scan and the prepared
+        transaction is then rolled back. Key 3 was never committed, so after rollback it
+        must not appear. Keys returned across both segments must be in strictly ascending
+        order — a position loss on rollback would cause already-seen keys to repeat,
+        breaking the sort order.
+        """
+        committed_keys = [1, 2, 4, 5]
+        conn_follow, session_follow, cursor, prepare_session, prepare_cursor = \
+            self.setup_prepared_rollback(committed_keys, prepared_key=3)
+
+        # Walk forward until the conflict on key 3.
+        keys_before, got_conflict = self.walk_next_collect(cursor)
+        self.assertTrue(got_conflict, "Expected prepared conflict during forward walk")
+
+        # Roll back: key 3 is now gone with no committed state.
+        self.rollback_prepared(prepare_session, prepare_cursor)
+
+        # Resume the walk from where it stopped; key 3 must not appear.
+        keys_after, _ = self.walk_next_collect(cursor)
+
+        session_follow.rollback_transaction()
+        cursor.close()
+
+        all_returned = keys_before + keys_after
+        self.assertEqual(sorted(all_returned), all_returned,
+            f"Keys out of order — cursor position was likely lost on rollback: {all_returned}")
+        self.assertEqual(set(all_returned), set(committed_keys),
+            f"Rolled-back key appeared or committed key missing: {all_returned}")
+
+        session_follow.close()
+        conn_follow.close()
+
+    def test_prev_walk_prepare_conflict_then_rollback(self):
+        """
+        Backward walk where a prepared conflict is encountered mid-scan and the prepared
+        transaction is then rolled back. Key 3 was never committed, so after rollback it
+        must not appear. Keys returned across both segments must be in strictly descending
+        order — a position loss on rollback would cause already-seen keys to repeat,
+        breaking the sort order.
+        """
+        committed_keys = [1, 2, 4, 5]
+        conn_follow, session_follow, cursor, prepare_session, prepare_cursor = \
+            self.setup_prepared_rollback(committed_keys, prepared_key=3)
+
+        # Walk backward until the conflict on key 3.
+        keys_before, got_conflict = self.walk_prev_collect(cursor)
+        self.assertTrue(got_conflict, "Expected prepared conflict during backward walk")
+
+        # Roll back: key 3 is now gone with no committed state.
+        self.rollback_prepared(prepare_session, prepare_cursor)
+
+        # Resume the walk from where it stopped; key 3 must not appear.
+        keys_after, _ = self.walk_prev_collect(cursor)
+
+        session_follow.rollback_transaction()
+        cursor.close()
+
+        all_returned = keys_before + keys_after
+        self.assertEqual(sorted(all_returned, reverse=True), all_returned,
+            f"Keys out of order — cursor position was likely lost on rollback: {all_returned}")
+        self.assertEqual(set(all_returned), set(committed_keys),
+            f"Rolled-back key appeared or committed key missing: {all_returned}")
 
         session_follow.close()
         conn_follow.close()

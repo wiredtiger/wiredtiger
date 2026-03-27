@@ -930,13 +930,14 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
         WT_ERR_NOTFOUND_OK(
           __clayered_position_alternate(clayered, c_current, c_alternate, forward), false);
 
-    /* If the alternate cursor's key is equal to the current one, we should move it as well. */
-    if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT)) {
+    /*
+     * If the alternate cursor's key is equal to the current one, we should move it as well. In that
+     * case, the alternate must be the stable cursor.
+     */
+    if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && c_current == c_ingest) {
         WT_ERR(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
-        if (cmp == 0) {
-            WT_ASSERT(session, c_alternate == c_stable);
+        if (cmp == 0)
             WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward), false);
-        }
     }
 
     /* Move the current cursor if we haven't done so. */
@@ -978,7 +979,7 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
 err:
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
-        __clayered_reset_cursors(clayered, false);
+        WT_TRET(__clayered_reset_cursors(clayered, false));
 
     return (ret);
 }
