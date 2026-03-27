@@ -20,6 +20,7 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
 {
     WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
     WT_BTREE *btree;
+    WT_DECL_RET;
     uint32_t checksum, size;
     uint8_t *endp;
 
@@ -47,8 +48,11 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
          * page, and currently we rely on this assumption to discard older checkpoint root page when
          * the checkpoint becomes redundant.
          */
-        WT_RET(__wti_block_disagg_write_internal(session, block_disagg, root_image, block_meta,
-          page_image_size, &size, &checksum, true, true));
+        ret = __wti_block_disagg_write_internal(session, block_disagg, root_image, block_meta,
+          page_image_size, &size, &checksum, true, true);
+        if (ret != 0)
+            return (__wt_panic(
+              session, WT_PANIC, "Disaggregated storage checkpoint failed to write root page."));
         __wt_page_header_byteswap((void *)root_image->data);
 
         /* Initialize and pack the address cookie for the root page. */

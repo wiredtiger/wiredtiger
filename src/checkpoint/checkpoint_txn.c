@@ -1624,7 +1624,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
         WT_WITH_SCHEMA_LOCK(
           session, ret = __checkpoint_process_disagg_metadata(session, &drop_size));
-        WT_ERR(ret);
+        if (ret != 0)
+            return (__wt_panic(session, WT_PANIC,
+              "Disaggregated storage checkpoint failed while processing shared metadata queue."));
     }
 
     /*
@@ -1882,10 +1884,17 @@ err:
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
-        if (conn->key_provider != NULL)
-            WT_TRET(__wt_disagg_put_crypt_helper(session));
-        WT_TRET(__wt_disagg_put_checkpoint_meta(
-          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
+        if (conn->key_provider != NULL) {
+            ret = __wt_disagg_put_crypt_helper(session);
+            if (ret != 0)
+                return (__wt_panic(session, WT_PANIC,
+                  "Disaggregated storage checkpoint failed to write encryption metadata."));
+        }
+        ret = __wt_disagg_put_checkpoint_meta(
+          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts);
+        if (ret != 0)
+            return (__wt_panic(session, WT_PANIC,
+              "Disaggregated storage checkpoint failed to write checkpoint metadata."));
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
           "Updated disaggregated storage checkpoint metadata because the stable timestamp "
           "advanced");
@@ -1900,6 +1909,9 @@ err:
      */
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
+        if (failed)
+            return (__wt_panic(session, WT_PANIC,
+              "Disaggregated storage checkpoint failed after writing metadata to the page log."));
         WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));

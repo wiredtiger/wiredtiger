@@ -381,3 +381,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt16990_disagg_checkpoint_panic
+    SOURCES wt16990_disagg_checkpoint_panic/main.c
+    DIR_NAME wt16990_disagg_checkpoint_panic
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} -G
+    DEPENDS "WT_POSIX"
+)
