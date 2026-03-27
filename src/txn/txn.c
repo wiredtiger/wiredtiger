@@ -562,7 +562,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
         __wt_verbose_warning(session, WT_VERB_TRANSACTION,
           "oldest id %" PRIu64 " pinned in session %" PRIu32 " (current_id %" PRIu64 "):",
           oldest_id, oldest_session->id, current_id);
-        WT_IGNORE_RET(__wt_session_dump(session, oldest_session, true));
+        WT_IGNORE_RET(__wt_session_dump(session, oldest_session, false));
     }
 
 done:
