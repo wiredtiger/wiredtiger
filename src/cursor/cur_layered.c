@@ -946,9 +946,11 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
 done:
 err:
-    if ((ret == 0 || ret == WT_PREPARE_CONFLICT) && !F_ISSET(clayered, iter_flag)) {
-        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
-        F_SET(clayered, iter_flag);
+    if (ret == 0 || ret == WT_PREPARE_CONFLICT) {
+        if (!F_ISSET(clayered, iter_flag)) {
+            F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
+            F_SET(clayered, iter_flag);
+        }
     } else {
         WT_ASSERT(session, ret != WT_NOTFOUND);
         F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
