@@ -155,7 +155,7 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
  *     Compare the checkpoint name in the old and new metadata config strings. Check if they are the
  *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
  *
- * Note: It is possible to have is no checkpoint yet (e.g. the shared metadata table has never been
+ * Note: It is possible to have no checkpoint yet (e.g. the shared metadata table has never been
  *     checkpointed or the database has empty layered tables).
  */
 static bool
@@ -171,8 +171,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
     time = time_new = 0;
     *checkpoint_name = checkpoint_name_new = NULL;
     WT_ERR_NOTFOUND_OK(
-      __wt_ckpt_last_name(session, current_value, checkpoint_name, &order, &time), false);
-
+      __wt_ckpt_last_name(session, current_value, checkpoint_name, &order, &time), true);
     /* Early exit if we can't find the configuration of last checkpoint. */
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, checkpoint_name == NULL);
@@ -180,8 +179,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
     }
 
     WT_ERR_NOTFOUND_OK(
-      __wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new, &order_new, &time_new), false);
-
+      __wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new, &order_new, &time_new), true);
     /* Early exit if we can't find the configuration of new checkpoint. */
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, checkpoint_name_new == NULL);
@@ -194,11 +192,11 @@ err:
       order == order_new && time == time_new && strcmp(*checkpoint_name, checkpoint_name_new) == 0);
 }
 /*
- * __disagg_save_checkpoint_meta --
+ * __disagg_save_checkpoint_meta_local --
  *     Update the local metadata entry with the supplied checkpoint configuration.
  */
 static int
-__disagg_save_checkpoint_meta(
+__disagg_save_checkpoint_meta_local(
   WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_ITEM(metadata_cfg);
@@ -441,11 +439,11 @@ err:
 }
 
 /*
- * __disagg_update_checkpoint_meta --
+ * __disagg_finalize_checkpoint_meta --
  *     Finalize checkpoint bookkeeping after processing shared metadata entries.
  */
 static int
-__disagg_update_checkpoint_meta(WT_SESSION_IMPL *session,
+__disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
   const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_RET;
@@ -553,7 +551,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
 
     /* Update our local metadata with the new checkpoint entry. */
-    WT_ERR(__disagg_save_checkpoint_meta(session, md_cursor, &metadata));
+    WT_ERR(__disagg_save_checkpoint_meta_local(session, md_cursor, &metadata));
 
     /*
      * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
@@ -567,7 +565,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 3: Do the bookkeeping.
      */
 
-    WT_ERR(__disagg_update_checkpoint_meta(session, ckpt_meta, &metadata));
+    WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
