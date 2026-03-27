@@ -217,7 +217,6 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     time_start = __wt_clock(session);
 
     full_checksum_mismatch = false;
-    check_size = 0;
     bufsize = size;
     __wt_verbose_debug2(session, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
