@@ -122,6 +122,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: history store table writes requiring squashed modifies",
   "cache: in-memory page passed criteria to be split",
   "cache: in-memory page splits",
+  "cache: in-memory page splits performed on ingest btree pages",
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
   "cache: internal pages split during eviction",
@@ -575,6 +576,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_hs_write_squash = 0;
     stats->cache_inmem_splittable = 0;
     stats->cache_inmem_split = 0;
+    stats->cache_inmem_split_ingest = 0;
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
     stats->cache_eviction_split_internal = 0;
@@ -1010,6 +1012,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_hs_write_squash += from->cache_hs_write_squash;
     to->cache_inmem_splittable += from->cache_inmem_splittable;
     to->cache_inmem_split += from->cache_inmem_split;
+    to->cache_inmem_split_ingest += from->cache_inmem_split_ingest;
     to->cache_eviction_blocked_internal_page_split +=
       from->cache_eviction_blocked_internal_page_split;
     to->cache_eviction_internal += from->cache_eviction_internal;
@@ -1478,6 +1481,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_hs_write_squash += WT_STAT_DSRC_READ(from, cache_hs_write_squash);
     to->cache_inmem_splittable += WT_STAT_DSRC_READ(from, cache_inmem_splittable);
     to->cache_inmem_split += WT_STAT_DSRC_READ(from, cache_inmem_split);
+    to->cache_inmem_split_ingest += WT_STAT_DSRC_READ(from, cache_inmem_split_ingest);
     to->cache_eviction_blocked_internal_page_split +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_internal_page_split);
     to->cache_eviction_internal += WT_STAT_DSRC_READ(from, cache_eviction_internal);
@@ -2118,6 +2122,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: history store table writes requiring squashed modifies",
   "cache: in-memory page passed criteria to be split",
   "cache: in-memory page splits",
+  "cache: in-memory page splits performed on ingest btree pages",
   "cache: ingest pages evicted",
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
@@ -3184,6 +3189,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hs_write_squash = 0;
     stats->cache_inmem_splittable = 0;
     stats->cache_inmem_split = 0;
+    stats->cache_inmem_split_ingest = 0;
     stats->eviction_ingest_success = 0;
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
@@ -4296,6 +4302,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hs_write_squash += WT_STAT_CONN_READ(from, cache_hs_write_squash);
     to->cache_inmem_splittable += WT_STAT_CONN_READ(from, cache_inmem_splittable);
     to->cache_inmem_split += WT_STAT_CONN_READ(from, cache_inmem_split);
+    to->cache_inmem_split_ingest += WT_STAT_CONN_READ(from, cache_inmem_split_ingest);
     to->eviction_ingest_success += WT_STAT_CONN_READ(from, eviction_ingest_success);
     to->cache_eviction_blocked_internal_page_split +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_internal_page_split);

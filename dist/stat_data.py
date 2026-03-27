@@ -1256,6 +1256,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_update_processed', 'history store table update to be processed'),
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
+    CacheStat('cache_inmem_split_ingest', 'in-memory page splits performed on ingest btree pages'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_obsolete_updates_removed', 'obsolete updates removed'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
