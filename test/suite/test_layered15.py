@@ -74,6 +74,9 @@ class test_layered15(wttest.WiredTigerTestCase):
         while cursor.next() == 0:
             metadata[cursor.get_key()] = cursor.get_value()
         for uri in expect_contains:
+            print(uri)
+            if (uri not in metadata):
+                print("hi", metadata)
             self.assertTrue(uri in metadata)
         for uri in expect_missing:
             self.assertFalse(uri in metadata)

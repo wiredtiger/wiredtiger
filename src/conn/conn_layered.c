@@ -174,7 +174,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
       __wt_ckpt_last_name(session, current_value, checkpoint_name, &order, &time), true);
     /* Early exit if we can't find the configuration of last checkpoint. */
     if (ret == WT_NOTFOUND) {
-        WT_ASSERT(session, checkpoint_name == NULL);
+        WT_ASSERT(session, *checkpoint_name == NULL);
         return (false);
     }
 
@@ -187,9 +187,9 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
     }
 
 err:
+    bool discard = (order == order_new && time == time_new && strcmp(*checkpoint_name, checkpoint_name_new) == 0);
     __wt_free(session, checkpoint_name_new);
-    return (
-      order == order_new && time == time_new && strcmp(*checkpoint_name, checkpoint_name_new) == 0);
+    return (discard);
 }
 /*
  * __disagg_save_checkpoint_meta_local --
@@ -230,7 +230,7 @@ __disagg_save_checkpoint_meta_local(
       "Updated the local metadata for key \"%s\" to include the new checkpoint: \"%.*s\"",
       metadata_key, (int)metadata->checkpoint_len, metadata->checkpoint);
 
-    /* Throw away any references to the old disaggregated metadata table. */
+    /* Throw away any references to the old disaggregated metadata table checkpoint. */
     if (__disagg_discard_old_checkpoint_check(session, current_value, cfg_new, &checkpoint_name)) {
         WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
         WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
