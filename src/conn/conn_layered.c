@@ -976,12 +976,9 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
             continue;
         }
 
-        /*
-         * Failpoint: inject error to test panic handling during queue processing. Use
-         * 10 * WT_THOUSAND as the probability guarantees the failpoint fires every time.
-         */
-        if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN,
-              10 * WT_THOUSAND)) {
+        /* Failpoint: inject error to test panic handling during queue processing. */
+        if (FLD_ISSET(conn->timing_stress_flags,
+              WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN)) {
             ret = __wt_set_return(session, EINVAL);
             goto err;
         }
