@@ -299,39 +299,42 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
 
 /*
  * __wt_btree_set_size --
- *     Set the size of the tree.
+ *     Set the checkpoint size of the tree. Owned by the disaggregated block manager.
  */
 static WT_INLINE void
 __wt_btree_set_size(WT_SESSION_IMPL *session, uint64_t size)
 {
-    (void)__wt_atomic_store_uint64(&S2BT(session)->bytes_total, size);
+    WT_BLOCK_DISAGG *block_disagg;
+
+    block_disagg = (WT_BLOCK_DISAGG *)S2BT(session)->bm->block;
+    (void)__wt_atomic_store_uint64(&block_disagg->ckpt_size, size);
 }
 
 /*
  * __wt_btree_increase_size --
- *     Increase the size of the tree.
+ *     Increase the checkpoint size of the tree. Owned by the disaggregated block manager.
  */
 static WT_INLINE void
 __wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
 {
-    (void)__wt_atomic_add_uint64(&S2BT(session)->bytes_total, size);
+    WT_BLOCK_DISAGG *block_disagg;
+
+    block_disagg = (WT_BLOCK_DISAGG *)S2BT(session)->bm->block;
+    (void)__wt_atomic_add_uint64(&block_disagg->ckpt_size, size);
 }
 
 /*
  * __wt_btree_decrease_size --
- *     Decrease the size of the tree.
+ *     Decrease the checkpoint size of the tree. Owned by the disaggregated block manager.
  */
 static WT_INLINE void
 __wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
 {
-    /*
-     * FIXME WT-16660: re-enable this assert once the disagg delta block size accounting bug is
-     * fixed.
-     */
-    if (__wt_atomic_load_uint64(&S2BT(session)->bytes_total) < size)
-        __wt_atomic_store_uint64(&S2BT(session)->bytes_total, 0);
-    else
-        (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
+    WT_BLOCK_DISAGG *block_disagg;
+
+    block_disagg = (WT_BLOCK_DISAGG *)S2BT(session)->bm->block;
+    WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->ckpt_size) >= size);
+    (void)__wt_atomic_sub_uint64(&block_disagg->ckpt_size, size);
 }
 
 /*
