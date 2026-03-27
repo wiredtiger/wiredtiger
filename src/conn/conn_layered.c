@@ -164,6 +164,8 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
     int64_t order, order_new;
     const char *checkpoint_name_new;
 
+    order = order_new = 0;
+    time = time_new = 0;
     *checkpoint_name = checkpoint_name_new = NULL;
     WT_ERR_NOTFOUND_OK(
       __wt_ckpt_last_name(session, current_value, checkpoint_name, &order, &time), false);
