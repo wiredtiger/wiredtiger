@@ -159,19 +159,22 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
  *     checkpointed or the database has empty layered tables).
  */
 static bool
-__disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *current_value,
+__disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_current,
   const char *cfg_new, const char **checkpoint_name)
 {
     WT_DECL_RET;
     uint64_t time, time_new;
     int64_t order, order_new;
+    bool same_checkpoint;
     const char *checkpoint_name_new;
 
     order = order_new = 0;
     time = time_new = 0;
     *checkpoint_name = checkpoint_name_new = NULL;
+    same_checkpoint = false;
+
     WT_ERR_NOTFOUND_OK(
-      __wt_ckpt_last_name(session, current_value, checkpoint_name, &order, &time), true);
+      __wt_ckpt_last_name(session, cfg_current, checkpoint_name, &order, &time), true);
     /* Early exit if we can't find the configuration of last checkpoint. */
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, *checkpoint_name == NULL);
@@ -186,11 +189,21 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
         return (false);
     }
 
+    /*  
+     * Treat the checkpoint order configuration as the source of truth when  
+     * determining whether the checkpoint has changed.  
+     */  
+    same_checkpoint = (order == order_new);
+
+#if HAVE_DIAGNOSTIC
+    if (same_checkpoint) {
+        WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) == 0);
+        WT_ASSERT(session, time == time_new);
+    }
+#endif
 err:
-    bool discard = (order == order_new && time == time_new &&
-      strcmp(*checkpoint_name, checkpoint_name_new) == 0);
     __wt_free(session, checkpoint_name_new);
-    return (discard);
+    return (!same_checkpoint);
 }
 /*
  * __disagg_save_checkpoint_meta_local --
@@ -204,7 +217,7 @@ __disagg_save_checkpoint_meta_local(
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     char *cfg_new;
-    const char *cfg[3], *checkpoint_name, *current_value, *metadata_key;
+    const char *cfg[3], *checkpoint_name, *cfg_current, *metadata_key;
 
     cfg_new = NULL;
     metadata_key = WT_DISAGG_METADATA_URI;
@@ -212,14 +225,14 @@ __disagg_save_checkpoint_meta_local(
     /* Pull the value out. */
     md_cursor->set_key(md_cursor, metadata_key);
     WT_ERR(md_cursor->search(md_cursor));
-    WT_ERR(md_cursor->get_value(md_cursor, &current_value));
+    WT_ERR(md_cursor->get_value(md_cursor, &cfg_current));
 
     /* Create the new checkpoint config string. */
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
     WT_ERR(__wt_buf_fmt(session, metadata_cfg, "checkpoint=%.*s", (int)metadata->checkpoint_len,
       metadata->checkpoint));
 
-    cfg[0] = current_value;
+    cfg[0] = cfg_current;
     cfg[1] = metadata_cfg->data;
     cfg[2] = NULL;
     WT_ERR(__wt_config_collapse(session, cfg, &cfg_new));
@@ -231,8 +244,23 @@ __disagg_save_checkpoint_meta_local(
       "Updated the local metadata for key \"%s\" to include the new checkpoint: \"%.*s\"",
       metadata_key, (int)metadata->checkpoint_len, metadata->checkpoint);
 
+    /*
+     * A follower should never access the live shared metadata dhandle. However, session->create
+     * implicitly opens the live dhandle. To preserve this rule, we immediately expire the shared
+     * metadata dhandle.
+     *
+     * FIXME-WT-17040: Investigate if it's necessary to create the shared metadata table on
+     * followers.
+     */
+    if (!S2C(session)->layered_table_manager.leader) {
+        WT_WITHOUT_DHANDLE(
+          session, ret = __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+        WT_ERR_MSG_CHK(
+          session, ret, "Marking data handle outdated failed: \"%s\"", WT_DISAGG_METADATA_URI);
+    }
+
     /* Throw away any references to the old disaggregated metadata table checkpoint. */
-    if (__disagg_discard_old_checkpoint_check(session, current_value, cfg_new, &checkpoint_name)) {
+    if (__disagg_discard_old_checkpoint_check(session, cfg_current, cfg_new, &checkpoint_name)) {
         WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
         WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
         WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, old_uri_buf->data));
@@ -263,11 +291,11 @@ __disagg_apply_checkpoint_meta(
     WT_DECL_RET;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
-    const char *cfg[3], *checkpoint_name, *checkpoint_name_new, *current_value,
+    const char *cfg[3], *checkpoint_name, *current_value,
       *metadata_checkpoint_name, *metadata_key, *metadata_value;
 
     cursor = NULL;
-    checkpoint_name = checkpoint_name_new = metadata_checkpoint_name = NULL;
+    checkpoint_name = metadata_checkpoint_name = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
@@ -297,7 +325,6 @@ __disagg_apply_checkpoint_meta(
     WT_ERR(__wt_open_cursor(session, metadata_uri_buf->data, NULL, cfg, &cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
-    WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
@@ -318,35 +345,6 @@ __disagg_apply_checkpoint_meta(
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
-            int64_t order, order_new;
-            uint64_t time, time_new;
-            /*
-             * Before inserting the new value, get the checkpoint name of the file at the previous
-             * checkpoint.
-             */
-            WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
-                                 session, metadata_key, &checkpoint_name, &order, &time),
-              false);
-
-            /* Retrieve the name of the current unnamed checkpoint. */
-            checkpoint_name_new = NULL;
-            order_new = 0;
-            time_new = 0;
-            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, metadata_value, &checkpoint_name_new,
-                                 &order_new, &time_new),
-              false);
-            WT_ERR_MSG_CHK(session, ret,
-              "Retrieving the last checkpoint name failed for key \"%s\"", metadata_key);
-
-            /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
-            /*
-             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
-             * different nodes.
-             */
-            bool same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
-              strcmp(checkpoint_name, checkpoint_name_new) == 0 && order == order_new &&
-              time == time_new;
-
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR_MSG_CHK(session, md_cursor->insert(md_cursor),
@@ -360,14 +358,20 @@ __disagg_apply_checkpoint_meta(
             /*
              * Mark any matching data handles associated with the previous checkpoint to be out of
              * date. Any new opens will get the new metadata.
+             * 
+             * FIXME-WT-14730: check that the other parts of the metadata are identical.
+             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
+             * different nodes.
              */
-            if (!same_checkpoint) {
+            if (__disagg_discard_old_checkpoint_check(session, current_value, cfg_ret, &checkpoint_name)) {
+                WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
                 WT_WITHOUT_DHANDLE(
                   session, ret = __wti_conn_dhandle_outdated(session, old_uri_buf->data));
                 WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"",
                   (const char *)old_uri_buf->data);
             }
+
             /*
              * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live
              * btrees after step-up.
@@ -379,7 +383,6 @@ __disagg_apply_checkpoint_meta(
               (const char *)metadata_key);
             __wt_free(session, cfg_ret);
             __wt_free(session, checkpoint_name);
-            __wt_free(session, checkpoint_name_new);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* FIXME-WT-14730: verify that there is no btree ID conflict. */
@@ -428,7 +431,6 @@ __disagg_apply_checkpoint_meta(
 err:
     __wt_free(session, cfg_ret);
     __wt_free(session, checkpoint_name);
-    __wt_free(session, checkpoint_name_new);
     __wt_free(session, metadata_checkpoint_name);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &metadata_cfg);
@@ -1069,21 +1071,6 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
     WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
     WT_ERR(__wt_session_create(
       internal_session, WT_DISAGG_METADATA_URI, "key_format=S,value_format=S,log=(enabled=false)"));
-
-    /*
-     * A follower should never access the live shared metadata dhandle. However, session->create
-     * implicitly opens the live dhandle. To preserve this rule, we immediately expire the shared
-     * metadata dhandle.
-     *
-     * FIXME-WT-17040: Investigate if it's necessary to create the shared metadata table on
-     * followers.
-     */
-    if (!conn->layered_table_manager.leader) {
-        WT_WITHOUT_DHANDLE(
-          session, ret = __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
-        WT_ERR_MSG_CHK(
-          session, ret, "Marking data handle outdated failed: \"%s\"", WT_DISAGG_METADATA_URI);
-    }
 
 err:
     if (internal_session != NULL)
