@@ -573,26 +573,27 @@ __checkpoint_update_evict_triggers_end(
     bool restore_updates_trigger =
       WT_ABS(current_updates_trigger - saved_triggers->new_updates_trigger) < DBL_EPSILON;
 
-    if (!restore_dirty_trigger)
-        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
-          "Dirty trigger was modified during checkpoint, not reverting to original value");
-
-    if (!restore_updates_trigger)
-        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
-          "Updates trigger was modified during checkpoint, not reverting to original value");
-
     /*
      * FIXME-WT-17015 We should update how eviction triggers are accessed so they are consistently
      * modified and read.
      */
 
     /*
-     * Save back exactly the original cache trigger values.
+     * Save back the original cache trigger values.
      */
-    __wt_atomic_store_double_relaxed(
-      &evict->eviction_dirty_trigger, saved_triggers->original_dirty_trigger);
-    __wt_atomic_store_double_relaxed(
-      &evict->eviction_updates_trigger, saved_triggers->original_updates_trigger);
+    if (!restore_dirty_trigger)
+        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+          "Dirty trigger was modified during checkpoint, not reverting to original value");
+    else
+        __wt_atomic_store_double_relaxed(
+          &evict->eviction_dirty_trigger, saved_triggers->original_dirty_trigger);
+
+    if (!restore_updates_trigger)
+        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+          "Updates trigger was modified during checkpoint, not reverting to original value");
+    else
+        __wt_atomic_store_double_relaxed(
+          &evict->eviction_updates_trigger, saved_triggers->original_updates_trigger);
 }
 
 /*
