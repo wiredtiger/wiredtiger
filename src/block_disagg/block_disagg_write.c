@@ -303,9 +303,9 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
      * than what was written to metadata, causing verify to fail.
      *
      * Second, to account for the above, __bmd_checkpoint_pack_raw explicitly manages root page size
-     * transitions in btree->bytes_total: it subtracts the previous root size and adds the current
-     * root size at the moment the checkpoint size is computed. Decrementing here as well would
-     * cause the old root page size to be subtracted twice.
+     * transitions in block_disagg->ckpt_size: it subtracts the previous root size and adds the
+     * current root size at the moment the checkpoint size is computed. Decrementing here as well
+     * would cause the old root page size to be subtracted twice.
      */
     if (!is_root)
         __wt_btree_decrease_size(session, cookie.size);
