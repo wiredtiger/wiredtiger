@@ -948,17 +948,19 @@ __checkpoint_process_disagg_metadata(WT_SESSION_IMPL *session, uint64_t *drop_si
 static void
 __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 {
+    WT_BLOCK_DISAGG *block_disagg;
     WT_BTREE *btree;
 
     btree = S2BT(session);
     btree->modified = true;
 
     /* Revert the in-memory root page accounting as we have failed during checkpointing. */
-    if (btree->root_size_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
-        __wt_btree_decrease_size(session, btree->current_root_size);
-        __wt_btree_increase_size(session, btree->previous_root_size);
+    block_disagg = (WT_BLOCK_DISAGG *)btree->bm->block;
+    if (block_disagg->root_size_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
+        __wt_btree_decrease_size(session, block_disagg->current_root_size);
+        __wt_btree_increase_size(session, block_disagg->previous_root_size);
 
-        btree->current_root_size = btree->previous_root_size;
+        block_disagg->current_root_size = block_disagg->previous_root_size;
     }
     __wt_ckptlist_free(session, &btree->ckpt);
 }
