@@ -190,18 +190,16 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
     }
 
     /*
-     * Treat the checkpoint order configuration as the source of truth when determining whether the
-     * checkpoint has changed.
+     * Treat the checkpoint order and time configurations as the source of truth when determining
+     * whether the checkpoint has changed.
      */
-    same_checkpoint = (order == order_new);
+    same_checkpoint = (order == order_new && time == time_new);
 
 #ifdef HAVE_DIAGNOSTIC
-    if (same_checkpoint) {
+    if (same_checkpoint)
         WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) == 0);
-        WT_ASSERT(session, time == time_new);
-    } else {
+    else
         WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) != 0);
-    }
 #endif
 err:
     __wt_free(session, checkpoint_name_new);
