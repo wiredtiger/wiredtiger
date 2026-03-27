@@ -959,13 +959,6 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
-    /*
-     * FIXME-WT-16158: We currently check whether the entry has been deleted on the current cursor,
-     * which may be positioned on either the ingest or the stable table. However, only the ingest
-     * cursor can return tombstoned entries. This logic can be reworked to perform the deletion
-     * check only on the ingest cursor and to call get_current() only after the next non-deleted
-     * entry has been found.
-     */
     do {
         WT_ERR(__clayered_iterate_constituents(clayered, iter_flag));
         WT_ERR(__clayered_get_current(session, clayered, iter_flag == WT_CLAYERED_ITERATE_NEXT));
