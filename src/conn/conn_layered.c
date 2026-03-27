@@ -165,8 +165,8 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
     WT_DECL_RET;
     uint64_t time, time_new;
     int64_t order, order_new;
-    bool same_checkpoint;
     const char *checkpoint_name_new;
+    bool same_checkpoint;
 
     order = order_new = 0;
     time = time_new = 0;
@@ -189,16 +189,18 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
         return (false);
     }
 
-    /*  
-     * Treat the checkpoint order configuration as the source of truth when  
-     * determining whether the checkpoint has changed.  
-     */  
+    /*
+     * Treat the checkpoint order configuration as the source of truth when determining whether the
+     * checkpoint has changed.
+     */
     same_checkpoint = (order == order_new);
 
 #if HAVE_DIAGNOSTIC
     if (same_checkpoint) {
         WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) == 0);
         WT_ASSERT(session, time == time_new);
+    } else {
+        WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) != 0);
     }
 #endif
 err:
@@ -291,8 +293,8 @@ __disagg_apply_checkpoint_meta(
     WT_DECL_RET;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
-    const char *cfg[3], *checkpoint_name, *current_value,
-      *metadata_checkpoint_name, *metadata_key, *metadata_value;
+    const char *cfg[3], *checkpoint_name, *current_value, *metadata_checkpoint_name, *metadata_key,
+      *metadata_value;
 
     cursor = NULL;
     checkpoint_name = metadata_checkpoint_name = NULL;
@@ -358,12 +360,13 @@ __disagg_apply_checkpoint_meta(
             /*
              * Mark any matching data handles associated with the previous checkpoint to be out of
              * date. Any new opens will get the new metadata.
-             * 
+             *
              * FIXME-WT-14730: check that the other parts of the metadata are identical.
              * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
              * different nodes.
              */
-            if (__disagg_discard_old_checkpoint_check(session, current_value, cfg_ret, &checkpoint_name)) {
+            if (__disagg_discard_old_checkpoint_check(
+                  session, current_value, cfg_ret, &checkpoint_name)) {
                 WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
                 WT_WITHOUT_DHANDLE(
