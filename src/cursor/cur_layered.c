@@ -917,23 +917,26 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * the alternate cursor cannot be placed due to the absence of a key from the current cursor.
      */
     if (!F_ISSET(c_current, WT_CURSTD_KEY_INT)) {
+        WT_ASSERT(session,
+          c_current == c_ingest &&
+            F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV));
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward), false);
         current_moved = true;
-    }
-
-    /*
-     * The cursor is positioned, but `iter_flag` is not set so we cannot rely on alternate cursor
-     * and need to position it.
-     */
-    if (!F_ISSET(clayered, iter_flag))
+    } else if (!F_ISSET(clayered, iter_flag))
+        /*
+         * The cursor is positioned, but `iter_flag` is not set so we cannot rely on alternate
+         * cursor and need to position it.
+         */
         WT_ERR_NOTFOUND_OK(
           __clayered_position_alternate(clayered, c_current, c_alternate, forward), false);
 
     /* If the alternate cursor's key is equal to the current one, we should move it as well. */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT)) {
         WT_ERR(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
-        if (cmp == 0)
+        if (cmp == 0) {
+            WT_ASSERT(session, c_alternate == c_stable);
             WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward), false);
+        }
     }
 
     /* Move the current cursor if we haven't done so. */
