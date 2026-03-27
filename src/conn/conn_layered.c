@@ -187,7 +187,8 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
     }
 
 err:
-    bool discard = (order == order_new && time == time_new && strcmp(*checkpoint_name, checkpoint_name_new) == 0);
+    bool discard = (order == order_new && time == time_new &&
+      strcmp(*checkpoint_name, checkpoint_name_new) == 0);
     __wt_free(session, checkpoint_name_new);
     return (discard);
 }
@@ -1068,6 +1069,21 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
     WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
     WT_ERR(__wt_session_create(
       internal_session, WT_DISAGG_METADATA_URI, "key_format=S,value_format=S,log=(enabled=false)"));
+
+    /*
+     * A follower should never access the live shared metadata dhandle. However, session->create
+     * implicitly opens the live dhandle. To preserve this rule, we immediately expire the shared
+     * metadata dhandle.
+     *
+     * FIXME-WT-17040: Investigate if it's necessary to create the shared metadata table on
+     * followers.
+     */
+    if (!conn->layered_table_manager.leader) {
+        WT_WITHOUT_DHANDLE(
+          session, ret = __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+        WT_ERR_MSG_CHK(
+          session, ret, "Marking data handle outdated failed: \"%s\"", WT_DISAGG_METADATA_URI);
+    }
 
 err:
     if (internal_session != NULL)
