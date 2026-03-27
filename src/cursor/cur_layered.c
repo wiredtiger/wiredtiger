@@ -945,6 +945,9 @@ err:
     if ((ret == 0 || ret == WT_PREPARE_CONFLICT) && !F_ISSET(clayered, iter_flag)) {
         F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
         F_SET(clayered, iter_flag);
+    } else {
+        WT_ASSERT(session, ret != WT_NOTFOUND);
+        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     }
     return (ret);
 }
