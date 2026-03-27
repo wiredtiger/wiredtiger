@@ -151,6 +151,31 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
 }
 
 /*
+ * __disagg_discard_old_checkpoint_check --
+ *     Compare the checkpoint name in the old and new metadata config strings. Check if they are the
+ *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
+ */
+static bool
+__disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *current_value,
+  const char *cfg_new, const char **checkpoint_name)
+{
+    WT_DECL_RET;
+    uint64_t time, time_new;
+    int64_t order, order_new;
+    const char *checkpoint_name_new;
+
+    *checkpoint_name = checkpoint_name_new = NULL;
+    WT_ERR_NOTFOUND_OK(
+      __wt_ckpt_last_name(session, current_value, checkpoint_name, &order, &time), false);
+    WT_ERR_NOTFOUND_OK(
+      __wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new, &order_new, &time_new), false);
+
+err:
+    __wt_free(session, checkpoint_name_new);
+    return (checkpoint_name != NULL && checkpoint_name_new != NULL &&
+      strcmp(*checkpoint_name, checkpoint_name_new) == 0 && order == order_new && time == time_new);
+}
+/*
  * __disagg_save_checkpoint_meta --
  *     Update the local metadata entry with the supplied checkpoint configuration.
  */
@@ -161,11 +186,8 @@ __disagg_save_checkpoint_meta(
     WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    uint64_t time, time_new;
-    int64_t order, order_new;
     char *cfg_new;
-    const char *cfg[3], *checkpoint_name, *checkpoint_name_new, *current_value, *metadata_key;
-    bool same_checkpoint;
+    const char *cfg[3], *checkpoint_name, *current_value, *metadata_key;
 
     cfg_new = NULL;
     metadata_key = WT_DISAGG_METADATA_URI;
@@ -192,16 +214,8 @@ __disagg_save_checkpoint_meta(
       "Updated the local metadata for key \"%s\" to include the new checkpoint: \"%.*s\"",
       metadata_key, (int)metadata->checkpoint_len, metadata->checkpoint);
 
-    checkpoint_name = checkpoint_name_new = NULL;
-    WT_ERR_NOTFOUND_OK(
-      __wt_ckpt_last_name(session, current_value, &checkpoint_name, &order, &time), false);
-    WT_ERR_NOTFOUND_OK(
-      __wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new, &order_new, &time_new), false);
-    same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
-      strcmp(checkpoint_name, checkpoint_name_new) == 0 && order == order_new && time == time_new;
-
-      /* Throw away any references to the old disaggregated metadata table. */
-    if (!same_checkpoint) {
+    /* Throw away any references to the old disaggregated metadata table. */
+    if (__disagg_discard_old_checkpoint_check(session, current_value, cfg_new, &checkpoint_name)) {
         WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
         WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
         WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, old_uri_buf->data));
@@ -211,7 +225,6 @@ __disagg_save_checkpoint_meta(
 err:
     __wt_free(session, cfg_new);
     __wt_free(session, checkpoint_name);
-    __wt_free(session, checkpoint_name_new);
     __wt_scr_free(session, &metadata_cfg);
     __wt_scr_free(session, &old_uri_buf);
     return (ret);
@@ -247,9 +260,17 @@ __disagg_apply_checkpoint_meta(
       "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
 
-    /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
-    WT_ERR(__wt_meta_checkpoint_last_name(
-      session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL));
+    /*
+     * Look up the most recent checkpoint of the shared metadata table. If there is no checkpoint
+     * yet (e.g. the shared metadata table has never been checkpointed or the database has empty
+     * layered tables), there is nothing to pick up return success.
+     */
+    WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                         session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
+      false);
+    if (metadata_checkpoint_name == NULL)
+        goto err;
+
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_uri_buf));
     WT_ERR(__wt_buf_fmt(
       session, metadata_uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, metadata_checkpoint_name));
