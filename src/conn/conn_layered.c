@@ -154,6 +154,9 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
  * __disagg_discard_old_checkpoint_check --
  *     Compare the checkpoint name in the old and new metadata config strings. Check if they are the
  *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
+ *
+ * Note: It is possible to have is no checkpoint yet (e.g. the shared metadata table has never been
+ *     checkpointed or the database has empty layered tables).
  */
 static bool
 __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *current_value,
@@ -169,13 +172,26 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *curr
     *checkpoint_name = checkpoint_name_new = NULL;
     WT_ERR_NOTFOUND_OK(
       __wt_ckpt_last_name(session, current_value, checkpoint_name, &order, &time), false);
+
+    /* Early exit if we can't find the configuration of last checkpoint. */
+    if (ret == WT_NOTFOUND) {
+        WT_ASSERT(session, checkpoint_name == NULL);
+        return (false);
+    }
+
     WT_ERR_NOTFOUND_OK(
       __wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new, &order_new, &time_new), false);
 
+    /* Early exit if we can't find the configuration of new checkpoint. */
+    if (ret == WT_NOTFOUND) {
+        WT_ASSERT(session, checkpoint_name_new == NULL);
+        return (false);
+    }
+
 err:
     __wt_free(session, checkpoint_name_new);
-    return (checkpoint_name != NULL && checkpoint_name_new != NULL &&
-      strcmp(*checkpoint_name, checkpoint_name_new) == 0 && order == order_new && time == time_new);
+    return (
+      order == order_new && time == time_new && strcmp(*checkpoint_name, checkpoint_name_new) == 0);
 }
 /*
  * __disagg_save_checkpoint_meta --
