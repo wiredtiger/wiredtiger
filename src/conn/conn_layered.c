@@ -263,7 +263,7 @@ __disagg_apply_checkpoint_meta(
     /*
      * Look up the most recent checkpoint of the shared metadata table. If there is no checkpoint
      * yet (e.g. the shared metadata table has never been checkpointed or the database has empty
-     * layered tables), there is nothing to pick up return success.
+     * layered tables), there is nothing to pick up. In that case return success.
      */
     WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
                          session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
@@ -485,7 +485,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_CLEAR(ts_string);
     WT_CLEAR(metadata_buf);
     WT_CLEAR(metadata);
-
     md_cursor = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
