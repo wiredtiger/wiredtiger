@@ -44,8 +44,12 @@ if sys.version_info[0] <= 2:
 
 # Restart this instance of python so it uses the most recent os.environ values
 def restart_python():
+    # Restart the current Python process with the same arguments, using the updated environment
+    # variables. Note that the first argument to os.execl is the path to the executable, and the
+    # second argument is the name of the program as it will appear in the process list and in
+    # sys.executable.
     python = sys.executable
-    os.execl(python, os.path.abspath(__file__), *sys.argv)
+    os.execl(python, python, *sys.argv)
 
 # After importing the SWIG-generated file, copy all symbols from it
 # to this module so they will appear in the wiredtiger namespace.
@@ -86,7 +90,7 @@ if os.environ.get("TESTUTIL_TSAN") == "1":
         restart_python()
     else:
         # Python already has TSan linking, but if python calls ./wt in a subprocess this breaks ./wt
-        # Remove the TSan libs from LD_PRELOAD but *don't* restart python so we still have TSan linking in the current running process. 
+        # Remove the TSan libs from LD_PRELOAD but *don't* restart python so we still have TSan linking in the current running process.
         paths = os.environ["LD_PRELOAD"].split(":")
         os.environ["LD_PRELOAD"] = ":".join([p for p in paths if p != tsan_so_path])
 
