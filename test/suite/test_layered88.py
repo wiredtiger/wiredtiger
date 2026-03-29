@@ -111,7 +111,7 @@ class test_layered88(wttest.WiredTigerTestCase):
 
     nbatches_values = [
         ('nbatches=1', dict(nbatches=1)),
-        ('nbatches=25', dict(nbatches=2)),
+        ('nbatches=25', dict(nbatches=25)),
         ('nbatches=100', dict(nbatches=100)),
         ('nbatches=896', dict(nbatches=896)),
     ]
@@ -128,7 +128,11 @@ class test_layered88(wttest.WiredTigerTestCase):
         chunks = list(batched(sits_all, self.nbatches))
         #self.tty(f'chunks = {chunks}')
         ts = 0
+        chunk_num = 0
         for sits in chunks:
+          chunk_num += 1
+          fd_count = len(os.listdir('/proc/self/fd'))
+        #   self.tty(f'[fd-check] chunk {chunk_num}/{len(chunks)}: open fds = {fd_count}')
           ts += 100
           uri_sits = []
           for sit in sits:
@@ -216,13 +220,13 @@ class test_layered88(wttest.WiredTigerTestCase):
             self.assertEqual(expect, got)
             c.close()
 
-            # got_rev = []
-            # c = session_follow.open_cursor(uri)
-            # while c.prev() != wiredtiger.WT_NOTFOUND:
-            #     k, v = c.get_key(), c.get_value()
-            #     self.assertEqual(k, v)
-            #     got_rev.append(k)
-            # c.close()
+            got_rev = []
+            c = session_follow.open_cursor(uri)
+            while c.prev() != wiredtiger.WT_NOTFOUND:
+                k, v = c.get_key(), c.get_value()
+                self.assertEqual(k, v)
+                got_rev.append(k)
+            c.close()
 
             # self.tty(f'For {uri} (rev), expected {list(reversed(expect))}, got {got_rev}')
-            # self.assertEqual(list(reversed(expect)), got_rev)
+            self.assertEqual(list(reversed(expect)), got_rev)
