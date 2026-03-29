@@ -378,11 +378,11 @@ err:
 }
 
 /*
- * __update_largest_file_id --
- *     Alter our next file ID if necessary. This value is only important for synchronizing changes
- *     to the shared metadata table, which are made only by the leader. The increment only happens
- *     on a follower, which will make tables only in response to the leader (via picking up a
- *     checkpoint, or by oplog application). So it's OK if we've made new files since this
+ * __raise_next_file_id --
+ *     Increase our next file ID if necessary. This value is only important for synchronizing
+ *     changes to the shared metadata table, which are made only by the leader. The increment only
+ *     happens on a follower, which will make tables only in response to the leader (via picking up
+ *     a checkpoint, or by oplog application). So it's OK if we've made new files since this
  *     checkpoint was generated.
  */
 static void
