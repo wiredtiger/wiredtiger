@@ -595,7 +595,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      */
     WT_ERR(__wt_meta_read_checkpoint_oldest(session, NULL, &oldest_timestamp, NULL));
 
-    max_table_id = __wt_atomic_load_uint32(&conn->next_file_id);
+    WT_WITH_SCHEMA_LOCK(session, max_table_id = conn->next_file_id);
 
     /* Format metadata settings. */
     WT_ERR(

@@ -378,6 +378,25 @@ err:
 }
 
 /*
+ * __update_largest_file_id --
+ *     Alter our next file ID if necessary. This value is only important for synchronizing changes
+ *     to the shared metadata table, which are made only by the leader. The increment only happens
+ *     on a follower, which will make tables only in response to the leader (via picking up a
+ *     checkpoint, or by oplog application). So it's OK if we've made new files since this
+ *     checkpoint was generated.
+ */
+static void
+__raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    if (conn->next_file_id < metadata->largest_file_id)
+        conn->next_file_id = metadata->largest_file_id;
+}
+
+/*
  * __disagg_update_checkpoint_meta --
  *     Finalize checkpoint bookkeeping after processing shared metadata entries.
  */
@@ -387,7 +406,6 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
-    uint32_t file_id_current, file_id_delta;
 
     /*
      * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
@@ -418,13 +436,7 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
         internal_session, metadata->checkpoint_timestamp),
       "Updating prune timestamp failed");
 
-    /* Alter our next file ID if necessary. It's OK if we've made a bunch of files since this
-     * checkpoint was generated. */
-    file_id_current = __wt_atomic_load_uint32_relaxed(&conn->next_file_id);
-    if (file_id_current < metadata->largest_file_id) {
-        file_id_delta = metadata->largest_file_id - file_id_current;
-        WT_UNUSED(__wt_atomic_add_uint32(&conn->next_file_id, file_id_delta));
-    }
+    WT_WITH_SCHEMA_LOCK(session, __raise_next_file_id(session, metadata));
 
 err:
     return (ret);
@@ -653,7 +665,6 @@ __disagg_pick_up_checkpoint_meta(
         ckpt_meta.has_database_size = true;
         ckpt_meta.database_size = (uint64_t)cval.val;
     }
-
     /* Parse and validate version and compatible_version fields. */
     WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 

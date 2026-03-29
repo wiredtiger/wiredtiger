@@ -162,6 +162,8 @@ __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
 uint32_t
 __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
 {
+    uint32_t file_id;
+
     typedef struct {
         uint32_t id;
         const char *uri;
@@ -188,7 +190,7 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
 
     /* Use the counter if there is no predefined ID for the table. */
     uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
-    uint32_t file_id = __wt_atomic_add_uint32(&S2C(session)->next_file_id, 1);
+    WT_WITH_SCHEMA_LOCK(session, file_id = ++S2C(session)->next_file_id);
     uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(file_id, ns);
     __validate_file_id(session, namespaced_id);
     return (namespaced_id);
@@ -1301,6 +1303,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     const char *cfg[5] = {WT_CONFIG_BASE(session, tiered_meta), NULL, NULL, NULL, NULL};
     const char *metadata;
     bool free_metadata, shared;
+    uint32_t incr_file_id;
 
     conn = S2C(session);
     metadata = NULL;
@@ -1342,7 +1345,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
              * By default use the connection level bucket and prefix. Then we add in any user
              * configuration that may override the system one.
              */
-            uint32_t incr_file_id = __wt_atomic_add_uint32(&conn->next_file_id, 1);
+            WT_WITH_SCHEMA_LOCK(session, incr_file_id = ++conn->next_file_id);
 
             WT_ERR(__wt_buf_fmt(session, tmp,
               ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
@@ -1477,6 +1480,7 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
     int64_t new_file_id, prev_file_id;
     char *config_tmp, fileid_cfg[64];
     const char *cfg[3] = {NULL, NULL, NULL};
+    uint32_t next_raw_id;
 
     config_tmp = NULL;
     new_file_id = prev_file_id = -1;
@@ -1498,7 +1502,7 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
             if (WT_BTREE_ID_SHARED(prev_file_id))
                 WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
 
-            uint32_t next_raw_id = __wt_atomic_add_uint32(&conn->next_file_id, 1);
+            WT_WITH_SCHEMA_LOCK(session, next_raw_id = ++conn->next_file_id);
             new_file_id = WT_BTREE_ID_NAMESPACED(next_raw_id, WT_BTREE_ID_NAMESPACE_LOCAL);
         }
 
