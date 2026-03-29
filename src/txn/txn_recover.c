@@ -886,6 +886,8 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_ingest", name));
         WT_ASSERT(r->session,
           __wt_metadata_search(r->session, meta_key_buf->data, &ingest_meta_value) == 0);
+        /* The stable table may not yet exist on the follower in some situations, e.g. we created a
+           new layered table from the oplog but haven't picked up a checkpoint. */
         if (S2C(r->session)->layered_table_manager.leader) {
             WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_stable", name));
             WT_ASSERT(r->session,

@@ -32,8 +32,6 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 # test_layered90.py
-#    Regression test for WT-16823: assert that we never see an incomplete layered table.
-#
 # When a connection is opened, __metadata_clean_incomplete_table runs for every
 # table: entry in the metadata. For layered tables it asserts that whenever a
 # layered: entry is present, the corresponding file:*.wt_ingest entry also exists.
@@ -90,7 +88,7 @@ class test_layered90(wttest.WiredTigerTestCase, suite_subprocess):
     # Each runs inside a child process launched by run_subprocess_function.
     #
     # Followers don't create stable table metadata when they create a layered
-    # table  stable tables are only created by leaders or populated via
+    # table, stable tables are only created by leaders or populated via
     # checkpoint pickup.  This gives us a natural "ingest present, stable
     # absent" state without needing to corrupt existing metadata.
     # -----------------------------------------------------------------------
