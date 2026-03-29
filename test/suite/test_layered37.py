@@ -107,7 +107,7 @@ class test_layered37(wttest.WiredTigerTestCase):
         # Trigger eviction on the ingest table
         evict_cursor = session_follow.open_cursor("file:test_layered37.wt_ingest", None, "debug=(release_evict)")
         for i in range(1, self.nitems):
-            session_follow.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
+            session_follow.begin_transaction(f'read_timestamp={self.timestamp_str(ts)},roundup_timestamps=(read=true)')
             evict_cursor.set_key(str(i))
             self.assertEqual(evict_cursor.search(), 0)
             evict_cursor.reset()

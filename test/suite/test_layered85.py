@@ -145,7 +145,11 @@ class test_layered85(wttest.WiredTigerTestCase):
     def begin_read_ts_txn(self):
         """Begin a transaction with a read timestamp on the follower."""
         read_ts = self.ts
-        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(read_ts)}')
+        # stable_timestamp must be set alongside oldest_timestamp: follower writes
+        # may have advanced self.ts beyond the last checkpoint's stable value, and
+        # oldest must not exceed stable.
+        self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(read_ts)},'
+                                       f'oldest_timestamp={self.timestamp_str(read_ts)}')
         self.session_follow.begin_transaction(
             f'read_timestamp={self.timestamp_str(read_ts)}')
 
@@ -445,7 +449,11 @@ class test_layered85(wttest.WiredTigerTestCase):
 
         # Begin transaction with read timestamp so the cursor can pick up
         # a new checkpoint mid-scan.
-        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(read_ts)}')
+        # stable_timestamp must be set alongside oldest_timestamp: follower writes
+        # may have advanced self.ts beyond the last checkpoint's stable value, and
+        # oldest must not exceed stable.
+        self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(read_ts)},'
+                                       f'oldest_timestamp={self.timestamp_str(read_ts)}')
         self.session_follow.begin_transaction(
             f'read_timestamp={self.timestamp_str(read_ts)}')
 
@@ -472,7 +480,11 @@ class test_layered85(wttest.WiredTigerTestCase):
         # Start a new transaction with a read timestamp after the remove,
         # so the deleted key is not visible in the new scan.
         new_read_ts = self.ts
-        self.conn_follow.set_timestamp(f'oldest_timestamp={self.timestamp_str(new_read_ts)}')
+        # stable_timestamp must be set alongside oldest_timestamp: follower writes
+        # may have advanced self.ts beyond the last checkpoint's stable value, and
+        # oldest must not exceed stable.
+        self.conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(new_read_ts)},'
+                                       f'oldest_timestamp={self.timestamp_str(new_read_ts)}')
         self.session_follow.begin_transaction(
             f'read_timestamp={self.timestamp_str(new_read_ts)}')
 

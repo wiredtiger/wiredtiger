@@ -139,6 +139,8 @@ class test_layered68(wttest.WiredTigerTestCase):
             self.conn.reconfigure('disaggregated=(role="leader")')
 
             # Modify some data to make sure we can keep writing.
+            # Use timestamp 3 since the picked-up checkpoint has stable_timestamp=2,
+            # and commit_timestamp must be strictly greater than stable_timestamp.
             self.session.begin_transaction()
             cursor = self.session.open_cursor(self.uri, None, None)
             num_modified = self.num_modify * 2
@@ -146,9 +148,9 @@ class test_layered68(wttest.WiredTigerTestCase):
                 key = f'key{i:04}'
                 cursor[key] = f'value_mod{i:04}' + 'abcd' * 100
             cursor.close()
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(2))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(3))
             self.session.checkpoint()
 
         #

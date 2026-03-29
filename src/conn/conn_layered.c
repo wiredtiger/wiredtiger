@@ -405,19 +405,34 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
     /*
      * Propagate the leader's stable and oldest timestamps from the checkpoint metadata into the
      * global transaction state. On a follower, these are never set during recovery because the
-     * local metadata has no system:checkpoint entry. Update the pinned timestamp afterwards using
-     * the same approach as RTS.
+     * local metadata has no system:checkpoint entry. The stable timestamp is needed so that data
+     * validation and rollback-to-stable can correctly validate time aggregates. The oldest
+     * timestamp establishes the lower bound for read timestamps on the follower: since the
+     * follower's data comes entirely from the leader's checkpoint, it cannot contain versions older
+     * than the leader's oldest at the time of that checkpoint.
+     *
+     * Only advance each timestamp, never move it backwards. The application layer may have already
+     * set higher values via the public timestamp API, and rolling them back would break the rule
+     * that timestamps only move forward and violate the oldest <= stable invariant.
      */
-    if (metadata->checkpoint_timestamp != WT_TS_NONE) {
+    __wt_writelock(session, &conn->txn_global.rwlock);
+    if (metadata->checkpoint_timestamp != WT_TS_NONE &&
+      metadata->checkpoint_timestamp >
+        __wt_atomic_load_uint64_relaxed(&conn->txn_global.stable_timestamp)) {
         __wt_atomic_store_uint64_relaxed(
           &conn->txn_global.stable_timestamp, metadata->checkpoint_timestamp);
+        __wt_atomic_store_bool_relaxed(&conn->txn_global.stable_is_pinned, false);
         __wt_atomic_store_bool_release(&conn->txn_global.has_stable_timestamp, true);
     }
-    if (metadata->oldest_timestamp != WT_TS_NONE) {
+    if (metadata->oldest_timestamp != WT_TS_NONE &&
+      metadata->oldest_timestamp >
+        __wt_atomic_load_uint64_relaxed(&conn->txn_global.oldest_timestamp)) {
         __wt_atomic_store_uint64_relaxed(
           &conn->txn_global.oldest_timestamp, metadata->oldest_timestamp);
+        __wt_atomic_store_bool_relaxed(&conn->txn_global.oldest_is_pinned, false);
         __wt_atomic_store_bool_release(&conn->txn_global.has_oldest_timestamp, true);
     }
+    __wt_writeunlock(session, &conn->txn_global.rwlock);
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /* Set the database size. */
