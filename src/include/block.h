@@ -222,6 +222,11 @@ struct __wt_bm {
     size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool);
     int (*get_page_ids)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, size_t *, uint64_t);
+    /* Disaggregated storage only: read/adjust the live checkpoint byte count. */
+    uint64_t (*get_size)(WT_BM *, WT_SESSION_IMPL *);
+    void (*set_size)(WT_BM *, WT_SESSION_IMPL *, uint64_t);
+    void (*increase_size)(WT_BM *, WT_SESSION_IMPL *, uint64_t);
+    void (*decrease_size)(WT_BM *, WT_SESSION_IMPL *, uint64_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
     int (*read)(
