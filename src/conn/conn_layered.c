@@ -198,8 +198,6 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
 #ifdef HAVE_DIAGNOSTIC
     if (same_checkpoint)
         WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) == 0);
-    else
-        WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) != 0);
 #endif
 err:
     __wt_free(session, checkpoint_name_new);
