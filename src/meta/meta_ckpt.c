@@ -1364,9 +1364,7 @@ __wt_meta_ckptlist_set(
              * the database level size once the checkpoint succeeds.
              */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-                WT_ASSERT(session,
-                  ckpt->size ==
-                    __wt_atomic_load_uint64(&((WT_BLOCK_DISAGG *)btree->bm->block)->ckpt_size));
+                WT_ASSERT(session, ckpt->size == __wt_btree_get_size(session));
                 session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
             }
         } else
