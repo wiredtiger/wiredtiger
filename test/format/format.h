@@ -485,6 +485,7 @@ void set_core(bool);
 void snap_init(TINFO *);
 void snap_op_init(TINFO *, uint64_t, bool);
 void snap_repeat_rollback(WT_SESSION *, TINFO **, size_t);
+void snap_clear_above_ts(uint64_t);
 void snap_repeat_single(TINFO *);
 int snap_repeat_txn(TINFO *);
 void snap_repeat_update(TINFO *, bool);

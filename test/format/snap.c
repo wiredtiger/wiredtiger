@@ -382,6 +382,32 @@ snap_ts_clear(TINFO *tinfo, uint64_t ts)
 }
 
 /*
+ * snap_clear_above_ts --
+ *     Clear all repeatable snap entries across all threads with timestamps above the given
+ *     threshold. Used on disagg step-down to invalidate operations committed above the checkpoint's
+ *     stable timestamp: those ops are invisible to the follower and must not be re-verified.
+ */
+void
+snap_clear_above_ts(uint64_t ts)
+{
+    SNAP_OPS *snap;
+    SNAP_STATE *state;
+    TINFO *tinfo;
+    size_t statenum;
+    uint32_t i;
+
+    for (i = 0; i < GV(RUNS_THREADS); i++) {
+        tinfo = tinfo_list[i];
+        for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
+            state = &tinfo->snap_states[statenum];
+            for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap)
+                if (snap->repeatable && snap->ts > ts)
+                    snap->repeatable = false;
+        }
+    }
+}
+
+/*
  * snap_repeat_match --
  *     Compare two operations and return if they modified the same record.
  */
