@@ -253,7 +253,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     bm = btree->bm;
 
     /* Initialize the block manager's live checkpoint size from the checkpoint metadata. */
-    if (__wt_conn_is_disagg(session))
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         __wt_btree_set_size(session, ckpt.size);
 
     /*
