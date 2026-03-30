@@ -87,49 +87,6 @@ __bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 }
 
 /*
- * __bmd_get_size --
- *     Return the total byte count.
- */
-static uint64_t
-__bmd_get_size(WT_BM *bm, WT_SESSION_IMPL *session)
-{
-    WT_UNUSED(session);
-    return (__wti_block_disagg_get_size((WT_BLOCK_DISAGG *)bm->block));
-}
-
-/*
- * __bmd_set_size --
- *     Set the total byte count.
- */
-static void
-__bmd_set_size(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t size)
-{
-    WT_UNUSED(session);
-    __wti_block_disagg_set_size((WT_BLOCK_DISAGG *)bm->block, size);
-}
-
-/*
- * __bmd_increase_size --
- *     Increase the total byte count.
- */
-static void
-__bmd_increase_size(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t size)
-{
-    WT_UNUSED(session);
-    __wti_block_disagg_increase_size((WT_BLOCK_DISAGG *)bm->block, size);
-}
-
-/*
- * __bmd_decrease_size --
- *     Decrease the total byte count.
- */
-static void
-__bmd_decrease_size(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t size)
-{
-    __wti_block_disagg_decrease_size(session, (WT_BLOCK_DISAGG *)bm->block, size);
-}
-
-/*
  * __bmd_stat --
  *     Block-manager statistics.
  */
@@ -232,10 +189,6 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->corrupt = __wti_block_disagg_corrupt;
     bm->free = __bmd_free;
     bm->get_page_ids = __bmd_get_page_ids;
-    bm->get_size = __bmd_get_size;
-    bm->set_size = __bmd_set_size;
-    bm->increase_size = __bmd_increase_size;
-    bm->decrease_size = __bmd_decrease_size;
     bm->is_mapped = __wti_block_disagg_is_mapped;
     bm->map_discard = __wti_block_disagg_map_discard;
     bm->read = __wti_block_disagg_read;

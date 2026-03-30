@@ -51,6 +51,39 @@ __wti_block_disagg_decrease_size(
 }
 
 /*
+ * __wt_block_disagg_get_size --
+ *     Return the total byte count.
+ */
+uint64_t
+__wt_block_disagg_get_size(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
+    return (__wti_block_disagg_get_size((WT_BLOCK_DISAGG *)S2BT(session)->bm->block));
+}
+
+/*
+ * __wt_block_disagg_set_size --
+ *     Set the total byte count.
+ */
+void
+__wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
+{
+    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
+    __wti_block_disagg_set_size((WT_BLOCK_DISAGG *)S2BT(session)->bm->block, size);
+}
+
+/*
+ * __wt_block_disagg_decrease_size --
+ *     Decrease the total byte count.
+ */
+void
+__wt_block_disagg_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
+{
+    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
+    __wti_block_disagg_decrease_size(session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block, size);
+}
+
+/*
  * __wti_block_disagg_apply_root_size --
  *     Account for the root page size transition during checkpoint. Subtract the previous root page
  *     size and add the new one, recording the generation so the change can be rolled back on

@@ -2938,7 +2938,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         if (disagg_page_is_valid && !disagg_page_free_required &&
           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            bm->decrease_size(bm, session, ref->page->disagg_info->block_meta.cumulative_size);
+            __wt_block_disagg_decrease_size(
+              session, ref->page->disagg_info->block_meta.cumulative_size);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3001,8 +3002,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         if (disagg_page_is_valid && !disagg_page_free_required &&
                           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
                           r->multi->block_meta->delta_count == 0)
-                            bm->decrease_size(
-                              bm, session, ref->page->disagg_info->block_meta.cumulative_size);
+                            __wt_block_disagg_decrease_size(
+                              session, ref->page->disagg_info->block_meta.cumulative_size);
                     }
                 }
             } else {
@@ -3044,8 +3045,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         WT_ASSERT(
                           session, cookie.size == page->disagg_info->block_meta.cumulative_size);
 #endif
-                        bm->decrease_size(
-                          bm, session, page->disagg_info->block_meta.cumulative_size);
+                        __wt_block_disagg_decrease_size(
+                          session, page->disagg_info->block_meta.cumulative_size);
                     }
                 }
             }
