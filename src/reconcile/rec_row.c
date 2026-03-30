@@ -960,7 +960,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
          * When a tombstone without a timestamp is written to disk, remove any historical versions
          * that are greater in the history store for this key.
          */
-        if (F_ISSET(r, WT_REC_HS) && upd_select.no_ts_tombstone && r->hs_clear_on_tombstone) {
+        if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone) {
             tmpkey->data = WT_INSERT_KEY(ins);
             tmpkey->size = WT_INSERT_KEY_SIZE(ins);
             WT_ERR(__wti_rec_hs_clear_on_tombstone(
@@ -1280,7 +1280,7 @@ __wti_rec_row_leaf(
              * When a tombstone without a timestamp is written to disk, remove any historical
              * versions that are greater in the history store for this key.
              */
-            if (F_ISSET(r, WT_REC_HS) && upd_select.no_ts_tombstone && r->hs_clear_on_tombstone) {
+            if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone) {
                 WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
                 WT_ERR(__wti_rec_hs_clear_on_tombstone(session, r, WT_RECNO_OOB, tmpkey,
                   upd->type == WT_UPDATE_TOMBSTONE ? false : true));

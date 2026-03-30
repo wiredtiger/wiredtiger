@@ -592,7 +592,7 @@ record_loop:
                  * When a tombstone without a timestamp is written to disk, remove any historical
                  * versions that are greater in the history store for this key.
                  */
-                if (F_ISSET(r, WT_REC_HS) && upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
                     WT_ERR(__wti_rec_hs_clear_on_tombstone(session, r, src_recno, NULL,
                       upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
@@ -738,7 +738,7 @@ compare:
                  * When a tombstone without a timestamp is written to disk, remove any historical
                  * versions that are greater in the history store for this key.
                  */
-                if (F_ISSET(r, WT_REC_HS) && upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
                     WT_ERR(__wti_rec_hs_clear_on_tombstone(session, r, src_recno, NULL,
                       upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
