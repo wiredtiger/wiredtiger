@@ -11,7 +11,7 @@
 static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
-static int __checkpoint_fsync(
+static int __checkpoint_fsync_post(
   WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
@@ -1693,7 +1693,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     __checkpoint_verbose_track(session, "committing transaction");
 
-    WT_ERR(__checkpoint_fsync(session, cfg, hs_dhandle, hs_dhandle_shared));
+    WT_ERR(__checkpoint_fsync_post(session, cfg, hs_dhandle, hs_dhandle_shared));
 
     /* If the history store file exists on disk, update its statistic. */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
@@ -2987,11 +2987,11 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __checkpoint_fsync --
+ * __checkpoint_fsync_post --
  *     Sync the checkpoint to disk.
  */
 static int
-__checkpoint_fsync(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_dhandle,
+__checkpoint_fsync_post(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_dhandle,
   WT_DATA_HANDLE *hs_dhandle_shared)
 {
     WT_DECL_RET;
