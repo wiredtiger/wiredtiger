@@ -10,7 +10,7 @@
  * test_layered_incomplete_table.cpp
  *
  * Catch2 equivalent of test_layered90.py, covering all eight combinations of
- * {file:T.wt_ingest, file:T.wt_stable} presence × {leader, follower} role by
+ * {file:T.wt_ingest, file:T.wt_stable} presence  {leader, follower} role by
  * directly removing metadata entries from an otherwise-complete layered table.
  *
  * During wiredtiger_open, __metadata_clean_incomplete_table asserts:
@@ -57,8 +57,8 @@ static const char *TABLE_URI = "table:test_layered_inc";
 
 /*
  * build_cfg --
- *     Construct a wiredtiger_open config string for the given role.
- *     Pass create=true for the first open; omit it on reopens.
+ *     Construct a wiredtiger_open config string for the given role. Pass create=true for the first
+ *     open; omit it on reopens.
  */
 static std::string
 build_cfg(const char *role, bool create)
@@ -74,14 +74,13 @@ build_cfg(const char *role, bool create)
 
 /*
  * prepare_db --
- *     Create a fresh database with a complete layered table (both ingest and
- *     stable metadata present), then optionally remove one or both file
- *     metadata entries to manufacture the desired incomplete state.
+ *     Create a fresh database with a complete layered table (both ingest and stable metadata
+ *     present), then optionally remove one or both file metadata entries to manufacture the desired
+ *     incomplete state.
  *
- *     Metadata surgery (for testing purposes) is done in a separate,
- *     non-disaggregated connection so that the layered data handles are
- *     never open when we remove their entries.  Removing metadata while
- *     a data handle is live triggers a panic on close.
+ * Metadata surgery (for testing purposes) is done in a separate, non-disaggregated connection so
+ *     that the layered data handles are never open when we remove their entries. Removing metadata
+ *     while a data handle is live triggers a panic on close.
  */
 static void
 prepare_db(const char *home, bool keep_ingest, bool keep_stable)
@@ -91,11 +90,10 @@ prepare_db(const char *home, bool keep_ingest, bool keep_stable)
 
     if (keep_ingest && !keep_stable) {
         /*
-         * "ingest present, stable absent" state: open as a follower, which
-         * naturally creates only file:T.wt_ingest and never creates
-         * file:T.wt_stable.  This avoids the leader-startup path that would
-         * recreate the stable entry before recovery runs the incomplete-table
-         * check — defeating any attempt to remove stable after a leader open.
+         * "ingest present, stable absent" state: open as a follower, which naturally creates only
+         * file:T.wt_ingest and never creates file:T.wt_stable. This avoids the leader-startup path
+         * that would recreate the stable entry before recovery runs the incomplete-table check
+         * defeating any attempt to remove stable after a leader open.
          */
         WT_CONNECTION *conn = nullptr;
         REQUIRE(wiredtiger_open(home, nullptr, build_cfg("follower", true).c_str(), &conn) == 0);
@@ -119,8 +117,8 @@ prepare_db(const char *home, bool keep_ingest, bool keep_stable)
     }
 
     /*
-     * All other cases: open as leader to create a complete layered table
-     * (both file:T.wt_ingest and file:T.wt_stable present after checkpoint).
+     * All other cases: open as leader to create a complete layered table (both file:T.wt_ingest and
+     * file:T.wt_stable present after checkpoint).
      */
 
     /* Phase 1: Open as leader, create a complete layered table, and close. */
@@ -181,8 +179,8 @@ prepare_db(const char *home, bool keep_ingest, bool keep_stable)
 
 /*
  * try_reopen --
- *     Attempt to reopen an existing database with the given role.
- *     Returns the wiredtiger_open return value; closes the connection on success.
+ *     Attempt to reopen an existing database with the given role. Returns the wiredtiger_open
+ *     return value; closes the connection on success.
  */
 static int
 try_reopen(const char *home, const char *role)
@@ -196,10 +194,9 @@ try_reopen(const char *home, const char *role)
 
 /*
  * reopen_aborts --
- *     Fork a child process that tries to reopen the database with the given
- *     role.  Returns true if the child exited abnormally (killed by a signal
- *     such as SIGABRT, or with a non-zero exit status), indicating that
- *     WT_ASSERT_ALWAYS fired as expected.
+ *     Fork a child process that tries to reopen the database with the given role. Returns true if
+ *     the child exited abnormally (killed by a signal such as SIGABRT, or with a non-zero exit
+ *     status), indicating that WT_ASSERT_ALWAYS fired as expected.
  */
 static bool
 reopen_aborts(const char *home, const char *role)
@@ -209,12 +206,11 @@ reopen_aborts(const char *home, const char *role)
 
     if (pid == 0) {
         /*
-         * Child process: reset SIGABRT to the default disposition so that
-         * Catch2's signal handler (which throws a C++ exception) cannot
-         * interfere with the abort() call inside WT_ASSERT_ALWAYS.  Without
-         * this, the Catch2 handler catches the signal, throws an exception
-         * that escapes the if-block, and the child falls through to execute
-         * the parent's waitpid path — corrupting the test result.
+         * Child process: reset SIGABRT to the default disposition so that Catch2's signal handler
+         * (which throws a C++ exception) cannot interfere with the abort() call inside
+         * WT_ASSERT_ALWAYS. Without this, the Catch2 handler catches the signal, throws an
+         * exception that escapes the if-block, and the child falls through to execute the parent's
+         * waitpid path corrupting the test result.
          */
         signal(SIGABRT, SIG_DFL);
         int ret = try_reopen(home, role);
