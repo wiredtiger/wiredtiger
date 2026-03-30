@@ -222,11 +222,6 @@ struct __wt_bm {
     size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool);
     int (*get_page_ids)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, size_t *, uint64_t);
-    /* Disaggregated storage only: read/adjust the live checkpoint byte count. */
-    uint64_t (*get_size)(WT_BM *, WT_SESSION_IMPL *);
-    void (*set_size)(WT_BM *, WT_SESSION_IMPL *, uint64_t);
-    void (*increase_size)(WT_BM *, WT_SESSION_IMPL *, uint64_t);
-    void (*decrease_size)(WT_BM *, WT_SESSION_IMPL *, uint64_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
     int (*read)(
@@ -479,8 +474,8 @@ struct __wt_block_disagg {
     uint64_t tableid;
     WT_PAGE_LOG_HANDLE *plhandle;
 
-    /* Live checkpoint byte count (total bytes across all pages of the current checkpoint). */
-    wt_shared uint64_t ckpt_size;
+    /* Total bytes across all pages. */
+    wt_shared uint64_t size;
 
     /* Root page size tracking for checkpoint size accounting. */
     uint64_t current_root_size;  /* Size of current root page */

@@ -66,27 +66,18 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     }
 
     /*
-     * Update root page size tracking. Size being set to zero accounts for both empty checkpoints
-     * (when root image is NULL) and real checkpoints (when root image contains the actual size).
+     * Account for the root page size transition. Size being set to zero covers both empty
+     * checkpoints (when root image is NULL) and real checkpoints (when root image contains the
+     * actual size).
      */
-    block_disagg->previous_root_size = block_disagg->current_root_size;
-    block_disagg->current_root_size = size;
-
-    /*
-     * Set the root write size generation to the current checkpoint generation so we know whether to
-     * roll this back later.
-     */
-    block_disagg->root_size_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-
-    __wt_btree_decrease_size(session, block_disagg->previous_root_size);
-    __wt_btree_increase_size(session, block_disagg->current_root_size);
+    __wti_block_disagg_apply_root_size(session, block_disagg, size);
 
     /*
      * Set the checkpoint size here after all writes are complete. We set it at this point because
      * we don't expect the size to change until it gets written to metadata, allowing us to validate
      * consistency.
      */
-    ckpt->size = __wt_atomic_load_uint64(&block_disagg->ckpt_size);
+    ckpt->size = __wti_block_disagg_get_size(block_disagg);
 
     return (0);
 }
