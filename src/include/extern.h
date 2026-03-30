@@ -1841,6 +1841,8 @@ extern void __wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered,
 extern void __wt_tiered_requeue_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp);
+extern void __wt_txn_advance_stable_oldest(WT_SESSION_IMPL *session, wt_timestamp_t new_stable,
+  wt_timestamp_t new_oldest, bool force, bool *stable_changed, bool *oldest_changed);
 extern void __wt_txn_bump_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **txn_arg);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);

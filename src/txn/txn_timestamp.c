@@ -317,6 +317,68 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 }
 
 /*
+ * __txn_advance_one_timestamp --
+ *     Advance a single global timestamp (stable or oldest) to a new value. When force is false the
+ *     update is advance-only. When force is true the value is stored unconditionally. The caller
+ *     must hold the txn_global write lock. Returns true if the timestamp was actually written.
+ */
+static bool
+__txn_advance_one_timestamp(
+  WT_SESSION_IMPL *session, wt_timestamp_t new_ts, bool force, bool is_stable)
+{
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t *tsp;
+    bool *has_tsp, *is_pinnedp;
+
+    txn_global = &S2C(session)->txn_global;
+
+    if (is_stable) {
+        tsp = &txn_global->stable_timestamp;
+        has_tsp = &txn_global->has_stable_timestamp;
+        is_pinnedp = &txn_global->stable_is_pinned;
+    } else {
+        tsp = &txn_global->oldest_timestamp;
+        has_tsp = &txn_global->has_oldest_timestamp;
+        is_pinnedp = &txn_global->oldest_is_pinned;
+    }
+
+    if (new_ts == WT_TS_NONE ||
+      (!force && __wt_atomic_load_bool_relaxed(has_tsp) &&
+        new_ts <= __wt_atomic_load_uint64_relaxed(tsp)))
+        return (false);
+
+    __wt_atomic_store_uint64_relaxed(tsp, new_ts);
+    __wt_atomic_store_bool_relaxed(is_pinnedp, false);
+    __wt_atomic_store_bool_release(has_tsp, true);
+    __wt_verbose_timestamp(session, new_ts,
+      is_stable ? "Updated global stable timestamp" : "Updated global oldest timestamp");
+    return (true);
+}
+
+/*
+ * __wt_txn_advance_stable_oldest --
+ *     Update the global stable and oldest timestamps to the given values. When force is false the
+ *     update is advance-only: a timestamp is skipped if the current value is already higher. When
+ *     force is true the values are stored unconditionally, allowing the caller to move timestamps
+ *     backwards. The caller must hold the txn_global write lock. The optional output parameters
+ *     stable_changed and oldest_changed are set to indicate whether each timestamp was actually
+ *     written.
+ */
+void
+__wt_txn_advance_stable_oldest(WT_SESSION_IMPL *session, wt_timestamp_t new_stable,
+  wt_timestamp_t new_oldest, bool force, bool *stable_changed, bool *oldest_changed)
+{
+    if (stable_changed != NULL)
+        *stable_changed = __txn_advance_one_timestamp(session, new_stable, force, true);
+    else
+        (void)__txn_advance_one_timestamp(session, new_stable, force, true);
+    if (oldest_changed != NULL)
+        *oldest_changed = __txn_advance_one_timestamp(session, new_oldest, force, false);
+    else
+        (void)__txn_advance_one_timestamp(session, new_oldest, force, false);
+}
+
+/*
  * __wt_txn_global_set_timestamp --
  *     Set a global transaction timestamp.
  */
@@ -329,7 +391,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t durable_ts, oldest_ts, stable_ts;
     wt_timestamp_t last_oldest_ts, last_stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool force, has_durable, has_oldest, has_stable;
+    bool force, has_durable, has_oldest, has_stable, oldest_changed, stable_changed;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -438,25 +500,13 @@ set:
         __wt_verbose_timestamp(session, durable_ts, "Updated global durable timestamp");
     }
 
-    if (has_oldest &&
-      (!__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) || force ||
-        oldest_ts > __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp))) {
-        __wt_atomic_store_uint64_relaxed(&txn_global->oldest_timestamp, oldest_ts);
-        __wt_atomic_store_bool_relaxed(&txn_global->oldest_is_pinned, false);
-        __wt_atomic_store_bool_release(&txn_global->has_oldest_timestamp, true);
+    oldest_changed = stable_changed = false;
+    __wt_txn_advance_stable_oldest(session, has_stable ? stable_ts : WT_TS_NONE,
+      has_oldest ? oldest_ts : WT_TS_NONE, force, &stable_changed, &oldest_changed);
+    if (oldest_changed)
         WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);
-        __wt_verbose_timestamp(session, oldest_ts, "Updated global oldest timestamp");
-    }
-
-    if (has_stable &&
-      (!__wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) || force ||
-        stable_ts > __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp))) {
-        __wt_atomic_store_uint64_relaxed(&txn_global->stable_timestamp, stable_ts);
-        __wt_atomic_store_bool_relaxed(&txn_global->stable_is_pinned, false);
-        __wt_atomic_store_bool_release(&txn_global->has_stable_timestamp, true);
+    if (stable_changed)
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
-        __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
-    }
 
     /*
      * Even if the timestamps have been forcibly set, they must always satisfy the condition that
