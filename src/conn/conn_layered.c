@@ -386,7 +386,10 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
   const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_RET;
+    bool oldest_changed, stable_changed;
     WT_CONNECTION_IMPL *conn = S2C(session);
+
+    oldest_changed = stable_changed = false;
 
     /*
      * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
@@ -426,11 +429,12 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
           metadata->oldest_timestamp >
             __wt_atomic_load_uint64_relaxed(&conn->txn_global.oldest_timestamp)))) {
         __wt_writelock(session, &conn->txn_global.rwlock);
-        __wt_txn_advance_stable_oldest(
-          session, metadata->checkpoint_timestamp, metadata->oldest_timestamp, false, NULL, NULL);
+        __wt_txn_advance_stable_oldest(session, metadata->checkpoint_timestamp,
+          metadata->oldest_timestamp, false, &stable_changed, &oldest_changed);
         __wt_writeunlock(session, &conn->txn_global.rwlock);
+        if (stable_changed || oldest_changed)
+            __wt_txn_update_pinned_timestamp(session, false);
     }
-    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /* Set the database size. */
     if (ckpt_meta->has_database_size)
