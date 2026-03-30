@@ -20,6 +20,7 @@ else()
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
+        misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
@@ -117,6 +118,13 @@ endif()
 
 if(WT_POSIX)
     add_dependencies(catch2-unittests wiredtiger_dir_store)
+    if(TARGET wiredtiger_palite)
+        add_dependencies(catch2-unittests wiredtiger_palite)
+        target_compile_definitions(catch2-unittests
+            PRIVATE
+                PALITE_EXTENSION="$<TARGET_FILE:wiredtiger_palite>"
+        )
+    endif()
 endif()
 
 add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)

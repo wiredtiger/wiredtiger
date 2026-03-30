@@ -34,6 +34,7 @@ typedef struct {
     WT_LSN max_rec_lsn;  /* Maximum recovery LSN seen. */
 
     bool backup_only;   /* Set to only recover backup. */
+    bool leader;        /* True if opening with disaggregated role=leader. */
     bool missing;       /* Were there missing files? */
     bool metadata_only; /*
                          * Set during the first recovery pass,
@@ -884,14 +885,16 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
       __wt_metadata_search(r->session, meta_key_buf->data, &layered_meta_value), true);
     if (ret == 0) {
         WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_ingest", name));
-        WT_ASSERT(r->session,
-          __wt_metadata_search(r->session, meta_key_buf->data, &ingest_meta_value) == 0);
+        WT_ASSERT_ALWAYS(r->session,
+          __wt_metadata_search(r->session, meta_key_buf->data, &ingest_meta_value) == 0,
+          "layered table '%s' is missing its ingest file metadata", name);
         /* The stable table may not yet exist on the follower in some situations, e.g. we created a
            new layered table from the oplog but haven't picked up a checkpoint. */
-        if (S2C(r->session)->layered_table_manager.leader) {
+        if (r->leader) {
             WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_stable", name));
-            WT_ASSERT(r->session,
-              __wt_metadata_search(r->session, meta_key_buf->data, &stable_meta_value) == 0);
+            WT_ASSERT_ALWAYS(r->session,
+              __wt_metadata_search(r->session, meta_key_buf->data, &stable_meta_value) == 0,
+              "layered table '%s' is missing its stable file metadata on a leader node", name);
         }
         goto done;
     }
@@ -1080,6 +1083,18 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     rts_executed = false;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
+
+    /*
+     * Determine the disaggregated role from the open config.  __wti_disagg_conn_config runs after
+     * recovery, so conn->layered_table_manager.leader is not yet set when
+     * __metadata_clean_incomplete_table runs.  Parse the role here so the incomplete-table check
+     * can enforce that leaders have a stable file.
+     */
+    if (disagg) {
+        WT_CONFIG_ITEM role_cval;
+        if (__wt_config_gets(session, cfg, "disaggregated.role", &role_cval) == 0)
+            r.leader = WT_CONFIG_LIT_MATCH("leader", role_cval);
+    }
 
     __wt_verbose_level_multi(
       session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s", "starting WiredTiger recovery");
