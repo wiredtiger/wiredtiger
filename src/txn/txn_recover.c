@@ -888,8 +888,9 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         WT_ASSERT_ALWAYS(r->session,
           __wt_metadata_search(r->session, meta_key_buf->data, &ingest_meta_value) == 0,
           "layered table '%s' is missing its ingest file metadata", name);
-        /* The stable table may not yet exist on the follower in some situations, e.g. we created a
-           new layered table from the oplog but haven't picked up a checkpoint. */
+        /* The stable table may not exist on the follower in some situations, e.g. we created a
+           new layered table from the oplog but haven't yet picked up a checkpoint. Thus the assert
+           for stable file metadata is only strictly required in leader mode. */
         if (r->leader) {
             WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_stable", name));
             WT_ASSERT_ALWAYS(r->session,

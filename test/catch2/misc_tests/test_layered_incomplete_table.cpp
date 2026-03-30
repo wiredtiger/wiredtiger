@@ -6,11 +6,24 @@
  * See the file LICENSE for redistribution information.
  */
 
+#ifndef _WIN32
+
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <catch2/catch.hpp>
+
+#include "wiredtiger.h"
+#include "wt_internal.h"
+#include "../utils.h"
+#include "../../utility/test_util.h"
+
 /*
  * test_layered_incomplete_table.cpp
  *
  * Catch2 equivalent of test_layered90.py, covering all eight combinations of
- * {file:T.wt_ingest, file:T.wt_stable} presence  {leader, follower} role by
+ * {file:T.wt_ingest, file:T.wt_stable} presence x {leader, follower} role by
  * directly removing metadata entries from an otherwise-complete layered table.
  *
  * During wiredtiger_open, __metadata_clean_incomplete_table asserts:
@@ -26,26 +39,13 @@
  *   leader   |  no    |  yes   | abort
  *   leader   |  no    |  no    | abort
  *   follower |  yes   |  yes   | succeed
- *   follower |  yes   |  no    | succeed  (stable is optional on follower)
+ *   follower |  yes   |  no    | succeed  (missing stable is ok on follower)
  *   follower |  no    |  yes   | abort
  *   follower |  no    |  no    | abort
  *
  * "should abort" cases run in a forked child so that WT_ASSERT_ALWAYS killing
  * the process does not take down the test runner.
  */
-
-#ifndef _WIN32
-
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-
-#include <catch2/catch.hpp>
-
-#include "wiredtiger.h"
-#include "wt_internal.h"
-#include "../utils.h"
-#include "../../utility/test_util.h"
 
 /* Supplied by CMake as the absolute path to the palite shared library. */
 #ifndef PALITE_EXTENSION
@@ -78,48 +78,15 @@ build_cfg(const char *role, bool create)
  *     present), then optionally remove one or both file metadata entries to manufacture the desired
  *     incomplete state.
  *
- * Metadata surgery (for testing purposes) is done in a separate, non-disaggregated connection so
- *     that the layered data handles are never open when we remove their entries. Removing metadata
- *     while a data handle is live triggers a panic on close.
+ * Metadata surgery is done in a separate follower connection where the layered table's data handles
+ *     are never opened (WiredTiger opens them lazily). Removing a metadata entry while its data
+ *     handle is live triggers a panic on close.
  */
 static void
 prepare_db(const char *home, bool keep_ingest, bool keep_stable)
 {
     /* Start from a clean slate. */
     testutil_system("rm -rf %s && mkdir -p %s", home, home);
-
-    if (keep_ingest && !keep_stable) {
-        /*
-         * "ingest present, stable absent" state: open as a follower, which naturally creates only
-         * file:T.wt_ingest and never creates file:T.wt_stable. This avoids the leader-startup path
-         * that would recreate the stable entry before recovery runs the incomplete-table check
-         * defeating any attempt to remove stable after a leader open.
-         */
-        WT_CONNECTION *conn = nullptr;
-        REQUIRE(wiredtiger_open(home, nullptr, build_cfg("follower", true).c_str(), &conn) == 0);
-
-        WT_SESSION *session = nullptr;
-        REQUIRE(conn->open_session(conn, nullptr, nullptr, &session) == 0);
-
-        REQUIRE(session->create(session, TABLE_URI,
-                  "key_format=S,value_format=S,block_manager=disagg,type=layered") == 0);
-
-        WT_CURSOR *cursor = nullptr;
-        REQUIRE(session->open_cursor(session, TABLE_URI, nullptr, nullptr, &cursor) == 0);
-        cursor->set_key(cursor, "k");
-        cursor->set_value(cursor, "v");
-        REQUIRE(cursor->insert(cursor) == 0);
-        REQUIRE(cursor->close(cursor) == 0);
-        REQUIRE(session->checkpoint(session, nullptr) == 0);
-
-        REQUIRE(conn->close(conn, nullptr) == 0);
-        return;
-    }
-
-    /*
-     * All other cases: open as leader to create a complete layered table (both file:T.wt_ingest and
-     * file:T.wt_stable present after checkpoint).
-     */
 
     /* Phase 1: Open as leader, create a complete layered table, and close. */
     {
@@ -132,15 +99,7 @@ prepare_db(const char *home, bool keep_ingest, bool keep_stable)
         REQUIRE(session->create(session, TABLE_URI,
                   "key_format=S,value_format=S,block_manager=disagg,type=layered") == 0);
 
-        WT_CURSOR *cursor = nullptr;
-        REQUIRE(session->open_cursor(session, TABLE_URI, nullptr, nullptr, &cursor) == 0);
-        cursor->set_key(cursor, "k");
-        cursor->set_value(cursor, "v");
-        REQUIRE(cursor->insert(cursor) == 0);
-        REQUIRE(cursor->close(cursor) == 0);
-        REQUIRE(session->checkpoint(session, nullptr) == 0);
-
-        /* Clean close: all file handles are released before we touch metadata. */
+        /* Clean close: conn->close checkpoints, persisting both metadata entries. */
         REQUIRE(conn->close(conn, nullptr) == 0);
     }
 
@@ -148,14 +107,12 @@ prepare_db(const char *home, bool keep_ingest, bool keep_stable)
         return; /* Nothing to remove; the DB is already in the desired state. */
 
     /*
-     * Phase 2: Reopen as follower so that the disaggregated role is
-     * explicitly set and does not inherit the "leader" stored in the turtle
-     * file from Phase 1.  With role=follower, recovery's
-     * __metadata_clean_incomplete_table only checks for the ingest entry,
-     * which is intact at this point, so recovery passes.  The layered-table
-     * data handles are never accessed here (lazy open), so no active handle
-     * exists for the entries we are about to remove, and the close succeeds
-     * cleanly.
+     * Phase 2: Reopen as follower so that the disaggregated role is explicitly set and does not
+     * inherit the "leader" stored in the turtle file from Phase 1.  With role=follower, recovery's
+     * __metadata_clean_incomplete_table only checks for the ingest entry, which is intact at this
+     * point, so recovery passes.  The layered-table data handles are never accessed here (lazy
+     * open), so no active handle exists for the entries we are about to remove, and the close
+     * succeeds cleanly.
      */
     {
         WT_CONNECTION *conn = nullptr;
@@ -169,6 +126,10 @@ prepare_db(const char *home, bool keep_ingest, bool keep_stable)
 
         if (!keep_ingest) {
             snprintf(key_buf, sizeof(key_buf), "file:%s.wt_ingest", TABLE_NAME);
+            REQUIRE(__wt_metadata_remove(session_impl, key_buf) == 0);
+        }
+        if (!keep_stable) {
+            snprintf(key_buf, sizeof(key_buf), "file:%s.wt_stable", TABLE_NAME);
             REQUIRE(__wt_metadata_remove(session_impl, key_buf) == 0);
         }
 
