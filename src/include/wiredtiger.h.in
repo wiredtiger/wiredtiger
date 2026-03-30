@@ -7761,48 +7761,51 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_STEP_DOWN_TIME		1572
 /*! disagg: step up most recent time (msecs) */
 #define	WT_STAT_CONN_DISAGG_STEP_UP_TIME		1573
+/*!
+ * layered: Layered table cursor advances to a newer checkpoint for the
+ * stable btree
+ */
+#define	WT_STAT_CONN_LAYERED_CURS_ADVANCE_STABLE	1574
 /*! layered: Layered table cursor insert operations */
-#define	WT_STAT_CONN_LAYERED_CURS_INSERT		1574
+#define	WT_STAT_CONN_LAYERED_CURS_INSERT		1575
 /*! layered: Layered table cursor modify operations */
-#define	WT_STAT_CONN_LAYERED_CURS_MODIFY		1575
+#define	WT_STAT_CONN_LAYERED_CURS_MODIFY		1576
 /*! layered: Layered table cursor next operations */
-#define	WT_STAT_CONN_LAYERED_CURS_NEXT			1576
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT			1577
 /*! layered: Layered table cursor next operations from the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_NEXT_INGEST		1577
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT_INGEST		1578
 /*! layered: Layered table cursor next operations from the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_NEXT_STABLE		1578
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT_STABLE		1579
 /*! layered: Layered table cursor prev operations */
-#define	WT_STAT_CONN_LAYERED_CURS_PREV			1579
+#define	WT_STAT_CONN_LAYERED_CURS_PREV			1580
 /*! layered: Layered table cursor prev operations from the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_PREV_INGEST		1580
+#define	WT_STAT_CONN_LAYERED_CURS_PREV_INGEST		1581
 /*! layered: Layered table cursor prev operations from the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_PREV_STABLE		1581
+#define	WT_STAT_CONN_LAYERED_CURS_PREV_STABLE		1582
 /*! layered: Layered table cursor remove operations */
-#define	WT_STAT_CONN_LAYERED_CURS_REMOVE		1582
+#define	WT_STAT_CONN_LAYERED_CURS_REMOVE		1583
+/*! layered: Layered table cursor reopens ingest btree */
+#define	WT_STAT_CONN_LAYERED_CURS_REOPEN_INGEST		1584
 /*! layered: Layered table cursor search near operations */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR		1583
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR		1585
 /*!
  * layered: Layered table cursor search near operations from the ingest
  * btrees
  */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST	1584
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST	1586
 /*!
  * layered: Layered table cursor search near operations from the stable
  * btrees
  */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE	1585
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE	1587
 /*! layered: Layered table cursor search operations */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH		1586
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH		1588
 /*! layered: Layered table cursor search operations from the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1587
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1589
 /*! layered: Layered table cursor search operations from the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1588
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1590
 /*! layered: Layered table cursor update operations */
-#define	WT_STAT_CONN_LAYERED_CURS_UPDATE		1589
-/*! layered: Layered table cursor upgrade state for the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_UPGRADE_INGEST	1590
-/*! layered: Layered table cursor upgrade state for the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_UPGRADE_STABLE	1591
+#define	WT_STAT_CONN_LAYERED_CURS_UPDATE		1591
 /*!
  * layered: checkpoints performed on this table by the layered table
  * manager
@@ -9743,48 +9746,51 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2275
 /*! cursor: update value size change */
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2276
+/*!
+ * layered: Layered table cursor advances to a newer checkpoint for the
+ * stable btree
+ */
+#define	WT_STAT_DSRC_LAYERED_CURS_ADVANCE_STABLE	2277
 /*! layered: Layered table cursor insert operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_INSERT		2277
+#define	WT_STAT_DSRC_LAYERED_CURS_INSERT		2278
 /*! layered: Layered table cursor modify operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_MODIFY		2278
+#define	WT_STAT_DSRC_LAYERED_CURS_MODIFY		2279
 /*! layered: Layered table cursor next operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_NEXT			2279
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT			2280
 /*! layered: Layered table cursor next operations from the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_INGEST		2280
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_INGEST		2281
 /*! layered: Layered table cursor next operations from the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_STABLE		2281
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_STABLE		2282
 /*! layered: Layered table cursor prev operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_PREV			2282
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV			2283
 /*! layered: Layered table cursor prev operations from the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_PREV_INGEST		2283
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV_INGEST		2284
 /*! layered: Layered table cursor prev operations from the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE		2284
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE		2285
 /*! layered: Layered table cursor remove operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_REMOVE		2285
+#define	WT_STAT_DSRC_LAYERED_CURS_REMOVE		2286
+/*! layered: Layered table cursor reopens ingest btree */
+#define	WT_STAT_DSRC_LAYERED_CURS_REOPEN_INGEST		2287
 /*! layered: Layered table cursor search near operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR		2286
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR		2288
 /*!
  * layered: Layered table cursor search near operations from the ingest
  * btrees
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST	2287
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST	2289
 /*!
  * layered: Layered table cursor search near operations from the stable
  * btrees
  */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE	2288
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE	2290
 /*! layered: Layered table cursor search operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH		2289
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH		2291
 /*! layered: Layered table cursor search operations from the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2290
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2292
 /*! layered: Layered table cursor search operations from the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2291
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2293
 /*! layered: Layered table cursor update operations */
-#define	WT_STAT_DSRC_LAYERED_CURS_UPDATE		2292
-/*! layered: Layered table cursor upgrade state for the ingest btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_UPGRADE_INGEST	2293
-/*! layered: Layered table cursor upgrade state for the stable btrees */
-#define	WT_STAT_DSRC_LAYERED_CURS_UPGRADE_STABLE	2294
+#define	WT_STAT_DSRC_LAYERED_CURS_UPDATE		2294
 /*!
  * layered: checkpoints performed on this table by the layered table
  * manager
