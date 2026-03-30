@@ -378,6 +378,32 @@ err:
 }
 
 /*
+ * __disagg_propagate_timestamps --
+ *     Advance the global stable and oldest timestamps from the leader's checkpoint metadata. The
+ *     update is advance-only: higher values already set by the application are preserved.
+ */
+static void
+__disagg_propagate_timestamps(
+  WT_SESSION_IMPL *session, wt_timestamp_t new_stable, wt_timestamp_t new_oldest)
+{
+    WT_CONNECTION_IMPL *conn;
+    bool oldest_changed, stable_changed;
+
+    conn = S2C(session);
+    oldest_changed = stable_changed = false;
+
+    if ((new_stable != WT_TS_NONE && new_stable > __wt_get_stable_timestamp(session)) ||
+      (new_oldest != WT_TS_NONE && new_oldest > __wt_get_oldest_timestamp(session))) {
+        __wt_writelock(session, &conn->txn_global.rwlock);
+        __wt_txn_update_stable_oldest(
+          session, new_stable, new_oldest, false, &stable_changed, &oldest_changed);
+        __wt_writeunlock(session, &conn->txn_global.rwlock);
+        if (stable_changed || oldest_changed)
+            __wt_txn_update_pinned_timestamp(session, false);
+    }
+}
+
+/*
  * __disagg_update_checkpoint_meta --
  *     Finalize checkpoint bookkeeping after processing shared metadata entries.
  */
@@ -386,10 +412,7 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
   const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_RET;
-    bool oldest_changed, stable_changed;
     WT_CONNECTION_IMPL *conn = S2C(session);
-
-    oldest_changed = stable_changed = false;
 
     /*
      * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
@@ -405,32 +428,8 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
     conn->txn_global.last_ckpt_timestamp = metadata->checkpoint_timestamp;
 
-    /*
-     * Propagate the leader's stable and oldest timestamps from the checkpoint metadata into the
-     * global transaction state. On a follower, these are never set during recovery because the
-     * local metadata has no system:checkpoint entry. The stable timestamp is needed so that data
-     * validation and rollback-to-stable can correctly validate time aggregates. The oldest
-     * timestamp establishes the lower bound for read timestamps on the follower: since the
-     * follower's data comes entirely from the leader's checkpoint, it cannot contain versions older
-     * than the leader's oldest at the time of that checkpoint.
-     *
-     * Only advance each timestamp, never move it backwards. The application layer may have already
-     * set higher values via the public timestamp API, and rolling them back would break the rule
-     * that timestamps only move forward and violate the oldest <= stable invariant.
-     *
-     * Skip acquiring the write lock if neither timestamp needs updating.
-     */
-    if ((metadata->checkpoint_timestamp != WT_TS_NONE &&
-          metadata->checkpoint_timestamp > __wt_get_stable_timestamp(session)) ||
-      (metadata->oldest_timestamp != WT_TS_NONE &&
-        metadata->oldest_timestamp > __wt_get_oldest_timestamp(session))) {
-        __wt_writelock(session, &conn->txn_global.rwlock);
-        __wt_txn_update_stable_oldest(session, metadata->checkpoint_timestamp,
-          metadata->oldest_timestamp, false, &stable_changed, &oldest_changed);
-        __wt_writeunlock(session, &conn->txn_global.rwlock);
-        if (stable_changed || oldest_changed)
-            __wt_txn_update_pinned_timestamp(session, false);
-    }
+    __disagg_propagate_timestamps(
+      session, metadata->checkpoint_timestamp, metadata->oldest_timestamp);
 
     /* Set the database size. */
     if (ckpt_meta->has_database_size)
