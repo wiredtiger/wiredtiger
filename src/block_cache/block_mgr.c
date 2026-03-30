@@ -960,7 +960,7 @@ __wti_bm_method_set(WT_BM *bm, bool readonly)
     bm->salvage_next = __bm_salvage_next;
     bm->salvage_start = __bm_salvage_start;
     bm->salvage_valid = __bm_salvage_valid;
-    bm->file_size = __wt_block_manager_size;
+    bm->size = __wt_block_manager_size;
     bm->stat = __bm_stat;
     bm->switch_object = __bm_switch_object;
     bm->switch_object_end = __bm_switch_object_end;

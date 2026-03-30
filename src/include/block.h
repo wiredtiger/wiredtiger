@@ -237,7 +237,7 @@ struct __wt_bm {
     int (*salvage_next)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
     int (*salvage_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*salvage_valid)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);
-    int (*file_size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
+    int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
     int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
     int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
     int (*switch_object_end)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
