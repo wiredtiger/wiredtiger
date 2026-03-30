@@ -206,6 +206,10 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
 
+    /* Mark the session as a checkpoint worker session. */
+    F_SET(session, WT_SESSION_CHECKPOINT);
+    F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
+
     /* Wait until the next event. */
     __wt_cond_wait_signal(
       session, ckpt_threads->work_cond, WT_MILLION, __checkpoint_parallel_thread_chk, &signalled);
@@ -220,11 +224,8 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * entire checkpoint, similarly as in the single-threaded checkpoint case. The main
          * checkpoint thread is responsible for committing or rolling back this transaction.
          */
-        if (!F_ISSET(session->txn, WT_TXN_RUNNING)) {
+        if (!F_ISSET(session->txn, WT_TXN_RUNNING))
             WT_ERR(__wt_txn_begin(session, NULL));
-            F_SET(session, WT_SESSION_CHECKPOINT);
-            F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
-        }
 
         /* Set up the transaction for the given entry. */
         __wt_txn_import_snapshot(session, entry->snapshot);
