@@ -74,6 +74,7 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
     bool disagg, exist;
 
     WT_CLEAR(namebuf);
+    disagg = false;
     *was_fast = false;
     fileconf = NULL;
 
