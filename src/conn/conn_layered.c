@@ -154,52 +154,51 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
  * __disagg_discard_old_checkpoint_check --
  *     Compare the checkpoint name in the old and new metadata config strings. Check if they are the
  *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
- *
- * Note: It is possible to have no checkpoint yet (e.g. the shared metadata table has never been
- *     checkpointed or the database has empty layered tables).
  */
 static bool
 __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_current,
   const char *cfg_new, const char **checkpoint_name)
 {
     WT_DECL_RET;
-    uint64_t time, time_new;
-    int64_t order, order_new;
+    uint64_t checkpoint_time, checkpoint_time_new;
+    int64_t checkpoint_order, checkpoint_order_new;
     const char *checkpoint_name_new;
     bool same_checkpoint;
 
-    order = order_new = 0;
-    time = time_new = 0;
+    checkpoint_order = checkpoint_order_new = 0;
+    checkpoint_time = checkpoint_time_new = 0;
     *checkpoint_name = checkpoint_name_new = NULL;
     same_checkpoint = false;
 
-    WT_ERR_NOTFOUND_OK(
-      __wt_ckpt_last_name(session, cfg_current, checkpoint_name, &order, &time), true);
+    WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, cfg_current, checkpoint_name, &checkpoint_order,
+                         &checkpoint_time),
+      true);
     /* Early exit if we can't find the configuration of last checkpoint. */
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, *checkpoint_name == NULL);
         return (false);
     }
 
-    WT_ERR_NOTFOUND_OK(
-      __wt_ckpt_last_name(session, cfg_new, &checkpoint_name_new, &order_new, &time_new), true);
-    /* Early exit if we can't find the configuration of new checkpoint. */
-    if (ret == WT_NOTFOUND) {
-        WT_ASSERT(session, checkpoint_name_new == NULL);
-        return (false);
-    }
+    /*
+     * The new configuration merges the new checkpoint into the old configuration, so it must
+     * contain a checkpoint entry.
+     */
+    WT_ERR(__wt_ckpt_last_name(
+      session, cfg_new, &checkpoint_name_new, &checkpoint_order_new, &checkpoint_time_new));
 
     /*
      * Treat the checkpoint order and time configurations as the source of truth when determining
      * whether the checkpoint has changed.
      */
-    same_checkpoint = (order == order_new && time == time_new);
+    same_checkpoint =
+      (checkpoint_order == checkpoint_order_new && checkpoint_time == checkpoint_time_new);
 
 #ifdef HAVE_DIAGNOSTIC
     if (same_checkpoint)
         WT_ASSERT(session, strcmp(*checkpoint_name, checkpoint_name_new) == 0);
 #endif
 err:
+    WT_ASSERT(session, ret == 0);
     __wt_free(session, checkpoint_name_new);
     return (!same_checkpoint);
 }
@@ -218,6 +217,7 @@ __disagg_save_checkpoint_meta_local(
     const char *cfg[3], *checkpoint_name, *cfg_current, *metadata_key;
 
     cfg_new = NULL;
+    checkpoint_name = NULL;
     metadata_key = WT_DISAGG_METADATA_URI;
 
     /* Pull the value out. */
@@ -306,13 +306,14 @@ __disagg_apply_checkpoint_meta(
     /*
      * Look up the most recent checkpoint of the shared metadata table. If there is no checkpoint
      * yet (e.g. the shared metadata table has never been checkpointed or the database has empty
-     * layered tables), there is nothing to pick up. In that case return success.
+     * layered tables), there is no new checkpoint related configs to update. In that case return
+     * success.
      */
     WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
                          session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
       false);
     if (metadata_checkpoint_name == NULL)
-        goto err;
+        goto done;
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_uri_buf));
     WT_ERR(__wt_buf_fmt(
@@ -427,6 +428,7 @@ __disagg_apply_checkpoint_meta(
       " new ingest tables",
       existing_tables, new_tables, new_ingest);
 
+done:
 err:
     __wt_free(session, cfg_ret);
     __wt_free(session, checkpoint_name);
