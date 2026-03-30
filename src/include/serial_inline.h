@@ -339,8 +339,14 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (WT_IS_HS(session->dhandle))
         return (0);
 
-    /* If there are no subsequent WT_UPDATE structures we are done here. */
-    if (upd->next == NULL || exclusive)
+    /*
+     * If there are no subsequent WT_UPDATE structures we are done here.
+     * Also skip if the chain is very short (only one prior update): a recently
+     * committed update cannot yet be globally visible, so the obsolete check
+     * will never find anything to free and would only waste cycles on the
+     * page spinlock and global state reads.
+     */
+    if (upd->next == NULL || exclusive || upd->next->next == NULL)
         return (0);
 
     /*
