@@ -88,50 +88,45 @@ __bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 
 /*
  * __bmd_get_size --
- *     Return the live checkpoint byte count.
+ *     Return the total byte count.
  */
 static uint64_t
 __bmd_get_size(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(session);
-    return (__wt_atomic_load_uint64(&((WT_BLOCK_DISAGG *)bm->block)->ckpt_size));
+    return (__wti_block_disagg_get_size((WT_BLOCK_DISAGG *)bm->block));
 }
 
 /*
  * __bmd_set_size --
- *     Set the live checkpoint byte count.
+ *     Set the total byte count.
  */
 static void
 __bmd_set_size(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_UNUSED(session);
-    (void)__wt_atomic_store_uint64(&((WT_BLOCK_DISAGG *)bm->block)->ckpt_size, size);
+    __wti_block_disagg_set_size((WT_BLOCK_DISAGG *)bm->block, size);
 }
 
 /*
  * __bmd_increase_size --
- *     Increase the live checkpoint byte count.
+ *     Increase the total byte count.
  */
 static void
 __bmd_increase_size(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_UNUSED(session);
-    (void)__wt_atomic_add_uint64(&((WT_BLOCK_DISAGG *)bm->block)->ckpt_size, size);
+    __wti_block_disagg_increase_size((WT_BLOCK_DISAGG *)bm->block, size);
 }
 
 /*
  * __bmd_decrease_size --
- *     Decrease the live checkpoint byte count.
+ *     Decrease the total byte count.
  */
 static void
 __bmd_decrease_size(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t size)
 {
-    WT_BLOCK_DISAGG *block_disagg;
-
-    WT_UNUSED(session);
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-    WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->ckpt_size) >= size);
-    (void)__wt_atomic_sub_uint64(&block_disagg->ckpt_size, size);
+    __wti_block_disagg_decrease_size(session, (WT_BLOCK_DISAGG *)bm->block, size);
 }
 
 /*
