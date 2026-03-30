@@ -53,7 +53,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     @wttest.skip_for_hook("tiered", "Cannot run tiered storage in disagg mode")
-    def test_layered84(self):      
+    def test_layered84(self):
         uri = "table:test_layered84"
         ds = SimpleDataSet(self, uri, 500, key_format='S', value_format='S')
         ds.populate()
