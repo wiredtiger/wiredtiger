@@ -89,6 +89,7 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE void
 __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    F_CLR_ATOMIC_16(page, WT_PAGE_WAS_READ_ONCE);
     __wt_atomic_store_uint64_relaxed(
       &page->read_gen, (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
 }
@@ -214,9 +215,12 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
  *            should not affect the page's eviction priority.
  *       (3) `wont_need`: A flag indicating that the page will not be needed in the future. If true,
  *            the page is marked for forced eviction.
+ *       (4) `was_read_once`: A flag indicating that the page was read once and should not be stored
+ *            in the victim cache when evicted.
  */
 static WT_INLINE void
-__wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
+__wt_evict_touch_page(
+  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need, bool was_read_once)
 {
     /* Is this the first use of the page? */
     if (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_NOTSET) {
@@ -224,8 +228,12 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_onl
             __wt_atomic_store_uint64_relaxed(&page->read_gen, WT_READGEN_WONT_NEED);
         else
             __wti_evict_read_gen_new(session, page);
-    } else if (!internal_only)
+        if (was_read_once)
+            F_SET_ATOMIC_16(page, WT_PAGE_WAS_READ_ONCE);
+    } else if (!internal_only) {
         __wti_evict_read_gen_bump(session, page);
+        F_CLR_ATOMIC_16(page, WT_PAGE_WAS_READ_ONCE);
+    }
 }
 
 /* !!!

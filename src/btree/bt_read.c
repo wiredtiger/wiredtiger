@@ -495,7 +495,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     size_t sleep_count;
     uint64_t sleep_usecs, yield_cnt;
     int force_attempts;
-    bool busy, cache_work, evict_skip, read_from_disk, stalled, wont_need;
+    bool busy, cache_work, evict_skip, read_from_disk, stalled, was_read_once, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
@@ -528,8 +528,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE))
         __wt_stash_discard(session);
 
-    for (evict_skip = read_from_disk = stalled = wont_need = false, force_attempts = 0,
-        sleep_usecs = yield_cnt = 0;
+    for (evict_skip = read_from_disk = stalled = was_read_once = wont_need = false,
+        force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
         switch (current_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DELETED:
@@ -567,8 +567,9 @@ read:
              * before we "acquire" it. Also avoid queuing a pre-fetch page for forced eviction
              * before it has a chance of being used. Otherwise the work we've just done is wasted.
              */
-            wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
-              F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
+            was_read_once =
+              LF_ISSET(WT_READ_WONT_NEED) || F_ISSET(session, WT_SESSION_READ_WONT_NEED);
+            wont_need = was_read_once ||
               (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP));
             continue;
         case WT_REF_LOCKED:
@@ -701,7 +702,8 @@ skip_evict:
                     session->pf.prefetch_disk_read_count = 0;
             }
 
-            __wt_evict_touch_page(session, page, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
+            __wt_evict_touch_page(
+              session, page, LF_ISSET(WT_READ_INTERNAL_OP), wont_need, was_read_once);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger

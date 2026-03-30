@@ -125,7 +125,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      * needed again, so storing it in the victim cache would waste memory and pollute the cache with
      * data that is unlikely to be re-read.
      */
-    if (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_WONT_NEED)
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_WAS_READ_ONCE))
         return;
 
     /*

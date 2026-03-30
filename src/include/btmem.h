@@ -746,6 +746,7 @@ struct __wt_page {
 #define WT_PAGE_REC_FAIL 0x0800u           /* The previous reconciliation failed on the page. */
 #define WT_PAGE_SPLIT_INSERT 0x1000u       /* A leaf page was split for append */
 #define WT_PAGE_UPDATE_IGNORE 0x2000u      /* Ignore updates on page discard */
+#define WT_PAGE_WAS_READ_ONCE 0x4000u      /* Page was read once and should skip victim cache */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 

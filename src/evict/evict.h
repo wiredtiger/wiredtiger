@@ -216,7 +216,7 @@ static WT_INLINE void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_P
 static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);
 static WT_INLINE void __wt_evict_touch_page(
-  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need);
+  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need, bool was_read_once);
 
 #ifdef HAVE_UNITTEST
 
