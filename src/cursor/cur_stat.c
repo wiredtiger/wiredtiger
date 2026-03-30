@@ -498,7 +498,10 @@ __curstat_file_init(
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     wt_off_t size;
+    uint64_t ckpt_size;
+    char *fileconf;
     const char *filename;
+    bool exist;
 
     /*
      * If we are only getting the size of the file, we don't need to open the tree. This only
@@ -508,10 +511,30 @@ __curstat_file_init(
         filename = uri;
         WT_PREFIX_SKIP(filename, "file:");
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-        WT_RET(__wt_block_manager_named_size(session, filename, &size));
-        cst->u.dsrc_stats.block_size = size;
-        __wt_curstat_dsrc_final(cst);
-        return (0);
+
+        WT_RET(__wt_fs_exist(session, filename, &exist));
+        if (exist) {
+            WT_RET(__wt_block_manager_named_size(session, filename, &size));
+            cst->u.dsrc_stats.block_size = size;
+            __wt_curstat_dsrc_final(cst);
+            return (0);
+        }
+
+        /*
+         * The file doesn't exist on disk (disaggregated storage). Read the size from the last
+         * checkpoint recorded in the file's metadata entry without logging an error.
+         */
+        fileconf = NULL;
+        if (__wt_metadata_search(session, uri, &fileconf) == 0) {
+            ret = __wt_ckpt_last_size(session, fileconf, &ckpt_size);
+            __wt_free(session, fileconf);
+            if (ret == 0) {
+                cst->u.dsrc_stats.block_size = (int64_t)ckpt_size;
+                __wt_curstat_dsrc_final(cst);
+                return (0);
+            }
+        }
+        ret = 0;
     }
 
     WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));
