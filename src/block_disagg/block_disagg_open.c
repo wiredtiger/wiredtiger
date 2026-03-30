@@ -168,21 +168,20 @@ void
 __wti_block_disagg_stat(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_DSRC_STATS *stats)
 {
-    WT_UNUSED(block_disagg);
-
-    /* Fill this out. */
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
+    WT_STAT_WRITE(session, stats, block_size, __wt_atomic_load_uint64(&block_disagg->ckpt_size));
 }
 
 /*
  * __wti_block_disagg_manager_size --
- *     Return the size of a live block handle.
+ *     Return the size of a live block handle. For disaggregated storage there is no underlying
+ *     file, so we return the size of the most recent checkpoint instead.
  */
 int
 __wti_block_disagg_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 {
     WT_UNUSED(session);
 
-    *sizep = bm->block->size;
+    *sizep = (wt_off_t)__wt_atomic_load_uint64(&((WT_BLOCK_DISAGG *)bm->block)->ckpt_size);
     return (0);
 }
