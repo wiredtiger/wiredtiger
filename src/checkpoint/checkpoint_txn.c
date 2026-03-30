@@ -3005,7 +3005,7 @@ __checkpoint_fsync_post(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HAN
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
-    /* Sync the history store file. */
+    /* Sync the history store files. */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
