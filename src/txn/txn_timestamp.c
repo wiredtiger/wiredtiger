@@ -317,13 +317,12 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 }
 
 /*
- * __txn_advance_one_timestamp --
- *     Advance a single global timestamp (stable or oldest) to a new value. When force is false the
- *     update is advance-only. When force is true the value is stored unconditionally. The caller
- *     must hold the txn_global write lock. Returns true if the timestamp was actually written.
+ * __txn_update_one_timestamp --
+ *     Advance a single global timestamp. When force is false, skipped if the current value is
+ *     already higher. Returns true if the timestamp was written. Caller must hold the write lock.
  */
 static bool
-__txn_advance_one_timestamp(
+__txn_update_one_timestamp(
   WT_SESSION_IMPL *session, wt_timestamp_t new_ts, bool force, bool is_stable)
 {
     WT_TXN_GLOBAL *txn_global;
@@ -356,26 +355,22 @@ __txn_advance_one_timestamp(
 }
 
 /*
- * __wt_txn_advance_stable_oldest --
- *     Update the global stable and oldest timestamps to the given values. When force is false the
- *     update is advance-only: a timestamp is skipped if the current value is already higher. When
- *     force is true the values are stored unconditionally, allowing the caller to move timestamps
- *     backwards. The caller must hold the txn_global write lock. The optional output parameters
- *     stable_changed and oldest_changed are set to indicate whether each timestamp was actually
- *     written.
+ * __wt_txn_update_stable_oldest --
+ *     Advance the global stable and oldest timestamps. When force is false, a timestamp is skipped
+ *     if the current value is already higher. The caller must hold the txn_global write lock.
  */
 void
-__wt_txn_advance_stable_oldest(WT_SESSION_IMPL *session, wt_timestamp_t new_stable,
+__wt_txn_update_stable_oldest(WT_SESSION_IMPL *session, wt_timestamp_t new_stable,
   wt_timestamp_t new_oldest, bool force, bool *stable_changed, bool *oldest_changed)
 {
     if (stable_changed != NULL)
-        *stable_changed = __txn_advance_one_timestamp(session, new_stable, force, true);
+        *stable_changed = __txn_update_one_timestamp(session, new_stable, force, true);
     else
-        (void)__txn_advance_one_timestamp(session, new_stable, force, true);
+        (void)__txn_update_one_timestamp(session, new_stable, force, true);
     if (oldest_changed != NULL)
-        *oldest_changed = __txn_advance_one_timestamp(session, new_oldest, force, false);
+        *oldest_changed = __txn_update_one_timestamp(session, new_oldest, force, false);
     else
-        (void)__txn_advance_one_timestamp(session, new_oldest, force, false);
+        (void)__txn_update_one_timestamp(session, new_oldest, force, false);
 }
 
 /*
@@ -501,7 +496,7 @@ set:
     }
 
     oldest_changed = stable_changed = false;
-    __wt_txn_advance_stable_oldest(session, has_stable ? stable_ts : WT_TS_NONE,
+    __wt_txn_update_stable_oldest(session, has_stable ? stable_ts : WT_TS_NONE,
       has_oldest ? oldest_ts : WT_TS_NONE, force, &stable_changed, &oldest_changed);
     if (oldest_changed)
         WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);

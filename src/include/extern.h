@@ -1841,8 +1841,6 @@ extern void __wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered,
 extern void __wt_tiered_requeue_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp);
-extern void __wt_txn_advance_stable_oldest(WT_SESSION_IMPL *session, wt_timestamp_t new_stable,
-  wt_timestamp_t new_oldest, bool force, bool *stable_changed, bool *oldest_changed);
 extern void __wt_txn_bump_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **txn_arg);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
@@ -1855,6 +1853,8 @@ extern void __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session);
 extern void __wt_txn_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_txn_truncate_end(WT_SESSION_IMPL *session);
 extern void __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force);
+extern void __wt_txn_update_stable_oldest(WT_SESSION_IMPL *session, wt_timestamp_t new_stable,
+  wt_timestamp_t new_oldest, bool force, bool *stable_changed, bool *oldest_changed);
 extern void __wt_update_obsolete_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd);
 extern void __wt_update_vector_clear(WT_UPDATE_VECTOR *updates);

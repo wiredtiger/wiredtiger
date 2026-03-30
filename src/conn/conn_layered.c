@@ -421,15 +421,11 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
      * Skip acquiring the write lock if neither timestamp needs updating.
      */
     if ((metadata->checkpoint_timestamp != WT_TS_NONE &&
-          (!__wt_atomic_load_bool_relaxed(&conn->txn_global.has_stable_timestamp) ||
-            metadata->checkpoint_timestamp >
-              __wt_atomic_load_uint64_relaxed(&conn->txn_global.stable_timestamp))) ||
+          metadata->checkpoint_timestamp > __wt_get_stable_timestamp(session)) ||
       (metadata->oldest_timestamp != WT_TS_NONE &&
-        (!__wt_atomic_load_bool_relaxed(&conn->txn_global.has_oldest_timestamp) ||
-          metadata->oldest_timestamp >
-            __wt_atomic_load_uint64_relaxed(&conn->txn_global.oldest_timestamp)))) {
+        metadata->oldest_timestamp > __wt_get_oldest_timestamp(session))) {
         __wt_writelock(session, &conn->txn_global.rwlock);
-        __wt_txn_advance_stable_oldest(session, metadata->checkpoint_timestamp,
+        __wt_txn_update_stable_oldest(session, metadata->checkpoint_timestamp,
           metadata->oldest_timestamp, false, &stable_changed, &oldest_changed);
         __wt_writeunlock(session, &conn->txn_global.rwlock);
         if (stable_changed || oldest_changed)
