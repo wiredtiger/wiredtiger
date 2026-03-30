@@ -244,7 +244,7 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->salvage_next = __wti_block_disagg_salvage_next;
     bm->salvage_start = __wti_block_disagg_salvage_start;
     bm->salvage_valid = __wti_block_disagg_salvage_valid;
-    bm->size = __wti_block_disagg_manager_size;
+    bm->file_size = __wti_block_disagg_manager_size;
     bm->stat = __bmd_stat;
     bm->sync = __wti_block_disagg_sync;
     bm->verify_addr = __wti_block_disagg_verify_addr;

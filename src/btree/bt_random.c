@@ -588,7 +588,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
      * Ideally, the number would be prime to avoid restart issues.
      */
     if (cbt->next_random_leaf_skip == 0) {
-        WT_ERR(btree->bm->size(btree->bm, session, &size));
+        WT_ERR(btree->bm->file_size(btree->bm, session, &size));
         cbt->next_random_leaf_skip =
           (uint64_t)((size / btree->allocsize) / cbt->next_random_sample_size) + 1;
     }

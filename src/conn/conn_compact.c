@@ -342,7 +342,7 @@ __wt_background_compact_start(WT_SESSION_IMPL *session)
     }
 
     /* Fill starting information prior to running compaction. */
-    WT_ERR(bm->size(bm, session, &compact_stat->start_size));
+    WT_ERR(bm->file_size(bm, session, &compact_stat->start_size));
     compact_stat->prev_compact_time = __wt_clock(session);
 
     return (0);
@@ -378,7 +378,7 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    WT_RET(bm->size(bm, session, &compact_stat->end_size));
+    WT_RET(bm->file_size(bm, session, &compact_stat->end_size));
     compact_stat->bytes_rewritten = bm->block->compact_bytes_rewritten;
     bytes_recovered = compact_stat->start_size - compact_stat->end_size;
 
