@@ -610,6 +610,7 @@ read:
             WT_RET(__wt_hazard_set_func(session, ref, &busy));
 #endif
             if (busy) {
+                stalled = true;
                 WT_STAT_CONN_INCR(session, page_busy_blocked);
                 break;
             }
