@@ -28,12 +28,14 @@
 
 #pragma once
 
+#include "src/common/logger.h"
 #include "src/main/test.h"
 
 namespace test_harness {
 
 #ifdef __linux__
 
+#include <cerrno>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
 #include <sys/syscall.h>
@@ -65,6 +67,12 @@ public:
           -1, // cpu: any CPU
           -1, // groupd_fd: group with only 1 member
           0); // flags
+        if (fd == -1 && (errno == EACCES || errno == EPERM)) {
+            logger::log_msg(LOG_WARN,
+              "instruction_counter: perf_event_open failed, insufficient permissions. "
+              "Instruction counts will not be recorded.");
+            return lambda();
+        }
         testutil_assert(fd != -1);
         ioctl(fd, PERF_EVENT_IOC_RESET, 0);
         ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
