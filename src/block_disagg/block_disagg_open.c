@@ -169,7 +169,7 @@ __wti_block_disagg_stat(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_DSRC_STATS *stats)
 {
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
-    WT_STAT_WRITE(session, stats, block_size, __wt_atomic_load_uint64(&block_disagg->ckpt_size));
+    WT_STAT_WRITE(session, stats, block_size, __wti_block_disagg_get_size(block_disagg));
 }
 
 /*
@@ -182,6 +182,6 @@ __wti_block_disagg_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *s
 {
     WT_UNUSED(session);
 
-    *sizep = (wt_off_t)__wt_atomic_load_uint64(&((WT_BLOCK_DISAGG *)bm->block)->ckpt_size);
+    *sizep = (wt_off_t)__wti_block_disagg_get_size((WT_BLOCK_DISAGG *)bm->block);
     return (0);
 }
