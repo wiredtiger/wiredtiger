@@ -378,6 +378,25 @@ err:
 }
 
 /*
+ * __raise_next_file_id --
+ *     Increase our next file ID if necessary. This value is only important for synchronizing
+ *     changes to the shared metadata table, which are made only by the leader. The increment only
+ *     happens on a follower, which will make tables only in response to the leader (via picking up
+ *     a checkpoint, or by oplog application). So it's OK if we've made new files since this
+ *     checkpoint was generated.
+ */
+static void
+__raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    if (conn->next_file_id < metadata->largest_file_id)
+        conn->next_file_id = metadata->largest_file_id;
+}
+
+/*
  * __disagg_update_checkpoint_meta --
  *     Finalize checkpoint bookkeeping after processing shared metadata entries.
  */
@@ -416,6 +435,8 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
       __wti_layered_iterate_ingest_tables_for_gc_pruning(
         internal_session, metadata->checkpoint_timestamp),
       "Updating prune timestamp failed");
+
+    WT_WITH_SCHEMA_LOCK(session, __raise_next_file_id(session, metadata));
 
 err:
     return (ret);
@@ -480,11 +501,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s"
-      ", oldest_timestamp=%" PRIu64 " %s, root=\"%.*s\"",
+      ", oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", root=\"%.*s\"",
       ckpt_meta->metadata_lsn, metadata.checkpoint_timestamp,
       __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string[0]),
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
-      (int)metadata.checkpoint_len, metadata.checkpoint);
+      metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
