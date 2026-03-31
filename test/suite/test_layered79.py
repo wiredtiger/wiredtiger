@@ -66,7 +66,7 @@ class test_layered79(wttest.WiredTigerTestCase):
         mc = session.open_cursor('metadata:')
         while mc.next() == 0:
             uri = mc.get_key()
-            
+
             # Skip all WT special tables.
             if not any(uri.startswith(f'file:{uri_base}_{i}') for i in table_range):
                 continue

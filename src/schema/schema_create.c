@@ -1194,7 +1194,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
      * block_manager=default so that the ingest btree is never mistakenly treated as shared.
      */
-    ingest_cfg[2] = "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
+    ingest_cfg[2] =
+      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
 
     /*
      * Pass the full merged configuration string through. Otherwise file-specific metadata will be
