@@ -298,66 +298,6 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
 }
 
 /*
- * __wt_btree_set_size --
- *     Set the checkpoint size of the tree. Dispatched through the block manager API.
- */
-static WT_INLINE void
-__wt_btree_set_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    WT_BM *bm;
-
-    bm = S2BT(session)->bm;
-    /* Disaggregated storage only; callers must gate on WT_BTREE_DISAGGREGATED. */
-    WT_ASSERT(session, bm->set_size != NULL);
-    bm->set_size(bm, session, size);
-}
-
-/*
- * __wt_btree_increase_size --
- *     Increase the checkpoint size of the tree. Dispatched through the block manager API.
- */
-static WT_INLINE void
-__wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    WT_BM *bm;
-
-    bm = S2BT(session)->bm;
-    /* Disaggregated storage only; callers must gate on WT_BTREE_DISAGGREGATED. */
-    WT_ASSERT(session, bm->increase_size != NULL);
-    bm->increase_size(bm, session, size);
-}
-
-/*
- * __wt_btree_decrease_size --
- *     Decrease the checkpoint size of the tree. Dispatched through the block manager API.
- */
-static WT_INLINE void
-__wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    WT_BM *bm;
-
-    bm = S2BT(session)->bm;
-    /* Disaggregated storage only; callers must gate on WT_BTREE_DISAGGREGATED. */
-    WT_ASSERT(session, bm->decrease_size != NULL);
-    bm->decrease_size(bm, session, size);
-}
-
-/*
- * __wt_btree_get_size --
- *     Return the checkpoint size of the tree. Dispatched through the block manager API.
- */
-static WT_INLINE uint64_t
-__wt_btree_get_size(WT_SESSION_IMPL *session)
-{
-    WT_BM *bm;
-
-    bm = S2BT(session)->bm;
-    /* Disaggregated storage only; callers must gate on WT_BTREE_DISAGGREGATED. */
-    WT_ASSERT(session, bm->get_size != NULL);
-    return (bm->get_size(bm, session));
-}
-
-/*
  * __wt_btree_shared_base_name --
  *     Given a tree's URI, break it down into its base name, in a returned buffer, and the
  *     checkpoint id string.
