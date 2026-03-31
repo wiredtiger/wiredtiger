@@ -30,9 +30,9 @@ import os, wttest
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
 
-# test_layered84.py
+# test_layered85.py
 #    Make sure RTS does nothing in a disaggregated storage context.
-class test_layered84(wttest.WiredTigerTestCase):
+class test_layered85(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(page_log=palite),' \
         + 'disaggregated=(role="leader")'
 
@@ -53,8 +53,8 @@ class test_layered84(wttest.WiredTigerTestCase):
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     @wttest.skip_for_hook("tiered", "Cannot run tiered storage in disagg mode")
-    def test_layered84(self):
-        uri = "table:test_layered84"
+    def test_layered85(self):
+        uri = "table:test_layered85"
         ds = SimpleDataSet(self, uri, 500, key_format='S', value_format='S')
         ds.populate()
 
