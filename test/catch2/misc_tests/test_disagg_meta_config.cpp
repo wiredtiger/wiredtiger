@@ -89,7 +89,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(config[CHECKPOINT].second ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
 
-        const uint64_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
 
         REQUIRE(config[KEY_PROVIDER].second ==
@@ -111,7 +111,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(config[CHECKPOINT].second ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
 
-        const uint64_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
 
         REQUIRE(metadata.key_provider == nullptr);
@@ -164,7 +164,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(ret == 0);
         REQUIRE(std::string_view("()", 2) ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
         REQUIRE(metadata.key_provider == nullptr);
         REQUIRE(metadata.key_provider_len == 0);
@@ -187,7 +187,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
 
         REQUIRE(std::string_view("()", 2) ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
     }
 
@@ -270,7 +270,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
         REQUIRE(checkpoint == std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
         REQUIRE(metadata.key_provider == nullptr);
         REQUIRE(metadata.key_provider_len == 0);
@@ -287,7 +287,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
         REQUIRE(checkpoint == std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
         REQUIRE(metadata.key_provider == nullptr);
         REQUIRE(metadata.key_provider_len == 0);

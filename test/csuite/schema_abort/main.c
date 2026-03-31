@@ -79,8 +79,8 @@ static bool aggressive_sweep, use_columns, use_lazyfs, use_ts, use_txn;
 static volatile bool stable_set;
 
 static uint32_t nth;                       /* Number of threads. */
-static volatile uint64_t stable_timestamp; /* stable timestamp. */
-static uint64_t stop_timestamp;            /* stop condition for threads. */
+static volatile wt_timestamp_t stable_timestamp; /* stable timestamp. */
+static wt_timestamp_t stop_timestamp;            /* stop condition for threads. */
 /*
  * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
  * thread writes is given by the macro below.
@@ -501,7 +501,7 @@ get_all_committed_ts(void)
  *     Return True if set_timestamp is required.
  */
 static bool
-is_set_timestamp_required(uint64_t last_ts, uint64_t oldest_ts)
+is_set_timestamp_required(wt_timestamp_t last_ts, wt_timestamp_t oldest_ts)
 {
     /*
      * The set_timestamp should be invoked only when current oldest timestamp is greater than last
@@ -520,7 +520,7 @@ thread_ts_run(void *arg)
 {
     THREAD_DATA *td;
     WT_SESSION *session;
-    uint64_t last_ts, oldest_ts;
+    wt_timestamp_t last_ts, oldest_ts;
     char tscfg[64];
 
     td = (THREAD_DATA *)arg;
@@ -568,9 +568,9 @@ thread_ckpt_run(void *arg)
     struct timespec now, start;
     THREAD_DATA *td;
     WT_SESSION *session;
-    uint64_t ts;
+    wt_timestamp_t ts;
     uint64_t sleep_time;
-    uint64_t stable_ts_copy;
+    wt_timestamp_t stable_ts_copy;
     int i;
     char ckpt_flush_config[128], ckpt_config[128];
     bool created_ready, flush_tier, ready_for_kill;
@@ -694,7 +694,8 @@ thread_run(void *arg)
     WT_DECL_RET;
     WT_ITEM data;
     WT_SESSION *oplog_session, *session;
-    uint64_t i, iter, reserved_ts, stable_ts;
+    uint64_t i, iter;
+    wt_timestamp_t reserved_ts, stable_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64];
     bool use_prep;
@@ -1076,7 +1077,7 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;
-    uint64_t stable_fp, stable_val;
+    wt_timestamp_t stable_fp, stable_val;
     uint32_t i, rand_value, timeout;
     int base, ch, status;
     char *end_number, *stop_arg;

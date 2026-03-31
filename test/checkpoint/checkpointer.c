@@ -39,7 +39,7 @@ static int real_checkpointer(THREAD_DATA *);
  *     Set the given timestamp as the stable timestamp.
  */
 static void
-set_stable(uint64_t stable_ts)
+set_stable(wt_timestamp_t stable_ts)
 {
     char buf[128];
 
@@ -128,7 +128,8 @@ clock_thread(void *arg)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     THREAD_DATA *td;
-    uint64_t delay, last_ts, oldest_ts;
+    uint64_t delay;
+    wt_timestamp_t last_ts, oldest_ts;
     char tid[128];
 
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
@@ -237,7 +238,8 @@ real_checkpointer(THREAD_DATA *td)
 {
     WT_SESSION *session;
     wt_timestamp_t stable_ts, oldest_ts, verify_ts;
-    uint64_t delay, tmp_ts;
+    uint64_t delay;
+    wt_timestamp_t tmp_ts;
     int ret;
     char buf[128], flush_tier_config[128], timestamp_buf[64];
     const char *checkpoint_config, *ts_config;
@@ -411,9 +413,9 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     /* Iterate through all prepared transactions and claim pending prepared transactions. */
     discover_count = 0;
     testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
-    uint64_t current_stable = testutil_timestamp_parse(timestamp_buf);
+    wt_timestamp_t current_stable = testutil_timestamp_parse(timestamp_buf);
     while ((ret = cursor->next(cursor)) == 0) {
-        uint64_t commit_ts, durable_ts, rollback_ts;
+        wt_timestamp_t commit_ts, durable_ts, rollback_ts;
 
         ++discover_count;
         testutil_check(cursor->get_key(cursor, &prepared_id));

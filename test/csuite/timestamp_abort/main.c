@@ -473,7 +473,7 @@ thread_ckpt_run(void *arg)
 {
     THREAD_DATA *td;
     WT_SESSION *session;
-    uint64_t stable;
+    wt_timestamp_t stable;
     uint32_t sleep_time;
     int i;
     char ckpt_config[128], ckpt_flush_config[128];
@@ -1150,7 +1150,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog, *cur_shadow;
     WT_SESSION *session;
     uint64_t absent_coll, absent_local, absent_oplog, absent_shadow, count, key, last_key;
-    uint64_t commit_fp, durable_fp, stable_val;
+    wt_timestamp_t commit_fp, durable_fp, stable_val;
     uint32_t i;
     int ret;
     char backup_dir[PATH_MAX], buf[PATH_MAX], fname[64], kname[64], verify_dir[PATH_MAX];

@@ -113,10 +113,10 @@ replay_end_timed_run(void)
  * replay_maximum_committed --
  *     For predictable replay runs, return the largest timestamp that's no longer in use.
  */
-uint64_t
+wt_timestamp_t
 replay_maximum_committed(void)
 {
-    uint64_t commit_ts, ts;
+    wt_timestamp_t commit_ts, ts;
     uint32_t lane;
 
     /*
@@ -374,10 +374,10 @@ replay_run_end(WT_SESSION *session)
  * replay_read_ts --
  *     Return a read timestamp for a begin transaction call.
  */
-uint64_t
+wt_timestamp_t
 replay_read_ts(TINFO *tinfo)
 {
-    uint64_t commit_ts;
+    wt_timestamp_t commit_ts;
 
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY) && tinfo->lane != LANE_NONE &&
       g.lanes[tinfo->lane].in_use && tinfo->replay_ts != 0);
@@ -391,10 +391,10 @@ replay_read_ts(TINFO *tinfo)
  * replay_prepare_ts --
  *     Return a timestamp to be used for prepare.
  */
-uint64_t
+wt_timestamp_t
 replay_prepare_ts(TINFO *tinfo)
 {
-    uint64_t prepare_ts, ts;
+    wt_timestamp_t prepare_ts, ts;
 
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY));
 
@@ -428,7 +428,7 @@ replay_prepare_ts(TINFO *tinfo)
  * replay_commit_ts --
  *     Return the commit timestamp.
  */
-uint64_t
+wt_timestamp_t
 replay_commit_ts(TINFO *tinfo)
 {
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY));
@@ -441,7 +441,7 @@ replay_commit_ts(TINFO *tinfo)
  * replay_rollback_ts --
  *     Return the rollback timestamp.
  */
-uint64_t
+wt_timestamp_t
 replay_rollback_ts(TINFO *tinfo)
 {
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY));

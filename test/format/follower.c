@@ -86,11 +86,11 @@ err:
  */
 static bool
 follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE_LOG *page_log,
-  WT_ITEM *checkpoint_metadata, uint64_t checkpoint_ts)
+  WT_ITEM *checkpoint_metadata, wt_timestamp_t checkpoint_ts)
 {
     WT_DISAGG_METADATA metadata;
     WT_ITEM full_metadata;
-    uint64_t pinned_ts;
+    wt_timestamp_t pinned_ts;
     char config[1024];
     bool picked_up;
 
@@ -146,7 +146,7 @@ follower_read_latest_checkpoint(void)
     WT_PAGE_LOG *page_log;
     WT_SESSION *session;
     const char *disagg_page_log;
-    uint64_t checkpoint_ts;
+    wt_timestamp_t checkpoint_ts;
 
     conn = g.wts_conn;
     disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
@@ -184,7 +184,7 @@ follower(void *arg)
     WT_SESSION *session;
     const char *disagg_page_log;
     u_int period;
-    uint64_t checkpoint_ts;
+    wt_timestamp_t checkpoint_ts;
 
     (void)(arg); /* Unused parameter */
     conn = g.wts_conn;

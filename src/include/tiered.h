@@ -127,7 +127,7 @@ struct __wt_tiered_object {
     uint64_t count;       /* Approximate count of records */
     uint64_t size;        /* Final size of object */
     uint64_t switch_txn;  /* Largest txn that can write to this object */
-    uint64_t switch_ts;   /* Timestamp for switching */
+    wt_timestamp_t switch_ts;   /* Timestamp for switching */
     uint32_t id;          /* This object's id */
     uint32_t generation;  /* Do we need this?? */
     uint32_t refcnt;      /* Number of references */
