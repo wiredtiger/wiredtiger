@@ -534,7 +534,6 @@ __curstat_file_init(
                 return (0);
             }
         }
-        ret = 0;
     }
 
     WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));

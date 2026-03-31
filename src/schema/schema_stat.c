@@ -103,7 +103,6 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
         if (ret == 0 && WT_CONFIG_LIT_MATCH("layered", cval))
             disagg = true;
     }
-    ret = 0;
 
     /* Build up the file name from the table URI using the appropriate extension. */
     WT_ERR(__wt_buf_fmt(
