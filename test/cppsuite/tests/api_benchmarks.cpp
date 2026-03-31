@@ -38,7 +38,7 @@ namespace test_harness {
  * (on Linux) hardware instruction counts.
  *
  * Each operation is measured with an execution_timer (all platforms) and an instruction_counter
- * (Linux only — on other platforms instruction_counter is a no-op stub with the same interface).
+ * (Linux only, on other platforms instruction_counter is a no-op stub with the same interface).
  * Both counters are applied via nesting so the API under test is called exactly once per
  * measurement point.
  *
@@ -70,8 +70,7 @@ public:
 
         /*
          * Declare one execution_timer and one instruction_counter per API under test. On non-Linux
-         * platforms instruction_counter is a no-op stub, so no #ifdefs are needed here — the
-         * compiler removes the stub calls entirely.
+         * platforms instruction_counter is a no-op stub.
          */
         execution_timer begin_transaction_timer("begin_transaction", test::_args.test_name);
         execution_timer commit_transaction_timer("commit_transaction", test::_args.test_name);
