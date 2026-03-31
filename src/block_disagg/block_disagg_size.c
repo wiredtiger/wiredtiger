@@ -19,16 +19,6 @@ __wti_block_disagg_get_size(WT_BLOCK_DISAGG *block_disagg)
 }
 
 /*
- * __wti_block_disagg_set_size --
- *     Set the total byte count.
- */
-void
-__wti_block_disagg_set_size(WT_BLOCK_DISAGG *block_disagg, uint64_t size)
-{
-    (void)__wt_atomic_store_uint64(&block_disagg->size, size);
-}
-
-/*
  * __wti_block_disagg_increase_size --
  *     Increase the total byte count.
  */
@@ -69,7 +59,7 @@ void
 __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    __wti_block_disagg_set_size((WT_BLOCK_DISAGG *)S2BT(session)->bm->block, size);
+    (void)__wt_atomic_store_uint64(&((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->size, size);
 }
 
 /*

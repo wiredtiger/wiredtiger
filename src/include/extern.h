@@ -1891,7 +1891,6 @@ extern void __wti_block_disagg_decrease_size(
 extern void __wti_block_disagg_header_byteswap_copy(
   WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to);
 extern void __wti_block_disagg_increase_size(WT_BLOCK_DISAGG *block_disagg, uint64_t size);
-extern void __wti_block_disagg_set_size(WT_BLOCK_DISAGG *block_disagg, uint64_t size);
 extern void __wti_block_disagg_stat(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_DSRC_STATS *stats);
 extern void __wti_block_ext_free(WT_SESSION_IMPL *session, WT_EXT **ext);
