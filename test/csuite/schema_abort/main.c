@@ -524,7 +524,7 @@ thread_ts_run(void *arg)
     char tscfg[64];
 
     td = (THREAD_DATA *)arg;
-    last_ts = 0;
+    last_ts = WT_TS_NONE;
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     /*
@@ -746,7 +746,7 @@ thread_run(void *arg)
      * Write our portion of the key space until we're killed.
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
-    stable_ts = 0;
+    stable_ts = WT_TS_NONE;
     for (i = td->start, iter = 0;; ++i, ++iter) {
         /* Give other threads a chance to run and move their timestamps forward. */
         if (use_ts && !stable_set && (iter + 1) % 100 == 0)
@@ -1306,7 +1306,7 @@ main(int argc, char *argv[])
     /*
      * Find the biggest stable timestamp value that was saved.
      */
-    stable_val = 0;
+    stable_val = WT_TS_NONE;
     if (use_ts) {
         testutil_check(conn->query_timestamp(conn, buf, "get=recovery"));
         sscanf(buf, "%" SCNx64, &stable_val);
@@ -1376,7 +1376,7 @@ main(int argc, char *argv[])
                  * If we don't find a record, the stable timestamp written to our file better be
                  * larger than the saved one.
                  */
-                if (!opts->inmem && stable_fp != 0 && stable_fp <= stable_val) {
+                if (!opts->inmem && stable_fp != WT_TS_NONE && stable_fp <= stable_val) {
                     printf("%s: COLLECTION no record with key %" PRIu64 " record ts %" PRIu64
                            " <= stable ts %" PRIu64 "\n",
                       fname, key, stable_fp, stable_val);
@@ -1392,7 +1392,7 @@ main(int argc, char *argv[])
                  */
                 c_rep[i].exist_key = key;
                 fatal = true;
-            } else if (!opts->inmem && stable_fp != 0 && stable_fp > stable_val) {
+            } else if (!opts->inmem && stable_fp != WT_TS_NONE && stable_fp > stable_val) {
                 /*
                  * If we found a record, the stable timestamp written to our file better be no
                  * larger than the checkpoint one.

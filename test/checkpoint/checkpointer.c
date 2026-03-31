@@ -137,7 +137,7 @@ clock_thread(void *arg)
     fflush(stdout);
 
     td = (THREAD_DATA *)arg;
-    last_ts = 0;
+    last_ts = WT_TS_NONE;
 
     testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
@@ -290,7 +290,7 @@ real_checkpointer(THREAD_DATA *td)
             if (g.predictable_replay) {
                 tmp_ts = WT_MIN(get_all_committed_ts(), stable_ts);
                 /* Update the oldest timestamp, but do not go past the provided stop timestamp. */
-                if (tmp_ts != UINT64_MAX && (g.stop_ts == 0 || tmp_ts <= g.stop_ts))
+                if (tmp_ts != UINT64_MAX && (g.stop_ts == WT_TS_NONE || tmp_ts <= g.stop_ts))
                     g.ts_oldest = tmp_ts;
                 if (g.stop_ts > 0 && stable_ts >= g.stop_ts) {
                     printf(

@@ -360,7 +360,7 @@ real_worker(THREAD_DATA *td)
          * thread reaches a stable equal to the stop timestamp. Ignore the provided operation count
          * in such a case.
          */
-        if (g.stop_ts == 0 && i >= g.nops)
+        if (g.stop_ts == WT_TS_NONE && i >= g.nops)
             break;
 
         if (i > 0 && i % (5 * WT_THOUSAND) == 0)

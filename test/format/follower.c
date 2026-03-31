@@ -113,7 +113,7 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
     testutil_check(__wt_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata));
     testutil_assert(metadata.oldest_timestamp != WT_TS_NONE);
     testutil_check(timestamp_query("get=pinned", &pinned_ts));
-    if (pinned_ts != 0 && metadata.oldest_timestamp > pinned_ts) {
+    if (pinned_ts != WT_TS_NONE && metadata.oldest_timestamp > pinned_ts) {
         printf("--- [Follower] Skipping checkpoint pickup: oldest_timestamp(hex)=%" PRIx64
                " > pinned_timestamp(hex)=%" PRIx64 " ---\n",
           metadata.oldest_timestamp, pinned_ts);

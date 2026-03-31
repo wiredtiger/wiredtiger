@@ -51,8 +51,8 @@ timestamp_minimum_committed(void)
              * last-used commit timestamp, that thread might be about to use a commit timestamp in
              * the range we'd return.
              */
-            if (commit_ts == 0)
-                return (0);
+            if (commit_ts == WT_TS_NONE)
+                return (WT_TS_NONE);
             if (commit_ts < ts)
                 ts = commit_ts;
         }
@@ -113,7 +113,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 
     /* Get the maximum not-in-use timestamp, noting that it may not be set. */
     oldest_timestamp = stable_timestamp = timestamp_minimum_committed();
-    if (oldest_timestamp == 0)
+    if (oldest_timestamp == WT_TS_NONE)
         return;
 
     if (GV(RUNS_PREDICTABLE_REPLAY)) {

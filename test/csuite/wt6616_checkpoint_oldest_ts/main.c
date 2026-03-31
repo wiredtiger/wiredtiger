@@ -148,7 +148,7 @@ thread_run(void *arg)
 
     /* Insert and then delete the keys until we're killed. */
     printf("Worker thread started.\n");
-    for (oldest_ts = 0, ts = 1;; ++ts) {
+    for (oldest_ts = WT_TS_NONE, ts = 1;; ++ts) {
         testutil_snprintf(kname, sizeof(kname), ROW_KEY_FORMAT, ts);
 
         /* Insert the same value for key and value. */
