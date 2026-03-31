@@ -3017,7 +3017,7 @@ __checkpoint_fsync_post(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HAN
         WT_ERR(ret);
     }
 
-err:
+err:;
     uint64_t time_stop_fsync = __wt_clock(session);
     uint64_t fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop_fsync, time_start_fsync);
     WT_STAT_CONN_SET(session, checkpoint_fsync_post_duration, fsync_duration_usecs);
