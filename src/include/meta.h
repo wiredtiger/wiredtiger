@@ -141,8 +141,8 @@ struct __wt_blkincr {
  *     Note: The strings are not null-terminated.
  */
 typedef struct __wt_disagg_metadata {
-    const char *checkpoint;        /* Checkpoint metadata string */
-    size_t checkpoint_len;         /* Length of checkpoint metadata string */
+    const char *checkpoint;              /* Checkpoint metadata string */
+    size_t checkpoint_len;               /* Length of checkpoint metadata string */
     wt_timestamp_t checkpoint_timestamp; /* Checkpoint timestamp */
     wt_timestamp_t oldest_timestamp;     /* Oldest timestamp */
 

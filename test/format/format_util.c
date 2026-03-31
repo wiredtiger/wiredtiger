@@ -85,8 +85,8 @@ track_ops(TINFO *tinfo)
 {
     static wt_timestamp_t last_cur, last_old, last_stable;
     static u_int cur_dot_cnt, old_dot_cnt, stable_dot_cnt;
-    size_t len;
     wt_timestamp_t cur_ts, old_ts, stable_ts;
+    size_t len;
     char msg[128], ts_msg[64];
 
     if (GV(QUIET))

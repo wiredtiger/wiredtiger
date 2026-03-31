@@ -273,11 +273,11 @@ typedef struct {
 
     uint64_t truncate_cnt; /* truncation operation counter */
 
-    wt_timestamp_t replay_cached_committed;  /* Our committed timestamp, cached */
-    uint32_t replay_calculate_committed;     /* Times before recalculating cached committed */
-    wt_timestamp_t replay_start_timestamp;   /* Timestamp at the beginning of a run */
-    wt_timestamp_t stop_timestamp;           /* If non-zero, stop when stable reaches this */
-    wt_timestamp_t timestamp_copy;           /* A copy of the timestamp, for safety checks */
+    wt_timestamp_t replay_cached_committed; /* Our committed timestamp, cached */
+    uint32_t replay_calculate_committed;    /* Times before recalculating cached committed */
+    wt_timestamp_t replay_start_timestamp;  /* Timestamp at the beginning of a run */
+    wt_timestamp_t stop_timestamp;          /* If non-zero, stop when stable reaches this */
+    wt_timestamp_t timestamp_copy;          /* A copy of the timestamp, for safety checks */
 
     uint32_t operation_timeout_ms; /* Requested limit to complete operations in transaction */
 
@@ -410,14 +410,14 @@ typedef struct {
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
 
-    bool ignore_prepare;   /* read with ignore_prepare */
-    bool repeatable_reads; /* if read ops repeatable */
-    bool repeatable_wrap;  /* if circular buffer wrapped */
-    uint64_t opid;         /* Operation ID */
-    wt_timestamp_t commit_ts;    /* commit timestamp */
-    wt_timestamp_t read_ts;      /* read timestamp */
-    wt_timestamp_t replay_ts;    /* allocated timestamp for predictable replay */
-    wt_timestamp_t stable_ts;    /* stable timestamp */
+    bool ignore_prepare;      /* read with ignore_prepare */
+    bool repeatable_reads;    /* if read ops repeatable */
+    bool repeatable_wrap;     /* if circular buffer wrapped */
+    uint64_t opid;            /* Operation ID */
+    wt_timestamp_t commit_ts; /* commit timestamp */
+    wt_timestamp_t read_ts;   /* read timestamp */
+    wt_timestamp_t replay_ts; /* allocated timestamp for predictable replay */
+    wt_timestamp_t stable_ts; /* stable timestamp */
     SNAP_STATE snap_states[2];
     SNAP_STATE *s; /* points to one of the snap_states */
 

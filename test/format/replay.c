@@ -240,7 +240,8 @@ replay_pick_timestamp(TINFO *tinfo)
         testutil_assert(tinfo->lane == LANE_NONE);
 
         stop_ts = g.stop_timestamp;
-        if (stop_ts != WT_TS_NONE && g.stable_timestamp >= stop_ts && tinfo->replay_ts == WT_TS_NONE) {
+        if (stop_ts != WT_TS_NONE && g.stable_timestamp >= stop_ts &&
+          tinfo->replay_ts == WT_TS_NONE) {
             tinfo->quit = true;
             return;
         }

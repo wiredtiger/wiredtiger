@@ -78,7 +78,7 @@ static const char *const ready_file = "child_ready";
 static bool aggressive_sweep, use_columns, use_lazyfs, use_ts, use_txn;
 static volatile bool stable_set;
 
-static uint32_t nth;                       /* Number of threads. */
+static uint32_t nth;                             /* Number of threads. */
 static volatile wt_timestamp_t stable_timestamp; /* stable timestamp. */
 static wt_timestamp_t stop_timestamp;            /* stop condition for threads. */
 /*

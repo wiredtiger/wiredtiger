@@ -136,8 +136,8 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *md_cursor;
     WT_DECL_RET;
-    size_t len;
     wt_timestamp_t checkpoint_timestamp;
+    size_t len;
     char *stable_uri, *table_name;
     const char *md_value;
 

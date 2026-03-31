@@ -1744,11 +1744,11 @@ __wt_struct_unpack_txn_timestamp(const uint8_t **pp, const uint8_t *end, uint64_
 {
     __pack_decode_uintAny(pp, end, uint64_t, time_secp);
     __pack_decode_uintAny(pp, end, uint64_t, time_nsecp);
-    __pack_decode_uintAny(pp, end, uint64_t, commit_tsp);
-    __pack_decode_uintAny(pp, end, uint64_t, durable_tsp);
-    __pack_decode_uintAny(pp, end, uint64_t, first_commit_tsp);
-    __pack_decode_uintAny(pp, end, uint64_t, prepare_tsp);
-    __pack_decode_uintAny(pp, end, uint64_t, read_tsp);
+    __pack_decode_uintAny(pp, end, wt_timestamp_t, commit_tsp);
+    __pack_decode_uintAny(pp, end, wt_timestamp_t, durable_tsp);
+    __pack_decode_uintAny(pp, end, wt_timestamp_t, first_commit_tsp);
+    __pack_decode_uintAny(pp, end, wt_timestamp_t, prepare_tsp);
+    __pack_decode_uintAny(pp, end, wt_timestamp_t, read_tsp);
 
     return (0);
 }

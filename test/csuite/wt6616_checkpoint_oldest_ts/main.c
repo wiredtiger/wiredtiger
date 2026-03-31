@@ -264,8 +264,8 @@ main(int argc, char *argv[])
     WT_DECL_RET;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
-    pid_t pid;
     wt_timestamp_t oldest_ts, stable_ts, ts;
+    pid_t pid;
     uint32_t timeout;
     int ch, status;
     char cwd_start[PATH_MAX];

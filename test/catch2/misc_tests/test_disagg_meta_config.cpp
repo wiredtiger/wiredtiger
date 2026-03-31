@@ -89,7 +89,8 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(config[CHECKPOINT].second ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
 
-        const wt_timestamp_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
+        const wt_timestamp_t expected_timestamp =
+          std::stoull(config[TIMESTAMP].second, nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
 
         REQUIRE(config[KEY_PROVIDER].second ==
@@ -111,7 +112,8 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(config[CHECKPOINT].second ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
 
-        const wt_timestamp_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
+        const wt_timestamp_t expected_timestamp =
+          std::stoull(config[TIMESTAMP].second, nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
 
         REQUIRE(metadata.key_provider == nullptr);
