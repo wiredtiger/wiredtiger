@@ -314,7 +314,7 @@ update(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_
     testutil_assert(key_count != 0);
     for (int j = 0; j < 10; j++) {
         transaction txn;
-        uint64_t key = random_generator::instance().generate_integer(0UL, key_count - 1);
+        uint64_t key = random_generator::instance().generate_integer(uint64_t{0}, key_count - 1);
         std::string k = generate_key(key);
 
         txn.begin(session);
