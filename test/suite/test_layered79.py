@@ -28,6 +28,7 @@
 
 import os, re, sys, wttest
 from helper_disagg import disagg_test_class
+from wtscenario import make_scenarios
 
 
 # test_layered79.py
@@ -42,8 +43,13 @@ class test_layered79(wttest.WiredTigerTestCase):
                      + 'disaggregated=(lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
-    create_config = 'key_format=S,value_format=S'
     ntables = 20
+
+    scenarios = make_scenarios([
+        ('layered-bare', dict(prefix='layered:', extra_config='')),
+        ('layered-disagg', dict(prefix='layered:', extra_config='block_manager=disagg')),
+        ('table-type-layered', dict(prefix='table:', extra_config='block_manager=disagg,type=layered')),
+    ])
 
     def parse_id(self, meta_val):
         """Return the numeric btree ID stored in a metadata value string."""
@@ -54,8 +60,8 @@ class test_layered79(wttest.WiredTigerTestCase):
     def check_namespace(self, session, uri_base, table_range):
         """
         Iterate the metadata cursor and for every file belonging to uri_base assert:
-          - file:<base>_N.wt_stable  → shared namespace  (id is odd)
-          - file:<base>_N.wt_ingest  → local namespace   (id is even)
+          - file:<base>_N.wt_stable  - shared namespace  (id is odd)
+          - file:<base>_N.wt_ingest  - local namespace   (id is even)
         """
         mc = session.open_cursor('metadata:')
         while mc.next() == 0:
@@ -75,11 +81,15 @@ class test_layered79(wttest.WiredTigerTestCase):
         mc.close()
 
     def test_ingest_btree_not_shared(self):
+        uris = [f'{self.prefix}{self.uri_base}_{i}' for i in range(self.ntables)]
+        create_config = 'key_format=S,value_format=S'
+        if self.extra_config:
+            create_config += ',' + self.extra_config
+
         # Create tables on the leader and checkpoint so that shared metadata is
         # published.
-        uris = [f'layered:{self.uri_base}_{i}' for i in range(self.ntables)]
         for uri in uris:
-            self.session.create(uri, self.create_config)
+            self.session.create(uri, create_config)
         self.session.checkpoint()
 
         # Leader: .wt_stable IDs must be shared; .wt_ingest must be local.
@@ -96,7 +106,7 @@ class test_layered79(wttest.WiredTigerTestCase):
 
         # Create the same layered tables on the follower.
         for uri in uris:
-            session_follow.create(uri, self.create_config)
+            session_follow.create(uri, create_config)
 
         # Follower: same namespace invariant must hold. The .wt_stable entries
         # come from shared metadata picked up at open. the .wt_ingest entries should
