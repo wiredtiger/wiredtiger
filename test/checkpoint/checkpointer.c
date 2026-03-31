@@ -145,11 +145,11 @@ clock_thread(void *arg)
     while (g.opts.running) {
         if (g.predictable_replay) {
             oldest_ts = get_all_committed_ts();
-            if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > PRED_REPLAY_STABLE_PERIOD) {
+            if (oldest_ts != WT_TS_MAX && oldest_ts - last_ts > PRED_REPLAY_STABLE_PERIOD) {
                 /*
                  * If we are doing a predictable rerun, don't go past the provided stop timestamp.
                  */
-                if (g.stop_ts > 0 && oldest_ts >= g.stop_ts) {
+                if (g.stop_ts != WT_TS_NONE && oldest_ts >= g.stop_ts) {
                     printf("Clock thread at %" PRIu64
                            " has reached the provided stop timestamp. "
                            "Stopping the clock.\n",
@@ -290,9 +290,9 @@ real_checkpointer(THREAD_DATA *td)
             if (g.predictable_replay) {
                 tmp_ts = WT_MIN(get_all_committed_ts(), stable_ts);
                 /* Update the oldest timestamp, but do not go past the provided stop timestamp. */
-                if (tmp_ts != UINT64_MAX && (g.stop_ts == WT_TS_NONE || tmp_ts <= g.stop_ts))
+                if (tmp_ts != WT_TS_MAX && (g.stop_ts == WT_TS_NONE || tmp_ts <= g.stop_ts))
                     g.ts_oldest = tmp_ts;
-                if (g.stop_ts > 0 && stable_ts >= g.stop_ts) {
+                if (g.stop_ts != WT_TS_NONE && stable_ts >= g.stop_ts) {
                     printf(
                       "The checkpoint thread has reached the stop timestamp of "
                       "%" PRIu64 ". Finish the test run.\n",

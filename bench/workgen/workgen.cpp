@@ -774,8 +774,8 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     ContextInternal *icontext = _workload->_context->_internal;
 
     while (!stop_timestamp_thread) {
-        wt_timestamp_t stable_ts = 0;
-        wt_timestamp_t oldest_ts = 0;
+        wt_timestamp_t stable_ts = WT_TS_NONE;
+        wt_timestamp_t oldest_ts = WT_TS_NONE;
 
         /* Only hold the mutex while computing timestamps, not across WT calls. */
         if (_workload->options.stable_timestamp_lag > 0 ||
