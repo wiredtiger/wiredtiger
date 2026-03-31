@@ -217,9 +217,9 @@ __disagg_save_checkpoint_meta_local(
     WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    bool discard;
     char *cfg_new;
     const char *cfg[3], *checkpoint_name, *cfg_current, *metadata_key;
+    bool discard;
 
     cfg_new = NULL;
     checkpoint_name = NULL;
@@ -249,7 +249,8 @@ __disagg_save_checkpoint_meta_local(
       metadata_key, (int)metadata->checkpoint_len, metadata->checkpoint);
 
     /* Throw away any references to the old disaggregated metadata table checkpoint. */
-    WT_ERR(__disagg_discard_old_checkpoint_check(session, cfg_current, cfg_new, &checkpoint_name, &discard));
+    WT_ERR(__disagg_discard_old_checkpoint_check(
+      session, cfg_current, cfg_new, &checkpoint_name, &discard));
     if (discard) {
         WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
         WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
@@ -358,7 +359,7 @@ __disagg_apply_checkpoint_meta(
              * different nodes.
              */
             WT_ERR(__disagg_discard_old_checkpoint_check(
-                  session, current_value, cfg_ret, &checkpoint_name, &discard));
+              session, current_value, cfg_ret, &checkpoint_name, &discard));
             if (discard) {
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
                 WT_WITHOUT_DHANDLE(
