@@ -73,10 +73,10 @@ class test_layered79(wttest.WiredTigerTestCase):
 
             file_id = self.parse_id(mc.get_value())
             if uri.endswith('.wt_stable'):
-                self.assertTrue(file_id % 2 == 1,
+                self.assertTrue(file_id % 8 == 1,
                     f'{uri}: id={file_id} should be odd (shared namespace)')
             elif uri.endswith('.wt_ingest'):
-                self.assertTrue(file_id % 2 == 0,
+                self.assertTrue(file_id % 8 == 0,
                     f'{uri}: id={file_id} should be even (local namespace)')
         mc.close()
 
