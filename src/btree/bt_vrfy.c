@@ -417,7 +417,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Account for the root page in the accumulated total block size. */
             WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
-            /* Validate the size of the btree */
+            /* Validate the size of the btree. */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
                 /*
                  * FIXME-WT-16660: We are seeing mismatches due to nuanced reconciliation issues,

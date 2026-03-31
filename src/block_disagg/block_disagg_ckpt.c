@@ -19,14 +19,11 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
   WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, WT_CKPT *ckpt)
 {
     WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
-    WT_BTREE *btree;
     uint32_t checksum, size;
     uint8_t *endp;
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
-
-    btree = S2BT(session);
 
     /*
      * Write the root page out, and get back the address information for that page which will be
@@ -69,27 +66,18 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     }
 
     /*
-     * Update root page size tracking. Size being set to zero accounts for both empty checkpoints
-     * (when root image is NULL) and real checkpoints (when root image contains the actual size).
+     * Account for the root page size transition. Size being set to zero covers both empty
+     * checkpoints (when root image is NULL) and real checkpoints (when root image contains the
+     * actual size).
      */
-    btree->previous_root_size = btree->current_root_size;
-    btree->current_root_size = size;
-
-    /*
-     * Set the btree root write size generation to the current checkpoint generation so we know
-     * whether to roll this back later.
-     */
-    btree->root_size_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-
-    __wt_btree_decrease_size(session, btree->previous_root_size);
-    __wt_btree_increase_size(session, btree->current_root_size);
+    __wti_block_disagg_apply_root_size(session, block_disagg, size);
 
     /*
      * Set the checkpoint size here after all writes are complete. We set it at this point because
      * we don't expect the size to change until it gets written to metadata, allowing us to validate
      * consistency.
      */
-    ckpt->size = __wt_atomic_load_uint64(&btree->bytes_total);
+    ckpt->size = __wti_block_disagg_get_size(block_disagg);
 
     return (0);
 }
@@ -255,7 +243,7 @@ __wti_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const ui
 
     WT_RET(__wti_block_disagg_ckpt_unpack(session, block_disagg, addr, addr_size, &root_cookie));
 
-    S2BT(session)->current_root_size = root_cookie.size;
+    block_disagg->current_root_size = root_cookie.size;
     /*
      * Read root page address.
      */
