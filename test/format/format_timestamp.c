@@ -88,7 +88,7 @@ void
 timestamp_init(void)
 {
     testutil_check(timestamp_query("get=recovery", &g.timestamp));
-    if (g.timestamp == 0)
+    if (g.timestamp == WT_TS_NONE)
         g.timestamp = MIN_TIMESTAMP;
 }
 
@@ -122,7 +122,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
          * number of operations.
          */
         WT_ACQUIRE_READ_WITH_BARRIER(stop_timestamp, g.stop_timestamp);
-        if (stable_timestamp > stop_timestamp && stop_timestamp != 0)
+        if (stable_timestamp > stop_timestamp && stop_timestamp != WT_TS_NONE)
             stable_timestamp = stop_timestamp;
 
         /*

@@ -535,7 +535,7 @@ thread_ts_run(void *arg)
         oldest_ts = get_all_committed_ts();
 
         /* Don't let the stable or oldest timestamp advance beyond the stop timestamp. */
-        if (oldest_ts != UINT64_MAX && stop_timestamp != 0 && oldest_ts > stop_timestamp)
+        if (oldest_ts != UINT64_MAX && stop_timestamp != WT_TS_NONE && oldest_ts > stop_timestamp)
             oldest_ts = stop_timestamp;
 
         if (is_set_timestamp_required(last_ts, oldest_ts)) {
@@ -643,7 +643,7 @@ thread_ckpt_run(void *arg)
          * timestamp. If we don't have a stop timestamp, then we're ready to be killed after the
          * first checkpoint, or if tiered storage, after the first flush_tier has been initiated.
          */
-        if (stop_timestamp != 0) {
+        if (stop_timestamp != WT_TS_NONE) {
             if (stable_ts_copy >= stop_timestamp)
                 ready_for_kill = true;
         } else if (!opts->tiered_storage)
@@ -758,7 +758,7 @@ thread_run(void *arg)
          */
         reserved_ts = RESERVED_TIMESTAMP_FOR_ITERATION(td->info, iter);
 
-        if (stop_timestamp != 0 && reserved_ts > stop_timestamp) {
+        if (stop_timestamp != WT_TS_NONE && reserved_ts > stop_timestamp) {
             /*
              * At this point, we've run to the stop timestamp and have been asked to go no further.
              * Set our timestamp to the stop timestamp to indicate we are done. Just stay in the
@@ -1152,7 +1152,7 @@ main(int argc, char *argv[])
     argc -= __wt_optind;
     if (argc != 0)
         usage();
-    if (stop_timestamp != 0 && !rand_time) {
+    if (stop_timestamp != WT_TS_NONE && !rand_time) {
         fprintf(stderr, "%s: -s and -t cannot both be used.\n", progname);
         usage();
     }
@@ -1252,7 +1252,7 @@ main(int argc, char *argv[])
          */
         while (!testutil_exists(home, ready_file))
             testutil_sleep_wait(1, pid);
-        if (stop_timestamp == 0)
+        if (stop_timestamp == WT_TS_NONE)
             sleep(timeout);
 
         sa.sa_handler = SIG_DFL;
