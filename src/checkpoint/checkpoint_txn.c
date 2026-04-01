@@ -3023,9 +3023,8 @@ err:
     if (ret == 0) {
         WT_STAT_CONN_INCR(session, checkpoint_fsync_post);
         __checkpoint_verbose_track(session, "sync completed");
-    } else {
+    } else
         __checkpoint_verbose_track(session, "sync failed");
-    }
 
     return (ret);
 }
