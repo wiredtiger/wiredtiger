@@ -1193,8 +1193,12 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
-    /* Disable logging on the ingest table to ensure we have timestamps. */
-    ingest_cfg[2] = "in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
+    /*
+     * Disable logging on the ingest table to ensure we have timestamps. Explicitly set
+     * block_manager=default so that the ingest btree is never mistakenly treated as shared.
+     */
+    ingest_cfg[2] =
+      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
 
     /*
      * Pass the full merged configuration string through. Otherwise file-specific metadata will be
