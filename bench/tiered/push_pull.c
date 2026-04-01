@@ -46,9 +46,7 @@
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
-  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),"
-  "chunk_cache=[enabled=true,chunk_size=50MB,capacity=2GB,type=FILE,storage_path="
-  "WiredTigerChunkCache]";
+  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),";
 static const char table_config[] = "leaf_page_max=64KB,key_format=i,value_format=u";
 static unsigned char data_str[MAX_VALUE_SIZE] = "";
 
