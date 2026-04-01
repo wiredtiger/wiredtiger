@@ -191,11 +191,8 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
  *     Change the prepared state of an update using the provided time point.
  */
 static WT_INLINE void
-__txn_apply_prepare_state_update(
-  WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TXN_TIME_POINT *time_point, bool commit)
+__txn_apply_prepare_state_update(WT_UPDATE *upd, WT_TXN_TIME_POINT *time_point, bool commit)
 {
-    WT_UNUSED(session);
-
     if (commit) {
         /*
          * In case of a prepared transaction, the order of modification of the prepare timestamp to
@@ -419,7 +416,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_TXN_OP *op, 
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp)
-                __txn_apply_prepare_state_update(session, *updp, &session->txn->time_point, commit);
+                __txn_apply_prepare_state_update(*updp, &session->txn->time_point, commit);
     }
 
     if ((page_del = ref->page_del) != NULL)

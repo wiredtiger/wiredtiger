@@ -60,9 +60,8 @@ __layered_assert_tombstone_has_value_on_stable_btree(
 
 /*
  * __layered_move_updates --
- *     Move the updates of a key to the stable table. If resolve_prepare is true, first resolve any
- *     prepared update on the stable table that was checkpointed but not yet committed or rolled
- *     back.
+ *     Move the updates of a key to the stable table. Any unresolved prepared update on the stable
+ *     table should now have been resolved.
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
@@ -80,12 +79,10 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    if (upds != NULL) {
-        __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
+    __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
 
-        /* Apply the modification. */
-        WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
-    }
+    /* Apply the modification. */
+    WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
 
 err:
     WT_TRET(__wt_btcur_reset(cbt));
