@@ -151,6 +151,8 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
+{"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8}
+
 {"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0}
 
 {"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 100, 5120, 100 * 1024}

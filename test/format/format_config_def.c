@@ -116,6 +116,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
 
+  {"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8, V_GLOBAL_CHECKPOINT_THREADS},
+
   {"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_CHUNK_CACHE},
 
   {"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 100,
