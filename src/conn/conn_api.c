@@ -1537,6 +1537,51 @@ __conn_config_check_version(WT_SESSION_IMPL *session, const char *config)
 }
 
 /*
+ * __conn_chunk_cache_check --
+ *     Check for deprecated chunk cache configuration. If chunk_cache is enabled, return an error.
+ *     If chunk_cache is present but disabled, issue a deprecation warning.
+ */
+static int
+__conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const char *source)
+{
+    static const char *cc_metafile = "WiredTigerCC.wt";
+    WT_CONFIG_ITEM cval;
+    bool cc_enabled;
+
+    if (config == NULL || strstr(config, "chunk_cache") == NULL)
+        return (0);
+
+    cc_enabled = false;
+    if (__wt_config_getones(session, config, "chunk_cache.enabled", &cval) == 0)
+        cc_enabled = cval.val != 0;
+
+    if (cc_enabled) {
+        /*
+         * Remove the chunk cache metadata file if it exists. Chunk cache has been deprecated and
+         * this file is no longer needed.
+         */
+        bool cc_exist;
+        WT_RET(__wt_fs_exist(session, cc_metafile, &cc_exist));
+        if (cc_exist) {
+            __wt_verbose_warning(session, WT_VERB_DEFAULT,
+              "removing deprecated chunk cache metadata file %s", cc_metafile);
+            WT_RET(__wt_fs_remove(session, cc_metafile, false, false));
+        }
+        WT_RET_MSG(session, EINVAL,
+          "chunk cache has been deprecated and is no longer supported, chunk_cache "
+          "configuration should be removed%s%s",
+          source != NULL ? " from " : "", source != NULL ? source : "");
+    }
+
+    __wt_verbose_warning(session, WT_VERB_DEFAULT,
+      "chunk cache has been deprecated and is no longer supported, ignoring chunk_cache "
+      "configuration%s%s",
+      source != NULL ? " in " : "", source != NULL ? source : "");
+
+    return (0);
+}
+
+/*
  * __conn_config_file --
  *     Read WiredTiger config files from the home directory.
  */
@@ -1651,6 +1696,11 @@ __conn_config_file(
 
     /* Check any version. */
     WT_ERR(__conn_config_check_version(session, cbuf->data));
+
+    /*
+     * Check for deprecated chunk cache configuration before validating the config string.
+     */
+    WT_ERR(__conn_chunk_cache_check(session, cbuf->data, is_user ? WT_USERCONFIG : WT_BASECONFIG));
 
     /* Check the configuration information. */
     WT_ERR(__wt_config_check(session,
@@ -3127,6 +3177,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Basic initialization of the connection structure. */
     WT_ERR(__wti_connection_init(conn));
+
+    /*
+     * Check for deprecated chunk cache configuration before validating.
+     */
+    WT_ERR(__conn_chunk_cache_check(session, config, NULL));
 
     /* Check the application-specified configuration string. */
     WT_ERR(__wt_config_check(session, WT_CONFIG_REF(session, wiredtiger_open), config, 0));
