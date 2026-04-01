@@ -906,6 +906,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) && !deleted) {
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
+        /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
         WT_RET_NOTFOUND_OK(__clayered_leader_reposition_iterate(clayered, c_stable, forward));
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
         goto done;
@@ -932,6 +933,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
         WT_RET(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
         if (cmp == 0) {
             WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward));
+            /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
             if (c_alternate == c_stable)
                 WT_RET_NOTFOUND_OK(
                   __clayered_leader_reposition_iterate(clayered, c_stable, forward));
@@ -940,6 +942,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
 
     /* Move the current cursor. */
     WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
+    /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
     if (c_current == c_stable)
         WT_RET_NOTFOUND_OK(__clayered_leader_reposition_iterate(clayered, c_stable, forward));
 
@@ -1645,6 +1648,10 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     if (S2C(session)->layered_table_manager.leader)
         c = clayered->stable_cursor;
     else {
+        /*
+         * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer.
+         * Doing so would remove the cursor write operation dependency on the truncate list.
+         */
         WT_RET(__wt_layered_table_truncate_detect_write_conflict(
           session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
         c = clayered->ingest_cursor;
@@ -1701,6 +1708,10 @@ __clayered_remove_follower(
         c->set_key(c, key);
     }
 
+    /*
+     * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing
+     * so would remove the write cursor operations dependency on the truncate list.
+     */
     WT_RET(__wt_layered_table_truncate_detect_write_conflict(
       session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
     c->set_value(c, &__wt_tombstone);
