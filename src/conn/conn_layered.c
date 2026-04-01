@@ -260,6 +260,27 @@ __disagg_apply_checkpoint_meta(
 
             int64_t order, order_new;
             uint64_t time, time_new;
+            bool current_is_fake;
+
+            /*
+             * Determine whether the current checkpoint in the metadata is a fake. A fake checkpoint
+             * has an empty addr (len == 0), as established in __ckpt_load in meta_ckpt.c. Parse
+             * current_value directly to avoid a redundant metadata lookup; track the highest order
+             * to identify the last checkpoint entry.
+             */
+            {
+                WT_CONFIG ckptconf;
+                WT_CONFIG_ITEM ckpt_v, k, v, addr_a;
+
+                current_is_fake = false;
+                WT_ERR(__wt_config_getones(session, current_value, "checkpoint", &ckpt_v));
+                __wt_config_subinit(session, &ckptconf, &ckpt_v);
+                while (__wt_config_next(&ckptconf, &k, &v) == 0) {
+                    WT_ERR(__wt_config_subgets(session, &v, "addr", &addr_a));
+                    current_is_fake = addr_a.len == 0;
+                }
+            }
+
             /*
              * Before inserting the new value, get the checkpoint name of the file at the previous
              * checkpoint.
@@ -279,13 +300,15 @@ __disagg_apply_checkpoint_meta(
               "Retrieving the last checkpoint name failed for key \"%s\"", metadata_key);
 
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
-            /*
-             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
-             * different nodes.
-             */
-            bool same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
-              strcmp(checkpoint_name, checkpoint_name_new) == 0 && order == order_new &&
-              time == time_new;
+            bool same_checkpoint = !current_is_fake && checkpoint_name != NULL &&
+              checkpoint_name_new != NULL && strcmp(checkpoint_name, checkpoint_name_new) == 0 &&
+              order == order_new && time == time_new;
+
+            if (!current_is_fake && order == order_new && time != time_new)
+                __wt_errx(session,
+                  "We're facing a checkpoint with the same order but different time, which should "
+                  "never happen. File: %s, Current metadata: %s, new checkpoint metadata: %s",
+                  metadata_key, current_value, metadata_value);
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
