@@ -516,6 +516,9 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
     return (0);
 }
 
+/* Limit the amount of bytes we dump in the metadata page dump. */
+#define WT_DISAGG_META_DUMP_MAX 1024
+
 /*
  * __wti_disagg_fetch_shared_meta --
  *     Fetch the checkpoint metadata page, validate it, and return a zero-terminated buffer copy.
@@ -524,6 +527,7 @@ int
 __wti_disagg_fetch_shared_meta(
   WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, WT_ITEM *item)
 {
+    WT_DECL_ITEM(hex_buf);
     WT_DECL_RET;
 
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
@@ -535,13 +539,19 @@ __wti_disagg_fetch_shared_meta(
     if (ckpt_meta->has_metadata_checksum) {
         const uint32_t checksum = __wt_checksum(item->data, item->size);
         if (checksum != ckpt_meta->metadata_checksum) {
+            const size_t dump_size =
+              item->size > WT_DISAGG_META_DUMP_MAX ? WT_DISAGG_META_DUMP_MAX : item->size;
+            WT_ERR(__wt_scr_alloc(session, 0, &hex_buf));
             WT_ERR_MSG(session, EIO,
-              "Checkpoint metadata checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
-              ckpt_meta->metadata_checksum, checksum);
+              "Checkpoint metadata corruption detected: lsn=%" PRIu64 ", expected=0x%" PRIx32
+              ", got=0x%" PRIx32 ", data=[%s]",
+              ckpt_meta->metadata_lsn, ckpt_meta->metadata_checksum, checksum,
+              __wt_buf_set_printable(session, item->data, dump_size, false, hex_buf));
         }
     }
 
 err:
+    __wt_scr_free(session, &hex_buf);
     return (ret);
 }
 
@@ -559,7 +569,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_DISAGGREGATED_STORAGE *disagg;
     wt_timestamp_t oldest_timestamp;
     uint64_t lsn;
-    uint32_t checksum;
+    uint32_t checksum, max_table_id;
     char *checkpoint_root_copy, ts_string[2][WT_TS_INT_STRING_SIZE];
 
     checkpoint_root_copy = NULL;
@@ -585,13 +595,18 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      */
     WT_ERR(__wt_meta_read_checkpoint_oldest(session, NULL, &oldest_timestamp, NULL));
 
+    WT_WITH_SCHEMA_LOCK(session, max_table_id = conn->next_file_id);
+
     /* Format metadata settings. */
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
+        "version=%d,compatible_version=%d,\n"
         "checkpoint=%s,\n"
         "timestamp=%" PRIx64 ",\n"
-        "oldest_timestamp=%" PRIx64,
-        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
+        "oldest_timestamp=%" PRIx64 ",\n"
+        "largest_file_id=%" PRIu32,
+        WT_DISAGG_CHECKPOINT_TURTLE_VERSION, WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION,
+        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp, max_table_id));
 
     /* Append key provider metadata, if available. */
     if (conn->key_provider != NULL) {
@@ -631,10 +646,11 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s, oldest_timestamp=%" PRIu64 " %s, checksum=%" PRIx32 ", root=\"%s\"",
+      " %s, oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", checksum=%" PRIx32
+      ", root=\"%s\"",
       lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
-      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), checksum,
-      checkpoint_root_copy);
+      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), max_table_id,
+      checksum, checkpoint_root_copy);
 
     __wt_free(session, disagg->last_checkpoint_root);
     disagg->last_checkpoint_root = checkpoint_root_copy;
@@ -669,6 +685,8 @@ __disagg_parse_legacy_meta(
     WT_CLEAR(timestamp);
     WT_CLEAR(*metadata);
     metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
+    metadata->version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
+    metadata->compatible_version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
 
     /* Find the end of the first line. */
     meta_end = strchr(s, '\n');
@@ -712,8 +730,10 @@ err:
  *
  *     Metadata format follows the regular config format. Example:
  *
+ *     version=1,compatible_version=1,
  *     checkpoint=(WiredTigerCheckpoint.1=(addr="00c025808282bd21596019", order=1, ...)),
  *     timestamp=0,
+ *     largest_file_id=0,
  *     key_provider=(page.1=(page_id=1,lsn=123),version=1)
  */
 static int
@@ -724,7 +744,6 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
     WT_DECL_RET;
 
     WT_CLEAR(meta_cfg);
-    WT_CLEAR(*metadata);
     metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
 
     __wt_config_initn(session, &meta_cfg, meta_buf->data, meta_buf->size);
@@ -733,7 +752,11 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
           "Disaggregated checkpoint metadata item \"%.*s\"=\"%.*s\"", (int)cfg_key.len, cfg_key.str,
           (int)cfg_value.len, cfg_value.str);
 
-        if (WT_CONFIG_LIT_MATCH("checkpoint", cfg_key)) {
+        if (WT_CONFIG_LIT_MATCH("version", cfg_key)) {
+            /* Already parsed in version check pass, skip */
+        } else if (WT_CONFIG_LIT_MATCH("compatible_version", cfg_key)) {
+            /* Already parsed in version check pass, skip */
+        } else if (WT_CONFIG_LIT_MATCH("checkpoint", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->checkpoint == NULL,
               "Duplicate checkpoint entry in disaggregated storage metadata");
 
@@ -759,6 +782,14 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             else
                 WT_ERR(__wt_txn_parse_timestamp(
                   session, "oldest timestamp", &metadata->oldest_timestamp, &cfg_value));
+        } else if (WT_CONFIG_LIT_MATCH("largest_file_id", cfg_key)) {
+            WT_ASSERT_ALWAYS(session, metadata->largest_file_id == 0,
+              "Duplicate largest file entry in disaggregated storage metadata: "
+              "metadata->largest_file_id=%" PRIu32,
+              metadata->largest_file_id);
+
+            if (cfg_value.len > 0)
+                metadata->largest_file_id = (uint32_t)cfg_value.val;
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->key_provider == NULL,
               "Duplicate key_provider entry in disaggregated storage metadata");
@@ -766,13 +797,75 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             metadata->key_provider = cfg_value.str;
             metadata->key_provider_len = cfg_value.len;
         } else {
-            __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Ignoring unknown or unsupported disaggregated checkpoint metadata entry "
-              "\"%.*s\"=\"%.*s\"",
-              (int)cfg_key.len, cfg_key.str, (int)cfg_value.len, cfg_value.str);
+            /*
+             * Unknown key is an error only for current metadata version. For non-current versions,
+             * ignore for compatibility.
+             */
+            if (metadata->version == WT_DISAGG_CHECKPOINT_TURTLE_VERSION)
+                WT_ERR_MSG(
+                  session, EINVAL, "Unknown metadata entry: %.*s", (int)cfg_key.len, cfg_key.str);
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    return (ret);
+}
+
+/*
+ * __disagg_parse_version_and_check --
+ *     Parse version and compatible_version fields from metadata and validate compatibility. Returns
+ *     early with error if metadata requires a newer reader version.
+ */
+static int
+__disagg_parse_version_and_check(
+  WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
+{
+    WT_CONFIG_ITEM compat_val, version_val;
+    WT_DECL_RET;
+    bool has_compat, has_version;
+
+    WT_CLEAR(version_val);
+    WT_CLEAR(compat_val);
+
+    metadata->version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
+    metadata->compatible_version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_getones_n(session, meta_buf->data, meta_buf->size, "version", &version_val),
+      false);
+    WT_ERR_NOTFOUND_OK(__wt_config_getones_n(session, meta_buf->data, meta_buf->size,
+                         "compatible_version", &compat_val),
+      false);
+
+    has_version = version_val.len > 0;
+    has_compat = compat_val.len > 0;
+
+    if (has_version && !has_compat)
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated checkpoint metadata with version %" PRId64 " missing compatible version",
+          version_val.val);
+    if (!has_version && has_compat)
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated checkpoint metadata with compatible version %" PRId64 " missing version",
+          compat_val.val);
+
+    if (has_version && has_compat) {
+        if (version_val.val < 0 || version_val.val > INT_MAX)
+            WT_ERR_MSG(session, EINVAL, "Invalid version value: %" PRId64, version_val.val);
+        if (compat_val.val < 0 || compat_val.val > INT_MAX)
+            WT_ERR_MSG(
+              session, EINVAL, "Invalid compatible_version value: %" PRId64, compat_val.val);
+
+        metadata->version = (int)version_val.val;
+        metadata->compatible_version = (int)compat_val.val;
+    }
+
+    if (metadata->compatible_version > WT_DISAGG_CHECKPOINT_TURTLE_VERSION)
+        WT_ERR_MSG(session, ENOTSUP,
+          "Disaggregated checkpoint metadata requires version greater or equal to %d, but current "
+          "version is %d",
+          metadata->compatible_version, WT_DISAGG_CHECKPOINT_TURTLE_VERSION);
 
 err:
     return (ret);
@@ -809,6 +902,10 @@ __wt_disagg_parse_meta(
 
     } else {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Performing version check for disaggregated checkpoint metadata. Found \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+        WT_ERR(__disagg_parse_version_and_check(session, meta_buf, metadata));
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Disaggregated checkpoint metadata does not start with \"%s\";"
           "Parsing regular format. Found \"%.*s\"",
           legacy_ckpt_prefix, (int)meta_buf->size, (const char *)meta_buf->data);
@@ -842,5 +939,12 @@ void
 __ut_disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header)
 {
     __disagg_get_crypt_header(key_item, header);
+}
+
+int
+__ut_disagg_parse_version_and_check(
+  WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
+{
+    return (__disagg_parse_version_and_check(session, meta_buf, metadata));
 }
 #endif

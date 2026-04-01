@@ -378,6 +378,25 @@ err:
 }
 
 /*
+ * __raise_next_file_id --
+ *     Increase our next file ID if necessary. This value is only important for synchronizing
+ *     changes to the shared metadata table, which are made only by the leader. The increment only
+ *     happens on a follower, which will make tables only in response to the leader (via picking up
+ *     a checkpoint, or by oplog application). So it's OK if we've made new files since this
+ *     checkpoint was generated.
+ */
+static void
+__raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    if (conn->next_file_id < metadata->largest_file_id)
+        conn->next_file_id = metadata->largest_file_id;
+}
+
+/*
  * __disagg_update_checkpoint_meta --
  *     Finalize checkpoint bookkeeping after processing shared metadata entries.
  */
@@ -416,6 +435,8 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
       __wti_layered_iterate_ingest_tables_for_gc_pruning(
         internal_session, metadata->checkpoint_timestamp),
       "Updating prune timestamp failed");
+
+    WT_WITH_SCHEMA_LOCK(session, __raise_next_file_id(session, metadata));
 
 err:
     return (ret);
@@ -480,11 +501,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s"
-      ", oldest_timestamp=%" PRIu64 " %s, root=\"%.*s\"",
+      ", oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", root=\"%.*s\"",
       ckpt_meta->metadata_lsn, metadata.checkpoint_timestamp,
       __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string[0]),
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
-      (int)metadata.checkpoint_len, metadata.checkpoint);
+      metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
@@ -518,9 +539,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       ckpt_meta->metadata_lsn);
 
 err:
-    if (ret == 0)
+    if (ret == 0) {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
-    else {
+        if (!conn->layered_table_manager.leader)
+            WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_follower);
+    } else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_ERROR,
           "Failed to pick up disaggregated storage checkpoint for metadata_lsn=%" PRIu64 ": ret=%d",
@@ -901,6 +924,44 @@ __disagg_shared_metadata_op(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *ent
       session, entry->stable_uri, entry->stable_value, entry->metadata_op));
 err:
     __wt_scr_free(session, &md_key);
+    return (ret);
+}
+
+/*
+ * __wt_disagg_shared_metadata_queue_drop_size --
+ *     Walk the metadata queue and sum the checkpoint sizes of non-deferred drop operations. This is
+ *     a read-only operation on the queue.
+ */
+int
+__wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry;
+
+    conn = S2C(session);
+    *drop_sizep = 0;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        if (!entry->deferred && entry->metadata_op == WT_SHARED_METADATA_REMOVE &&
+          entry->stable_value != NULL) {
+            uint64_t size;
+            /*
+             * A table that was created and dropped without ever being checkpointed won't have a
+             * checkpoint entry in its metadata, so WT_NOTFOUND is expected.
+             */
+            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
+            *drop_sizep += size;
+        }
+    }
+
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
     return (ret);
 }
 
