@@ -257,6 +257,9 @@ __capacity_signal(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
+    if (!__capacity_server_run_chk(session) || conn->capacity_cond == NULL)
+        return;
+
     cap = &conn->capacity;
     if (cap->written >= cap->threshold && !cap->signalled) {
         __wt_cond_signal(session, conn->capacity_cond);
