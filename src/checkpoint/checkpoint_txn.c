@@ -2994,7 +2994,6 @@ static int
 __checkpoint_fsync_post(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_dhandle,
   WT_DATA_HANDLE *hs_dhandle_shared)
 {
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
 
     /*
@@ -3025,11 +3024,9 @@ err:
         WT_STAT_CONN_INCR(session, checkpoint_fsync_post);
         __checkpoint_verbose_track(session, "sync completed");
     } else {
-        WT_TRET(__wt_buf_fmt(session, tmp, "sync failed: %d", ret));
-        __checkpoint_verbose_track(session, (const char *)tmp->data);
+        __checkpoint_verbose_track(session, "sync failed");
     }
 
-    __wt_scr_free(session, &tmp);
     return (ret);
 }
 
