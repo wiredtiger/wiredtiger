@@ -693,7 +693,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
         else {
             upd = op->u.op_upd;
             /* Resolve prepared update to be committed update. */
-            __txn_apply_prepare_state_update(session, upd, &session->txn->time_point, true);
+            __txn_apply_prepare_state_update(upd, &session->txn->time_point, true);
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
