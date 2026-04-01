@@ -2492,7 +2492,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     WT_PAGE *page;
-    bool modified, want_page;
+    bool modified, should_evict_page;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -2557,11 +2557,11 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         goto fast;
 
     /* Skip pages we don't want. */
-    want_page =
+    should_evict_page =
       (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL);
-    if (!want_page) {
+    if (!should_evict_page) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_pages);
         return;
     }
