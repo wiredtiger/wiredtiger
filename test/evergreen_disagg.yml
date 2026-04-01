@@ -667,7 +667,7 @@ tasks:
 buildvariants:
 - name: amazon2023-disagg-stress
   display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
-  batchtime: 4320 # once every two days
+  batchtime: 4320 # once every three days
   run_on:
   - amazon2023.3-arm64-large
   expansions:
