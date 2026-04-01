@@ -209,6 +209,10 @@ struct __wt_checkpoint_reconcile_threads {
     TAILQ_HEAD(__wt_checkpoint_reconcile_done_qh, __wt_checkpoint_page_to_reconcile) done_qh;
     WT_SPINLOCK done_lock;
     WT_SEMAPHORE done_sem;
+
+    WT_TXN_SNAPSHOT checkpoint_snapshot;
+    uint64_t *checkpoint_snapshot_array;
+    uint32_t checkpoint_snapshot_size;
 };
 
 /*

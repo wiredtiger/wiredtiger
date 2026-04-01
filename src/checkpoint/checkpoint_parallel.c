@@ -46,7 +46,7 @@ __wt_checkpoint_parallel_push_work(
     WT_RET(__wt_calloc_one(session, &entry));
     entry->dhandle = session->dhandle;
     entry->isolation = session->txn->isolation;
-    entry->snapshot = &session->txn->snapshot_data;
+    entry->snapshot = &ckpt_threads->checkpoint_snapshot;
     entry->ref = ref;
     entry->reconcile_flags = reconcile_flags;
     entry->release_flags = release_flags;
