@@ -1496,7 +1496,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
         }
 
         WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-                             session, (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL),
+                             session, (WT_LAYERED_TABLE *)clayered->dhandle, &c->key, NULL),
           true);
         if (ret == 0) {
             found = true;
@@ -1871,21 +1871,20 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
      */
     if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
         WT_RET(__clayered_reset_cursors(clayered, true));
-}
+    
+    c->set_key(c, key);
+    func = c->insert;
+    if (position)
+        func = reserve ? c->reserve : c->update;
+    if (func != c->reserve)
+        c->set_value(c, value);
+    WT_RET(func(c));
 
-c->set_key(c, key);
-func = c->insert;
-if (position)
-    func = reserve ? c->reserve : c->update;
-if (func != c->reserve)
-    c->set_value(c, value);
-WT_RET(func(c));
+    /* If necessary, set the position for future scans. */
+    if (position)
+        clayered->current_cursor = c;
 
-/* If necessary, set the position for future scans. */
-if (position)
-    clayered->current_cursor = c;
-
-return (0);
+    return (0);
 }
 
 /*

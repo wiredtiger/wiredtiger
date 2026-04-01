@@ -203,9 +203,9 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     __wt_writelock(session, &layered_table->truncate_lock);
-    entry->txn_id = session->txn->id;
-    entry->start_ts = session->txn->commit_timestamp;
-    entry->durable_ts = session->txn->durable_timestamp;
+    entry->txn_id = session->txn->time_point.id;
+    entry->start_ts = session->txn->time_point.commit_timestamp;
+    entry->durable_ts = session->txn->time_point.durable_timestamp;
     __wt_writeunlock(session, &layered_table->truncate_lock);
     WT_TRET(__wt_session_release_dhandle(session));
     return (0);
