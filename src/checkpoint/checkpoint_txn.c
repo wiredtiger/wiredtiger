@@ -2994,6 +2994,7 @@ static int
 __checkpoint_fsync_post(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HANDLE *hs_dhandle,
   WT_DATA_HANDLE *hs_dhandle_shared)
 {
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
 
     /*
@@ -3017,16 +3018,18 @@ __checkpoint_fsync_post(WT_SESSION_IMPL *session, const char *cfg[], WT_DATA_HAN
         WT_ERR(ret);
     }
 
-err:;
-    uint64_t time_stop_fsync = __wt_clock(session);
-    uint64_t fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop_fsync, time_start_fsync);
-    WT_STAT_CONN_SET(session, checkpoint_fsync_post_duration, fsync_duration_usecs);
+err:
+    WT_STAT_CONN_SET(session, checkpoint_fsync_post_duration,
+      WT_CLOCKDIFF_US(__wt_clock(session), time_start_fsync));
     if (ret == 0) {
         WT_STAT_CONN_INCR(session, checkpoint_fsync_post);
         __checkpoint_verbose_track(session, "sync completed");
-    } else
-        __checkpoint_verbose_track(session, "sync failed");
+    } else {
+        WT_TRET(__wt_buf_fmt(session, tmp, "sync failed: %d", ret));
+        __checkpoint_verbose_track(session, (const char *)tmp->data);
+    }
 
+    __wt_scr_free(session, &tmp);
     return (ret);
 }
 
