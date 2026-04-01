@@ -77,7 +77,11 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.pr('creating cursor')
         cursor = self.session.open_cursor(tablearg, None, None)
         self.assertCursorHasNoKeyValue(cursor)
-        self.assertEqual(cursor.uri, tablearg)
+
+        # If we're running the disagg hook then the actual uri might start with 'layered:' instead
+        # of "table:", so we skip this check.
+        if not self.runningHook('disagg'):
+            self.assertEqual(cursor.uri, tablearg)
 
         # Check insert operation
         for i in range(0, self.nentries):

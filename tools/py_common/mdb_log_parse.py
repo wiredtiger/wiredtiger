@@ -28,14 +28,20 @@
 
 import codecs
 import io
+import logging
 import re
 import json
+import dataclasses
 
 from py_common import binary_data
+from py_common.decode_opts import DecodeOptions
 from py_common.file_format import wtdecode_file_object
 
-    
-def process_logs(f, opts):
+
+logger = logging.getLogger(__name__)
+
+
+def process_logs(f, opts: DecodeOptions):
     '''
     Extract the byte dump from mongo or wiredtiger logs.
     '''
@@ -44,30 +50,32 @@ def process_logs(f, opts):
     if is_mongo_log(first_line):
         return process_mongod_log(f, opts)
     else:
-        print('Non MongoDB log format detected, defaulting to WiredTiger log parsing')
+        logger.info('Non MongoDB log format detected, defaulting to WiredTiger log parsing')
         return process_wiredtiger_log(f, opts)
 
 def is_mongo_log(line):
     return line and line.startswith('{')
 
-def process_mongod_log(f, opts):
-    byte_dump = extract_mongodb_log_hex(f, opts)
+def process_mongod_log(f, opts: DecodeOptions):
+    byte_dump = extract_mongodb_log_hex(f)
     if not byte_dump:
-        print("No valid byte dump found in MongoDB log")
+        logger.info('No valid byte dump found in MongoDB log')
         return
 
     b = binary_data.BinaryFile(io.BytesIO(byte_dump))
-    wtdecode_file_object(b, opts, len(byte_dump))
-    
-def process_wiredtiger_log(f, opts):
+    wtdecode_file_object(b, len(byte_dump),
+                         dataclasses.replace(opts, fragment=True))
+
+def process_wiredtiger_log(f, opts: DecodeOptions):
     while True:
-        byte_dump = encode_bytes(f, opts)
+        byte_dump = encode_bytes(f)
         if not byte_dump:
-            print("No (more) byte dumps found in WiredTiger log")
+            logger.info('No (more) byte dumps found in WiredTiger log')
             break
 
         b = binary_data.BinaryFile(io.BytesIO(byte_dump))
-        wtdecode_file_object(b, opts, len(byte_dump))
+        wtdecode_file_object(b, len(byte_dump),
+                             dataclasses.replace(opts, fragment=True))
 
 # Specific exceptions for hex dump validation errors, to distinguish from other parsing errors
 # and to provide more specific error messages about what is wrong with the hex dump.
@@ -89,7 +97,7 @@ def validate_hex_block_size(chunks, expected_size):
     if collected_size != expected_size:
         raise HexDumpCorruptError(f'Block size mismatch: expected {expected_size}, got {collected_size}')
 
-def extract_mongodb_log_hex(f, opts):
+def extract_mongodb_log_hex(f):
     """
     Extract hex dump from MongoDB log file containing checksum mismatch errors.
     Looks for __wt_bm_corrupt_dump messages and extracts all hex chunks.
@@ -125,17 +133,21 @@ def extract_mongodb_log_hex(f, opts):
                             validate_hex_block_size(current_chunks, block_info[1])
 
                             # We have a complete previous block, return it
-                            if (opts.debug):
-                                print(f'Found complete checksum mismatch block: offset={block_info[0]}, size={block_info[1]}, checksum={block_info[2]}')
+                            logger.debug(
+                                f'Found complete checksum mismatch block: offset={block_info[0]}, '
+                                f'size={block_info[1]}, checksum={block_info[2]}'
+                            )
                             return b''.join(current_chunks)
 
                         # Reset for new block
                         current_chunks = []
                         block_info = (offset, size, checksum, chunk_num, total_chunks)
-                        if (opts.debug):
-                            print(f'Found checksum mismatch at line: {line_num} for block with address: offset {offset}, size {size}, checksum {checksum} ({total_chunks} chunks)')
+                        logger.debug(
+                            f'Found checksum mismatch at line {line_num} for block with address: '
+                            f'offset {offset}, size {size}, checksum {checksum} ({total_chunks} chunks)'
+                        )
 
-                    # Validate hex data    
+                    # Validate hex data
                     validate_hexdata(hexdata)
 
                     # Add this chunk
@@ -148,32 +160,31 @@ def extract_mongodb_log_hex(f, opts):
                         # Validate hex dump size against expected block size
                         validate_hex_block_size(current_chunks, block_info[1])
 
-                        if (opts.debug):
-                            print(f'Complete block collected: {len(current_chunks)} chunks')
+                        logger.debug(f'Complete block collected: {len(current_chunks)} chunks')
                         return b''.join(current_chunks)
         except json.JSONDecodeError:
-            # If we don't have a JSON log line, then this isn't a MongoDB log. Reset the file 
+            # If we don't have a JSON log line, then this isn't a MongoDB log. Reset the file
             # pointer to the start to read all the bytes again.
             f.seek(0)
-            return encode_bytes(f, opts)
+            return encode_bytes(f)
         except HexDumpCorruptError as e:
-            print(f"Hex dump is corrupt - {e}")
-            print("Stopping parsing")
+            logger.error(f'Hex dump is corrupt - {e}')
+            logger.info('Stopping parsing')
             return bytearray()
         except Exception as e:
-            if opts.debug:
-                print(f'Error parsing line {line_num}: {e}')
+            logger.debug(f'Error parsing line {line_num}: {e}', exc_info=True)
 
     # Return any incomplete block we collected
     if current_chunks:
-        print(f'Warning: Returning incomplete block with {len(current_chunks)} chunks (expected {block_info[4] if block_info else "unknown"})')
+        logger.warning(f'Returning incomplete block with {len(current_chunks)} '
+                       f'chunks (expected {block_info[4] if block_info else "unknown"})')
         return b''.join(current_chunks)
 
     # No checksum mismatch found
-    print('Error: No checksum mismatch found in log file')
+    logger.error('No checksum mismatch found in log file')
     return bytearray()
 
-def encode_bytes(f, opts):
+def encode_bytes(f):
     """
     Encode a text hex dump into raw bytes.
 
@@ -200,11 +211,9 @@ def encode_bytes(f, opts):
         # Keep anything that looks like it could be hexadecimal,
         # remove everything else.
         nospace = re.sub(r"[^a-fA-F\d]", "", line)
-        if opts.debug:
-            print("LINE (len={}): {}".format(len(nospace), nospace))
+        logger.debug(f'LINE (len={len(nospace)}): {nospace}')
         if len(nospace) > 0:
-            if opts.debug:
-                print("first={}, last={}".format(nospace[0], nospace[-1]))
+            logger.debug(f'first={nospace[0]}, last={nospace[-1]}')
             allbytes += codecs.decode(nospace, "hex")
 
             # If we do not know the total number of chunks, treat a single

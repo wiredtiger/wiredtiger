@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,221 +26,82 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest, wiredtiger
+import time, wttest
+from eviction_util import eviction_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered77.py
-#   Test basic fast truncate functionality.
+
+# Test that leader-to-follower role transition doesn't crash when eviction
+# processes pages that were split during a prior checkpoint.
 @disagg_test_class
-class test_layered77(wttest.WiredTigerTestCase):
-
-    conn_config = 'disaggregated=(role="leader"),'
-
-    uris = [
-        ('layered', dict(uri='layered:test_layered77')),
-        ('table', dict(uri='table:test_layered77')),
-    ]
+class test_layered77(eviction_util, wttest.WiredTigerTestCase):
+    conn_base_config = 'cache_size=10MB,'
 
     disagg_storages = gen_disagg_storages('test_layered77', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
+    uri='layered:test_layered77'
 
-    scenarios = make_scenarios(disagg_storages, uris)
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
-    nitems = 1000
+    def conn_config_follower(self):
+        return self.conn_base_config + 'disaggregated=(role="follower"),'
 
-    def session_create_config(self):
-        cfg = 'key_format=S,value_format=S'
-        if self.uri.startswith('table'):
-            cfg += ',block_manager=disagg,type=layered'
-        return cfg
+    def test_step_down_dirty_eviction(self):
+        """
+        Test that transitioning from leader to follower role doesn't crash when
+        eviction processes pages that were split during a prior checkpoint.
 
-    def test_truncate_basic(self):
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
-        self.session.create(self.uri, self.session_create_config())
+        During the role transition window, eviction threads may still be processing
+        pages that have pending split state from checkpoint. This test verifies that
+        the transition is handled safely without assertion failures.
+        """
+        create_params = 'key_format=i,value_format=S,block_manager=disagg'
+        nrows = 10000
+        value = 'k' * 1024  # 1KB per row, ~10MB total fills the 10MB cache
 
-        cursor = self.session.open_cursor(self.uri)
-        value1 = "a" * 100
+        self.session.create(self.uri, create_params)
 
-        # Populate data on leader.
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[str(i)] = value1
-            self.session.commit_transaction()
-        cursor.close(0)
+        # Write data as leader.
+        self.populate(self.uri, 0, nrows, value)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows))
+
+        # Checkpoint to create pages with pending split state.
+        # After checkpoint, some pages may have been split into multiple blocks
+        # but are marked clean. When eviction encounters these pages later, it
+        # needs to handle the split state properly.
         self.session.checkpoint()
 
-        # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
+        # Make eviction aggressive to increase the chance of encountering
+        # split pages during the role transition.
+        self.conn.reconfigure(
+            'eviction_dirty_target=1,eviction_dirty_trigger=5,'
+            'eviction_updates_target=1,eviction_updates_trigger=5'
+        )
 
-        c1 = self.session.open_cursor(self.uri)
-        c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri)
-        c2.set_key(str(700))
+        # Capture checkpoint metadata while still the leader.
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
-        # Create an uncommitted truncate.
-        self.session.begin_transaction()
-        self.session.truncate(None, c1, c2, None)
+        # Transition from leader to follower role.
+        # Eviction threads running concurrently should not crash when they
+        # encounter pages with pending split state during this transition.
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
-        # The second session.
-        session2 = self.conn.open_session()
-        cursor2 = session2.open_cursor(self.uri)
+        # Allow time for eviction to process pages during the transition window.
+        time.sleep(0.5)
 
-        # Before commit, the keys should be found.
-        session2.begin_transaction()
-        cursor2.set_key(str(150))
-        self.assertEqual(cursor2.search(), 0)
-        session2.rollback_transaction()
+        self.close_conn()
 
-        self.session.commit_transaction()
+        # Reopen as follower with the captured checkpoint metadata.
+        config = (self.conn_config_follower() +
+                  f'disaggregated=(checkpoint_meta="{checkpoint_meta}"),')
+        self.open_conn(".", config)
 
-        # After commit, the keys should not found.
-        session2.begin_transaction()
-        cursor2.set_key(str(150))
-        self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
-        session2.commit_transaction()
-        cursor2.close()
-        self.session.checkpoint()
-
-        session2.close()
-        c1.close()
-        c2.close()
-
-
-    def test_truncate_rollback(self):
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri)
-        value1 = "a" * 100
-
-        # Populate data on leader.
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[str(i)] = value1
-            self.session.commit_transaction()
+        # Verify all data is readable from the follower.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        count = 0
+        while cursor.next() == 0:
+            count += 1
         cursor.close()
-
-        self.session.checkpoint()
-
-        # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
-
-        c1 = self.session.open_cursor(self.uri)
-        c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri)
-        c2.set_key(str(700))
-
-        self.session.begin_transaction()
-        self.session.truncate(None, c1, c2, None)
-        self.session.rollback_transaction()
-
-        # All data should be visible.
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(self.uri)
-        cursor.set_key(str(150))
-        self.assertEqual(cursor.search(), 0)
-        self.session.commit_transaction()
-        cursor.close()
-
-        c1.close()
-        c2.close()
-
-    def test_truncate_write_conflict_1(self):
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri)
-        value1 = "a" * 100
-
-        # Populate data on leader.
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[str(i)] = value1
-            self.session.commit_transaction()
-        cursor.close()
-
-        self.session.checkpoint()
-
-        # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
-
-        c1 = self.session.open_cursor(self.uri)
-        c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri)
-        c2.set_key(str(700))
-
-        # Create an uncommitted truncate.
-        self.session.begin_transaction()
-        self.session.truncate(None, c1, c2, None)
-
-        # Insert an uncommitted value in the second session.
-        session2 = self.conn.open_session()
-        session2.begin_transaction()
-        cursor2 = session2.open_cursor(self.uri)
-        cursor2.set_key(str(150))
-        cursor2.set_value("hi")
-        msg1 = '/conflict between concurrent operations/'
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), msg1)
-        cursor2.close()
-
-        session2.commit_transaction()
-        session2.close()
-        c1.close()
-        c2.close()
-
-    def test_truncate_write_conflict_2(self):
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri)
-        value1 = "a" * 100
-
-        # Populate data on leader.
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[str(i)] = value1
-            self.session.commit_transaction()
-
-        self.session.checkpoint()
-        cursor.close()
-
-        # Switch to follower.
-        follower_config = 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
-
-        session2 = self.conn.open_session()
-        session2.begin_transaction()
-
-        # Insert an uncommitted value in the second session.
-        cursor2 = session2.open_cursor(self.uri)
-        cursor2.set_key(str(100))
-        cursor2.set_value("hi")
-        cursor2.update()
-        cursor2.close()
-
-        # Create an uncommitted truncate.
-        c1 = self.session.open_cursor(self.uri)
-        c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri)
-        c2.set_key(str(700))
-
-        self.session.begin_transaction()
-        msg1 = '/conflict between concurrent operations/'
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.truncate(None, c1, c2, None), msg1)
-
-        self.session.rollback_transaction()
-        session2.commit_transaction()
-        session2.close()
-        c1.close()
-        c2.close()
+        self.assertEqual(count, nrows)

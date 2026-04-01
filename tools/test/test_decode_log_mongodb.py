@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 import contextlib
 import io
+import logging
 import os
 import sys
 import unittest
@@ -35,6 +36,7 @@ import unittest
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import wt_binary_decode
+from py_common.decode_opts import DecodeOptions
 
 
 class TestDecodeMongoDBLog(unittest.TestCase):
@@ -43,21 +45,16 @@ class TestDecodeMongoDBLog(unittest.TestCase):
     def setUp(self):
         self.cur_dir = os.path.dirname(os.path.abspath(__file__))
         self.binary_files_dir = os.path.join(self.cur_dir, "binary_files")
-        self.parser = wt_binary_decode.get_arg_parser()
 
     def run_decode(self, filename):
         log_path = os.path.join(self.binary_files_dir, filename)
         self.assertTrue(os.path.exists(log_path), f"Missing log file at {log_path}")
 
-        opts = self.parser.parse_args([
-            "--dumpin",
-            log_path,
-        ])
-
         buffer = io.StringIO()
-        with contextlib.redirect_stdout(buffer):
-            wt_binary_decode.wtdecode(opts)
-        return buffer.getvalue()
+        with self.assertLogs("py_common.mdb_log_parse", level=logging.INFO) as logs:
+            with contextlib.redirect_stdout(buffer):
+                wt_binary_decode.wtdecode(log_path, DecodeOptions(dumpin=True))
+        return buffer.getvalue(), "\n".join(logs.output)
 
     def test_decode_log_mongodb_valid(self):
         self.skipTest("FIXME-WT-16726 Test for valid MongoDB log")
@@ -72,28 +69,28 @@ class TestDecodeMongoDBLog(unittest.TestCase):
         self.skipTest("FIXME-WT-16726 Test for no checksum mismatch in MongoDB log")
 
     def test_decode_log_mongodb_non_hex_characters(self):
-        output = self.run_decode("mongodb_non_hex.log")
+        _, logged_output = self.run_decode("mongodb_non_hex.log")
 
         # Should print error message about corrupt hex dump
-        self.assertIn("Hex dump is corrupt", output)
-        self.assertIn("Non-hex characters found", output)
-        self.assertIn("No valid byte dump found in MongoDB log", output)
+        self.assertIn("Hex dump is corrupt", logged_output)
+        self.assertIn("Non-hex characters found", logged_output)
+        self.assertIn("No valid byte dump found in MongoDB log", logged_output)
 
     def test_decode_log_mongodb_odd_length_hex(self):
-        output = self.run_decode("mongodb_odd_length.log")
+        _, logged_output = self.run_decode("mongodb_odd_length.log")
 
         # Should print error message about odd length
-        self.assertIn("Hex dump is corrupt", output)
-        self.assertIn("Hex data chunk length is not even", output)
-        self.assertIn("No valid byte dump found in MongoDB log", output)
+        self.assertIn("Hex dump is corrupt", logged_output)
+        self.assertIn("Hex data chunk length is not even", logged_output)
+        self.assertIn("No valid byte dump found in MongoDB log", logged_output)
 
     def test_decode_log_mongodb_block_size_mismatch(self):
-        output = self.run_decode("mongodb_size_mismatch.log")
+        _, logged_output = self.run_decode("mongodb_size_mismatch.log")
 
         # Should print error message about size mismatch
-        self.assertIn("Hex dump is corrupt", output)
-        self.assertIn("Block size mismatch", output)
-        self.assertIn("No valid byte dump found in MongoDB log", output)
+        self.assertIn("Hex dump is corrupt", logged_output)
+        self.assertIn("Block size mismatch", logged_output)
+        self.assertIn("No valid byte dump found in MongoDB log", logged_output)
 
 if __name__ == "__main__":
     unittest.main()
