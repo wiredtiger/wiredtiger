@@ -384,6 +384,13 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     __wt_spin_destroy(session, &ckpt_threads->done_lock);
     WT_TRET(__wt_semaphore_destroy(session, &ckpt_threads->done_sem));
 
+    /* Free the checkpoint snapshot buffer used by parallel workers. */
+    __wt_free(session, ckpt_threads->checkpoint_snapshot_array);
+    ckpt_threads->checkpoint_snapshot_array = NULL;
+    ckpt_threads->checkpoint_snapshot_size = 0;
+    memset(&ckpt_threads->checkpoint_snapshot, 0,
+      sizeof(ckpt_threads->checkpoint_snapshot));
+
     return (ret);
 }
 
