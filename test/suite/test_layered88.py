@@ -126,13 +126,10 @@ class test_layered88(wttest.WiredTigerTestCase):
 
         sits_all = generate_unique_situations(6)
         chunks = list(batched(sits_all, self.nbatches))
-        #self.tty(f'chunks = {chunks}')
         ts = 0
         chunk_num = 0
         for sits in chunks:
           chunk_num += 1
-          fd_count = len(os.listdir('/proc/self/fd'))
-        #   self.tty(f'[fd-check] chunk {chunk_num}/{len(chunks)}: open fds = {fd_count}')
           ts += 100
           uri_sits = []
           for sit in sits:
@@ -148,11 +145,9 @@ class test_layered88(wttest.WiredTigerTestCase):
           for (uri, sit) in uri_sits:
             with self.transaction(commit_timestamp=ts):
                 c = self.session.open_cursor(uri)
-                key = 1
-                for letter in sit:
-                    if letter == 'S' or letter == 'B' or letter == 'R' or letter == 'X':
+                for key, letter in enumerate(sit, 1):
+                    if letter in ('S', 'B', 'R', 'X'):
                         c[str(key)] = str(key)
-                    key += 1
                 c.close()
 
           self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 10)}')
@@ -164,23 +159,19 @@ class test_layered88(wttest.WiredTigerTestCase):
           for (uri, sit) in uri_sits:
             with self.transaction(commit_timestamp=ts + 20):
                 c = self.session.open_cursor(uri)
-                key = 1
-                for letter in sit:
+                for key, letter in enumerate(sit, 1):
                     if letter == 'X':
                         c.set_key(str(key))
                         c.remove()
-                    key += 1
                 c.close()
 
           for (uri, sit) in uri_sits:
             with self.transaction(session = session_follow, commit_timestamp=ts + 20):
                 c = session_follow.open_cursor(uri)
-                key = 1
-                for letter in sit:
+                for key, letter in enumerate(sit, 1):
                     if letter == 'X':
                         c.set_key(str(key))
                         c.remove()
-                    key += 1
                 c.close()
 
           self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 30)}')
@@ -189,37 +180,32 @@ class test_layered88(wttest.WiredTigerTestCase):
           for (uri, sit) in uri_sits:
             with self.transaction(session = session_follow, commit_timestamp=ts + 40):
                 c = session_follow.open_cursor(uri)
-                key = 1
-                for letter in sit:
-                    if letter == 'I' or letter == 'B':
+                for key, letter in enumerate(sit, 1):
+                    if letter in ('I', 'B'):
                         c[str(key)] = str(key)
                     elif letter == 'R':
                         c.set_key(str(key))
                         c.remove()
-                    key += 1
                 c.close()
 
           # Pick up checkpoint at ts + 40
           self.disagg_advance_checkpoint(conn_follow)
 
           for (uri, sit) in uri_sits:
-            expect = []
-            got = []
-            key = 1
-            for letter in sit:
-                if letter == 'I' or letter == 'S' or letter == 'B':
-                    expect.append(str(key))
-                key += 1
+            # Keys with state I (ingest only), S (stable only), or B (both) should be visible.
+            # R (tombstone over stable) and X (tombstone, no stable entry) should not.
+            expect = [str(k) for k, letter in enumerate(sit, 1) if letter in ('I', 'S', 'B')]
 
+            # Forward iteration: cursor.next() should yield exactly the visible keys in order.
+            got = []
             c = session_follow.open_cursor(uri)
             for (k, v) in c:
                 self.assertEqual(k, v)
                 got.append(k)
-
-            # self.tty(f'For {uri}, expected {expect}, got {got}')
-            self.assertEqual(expect, got)
             c.close()
+            self.assertEqual(expect, got)
 
+            # Backward iteration: cursor.prev() should yield the visible keys in reverse order.
             got_rev = []
             c = session_follow.open_cursor(uri)
             while c.prev() != wiredtiger.WT_NOTFOUND:
@@ -227,6 +213,16 @@ class test_layered88(wttest.WiredTigerTestCase):
                 self.assertEqual(k, v)
                 got_rev.append(k)
             c.close()
-
-            # self.tty(f'For {uri} (rev), expected {list(reversed(expect))}, got {got_rev}')
             self.assertEqual(list(reversed(expect)), got_rev)
+
+            # Point reads: cursor.search() must find visible keys and return WT_NOTFOUND for hidden ones.
+            c = session_follow.open_cursor(uri)
+            for key, letter in enumerate(sit, 1):
+                c.set_key(str(key))
+                ret = c.search()
+                if letter in ('I', 'S', 'B'):
+                    self.assertEqual(ret, 0)
+                    self.assertEqual(c.get_value(), str(key))
+                else:
+                    self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+            c.close()
