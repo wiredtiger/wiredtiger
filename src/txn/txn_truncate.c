@@ -69,12 +69,7 @@ __wt_insert_truncate_entry(
      * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
      * dhandle list, if there are entries in the truncate list.
      */
-    WT_RET_NOTFOUND_OK(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
-    if (ret == WT_NOTFOUND) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "Truncate %s: Layered table was not found.", uri);
-        return (0);
-    }
+    WT_ASSERT(session, __wt_session_get_dhandle(session, uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     WT_RET(__wt_calloc_def(session, sizeof(WT_TRUNCATE), &t));
@@ -115,7 +110,9 @@ __wt_layered_table_truncate_detect_write_conflict(
 {
     WT_TRUNCATE *entry;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    if (!__wt_process.disagg_fast_truncate_2026)
+        return (0);
+
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
     WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
@@ -141,7 +138,7 @@ __wt_layered_table_truncate_detect_write_conflict(
 
 /*
  * __wt_truncate_delete_visible_check --
- *     Search if the current key we are reading has been deleted in the layered table truncate list.
+ *     Search if the given key has been deleted in the layered table truncate list.
  */
 int
 __wt_truncate_delete_visible_check(
@@ -149,7 +146,8 @@ __wt_truncate_delete_visible_check(
 {
     WT_TRUNCATE *entry;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    if (!__wt_process.disagg_fast_truncate_2026)
+        return (WT_NOTFOUND);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
     WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
@@ -198,12 +196,7 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
      * dhandle list, if there are entries in the truncate list.
      */
-    WT_RET_NOTFOUND_OK(__wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0));
-    if (ret == WT_NOTFOUND) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "Truncate %s: Layered table was not found.", entry->uri);
-        return (0);
-    }
+    WT_ASSERT(session, __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     __wt_writelock(session, &layered_table->truncate_lock);
@@ -239,12 +232,7 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
      * dhandle list, if there are entries in the truncate list.
      */
-    WT_RET_NOTFOUND_OK(__wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0));
-    if (ret == WT_NOTFOUND) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "Truncate %s: Layered table was not found.", entry->uri);
-        return (WT_ERROR);
-    }
+    WT_ASSERT(session, __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     __wt_writelock(session, &layered_table->truncate_lock);

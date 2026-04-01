@@ -30,19 +30,19 @@ import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered76.py
+# test_layered77.py
 #   Test basic fast truncate functionality.
 @disagg_test_class
-class test_layered76(wttest.WiredTigerTestCase):
+class test_layered77(wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader"),'
 
     uris = [
-        ('layered', dict(uri='layered:test_layered76')),
-        ('table', dict(uri='table:test_layered76')),
+        ('layered', dict(uri='layered:test_layered77')),
+        ('table', dict(uri='table:test_layered77')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered76', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered77', disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages, uris)
 
@@ -56,10 +56,10 @@ class test_layered76(wttest.WiredTigerTestCase):
 
     def test_truncate_basic(self):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
+            self.skipTest("fast truncate support is not enabled.")
         self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor = self.session.open_cursor(self.uri)
         value1 = "a" * 100
 
         # Populate data on leader.
@@ -67,7 +67,7 @@ class test_layered76(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[str(i)] = value1
             self.session.commit_transaction()
-
+        cursor.close(0)
         self.session.checkpoint()
 
         # Switch to follower.
@@ -75,9 +75,9 @@ class test_layered76(wttest.WiredTigerTestCase):
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
-        c1 = self.session.open_cursor(self.uri, None)
+        c1 = self.session.open_cursor(self.uri)
         c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri, None)
+        c2 = self.session.open_cursor(self.uri)
         c2.set_key(str(700))
 
         # Create an uncommitted truncate.
@@ -101,7 +101,7 @@ class test_layered76(wttest.WiredTigerTestCase):
         cursor2.set_key(str(150))
         self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
         session2.commit_transaction()
-        cursor2.reset()
+        cursor2.close()
         self.session.checkpoint()
 
         session2.close()
@@ -111,10 +111,10 @@ class test_layered76(wttest.WiredTigerTestCase):
 
     def test_truncate_rollback(self):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
+            self.skipTest("fast truncate support is not enabled.")
         self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor = self.session.open_cursor(self.uri)
         value1 = "a" * 100
 
         # Populate data on leader.
@@ -122,6 +122,7 @@ class test_layered76(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[str(i)] = value1
             self.session.commit_transaction()
+        cursor.close()
 
         self.session.checkpoint()
 
@@ -130,32 +131,32 @@ class test_layered76(wttest.WiredTigerTestCase):
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
-        c1 = self.session.open_cursor(self.uri, None)
+        c1 = self.session.open_cursor(self.uri)
         c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri, None)
+        c2 = self.session.open_cursor(self.uri)
         c2.set_key(str(700))
 
         self.session.begin_transaction()
         self.session.truncate(None, c1, c2, None)
         self.session.rollback_transaction()
 
-        # All data should be visble.
+        # All data should be visible.
         self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri)
         cursor.set_key(str(150))
         self.assertEqual(cursor.search(), 0)
         self.session.commit_transaction()
-        cursor.reset()
+        cursor.close()
 
         c1.close()
         c2.close()
 
     def test_truncate_write_conflict_1(self):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
+            self.skipTest("fast truncate support is not enabled.")
         self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor = self.session.open_cursor(self.uri)
         value1 = "a" * 100
 
         # Populate data on leader.
@@ -163,6 +164,7 @@ class test_layered76(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[str(i)] = value1
             self.session.commit_transaction()
+        cursor.close()
 
         self.session.checkpoint()
 
@@ -171,9 +173,9 @@ class test_layered76(wttest.WiredTigerTestCase):
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
-        c1 = self.session.open_cursor(self.uri, None)
+        c1 = self.session.open_cursor(self.uri)
         c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri, None)
+        c2 = self.session.open_cursor(self.uri)
         c2.set_key(str(700))
 
         # Create an uncommitted truncate.
@@ -188,6 +190,7 @@ class test_layered76(wttest.WiredTigerTestCase):
         cursor2.set_value("hi")
         msg1 = '/conflict between concurrent operations/'
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), msg1)
+        cursor2.close()
 
         session2.commit_transaction()
         session2.close()
@@ -196,10 +199,10 @@ class test_layered76(wttest.WiredTigerTestCase):
 
     def test_truncate_write_conflict_2(self):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
+            self.skipTest("fast truncate support is not enabled.")
         self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor = self.session.open_cursor(self.uri)
         value1 = "a" * 100
 
         # Populate data on leader.
@@ -209,6 +212,7 @@ class test_layered76(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
 
         self.session.checkpoint()
+        cursor.close()
 
         # Switch to follower.
         follower_config = 'disaggregated=(role="follower",' +\
@@ -223,11 +227,12 @@ class test_layered76(wttest.WiredTigerTestCase):
         cursor2.set_key(str(100))
         cursor2.set_value("hi")
         cursor2.update()
+        cursor2.close()
 
         # Create an uncommitted truncate.
-        c1 = self.session.open_cursor(self.uri, None)
+        c1 = self.session.open_cursor(self.uri)
         c1.set_key(str(100))
-        c2 = self.session.open_cursor(self.uri, None)
+        c2 = self.session.open_cursor(self.uri)
         c2.set_key(str(700))
 
         self.session.begin_transaction()
