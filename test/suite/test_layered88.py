@@ -208,10 +208,13 @@ class test_layered88(wttest.WiredTigerTestCase):
             # Backward iteration: cursor.prev() should yield the visible keys in reverse order.
             got_rev = []
             c = session_follow.open_cursor(uri)
-            while c.prev() != wiredtiger.WT_NOTFOUND:
+            ret = c.prev()
+            while ret == 0:
                 k, v = c.get_key(), c.get_value()
                 self.assertEqual(k, v)
                 got_rev.append(k)
+                ret = c.prev()
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
             c.close()
             self.assertEqual(list(reversed(expect)), got_rev)
 
