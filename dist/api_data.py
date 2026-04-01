@@ -928,6 +928,9 @@ connection_runtime_config = [
             decisions about what subsystems are throttled, and in what proportion, are made
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
+        Config('chunk_cache', '0', r'''
+            deprecated option, retained for backward compatibility''',
+            min='0', max='1TB', undoc=True),
         ]),
     Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a
