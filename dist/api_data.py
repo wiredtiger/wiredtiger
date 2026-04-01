@@ -1262,15 +1262,40 @@ wiredtiger_open_live_restore_configuration = [
     ])
 ]
 
+# Chunk cache has been deprecated and removed. We need to keep the sub-configs around because
+# they get persisted to WiredTiger.basecfg. It's OK to warn on any chunk cache config, but we
+# only error if enabled=true since the feature is gone.
 wiredtiger_open_chunk_cache_configuration = [
     Config('chunk_cache', '', r'''
-        chunk cache configuration options. Chunk cache has been deprecated and is no longer
-        supported. Configuring chunk_cache with enabled=true will result in an error''',
-        type='category', subconfig=[
+        deprecated option, retained for backward compatibility''',
+        type='category', undoc=True, subconfig=[
+        Config('pinned', '', r'''
+            deprecated option, retained for backward compatibility''',
+            type='list', undoc=True),
+        Config('capacity', '10GB', r'''
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100TB', undoc=True),
+        Config('chunk_cache_evict_trigger', '90', r'''
+            deprecated option, retained for backward compatibility''',
+            min='0', max='100', undoc=True),
+        Config('chunk_size', '1MB', r'''
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100GB', undoc=True),
+        Config('storage_path', '', r'''
+            deprecated option, retained for backward compatibility''', undoc=True),
         Config('enabled', 'false', r'''
-            enable chunk cache. Chunk cache has been deprecated, setting this to true will
+            deprecated option, retained for backward compatibility. Setting this to true will
             result in an error''',
-            type='boolean'),
+            type='boolean', undoc=True),
+        Config('hashsize', '1024', r'''
+            deprecated option, retained for backward compatibility''',
+            min='64', max='1048576', undoc=True),
+        Config('flushed_data_cache_insertion', 'true', r'''
+            deprecated option, retained for backward compatibility''',
+            type='boolean', undoc=True),
+        Config('type', 'FILE', r'''
+            deprecated option, retained for backward compatibility''',
+            choices=['FILE', 'DRAM'], undoc=True),
     ]),
 ]
 

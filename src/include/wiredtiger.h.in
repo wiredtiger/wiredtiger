@@ -3084,13 +3084,6 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
- * @config{chunk_cache = (, chunk cache configuration options.  Chunk cache has been deprecated and
- * is no longer supported.  Configuring chunk_cache with enabled=true will result in an error., a
- * set of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * enabled, enable chunk cache.  Chunk cache has been deprecated\, setting this to true will result
- * in an error., a boolean flag; default \c false.}
- * @config{ ),,}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of
  * related configuration options defined as follows.}

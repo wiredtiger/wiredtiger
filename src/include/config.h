@@ -164,6 +164,8 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 56
 
 extern const char __WT_CONFIG_CHOICE_NULL[]; /* not set in configuration */
+extern const char __WT_CONFIG_CHOICE_DRAM[];
+extern const char __WT_CONFIG_CHOICE_FILE[];
 extern const char __WT_CONFIG_CHOICE_after_key_rotation[];
 extern const char __WT_CONFIG_CHOICE_aggressive_stash_free[];
 extern const char __WT_CONFIG_CHOICE_aggressive_sweep[];
