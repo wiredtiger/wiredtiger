@@ -1544,39 +1544,25 @@ __conn_config_check_version(WT_SESSION_IMPL *session, const char *config)
 static int
 __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const char *source)
 {
-    static const char *cc_metafile = "WiredTigerCC.wt";
     WT_CONFIG_ITEM cval;
     bool cc_enabled;
 
-    if (config == NULL || strstr(config, "chunk_cache") == NULL)
+    if (config == NULL || __wt_config_getones(session, config, "chunk_cache.enabled", &cval) != 0)
         return (0);
 
-    cc_enabled = false;
-    if (__wt_config_getones(session, config, "chunk_cache.enabled", &cval) == 0)
-        cc_enabled = cval.val != 0;
+    cc_enabled = cval.val != 0;
 
-    if (cc_enabled) {
-        /*
-         * Remove the chunk cache metadata file if it exists. Chunk cache has been deprecated and
-         * this file is no longer needed.
-         */
-        bool cc_exist;
-        WT_RET(__wt_fs_exist(session, cc_metafile, &cc_exist));
-        if (cc_exist) {
-            __wt_verbose_warning(session, WT_VERB_DEFAULT,
-              "removing deprecated chunk cache metadata file %s", cc_metafile);
-            WT_RET(__wt_fs_remove(session, cc_metafile, false, false));
-        }
+    if (cc_enabled)
         WT_RET_MSG(session, EINVAL,
           "chunk cache has been deprecated and is no longer supported, chunk_cache "
           "configuration should be removed%s%s",
           source != NULL ? " from " : "", source != NULL ? source : "");
+    else {
+        __wt_verbose_warning(session, WT_VERB_DEFAULT,
+          "chunk cache has been deprecated and is no longer supported, ignoring chunk_cache "
+          "configuration%s%s",
+          source != NULL ? " in " : "", source != NULL ? source : "");
     }
-
-    __wt_verbose_warning(session, WT_VERB_DEFAULT,
-      "chunk cache has been deprecated and is no longer supported, ignoring chunk_cache "
-      "configuration%s%s",
-      source != NULL ? " in " : "", source != NULL ? source : "");
 
     return (0);
 }
@@ -3599,6 +3585,20 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads, run recovery, and initialize the disaggregated storage. */
     WT_ERR(__wti_connection_workers(session, cfg));
+
+    /*
+     * Remove the chunk cache metadata file if it exists. Chunk cache has been deprecated and this
+     * file is no longer needed.
+     */
+    {
+        bool cc_exist;
+        WT_ERR(__wt_fs_exist(session, "WiredTigerCC.wt", &cc_exist));
+        if (cc_exist) {
+            __wt_verbose_warning(session, WT_VERB_DEFAULT,
+              "removing deprecated chunk cache metadata file %s", "WiredTigerCC.wt");
+            WT_ERR(__wt_fs_remove(session, "WiredTigerCC.wt", false, false));
+        }
+    }
 
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
