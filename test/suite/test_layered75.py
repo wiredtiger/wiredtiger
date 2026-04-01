@@ -231,7 +231,7 @@ class test_layered75(wttest.WiredTigerTestCase):
         self.create_follower()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Create the same tables on the follower.  It should reuse the existing
+        # Create the same tables on the follower. It should reuse the existing
         # .wt_stable (shared namespace) and allocate a new .wt_ingest in the
         # local namespace.
         for i in range(10):
