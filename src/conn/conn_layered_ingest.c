@@ -59,110 +59,6 @@ __layered_assert_tombstone_has_value_on_stable_btree(
 }
 
 /*
- * __layered_resolve_prepared_on_stable --
- *     After positioning the cursor on the stable table, find the unresolved prepared update
- *     restored from disk and resolve it by restoring the prior history store value and applying the
- *     committed or rolled-back timestamps from the ingest update chain. This must be done before
- *     copying ingest updates via __wt_row_modify so that reconciliation does not encounter an
- *     unresolved prepare.
- */
-static int
-__layered_resolve_prepared_on_stable(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *ingest_upd, bool commit)
-{
-    WT_BTREE *btree;
-    WT_CURSOR *hs_cursor;
-    WT_DECL_RET;
-    WT_PAGE *page;
-    WT_TXN_TIME_POINT time_point;
-    WT_UPDATE *upd;
-
-    btree = CUR2BT(cbt);
-    hs_cursor = NULL;
-    page = cbt->ref->page;
-
-    /*
-     * Find the prepared update on the stable table's update chain. The prepared update was restored
-     * from disk during page read and is marked with WT_UPDATE_PREPARE_RESTORED_FROM_DS.
-     */
-    upd = NULL;
-    if (cbt->ins != NULL)
-        upd = cbt->ins->upd;
-    else if (page->modify != NULL && page->modify->mod_row_update != NULL)
-        upd = page->modify->mod_row_update[cbt->slot];
-
-    /*
-     * Stable table must have the corresponding unresolved prepared cell restored from disk.
-     */
-    WT_ASSERT(session,
-      upd != NULL && upd->prepare_state == WT_PREPARE_INPROGRESS &&
-        F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
-
-    /*
-     * Assert that the resolved prepare update on the ingest table is the same update as the one on
-     * the stable table.
-     */
-    WT_ASSERT_ALWAYS(session,
-      ingest_upd->prepared_id == upd->prepared_id && ingest_upd->prepare_ts == upd->prepare_ts,
-      "Ingest resolved prepare does not match the unresolved prepared cell on the stable table");
-
-    /*
-     * There are two on-disk layouts for prepared cells:
-     *
-     * Prepared value (start prepare): the on-disk cell is the prepared value. The page read creates
-     * a single prepared update. The prior committed value, if any, lives in the history store and
-     * must be restored to the update chain. This follows the RESOLVE_PREPARE_ON_DISK pattern in
-     *__txn_resolve_prepared_op.
-     *
-     * Prepared delete (stop prepare): the on-disk cell is the committed value with a prepared stop
-     * time window. The page read creates a prepared tombstone followed by the committed value on
-     * the update chain. No history store lookup is needed — resolution simply aborts the
-     * tombstone (rollback) or stamps it with commit/durable timestamps (commit). This mirrors the
-     * RESOLVE_UPDATE_CHAIN path in __txn_resolve_prepared_op.
-     */
-    if (upd->type != WT_UPDATE_TOMBSTONE) {
-        WT_ERR(__wt_curhs_open(session, btree->id, NULL, NULL, &hs_cursor));
-        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-        hs_cursor->set_key(hs_cursor, 4, btree->id, key, WT_TS_MAX, UINT64_MAX);
-        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
-
-        if (ret == 0)
-            WT_ERR(
-              __wt_txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd, commit));
-        else {
-            ret = 0;
-            if (!commit)
-                WT_ERR(__wt_txn_prepare_rollback_delete_key(session, btree, cbt));
-        }
-    }
-
-    /*
-     * Construct a time point for resolution. The transaction ID and prepared transaction ID are
-     * taken from the prepared update on stable. For commit, the update on ingest table carries the
-     * commit and durable timestamps. For rollback, it carries the rollback timestamp.
-     */
-    WT_CLEAR(time_point);
-    time_point.id = upd->txnid;
-    time_point.prepared_id = upd->prepared_id;
-    time_point.prepare_timestamp = upd->prepare_ts;
-    if (commit) {
-        time_point.commit_timestamp = ingest_upd->upd_start_ts;
-        time_point.durable_timestamp = ingest_upd->upd_durable_ts;
-    } else {
-        time_point.rollback_timestamp = ingest_upd->upd_rollback_ts;
-        F_SET(&time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
-    }
-    __wt_txn_resolve_prepared_update_chain(session, &time_point, upd, commit);
-
-    __wt_page_modify_set(session, page);
-
-err:
-    if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->close(hs_cursor));
-    return (ret);
-}
-
-/*
  * __layered_move_updates --
  *     Move the updates of a key to the stable table. If resolve_prepare is true, first resolve any
  *     prepared update on the stable table that was checkpointed but not yet committed or rolled
@@ -170,10 +66,9 @@ err:
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, WT_UPDATE *last_upd, bool resolve_prepare)
+  WT_UPDATE *upds, WT_UPDATE *last_upd)
 {
     WT_DECL_RET;
-    WT_UPDATE *prev;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -184,35 +79,6 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     /* Search the page. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
-
-    /*
-     * If the ingest table contained a resolved prepared update for this key, the stable table still
-     * has the unresolved prepared cell from a prior checkpoint. Resolve it now before applying the
-     * ingest updates.
-     */
-    if (resolve_prepare) {
-        WT_ERR(__layered_resolve_prepared_on_stable(
-          session, cbt, key, last_upd, last_upd->txnid != WT_TXN_ABORTED));
-
-        /*
-         * The resolved prepared update sits at the tail of the ingest chain. The resolution already
-         * applied its timestamps to the stable table's update chain, so strip the tail to avoid
-         * prepending a duplicate (which would create consecutive identical updates or consecutive
-         * tombstones). If there are newer updates above the resolved prepare, they still need to be
-         * applied.
-         */
-        if (upds == last_upd) {
-            /* The resolved prepare is the only update, nothing left to apply. */
-            __wt_free(session, upds);
-            upds = NULL;
-        } else {
-            for (prev = upds; prev->next != last_upd; prev = prev->next)
-                ;
-            __wt_free(session, last_upd);
-            prev->next = NULL;
-            last_upd = prev;
-        }
-    }
 
     if (upds != NULL) {
         __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
@@ -314,7 +180,7 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 static int
 __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
 {
-    WT_CURSOR *stable_cursor, *version_cursor;
+    WT_CURSOR *cursor, *stable_cursor, *version_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(tmp_key);
@@ -329,11 +195,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     int cmp;
     char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
-    bool has_stop, is_prepare_rollback, needs_prepare_resolve;
+    bool has_stop, is_prepare_rollback;
 
     stable_cursor = version_cursor = NULL;
     last_upd = prev_upd = tombstone = upd = upds = NULL;
-    needs_prepare_resolve = false;
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
@@ -361,11 +226,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, key, upds, last_upd, needs_prepare_resolve));
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd));
                 WT_ERR(ret);
                 upds = NULL;
-                needs_prepare_resolve = false;
             } else
                 ret = 0;
             break;
@@ -382,10 +245,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(
-                    session, cbt, key, upds, last_upd, needs_prepare_resolve));
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd));
                 WT_ERR(ret);
-                needs_prepare_resolve = false;
             }
 
             upds = NULL;
@@ -418,36 +279,55 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          */
         if (durable_start_ts > last_checkpoint_timestamp) {
             /*
-             * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better way
-             * now.
+             * If the ingest table contained a resolved prepared update for this key, the stable
+             * table still has the unresolved prepared cell from a prior checkpoint. Resolve it now
+             * before applying the ingest updates.
              */
-            if (__wt_clayered_deleted(value)) {
-                /*
-                 * If we use tombstone value, we should never see a real tombstone on the ingest
-                 * table.
-                 */
-                WT_ASSERT(session, tombstone == NULL);
-                WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            } else
-                WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-            upd->prepare_ts = start_prepare_ts;
-            upd->prepared_id = start_prepared_id;
             if (is_prepare_rollback) {
+                WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
                 /*
-                 * WT_UPDATE stores these in a union, so they share the same underlying slots as
-                 * durable/start timestamps. We assign via rollback names here for readability.
+                 * The original transaction id is stored in start timestamp and the rollback
+                 * timestamp is stored in durable timestamp.
                  */
-                upd->txnid = WT_TXN_ABORTED;
-                upd->upd_rollback_ts = durable_start_ts;
-                upd->upd_saved_txnid = start_ts;
+                WT_TXN_TIME_POINT txn_time_point;
+                txn_time_point.id = start_ts;
+                txn_time_point.prepared_id = start_prepared_id;
+                txn_time_point.prepare_timestamp = start_prepare_ts;
+                txn_time_point.rollback_timestamp = durable_start_ts;
+                WT_ERR(__wt_txn_resolve_prepared_op(
+                  session, CUR2BT(cbt), &txn_time_point, key, WT_RECNO_OOB, false, &cursor));
+            } else if (start_prepared_id != WT_PREPARED_ID_NONE) {
+                WT_TXN_TIME_POINT txn_time_point;
+                txn_time_point.id = start_txn;
+                txn_time_point.prepared_id = start_prepared_id;
+                txn_time_point.prepare_timestamp = start_prepare_ts;
+                txn_time_point.commit_timestamp = start_ts;
+                txn_time_point.durable_timestamp = durable_start_ts;
+                WT_ERR(__wt_txn_resolve_prepared_op(
+                  session, CUR2BT(cbt), &txn_time_point, key, WT_RECNO_OOB, true, &cursor));
             } else {
+                /*
+                 * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
+                 * way now.
+                 */
+                if (__wt_clayered_deleted(value)) {
+                    /*
+                     * If we use tombstone value, we should never see a real tombstone on the ingest
+                     * table.
+                     */
+                    WT_ASSERT(session, tombstone == NULL);
+                    WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+                } else
+                    WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+                upd->prepare_ts = start_prepare_ts;
+                upd->prepared_id = start_prepared_id;
                 upd->txnid = start_txn;
                 upd->upd_start_ts = start_ts;
                 upd->upd_durable_ts = durable_start_ts;
+                /* This is for debugging purpose and it is not checked in the code. */
+                F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
+                last_upd = upd;
             }
-            /* This is for debugging purpose and it is not checked in the code. */
-            F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
-            last_upd = upd;
         } else {
             WT_ASSERT(session, tombstone != NULL);
             last_upd = tombstone;
@@ -486,18 +366,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             prev_upd = upd;
             upd = NULL;
         }
-
-        /*
-         * Detect a resolved prepared update whose prepare timestamps were checkpointed to the
-         * stable table but the resolution was not. If the prepare timestamp is at or before the
-         * last checkpoint timestamp, the prepared cell is on stable's disk image. The version
-         * cursor's start timestamp filter ensures there are no more updates for this key after the
-         * resolved prepare, so the next iteration will naturally hit either a new key or end of
-         * data. Set the flag to true to mark that we need to resolve the prepared cell on stable
-         * before applying the ingest updates.
-         */
-        if (start_prepare_ts != WT_TS_NONE && start_prepare_ts <= last_checkpoint_timestamp)
-            needs_prepare_resolve = true;
     }
 
 err:
