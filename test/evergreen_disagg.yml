@@ -2,7 +2,7 @@
 # This config file is used by the WiredTiger Disagg (wiredtiger-disagg) Evergreen project.
 # It contains only the "[Failure Expected]" disagg stress test variants.
 #
-# Functions, variables and settings are duplicated from test/evergreen.yml. A follow-up ticket 
+# Functions, variables and settings are duplicated from test/evergreen.yml. A follow-up ticket
 # should extract shared functions to eliminate duplication.
 #
 
