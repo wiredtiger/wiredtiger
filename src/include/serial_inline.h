@@ -340,12 +340,13 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         return (0);
 
     /*
-     * If there are no subsequent WT_UPDATE structures we are done here.
-     * Also skip if the chain from upd has exactly one prior update (i.e.,
-     * upd->next is the only older update we'd scan). Even if that single
-     * prior update is globally visible, it is the last value on the chain
-     * and cannot be freed. The obsolete check would only waste cycles on
-     * the page spinlock and global state reads.
+     * Skip the obsolete update check in three cases: when there are no older updates on the chain
+     * (upd->next is NULL), when the caller already holds exclusive access to the page, or when
+     * there is exactly one older update (upd->next->next is NULL). In the last case, even if that
+     * single prior update is globally visible, the obsolete check only truncates updates that
+     * follow the last globally visible value, so a single older update has no successors to
+     * truncate. Calling the check would only waste cycles acquiring the page spinlock and reading
+     * global state.
      */
     if (upd->next == NULL || exclusive || upd->next->next == NULL)
         return (0);
