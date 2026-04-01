@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref);
 static int __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server);
-static int __evict_page(WT_SESSION_IMPL *session, bool is_server);
+static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
@@ -347,7 +347,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
         WT_RET(__evict_update_work(session, &eviction_needed));
         if (!eviction_needed)
             break;
-        if ((ret = __evict_page(session, true)) == EBUSY)
+        if ((ret = __evict_page(session)) == EBUSY)
             ret = 0;
         if (is_server)
             break;
@@ -1297,6 +1297,7 @@ done:
         __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
         (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
 
+        WT_STAT_CONN_INCR(session, eviction_get_ref_success);
 #if PRINT_CACHE_STATE
         if (total_iter > 1000) {
             printf("Server read_gen is %" PRIu64
@@ -1324,10 +1325,10 @@ done:
               __wt_cache_pages_inuse(cache), __wt_cache_bytes_image(cache));
         }
 #endif
-    } else {
+    } else
         WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
-    }
 
+    WT_STAT_CONN_INCRV(session, eviction_get_ref_iterations, total_iter);
     ret = (*refp == NULL ? WT_NOTFOUND : 0);
     return (ret);
 }
@@ -1337,7 +1338,7 @@ done:
  *     Called by both eviction and application threads to evict a page.
  */
 static int
-__evict_page(WT_SESSION_IMPL *session, bool is_server)
+__evict_page(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1350,12 +1351,6 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
     flags = 0;
 
-    if (is_server)
-        WT_STAT_CONN_INCR(session, eviction_worker_evict_attempt);
-    else
-        WT_STAT_CONN_INCR(session, eviction_app_evict_attempt);
-
-
     WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
     WT_ASSERT(session, (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(ref) == session));
 
@@ -1363,12 +1358,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
     (void)__wt_atomic_sub_uint32_v(&btree->evict_data.evict_busy, 1);
 
-    if (WT_UNLIKELY(ret != 0)) {
-        if (is_server)
-            WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
-        else
-            WT_STAT_CONN_INCR(session, eviction_app_evict_fail);
-    } else
+    if (ret == 0)
         __wt_atomic_add_uint64(&S2C(session)->evict->evicted_pages, 1);
 
     WT_TRACK_OP_END(session);
@@ -1634,18 +1624,8 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 
     if (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(ref) == session) {
         /* The ref is already locked by us */
-#if EVICT_DEBUG_PRINT
-        printf("ref for page %p %s (type %d) already locked in __wt_evict_remove by session %d\n",
-          (void *)ref->page, __wt_page_type_string(ref->page->type), ref->page->type, session->id);
-        fflush(stdout);
-#endif
         must_unlock_ref = false;
     } else {
-#if EVICT_DEBUG_PRINT
-        printf("Session %d about to LOCK ref for page %p %s (type %d) in __wt_evict_remove!\n",
-          session->id, (void *)page, __wt_page_type_string(page->type), page->type);
-        fflush(stdout);
-#endif
         WT_REF_LOCK(session, ref, &previous_state);
         must_unlock_ref = true;
         fflush(stdout);
@@ -2046,7 +2026,7 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
         WT_READ_ONCE(session_cnt, conn->session_array.cnt);
 
         if ((session->id % (session_cnt / WT_EVICT_EXPECTED_CONTENTION / 2)) == 0)
-            WT_RET_BUSY_OK(__evict_page(session, false));
+            WT_RET_BUSY_OK(__evict_page(session));
     }
 #endif
     return ret;

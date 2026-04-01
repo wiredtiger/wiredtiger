@@ -97,6 +97,11 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
             WT_STAT_CONN_INCR(session, eviction_force_fail);
         }
 
+        if (F_ISSET(session, WT_SESSION_INTERNAL))
+            WT_STAT_CONN_DSRC_INCR(session, eviction_worker_evict_fail);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, eviction_app_evict_fail);
+
         WT_STAT_CONN_DSRC_INCR(session, eviction_fail);
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
@@ -167,6 +172,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
+
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        WT_STAT_CONN_DSRC_INCR(session, eviction_worker_evict_attempt);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, eviction_app_evict_attempt);
 
     WT_IGNORE_RET(__evict_get_target_destination(session, page, &bucketset, NULL));
     bucketset_level = bucketset->level;

@@ -64,6 +64,12 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
+  "cache: evict page attempts by application threads",
+  "cache: evict page attempts by eviction worker threads",
+  "cache: evict page failures by application threads",
+  "cache: evict page failures by eviction worker threads",
+  "cache: eviction did not make progress, because it did not use updates or split/delete page in "
+  "reconciliation",
   "cache: eviction gave up due to detecting a disk value without a timestamp behind the last "
   "update on the chain",
   "cache: eviction gave up due to detecting a tombstone without a timestamp ahead of the selected "
@@ -74,7 +80,6 @@ static const char *const __stats_dsrc_desc[] = {
   "selected on disk update",
   "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
   "is running",
-  "cache: eviction gave up due to no progress being made",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
@@ -82,7 +87,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walk pages seen that had updates",
   "cache: eviction walk pages seen that were clean",
   "cache: eviction walk pages seen that were dirty",
-  "cache: eviction walk passes of a file",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
   "cache: eviction walk target pages histogram - 128 and higher",
@@ -516,12 +520,16 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->eviction_fail = 0;
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
+    stats->eviction_app_evict_attempt = 0;
+    stats->eviction_worker_evict_attempt = 0;
+    stats->eviction_app_evict_fail = 0;
+    stats->eviction_worker_evict_fail = 0;
+    stats->cache_eviction_blocked_no_progress = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_1 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_2 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
-    stats->cache_eviction_blocked_no_progress = 0;
     stats->cache_eviction_blocked_prefetched = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
@@ -529,7 +537,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_pages_seen_updates = 0;
     stats->cache_eviction_pages_seen_clean = 0;
     stats->cache_eviction_pages_seen_dirty = 0;
-    stats->eviction_walk_passes = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
@@ -934,6 +941,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->eviction_fail += from->eviction_fail;
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       from->cache_eviction_blocked_disagg_dirty_internal_page;
+    to->eviction_app_evict_attempt += from->eviction_app_evict_attempt;
+    to->eviction_worker_evict_attempt += from->eviction_worker_evict_attempt;
+    to->eviction_app_evict_fail += from->eviction_app_evict_fail;
+    to->eviction_worker_evict_fail += from->eviction_worker_evict_fail;
+    to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
       from->cache_eviction_blocked_no_ts_checkpoint_race_1;
     to->cache_eviction_blocked_no_ts_checkpoint_race_2 +=
@@ -944,7 +956,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_blocked_no_ts_checkpoint_race_4;
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       from->cache_eviction_blocked_remove_hs_race_with_checkpoint;
-    to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
     to->cache_eviction_blocked_prefetched += from->cache_eviction_blocked_prefetched;
     to->cache_eviction_pages_queued_updates += from->cache_eviction_pages_queued_updates;
     to->cache_eviction_pages_queued_clean += from->cache_eviction_pages_queued_clean;
@@ -952,7 +963,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen_updates += from->cache_eviction_pages_seen_updates;
     to->cache_eviction_pages_seen_clean += from->cache_eviction_pages_seen_clean;
     to->cache_eviction_pages_seen_dirty += from->cache_eviction_pages_seen_dirty;
-    to->eviction_walk_passes += from->eviction_walk_passes;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
     to->cache_eviction_target_page_ge128 += from->cache_eviction_target_page_ge128;
@@ -1374,6 +1384,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
+    to->eviction_app_evict_attempt += WT_STAT_DSRC_READ(from, eviction_app_evict_attempt);
+    to->eviction_worker_evict_attempt += WT_STAT_DSRC_READ(from, eviction_worker_evict_attempt);
+    to->eviction_app_evict_fail += WT_STAT_DSRC_READ(from, eviction_app_evict_fail);
+    to->eviction_worker_evict_fail += WT_STAT_DSRC_READ(from, eviction_worker_evict_fail);
+    to->cache_eviction_blocked_no_progress +=
+      WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_progress);
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_1);
     to->cache_eviction_blocked_no_ts_checkpoint_race_2 +=
@@ -1384,8 +1400,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
-    to->cache_eviction_blocked_no_progress +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_progress);
     to->cache_eviction_blocked_prefetched +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_prefetched);
     to->cache_eviction_pages_queued_updates +=
@@ -1398,7 +1412,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_updates);
     to->cache_eviction_pages_seen_clean += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_clean);
     to->cache_eviction_pages_seen_dirty += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_dirty);
-    to->eviction_walk_passes += WT_STAT_DSRC_READ(from, eviction_walk_passes);
     to->cache_eviction_target_page_lt10 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 +=
@@ -1917,7 +1930,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: evict page failures by application threads",
   "cache: evict page failures by eviction worker threads",
   "cache: eviction calls to get a page could not find a page",
+  "cache: eviction calls to get a page found a page",
   "cache: eviction currently operating in aggressive mode",
+  "cache: eviction did not make progress, because it did not use updates or split/delete page in "
+  "reconciliation",
+  "cache: eviction found page ineligible for eviction in reconciliation",
   "cache: eviction gave up due to detecting a disk value without a timestamp behind the last "
   "update on the chain",
   "cache: eviction gave up due to detecting a tombstone without a timestamp ahead of the selected "
@@ -1928,7 +1945,6 @@ static const char *const __stats_connection_desc[] = {
   "selected on disk update",
   "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
   "is running",
-  "cache: eviction gave up due to no progress being made",
   "cache: eviction selected pages clean internal bucket",
   "cache: eviction selected pages from clean leaf bucket",
   "cache: eviction selected pages from dirty internal bucket",
@@ -1977,6 +1993,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction threshold dirty trigger multiplied by 100 for precision",
   "cache: eviction threshold updates target multiplied by 100 for precision",
   "cache: eviction threshold updates trigger multiplied by 100 for precision",
+  "cache: eviction total iterations when looking for a page to evict",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
   "cache: eviction walk pages queued that were dirty",
@@ -2950,13 +2967,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_app_evict_fail = 0;
     stats->eviction_worker_evict_fail = 0;
     stats->eviction_get_ref_empty = 0;
+    stats->eviction_get_ref_success = 0;
     /* not clearing eviction_aggressive_set */
+    stats->cache_eviction_blocked_no_progress = 0;
+    stats->eviction_reconcile_cannot_evict = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_1 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_2 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
-    stats->cache_eviction_blocked_no_progress = 0;
     stats->eviction_target_bucket_clean_internal = 0;
     stats->eviction_target_bucket_clean_leaf = 0;
     stats->eviction_target_bucket_dirty_internal = 0;
@@ -3001,6 +3020,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_threshold_dirty_trigger = 0;
     stats->eviction_threshold_updates_target = 0;
     stats->eviction_threshold_updates_trigger = 0;
+    stats->eviction_get_ref_iterations = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
     stats->cache_eviction_pages_queued_dirty = 0;
@@ -3958,7 +3978,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_app_evict_fail += WT_STAT_CONN_READ(from, eviction_app_evict_fail);
     to->eviction_worker_evict_fail += WT_STAT_CONN_READ(from, eviction_worker_evict_fail);
     to->eviction_get_ref_empty += WT_STAT_CONN_READ(from, eviction_get_ref_empty);
+    to->eviction_get_ref_success += WT_STAT_CONN_READ(from, eviction_get_ref_success);
     to->eviction_aggressive_set += WT_STAT_CONN_READ(from, eviction_aggressive_set);
+    to->cache_eviction_blocked_no_progress +=
+      WT_STAT_CONN_READ(from, cache_eviction_blocked_no_progress);
+    to->eviction_reconcile_cannot_evict += WT_STAT_CONN_READ(from, eviction_reconcile_cannot_evict);
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_1);
     to->cache_eviction_blocked_no_ts_checkpoint_race_2 +=
@@ -3969,8 +3993,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_4);
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
-    to->cache_eviction_blocked_no_progress +=
-      WT_STAT_CONN_READ(from, cache_eviction_blocked_no_progress);
     to->eviction_target_bucket_clean_internal +=
       WT_STAT_CONN_READ(from, eviction_target_bucket_clean_internal);
     to->eviction_target_bucket_clean_leaf +=
@@ -4044,6 +4066,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_threshold_updates_target);
     to->eviction_threshold_updates_trigger +=
       WT_STAT_CONN_READ(from, eviction_threshold_updates_trigger);
+    to->eviction_get_ref_iterations += WT_STAT_CONN_READ(from, eviction_get_ref_iterations);
     to->cache_eviction_pages_queued_updates +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_updates);
     to->cache_eviction_pages_queued_clean +=

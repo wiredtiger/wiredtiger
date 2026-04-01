@@ -369,6 +369,8 @@ conn_stats = [
     EvictStat('eviction_force_long_update_list', 'forced eviction - pages selected because of a large number of updates to a single item'),
     EvictStat('eviction_force_no_retry', 'forced eviction - do not retry count to evict pages selected to evict during reconciliation'),
     EvictStat('eviction_get_ref_empty', 'eviction calls to get a page could not find a page'),
+    EvictStat('eviction_get_ref_iterations', 'eviction total iterations when looking for a page to evict'),
+    EvictStat('eviction_get_ref_success', 'eviction calls to get a page found a page'),
     EvictStat('eviction_interupted_by_app', 'application requested eviction interrupt'),
     EvictStat('eviction_maximum_attempts_to_evict_page', 'maximum number of times a page tried to be evicted', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_clean_page_size_per_checkpoint', 'maximum clean page size seen at eviction per checkpoint', 'no_clear,no_scale,size'),
@@ -378,6 +380,7 @@ conn_stats = [
     EvictStat('eviction_maximum_updates_page_size_per_checkpoint', 'maximum updates page size seen at eviction per checkpoint', 'no_clear,no_scale,size'),
     EvictStat('eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),
     EvictStat('eviction_pages_set_clean', 'pages transitioned from dirty to clean'),
+    EvictStat('eviction_reconcile_cannot_evict', 'eviction found page ineligible for eviction in reconciliation'),
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
     EvictStat('eviction_server_race_reconfigure_disagg', 'eviction server races with the reconfigure API call in disagg'),
     EvictStat('eviction_server_readgen', 'eviction server read generation'),
@@ -1007,8 +1010,11 @@ dsrc_stats = [
     ##########################################
     # Eviction statistics
     ##########################################
+    EvictStat('eviction_app_evict_attempt', 'evict page attempts by application threads'),
+    EvictStat('eviction_app_evict_fail', 'evict page failures by application threads'),
     EvictStat('eviction_fail', 'data source pages selected for eviction unable to be evicted'),
-    EvictStat('eviction_walk_passes', 'eviction walk passes of a file'),
+    EvictStat('eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
+    EvictStat('eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),
 
     ##########################################
     # Cache content statistics
@@ -1146,7 +1152,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_internal_page_split', 'internal page split blocked its eviction'),
     CacheStat('cache_eviction_blocked_materialization', 'page eviction blocked due to materialization frontier'),
     CacheStat('cache_eviction_blocked_multi_block_reconciliation_during_checkpoint', 'multi-block reconciliation blocked whilst checkpoint is running'),
-    CacheStat('cache_eviction_blocked_no_progress', 'eviction gave up due to no progress being made'),
+    CacheStat('cache_eviction_blocked_no_progress', 'eviction did not make progress, because it did not use updates or split/delete page in reconciliation'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_1', 'eviction gave up due to detecting a disk value without a timestamp behind the last update on the chain'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_2', 'eviction gave up due to detecting a tombstone without a timestamp ahead of the selected on disk update'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_3', 'eviction gave up due to detecting a tombstone without a timestamp ahead of the selected on disk update after validating the update chain'),
