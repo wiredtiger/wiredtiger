@@ -281,12 +281,11 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    wt_thread_t alter_tid, background_compact_tid, backup_tid, compact_tid, follower_tid, hs_tid,
-      import_tid, random_tid;
-    wt_thread_t *checkpoint_tids;
+    wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid,
+      follower_tid, hs_tid, import_tid, random_tid;
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
-    uint32_t checkpoint_thread_count, i;
+    uint32_t i;
     bool lastrun, running;
 
     conn = g.wts_conn;
@@ -296,11 +295,10 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
 
     session = NULL; /* -Wconditional-uninitialized */
-    checkpoint_tids = NULL;
-    checkpoint_thread_count = 0;
     memset(&alter_tid, 0, sizeof(alter_tid));
     memset(&background_compact_tid, 0, sizeof(background_compact_tid));
     memset(&backup_tid, 0, sizeof(backup_tid));
+    memset(&checkpoint_tid, 0, sizeof(checkpoint_tid));
     memset(&compact_tid, 0, sizeof(compact_tid));
     memset(&follower_tid, 0, sizeof(follower_tid));
     memset(&hs_tid, 0, sizeof(hs_tid));
@@ -382,12 +380,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     if (g.transaction_timestamps_config)
         testutil_check(__wt_thread_create(NULL, &timestamp_tid, timestamp, tinfo_list));
 
-    if (g.checkpoint_config == CHECKPOINT_ON) {
-        checkpoint_thread_count = GV(CHECKPOINT_THREADS);
-        checkpoint_tids = dcalloc(checkpoint_thread_count, sizeof(*checkpoint_tids));
-        for (i = 0; i < checkpoint_thread_count; ++i)
-            testutil_check(__wt_thread_create(NULL, &checkpoint_tids[i], checkpoint, NULL));
-    }
+    if (g.checkpoint_config == CHECKPOINT_ON)
+        testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
 
     /* Spin on the threads, calculating the totals. */
     for (;;) {
@@ -474,9 +468,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &background_compact_tid));
     if (GV(BACKUP))
         testutil_check(__wt_thread_join(NULL, &backup_tid));
-    for (i = 0; i < checkpoint_thread_count; ++i)
-        testutil_check(__wt_thread_join(NULL, &checkpoint_tids[i]));
-    free(checkpoint_tids);
+    if (g.checkpoint_config == CHECKPOINT_ON)
+        testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
     if (disagg_is_multi_node() && !g.disagg_leader)
