@@ -458,7 +458,7 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 }
 
 /*
- *  __disagg_finalize_checkpoint_meta --
+ * __disagg_finalize_checkpoint_meta --
  *     Finalize checkpoint bookkeeping after processing shared metadata entries.
  */
 static int
