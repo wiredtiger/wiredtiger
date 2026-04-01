@@ -388,8 +388,8 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     __wt_free(session, ckpt_threads->checkpoint_snapshot_array);
     ckpt_threads->checkpoint_snapshot_array = NULL;
     ckpt_threads->checkpoint_snapshot_size = 0;
-    memset(&ckpt_threads->checkpoint_snapshot, 0,
-      sizeof(ckpt_threads->checkpoint_snapshot));
+    ckpt_threads->checkpoint_snapshot.snapshot = NULL;
+    ckpt_threads->checkpoint_snapshot.snapshot_count = 0;
 
     return (ret);
 }
