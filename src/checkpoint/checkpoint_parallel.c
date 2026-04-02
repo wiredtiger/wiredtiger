@@ -385,7 +385,7 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     WT_TRET(__wt_semaphore_destroy(session, &ckpt_threads->done_sem));
 
     /* Free the checkpoint snapshot buffer used by parallel workers. */
-    __wt_free(session, ckpt_threads->checkpoint_snapshot_array);    
+    __wt_free(session, ckpt_threads->checkpoint_snapshot_array);
     ckpt_threads->checkpoint_snapshot_capacity = 0;
     ckpt_threads->checkpoint_snapshot.snapshot = NULL;
     ckpt_threads->checkpoint_snapshot.snapshot_count = 0;
