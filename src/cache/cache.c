@@ -73,9 +73,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Initialize the page cache hash table only on disaggregated standby nodes. Use 0.2% of cache
-     * size, assuming each entry is ~100B. Use a striped lock array capped at
-     * WT_PAGE_CACHE_MAX_LOCKS to avoid excessive memory and initialization overhead for large cache
-     * sizes.
+     * size, assuming each entry is ~100B.
      *
      * FIXME: Enable the page cache when it is fully implemented.
      */
