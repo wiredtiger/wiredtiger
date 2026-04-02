@@ -854,6 +854,7 @@ struct __wt_connection_stats {
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
+    int64_t checkpoint_rec_blkcache_write;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t chunkcache_spans_chunks_read;
     int64_t chunkcache_chunks_evicted;
@@ -995,6 +996,7 @@ struct __wt_connection_stats {
     int64_t disagg_role_leader;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_time;
+    int64_t layered_curs_advance_stable;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
@@ -1004,6 +1006,7 @@ struct __wt_connection_stats {
     int64_t layered_curs_prev_ingest;
     int64_t layered_curs_prev_stable;
     int64_t layered_curs_remove;
+    int64_t layered_curs_reopen_ingest;
     int64_t layered_curs_search_near;
     int64_t layered_curs_search_near_ingest;
     int64_t layered_curs_search_near_stable;
@@ -1011,8 +1014,6 @@ struct __wt_connection_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_update;
-    int64_t layered_curs_upgrade_ingest;
-    int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
@@ -1479,6 +1480,7 @@ struct __wt_dsrc_stats {
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
     int64_t btree_row_leaf;
+    int64_t btree_checkpoint_reconcile_duration;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
@@ -1707,6 +1709,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t layered_curs_advance_stable;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
@@ -1716,6 +1719,7 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_prev_ingest;
     int64_t layered_curs_prev_stable;
     int64_t layered_curs_remove;
+    int64_t layered_curs_reopen_ingest;
     int64_t layered_curs_search_near;
     int64_t layered_curs_search_near_ingest;
     int64_t layered_curs_search_near_stable;
@@ -1723,8 +1727,6 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_update;
-    int64_t layered_curs_upgrade_ingest;
-    int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;

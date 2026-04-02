@@ -516,6 +516,9 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
     return (0);
 }
 
+/* Limit the amount of bytes we dump in the metadata page dump. */
+#define WT_DISAGG_META_DUMP_MAX 1024
+
 /*
  * __wti_disagg_fetch_shared_meta --
  *     Fetch the checkpoint metadata page, validate it, and return a zero-terminated buffer copy.
@@ -524,6 +527,7 @@ int
 __wti_disagg_fetch_shared_meta(
   WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, WT_ITEM *item)
 {
+    WT_DECL_ITEM(hex_buf);
     WT_DECL_RET;
 
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
@@ -535,13 +539,19 @@ __wti_disagg_fetch_shared_meta(
     if (ckpt_meta->has_metadata_checksum) {
         const uint32_t checksum = __wt_checksum(item->data, item->size);
         if (checksum != ckpt_meta->metadata_checksum) {
+            const size_t dump_size =
+              item->size > WT_DISAGG_META_DUMP_MAX ? WT_DISAGG_META_DUMP_MAX : item->size;
+            WT_ERR(__wt_scr_alloc(session, 0, &hex_buf));
             WT_ERR_MSG(session, EIO,
-              "Checkpoint metadata checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
-              ckpt_meta->metadata_checksum, checksum);
+              "Checkpoint metadata corruption detected: lsn=%" PRIu64 ", expected=0x%" PRIx32
+              ", got=0x%" PRIx32 ", data=[%s]",
+              ckpt_meta->metadata_lsn, ckpt_meta->metadata_checksum, checksum,
+              __wt_buf_set_printable(session, item->data, dump_size, false, hex_buf));
         }
     }
 
 err:
+    __wt_scr_free(session, &hex_buf);
     return (ret);
 }
 
@@ -559,7 +569,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_DISAGGREGATED_STORAGE *disagg;
     wt_timestamp_t oldest_timestamp;
     uint64_t lsn;
-    uint32_t checksum;
+    uint32_t checksum, max_table_id;
     char *checkpoint_root_copy, ts_string[2][WT_TS_INT_STRING_SIZE];
 
     checkpoint_root_copy = NULL;
@@ -585,15 +595,18 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      */
     WT_ERR(__wt_meta_read_checkpoint_oldest(session, NULL, &oldest_timestamp, NULL));
 
+    WT_WITH_SCHEMA_LOCK(session, max_table_id = conn->next_file_id);
+
     /* Format metadata settings. */
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
         "version=%d,compatible_version=%d,\n"
         "checkpoint=%s,\n"
         "timestamp=%" PRIx64 ",\n"
-        "oldest_timestamp=%" PRIx64,
+        "oldest_timestamp=%" PRIx64 ",\n"
+        "largest_file_id=%" PRIu32,
         WT_DISAGG_CHECKPOINT_TURTLE_VERSION, WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION,
-        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
+        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp, max_table_id));
 
     /* Append key provider metadata, if available. */
     if (conn->key_provider != NULL) {
@@ -633,10 +646,11 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s, oldest_timestamp=%" PRIu64 " %s, checksum=%" PRIx32 ", root=\"%s\"",
+      " %s, oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", checksum=%" PRIx32
+      ", root=\"%s\"",
       lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
-      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), checksum,
-      checkpoint_root_copy);
+      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), max_table_id,
+      checksum, checkpoint_root_copy);
 
     __wt_free(session, disagg->last_checkpoint_root);
     disagg->last_checkpoint_root = checkpoint_root_copy;
@@ -719,6 +733,7 @@ err:
  *     version=1,compatible_version=1,
  *     checkpoint=(WiredTigerCheckpoint.1=(addr="00c025808282bd21596019", order=1, ...)),
  *     timestamp=0,
+ *     largest_file_id=0,
  *     key_provider=(page.1=(page_id=1,lsn=123),version=1)
  */
 static int
@@ -767,6 +782,14 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             else
                 WT_ERR(__wt_txn_parse_timestamp(
                   session, "oldest timestamp", &metadata->oldest_timestamp, &cfg_value));
+        } else if (WT_CONFIG_LIT_MATCH("largest_file_id", cfg_key)) {
+            WT_ASSERT_ALWAYS(session, metadata->largest_file_id == 0,
+              "Duplicate largest file entry in disaggregated storage metadata: "
+              "metadata->largest_file_id=%" PRIu32,
+              metadata->largest_file_id);
+
+            if (cfg_value.len > 0)
+                metadata->largest_file_id = (uint32_t)cfg_value.val;
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->key_provider == NULL,
               "Duplicate key_provider entry in disaggregated storage metadata");
