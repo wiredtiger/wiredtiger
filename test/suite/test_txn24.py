@@ -45,6 +45,11 @@ class test_txn24(wttest.WiredTigerTestCase):
     # by setting rollbacks_allowed to 0 here.
     rollbacks_allowed = 0
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern(
+            r"oldest id .* pinned in session|^Session: ID:|^Cursor @|^  |^session ID:|^transaction id:")
+
     def conn_config(self):
         return 'cache_size=100MB,eviction=(threads_min=4,threads_max=4)'
 
@@ -117,9 +122,6 @@ class test_txn24(wttest.WiredTigerTestCase):
         self.assertGreater((bytes_evicted_new - bytes_evicted), 0)
         self.session.commit_transaction()
 
-        self.ignoreStdoutPattern(
-            r"oldest id .* pinned in session|^Session: ID:|^Cursor @|^  |^session ID:|^transaction id:")
-
     def test_oldest_id_log(self):
         # Create and populate a table.
         uri = "table:test_txn24"
@@ -162,6 +164,3 @@ class test_txn24(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
         session3.checkpoint()
         session2.commit_transaction()
-
-        self.ignoreStdoutPattern(
-            r"oldest id .* pinned in session|^Session: ID:|^Cursor @|^  |^session ID:|^transaction id:")
