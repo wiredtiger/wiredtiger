@@ -706,6 +706,7 @@ struct __wt_connection_stats {
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t page_cache_hash_size;
     int64_t eviction_app_attempt;
     int64_t eviction_app_fail;
     int64_t cache_eviction_blocked_materialization;

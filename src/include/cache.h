@@ -38,6 +38,31 @@ struct __wt_cache_eviction_controls {
     wt_shared uint32_t flags_atomic;
 };
 
+struct __wt_page_cache_item {
+    TAILQ_ENTRY(__wt_page_cache_item) hashq;
+
+    const void *data;
+    uint32_t data_size;
+
+    int32_t ref_count; /* References */
+
+    uint32_t fid;      /* File ID */
+    uint8_t addr_size; /* Address cookie */
+    uint8_t addr[];
+};
+
+/* Maximum number of page cache hash locks. */
+#define WT_PAGE_CACHE_MAX_LOCKS 8192
+
+struct __wt_page_cache {
+    TAILQ_HEAD(__wt_page_cache_hash, __wt_page_cache_item) * hash;
+    WT_SPINLOCK *hash_locks;
+    u_int hash_size;
+    u_int hash_lock_size;
+    uint32_t max_bucket_size;
+    int32_t max_ref_count;
+};
+
 /*
  * WiredTiger cache structure.
  */
@@ -131,6 +156,8 @@ struct __wt_cache {
 #define WT_CACHE_POOL_RUN 0x2u            /* Cache pool thread running */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint16_t pool_flags_atomic; /* Cache pool flags */
+
+    WT_PAGE_CACHE page_cache;
 };
 
 /*

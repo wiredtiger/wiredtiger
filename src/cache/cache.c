@@ -62,11 +62,29 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    u_int hash_size;
+    uint64_t cache_size;
+
     WT_ASSERT(session, S2C(session)->cache == NULL);
     WT_RET(__wt_calloc_one(session, &S2C(session)->cache));
 
     /* Use a common routine for run-time configuration options. */
     WT_RET(__wt_cache_config(session, cfg, false));
+
+    /*
+     * Initialize the page cache hash table only on disaggregated standby nodes. Use 0.2% of cache
+     * size, assuming each entry is ~100B. Use a striped lock array capped at
+     * WT_PAGE_CACHE_MAX_LOCKS to avoid excessive memory and initialization overhead for large
+     * cache sizes.
+     *
+     * FIXME-WT-17066: Define a right hash size and hash lock size.
+     */
+    if (false && __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+        cache_size = S2C(session)->cache_size;
+        hash_size = (u_int)WT_MAX(cache_size / 500 / 100, 512);
+        WT_RET(__wti_page_cache_init(session, hash_size));
+        WT_STAT_CONN_SET(session, page_cache_hash_size, hash_size);
+    }
 
     /*
      * We get/set some values in the cache statistics (rather than have two copies), configure them.
@@ -240,6 +258,9 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
           __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl) +
             __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf),
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
+
+    /* Destroy the page cache if it was initialized. */
+    __wti_page_cache_destroy(session);
 
     __wt_free(session, conn->cache);
     return (0);
