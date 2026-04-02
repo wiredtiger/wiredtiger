@@ -173,11 +173,11 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char * uri
     current_is_fake = false;
 
     /*
-     * Determine whether the current checkpoint in the metadata is a fake. A fake checkpoint has an
-     * empty addr (len == 0), as established in __ckpt_load in meta_ckpt.c. Parse current_value
-     * directly to avoid a redundant metadata lookup; track the highest order to identify the last
-     * checkpoint entry.
-     */
+    * Determine whether the current checkpoint in the metadata is a fake. A fake checkpoint has an
+    * empty addr (len == 0), as established in __ckpt_load in meta_ckpt.c. Parse current_value
+    * directly to avoid a redundant metadata lookup; track the highest order to identify the last
+    * checkpoint entry.
+    */
     WT_ERR(__wt_config_getones(session, cfg_current, "checkpoint", &ckpt_v));
     __wt_config_subinit(session, &ckptconf, &ckpt_v);
     while (__wt_config_next(&ckptconf, &k, &v) == 0) {
@@ -218,9 +218,9 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char * uri
               "We're facing a checkpoint with the same order but different time, which should "
               "never happen. File: %s, Current metadata: %s, new checkpoint metadata: %s",
               uri, cfg_current, cfg_new);
-        *discardp = true;
-    } else
         *discardp = false;
+    } else
+        *discardp = true;
 
 #ifdef HAVE_DIAGNOSTIC
     if (!*discardp)
