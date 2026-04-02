@@ -212,7 +212,7 @@ struct __wt_checkpoint_reconcile_threads {
 
     WT_TXN_SNAPSHOT checkpoint_snapshot;
     uint64_t *checkpoint_snapshot_array;
-    uint32_t checkpoint_snapshot_size;
+    uint32_t checkpoint_snapshot_capacity;
 };
 
 /*
