@@ -57,8 +57,7 @@ __wti_page_cache_destroy(WT_SESSION_IMPL *session)
         goto done;
 
     /* If the page cache was initialized, we should be a disaggregated standby node. */
-    WT_ASSERT(session,
-      __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader);
+    WT_ASSERT(session, __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader);
 
     for (i = 0; i < page_cache->hash_size; i++) {
         while (!TAILQ_EMPTY(&page_cache->hash[i])) {

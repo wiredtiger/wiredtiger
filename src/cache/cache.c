@@ -62,8 +62,8 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    u_int hash_size;
     uint64_t cache_size;
+    u_int hash_size;
 
     WT_ASSERT(session, S2C(session)->cache == NULL);
     WT_RET(__wt_calloc_one(session, &S2C(session)->cache));
@@ -74,13 +74,16 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Initialize the page cache hash table only on disaggregated standby nodes. Use 0.2% of cache
      * size, assuming each entry is ~100B. Use a striped lock array capped at
-     * WT_PAGE_CACHE_MAX_LOCKS to avoid excessive memory and initialization overhead for large
-     * cache sizes.
+     * WT_PAGE_CACHE_MAX_LOCKS to avoid excessive memory and initialization overhead for large cache
+     * sizes.
      *
-     * FIXME-WT-17066: Define a right hash size and hash lock size.
+     * FIXME: Enable the page cache when it is fully implemented.
      */
-    if (false && __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+    bool page_cache_enabled = false;
+    if (page_cache_enabled && __wt_conn_is_disagg(session) &&
+      !S2C(session)->layered_table_manager.leader) {
         cache_size = S2C(session)->cache_size;
+        /* FIXME-WT-17066: Define a right hash size and hash lock size. */
         hash_size = (u_int)WT_MAX(cache_size / 500 / 100, 512);
         WT_RET(__wti_page_cache_init(session, hash_size));
         WT_STAT_CONN_SET(session, page_cache_hash_size, hash_size);
