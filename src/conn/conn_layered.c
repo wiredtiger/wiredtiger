@@ -156,8 +156,8 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
  *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
  */
 static int
-__disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char * uri, const char *cfg_current,
-  const char *cfg_new, const char **checkpoint_name, bool *discardp)
+__disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *uri,
+  const char *cfg_current, const char *cfg_new, const char **checkpoint_name, bool *discardp)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM ckpt_v, k, v, addr_a;
@@ -173,11 +173,11 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char * uri
     current_is_fake = false;
 
     /*
-    * Determine whether the current checkpoint in the metadata is a fake. A fake checkpoint has an
-    * empty addr (len == 0), as established in __ckpt_load in meta_ckpt.c. Parse current_value
-    * directly to avoid a redundant metadata lookup; track the highest order to identify the last
-    * checkpoint entry.
-    */
+     * Determine whether the current checkpoint in the metadata is a fake. A fake checkpoint has an
+     * empty addr (len == 0), as established in __ckpt_load in meta_ckpt.c. Parse current_value
+     * directly to avoid a redundant metadata lookup; track the highest order to identify the last
+     * checkpoint entry.
+     */
     WT_ERR(__wt_config_getones(session, cfg_current, "checkpoint", &ckpt_v));
     __wt_config_subinit(session, &ckptconf, &ckpt_v);
     while (__wt_config_next(&ckptconf, &k, &v) == 0) {
@@ -209,16 +209,24 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char * uri
     }
 
     /*
-     * Treat the checkpoint order and time configurations as the source of truth when determining
-     * whether the checkpoint has changed.
+     * If order is the same but time is not, and it's not a local fake checkpoint, then we can face
+     * a data corruption.
      */
-    if (checkpoint_order == checkpoint_order_new && checkpoint_time == checkpoint_time_new) {
-        if (!current_is_fake)
+    if (checkpoint_order == checkpoint_order_new && checkpoint_time != checkpoint_time_new) {
+        if (!current_is_fake) {
             WT_ERR_MSG(session, EINVAL,
               "We're facing a checkpoint with the same order but different time, which should "
               "never happen. File: %s, Current metadata: %s, new checkpoint metadata: %s",
               uri, cfg_current, cfg_new);
-        *discardp = false;
+        }
+    }
+    
+    /*
+     * Treat the checkpoint order and time configurations as the source of truth when determining
+     * whether the checkpoint has changed.
+     */
+    if (checkpoint_order == checkpoint_order_new && checkpoint_time == checkpoint_time_new) {
+        *discardp = current_is_fake;
     } else
         *discardp = true;
 
