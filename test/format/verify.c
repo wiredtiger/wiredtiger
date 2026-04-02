@@ -313,16 +313,12 @@ table_verify_mirror(
               table, table_keyno, &table_key, &table_value, last_match);
 
             /*
-             * We can't continue if the keys don't match, otherwise, optionally continue showing
-             * failures, up to 20.
+             * Dump the cursor pages and preserve the disaggregated layered components for the first
+             * failure.
              */
-            bool continuing = (base_keyno == table_keyno ||
-              (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
-            if (!continuing && g.disagg_storage_config && GV(DISAGG_PRESERVE))
-                testutil_disagg_preserve(conn, "preserve");
-
-            /* Dump the cursor pages for the first failure. */
             if (++failures == 1) {
+                if (g.disagg_storage_config && GV(DISAGG_PRESERVE))
+                    testutil_disagg_preserve(conn, "preserve");
                 testutil_snprintf(
                   tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id);
                 cursor_dump_page(base_cursor, tagbuf);
@@ -345,7 +341,12 @@ table_verify_mirror(
                 }
             }
 
-            testutil_assert(continuing);
+            /*
+             * We can't continue if the keys don't match, otherwise, optionally continue showing
+             * failures, up to 20.
+             */
+            testutil_assert(base_keyno == table_keyno ||
+              (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
         }
 
         /* Report progress (unless verifying checkpoints which happens during live operations). */

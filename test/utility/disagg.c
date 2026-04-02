@@ -64,7 +64,7 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
 
 /*
  * preserve_copy_uri --
- *     Copy a uri from one connection to another, up to a maximum number of entries.
+ *     Copy a uri from one connection to another.
  */
 static void
 preserve_copy_uri(
