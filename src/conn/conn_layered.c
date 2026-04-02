@@ -262,6 +262,8 @@ __disagg_apply_checkpoint_meta(
             uint64_t time, time_new;
             bool current_is_fake;
 
+            order = 0;
+            time = 0;
             /*
              * Determine whether the current checkpoint in the metadata is a fake. A fake checkpoint
              * has an empty addr (len == 0), as established in __ckpt_load in meta_ckpt.c. Parse
