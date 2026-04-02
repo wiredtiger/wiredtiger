@@ -21,6 +21,7 @@ __wti_page_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
 
     page_cache = &S2C(session)->cache->page_cache;
     page_cache->hash_size = hash_size;
+    /* FIXME-WT-17066: We should pick a right WT_PAGE_CACHE_MAX_LOCKS. */
     page_cache->hash_lock_size = WT_MIN(hash_size, WT_PAGE_CACHE_MAX_LOCKS);
     page_cache->max_bucket_size = 0;
     page_cache->max_ref_count = 0;
