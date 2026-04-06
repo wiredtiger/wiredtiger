@@ -220,7 +220,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *uri,
               uri, cfg_current, cfg_new);
         }
     }
-    
+
     /*
      * Treat the checkpoint order and time configurations as the source of truth when determining
      * whether the checkpoint has changed.
