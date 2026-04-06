@@ -122,18 +122,14 @@ testutil_disagg_preserve(WT_CONNECTION *conn, const char *subdir)
     WT_CLEAR(from_uri);
     WT_CLEAR(to_uri);
 
-    /*
-     * Create a new WiredTiger instance to hold the preserved files.
-     */
+    /* Create a new WiredTiger instance to hold the preserved files. */
     testutil_format_item(&dest_dir, "%s/%s", home, subdir);
     testutil_recreate_dir((char *)dest_dir.data);
     fprintf(stderr, "preserving ingest/stable/layered to %s\n", (char *)dest_dir.data);
     testutil_check(wiredtiger_open((char *)dest_dir.data, NULL, "create", &dest_conn));
     testutil_check(dest_conn->open_session(dest_conn, NULL, NULL, &dest_session));
 
-    /*
-     * Copy the metadata file first.
-     */
+    /* Copy the metadata file first. */
     preserve_copy_uri(session, "metadata:", dest_session, "table:metadata.preserve");
 
     /*
@@ -169,9 +165,7 @@ testutil_disagg_preserve(WT_CONNECTION *conn, const char *subdir)
     free(to_uri.mem);
     testutil_check(session->close(session, NULL));
 
-    /*
-     * Final checkpoint for destination and close everything.
-     */
+    /* Final checkpoint for destination and close everything. */
     testutil_check(dest_session->checkpoint(dest_session, NULL));
     testutil_check(dest_session->close(dest_session, NULL));
     testutil_check(dest_conn->close(dest_conn, NULL));

@@ -186,10 +186,7 @@ disagg_sync_multi_node(WT_SESSION *session)
         if (g.disagg_multi_db_hash->leader_hash != g.disagg_multi_db_hash->follower_hash &&
           GV(DISAGG_PRESERVE))
             testutil_disagg_preserve(session->connection, "preserve");
-        if (g.disagg_leader)
-            testutil_assert(hash == g.disagg_multi_db_hash->follower_hash);
-        else
-            testutil_assert(hash == g.disagg_multi_db_hash->leader_hash);
+        testutil_assert(g.disagg_multi_db_hash->leader_hash == g.disagg_multi_db_hash->follower_hash);
 
         /* Exit synchronization between leader and follower processes. */
         disagg_multi_sync_point();
