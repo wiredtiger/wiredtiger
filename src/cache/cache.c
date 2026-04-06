@@ -82,7 +82,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
       !S2C(session)->layered_table_manager.leader) {
         cache_size = S2C(session)->cache_size;
         /* FIXME-WT-17066: We should pick a right hash size. */
-        hash_size = (u_int)WT_MAX(cache_size / 500 / 100, 512);
+        hash_size = (u_int)WT_MAX(cache_size / 50000, 512);
         WT_RET(__wti_page_cache_init(session, hash_size));
         WT_STAT_CONN_SET(session, page_cache_hash_size, hash_size);
     }

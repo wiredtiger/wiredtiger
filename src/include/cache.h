@@ -44,7 +44,7 @@ struct __wt_page_cache_item {
     const void *data;
     uint32_t data_size;
 
-    int32_t ref_count; /* References */
+    wt_shared int32_t ref_count; /* References */
 
     uint32_t fid;      /* File ID */
     uint8_t addr_size; /* Address cookie */
