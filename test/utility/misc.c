@@ -588,11 +588,11 @@ dstrndup(const char *str, size_t len)
 }
 
 /*
- * testutil_sprintf_item --
- *     Do sprintf into a WT_ITEM buffer, growing as needed.
+ * testutil_format_item --
+ *     Do printf-style formatting into a WT_ITEM buffer, growing as needed.
  */
 void
-testutil_sprintf_item(WT_ITEM *item, const char *fmt, ...)
+testutil_format_item(WT_ITEM *item, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)))
 {
     size_t needed;

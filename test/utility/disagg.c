@@ -125,7 +125,7 @@ testutil_disagg_preserve(WT_CONNECTION *conn, const char *subdir)
     /*
      * Create a new WiredTiger instance to hold the preserved files.
      */
-    testutil_sprintf_item(&dest_dir, "%s/%s", home, subdir);
+    testutil_format_item(&dest_dir, "%s/%s", home, subdir);
     testutil_recreate_dir((char *)dest_dir.data);
     fprintf(stderr, "preserving ingest/stable/layered to %s\n", (char *)dest_dir.data);
     testutil_check(wiredtiger_open((char *)dest_dir.data, NULL, "create", &dest_conn));
@@ -143,21 +143,21 @@ testutil_disagg_preserve(WT_CONNECTION *conn, const char *subdir)
     testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &metacur));
     while ((ret = metacur->next(metacur)) == 0) {
         metacur->get_key(metacur, &uri);
-        if (strncmp(uri, LAYERED_PREFIX, strlen(LAYERED_PREFIX)) == 0) {
+        if (WT_PREFIX_MATCH(uri, LAYERED_PREFIX)) {
             /*
              * Preserved files cannot be named with the strings ".wt_ingest" or ".wt_stable"
              * embedded in the names, as WiredTiger will treat these specially.
              */
             base = uri + strlen(LAYERED_PREFIX);
-            testutil_sprintf_item(&from_uri, "file:%s.wt_ingest", base);
-            testutil_sprintf_item(&to_uri, "table:%s.ingest_preserve", base);
+            testutil_format_item(&from_uri, "file:%s.wt_ingest", base);
+            testutil_format_item(&to_uri, "table:%s.ingest_preserve", base);
             preserve_copy_uri(session, (char *)from_uri.data, dest_session, (char *)to_uri.data);
 
-            testutil_sprintf_item(&from_uri, "file:%s.wt_stable", base);
-            testutil_sprintf_item(&to_uri, "table:%s.stable_preserve", base);
+            testutil_format_item(&from_uri, "file:%s.wt_stable", base);
+            testutil_format_item(&to_uri, "table:%s.stable_preserve", base);
             preserve_copy_uri(session, (char *)from_uri.data, dest_session, (char *)to_uri.data);
 
-            testutil_sprintf_item(&to_uri, "table:%s.layered_preserve", base);
+            testutil_format_item(&to_uri, "table:%s.layered_preserve", base);
             preserve_copy_uri(session, uri, dest_session, (char *)to_uri.data);
         }
     }
