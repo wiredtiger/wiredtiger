@@ -2819,7 +2819,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
 
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_SYNC_FILE);
-        WT_ERR(__wt_sync_file(session, WT_SYNC_CHECKPOINT));
+        WT_ERR_MSG_CHK(session, __wt_sync_file(session, WT_SYNC_CHECKPOINT),
+          "%s: checkpoint failed during cache flush and reconciliation", dhandle->name);
 
         diff_us = WT_CLOCKDIFF_US(__wt_clock(session), start_us);
         WT_STAT_DSRC_INCRV(session, btree_checkpoint_reconcile_duration, diff_us);
@@ -2850,10 +2851,14 @@ fake:
      * and open a checkpoint that isn't yet durable.
      */
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_ERR(__wt_checkpoint_sync(session, NULL));
+        WT_ERR_MSG_CHK(session, __wt_checkpoint_sync(session, NULL),
+          "%s: checkpoint failed during file sync", dhandle->name);
 
-    WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), ckptlsn_str));
-    WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, (const char *)ckptlsn_str));
+    WT_ERR_MSG_CHK(session, __wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), ckptlsn_str),
+      "%s: checkpoint failed during LSN string formatting", dhandle->name);
+    WT_ERR_MSG_CHK(session,
+      __wt_meta_ckptlist_set(session, dhandle, btree->ckpt, (const char *)ckptlsn_str),
+      "%s: checkpoint failed during metadata update", dhandle->name);
 
     /*
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking
@@ -2882,6 +2887,18 @@ err:
     if (resolve_bm) {
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_RESOLVE);
+        /*
+         * In case of a failure, dump recent error log entries before resolving the checkpoint, as
+         * the resolve may overwrite the current error code with a panic.
+         */
+        if (ret != 0)
+#ifdef HAVE_ERROR_LOG
+            __wt_error_log_dump_recent(session, 3);
+#else
+            __wt_verbose_error(session, WT_VERB_CHECKPOINT,
+              "%s: checkpoint failed with error code %d before block manager checkpoint resolve",
+              dhandle->name, ret);
+#endif
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
 
         /*
