@@ -52,36 +52,25 @@ additionally require the btree to have the \c WT_BTREE_DISAGGREGATED flag set.
 Deltas are generated during reconciliation (\c __wt_reconcile). The two page
 types follow different paths:
 
-- For a leaf page: after the full disk image is built, \c __rec_build_delta
-  (in \c src/reconcile/rec_write.c) calls \c __rec_build_delta_leaf if
-  \c WT_BUILD_DELTA_LEAF(session, r) is true. This macro guards against
-  in-memory splits (\c WT_PAGE_INMEM_SPLIT) and requires a single-block
-  reconcile result.
-- For an internal page: the delta decision and entry packing happen inside
-  \c __rec_row_int (in \c src/reconcile/rec_row.c), concurrent with building
-  the full image. \c WT_BUILD_DELTA_INT is evaluated at the start of
-  \c __rec_row_int; modified children are packed into \c r->delta via
-  \c __rec_pack_delta_row_int as the child-walk proceeds. When
-  \c __rec_build_delta is later called from \c __rec_split_write, it only
-  stamps the \c write_gen field from the full image onto the already-populated
-  delta buffer (if \c r->delta.size > 0).
+- For a leaf page: after the full disk image is built, the delta build function
+  is called if the page has not undergone an in-memory split and the reconciliation
+  produced a single block result.
+- For an internal page: the delta decision and entry packing happen concurrently
+  with building the full image. Modified children are packed into the delta buffer
+  as the child-walk proceeds. Once the full image is complete, the write generation
+  field is stamped onto the already-populated delta buffer.
 
-After a candidate delta is built, the write path in \c __rec_split_write
-decides whether to keep it or fall back to a full page write:
+After a candidate delta is built, the write path validates whether the delta can
+be written or whether a full page write is required, and takes the decision accordingly:
 
-1. \c rec_page_delta_eligible is incremented to record that the page was a
-   candidate.
-2. If \c block_meta->delta_count has reached \c max_consecutive_delta, the delta
-   is rejected (\c rec_page_delta_rejected_max_consecutive_exceeded) and a full
-   image is written instead, resetting the chain.
-3. If the built delta's size exceeds \c delta_pct percent of the full image, it
-   is also rejected (\c rec_page_delta_rejected_size_threshold).
-4. Several other rejection counters track structural reasons a delta cannot be
-   used: \c rec_page_delta_rejected_multiblock (reconcile produced multiple
-   blocks), \c rec_page_delta_rejected_invalid_page_id (page has no stable LSN
-   yet), \c rec_page_delta_rejected_non_single_page,
-   \c rec_page_delta_rejected_zero_entries, and
-   \c rec_page_delta_rejected_build_failed.
+1. If \c block_meta->delta_count has reached \c max_consecutive_delta, the delta
+   is rejected and a full image is written instead, resetting the chain.
+2. If the built delta's size exceeds \c delta_pct percent of the full image, it
+   is also rejected.
+3. Several structural reasons can also prevent a delta from being used: the
+   reconcile produced multiple blocks, the page has no stable LSN yet, the
+   result is not a single page, the leaf delta is empty, or the delta build
+   returned no entries.
 
 When a delta is accepted, it is written by \c __rec_write_delta and
 \c block_meta->delta_count is incremented.
@@ -100,10 +89,7 @@ respect visibility rules identically to a full image.
 
 Internal page deltas are built during the row-store internal reconcile pass in
 \c src/reconcile/rec_row.c. Each child-address change (insert, update, or delete
-of a sub-tree pointer) is packed into \c r->delta. Two counters track the content:
-\c r->count_internal_page_delta_key_deleted and
-\c r->count_internal_page_delta_key_updated, which are flushed to statistics
-when the delta is written.
+of a sub-tree pointer) is packed into \c r->delta.
 
 @section pd_key_files Key files
 
@@ -152,38 +138,7 @@ The merge helpers live in \c src/btree/bt_page.c:
   and all internal deltas. Each child address is either kept from the base or
   replaced/removed according to the newest delta entry.
 
-Reconstruction latency is measured and recorded in the
-\c perf_hist_leaf_reconstruct_latency_* and
-\c perf_hist_internal_reconstruct_latency_* histogram buckets.
-
-@section pd_stats Observability and tuning
-
-Key statistics to monitor:
-
-| Statistic | Meaning |
-|-----------|---------|
-| \c rec_page_delta_eligible | Pages that were candidates for a delta (before rejection) |
-| \c rec_page_delta_leaf | Leaf deltas accepted and written |
-| \c rec_page_delta_internal | Internal deltas accepted and written |
-| \c rec_pages_with_leaf_deltas | Pages that have had at least one leaf delta written |
-| \c rec_pages_with_internal_deltas | Pages that have had at least one internal delta written |
-| \c rec_average_leaf_page_delta_chain_length | Average chain length: rec_page_delta_leaf / rec_pages_with_leaf_deltas |
-| \c rec_average_internal_page_delta_chain_length | Same ratio for internal pages |
-| \c rec_max_leaf_page_deltas | Longest leaf delta chain observed |
-| \c rec_max_internal_page_deltas | Longest internal delta chain observed |
-| \c rec_page_delta_rejected_size_threshold | Deltas discarded for exceeding \c delta_pct |
-| \c rec_page_delta_rejected_max_consecutive_exceeded | Deltas discarded because chain is full |
-| \c rec_page_delta_rejected_multiblock | Rejected: reconcile produced multiple blocks |
-| \c rec_page_delta_rejected_invalid_page_id | Rejected: page has no stable LSN yet |
-| \c rec_page_delta_rejected_non_single_page | Rejected: not a single-page result |
-| \c rec_page_delta_rejected_zero_entries | Rejected: empty leaf delta |
-| \c rec_page_delta_rejected_build_failed | Rejected: delta build returned no entries |
-| \c cache_read_leaf_delta | Leaf pages reconstructed from base + deltas on read |
-| \c cache_read_internal_delta | Internal pages reconstructed from base + deltas on read |
-| \c block_byte_write_saved_delta_leaf | Bytes saved by writing leaf deltas instead of full images |
-| \c block_byte_write_saved_delta_intl | Bytes saved by writing internal deltas instead of full images |
-| \c perf_hist_leaf_reconstruct_latency_* | Histogram of leaf merge latency (µs) |
-| \c perf_hist_internal_reconstruct_latency_* | Histogram of internal merge latency (µs) |
+@section pd_tuning Tuning
 
 The primary tuning levers are:
 
@@ -195,9 +150,5 @@ The right balance depends on the read/write ratio and how many keys are updated
 per page per checkpoint cycle. Write-heavy workloads with sparse updates benefit
 most. Read-heavy workloads or workloads that touch every key on a page should
 use short chains (\c max_consecutive_delta of 4–8).
-
-@note
-\c rec_pages_with_leaf_deltas counts pages that <em>had</em> at least one delta
-written, not the current number of on-disk pages that still carry deltas.
 
 */
