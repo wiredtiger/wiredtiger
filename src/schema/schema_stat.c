@@ -55,6 +55,69 @@ err:
 }
 
 /*
+ * __curstat_size_only_local --
+ *     Fast-path size retrieval for tables backed by a local file. Read the file size directly from
+ *     the filesystem.
+ */
+static int
+__curstat_size_only_local(
+  WT_SESSION_IMPL *session, const char *filename, bool *was_fast, WT_CURSOR_STAT *cst)
+{
+    wt_off_t filesize;
+    bool exist;
+
+    WT_RET(__wt_fs_exist(session, filename, &exist));
+    if (exist) {
+        WT_RET(__wt_fs_size(session, filename, &filesize));
+
+        __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+        cst->u.dsrc_stats.block_size = filesize;
+        __wt_curstat_dsrc_final(cst);
+
+        *was_fast = true;
+    }
+
+    return (0);
+}
+
+/*
+ * __curstat_size_only_disagg --
+ *     Fast-path size retrieval for disaggregated tables. There is no underlying file on disk, so
+ *     read the checkpoint size directly from the stable file's metadata entry.
+ */
+static int
+__curstat_size_only_disagg(
+  WT_SESSION_IMPL *session, const char *filename, bool *was_fast, WT_CURSOR_STAT *cst)
+{
+    WT_DECL_ITEM(filebuf);
+    WT_DECL_RET;
+    uint64_t ckpt_size;
+    char *fileconf;
+
+    fileconf = NULL;
+
+    WT_RET(__wt_scr_alloc(session, 0, &filebuf));
+    WT_ERR(__wt_buf_fmt(session, filebuf, "file:%s", filename));
+    ret = __wt_metadata_search(session, filebuf->data, &fileconf);
+    if (ret == 0) {
+        ret = __wt_ckpt_last_size(session, fileconf, &ckpt_size);
+        if (ret == 0) {
+            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+            cst->u.dsrc_stats.block_size = (int64_t)ckpt_size;
+            __wt_curstat_dsrc_final(cst);
+            *was_fast = true;
+        }
+    }
+    ret = 0;
+
+err:
+    __wt_free(session, fileconf);
+    __wt_scr_free(session, &filebuf);
+
+    return (ret);
+}
+
+/*
  * __curstat_size_only --
  *     For very simple tables we can avoid getting table handles if configured to only retrieve the
  *     size. It's worthwhile because workloads that create and drop a lot of tables can put a lot of
@@ -65,18 +128,14 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, colconf, cval;
-    WT_DECL_ITEM(filebuf);
     WT_DECL_RET;
     WT_ITEM namebuf;
-    wt_off_t filesize;
-    uint64_t ckpt_size;
-    char *fileconf, *tableconf;
-    bool disagg, exist;
+    char *tableconf;
+    bool disagg;
 
     WT_CLEAR(namebuf);
     disagg = false;
     *was_fast = false;
-    fileconf = NULL;
 
     /* Retrieve the metadata for this table. */
     WT_RET(__wt_metadata_search(session, uri, &tableconf));
@@ -107,47 +166,20 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
     /* Build up the file name from the table URI using the appropriate extension. */
     WT_ERR(__wt_buf_fmt(
       session, &namebuf, "%s.%s", uri + strlen("table:"), disagg ? "wt_stable" : "wt"));
+
     /*
      * Get the size of the underlying file. This will fail for anything other than simple tables and
      * will fail if there are concurrent schema level operations (for example drop). That is fine -
      * failing here results in falling back to the slow path of opening the handle.
      */
-    if (!disagg) {
-        WT_ERR(__wt_fs_exist(session, namebuf.data, &exist));
-        if (exist) {
-            WT_ERR(__wt_fs_size(session, namebuf.data, &filesize));
-
-            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-            cst->u.dsrc_stats.block_size = filesize;
-            __wt_curstat_dsrc_final(cst);
-
-            *was_fast = true;
-        }
-    } else {
-        /*
-         * Disaggregated tables have no underlying file; read the checkpoint size directly from the
-         * metadata entry for the stable file.
-         */
-        WT_ERR(__wt_scr_alloc(session, 0, &filebuf));
-        WT_ERR(__wt_buf_fmt(session, filebuf, "file:%s", (const char *)namebuf.data));
-        ret = __wt_metadata_search(session, filebuf->data, &fileconf);
-        if (ret == 0) {
-            ret = __wt_ckpt_last_size(session, fileconf, &ckpt_size);
-            if (ret == 0) {
-                __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-                cst->u.dsrc_stats.block_size = (int64_t)ckpt_size;
-                __wt_curstat_dsrc_final(cst);
-                *was_fast = true;
-            }
-        }
-        ret = 0;
-    }
+    if (disagg)
+        WT_ERR(__curstat_size_only_disagg(session, namebuf.data, was_fast, cst));
+    else
+        WT_ERR(__curstat_size_only_local(session, namebuf.data, was_fast, cst));
 
 err:
-    __wt_free(session, fileconf);
     __wt_free(session, tableconf);
     __wt_buf_free(session, &namebuf);
-    __wt_scr_free(session, &filebuf);
 
     return (ret);
 }
