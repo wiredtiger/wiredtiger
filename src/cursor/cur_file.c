@@ -616,8 +616,14 @@ __curfile_close(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 err:
 
-    /* Only try to cache the cursor if there's no error. */
-    if (ret == 0) {
+    dead = F_ISSET(cursor, WT_CURSTD_DEAD);
+
+    /*
+     * Only try to cache the cursor if there's no error and the cursor is not dead. A dead cursor
+     * did not acquire a read lock on its data handle, so caching it would release a lock that was
+     * never held.
+     */
+    if (ret == 0 && !dead) {
         /*
          * If releasing the cursor fails in any way, it will be left in a state that allows it to be
          * normally closed.
@@ -626,8 +632,6 @@ err:
         if (released)
             goto done;
     }
-
-    dead = F_ISSET(cursor, WT_CURSTD_DEAD);
 
     /* For cached cursors, free any extra buffers retained now. */
     __wt_cursor_free_cached_memory(cursor);
