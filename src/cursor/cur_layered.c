@@ -497,7 +497,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session;
-    uint64_t last_checkpoint_meta_lsn, snapshot_gen;
+    WT_TXN_SHARED *txn_shared;
+    uint64_t last_checkpoint_meta_lsn;
     bool change_ingest, change_stable, current_leader;
 
     *state_updated = false;
@@ -513,23 +514,19 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
         last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
     /*
-     * Has any state changed? What is not checked here is the possibility that a step down and
-     step
+     * Has any state changed? What is not checked here is the possibility that a step down and step
      * up have both occurred since the last check. We don't have a way to detect that (or its
      * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
      * any changes. FIXME-WT-14545.
      */
     if (current_leader == clayered->leader &&
       last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
-        return (0);
-
-    snapshot_gen = clayered->snapshot_gen;
+        goto done;
 
     /* Is this a step up or step down? */
     if (current_leader != clayered->leader) {
         /*
-         * If we're stepping down, then we currently have a R/W stable cursor and all writes
-         would
+         * If we're stepping down, then we currently have a R/W stable cursor and all writes would
          * go to it. Any writes we were about to make or have made to this table could never be
          * committed at this point.
          */
@@ -544,22 +541,19 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          * stable cursor whenever we can.
          *
          * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
-         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
-         as
+         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write, as
          * this request was kicked off on the follower, so it must be all reads. But we want to
          * discard the stable cursor when we can, as long as we're not breaking transactional
          * semantics for cursors.
          *
-         * For step down, we're currently using a R/W stable cursor. After the check above, we
-         know
+         * For step down, we're currently using a R/W stable cursor. After the check above, we know
          * we've done read operations to this point. So again, we should reopen if we can.
          */
     }
 
     if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
         /*
-         * To reopen the ingest table, all we need to do here is close it. It will be reopened
-         when
+         * To reopen the ingest table, all we need to do here is close it. It will be reopened when
          * needed. There's never a situation where we need to save its position.
          */
         WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
@@ -574,16 +568,18 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      * follower. And again, we'd like to reopen the stable cursor if we can.
      */
     if ((change_stable = __clayered_can_advance_stable(clayered, iteration))) {
-        snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
         WT_RET(__clayered_advance_stable(session, clayered, current_leader));
     }
 
     /* Update the state of the layered cursor. */
     clayered->leader = current_leader;
     clayered->checkpoint_meta_lsn = last_checkpoint_meta_lsn;
-    clayered->snapshot_gen = snapshot_gen;
     *state_updated = (change_ingest || change_stable);
 
+done:
+    clayered->snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    clayered->read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
     return (0);
 }
 
@@ -1132,16 +1128,23 @@ __clayered_next(WT_CURSOR *cursor)
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t prev_read_timestamp, prev_snapshot_gen;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
+
+    prev_snapshot_gen = clayered->snapshot_gen;
+    prev_read_timestamp = clayered->read_timestamp;
     WT_ERR(__clayered_enter(clayered, false, true, true));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
 
+    if (prev_snapshot_gen != clayered->snapshot_gen ||
+      prev_read_timestamp != clayered->read_timestamp)
+        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT);
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT));
 
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
@@ -1175,16 +1178,23 @@ __clayered_prev(WT_CURSOR *cursor)
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t prev_read_timestamp, prev_snapshot_gen;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, prev, clayered->dhandle);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
+
+    prev_snapshot_gen = clayered->snapshot_gen;
+    prev_read_timestamp = clayered->read_timestamp;
     WT_ERR(__clayered_enter(clayered, false, true, true));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
 
+    if (prev_snapshot_gen != clayered->snapshot_gen ||
+      prev_read_timestamp != clayered->read_timestamp)
+        F_CLR(clayered, WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
 
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
