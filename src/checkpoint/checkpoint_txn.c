@@ -14,6 +14,7 @@ static int __checkpoint_fsync_post(
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
+static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static uint64_t __checkpoint_running_time(WT_SESSION_IMPL *);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
@@ -1489,8 +1490,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
-    uint64_t ckpt_tree_duration_usecs, drop_size, generation;
-    uint64_t time_start_ckpt_tree, time_stop_ckpt_tree;
+    uint64_t drop_size, generation;
     u_int i;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, idle, logging, tracking;
@@ -1640,14 +1640,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     tsp.tv_nsec = 0;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
 
-    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CKPT_TREE);
-    __checkpoint_verbose_track(session, "checkpointing individual trees");
-
-    time_start_ckpt_tree = __wt_clock(session);
-    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
-    time_stop_ckpt_tree = __wt_clock(session);
-    ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
-    WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
+    WT_ERR(__checkpoint_selected_dhandles(session, cfg));
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
@@ -3047,6 +3040,32 @@ err:
         __checkpoint_verbose_track(session, "sync completed");
     } else
         __checkpoint_verbose_track(session, "sync failed");
+
+    return (ret);
+}
+
+/*
+ * __checkpoint_selected_dhandles --
+ *     Checkpoint all the trees in the database.
+ */
+static int
+__checkpoint_selected_dhandles(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_DECL_RET;
+
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CKPT_TREE);
+    __checkpoint_verbose_track(session, "checkpointing individual trees");
+
+    uint64_t time_start_ckpt_tree = __wt_clock(session);
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
+
+err:
+    WT_STAT_CONN_SET(session, checkpoint_tree_duration,
+      WT_CLOCKDIFF_US(__wt_clock(session), time_start_ckpt_tree));
+    if (ret == 0)
+        __checkpoint_verbose_track(session, "checkpointing individual trees completed");
+    else
+        __checkpoint_verbose_track(session, "checkpointing individual trees failed");
 
     return (ret);
 }
