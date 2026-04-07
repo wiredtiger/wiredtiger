@@ -21,7 +21,7 @@ __wti_shared_dsk_init(WT_SESSION_IMPL *session, u_int hash_size)
 
     shared_dsk = &S2C(session)->cache->shared_dsk;
     shared_dsk->hash_size = hash_size;
-    /* FIXME-WT-17066: We should pick a right WT_SHARED_DSK_MAX_LOCKS. */
+    /* FIXME-WT-17066: We should pick a WT_SHARED_DSK_MAX_LOCKS wisely. */
     shared_dsk->hash_lock_size = WT_MIN(hash_size, WT_SHARED_DSK_MAX_LOCKS);
     shared_dsk->max_bucket_size = 0;
     shared_dsk->max_ref_count = 0;
