@@ -706,7 +706,6 @@ struct __wt_connection_stats {
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
-    int64_t page_cache_hash_size;
     int64_t eviction_app_attempt;
     int64_t eviction_app_fail;
     int64_t cache_eviction_blocked_materialization;
@@ -753,6 +752,7 @@ struct __wt_connection_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t shared_dsk_hash_size;
     int64_t cache_eviction_hs_shared_cursor_not_cached;
     int64_t cache_read_delta_updates;
     int64_t cache_read_restored_tombstone_bytes;

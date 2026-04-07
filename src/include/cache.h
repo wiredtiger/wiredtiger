@@ -38,8 +38,8 @@ struct __wt_cache_eviction_controls {
     wt_shared uint32_t flags_atomic;
 };
 
-struct __wt_page_cache_item {
-    TAILQ_ENTRY(__wt_page_cache_item) hashq;
+struct __wt_shared_dsk_item {
+    TAILQ_ENTRY(__wt_shared_dsk_item) hashq;
 
     const void *data;
     uint32_t data_size;
@@ -51,13 +51,13 @@ struct __wt_page_cache_item {
     uint8_t addr[];
 };
 
-/* Maximum number of page cache hash locks. */
-#define WT_PAGE_CACHE_MAX_LOCKS 8192
+/* Maximum number of shared disk cache hash locks. */
+#define WT_SHARED_DSK_MAX_LOCKS 8192
 
-struct __wt_page_cache {
+struct __wt_shared_dsk {
     bool enabled;
 
-    TAILQ_HEAD(__wt_page_cache_hash, __wt_page_cache_item) * hash;
+    TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
     WT_SPINLOCK *hash_locks;
     u_int hash_size;
     u_int hash_lock_size;
@@ -159,7 +159,7 @@ struct __wt_cache {
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint16_t pool_flags_atomic; /* Cache pool flags */
 
-    WT_PAGE_CACHE page_cache;
+    WT_SHARED_DSK shared_dsk;
 };
 
 /*
