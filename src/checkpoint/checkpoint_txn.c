@@ -3062,9 +3062,9 @@ __checkpoint_selected_dhandles(WT_SESSION_IMPL *session, const char *cfg[])
 err:
     WT_STAT_CONN_SET(session, checkpoint_tree_duration,
       WT_CLOCKDIFF_US(__wt_clock(session), time_start_ckpt_tree));
-    if (ret == 0) {
+    if (ret == 0)
         __checkpoint_verbose_track(session, "checkpointing individual trees completed");
-    } else
+    else
         __checkpoint_verbose_track(session, "checkpointing individual trees failed");
 
     return (ret);
