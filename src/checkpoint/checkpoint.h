@@ -210,9 +210,11 @@ struct __wt_checkpoint_reconcile_threads {
     WT_SPINLOCK done_lock;
     WT_SEMAPHORE done_sem;
 
-    /* Private copy of the checkpoint transactions snapshot for parallel workers.
+    /*
+     * Private copy of the checkpoint transactions snapshot for parallel workers.
      * checkpoint_snapshot_array is the backing buffer (capacity is entries, sized to
-     * conn->session_array.size) that holds the snapshot IDs. */
+     * conn->session_array.size) that holds the snapshot IDs.
+     */
     WT_TXN_SNAPSHOT checkpoint_snapshot;
     uint64_t *checkpoint_snapshot_array;
     size_t checkpoint_snapshot_capacity;
