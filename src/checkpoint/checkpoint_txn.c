@@ -3051,18 +3051,19 @@ err:
 static int
 __checkpoint_selected_dhandles(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    uint64_t time_start_ckpt_tree, time_stop_ckpt_tree, ckpt_tree_duration_usecs;
+    WT_DECL_RET;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CKPT_TREE);
     __checkpoint_verbose_track(session, "checkpointing individual trees");
 
-    time_start_ckpt_tree = __wt_clock(session);
-    WT_RET(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
-    time_stop_ckpt_tree = __wt_clock(session);
-    ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
-    WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
+    uint64_t time_start_ckpt_tree = __wt_clock(session);
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
 
-    return (0);
+err:
+    WT_STAT_CONN_SET(session, checkpoint_tree_duration,
+      WT_CLOCKDIFF_US(__wt_clock(session), time_start_ckpt_tree));
+
+    return (ret);
 }
 
 /*
