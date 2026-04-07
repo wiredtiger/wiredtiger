@@ -2203,7 +2203,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
-  "cache: shared disk cache hash table size",
+  "cache: shared disk hash table size",
   "cache: shared history store cursor not cached during eviction",
   "cache: size of delta updates reconstructed on the base page",
   "cache: size of tombstones restored when reading a page",

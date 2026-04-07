@@ -10,7 +10,7 @@
 
 /*
  * __wti_shared_dsk_init --
- *     Initialize the shared disk cache.
+ *     Initialize the shared disk.
  */
 int
 __wti_shared_dsk_init(WT_SESSION_IMPL *session, u_int hash_size)
@@ -43,7 +43,7 @@ err:
 
 /*
  * __wti_shared_dsk_destroy --
- *     Destroy the shared disk cache and free all memory.
+ *     Destroy the shared disk and free all memory.
  */
 void
 __wti_shared_dsk_destroy(WT_SESSION_IMPL *session)
@@ -57,7 +57,7 @@ __wti_shared_dsk_destroy(WT_SESSION_IMPL *session)
     if (shared_dsk->hash == NULL || shared_dsk->hash_locks == NULL)
         goto done;
 
-    /* If the shared disk cache was initialized, we should be a disaggregated standby node. */
+    /* If the shared disk was initialized, we should be a disaggregated standby node. */
     WT_ASSERT(session, __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader);
 
     for (i = 0; i < shared_dsk->hash_size; i++) {

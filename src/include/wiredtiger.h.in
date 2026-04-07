@@ -7189,7 +7189,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * restrictions
  */
 #define	WT_STAT_CONN_CACHE_REVERSE_SPLITS_SKIPPED_VLCS	1329
-/*! cache: shared disk cache hash table size */
+/*! cache: shared disk hash table size */
 #define	WT_STAT_CONN_SHARED_DSK_HASH_SIZE		1330
 /*! cache: shared history store cursor not cached during eviction */
 #define	WT_STAT_CONN_CACHE_EVICTION_HS_SHARED_CURSOR_NOT_CACHED	1331
