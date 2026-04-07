@@ -528,7 +528,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE))
         __wt_stash_discard(session);
 
-    for (evict_skip = read_from_disk = stalled = wont_need = false, force_attempts = 0,
+    for (evict_skip = read_from_disk = wont_need = false, force_attempts = 0,
         sleep_usecs = yield_cnt = 0;
          ;) {
         switch (current_state = WT_REF_GET_STATE(ref)) {
