@@ -610,6 +610,12 @@ read:
             WT_RET(__wt_hazard_set_func(session, ref, &busy));
 #endif
             if (busy) {
+                /*
+                 * Treat a busy page-in as a stall so we skip the yield loop and proceed directly to
+                 * eviction assistance or adaptive backoff. The page is busy because it's being
+                 * evicted; yielding won't help and wastes CPU spinning when the thread could be
+                 * doing useful eviction work instead.
+                 */
                 stalled = true;
                 WT_STAT_CONN_INCR(session, page_busy_blocked);
                 break;
