@@ -680,7 +680,8 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
 
-    /* FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+    /*
+     * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
      * read-uncommitted isolation and the loop to advance past the target URI) into a proper
      * internal API. Once that lands, this function can call that API directly.
      */
@@ -697,7 +698,8 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
      */
     if (exact <= 0) {
         do {
-            /* FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+            /*
+             * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
              * read-uncommitted isolation and the loop to advance past the target URI) into a proper
              * internal API. Once that lands, this function can call that API directly and this loop
              * can be removed.
@@ -725,10 +727,11 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         if (__checkpoint_cleanup_eligibility(session, key, value))
             break;
 
-        /* FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+        /*
+         * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
          * read-uncommitted isolation and the loop to advance past the target URI) into a proper
-         * internal API. Once that lands, this function can call that API directly and this loop
-         * can be removed.
+         * internal API. Once that lands, this function can call that API directly and this loop can
+         * be removed.
          */
         WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
     } while (ret == 0);
