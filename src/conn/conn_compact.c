@@ -475,7 +475,10 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
 
-    /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+    /* FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+     * read-uncommitted isolation and the loop to advance past the target URI) into a proper
+     * internal API. Once that lands, this function can call that API directly.
+     */
     WT_WITH_TXN_ISOLATION(
       session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, &exact));
     WT_ERR(ret);
@@ -489,10 +492,15 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
      */
     if (exact <= 0) {
         do {
-            /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+            /* FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+             * read-uncommitted isolation and the loop to advance past the target URI) into a proper
+             * internal API. Once that lands, this function can call that API directly and this loop
+             * can be removed.
+             */
             WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
             WT_ERR(ret);
             WT_ERR(cursor->get_key(cursor, &key));
+            /* Both cursor->key and uri include the NUL terminator, so they can be compared. */
             WT_ERR(__wt_compare(session, CUR2BT(cursor)->collator, &cursor->key, uri, &cmp));
         } while (cmp <= 0);
     }
@@ -521,7 +529,11 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
             WT_STAT_CONN_INCR(session, background_compact_skipped);
         }
 
-        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        /* FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+         * read-uncommitted isolation and the loop to advance past the target URI) into a proper
+         * internal API. Once that lands, this function can call that API directly and this loop
+         * can be removed.
+         */
         WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
     } while (ret == 0);
     WT_ERR(ret);
