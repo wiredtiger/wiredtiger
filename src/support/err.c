@@ -556,6 +556,10 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
 {
     va_list ap;
 
+    /*
+     * Ignore error returns from underlying event handlers, we already have an error value to
+     * return.
+     */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0,
