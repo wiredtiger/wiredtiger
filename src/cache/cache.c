@@ -75,7 +75,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
      * table at 0.2% of cache size divided by ~100B per entry (cache_size / 500 / 100), with a
      * minimum of 512 buckets.
      *
-     * FIXME: Enable the shared disk when it is fully implemented.
+     * FIXME: Enable the shared disk cache when it is fully implemented.
      */
     S2C(session)->cache->shared_dsk_cache.enabled =
       __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader;
