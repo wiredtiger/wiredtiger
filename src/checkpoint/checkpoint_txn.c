@@ -1154,12 +1154,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
         capacity = (uint32_t)conn->session_array.size;
 
         /* Allocate a buffer with capacity conn->session_array.size */
-        if (ckpt_threads->checkpoint_snapshot_array == NULL ||
-          ckpt_threads->checkpoint_snapshot_capacity < capacity) {
-            __wt_free(session, ckpt_threads->checkpoint_snapshot_array);
-            WT_ERR(__wt_calloc_def(session, capacity, &ckpt_threads->checkpoint_snapshot_array));
-            ckpt_threads->checkpoint_snapshot_capacity = capacity;
-        }
+        WT_ERR(__wt_realloc_def(session, &ckpt_threads->checkpoint_snapshot_capacity, capacity,
+          &ckpt_threads->checkpoint_snapshot_array));
 
         /* Copy the checkpoint snapshot data */
         dst->snap_min = src->snap_min;
