@@ -14,7 +14,7 @@ static int __checkpoint_fsync_post(
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
-static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[], struct timespec);
+static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static uint64_t __checkpoint_running_time(WT_SESSION_IMPL *);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
@@ -1638,7 +1638,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     /* Add a ten second wait to simulate checkpoint slowness. */
     tsp.tv_sec = 10;
     tsp.tv_nsec = 0;
-    WT_ERR(__checkpoint_selected_dhandles(session, cfg, tsp));
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
+
+    WT_ERR(__checkpoint_selected_dhandles(session, cfg));
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
@@ -3047,12 +3049,9 @@ err:
  *     Checkpoint all the trees in the database.
  */
 static int
-__checkpoint_selected_dhandles(WT_SESSION_IMPL *session, const char *cfg[], struct timespec tsp)
+__checkpoint_selected_dhandles(WT_SESSION_IMPL *session, const char *cfg[])
 {
     uint64_t time_start_ckpt_tree, time_stop_ckpt_tree, ckpt_tree_duration_usecs;
-
-    /* Wait to simulate checkpoint slowness. */
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CKPT_TREE);
     __checkpoint_verbose_track(session, "checkpointing individual trees");
