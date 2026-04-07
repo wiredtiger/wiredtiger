@@ -52,9 +52,9 @@ struct __wt_shared_dsk_item {
 };
 
 /* Maximum number of shared disk cache hash locks. */
-#define WT_SHARED_DSK_MAX_LOCKS 8192
+#define WT_SHARED_DSK_CACHE_MAX_LOCKS 8192
 
-struct __wt_shared_dsk {
+struct __wt_shared_dsk_cache {
     bool enabled;
 
     TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
@@ -159,7 +159,7 @@ struct __wt_cache {
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint16_t pool_flags_atomic; /* Cache pool flags */
 
-    WT_SHARED_DSK shared_dsk;
+    WT_SHARED_DSK_CACHE shared_dsk_cache;
 };
 
 /*
