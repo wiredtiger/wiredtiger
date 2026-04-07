@@ -55,6 +55,8 @@ struct __wt_page_cache_item {
 #define WT_PAGE_CACHE_MAX_LOCKS 8192
 
 struct __wt_page_cache {
+    bool enabled;
+
     TAILQ_HEAD(__wt_page_cache_hash, __wt_page_cache_item) * hash;
     WT_SPINLOCK *hash_locks;
     u_int hash_size;
