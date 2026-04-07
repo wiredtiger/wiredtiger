@@ -57,6 +57,20 @@ class test_layered88(wttest.WiredTigerTestCase):
             self.extensionsConfig() + ',create,disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
 
+    def follow_next(self, cursor, key, value, txn_config=''):
+        self.session_follow.begin_transaction(txn_config)
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), key)
+        self.assertEqual(cursor.get_value(), value)
+        self.session_follow.commit_transaction()
+
+    def follow_prev(self, cursor, key, value, txn_config=''):
+        self.session_follow.begin_transaction(txn_config)
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), key)
+        self.assertEqual(cursor.get_value(), value)
+        self.session_follow.commit_transaction()
+
     # --------------------------------------------------------------------------
     # Scenario 1: next(), stable is alternate, read_timestamp drops.
     #
@@ -97,19 +111,10 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(3))
         cursor = self.session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), '1')
-        self.assertEqual(cursor.get_value(), '3')
-        self.session_follow.commit_transaction()
-
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(1))
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), '2')
-        self.assertEqual(cursor.get_value(), '1')  # bug: returns '2'
+        self.follow_next(cursor, '1', '3', 'read_timestamp=' + self.timestamp_str(3))
+        self.follow_next(cursor, '2', '1', 'read_timestamp=' + self.timestamp_str(1))  # bug: returns '2'
         cursor.close()
-        self.session_follow.commit_transaction()
 
     # --------------------------------------------------------------------------
     # Scenario 2: prev(), stable is alternate, read_timestamp drops.
@@ -151,19 +156,10 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(3))
         cursor = self.session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), '2')
-        self.assertEqual(cursor.get_value(), '3')
-        self.session_follow.commit_transaction()
-
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(1))
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), '1')
-        self.assertEqual(cursor.get_value(), '1')  # bug: returns '2'
+        self.follow_prev(cursor, '2', '3', 'read_timestamp=' + self.timestamp_str(3))
+        self.follow_prev(cursor, '1', '1', 'read_timestamp=' + self.timestamp_str(1))  # bug: returns '2'
         cursor.close()
-        self.session_follow.commit_transaction()
 
     # --------------------------------------------------------------------------
     # Scenario 3: next(), ingest is alternate, read_timestamp rises.
@@ -205,19 +201,10 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(2))
         cursor = self.session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), '1')
-        self.assertEqual(cursor.get_value(), '1')
-        self.session_follow.commit_transaction()
-
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(3))
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), '2')
-        self.assertEqual(cursor.get_value(), '3')  # bug: returns '2'
+        self.follow_next(cursor, '1', '1', 'read_timestamp=' + self.timestamp_str(2))
+        self.follow_next(cursor, '2', '3', 'read_timestamp=' + self.timestamp_str(3))  # bug: returns '2'
         cursor.close()
-        self.session_follow.commit_transaction()
 
     # --------------------------------------------------------------------------
     # Scenario 4: prev(), ingest is alternate, read_timestamp rises.
@@ -259,19 +246,10 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(2))
         cursor = self.session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), '2')
-        self.assertEqual(cursor.get_value(), '1')
-        self.session_follow.commit_transaction()
-
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(3))
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), '1')
-        self.assertEqual(cursor.get_value(), '3')  # bug: returns '2'
+        self.follow_prev(cursor, '2', '1', 'read_timestamp=' + self.timestamp_str(2))
+        self.follow_prev(cursor, '1', '3', 'read_timestamp=' + self.timestamp_str(3))  # bug: returns '2'
         cursor.close()
-        self.session_follow.commit_transaction()
 
     # --------------------------------------------------------------------------
     # Scenario 5: next(), ingest is alternate, snapshot advances due to new write.
@@ -310,13 +288,8 @@ class test_layered88(wttest.WiredTigerTestCase):
         cf['2'] = '2'
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
-        # T1: snapshot isolation, no explicit read_timestamp.
-        self.session_follow.begin_transaction('isolation=snapshot')
         cursor = self.session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), '1')
-        self.assertEqual(cursor.get_value(), '1')
-        self.session_follow.commit_transaction()
+        self.follow_next(cursor, '1', '1')
 
         # Write between T1 and T2: update key=2 to value=3 -> snapshot_gen bumps.
         self.session_follow.begin_transaction()
@@ -324,13 +297,8 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        # T2: snapshot isolation, no explicit read_timestamp -> sees value=3.
-        self.session_follow.begin_transaction('isolation=snapshot')
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), '2')
-        self.assertEqual(cursor.get_value(), '3')  # bug: returns '2'
+        self.follow_next(cursor, '2', '3')  # bug: returns '2'
         cursor.close()
-        self.session_follow.commit_transaction()
 
     # --------------------------------------------------------------------------
     # Scenario 6: prev(), ingest is alternate, snapshot advances due to new write.
@@ -369,13 +337,8 @@ class test_layered88(wttest.WiredTigerTestCase):
         cf['1'] = '2'
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
-        # T1: snapshot isolation, no explicit read_timestamp.
-        self.session_follow.begin_transaction('isolation=snapshot')
         cursor = self.session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), '2')
-        self.assertEqual(cursor.get_value(), '1')
-        self.session_follow.commit_transaction()
+        self.follow_prev(cursor, '2', '1')
 
         # Write between T1 and T2: update key=1 to value=3 -> snapshot_gen bumps.
         self.session_follow.begin_transaction()
@@ -383,10 +346,5 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        # T2: snapshot isolation, no explicit read_timestamp -> sees value=3.
-        self.session_follow.begin_transaction('isolation=snapshot')
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), '1')
-        self.assertEqual(cursor.get_value(), '3')  # bug: returns '2'
+        self.follow_prev(cursor, '1', '3')  # bug: returns '2'
         cursor.close()
-        self.session_follow.commit_transaction()
