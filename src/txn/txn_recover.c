@@ -841,6 +841,53 @@ __recovery_metadata_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *
 }
 
 /*
+ * __metadata_assert_complete_layered_table --
+ *     If the table is a layered table, assert that all required metadata entries are present. Sets
+ *     *is_layeredp to true if the table is layered.
+ */
+static int
+__metadata_assert_complete_layered_table(
+  WT_SESSION_IMPL *session, const char *name, bool leader, bool *is_layeredp)
+{
+    WT_DECL_ITEM(meta_key_buf);
+    WT_DECL_RET;
+    char *ingest_meta_value, *layered_meta_value, *stable_meta_value;
+
+    ingest_meta_value = layered_meta_value = stable_meta_value = NULL;
+    *is_layeredp = false;
+    WT_ERR(__wt_scr_alloc(session, 0, &meta_key_buf));
+
+    WT_ERR(__wt_buf_fmt(session, meta_key_buf, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, meta_key_buf->data, &layered_meta_value), true);
+    if (ret != 0)
+        goto done;
+    *is_layeredp = true;
+
+    WT_ERR(__wt_buf_fmt(session, meta_key_buf, "file:%s.wt_ingest", name));
+    WT_ASSERT_ALWAYS(session,
+      __wt_metadata_search(session, meta_key_buf->data, &ingest_meta_value) == 0,
+      "layered table '%s' is missing its ingest file metadata", name);
+
+    /*
+     * The stable table may not exist on the follower in some situations, e.g. we created a new
+     * layered table from the oplog but haven't yet picked up a checkpoint. Thus the stable file
+     * metadata entry is only strictly required in leader mode.
+     */
+    WT_ERR(__wt_buf_fmt(session, meta_key_buf, "file:%s.wt_stable", name));
+    WT_ASSERT_ALWAYS(session,
+      !leader || __wt_metadata_search(session, meta_key_buf->data, &stable_meta_value) == 0,
+      "layered table '%s' is missing its stable file metadata on a leader node", name);
+
+err:
+done:
+    __wt_free(session, ingest_meta_value);
+    __wt_free(session, layered_meta_value);
+    __wt_free(session, stable_meta_value);
+    __wt_scr_free(session, &meta_key_buf);
+    return (ret);
+}
+
+/*
  * __metadata_clean_incomplete_table --
  *     For each table metadata entry, check that the table was fully created. If not, clean up the
  *     incomplete table.
@@ -850,16 +897,14 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 {
     WT_DECL_ITEM(meta_key_buf);
     WT_DECL_RET;
-    char *cg_meta_value, *file_meta_value, *tiered_meta_value, *layered_meta_value,
-      *ingest_meta_value, *stable_meta_value;
+    char *cg_meta_value, *file_meta_value, *tiered_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name, *colgroup_msg, *file_msg;
     WT_CONFIG_ITEM cval;
-    bool is_simple, colgroup_exists, file_exists;
+    bool is_layered, is_simple, colgroup_exists, file_exists;
 
-    cg_meta_value = file_meta_value = tiered_meta_value = layered_meta_value = ingest_meta_value =
-      stable_meta_value = NULL;
+    cg_meta_value = file_meta_value = tiered_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &meta_key_buf));
 
     name = uri;
@@ -880,25 +925,9 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         goto done;
 
     /* If the table is layered, assert that it is complete. */
-    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "layered:%s", name));
-    WT_ERR_NOTFOUND_OK(
-      __wt_metadata_search(r->session, meta_key_buf->data, &layered_meta_value), true);
-    if (ret == 0) {
-        WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_ingest", name));
-        WT_ASSERT_ALWAYS(r->session,
-          __wt_metadata_search(r->session, meta_key_buf->data, &ingest_meta_value) == 0,
-          "layered table '%s' is missing its ingest file metadata", name);
-        /* The stable table may not exist on the follower in some situations, e.g. we created a
-           new layered table from the oplog but haven't yet picked up a checkpoint. Thus the assert
-           for stable file metadata is only strictly required in leader mode. */
-        if (r->leader) {
-            WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt_stable", name));
-            WT_ASSERT_ALWAYS(r->session,
-              __wt_metadata_search(r->session, meta_key_buf->data, &stable_meta_value) == 0,
-              "layered table '%s' is missing its stable file metadata on a leader node", name);
-        }
+    WT_ERR(__metadata_assert_complete_layered_table(r->session, name, r->leader, &is_layered));
+    if (is_layered)
         goto done;
-    }
 
     /* Check whether the colgroup exists. */
     WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "colgroup:%s", name));
@@ -940,9 +969,6 @@ done:
     __wt_free(r->session, cg_meta_value);
     __wt_free(r->session, file_meta_value);
     __wt_free(r->session, tiered_meta_value);
-    __wt_free(r->session, layered_meta_value);
-    __wt_free(r->session, ingest_meta_value);
-    __wt_free(r->session, stable_meta_value);
     __wt_scr_free(r->session, &meta_key_buf);
     return (ret);
 }
@@ -1086,16 +1112,11 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /*
-     * Determine the disaggregated role from the open config.  __wti_disagg_conn_config runs after
-     * recovery, so conn->layered_table_manager.leader is not yet set when
-     * __metadata_clean_incomplete_table runs.  Parse the role here so the incomplete-table check
-     * can enforce that leaders have a stable file.
+     * Determine the disaggregated role from the open config. conn->layered_table_manager.leader is
+     * initialised later, so we cannot access it here directly.
      */
-    if (disagg) {
-        WT_CONFIG_ITEM role_cval;
-        if (__wt_config_gets(session, cfg, "disaggregated.role", &role_cval) == 0)
-            r.leader = WT_CONFIG_LIT_MATCH("leader", role_cval);
-    }
+    if (disagg)
+        WT_ERR(__wti_disagg_config_get_role(session, cfg, &r.leader));
 
     __wt_verbose_level_multi(
       session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s", "starting WiredTiger recovery");
