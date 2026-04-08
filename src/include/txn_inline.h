@@ -209,7 +209,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TX
          * during step-up in disagg to maintain correct transaction visibility both during and after
          * step-up.
          */
-        if (time_point->id == WT_TS_NONE)
+        if (__wt_atomic_load_uint64_v_relaxed(&upd->txnid) == WT_TS_NONE)
             __wt_atomic_store_uint64_v_relaxed(&upd->txnid, time_point->id);
         else
             WT_ASSERT(session, time_point->id == __wt_atomic_load_uint64_v_relaxed(&upd->txnid));
