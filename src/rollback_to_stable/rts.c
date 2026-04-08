@@ -16,7 +16,7 @@ void
 __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t rollback_count,
   uint64_t max_count, uint64_t *rollback_msg_count, bool walk)
 {
-    uint64_t time_diff_ms;
+    uint64_t pct, time_diff_ms;
 
     /* Time since the rollback started. */
     __wt_timer_evaluate_ms(session, rollback_start, &time_diff_ms);
@@ -24,15 +24,15 @@ __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint6
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *rollback_msg_count) {
         if (walk)
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "Rollback to stable has been performing on %s for %" PRIu64
-              " milliseconds. For more detailed logging, enable WT_VERB_RTS ",
-              session->dhandle->name, time_diff_ms);
-        else
+              "Rollback to stable performing btree walk on %s for %" PRIu64 " seconds",
+              session->dhandle->name, time_diff_ms / WT_THOUSAND);
+        else {
+            pct = max_count > 0 ? (100 * rollback_count / max_count) : 0;
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
               "Rollback to stable has been running for %" PRIu64
-              " milliseconds and has inspected %" PRIu64 " files of %" PRIu64
-              ". For more detailed logging, enable WT_VERB_RTS",
-              time_diff_ms, rollback_count, max_count);
+              " seconds and has inspected %" PRIu64 " of %" PRIu64 " files (%" PRIu64 "%%)",
+              time_diff_ms / WT_THOUSAND, rollback_count, max_count, pct);
+        }
         *rollback_msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
 }
@@ -198,6 +198,9 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     WT_ERR(__wt_metadata_cursor_release(session, &cursor));
     have_cursor = false;
 
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "Rollback to stable found %" PRIu64 " btrees to process", max_count);
+
     WT_ERR(__rts_thread_create(session));
     rts_threads_started = true;
 
@@ -226,6 +229,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * workers alone to complete the task.
      */
     if (S2C(session)->rts->threads_num != 0) {
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, "%s",
+          "Rollback to stable finished metadata walk, draining worker queue");
         while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
             __wti_rts_pop_work(session, &entry);
             if (entry == NULL)
@@ -249,6 +254,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * doesn't exist.
      */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, "%s",
+          "Rollback to stable beginning history store final pass");
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
           WT_RTS_VERB_TAG_HS_TREE_FINAL_PASS
           "performing final pass of the history store to remove unstable entries with "

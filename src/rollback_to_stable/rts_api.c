@@ -316,8 +316,9 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
     /* Time since the RTS started. */
     __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      WT_RTS_VERB_TAG_END "finished rollback to stable%s and has ran for %" PRIu64 " milliseconds",
-      dryrun ? " dryrun" : "", time_diff_ms);
+      WT_RTS_VERB_TAG_END "finished rollback to stable%s with %" PRIu32
+                          " worker threads and has ran for %" PRIu64 " milliseconds",
+      dryrun ? " dryrun" : "", threads, time_diff_ms);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     /* Reset the RTS configuration to default. */
