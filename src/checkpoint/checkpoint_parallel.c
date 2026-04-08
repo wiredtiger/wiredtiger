@@ -46,7 +46,8 @@ __wt_checkpoint_parallel_push_work(
     WT_RET(__wt_calloc_one(session, &entry));
     entry->dhandle = session->dhandle;
     entry->isolation = session->txn->isolation;
-    entry->snapshot = &session->txn->snapshot_data;
+    /* All workers use the private checkpoint snapshot copied in __checkpoint_prepare. */
+    entry->snapshot = &ckpt_threads->checkpoint_snapshot;
     entry->ref = ref;
     entry->reconcile_flags = reconcile_flags;
     entry->release_flags = release_flags;
@@ -383,6 +384,12 @@ __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
     __wt_cond_destroy(session, &ckpt_threads->work_cond);
     __wt_spin_destroy(session, &ckpt_threads->done_lock);
     WT_TRET(__wt_semaphore_destroy(session, &ckpt_threads->done_sem));
+
+    /* Free the checkpoint snapshot buffer used by parallel workers. */
+    __wt_free(session, ckpt_threads->checkpoint_snapshot_array);
+    ckpt_threads->checkpoint_snapshot_capacity = 0;
+    ckpt_threads->checkpoint_snapshot.snapshot = NULL;
+    ckpt_threads->checkpoint_snapshot.snapshot_count = 0;
 
     return (ret);
 }

@@ -1136,6 +1136,40 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(original_snap_min);
 
+    /*
+     * For parallel checkpoints, create a private read-only copy of the snapshot for the checkpoint
+     * workers to use. Workers will read from this instead of live txn->snapshot_data.
+     */
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session)) {
+        WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+        WT_TXN_SNAPSHOT *src, *dst;
+        uint32_t capacity, count;
+
+        ckpt_threads = conn->ckpt_reconcile_threads;
+        WT_ASSERT(session, ckpt_threads != NULL);
+
+        src = &txn->snapshot_data;
+        dst = &ckpt_threads->checkpoint_snapshot;
+        count = src->snapshot_count;
+        capacity = (uint32_t)conn->session_array.size;
+
+        /*
+         * Allocate or grow the backing array for the checkpoint snapshot. The maximum snapshot
+         * length is bounded by conn->session_array.size (one entry per session).
+         */
+        WT_ERR(__wt_realloc_def(session, &ckpt_threads->checkpoint_snapshot_capacity, capacity,
+          &ckpt_threads->checkpoint_snapshot_array));
+
+        /* Copy the checkpoint snapshot data */
+        dst->snap_min = src->snap_min;
+        dst->snap_max = src->snap_max;
+        dst->snapshot_count = count;
+        dst->snapshot = ckpt_threads->checkpoint_snapshot_array;
+
+        if (count > 0)
+            memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
+    }
+
     if (use_timestamp)
         __wt_verbose_info(session, WT_VERB_CHECKPOINT,
           "Checkpoint requested at stable timestamp %s",
