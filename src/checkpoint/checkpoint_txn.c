@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
+static int __checkpoint_free_resources(WT_SESSION_IMPL *, bool);
 static int __checkpoint_fsync_post(
   WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
@@ -1537,7 +1538,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
     uint64_t drop_size, generation;
-    u_int i;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
     void *saved_meta_next;
@@ -1949,21 +1949,7 @@ err:
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
     }
 
-    for (i = 0; i < session->ckpt.handle_next; ++i) {
-        if (session->ckpt.handle[i] == NULL)
-            continue;
-        /*
-         * If the operation failed, mark all trees dirty so they are included if a future checkpoint
-         * can succeed.
-         */
-        if (failed)
-            WT_WITH_DHANDLE(session, session->ckpt.handle[i], __checkpoint_fail_reset(session));
-        WT_WITH_DHANDLE(
-          session, session->ckpt.handle[i], WT_TRET(__wt_session_release_dhandle(session)));
-    }
-
-    if (session->ckpt.drop_list != NULL)
-        __wt_scr_free(session, &session->ckpt.drop_list);
+    WT_TRET(__checkpoint_free_resources(session, failed));
 
     __checkpoint_clear_time(session);
 
@@ -2745,6 +2731,34 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 err:
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __checkpoint_free_resources --
+ *     Free list of dhandles and drop list.
+ */
+static int
+__checkpoint_free_resources(WT_SESSION_IMPL *session, bool failed)
+{
+    WT_DECL_RET;
+
+    for (u_int i = 0; i < session->ckpt.handle_next; ++i) {
+        if (session->ckpt.handle[i] == NULL)
+            continue;
+        /*
+         * If the operation failed, mark all trees dirty so they are included if a future checkpoint
+         * can succeed.
+         */
+        if (failed)
+            WT_WITH_DHANDLE(session, session->ckpt.handle[i], __checkpoint_fail_reset(session));
+        WT_WITH_DHANDLE(
+          session, session->ckpt.handle[i], WT_TRET(__wt_session_release_dhandle(session)));
+    }
+
+    if (session->ckpt.drop_list != NULL)
+        __wt_scr_free(session, &session->ckpt.drop_list);
+
+    return (0);
 }
 
 /*
