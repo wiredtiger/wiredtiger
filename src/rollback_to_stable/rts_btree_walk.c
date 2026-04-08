@@ -121,6 +121,7 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_DECL_RET;
     WT_REF *ref;
     WT_TIMER timer;
+    double npos;
     uint64_t msg_count;
     uint32_t flags;
 
@@ -134,7 +135,10 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
               session, &ref, __rts_btree_walk_page_skip, &rollback_timestamp, flags)) == 0 &&
       ref != NULL) {
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.pages_walked, 1);
-        __wti_rts_progress_msg(session, &timer, 0, 0, &msg_count, true);
+
+        /* Compute the normalized position (0..1) of this page in the tree for progress. */
+        npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
+        __wti_rts_progress_msg_walk(session, &timer, &msg_count, npos);
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_ERR(__wti_rts_btree_abort_updates(session, ref, rollback_timestamp));
