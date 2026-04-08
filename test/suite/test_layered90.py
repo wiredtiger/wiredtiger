@@ -32,16 +32,18 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 # test_layered90.py
-# When a connection is opened, __metadata_clean_incomplete_table runs for every
-# table: entry in the metadata. For layered tables it asserts that whenever a
-# layered: entry is present, the corresponding file:*.wt_ingest entry also exists.
-# On a leader, it additionally asserts that file:*.wt_stable exists. On a follower,
+# When a connection is opened, recovery runs for every table: entry in the metadata. For layered
+# tables we assert that whenever a layered: entry is present, the corresponding file:*.wt_ingest
+# entry also exists.
+#
+# On a leader, we additionally assert that file:*.wt_stable exists. On a follower,
 # stable table metadata is not required (followers don't create stable tables; they
 # only appear after a checkpoint pickup from a leader), so missing stable is not an
 # error.
 #
 # A follower creating a layered table naturally produces the "ingest but no stable"
-# state without requiring any metadata corruption, so we use that to drive the tests.
+# state without requiring any metadata corruption. The remaining incomplete layered metadata
+# scenarios are more directly tested in a catch2 test.
 #
 # Tests:
 #   test_leader_complete   - leader creates complete table; reopen as leader succeeds.
@@ -69,7 +71,7 @@ class test_layered90(wttest.WiredTigerTestCase, suite_subprocess):
     def _reopen_config(self, role):
         """Build a reopen config that preserves the page_log alongside the given role."""
         return (self.conn_base_config +
-            f'disaggregated=(role="{role}"),disaggregated=(page_log={self.page_log()})')
+            f'disaggregated=(role="{role}",page_log={self.page_log()})')
 
     def _create_layered_table(self):
         """Create a layered table with a small data set and checkpoint."""
