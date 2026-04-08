@@ -858,7 +858,8 @@ __metadata_assert_complete_layered_table(
     WT_ERR(__wt_scr_alloc(session, 0, &meta_key_buf));
 
     WT_ERR(__wt_buf_fmt(session, meta_key_buf, "layered:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, meta_key_buf->data, &layered_meta_value), true);
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(session, meta_key_buf->data, &layered_meta_value), true);
     if (ret != 0)
         goto done;
     *is_layeredp = true;
@@ -1113,10 +1114,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
 
     /*
      * Determine the disaggregated role from the open config. conn->layered_table_manager.leader is
-     * initialised later, so we cannot access it here directly.
+     * initialized later, so we cannot access it here directly.
      */
     if (disagg)
-        WT_ERR(__wti_disagg_config_get_role(session, cfg, &r.leader));
+        WT_RET(__wt_disagg_config_get_role(session, cfg, &r.leader));
 
     __wt_verbose_level_multi(
       session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s", "starting WiredTiger recovery");

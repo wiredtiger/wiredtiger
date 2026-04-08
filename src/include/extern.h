@@ -589,6 +589,8 @@ extern int __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *leaderp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
   const char *table_name, WT_SHARED_METADATA_OP metadata_op)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1504,8 +1506,6 @@ extern int __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 extern int __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *leaderp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
