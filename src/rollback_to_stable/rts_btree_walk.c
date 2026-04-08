@@ -133,6 +133,7 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __rts_btree_walk_page_skip, &rollback_timestamp, flags)) == 0 &&
       ref != NULL) {
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.pages_walked, 1);
         __wti_rts_progress_msg(session, &timer, 0, 0, &msg_count, true);
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
@@ -246,6 +247,7 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
 
     ret = __rts_btree_int(session, uri, rollback_timestamp);
     WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_applied);
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_processed, 1);
     /*
      * Ignore rollback to stable failures on files that don't exist or files where corruption is
      * detected.
@@ -411,8 +413,10 @@ __wti_rts_btree_walk_btree_apply(
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-    if (file_skipped)
+    if (file_skipped) {
         WT_STAT_CONN_INCR(session, txn_rts_btrees_skipped);
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
+    }
 
     /*
      * Truncate history store entries for the non-timestamped table.

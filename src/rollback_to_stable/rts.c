@@ -16,25 +16,51 @@ void
 __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t rollback_count,
   uint64_t max_count, uint64_t *rollback_msg_count, bool walk)
 {
-    uint64_t pct, time_diff_ms;
+    WT_ROLLBACK_TO_STABLE *rts;
+    uint64_t btrees_processed, btrees_skipped, pages_walked, pct, time_diff_ms;
+
+    rts = S2C(session)->rts;
 
     /* Time since the rollback started. */
     __wt_timer_evaluate_ms(session, rollback_start, &time_diff_ms);
 
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *rollback_msg_count) {
+        /* Read atomic counters from the progress struct. */
+        btrees_processed = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_processed);
+        btrees_skipped = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_skipped);
+        pages_walked = __wt_atomic_load_uint64_relaxed(&rts->progress.pages_walked);
+
         if (walk)
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "Rollback to stable performing btree walk on %s for %" PRIu64 " seconds",
-              session->dhandle->name, time_diff_ms / WT_THOUSAND);
+              "Rollback to stable performing btree walk on %s for %" PRIu64
+              " seconds, %" PRIu64 " total pages walked",
+              session->dhandle->name, time_diff_ms / WT_THOUSAND, pages_walked);
         else {
             pct = max_count > 0 ? (100 * rollback_count / max_count) : 0;
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
               "Rollback to stable has been running for %" PRIu64
-              " seconds and has inspected %" PRIu64 " of %" PRIu64 " files (%" PRIu64 "%%)",
-              time_diff_ms / WT_THOUSAND, rollback_count, max_count, pct);
+              " seconds, inspected %" PRIu64 " of %" PRIu64 " btrees (%" PRIu64
+              "%%), %" PRIu64 " btrees processed, %" PRIu64 " btrees skipped, %" PRIu64
+              " pages walked",
+              time_diff_ms / WT_THOUSAND, rollback_count, max_count, pct, btrees_processed,
+              btrees_skipped, pages_walked);
         }
         *rollback_msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
+}
+
+/*
+ * __wti_rts_progress_init --
+ *     Initialize the RTS progress tracking fields.
+ */
+void
+__wti_rts_progress_init(WT_SESSION_IMPL *session)
+{
+    WT_ROLLBACK_TO_STABLE *rts;
+
+    rts = S2C(session)->rts;
+    memset(&rts->progress, 0, sizeof(rts->progress));
+    __wt_timer_start(session, &rts->progress.start_timer);
 }
 
 /*
@@ -178,6 +204,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     const char *config, *uri;
     bool have_cursor, rts_threads_started;
 
+    __wti_rts_progress_init(session);
+
     __wt_timer_start(session, &timer);
     max_count = rollback_count = 0;
     rollback_msg_count = 0;
@@ -198,8 +226,11 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     WT_ERR(__wt_metadata_cursor_release(session, &cursor));
     have_cursor = false;
 
+    S2C(session)->rts->progress.total_btrees = max_count;
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
       "Rollback to stable found %" PRIu64 " btrees to process", max_count);
+
+    __wt_timer_start(session, &S2C(session)->rts->progress.btree_apply_timer);
 
     WT_ERR(__rts_thread_create(session));
     rts_threads_started = true;

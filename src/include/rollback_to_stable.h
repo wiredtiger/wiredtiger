@@ -118,6 +118,17 @@ struct __wt_rollback_to_stable {
 
     /* Configuration. */
     bool dryrun;
+
+    /* RTS progress tracking. */
+    struct {
+        WT_TIMER start_timer;                     /* Overall RTS start time. */
+        WT_TIMER btree_apply_timer;               /* When btree-apply phase began. */
+        uint64_t msg_count;                       /* Throttle counter for periodic messages. */
+        uint64_t total_btrees;                    /* From metadata count pass (set once). */
+        wt_shared uint64_t btrees_processed;      /* Btrees fully processed (atomic). */
+        wt_shared uint64_t btrees_skipped;        /* Btrees skipped, no work needed (atomic). */
+        wt_shared uint64_t pages_walked;          /* Pages walked across all btrees (atomic). */
+    } progress;
 };
 
 /*
