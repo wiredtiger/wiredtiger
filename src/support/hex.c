@@ -52,7 +52,7 @@ __wt_log_data_dump(WT_SESSION_IMPL *session, const void *data, size_t size, cons
     WT_DECL_RET;
     size_t chunk, i, nchunks;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &preamble));
+    WT_ERR_MSG_CHK(session, __wt_scr_alloc(session, 0, &preamble), "preamble buffer allocation");
     WT_VA_ARGS_BUF_FORMAT(session, preamble, fmt, false);
 
     if (size == 0) {
@@ -61,18 +61,19 @@ __wt_log_data_dump(WT_SESSION_IMPL *session, const void *data, size_t size, cons
         goto err;
     }
 
-    WT_ERR(__wt_scr_alloc(session, 4 * 1024, &tmp));
+    WT_ERR_MSG_CHK(session, __wt_scr_alloc(session, 4 * 1024, &tmp), "hex buffer allocation");
 
     nchunks = size / 1024 + (size % 1024 == 0 ? 0 : 1);
     for (chunk = i = 0;;) {
-        WT_ERR(__wt_buf_catfmt(session, tmp, "%02x ", ((const uint8_t *)data)[i]));
+        WT_ERR_MSG_CHK(session, __wt_buf_catfmt(session, tmp, "%02x ", ((const uint8_t *)data)[i]),
+          "hex format");
         if (++i == size || i % 1024 == 0) {
             __wt_errx(session, "%.*s: (chunk %" WT_SIZET_FMT " of %" WT_SIZET_FMT "): %.*s",
               (int)preamble->size, (char *)preamble->data, ++chunk, nchunks, (int)tmp->size,
               (char *)tmp->data);
             if (i == size)
                 break;
-            WT_ERR(__wt_buf_set(session, tmp, "", 0));
+            WT_ERR_MSG_CHK(session, __wt_buf_set(session, tmp, "", 0), "hex buffer reset");
         }
     }
 
