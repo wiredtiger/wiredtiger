@@ -838,15 +838,28 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
           session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
         WT_RET(ret);
     } else {
+        /*
+         * Set the original keys on the ingest cursors. The ingest cursor may not have its key set
+         * if the layered cursor was positioned via next/prev (skipping search_near), or if
+         * search_near on an empty ingest table reset the cursor position.
+         */
+        clayered_start->ingest_cursor->set_key(
+          clayered_start->ingest_cursor, trunc_info->orig_start_key);
         trunc_info->start = clayered_start->ingest_cursor;
-        trunc_info->stop = clayered_stop->ingest_cursor;
+
+        trunc_info->stop = NULL;
+        if (clayered_stop != NULL) {
+            clayered_stop->ingest_cursor->set_key(
+              clayered_stop->ingest_cursor, trunc_info->orig_stop_key);
+            trunc_info->stop = clayered_stop->ingest_cursor;
+        }
 
         /* Perform truncate on ingest table. */
         WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));
 
         /* Add a truncate entry inside layered table truncate list. */
         WT_RET(__wt_insert_truncate_entry(
-          session, uri, &trunc_info->start->key, &trunc_info->stop->key));
+          session, uri, trunc_info->orig_start_key, trunc_info->orig_stop_key));
     }
     return (0);
 }

@@ -30,19 +30,19 @@ import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered77.py
+# test_layered88.py
 #   Test basic fast truncate functionality.
 @disagg_test_class
-class test_layered77(wttest.WiredTigerTestCase):
+class test_layered88(wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader"),'
 
     uris = [
-        ('layered', dict(uri='layered:test_layered77')),
-        ('table', dict(uri='table:test_layered77')),
+        ('layered', dict(uri='layered:test_layered88')),
+        ('table', dict(uri='table:test_layered88')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered77', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered88', disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages, uris)
 
@@ -67,7 +67,7 @@ class test_layered77(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[str(i)] = value1
             self.session.commit_transaction()
-        cursor.close(0)
+        cursor.close()
         self.session.checkpoint()
 
         # Switch to follower.
