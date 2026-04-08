@@ -840,8 +840,8 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     } else {
         /*
          * Set the original keys on the ingest cursors. The ingest cursor may not have its key set
-         * if the layered cursor was positioned via next/prev (skipping search_near), or if
-         * search_near on an empty ingest table reset the cursor position.
+         * if the layered cursor was positioned via next/prev, or if search_near on an empty ingest
+         * table reset the cursor position.
          */
         clayered_start->ingest_cursor->set_key(
           clayered_start->ingest_cursor, trunc_info->orig_start_key);
