@@ -211,9 +211,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         WT_ASSERT(session, 0);
     }
 
-    if (!WT_EVICT_PAGE_CLEARED(page))
-        __wt_evict_remove(session, ref, false);
-
     tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
     if (tree_dead)
         LF_SET(WT_EVICT_CALL_NO_SPLIT);
@@ -251,6 +248,19 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
             WT_STAT_CONN_INCR(session, eviction_force_hs);
         }
     }
+
+#define APP_NO_EVICT_URGENT_MOD 1
+#if APP_NO_EVICT_URGENT_MOD
+    /* Don't let application threads evict dirty or modified pages via forced eviction */
+    if (!F_ISSET(session, WT_SESSION_INTERNAL) && LF_ISSET(WT_EVICT_CALL_URGENT) &&
+        (__wt_page_is_modified(page) || page->modify != NULL)) {
+        ret = EBUSY;
+        goto err;
+    }
+#endif
+
+    if (!WT_EVICT_PAGE_CLEARED(page))
+        __wt_evict_remove(session, ref, false);
 
     /*
      * Get exclusive access to the page if our caller doesn't have the tree locked down.
