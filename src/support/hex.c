@@ -64,15 +64,21 @@ __wt_log_data_dump(WT_SESSION_IMPL *session, const void *data, size_t size, cons
     WT_ERR_MSG_CHK(session, __wt_scr_alloc(session, 4 * 1024, &tmp), "hex buffer allocation");
 
     nchunks = size / 1024 + (size % 1024 == 0 ? 0 : 1);
+#define DATA_DUMP_MAX_SIZE (64 * 1024) /* Avoid run-away dumps. */
     for (chunk = i = 0;;) {
         WT_ERR_MSG_CHK(session, __wt_buf_catfmt(session, tmp, "%02x ", ((const uint8_t *)data)[i]),
           "hex format");
-        if (++i == size || i % 1024 == 0) {
+        if (++i >= size || i % 1024 == 0) {
             __wt_errx(session, "%.*s: (chunk %" WT_SIZET_FMT " of %" WT_SIZET_FMT "): %.*s",
               (int)preamble->size, (char *)preamble->data, ++chunk, nchunks, (int)tmp->size,
               (char *)tmp->data);
-            if (i == size)
+            if (i >= size)
                 break;
+            if (i >= DATA_DUMP_MAX_SIZE) {
+                __wt_errx(session, "%.*s: data dump truncated after %" WT_SIZET_FMT " bytes",
+                  (int)preamble->size, (char *)preamble->data, i);
+                break;
+            }
             WT_ERR_MSG_CHK(session, __wt_buf_set(session, tmp, "", 0), "hex buffer reset");
         }
     }
