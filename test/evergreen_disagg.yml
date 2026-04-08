@@ -2,7 +2,6 @@
 # Test: Can we use include to avoid duplication?
 # This version includes evergreen.yml and only defines disagg-specific content.
 #
-
 include:
 - filename: test/evergreen.yml
 
