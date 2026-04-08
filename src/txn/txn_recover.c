@@ -860,8 +860,10 @@ __metadata_assert_complete_layered_table(
     WT_ERR(__wt_buf_fmt(session, meta_key_buf, "layered:%s", name));
     WT_ERR_NOTFOUND_OK(
       __wt_metadata_search(session, meta_key_buf->data, &layered_meta_value), true);
-    if (ret != 0)
+    if (ret != 0) {
+        ret = 0;
         goto done;
+    }
     *is_layeredp = true;
 
     WT_ERR(__wt_buf_fmt(session, meta_key_buf, "file:%s.wt_ingest", name));
