@@ -1153,7 +1153,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
         count = src->snapshot_count;
         capacity = (uint32_t)conn->session_array.size;
 
-        /* Allocate a buffer with capacity conn->session_array.size */
+        /*
+         * Allocate or grow the backing array for the checkpoint snapshot. The maximum snapshot
+         * length is bounded by conn->session_array.size (one entry per session).
+         */
         WT_ERR(__wt_realloc_def(session, &ckpt_threads->checkpoint_snapshot_capacity, capacity,
           &ckpt_threads->checkpoint_snapshot_array));
 
