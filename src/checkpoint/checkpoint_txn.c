@@ -2820,7 +2820,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_SYNC_FILE);
         WT_ERR_MSG_CHK(session, __wt_sync_file(session, WT_SYNC_CHECKPOINT),
-          "%s: checkpoint failed during cache flush and reconciliation", dhandle->name);
+          "checkpoint failed during cache flush and reconciliation");
 
         diff_us = WT_CLOCKDIFF_US(__wt_clock(session), start_us);
         WT_STAT_DSRC_INCRV(session, btree_checkpoint_reconcile_duration, diff_us);
@@ -2851,14 +2851,14 @@ fake:
      * and open a checkpoint that isn't yet durable.
      */
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_ERR_MSG_CHK(session, __wt_checkpoint_sync(session, NULL),
-          "%s: checkpoint failed during file sync", dhandle->name);
+        WT_ERR_MSG_CHK(
+          session, __wt_checkpoint_sync(session, NULL), "checkpoint failed during file sync");
 
     WT_ERR_MSG_CHK(session, __wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), ckptlsn_str),
-      "%s: checkpoint failed during LSN string formatting", dhandle->name);
+      "checkpoint failed during LSN string formatting");
     WT_ERR_MSG_CHK(session,
       __wt_meta_ckptlist_set(session, dhandle, btree->ckpt, (const char *)ckptlsn_str),
-      "%s: checkpoint failed during metadata update", dhandle->name);
+      "checkpoint failed during metadata update");
 
     /*
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking
@@ -2896,8 +2896,7 @@ err:
             __wt_error_log_dump_recent(session, 3);
 #else
             __wt_verbose_error(session, WT_VERB_CHECKPOINT,
-              "%s: checkpoint failed with error code %d before block manager checkpoint resolve",
-              dhandle->name, ret);
+              "checkpoint failed with error code %d before block manager checkpoint resolve", ret);
 #endif
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
 
