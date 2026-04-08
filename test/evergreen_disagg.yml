@@ -149,7 +149,13 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     disagg_run: true
-    <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
+    # Inlined from *configure_flags_asan_mongodb_stable_clang_with_builtins
+    # (YAML anchors don't resolve across included files)
+    HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
+    HAVE_BUILTIN_EXTENSION_SNAPPY: -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
+    HAVE_BUILTIN_EXTENSION_ZLIB: -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+    HAVE_BUILTIN_EXTENSION_ZSTD: -DHAVE_BUILTIN_EXTENSION_ZSTD=1
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tasks:
     - name: compile
