@@ -41,7 +41,7 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
     if (start_cmp < 0)
         return (false);
 
-    /* A zeroed stop_key means truncate to end of table. */
+    /* A zeroed stop key indicates a truncate to end of table. */
     if (stop_key->size == 0)
         return (true);
 
@@ -79,7 +79,7 @@ __wt_insert_truncate_entry(
     WT_RET(__wt_calloc_def(session, sizeof(WT_TRUNCATE), &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
     WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
-    /* A NULL stop_key indicates a truncate to end of table. */
+    /* A NULL stop key indicates a truncate to end of table. */
     if (stop_key != NULL)
         WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
 
