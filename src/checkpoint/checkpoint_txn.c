@@ -1488,11 +1488,11 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 
     switch (log_flags) {
     case WT_TXN_LOG_CKPT_PREPARE:
-        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     case WT_TXN_LOG_CKPT_START:
-        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
-        WT_RET(__wt_log_system_backup_id(session));
+        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_ERR(__wt_log_system_backup_id(session));
         break;
     case WT_TXN_LOG_CKPT_FLUSH:
         /* FIXME-WT-15069: Remove this if condition as part of this FIXME. This is a temporary
@@ -1508,11 +1508,11 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
         break;
     case WT_TXN_LOG_CKPT_STOP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     case WT_TXN_LOG_CKPT_CLEANUP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     default:
         WT_ERR(__wt_illegal_value(session, log_flags));
