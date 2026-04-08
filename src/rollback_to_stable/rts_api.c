@@ -316,6 +316,16 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     /* Time since the RTS started. */
     __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
+
+    /* Log a summary of RTS work before the final end message. */
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "Rollback to stable summary: total_btrees=%" PRIu64 ", processed=%" PRIu64
+      ", skipped=%" PRIu64 ", pages_walked=%" PRIu64 ", elapsed_ms=%" PRIu64,
+      S2C(session)->rts->progress.total_btrees,
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->rts->progress.btrees_processed),
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped),
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->rts->progress.pages_walked), time_diff_ms);
+
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_END "finished rollback to stable%s with %" PRIu32
                           " worker threads and has ran for %" PRIu64 " milliseconds",

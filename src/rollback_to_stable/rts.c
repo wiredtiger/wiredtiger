@@ -110,6 +110,10 @@ __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint6
                   __rts_phase_string(phase), time_diff_ms / WT_THOUSAND, rollback_count, max_count,
                   pct, btrees_processed, btrees_skipped, pages_walked);
         }
+
+        /* Notify the application via the progress callback. */
+        WT_IGNORE_RET(__wt_progress(session, "rollback to stable", btrees_processed));
+
         *rollback_msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
 }
