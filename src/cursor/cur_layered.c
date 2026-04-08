@@ -1495,12 +1495,14 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
                 ret = WT_NOTFOUND;
         }
 
-        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-                             session, (WT_LAYERED_TABLE *)clayered->dhandle, &c->key, NULL),
-          true);
-        if (ret == 0) {
-            found = true;
-            ret = WT_NOTFOUND;
+        if (!found) {
+            WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
+                                 session, (WT_LAYERED_TABLE *)clayered->dhandle, &c->key, NULL),
+              true);
+            if (ret == 0) {
+                found = true;
+                ret = WT_NOTFOUND;
+            }
         }
     } else
         /* Be sure we'll make a search attempt further down.  */
