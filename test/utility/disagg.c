@@ -76,8 +76,11 @@ preserve_copy_uri(
     char new_config[256];
 
     ret = from_session->open_cursor(from_session, from_uri, NULL, "raw", &from);
-    if (ret == WT_NOTFOUND || ret == ENOENT)
+    if (ret == WT_NOTFOUND || ret == ENOENT) {
+        fprintf(
+          stderr, "%s: file not found during preserve: %s\n", from_uri, wiredtiger_strerror(ret));
         return;
+    }
     testutil_check(ret);
     testutil_snprintf(new_config, sizeof(new_config), "key_format=%s,value_format=%s",
       from->key_format, from->value_format);
