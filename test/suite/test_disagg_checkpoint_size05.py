@@ -162,31 +162,22 @@ class test_disagg_checkpoint_size05(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(layered_size, stable_size,
             f"layered block_size ({layered_size}) should be >= stable block_size ({stable_size})")
 
-    # When a table is created with block_manager=disagg, it gets a table: metadata entry with
-    # block_manager=disagg. statistics=(size) on that table URI exercises the schema_stat.c
-    # disagg fast path, which looks up checkpoint size from the file's metadata entry rather
-    # than reading a file from disk.
-    def test_block_size_table_uri_with_disagg_block_manager(self):
-        table_base = "test_disagg_ckpt_size05_bm"
-        table_uri = "table:" + table_base
-        file_uri = "file:" + table_base + ".wt"
-
-        self.session.create(table_uri, 'key_format=S,value_format=S,block_manager=disagg')
-
-        self.insert_rows(500, uri=table_uri)
+    # The fast path reads the size from the last checkpoint in the metadata. Verify that inserting
+    # more data without checkpointing does not change the reported size -- it must reflect the
+    # last checkpoint, not uncommitted data.
+    def test_block_size_unchanged_without_checkpoint(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.insert_rows(500)
         self.session.checkpoint()
 
-        # Fast path via table: URI exercises schema_stat.c disagg branch.
-        cstat = self.session.open_cursor('statistics:' + table_uri, None, 'statistics=(size)')
-        fast_table = cstat[stat.dsrc.block_size][2]
-        cstat.close()
+        size_after_ckpt = self.get_block_size_fast()
+        meta_after_ckpt = self.get_ckpt_size_from_meta()
+        self.assertEqual(size_after_ckpt, meta_after_ckpt)
 
-        # Fast path via file: URI exercises cur_stat.c disagg branch (ground truth).
-        cstat = self.session.open_cursor('statistics:' + file_uri, None, 'statistics=(size)')
-        fast_file = cstat[stat.dsrc.block_size][2]
-        cstat.close()
+        # Insert more data but do NOT checkpoint.
+        self.insert_rows(1000, start=500)
 
-        self.assertGreater(fast_table, 0,
-            "statistics=(size) on table: URI with block_manager=disagg should return non-zero block_size")
-        self.assertEqual(fast_table, fast_file,
-            f"table: fast path ({fast_table}) should match file: fast path ({fast_file})")
+        self.assertEqual(self.get_block_size_fast(), size_after_ckpt,
+            "fast-path block_size should not change without a new checkpoint")
+        self.assertEqual(self.get_block_size_slow(), size_after_ckpt,
+            "slow-path block_size should not change without a new checkpoint")
