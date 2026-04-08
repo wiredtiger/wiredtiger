@@ -1024,7 +1024,7 @@ __wt_error_log_dump_recent(WT_SESSION_IMPL *session, int max_entries)
     if (count > WT_MAX_ERROR_LOG_MAX)
         count = WT_MAX_ERROR_LOG_MAX;
     if (count > max_entries)
-        start = (error_log.tail - max_entries + WT_MAX_ERROR_LOG_MAX) % WT_MAX_ERROR_LOG_MAX;
+        start = (error_log.tail + WT_MAX_ERROR_LOG_MAX - max_entries) % WT_MAX_ERROR_LOG_MAX;
     else
         start = error_log.head;
 
