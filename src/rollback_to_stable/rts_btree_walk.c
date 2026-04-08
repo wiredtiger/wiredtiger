@@ -122,23 +122,25 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_REF *ref;
     WT_TIMER timer;
     double npos;
-    uint64_t msg_count;
+    uint64_t btree_pages, msg_count;
     uint32_t flags;
 
     __wt_timer_start(session, &timer);
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
     msg_count = 0;
+    btree_pages = 0;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __rts_btree_walk_page_skip, &rollback_timestamp, flags)) == 0 &&
       ref != NULL) {
+        ++btree_pages;
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.pages_walked, 1);
 
         /* Compute the normalized position (0..1) of this page in the tree for progress. */
         npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
-        __wti_rts_progress_msg_walk(session, &timer, &msg_count, npos);
+        __wti_rts_progress_msg_walk(session, &timer, &msg_count, npos, btree_pages);
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_ERR(__wti_rts_btree_abort_updates(session, ref, rollback_timestamp));
