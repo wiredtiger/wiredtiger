@@ -2792,7 +2792,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * this call. Also, marking the btree dirty at this stage will unnecessarily mark the connection
      * as dirty causing checkpoint-skip code to fail.
      */
-    WT_ERR(__wt_page_modify_init(session, btree->root.page));
+    WT_ERR_MSG_CHK(session, __wt_page_modify_init(session, btree->root.page),
+      "checkpoint failed during root page modify init");
     __wt_page_only_modify_set(session, btree->root.page);
 
     /*
@@ -2807,10 +2808,13 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
 
     /* Tell logging that a file checkpoint is starting. */
     if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
-        WT_ERR(__wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_START, &ckptlsn));
+        WT_ERR_MSG_CHK(session,
+          __wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_START, &ckptlsn),
+          "checkpoint failed during logging start");
 
     /* Tell the block manager that a file checkpoint is starting. */
-    WT_ERR(bm->checkpoint_start(bm, session));
+    WT_ERR_MSG_CHK(session, bm->checkpoint_start(bm, session),
+      "checkpoint failed to start in the block manager");
     resolve_bm = true;
 
     /* Flush the file from the cache, creating the checkpoint. */
@@ -2873,14 +2877,17 @@ fake:
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_RESOLVE);
         if (WT_META_TRACKING(session) && is_checkpoint)
-            WT_ERR(__wt_meta_track_checkpoint(session));
+            WT_ERR_MSG_CHK(session, __wt_meta_track_checkpoint(session),
+              "checkpoint failed during meta tracking");
         else
-            WT_ERR(bm->checkpoint_resolve(bm, session, false));
+            WT_ERR_MSG_CHK(session, bm->checkpoint_resolve(bm, session, false),
+              "checkpoint failed during block manager resolve");
     }
 
     /* Tell logging that the checkpoint is complete. */
     if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
-        WT_ERR(__wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL));
+        WT_ERR_MSG_CHK(session, __wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL),
+          "checkpoint failed during logging completion");
 
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
