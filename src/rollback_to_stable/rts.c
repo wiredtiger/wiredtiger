@@ -92,20 +92,19 @@ __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint6
         eta_sec = __rts_compute_eta_sec(session, rollback_count);
         if (eta_sec > 0)
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "Rollback to stable [%s] running for %" PRIu64
-              " seconds, inspected %" PRIu64 " of %" PRIu64 " btrees (%" PRIu64
-              "%%), %" PRIu64 " processed, %" PRIu64 " skipped, %" PRIu64
-              " total pages walked (%" PRIu64 " pages/sec), ETA %" PRIu64 " seconds",
-              __rts_phase_string(phase), time_diff_ms / WT_THOUSAND, rollback_count, max_count,
-              pct, btrees_processed, btrees_skipped, pages_walked, pages_per_sec, eta_sec);
+              "Rollback to stable [%s] running for %" PRIu64 " seconds, inspected %" PRIu64
+              " of %" PRIu64 " btrees (%" PRIu64 "%%), %" PRIu64 " processed, %" PRIu64
+              " skipped, %" PRIu64 " total pages walked (%" PRIu64 " pages/sec), ETA %" PRIu64
+              " seconds",
+              __rts_phase_string(phase), time_diff_ms / WT_THOUSAND, rollback_count, max_count, pct,
+              btrees_processed, btrees_skipped, pages_walked, pages_per_sec, eta_sec);
         else
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "Rollback to stable [%s] running for %" PRIu64
-              " seconds, inspected %" PRIu64 " of %" PRIu64 " btrees (%" PRIu64
-              "%%), %" PRIu64 " processed, %" PRIu64 " skipped, %" PRIu64
-              " total pages walked (%" PRIu64 " pages/sec)",
-              __rts_phase_string(phase), time_diff_ms / WT_THOUSAND, rollback_count, max_count,
-              pct, btrees_processed, btrees_skipped, pages_walked, pages_per_sec);
+              "Rollback to stable [%s] running for %" PRIu64 " seconds, inspected %" PRIu64
+              " of %" PRIu64 " btrees (%" PRIu64 "%%), %" PRIu64 " processed, %" PRIu64
+              " skipped, %" PRIu64 " total pages walked (%" PRIu64 " pages/sec)",
+              __rts_phase_string(phase), time_diff_ms / WT_THOUSAND, rollback_count, max_count, pct,
+              btrees_processed, btrees_skipped, pages_walked, pages_per_sec);
 
         /* Notify the application via the progress callback. */
         WT_IGNORE_RET(__wt_progress(session, "rollback to stable", btrees_processed));
@@ -145,16 +144,15 @@ __wti_rts_progress_msg_walk(
 
         if (btree_eta_sec > 0)
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "Rollback to stable [%s] btree walk on %s for %" PRIu64
-              " seconds, %" PRIu64 "%% through btree, %" PRIu64
-              " pages walked (%" PRIu64 " pages/sec), btree ETA %" PRIu64 " seconds",
+              "Rollback to stable [%s] btree walk on %s for %" PRIu64 " seconds, %" PRIu64
+              "%% through btree, %" PRIu64 " pages walked (%" PRIu64
+              " pages/sec), btree ETA %" PRIu64 " seconds",
               __rts_phase_string(phase), session->dhandle->name, elapsed_ms / WT_THOUSAND,
               btree_pct, pages_walked, pages_per_sec, btree_eta_sec);
         else
             __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "Rollback to stable [%s] btree walk on %s for %" PRIu64
-              " seconds, %" PRIu64 "%% through btree, %" PRIu64
-              " pages walked (%" PRIu64 " pages/sec)",
+              "Rollback to stable [%s] btree walk on %s for %" PRIu64 " seconds, %" PRIu64
+              "%% through btree, %" PRIu64 " pages walked (%" PRIu64 " pages/sec)",
               __rts_phase_string(phase), session->dhandle->name, elapsed_ms / WT_THOUSAND,
               btree_pct, pages_walked, pages_per_sec);
 
