@@ -37,28 +37,28 @@ __rts_phase_string(uint32_t phase)
 
 /*
  * __rts_compute_eta_sec --
- *     Estimate remaining time for the btree-apply phase based on the rate of btrees processed so
+ *     Estimate remaining time for the btree-apply phase based on the rate of btrees inspected so
  *     far. Returns 0 if there is insufficient data for a meaningful estimate.
  */
 static uint64_t
-__rts_compute_eta_sec(WT_SESSION_IMPL *session)
+__rts_compute_eta_sec(WT_SESSION_IMPL *session, uint64_t inspected)
 {
     WT_ROLLBACK_TO_STABLE *rts;
-    uint64_t elapsed_ms, processed, remaining;
+    uint64_t elapsed_ms, remaining, total;
 
     rts = S2C(session)->rts;
-    processed = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_processed);
+    total = rts->progress.total_btrees;
 
-    /* Require a minimum number of processed btrees for a meaningful estimate. */
-    if (processed < 5 || processed >= rts->progress.total_btrees)
+    /* Require a minimum number of inspected btrees for a meaningful estimate. */
+    if (inspected < 5 || inspected >= total)
         return (0);
 
-    remaining = rts->progress.total_btrees - processed;
+    remaining = total - inspected;
     __wt_timer_evaluate_ms(session, &rts->progress.btree_apply_timer, &elapsed_ms);
     if (elapsed_ms == 0)
         return (0);
 
-    return ((remaining * elapsed_ms) / (processed * WT_THOUSAND));
+    return ((remaining * elapsed_ms) / (inspected * WT_THOUSAND));
 }
 
 /*
@@ -93,7 +93,7 @@ __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint6
               pages_walked);
         else {
             pct = max_count > 0 ? (100 * rollback_count / max_count) : 0;
-            eta_sec = __rts_compute_eta_sec(session);
+            eta_sec = __rts_compute_eta_sec(session, rollback_count);
             if (eta_sec > 0)
                 __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
                   "Rollback to stable [%s] running for %" PRIu64
