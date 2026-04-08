@@ -976,6 +976,47 @@ err:
 }
 
 /*
+ * __clayered_step --
+ *     Transaction-aware single step for a layered cursor: enter, detect isolation changes,
+ *     iterate, propagate results to the interface cursor, then leave.
+ *
+ *     Called only from __clayered_next and __clayered_prev.
+ */
+static int
+__clayered_step(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
+{
+    WT_CURSOR *iface;
+    WT_DECL_RET;
+    uint64_t prev_read_ts, prev_snapshot;
+
+    iface = &clayered->iface;
+    prev_snapshot = clayered->snapshot_gen;
+    prev_read_ts = clayered->read_timestamp;
+
+    WT_ERR(__clayered_enter(clayered, false, true, true));
+
+    /* If isolation has changed between transactions, re-search the parked alternate cursor. */
+    if (prev_snapshot != clayered->snapshot_gen || prev_read_ts != clayered->read_timestamp)
+        F_CLR(clayered, iter_flag);
+
+    /* Advance the cursor by one position. */
+    WT_ERR(__clayered_iterate(clayered, iter_flag));
+
+    /* Propagate a key/value pair to the iface cursor. */
+    WT_ITEM_SET(iface->key, clayered->current_cursor->key);
+    WT_ITEM_SET(iface->value, clayered->current_cursor->value);
+    __clayered_deleted_decode(&iface->value);
+    F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    F_SET(iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+
+err:
+    if (ret != 0)
+        F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    __clayered_leave(clayered);
+    return (ret);
+}
+
+/*
  * __clayered_next --
  *     WT_CURSOR->next method for the layered cursor type.
  */
@@ -985,7 +1026,6 @@ __clayered_next(WT_CURSOR *cursor)
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t prev_read_timestamp, prev_snapshot_gen;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
@@ -993,19 +1033,8 @@ __clayered_next(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
 
-    prev_snapshot_gen = clayered->snapshot_gen;
-    prev_read_timestamp = clayered->read_timestamp;
-    WT_ERR(__clayered_enter(clayered, false, true, true));
-
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
-
-    if (prev_snapshot_gen != clayered->snapshot_gen ||
-      prev_read_timestamp != clayered->read_timestamp)
-        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT);
-    WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT));
-
-    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
-    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    WT_ERR(__clayered_step(clayered, WT_CLAYERED_ITERATE_NEXT));
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
@@ -1015,13 +1044,6 @@ __clayered_next(WT_CURSOR *cursor)
     }
 
 err:
-    __clayered_leave(clayered);
-    if (ret == 0) {
-        __clayered_deleted_decode(&cursor->value);
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-    } else
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     API_END_RET(session, ret);
 }
 
@@ -1035,7 +1057,6 @@ __clayered_prev(WT_CURSOR *cursor)
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t prev_read_timestamp, prev_snapshot_gen;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
@@ -1043,19 +1064,8 @@ __clayered_prev(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
 
-    prev_snapshot_gen = clayered->snapshot_gen;
-    prev_read_timestamp = clayered->read_timestamp;
-    WT_ERR(__clayered_enter(clayered, false, true, true));
-
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
-
-    if (prev_snapshot_gen != clayered->snapshot_gen ||
-      prev_read_timestamp != clayered->read_timestamp)
-        F_CLR(clayered, WT_CLAYERED_ITERATE_PREV);
-    WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
-
-    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
-    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    WT_ERR(__clayered_step(clayered, WT_CLAYERED_ITERATE_PREV));
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
@@ -1065,13 +1075,6 @@ __clayered_prev(WT_CURSOR *cursor)
     }
 
 err:
-    __clayered_leave(clayered);
-    if (ret == 0) {
-        __clayered_deleted_decode(&cursor->value);
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-    } else
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     API_END_RET(session, ret);
 }
 

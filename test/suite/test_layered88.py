@@ -113,7 +113,7 @@ class test_layered88(wttest.WiredTigerTestCase):
 
         cursor = self.session_follow.open_cursor(self.uri)
         self.follow_next(cursor, '1', '3', 'read_timestamp=' + self.timestamp_str(3))
-        self.follow_next(cursor, '2', '1', 'read_timestamp=' + self.timestamp_str(1))  # bug: returns '2'
+        self.follow_next(cursor, '2', '1', 'read_timestamp=' + self.timestamp_str(1)) # bug: returns '2'
         cursor.close()
 
     # --------------------------------------------------------------------------
@@ -158,7 +158,7 @@ class test_layered88(wttest.WiredTigerTestCase):
 
         cursor = self.session_follow.open_cursor(self.uri)
         self.follow_prev(cursor, '2', '3', 'read_timestamp=' + self.timestamp_str(3))
-        self.follow_prev(cursor, '1', '1', 'read_timestamp=' + self.timestamp_str(1))  # bug: returns '2'
+        self.follow_prev(cursor, '1', '1', 'read_timestamp=' + self.timestamp_str(1)) # bug: returns '2'
         cursor.close()
 
     # --------------------------------------------------------------------------
@@ -203,7 +203,7 @@ class test_layered88(wttest.WiredTigerTestCase):
 
         cursor = self.session_follow.open_cursor(self.uri)
         self.follow_next(cursor, '1', '1', 'read_timestamp=' + self.timestamp_str(2))
-        self.follow_next(cursor, '2', '3', 'read_timestamp=' + self.timestamp_str(3))  # bug: returns '2'
+        self.follow_next(cursor, '2', '3', 'read_timestamp=' + self.timestamp_str(3)) # bug: returns '2'
         cursor.close()
 
     # --------------------------------------------------------------------------
@@ -248,7 +248,7 @@ class test_layered88(wttest.WiredTigerTestCase):
 
         cursor = self.session_follow.open_cursor(self.uri)
         self.follow_prev(cursor, '2', '1', 'read_timestamp=' + self.timestamp_str(2))
-        self.follow_prev(cursor, '1', '3', 'read_timestamp=' + self.timestamp_str(3))  # bug: returns '2'
+        self.follow_prev(cursor, '1', '3', 'read_timestamp=' + self.timestamp_str(3)) # bug: returns '2'
         cursor.close()
 
     # --------------------------------------------------------------------------
@@ -262,9 +262,9 @@ class test_layered88(wttest.WiredTigerTestCase):
     #   +-----+----+-------+      |   2 |  3 |   3   |  <- committed between T1 and T2
     #                             +-----+----+-------+
     #
-    #   T1 (snapshot, no read_timestamp): next() -> key=1, value=1.
+    #   T1 (snapshot): next() -> key=1, value=1.
     #   [write key=2, value=3 commits -> snapshot_gen bumps]
-    #   T2 (snapshot, no read_timestamp): next() -> key=2, value=3.
+    #   T2 (snapshot): next() -> key=2, value=3.
     # --------------------------------------------------------------------------
     def test_talbe_scan_with_snapshot_gen_ingest_next(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -297,7 +297,7 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        self.follow_next(cursor, '2', '3')  # bug: returns '2'
+        self.follow_next(cursor, '2', '3') # bug: returns '2'
         cursor.close()
 
     # --------------------------------------------------------------------------
@@ -311,9 +311,9 @@ class test_layered88(wttest.WiredTigerTestCase):
     #   +-----+----+-------+      |   1 |  3 |   3   |  <- committed between T1 and T2
     #                             +-----+----+-------+
     #
-    #   T1 (snapshot, no read_timestamp): prev() -> key=2, value=1.
+    #   T1 (snapshot): prev() -> key=2, value=1.
     #   [write key=1, value=3 commits -> snapshot_gen bumps]
-    #   T2 (snapshot, no read_timestamp): prev() -> key=1, value=3.
+    #   T2 (snapshot): prev() -> key=1, value=3.
     # --------------------------------------------------------------------------
     def test_talbe_scan_with_snapshot_gen_ingest_prev(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -346,5 +346,5 @@ class test_layered88(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         cf.close()
 
-        self.follow_prev(cursor, '1', '3')  # bug: returns '2'
+        self.follow_prev(cursor, '1', '3') # bug: returns '2'
         cursor.close()
