@@ -84,3 +84,5 @@ It is invoked via the \c WT_COMPILER_BARRIER macro and does not affect CPU reord
 
 This is the only lock-free synchronization primitive in WiredTiger that has no equivalent and cannot
 be implemented through the C standard library.
+
+*/
