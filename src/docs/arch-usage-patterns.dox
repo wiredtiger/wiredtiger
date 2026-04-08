@@ -109,11 +109,11 @@ that will not be covered here.
 If a new slot is required in the array, but all slots are in use and \c slot_count is equal to the
 size \c Z of the array then the array must grow. The variable \c slot_count has additional ordering
 defined when swapping in the array. The array pointer swap must happen before \c slot_count is
-incremented. This requires a @ref rel-marked.
+incremented. This requires a release store.
 
 @subsubsection growable-arrays-reading Reading
 Readers must respect the writer side ordering. The \c slot_count must be read prior to reading the
-array pointer. This requires an @ref acq-marked. If this ordering is not respected the reader could
+array pointer. This requires an acquire read. If this ordering is not respected the reader could
 read an old array pointer but a new \c slot_count and encounter an array index out of bounds
 exception.
 
