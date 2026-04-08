@@ -134,7 +134,7 @@ __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, WT_TIMER *btree_start, uin
     WT_ROLLBACK_TO_STABLE *rts;
     uint64_t btree_eta_sec, btree_pct, btree_pages_per_sec, btrees_completed, btrees_processed,
       btrees_skipped, elapsed_ms, eta_sec, overall_elapsed_ms, overall_pages_per_sec, overall_pct,
-      pages_walked, total_btrees;
+      overall_report_count, pages_walked, total_btrees;
     uint32_t phase;
 
     rts = S2C(session)->rts;
@@ -165,15 +165,22 @@ __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, WT_TIMER *btree_start, uin
               __rts_phase_string(phase), session->dhandle->name, elapsed_ms / WT_THOUSAND,
               btree_pct, btree_pages, btree_pages_per_sec);
 
-        /* Emit an overall progress line, but only from the main thread. */
-        if (session == rts->progress.main_session) {
+        /*
+         * Emit an overall progress line. Use CAS on overall_report_count so that exactly one
+         * thread wins per reporting period, regardless of which thread it is.
+         */
+        __wt_timer_evaluate_ms(session, &rts->progress.start_timer, &overall_elapsed_ms);
+        overall_report_count =
+          __wt_atomic_load_uint64_relaxed(&rts->progress.overall_report_count);
+        if ((overall_elapsed_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > overall_report_count &&
+          __wt_atomic_cas_uint64(
+            &rts->progress.overall_report_count, overall_report_count, overall_report_count + 1)) {
             btrees_processed = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_processed);
             btrees_skipped = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_skipped);
             pages_walked = __wt_atomic_load_uint64_relaxed(&rts->progress.pages_walked);
             total_btrees = rts->progress.total_btrees;
             btrees_completed = btrees_processed + btrees_skipped;
             overall_pct = total_btrees > 0 ? (100 * btrees_completed / total_btrees) : 0;
-            __wt_timer_evaluate_ms(session, &rts->progress.start_timer, &overall_elapsed_ms);
             overall_pages_per_sec =
               overall_elapsed_ms > 0 ? (pages_walked * WT_THOUSAND / overall_elapsed_ms) : 0;
             eta_sec = __rts_compute_eta_sec(session);
@@ -211,7 +218,6 @@ __wti_rts_progress_init(WT_SESSION_IMPL *session)
 
     rts = S2C(session)->rts;
     memset(&rts->progress, 0, sizeof(rts->progress));
-    rts->progress.main_session = session;
     __wt_timer_start(session, &rts->progress.start_timer);
 }
 
@@ -353,7 +359,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     WT_TIMER timer;
     uint64_t max_count, rollback_count, rollback_msg_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
-    const char *config, *uri;
+    const char *config, *saved_session_name, *uri;
     bool have_cursor, rts_threads_started;
 
     __wti_rts_progress_init(session);
@@ -361,6 +367,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
 
     __wt_timer_start(session, &timer);
     max_count = rollback_count = 0;
+    saved_session_name = session->name;
     rollback_msg_count = 0;
     rts_threads_started = false;
 
@@ -417,6 +424,10 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_QUEUE_DRAIN);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, "%s",
           "Rollback to stable finished metadata walk, draining worker queue");
+
+        /* Rename session while joining workers so log messages identify us as a worker. */
+        saved_session_name = session->name;
+        session->name = "rts-worker (main)";
         while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
             __wti_rts_pop_work(session, &entry);
             if (entry == NULL)
@@ -425,6 +436,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
             __wti_rts_work_free(session, entry);
             WT_ERR(ret);
         }
+        session->name = saved_session_name;
     }
 
     WT_ERR(__rts_thread_destroy(session));
@@ -453,6 +465,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
 
     __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_COMPLETE);
 err:
+    session->name = saved_session_name;
     if (have_cursor)
         WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     if (rts_threads_started)
