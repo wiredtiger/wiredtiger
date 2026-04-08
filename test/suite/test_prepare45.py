@@ -145,7 +145,7 @@ class test_prepare45(wttest.WiredTigerTestCase):
             self.assertEqual(wiredtiger.WT_NOTFOUND, read_cursor.search())
         read_session.rollback_transaction()
 
-        # At ts=200: commit → keys 4-6 visible; rollback → keys 4-6 not found.
+        # At ts=200: commit  keys 4-6 visible; rollback  keys 4-6 not found.
         read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
         for i in range(4, 7):
             read_cursor.set_key(i)
@@ -237,7 +237,7 @@ class test_prepare45(wttest.WiredTigerTestCase):
         self.assertEqual(read_cursor[3], "original_value_3")
         read_session.rollback_transaction()
 
-        # At ts=200: commit → updated values; rollback → original values.
+        # At ts=200: commit  updated values; rollback  original values.
         read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
         if self.commit:
             self.assertEqual(read_cursor[1], "updated_value_1")
@@ -332,7 +332,7 @@ class test_prepare45(wttest.WiredTigerTestCase):
         self.assertEqual(read_cursor[3], "original_value_3")
         read_session.rollback_transaction()
 
-        # At ts=200: commit → keys deleted; rollback → original values visible.
+        # At ts=200: commit  keys deleted; rollback  original values visible.
         read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
         if self.commit:
             for i in range(1, 4):
@@ -421,7 +421,7 @@ class test_prepare45(wttest.WiredTigerTestCase):
         self.assertEqual(read_cursor[1], "value_160")
         read_session.rollback_transaction()
 
-        # At ts=200: commit → key deleted; rollback → value_160 still visible.
+        # At ts=200: commit  key deleted; rollback  value_160 still visible.
         read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
         if self.commit:
             read_cursor.set_key(1)
