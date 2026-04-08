@@ -122,10 +122,11 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_REF *ref;
     WT_TIMER timer;
     double npos;
-    uint64_t btree_pages, elapsed_ms, msg_count;
+    uint64_t btree_pages, clock_now, clock_start, elapsed_ns, msg_count;
     uint32_t flags;
 
     __wt_timer_start(session, &timer);
+    clock_start = __wt_clock(session);
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
     msg_count = 0;
     btree_pages = 0;
@@ -138,9 +139,13 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
         ++btree_pages;
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.pages_walked, 1);
 
-        /* Only compute npos (which walks parent indexes) when a progress message is due. */
-        __wt_timer_evaluate_ms(session, &timer, &elapsed_ms);
-        if ((elapsed_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
+        /*
+         * Use the cheap rdtsc-based clock to check if a progress message is due. Only compute
+         * npos (which walks parent indexes) and emit the message when the period has elapsed.
+         */
+        clock_now = __wt_clock(session);
+        elapsed_ns = __wt_clock_to_nsec(clock_now, clock_start);
+        if ((elapsed_ns / ((uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
             npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
             __wti_rts_progress_msg_walk(session, &timer, &msg_count, npos, btree_pages);
         }
