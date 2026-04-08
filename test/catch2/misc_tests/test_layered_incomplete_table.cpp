@@ -11,7 +11,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <cstdio>
 #include <signal.h>
 #include <string>
 
@@ -50,11 +49,6 @@
  * the process does not take down the test runner.
  */
 
-/* Supplied by CMake as the absolute path to the palite shared library. */
-#ifndef PALITE_EXTENSION
-#define PALITE_EXTENSION "./ext/page_log/palite/libwiredtiger_palite.so"
-#endif
-
 static const std::string TABLE_NAME = "test_layered_inc";
 static const std::string TABLE_URI = "table:test_layered_inc";
 
@@ -70,7 +64,7 @@ build_cfg(const std::string &role, bool create)
     if (create)
         cfg += "create,";
     cfg += "statistics=(all),";
-    cfg += std::string("extensions=[") + PALITE_EXTENSION + "],";
+    cfg += "extensions=[./ext/page_log/palite/libwiredtiger_palite.so],";
     cfg += std::string("disaggregated=(role=") + role + ",page_log=palite)";
     return cfg;
 }
