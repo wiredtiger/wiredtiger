@@ -2203,6 +2203,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
+  "cache: shared disk cache hash table size",
   "cache: shared history store cursor not cached during eviction",
   "cache: size of delta updates reconstructed on the base page",
   "cache: size of tombstones restored when reading a page",
@@ -3259,6 +3260,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
+    /* not clearing shared_dsk_cache_hash_size */
     stats->cache_eviction_hs_shared_cursor_not_cached = 0;
     stats->cache_read_delta_updates = 0;
     stats->cache_read_restored_tombstone_bytes = 0;
@@ -4396,6 +4398,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_reverse_splits += WT_STAT_CONN_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_CONN_READ(from, cache_reverse_splits_skipped_vlcs);
+    to->shared_dsk_cache_hash_size += WT_STAT_CONN_READ(from, shared_dsk_cache_hash_size);
     to->cache_eviction_hs_shared_cursor_not_cached +=
       WT_STAT_CONN_READ(from, cache_eviction_hs_shared_cursor_not_cached);
     to->cache_read_delta_updates += WT_STAT_CONN_READ(from, cache_read_delta_updates);

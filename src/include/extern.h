@@ -1625,6 +1625,8 @@ extern int __wti_session_compact_readonly(WT_SESSION *wt_session, const char *ur
   const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_session_notsup(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
@@ -1904,6 +1906,7 @@ extern void __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_
   uint64_t rollback_count, uint64_t max_count, uint64_t *rollback_msg_count, bool walk);
 extern void __wti_rts_work_free(WT_SESSION_IMPL *session, WT_RTS_WORK_UNIT *entry);
 extern void __wti_schema_destroy_colgroup(WT_SESSION_IMPL *session, WT_COLGROUP **colgroupp);
+extern void __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session);
 extern void __wti_tiered_get_remove_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp);
 extern void __wti_txn_clear_durable_timestamp(WT_SESSION_IMPL *session);
 extern void __wti_txn_clear_read_timestamp(WT_SESSION_IMPL *session);
