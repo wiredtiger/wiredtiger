@@ -44,10 +44,10 @@ the stashed object with the generation indicating the point at which it was adde
 no reader in the system holds a generation which is older than or equal to the stashed object's
 generation it can be freed.
 
-@section lock-free Lock-free synchronisation primitives
+@section lock-free Lock-free synchronization primitives
 
 WiredTiger defines a set of APIs, such as atomic-marked accesses and standalone memory fences
-(memory barriers), and uses them in many places to ensure lock-free memory synchronisation.
+(memory barriers), and uses them in many places to ensure lock-free memory synchronization.
 Most of these interfaces are expected to behave exactly the same as their equivalents in the
 C standard library.
 
@@ -70,7 +70,7 @@ implemented through a combination of C-compatible API calls. There are only two 
 interfaces: `WT_READ/WRITE_ONCE` and `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER`.
 
 `WT_READ/WRITE_ONCE` is effectively a relaxed atomic load or store, combined with a cast to
-`volatile` to prevent unsafe compiler optimisations. It is described in more detail earlier in
+`volatile` to prevent unsafe compiler optimizations. It is described in more detail earlier in
 @ref volatile.
 
 `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER` is a relaxed atomic load or store combined with an
@@ -79,8 +79,8 @@ be used in newly developed code.
 
 @subsection com-bar Compiler barrier
 
-A compiler barrier prevents compiler optimisations and code reordering across the barrier point.
+A compiler barrier prevents compiler optimizations and code reordering across the barrier point.
 It is invoked via the \c WT_COMPILER_BARRIER macro and does not affect CPU reordering.
 
-This is the only lock-free synchronisation primitive in WiredTiger that has no equivalent and cannot
+This is the only lock-free synchronization primitive in WiredTiger that has no equivalent and cannot
 be implemented through the C standard library.
