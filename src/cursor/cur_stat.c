@@ -488,6 +488,56 @@ err:
 }
 
 /*
+ * __wt_curstat_size_local --
+ *     Fast-path size retrieval for tables backed by a local file. If the file exists, set *was_fast
+ *     and return the size via *sizep.
+ */
+int
+__wt_curstat_size_local(
+  WT_SESSION_IMPL *session, const char *filename, bool *was_fast, wt_off_t *sizep)
+{
+    bool exist;
+
+    *was_fast = false;
+
+    WT_RET(__wt_fs_exist(session, filename, &exist));
+    if (exist) {
+        WT_RET(__wt_block_manager_named_size(session, filename, sizep));
+        *was_fast = true;
+    }
+
+    return (0);
+}
+
+/*
+ * __wt_curstat_size_disagg --
+ *     Fast-path size retrieval for disaggregated tables. There is no underlying file on disk, so
+ *     read the checkpoint size directly from the file's metadata entry. If successful, set
+ *     *was_fast and return the size via *sizep.
+ */
+int
+__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, wt_off_t *sizep)
+{
+    WT_DECL_RET;
+    uint64_t ckpt_size;
+    char *fileconf;
+
+    *was_fast = false;
+    fileconf = NULL;
+
+    if (__wt_metadata_search(session, uri, &fileconf) == 0) {
+        ret = __wt_ckpt_last_size(session, fileconf, &ckpt_size);
+        __wt_free(session, fileconf);
+        if (ret == 0) {
+            *sizep = (wt_off_t)ckpt_size;
+            *was_fast = true;
+        }
+    }
+
+    return (0);
+}
+
+/*
  * __curstat_file_init --
  *     Initialize the statistics for a file.
  */
@@ -498,10 +548,8 @@ __curstat_file_init(
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     wt_off_t size;
-    uint64_t ckpt_size;
-    char *fileconf;
     const char *filename;
-    bool exist;
+    bool was_fast;
 
     /*
      * If we are only getting the size of the file, we don't need to open the tree. This only
@@ -510,29 +558,16 @@ __curstat_file_init(
     if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
         filename = uri;
         WT_PREFIX_SKIP(filename, "file:");
-        __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
 
-        WT_RET(__wt_fs_exist(session, filename, &exist));
-        if (exist) {
-            WT_RET(__wt_block_manager_named_size(session, filename, &size));
+        size = 0;
+        WT_RET(__wt_curstat_size_local(session, filename, &was_fast, &size));
+        if (!was_fast)
+            WT_RET(__wt_curstat_size_disagg(session, uri, &was_fast, &size));
+        if (was_fast) {
+            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
             cst->u.dsrc_stats.block_size = size;
             __wt_curstat_dsrc_final(cst);
             return (0);
-        }
-
-        /*
-         * The file doesn't exist on disk (disaggregated storage). Read the size from the last
-         * checkpoint recorded in the file's metadata entry without logging an error.
-         */
-        fileconf = NULL;
-        if (__wt_metadata_search(session, uri, &fileconf) == 0) {
-            ret = __wt_ckpt_last_size(session, fileconf, &ckpt_size);
-            __wt_free(session, fileconf);
-            if (ret == 0) {
-                cst->u.dsrc_stats.block_size = (int64_t)ckpt_size;
-                __wt_curstat_dsrc_final(cst);
-                return (0);
-            }
         }
     }
 
