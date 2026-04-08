@@ -2025,6 +2025,8 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
         uint32_t session_cnt;
         WT_READ_ONCE(session_cnt, conn->session_array.cnt);
 
+        if (session_cnt == 0)
+            session_cnt = 1;
         if ((session->id % (session_cnt / WT_EVICT_EXPECTED_CONTENTION / 2)) == 0)
             WT_RET_BUSY_OK(__evict_page(session));
     }
