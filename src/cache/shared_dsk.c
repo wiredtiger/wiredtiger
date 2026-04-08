@@ -60,8 +60,8 @@ __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
     if (shared_dsk_cache->hash == NULL || shared_dsk_cache->hash_locks == NULL)
         goto done;
 
-    /* The shared disk cache is only used on disaggregated standby nodes. */
-    WT_ASSERT(session, __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader);
+    /* The shared disk cache is only used on disaggregated nodes. */
+    WT_ASSERT(session, __wt_conn_is_disagg(session) && shared_dsk_cache->enabled);
 
     for (i = 0; i < shared_dsk_cache->hash_size; i++) {
         while (!TAILQ_EMPTY(&shared_dsk_cache->hash[i])) {
