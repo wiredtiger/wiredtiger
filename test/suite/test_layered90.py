@@ -91,7 +91,7 @@ class test_layered90(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Followers don't create stable table metadata when they create a layered
     # table, stable tables are only created by leaders or populated via
-    # checkpoint pickup.  This gives us a natural "ingest present, stable
+    # checkpoint pickup. This gives us a natural "ingest present, stable
     # absent" state without needing to corrupt existing metadata.
     # -----------------------------------------------------------------------
 

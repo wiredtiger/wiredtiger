@@ -114,7 +114,7 @@ prepare_db(const std::string &home, bool remove_ingest, bool remove_stable)
      * Phase 2: Reopen as follower so that the disaggregated role is explicitly set and does not
      * inherit the "leader" stored in the turtle file from Phase 1. With role=follower, recovery's
      * __metadata_clean_incomplete_table only checks for the ingest entry, which is intact at this
-     * point, so recovery passes.  The layered-table data handles are never accessed here (lazy
+     * point, so recovery passes. The layered-table data handles are never accessed here (lazy
      * open), so no active handle exists for the entries we are about to remove, and the close
      * succeeds cleanly.
      */
