@@ -132,7 +132,6 @@ struct __wt_rollback_to_stable {
         WT_TIMER start_timer;                /* Overall RTS start time. */
         WT_TIMER btree_apply_timer;          /* When btree-apply phase began. */
         WT_SESSION_IMPL *main_session;       /* Main thread session, for overall progress. */
-        uint64_t msg_count;                  /* Throttle counter for overall messages. */
         uint64_t total_btrees;               /* From metadata count pass (set once). */
         wt_shared uint32_t phase;            /* Current RTS phase (WT_RTS_PHASE_*). */
         wt_shared uint64_t btrees_processed; /* Btrees fully processed (atomic). */

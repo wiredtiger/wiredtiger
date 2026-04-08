@@ -122,7 +122,7 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_REF *ref;
     WT_TIMER timer;
     double npos;
-    uint64_t btree_pages, msg_count;
+    uint64_t btree_pages, elapsed_ms, msg_count;
     uint32_t flags;
 
     __wt_timer_start(session, &timer);
@@ -138,9 +138,12 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
         ++btree_pages;
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.pages_walked, 1);
 
-        /* Compute the normalized position (0..1) of this page in the tree for progress. */
-        npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
-        __wti_rts_progress_msg_walk(session, &timer, &msg_count, npos, btree_pages);
+        /* Only compute npos (which walks parent indexes) when a progress message is due. */
+        __wt_timer_evaluate_ms(session, &timer, &elapsed_ms);
+        if ((elapsed_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
+            npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
+            __wti_rts_progress_msg_walk(session, &timer, &msg_count, npos, btree_pages);
+        }
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_ERR(__wti_rts_btree_abort_updates(session, ref, rollback_timestamp));
@@ -253,7 +256,6 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
 
     ret = __rts_btree_int(session, uri, rollback_timestamp);
     WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_applied);
-    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_processed, 1);
     /*
      * Ignore rollback to stable failures on files that don't exist or files where corruption is
      * detected.
@@ -264,8 +266,10 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
           WT_RTS_VERB_TAG_SKIP_DAMAGE
           "%s: skipped performing rollback to stable because the file %s",
           uri, ret == ENOENT ? "does not exist" : "is corrupted.");
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
         ret = 0;
-    }
+    } else
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_processed, 1);
     return (ret);
 }
 
@@ -373,6 +377,7 @@ __wti_rts_btree_walk_btree_apply(
           WT_RTS_VERB_TAG_FILE_SKIP
           "skipping rollback to stable on file=%s because has never been checkpointed",
           uri);
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
         return (0);
     }
 
