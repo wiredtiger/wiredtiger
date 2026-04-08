@@ -257,8 +257,6 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
 
     entry = NULL;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
-
     __wt_writelock(session, &layered_table->truncate_lock);
     while ((entry = TAILQ_FIRST(&layered_table->truncateqh)) != NULL) {
         TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
