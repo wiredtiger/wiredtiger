@@ -274,6 +274,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                  * The last checkpoint writes the prepared update, resolve it if we haven't resolved
                  * it yet.
                  */
+                /* Prepared transactions must have a prepared id in disagg. */
                 WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
                 /* Only resolve the updates from the same prepared transaction once. */
                 if (!prepare_resolved) {
@@ -329,6 +330,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                  * because we may write a prepared update to the disk in a future reconciliation.
                  */
                 if (is_prepare_rollback) {
+                    /* Prepared transactions must have a prepared id in disagg. */
+                    WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
                     /*
                      * The original transaction id is stored in start timestamp and the rollback
                      * timestamp is stored in durable timestamp.
