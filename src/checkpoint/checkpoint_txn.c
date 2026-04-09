@@ -1481,8 +1481,6 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 {
     WT_DECL_RET;
 
-    WTI_LOG *log = S2C(session)->log_mgr.log;
-
     if (!F_ISSET(&S2C(session)->log_mgr, WT_LOG_ENABLED))
         return (0);
 
@@ -1519,12 +1517,6 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
     }
 
 err:
-    if (ret != 0)
-        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
-          "checkpoint log stage %" PRIu32 ": prev_ckpt_lsn=%" PRIu32 "/%" PRIu32
-          ", alloc_lsn=%" PRIu32 "/%" PRIu32,
-          log_flags, __wt_lsn_file(&log->ckpt_lsn), __wt_lsn_offset(&log->ckpt_lsn),
-          __wt_lsn_file(&log->alloc_lsn), __wt_lsn_offset(&log->alloc_lsn));
 
     return (ret);
 }
