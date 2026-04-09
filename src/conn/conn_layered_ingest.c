@@ -117,35 +117,6 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     return (0);
 }
 
-/*
- * __layered_table_get_constituent_cursor --
- *     Retrieve or open a constituent cursor for a layered tree.
- */
-static int
-__layered_table_get_constituent_cursor(
-  WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *stable_cursor;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-
-    conn = S2C(session);
-    entry = conn->layered_table_manager.entries[ingest_id];
-
-    *cursorp = NULL;
-
-    if (entry == NULL)
-        return (0);
-
-    /* Open the cursor and keep a reference in the manager entry and our caller */
-    WT_RET(__wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor));
-    *cursorp = stable_cursor;
-
-    return (0);
-}
-
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __layered_assert_ingest_table_empty --
@@ -182,6 +153,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
     WT_UPDATE *last_upd, *prev_upd, *tombstone, *upd, *upds;
     wt_timestamp_t last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
@@ -195,24 +167,44 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
     stable_cursor = version_cursor = NULL;
     last_upd = prev_upd = tombstone = upd = upds = NULL;
+    layered = NULL;
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-    WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
-    cbt = (WT_CURSOR_BTREE *)stable_cursor;
-    if (last_checkpoint_timestamp != WT_TS_NONE)
-        WT_ERR(__wt_snprintf(
-          buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
-    else
-        buf2[0] = '\0';
-    /* FIXME-WT-16744 - Enable show_prepared_rollback config to resolve prepared update on the
-     * stable table when draining. */
-    WT_ERR(__wt_snprintf(buf, sizeof(buf),
-      "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
-      "cross_key=true,%s))",
-      buf2));
-    cfg[1] = buf;
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
+
+    WT_ASSERT(session, entry->pinned_dhandle != NULL);
+    WT_WITH_DHANDLE(session, entry->pinned_dhandle, do {
+        const char *ingest_uri;
+        const char *stable_uri;
+        const char *stable_cfg[4];
+
+        layered = (WT_LAYERED_TABLE *)session->dhandle;
+        WT_ASSERT(session, layered->stable_uri != NULL && layered->ingest_uri != NULL);
+        ingest_uri = layered->ingest_uri;
+        stable_uri = layered->stable_uri;
+
+        stable_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+        stable_cfg[1] = "overwrite";
+        stable_cfg[2] = NULL;
+        stable_cfg[3] = NULL;
+
+        WT_ERR(__wt_open_cursor(session, stable_uri, NULL, stable_cfg, &stable_cursor));
+        cbt = (WT_CURSOR_BTREE *)stable_cursor;
+
+        if (last_checkpoint_timestamp != WT_TS_NONE)
+            WT_ERR(__wt_snprintf(
+              buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
+        else
+            buf2[0] = '\0';
+
+        WT_ERR(__wt_snprintf(buf, sizeof(buf),
+          "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,"
+          "timestamp_order=true,cross_key=true,%s))",
+          buf2));
+        cfg[1] = buf;
+
+        WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cfg, &version_cursor));
+    } while (0));
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
@@ -390,23 +382,26 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_ASSERT(session, work_item != NULL);
     TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-    WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(session, work_item->entry),
-      "Failed to copy ingest table \"%s\" to stable table \"%s\"", work_item->entry->ingest_uri,
-      work_item->entry->stable_uri);
-    WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
-      "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+    WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(session, work_item->entryp),
+      "Failed to copy ingest table \"%s\" to stable table \"%s\"", work_item->entryp->ingest_uri,
+      work_item->entryp->stable_uri);
+    WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entryp->ingest_uri),
+      "Failed to clear ingest table \"%s\"", work_item->entryp->ingest_uri);
 
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__layered_assert_ingest_table_empty(session, work_item->entry->ingest_uri));
+    WT_ERR(__layered_assert_ingest_table_empty(session, work_item->entryp->ingest_uri));
 #endif
 
-    WT_ASSERT(session, work_item->entry->pinned_dhandle != NULL);
-    WT_WITH_DHANDLE(session, work_item->entry->pinned_dhandle, {
-        work_item->entry->pinned_dhandle = NULL;
+    WT_ASSERT(session, work_item->entryp->pinned_dhandle != NULL);
+    WT_WITH_DHANDLE(session, work_item->entryp->pinned_dhandle, {
+        work_item->entryp->pinned_dhandle = NULL;
         __wt_cursor_dhandle_decr_use(session);
     });
 
 err:
+    __wt_free(session, work_item->layered_uri_alloc);
+    __wt_free(session, work_item->ingest_uri_alloc);
+    __wt_free(session, work_item->stable_uri_alloc);
     __wt_free(session, work_item);
     return (ret);
 }
@@ -435,6 +430,9 @@ __layered_drain_clear_work_queue(WT_SESSION_IMPL *session)
         TAILQ_FOREACH_SAFE(work_item, &conn->layered_drain_data.work_queue, q, work_item_tmp)
         {
             TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
+            __wt_free(session, work_item->layered_uri_alloc);
+            __wt_free(session, work_item->ingest_uri_alloc);
+            __wt_free(session, work_item->stable_uri_alloc);
             __wt_free(session, work_item);
         }
     }
@@ -453,25 +451,17 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-
-    size_t i, table_count;
+    WT_DATA_HANDLE *dhandle;
+    WT_LAYERED_TABLE *layered;
+    char **layered_uris;
+    size_t i, layered_uris_alloc, layered_uris_count;
     bool empty, group_created;
 
     conn = S2C(session);
-    manager = &conn->layered_table_manager;
     group_created = false;
+    layered_uris = NULL;
+    layered_uris_alloc = layered_uris_count = 0;
 
-    __wt_spin_lock(session, &manager->layered_table_lock);
-
-    table_count = manager->open_layered_table_count;
-
-    /*
-     * FIXME-WT-14734: shouldn't we hold this lock longer, e.g. manager->entries could get
-     * reallocated, or individual entries could get removed or freed.
-     */
-    __wt_spin_unlock(session, &manager->layered_table_lock);
     /* Initialize the work queue. */
     TAILQ_INIT(&conn->layered_drain_data.work_queue);
     WT_RET(__wt_spin_init(
@@ -494,22 +484,58 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
         group_created = true;
     }
 
-    /* FIXME-WT-14735: skip empty ingest tables. */
-    for (i = 0; i < table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL) {
-            /*
-             * Mark the layered table in use, we don't want it to be closed between now and when the
-             * drain takes place, otherwise this entry would be freed.
-             */
-            WT_ERR(__wt_cursor_uri_incr_use(session, entry->layered_uri, &entry->pinned_dhandle));
+    /* Collect layered URIs from the connection handle list. */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        for (dhandle = NULL;;) {
+            WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+            if (dhandle == NULL)
+                break;
+            if (dhandle->type != WT_DHANDLE_TYPE_LAYERED || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+                continue;
 
-            WT_LAYERED_DRAIN_ENTRY *work_item;
-            WT_ERR(__wt_calloc_one(session, &work_item));
-            work_item->entry = entry;
-            __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
-            TAILQ_INSERT_HEAD(&conn->layered_drain_data.work_queue, work_item, q);
-            __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+            if (layered_uris_count == layered_uris_alloc) {
+                size_t new_alloc = layered_uris_alloc == 0 ? 8 : layered_uris_alloc * 2;
+                WT_ERR(__wt_realloc_def(
+                  session, &layered_uris_alloc, new_alloc, &layered_uris));
+                layered_uris_alloc = new_alloc;
+            }
+            WT_ERR(__wt_strdup(session, dhandle->name, &layered_uris[layered_uris_count++]));
         }
+    });
+
+    /* FIXME-WT-14735: skip empty ingest tables. */
+    for (i = 0; i < layered_uris_count; i++) {
+        WT_LAYERED_DRAIN_ENTRY *work_item;
+        WT_ERR(__wt_calloc_one(session, &work_item));
+
+        work_item->entryp = &work_item->entry;
+        work_item->layered_uri_alloc = layered_uris[i];
+        layered_uris[i] = NULL;
+
+        WT_CLEAR(work_item->entry);
+        work_item->entry.layered_uri = work_item->layered_uri_alloc;
+
+        /*
+         * Mark the layered table in use, we don't want it to be closed between now and when the
+         * drain takes place.
+         */
+        WT_ERR(__wt_cursor_uri_incr_use(
+          session, work_item->entry.layered_uri, &work_item->entry.pinned_dhandle));
+
+        /* Populate URIs from the pinned layered handle. */
+        WT_WITH_DHANDLE(session, work_item->entry.pinned_dhandle, {
+            layered = (WT_LAYERED_TABLE *)session->dhandle;
+            WT_ASSERT(session, layered->ingest_uri != NULL && layered->stable_uri != NULL);
+            work_item->entry.ingest_id = layered->ingest_btree_id;
+            WT_ERR(__wt_strdup(session, layered->ingest_uri, &work_item->ingest_uri_alloc));
+            WT_ERR(__wt_strdup(session, layered->stable_uri, &work_item->stable_uri_alloc));
+        });
+        work_item->entry.ingest_uri = work_item->ingest_uri_alloc;
+        work_item->entry.stable_uri = work_item->stable_uri_alloc;
+
+        __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+        TAILQ_INSERT_HEAD(&conn->layered_drain_data.work_queue, work_item, q);
+        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
     }
 
     /*
@@ -532,6 +558,11 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     }
 
 err:
+    if (layered_uris != NULL) {
+        for (i = 0; i < layered_uris_count; i++)
+            __wt_free(session, layered_uris[i]);
+        __wt_free(session, layered_uris);
+    }
     /* Let any running threads finish up. */
     if (group_created) {
         __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
@@ -705,48 +736,51 @@ __wti_layered_iterate_ingest_tables_for_gc_pruning(
     WT_DECL_ITEM(layered_table_uri_buf);
     WT_DECL_ITEM(uri_at_checkpoint_buf);
     WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    size_t i;
+    WT_DATA_HANDLE *dhandle;
+    char **layered_uris;
+    size_t i, layered_uris_alloc, layered_uris_count;
 
     conn = S2C(session);
-    manager = &conn->layered_table_manager;
     WT_RET(__wt_scr_alloc(session, 0, &layered_table_uri_buf));
     WT_RET(__wt_scr_alloc(session, 0, &uri_at_checkpoint_buf));
+    layered_uris = NULL;
+    layered_uris_alloc = layered_uris_count = 0;
 
-    WT_ASSERT(session, manager->init);
+    /* Collect layered URIs from the connection handle list. */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        for (dhandle = NULL;;) {
+            WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+            if (dhandle == NULL)
+                break;
+            if (dhandle->type != WT_DHANDLE_TYPE_LAYERED || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+                continue;
 
-    __wt_spin_lock(session, &manager->layered_table_lock);
-    for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) == NULL)
-            continue;
-        ret = __wt_buf_setstr(session, layered_table_uri_buf, entry->layered_uri);
+            if (layered_uris_count == layered_uris_alloc) {
+                size_t new_alloc = layered_uris_alloc == 0 ? 8 : layered_uris_alloc * 2;
+                WT_ERR(__wt_realloc_def(
+                  session, &layered_uris_alloc, new_alloc, &layered_uris));
+                layered_uris_alloc = new_alloc;
+            }
+            WT_ERR(__wt_strdup(session, dhandle->name, &layered_uris[layered_uris_count++]));
+        }
+    });
 
-        /*
-         * Unlock the mutex while handling a table since while updating the prune timestamp we get a
-         * dhandle lock which could cause a deadlock.
-         *
-         * Releasing the mutex may allow the table to grow, shrink or be modified during this
-         * operation. It's okay to prune an element twice in a loop (the second pruning will
-         * probably do nothing), or miss an element to prune (it will be visited next time).
-         */
-        __wt_spin_unlock(session, &manager->layered_table_lock);
-
-        /* Check the buffer-copy result here to avoid returning with the mutex held. */
-        WT_ERR(ret);
-
+    for (i = 0; i < layered_uris_count; i++) {
+        WT_ERR(__wt_buf_setstr(session, layered_table_uri_buf, layered_uris[i]));
         WT_ERR(__layered_update_ingest_table_prune_timestamp(
           session, layered_table_uri_buf->data, checkpoint_timestamp, uri_at_checkpoint_buf));
-
-        __wt_spin_lock(session, &manager->layered_table_lock);
     }
-    __wt_spin_unlock(session, &manager->layered_table_lock);
 
 err:
     if (ret != 0)
         __wt_verbose_level(
           session, WT_VERB_LAYERED, WT_VERBOSE_ERROR, "GC ingest tables prune failed by: %d", ret);
 
+    if (layered_uris != NULL) {
+        for (i = 0; i < layered_uris_count; i++)
+            __wt_free(session, layered_uris[i]);
+        __wt_free(session, layered_uris);
+    }
     __wt_scr_free(session, &layered_table_uri_buf);
     __wt_scr_free(session, &uri_at_checkpoint_buf);
     return (ret);

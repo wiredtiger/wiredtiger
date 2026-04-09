@@ -40,7 +40,9 @@ import wiredtiger, wttest
 class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
     '''Test closing/reopening/recovering tables when writes fail'''
 
-    conn_config = 'log=(enabled)'
+    # This test intentionally induces write failures during connection close. Disable parallel
+    # checkpoint reconciliation threads so close-time errors can't surface as worker thread aborts.
+    conn_config = 'log=(enabled),checkpoint_threads=1'
     basename = 'bug018.'
     baseuri = 'file:' + basename
     flist = []
