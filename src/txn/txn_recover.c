@@ -842,29 +842,17 @@ __recovery_metadata_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *
 
 /*
  * __metadata_assert_complete_layered_table --
- *     If the table is a layered table, assert that all required metadata entries are present. Sets
- *     *is_layeredp to true if the table is layered.
+ *     Assert that all required metadata entries are present for a layered table.
  */
 static int
-__metadata_assert_complete_layered_table(
-  WT_SESSION_IMPL *session, const char *name, bool leader, bool *is_layeredp)
+__metadata_assert_complete_layered_table(WT_SESSION_IMPL *session, const char *name, bool leader)
 {
     WT_DECL_ITEM(meta_key_buf);
     WT_DECL_RET;
-    char *ingest_meta_value, *layered_meta_value, *stable_meta_value;
+    char *ingest_meta_value, *stable_meta_value;
 
-    ingest_meta_value = layered_meta_value = stable_meta_value = NULL;
-    *is_layeredp = false;
+    ingest_meta_value = stable_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &meta_key_buf));
-
-    WT_ERR(__wt_buf_fmt(session, meta_key_buf, "layered:%s", name));
-    WT_ERR_NOTFOUND_OK(
-      __wt_metadata_search(session, meta_key_buf->data, &layered_meta_value), true);
-    if (ret != 0) {
-        ret = 0;
-        goto done;
-    }
-    *is_layeredp = true;
 
     WT_ERR(__wt_buf_fmt(session, meta_key_buf, "file:%s.wt_ingest", name));
     WT_ASSERT_ALWAYS(session,
@@ -882,9 +870,7 @@ __metadata_assert_complete_layered_table(
       "layered table '%s' is missing its stable file metadata on a leader node", name);
 
 err:
-done:
     __wt_free(session, ingest_meta_value);
-    __wt_free(session, layered_meta_value);
     __wt_free(session, stable_meta_value);
     __wt_scr_free(session, &meta_key_buf);
     return (ret);
@@ -900,14 +886,14 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 {
     WT_DECL_ITEM(meta_key_buf);
     WT_DECL_RET;
-    char *cg_meta_value, *file_meta_value, *tiered_meta_value;
+    char *cg_meta_value, *file_meta_value, *layered_meta_value, *tiered_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name, *colgroup_msg, *file_msg;
     WT_CONFIG_ITEM cval;
-    bool is_layered, is_simple, colgroup_exists, file_exists;
+    bool is_simple, colgroup_exists, file_exists;
 
-    cg_meta_value = file_meta_value = tiered_meta_value = NULL;
+    cg_meta_value = file_meta_value = layered_meta_value = tiered_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &meta_key_buf));
 
     name = uri;
@@ -928,9 +914,13 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         goto done;
 
     /* If the table is layered, assert that it is complete. */
-    WT_ERR(__metadata_assert_complete_layered_table(r->session, name, r->leader, &is_layered));
-    if (is_layered)
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, meta_key_buf->data, &layered_meta_value), true);
+    if (ret == 0) {
+        WT_ERR(__metadata_assert_complete_layered_table(r->session, name, r->leader));
         goto done;
+    }
 
     /* Check whether the colgroup exists. */
     WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "colgroup:%s", name));
@@ -971,6 +961,7 @@ err:
 done:
     __wt_free(r->session, cg_meta_value);
     __wt_free(r->session, file_meta_value);
+    __wt_free(r->session, layered_meta_value);
     __wt_free(r->session, tiered_meta_value);
     __wt_scr_free(r->session, &meta_key_buf);
     return (ret);
