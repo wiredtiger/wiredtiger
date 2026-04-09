@@ -1427,15 +1427,7 @@ struct Pages : public Table<Pages> {
              WHERE p1.table_id = ?1
                  AND p1.page_id = ?2
                  AND p1.lsn = fp.backlink_lsn
-                 AND p1.delta = 0
-                 AND NOT EXISTS (
-                     SELECT 1
-                     FROM pages AS p2
-                     WHERE p2.table_id = p1.table_id
-                         AND p2.page_id = p1.page_id
-                         AND p2.base_lsn = fp.backlink_lsn
-                         AND p2.discarded = 1
-                 );)";
+                 AND p1.delta = 0;)";
 
         /*
          * Retrieve information about entire delta chain stopping at the first full page.
