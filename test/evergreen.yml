@@ -80,6 +80,121 @@ variables:
         batchtime: 40320 # 28 days
 
 #######################################
+#               Tasks                 #
+#######################################
+
+# These endian tasks have cross-variant dependencies (variant: little-endian,
+# variant: big-endian) in their depends_on fields. Evergreen treats unmatched
+# variant selectors in depends_on as a hard error (unlike unmatched task tags,
+# which are just warnings). Because the disagg project does not define
+# little-endian/big-endian variants, these tasks must live here — not in
+# evergreen_common.yml — to avoid breaking projects that include the common file.
+tasks:
+  - name: generate-datafile-little-endian
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test"
+        vars:
+          times: 10
+          config: ../../../test/format/CONFIG.endian
+          test_format_extra_args: -h "WT_TEST.$i"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/format"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            # Archive the WT_TEST directories which include the generated wt data files. We cannot
+            # use the Evergreen archive command as we need to archive multiple WT_TEST folders.
+            tar -zcvf WT_TEST.tgz WT_TEST*
+      - func: "upload endian format artifacts"
+        vars:
+          endian_format: little-endian
+          local_file: wiredtiger/cmake_build/test/format/WT_TEST.tgz
+          remote_file: WT_TEST-little-endian.tgz
+
+  - name: verify-datafile-little-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-little-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch endian format artifacts"
+        vars:
+          endian_format: little-endian
+          remote_file: WT_TEST-little-endian
+      - func: "verify wt datafiles"
+
+  - name: verify-datafile-from-little-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-little-endian
+      variant: little-endian
+    - name: verify-datafile-little-endian
+      variant: little-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch endian format artifacts"
+        vars:
+          endian_format: little-endian
+          remote_file: WT_TEST-little-endian
+      - func: "verify wt datafiles"
+
+  - name: generate-datafile-big-endian
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test"
+        vars:
+          times: 10
+          config: ../../../test/format/CONFIG.endian
+          test_format_extra_args: -h "WT_TEST.$i"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/format"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            # Archive the WT_TEST directories which include the generated wt data files. We cannot
+            # use the Evergreen archive command as we need to archive multiple WT_TEST folders.
+            tar -zcvf WT_TEST.tgz WT_TEST*
+      - func: "upload endian format artifacts"
+        vars:
+          endian_format: big-endian
+          local_file: wiredtiger/cmake_build/test/format/WT_TEST.tgz
+          remote_file: WT_TEST-big-endian.tgz
+
+  - name: verify-datafile-big-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-big-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch endian format artifacts"
+        vars:
+          endian_format: big-endian
+          remote_file: WT_TEST-big-endian
+      - func: "verify wt datafiles"
+
+  - name: verify-datafile-from-big-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-big-endian
+      variant: big-endian
+    - name: verify-datafile-big-endian
+      variant: big-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch endian format artifacts"
+        vars:
+          endian_format: big-endian
+          remote_file: WT_TEST-big-endian
+      - func: "verify wt datafiles"
+
+#######################################
 #            Buildvariants            #
 #######################################
 
