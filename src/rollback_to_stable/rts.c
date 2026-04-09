@@ -93,7 +93,7 @@ __rts_emit_overall_progress(WT_SESSION_IMPL *session)
     btrees_processed = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_processed);
     btrees_skipped = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_skipped);
     pages_walked = __wt_atomic_load_uint64_relaxed(&rts->progress.pages_walked);
-    phase = __wt_atomic_load_uint32(&rts->progress.phase);
+    phase = __wt_atomic_load_uint32_relaxed(&rts->progress.phase);
     total_btrees = rts->progress.total_btrees;
 
     btrees_completed = btrees_processed + btrees_skipped;
@@ -167,7 +167,7 @@ __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, WT_TIMER *btree_start, uin
     /* The caller has already verified it's time to report; compute values for the message. */
     __wt_timer_evaluate_ms(session, btree_start, &elapsed_ms);
 
-    phase = __wt_atomic_load_uint32(&rts->progress.phase);
+    phase = __wt_atomic_load_uint32_relaxed(&rts->progress.phase);
     btree_pct = (uint64_t)(npos * 100);
     btree_pages_per_sec = elapsed_ms > 0 ? (btree_pages * WT_THOUSAND / elapsed_ms) : 0;
 
@@ -364,7 +364,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     bool have_cursor, rts_threads_started;
 
     __wti_rts_progress_init(session);
-    __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
+    __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
 
     __wt_timer_start(session, &timer);
     max_count = 0;
@@ -391,7 +391,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
       "Rollback to stable found %" PRIu64 " btrees to process", max_count);
 
-    __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_BTREE_APPLY);
+    __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_BTREE_APPLY);
     __wt_timer_start(session, &S2C(session)->rts->progress.btree_apply_timer);
 
     WT_ERR(__rts_thread_create(session));
@@ -419,7 +419,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * workers alone to complete the task.
      */
     if (S2C(session)->rts->threads_num != 0) {
-        __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_QUEUE_DRAIN);
+        __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_QUEUE_DRAIN);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, "%s",
           "Rollback to stable finished metadata walk, draining worker queue");
 
@@ -449,7 +449,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * doesn't exist.
      */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_HS_FINAL_PASS);
+        __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_HS_FINAL_PASS);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, "%s",
           "Rollback to stable beginning history store final pass");
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
@@ -460,7 +460,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         WT_ERR(__wti_rts_history_final_pass(session, rollback_timestamp));
     }
 
-    __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_COMPLETE);
+    __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_COMPLETE);
 err:
     session->name = saved_session_name;
     if (have_cursor)
