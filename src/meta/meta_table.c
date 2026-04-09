@@ -404,14 +404,11 @@ __meta_id_cmp(const void *a, const void *b)
     return (ia < ib ? -1 : (ia == ib ? 0 : 1));
 }
 
-/* Maximum number of duplicate btree ID pairs reported when read_corrupt is set. */
-#define WT_META_VERIFY_MAX_DUPLICATE_IDS 10
-
 /*
  * __wt_meta_verify_id_uniqueness --
  *     Scan all metadata entries and verify that no two stable constituent files share the same btree
- *     ID. When read_corrupt is set, logs up to WT_META_VERIFY_MAX_DUPLICATE_IDS duplicates before
- *     returning an error, instead of stopping at the first one.
+ *     ID. When read_corrupt is set, log all duplicates before returning an error, instead of
+ *     stopping at the first one.
  */
 int
 __wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session, const char *cfg[])
@@ -475,8 +472,6 @@ __wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session, const char *cfg[])
               "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", entries[i].id,
               entries[i].uri, entries[i + 1].uri);
             ret = WT_ERROR;
-            if (++num_duplicates >= WT_META_VERIFY_MAX_DUPLICATE_IDS)
-                break;
         }
     }
 
