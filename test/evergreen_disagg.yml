@@ -1,0 +1,87 @@
+#
+# WiredTiger Evergreen Configuration — Disagg failure-expected project
+#
+# This file is used by the wiredtiger-disagg Evergreen project to run
+# disaggregated storage stress tests that are expected to fail. These
+# variants are kept off the main develop waterfall to reduce noise for
+# triage barons.
+#
+
+include:
+- filename: test/evergreen_functions.yml
+- filename: test/evergreen_common.yml
+
+#######################################
+#            Project Settings         #
+#######################################
+stepback: false # Failure-expected variants, no point stepping back
+pre:
+  - func: "cleanup"
+  - func: "setup environment"
+post:
+  - func: "dump stacktraces"
+  - func: "upload stacktraces"
+  - func: "upload test/format config"
+  - func: "upload test/model workloads"
+  - func: "dump stderr/stdout"
+  - func: "upload stat files"
+  - func: "upload artifact"
+    vars:
+      postfix: -${execution}
+  - func: "save wt hang analyzer core/debugger files"
+  - func: "cleanup"
+timeout:
+  - func: "run wt hang analyzer"
+exec_timeout_secs: 21600 # 6 hrs
+
+#######################################
+#               Variables             #
+#######################################
+
+# This anchor is duplicated from evergreen_common.yml because YAML anchors
+# cannot cross include file boundaries. It is used by the ASAN variant below.
+variables:
+  - &configure_flags_asan_mongodb_stable_clang_with_builtins
+    HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
+    HAVE_BUILTIN_EXTENSION_SNAPPY: -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
+    HAVE_BUILTIN_EXTENSION_ZLIB: -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+    HAVE_BUILTIN_EXTENSION_ZSTD: -DHAVE_BUILTIN_EXTENSION_ZSTD=1
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
+    ENABLE_TCMALLOC: 0
+
+#######################################
+#            Buildvariants            #
+#######################################
+
+buildvariants:
+- name: amazon2023-disagg-stress
+  display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
+  run_on:
+  - amazon2023.3-arm64-large
+  expansions:
+    ENABLE_TCMALLOC: 1
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    disagg_run: true
+  tasks:
+    - name: compile
+    - name: ".stress-test-disagg-fail"
+
+- name: amazon2023-disagg-asan-stress
+  display_name: "[Failure Expected] Amazon2023 ARM64 ASAN Disagg Stress tests"
+  run_on:
+  - amazon2023.3-arm64-large
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    ENABLE_TCMALLOC: 0
+    additional_env_vars: |
+      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    disagg_run: true
+    <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
+    additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
+  tasks:
+    - name: compile
+    - name: ".stress-test-disagg-san-fail"

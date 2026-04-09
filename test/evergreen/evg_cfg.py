@@ -13,7 +13,7 @@ import sys
 
 
 TEST_TYPES = ('make_check', 'csuite')
-EVG_CFG_FILE = "test/evergreen.yml"
+EVG_CFG_FILE = "test/evergreen_common.yml"
 CSUITE_TEST_DIR = "test/csuite"
 MAKE_CHECK_TEST_TMPLT = "test/evergreen/make_check_test_evg_task.template"
 CSUITE_TEST_TMPLT = "test/evergreen/csuite_test_evg_task.template"
