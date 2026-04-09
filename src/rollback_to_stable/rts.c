@@ -39,31 +39,40 @@ __rts_phase_string(uint32_t phase)
 
 /*
  * __rts_compute_eta_sec --
- *     Estimate remaining time for the btree-apply phase based on the rate of btrees completed
- *     (processed + skipped) so far. Returns 0 if there is insufficient data for a meaningful
- *     estimate.
+ *     Estimate remaining time for the btree-apply phase. Uses page-based throughput rather than
+ *     btree count to handle the common case where a few large btrees dominate the runtime.
+ *     Estimates total pages as (pages_walked_so_far / btrees_completed) * total_btrees, then
+ *     computes remaining pages / pages_per_second. Returns 0 if there is insufficient data.
  */
 static uint64_t
 __rts_compute_eta_sec(WT_SESSION_IMPL *session)
 {
     WT_ROLLBACK_TO_STABLE *rts;
-    uint64_t completed, elapsed_ms, remaining, total;
+    uint64_t completed, elapsed_ms, estimated_total_pages, pages_walked, remaining_pages, total;
 
     rts = S2C(session)->rts;
     total = rts->progress.total_btrees;
     completed = __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_processed) +
       __wt_atomic_load_uint64_relaxed(&rts->progress.btrees_skipped);
+    pages_walked = __wt_atomic_load_uint64_relaxed(&rts->progress.pages_walked);
 
-    /* Require a minimum number of completed btrees for a meaningful estimate. */
-    if (completed < 5 || completed >= total)
+    /* Require some completed btrees and pages for a meaningful estimate. */
+    if (completed < 5 || completed >= total || pages_walked == 0)
         return (0);
 
-    remaining = total - completed;
     __wt_timer_evaluate_ms(session, &rts->progress.btree_apply_timer, &elapsed_ms);
     if (elapsed_ms == 0)
         return (0);
 
-    return ((remaining * elapsed_ms) / (completed * WT_THOUSAND));
+    /* Estimate total pages based on average pages per btree so far. */
+    estimated_total_pages = (pages_walked * total) / completed;
+    if (pages_walked >= estimated_total_pages)
+        return (0);
+
+    remaining_pages = estimated_total_pages - pages_walked;
+
+    /* ETA = remaining_pages / (pages_walked / elapsed_sec) = remaining_pages * elapsed_ms / (pages_walked * 1000) */
+    return ((remaining_pages * elapsed_ms) / (pages_walked * WT_THOUSAND));
 }
 
 /*
