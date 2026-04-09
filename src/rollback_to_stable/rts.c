@@ -9,10 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wti_rts_progress_msg --
- *     Log a verbose message about the progress of the current rollback to stable.
- */
-/*
  * __rts_phase_string --
  *     Return a human-readable string for an RTS phase.
  */
@@ -305,7 +301,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     bool have_cursor, rts_threads_started;
 
     __wti_rts_progress_init(session);
-    __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
+    __wt_atomic_store_uint32_relaxed(
+      &S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
 
     __wt_timer_start(session, &timer);
     max_count = 0;
@@ -359,7 +356,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * workers alone to complete the task.
      */
     if (S2C(session)->rts->threads_num != 0) {
-        __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_QUEUE_DRAIN);
+        __wt_atomic_store_uint32_relaxed(
+          &S2C(session)->rts->progress.phase, WT_RTS_PHASE_QUEUE_DRAIN);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, "%s",
           "Rollback to stable finished metadata walk, draining worker queue");
 
@@ -389,7 +387,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * doesn't exist.
      */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        __wt_atomic_store_uint32_relaxed(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_HS_FINAL_PASS);
+        __wt_atomic_store_uint32_relaxed(
+          &S2C(session)->rts->progress.phase, WT_RTS_PHASE_HS_FINAL_PASS);
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, "%s",
           "Rollback to stable beginning history store final pass");
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
