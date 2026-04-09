@@ -140,8 +140,8 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.pages_walked, 1);
 
         /*
-         * Use the cheap rdtsc-based clock to check if a progress message is due. Only compute
-         * npos (which walks parent indexes) and emit the message when the period has elapsed.
+         * Use the cheap rdtsc-based clock to check if a progress message is due. Only compute npos
+         * (which walks parent indexes) and emit the message when the period has elapsed.
          */
         clock_now = __wt_clock(session);
         elapsed_ns = __wt_clock_to_nsec(clock_now, clock_start);
