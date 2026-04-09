@@ -1537,6 +1537,30 @@ __conn_config_check_version(WT_SESSION_IMPL *session, const char *config)
 }
 
 /*
+ * __conn_cleanup_chunk_cache --
+ *     Drop the chunk cache metadata table if it exists.
+ */
+static int
+__conn_cleanup_chunk_cache(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
+
+    conn = S2C(session);
+
+    /* Read-only and in-memory configurations won't drop the chunk cache metadata. */
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+        return (0);
+
+    /* The chunk cache metadata table may exist on upgrade. Discard it. */
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __wt_schema_drop(session, WT_CC_METAFILE_URI, drop_cfg, false));
+
+    return (ret);
+}
+
+/*
  * __conn_chunk_cache_check --
  *     Check for deprecated chunk cache configuration. If chunk_cache is enabled, return an error.
  *     If chunk_cache is present but disabled, issue a deprecation warning.
@@ -1558,7 +1582,7 @@ __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const cha
           "configuration should be removed%s%s",
           source != NULL ? " from " : "", source != NULL ? source : "");
     else {
-        __wt_verbose_warning(session, WT_VERB_DEFAULT,
+        __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
           "chunk cache has been deprecated and is no longer supported, ignoring chunk_cache "
           "configuration%s%s",
           source != NULL ? " in " : "", source != NULL ? source : "");
@@ -3586,19 +3610,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Start the worker threads, run recovery, and initialize the disaggregated storage. */
     WT_ERR(__wti_connection_workers(session, cfg));
 
-    /*
-     * Remove the chunk cache metadata file if it exists. Chunk cache has been deprecated and this
-     * file is no longer needed.
-     */
-    {
-        bool cc_exist;
-        WT_ERR(__wt_fs_exist(session, "WiredTigerCC.wt", &cc_exist));
-        if (cc_exist) {
-            __wt_verbose_warning(session, WT_VERB_DEFAULT,
-              "removing deprecated chunk cache metadata file %s", "WiredTigerCC.wt");
-            WT_ERR(__wt_fs_remove(session, "WiredTigerCC.wt", false, false));
-        }
-    }
+    /* The chunk cache metadata table may exist on upgrade. Discard it. */
+    WT_ERR(__conn_cleanup_chunk_cache(session));
 
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
