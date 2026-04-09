@@ -2740,6 +2740,8 @@ err:
 static int
 __checkpoint_free_resources(WT_SESSION_IMPL *session, bool failed)
 {
+    WT_DECL_RET;
+
     for (u_int i = 0; i < session->ckpt.handle_next; ++i) {
         if (session->ckpt.handle[i] == NULL)
             continue;
@@ -2750,13 +2752,13 @@ __checkpoint_free_resources(WT_SESSION_IMPL *session, bool failed)
         if (failed)
             WT_WITH_DHANDLE(session, session->ckpt.handle[i], __checkpoint_fail_reset(session));
         WT_WITH_DHANDLE(
-          session, session->ckpt.handle[i], WT_RET(__wt_session_release_dhandle(session)));
+          session, session->ckpt.handle[i], WT_TRET(__wt_session_release_dhandle(session)));
     }
 
     if (session->ckpt.drop_list != NULL)
         __wt_scr_free(session, &session->ckpt.drop_list);
 
-    return (0);
+    return (ret);
 }
 
 /*
