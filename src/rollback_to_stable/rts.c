@@ -71,7 +71,8 @@ __rts_compute_eta_sec(WT_SESSION_IMPL *session)
 
     remaining_pages = estimated_total_pages - pages_walked;
 
-    /* ETA = remaining_pages / (pages_walked / elapsed_sec) = remaining_pages * elapsed_ms / (pages_walked * 1000) */
+    /* ETA = remaining_pages / (pages_walked / elapsed_sec) = remaining_pages * elapsed_ms /
+     * (pages_walked * 1000) */
     return ((remaining_pages * elapsed_ms) / (pages_walked * WT_THOUSAND));
 }
 
@@ -83,8 +84,8 @@ static void
 __rts_emit_overall_progress(WT_SESSION_IMPL *session)
 {
     WT_ROLLBACK_TO_STABLE *rts;
-    uint64_t btrees_completed, btrees_processed, btrees_skipped, elapsed_ms, eta_sec,
-      max_btree_eta, pages_per_sec, pages_walked, pct, total_btrees;
+    uint64_t btrees_completed, btrees_processed, btrees_skipped, elapsed_ms, eta_sec, max_btree_eta,
+      pages_per_sec, pages_walked, pct, total_btrees;
     uint32_t phase;
 
     rts = S2C(session)->rts;
@@ -133,21 +134,16 @@ __rts_emit_overall_progress(WT_SESSION_IMPL *session)
  *     metadata walk loop in __wti_rts_btree_apply_all.
  */
 void
-__wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t rollback_count,
-  uint64_t max_count, uint64_t *rollback_msg_count, bool walk)
+__wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t *msg_count)
 {
     uint64_t time_diff_ms;
-
-    WT_UNUSED(walk);
-    WT_UNUSED(rollback_count);
-    WT_UNUSED(max_count);
 
     /* Time since the rollback started. */
     __wt_timer_evaluate_ms(session, rollback_start, &time_diff_ms);
 
-    if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *rollback_msg_count) {
+    if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *msg_count) {
         __rts_emit_overall_progress(session);
-        *rollback_msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+        *msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
 }
 
@@ -362,7 +358,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     WT_DECL_RET;
     WT_RTS_WORK_UNIT *entry;
     WT_TIMER timer;
-    uint64_t max_count, rollback_count, rollback_msg_count;
+    uint64_t max_count, rollback_msg_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *saved_session_name, *uri;
     bool have_cursor, rts_threads_started;
@@ -371,7 +367,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     __wt_atomic_store_uint32(&S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
 
     __wt_timer_start(session, &timer);
-    max_count = rollback_count = 0;
+    max_count = 0;
     saved_session_name = session->name;
     rollback_msg_count = 0;
     rts_threads_started = false;
@@ -407,10 +403,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         /* Log a progress message. */
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
-        if (WT_BTREE_PREFIX(uri) && !WT_IS_URI_HS(uri) && !WT_IS_URI_METADATA(uri))
-            ++rollback_count;
-        __wti_rts_progress_msg(
-          session, &timer, rollback_count, max_count, &rollback_msg_count, false);
+        __wti_rts_progress_msg(session, &timer, &rollback_msg_count);
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wti_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
@@ -431,7 +424,6 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
           "Rollback to stable finished metadata walk, draining worker queue");
 
         /* Rename session while joining workers so log messages identify us as a worker. */
-        saved_session_name = session->name;
         session->name = "rts-main-wk";
         while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
             __wti_rts_pop_work(session, &entry);

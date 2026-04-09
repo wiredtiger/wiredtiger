@@ -149,8 +149,8 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
         if ((elapsed_ns / ((uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
             npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
             /*
-             * npos can fluctuate due to unbalanced trees, so track the maximum seen so far to get
-             * a monotonically increasing progress indicator.
+             * npos can fluctuate due to unbalanced trees, so track the maximum seen so far to get a
+             * monotonically increasing progress indicator.
              */
             if (npos > max_npos)
                 max_npos = npos;
