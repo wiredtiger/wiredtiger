@@ -2073,6 +2073,9 @@ __clayered_reserve(WT_CURSOR *cursor)
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
+
+    WT_ERR_MSG(session, ENOTSUP, "Reserve is not currently supported for layered cursors");
+
     /*
      * Since a search will be performed afterward that clears the iteration flags, no point to
      * retain the flags.
