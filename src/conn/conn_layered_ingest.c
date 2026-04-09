@@ -355,8 +355,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         }
 
         if (upd != NULL) {
-            /* If a prepared update is resolved, it must always be the final update to be drained.
-             */
+            /* If a prepared update is resolved, it must be the final update to be drained. */
             WT_ASSERT(session, !prepared_resolved);
             if (prev_upd != NULL)
                 prev_upd->next = upd;
