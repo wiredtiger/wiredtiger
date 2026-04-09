@@ -471,7 +471,7 @@ __wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session, const char *cfg[])
              * In read_corrupt mode, report each duplicate pair and keep going so the caller gets a
              * complete picture, up to a reasonable limit.
              */
-            __wt_err(session, WT_ERROR,
+            __wt_verbose_error(session, WT_VERB_VERIFY,
               "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", entries[i].id,
               entries[i].uri, entries[i + 1].uri);
             ret = WT_ERROR;
