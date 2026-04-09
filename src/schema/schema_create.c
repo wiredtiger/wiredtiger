@@ -1095,7 +1095,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
      * table and to determine the stable component's URI. The correct logic works well with the
      * current implementation, but may not be robust to future changes.
      */
-    if (__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader)
+    if (__wt_conn_is_disagg(session) && S2C(session)->disagg_layered_leader)
         if (__wt_config_getones(session, config, "type", &cval) == 0 &&
           WT_CONFIG_LIT_MATCH("layered", cval)) {
             __wt_scr_free(session, &tmp);
@@ -1205,7 +1205,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
     __wt_free(session, constituent_cfg);
 
-    if (conn->layered_table_manager.leader) {
+    if (conn->disagg_layered_leader) {
         stable_cfg[1] = disagg_config->data;
 
         /* Disable logging on the stable table to ensure we have timestamps. */

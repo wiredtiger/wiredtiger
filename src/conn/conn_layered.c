@@ -519,7 +519,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
 err:
     if (ret == 0)
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
-    else {
+        if (!conn->disagg_layered_leader)
+            WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_follower);
+    } else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_ERROR,
           "Failed to pick up disaggregated storage checkpoint for metadata_lsn=%" PRIu64 ": ret=%d",
@@ -832,7 +834,7 @@ __disagg_shared_metadata_op_helper(
     WT_DECL_RET;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
 
-    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+    WT_ASSERT(session, S2C(session)->disagg_layered_leader);
 
     cursor = NULL;
 
@@ -964,6 +966,20 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
     WT_ERR(__wt_session_create(
       internal_session, WT_DISAGG_METADATA_URI, "key_format=S,value_format=S,log=(enabled=false)"));
 
+    /*
+     * A follower should never access the live shared metadata dhandle. However, session->create
+     * implicitly opens the live dhandle. To preserve this rule, we immediately expire the shared
+     * metadata dhandle.
+     *
+     * FIXME-WT-17040: Investigate if it's necessary to create the shared metadata table on
+     * followers.
+     */
+    if (!conn->disagg_layered_leader) {
+        WT_WITHOUT_DHANDLE(
+          session, ret = __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+        WT_ERR_MSG_CHK(
+          session, ret, "Marking data handle outdated failed: \"%s\"", WT_DISAGG_METADATA_URI);
+    }
 err:
     if (internal_session != NULL)
         WT_TRET(__wt_session_close_internal(internal_session));
@@ -1014,7 +1030,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can abandon a checkpoint. */
-    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
+    if (disagg->npage_log == NULL || !conn->disagg_layered_leader)
         WT_RET(EINVAL);
 
     /*
@@ -1055,7 +1071,7 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can begin a global checkpoint. */
-    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
+    if (disagg->npage_log == NULL || !conn->disagg_layered_leader)
         return (0);
 
     /* On fresh startup, load an empty key to key provider. */
@@ -1129,7 +1145,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      * Step up to the leader mode. We need to do this first, because the rest of the operations
      * below depend on WiredTiger already being in the leader mode.
      */
-    conn->layered_table_manager.leader = true;
+    conn->disagg_layered_leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
     /*
@@ -1157,6 +1173,49 @@ err:
     WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
+}
+
+/*
+ * __disagg_mark_btrees_readonly_then_step_down --
+ *     Mark all disaggregated btrees as readonly. This must be called during leader step-down. And
+ *     then step down to the follower mode.
+ */
+static void
+__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    for (dhandle = NULL;;) {
+        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+        if (dhandle == NULL)
+            break;
+
+        /* Only care about open disaggregated btree dhandles. */
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+            continue;
+
+        btree = (WT_BTREE *)dhandle->handle;
+
+        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET(btree, WT_BTREE_READONLY))
+            continue;
+
+        WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
+        WT_IGNORE_RET(ret);
+
+        /* Mark the disaggregated as readonly. */
+        F_SET(btree, WT_BTREE_READONLY);
+
+        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+    }
+
+    /* Step down to the follower mode. */
+    conn->disagg_layered_leader = false;
+    WT_STAT_CONN_SET(session, disagg_role_leader, 0);
 }
 
 /*
@@ -1198,7 +1257,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
-    leader = was_leader = conn->layered_table_manager.leader;
+    leader = was_leader = conn->disagg_layered_leader;
     npage_log = NULL;
     picked_up = false;
 
@@ -1246,7 +1305,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     if (!reconfig) {
         /* Set the initial role. */
-        conn->layered_table_manager.leader = leader;
+        conn->disagg_layered_leader = leader;
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
         /* Follower step-up. */
@@ -1295,8 +1354,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
-        WT_ERR(__wti_layered_table_manager_init(session));
-
         /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
         if (leader) {
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_abandon_checkpoint(session));
@@ -1621,7 +1678,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can advance the global checkpoint. */
-    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
+    if (disagg->npage_log == NULL || !conn->disagg_layered_leader)
         return (0);
 
     WT_RET(__wt_scr_alloc(session, 0, &meta));

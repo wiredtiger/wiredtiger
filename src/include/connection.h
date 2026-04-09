@@ -112,10 +112,10 @@ struct __wt_background_compact {
 };
 
 /*
- * WT_LAYERED_TABLE_MANAGER_ENTRY --
- *      Structure containing information about a tracked layered table
+ * WT_LAYERED_URI_DESC --
+ *      Constituent URIs and file IDs for a layered table (used by drain workers and copies).
  */
-struct __wt_layered_table_manager_entry {
+struct __wt_layered_uri_desc {
     uint32_t ingest_id;
     uint32_t stable_id;
 
@@ -125,29 +125,6 @@ struct __wt_layered_table_manager_entry {
     const char *stable_uri;
 
     WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
-};
-
-/*
- * WT_LAYERED_TABLE_MANAGER --
- *      Structure containing information related to running the layered table manager.
- */
-struct __wt_layered_table_manager {
-    bool init; /* Indicating the manager was initialized */
-
-    WT_SPINLOCK
-    layered_table_lock; /* Lock used for managing changes to global layered table state */
-
-    uint32_t open_layered_table_count;
-    /*
-     * This is a sparsely populated array of layered tables - each fileid in the system gets an
-     * entry in this table. A lookups checks for a valid manager entry at the file ID offset for the
-     * ingest constituent in a layered table. It's done that way so that we can cheaply check
-     * whether a log record belongs to a layered table and should be applied.
-     */
-    WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
-    size_t entries_allocated_bytes;
-
-    bool leader;
 };
 
 /*
@@ -518,11 +495,10 @@ struct __wt_name_flag {
 struct __wt_layered_drain_entry {
     /*
      * Drain work items are constructed from the connection dhandle list at the time a drain is
-     * initiated. Keep a per-work-item copy of the layered table manager entry populated from the
-     * pinned layered dhandle.
+     * initiated. Keep a per-work-item URI descriptor populated from the pinned layered dhandle.
      */
-    WT_LAYERED_TABLE_MANAGER_ENTRY entry;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entryp;
+    WT_LAYERED_URI_DESC entry;
+    WT_LAYERED_URI_DESC *entryp;
     char *layered_uri_alloc;
     char *ingest_uri_alloc;
     char *stable_uri_alloc;
@@ -870,7 +846,7 @@ struct __wt_connection_impl {
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
-    WT_LAYERED_TABLE_MANAGER layered_table_manager;
+    bool disagg_layered_leader; /* Disaggregated layered primary (vs follower standby) */
     WT_PAGE_HISTORY page_history;
 
     bool preserve_prepared; /* Preserve prepared updates */

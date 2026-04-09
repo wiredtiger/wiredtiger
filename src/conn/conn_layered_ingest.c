@@ -96,7 +96,7 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
  *     Moving all the data from a single ingest table to the corresponding stable table
  */
 static int
-__layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
+__layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_URI_DESC *entry)
 {
     WT_CURSOR *stable_cursor, *version_cursor;
     WT_CURSOR_BTREE *cbt;

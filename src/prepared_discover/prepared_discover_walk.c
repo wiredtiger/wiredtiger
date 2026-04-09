@@ -76,7 +76,7 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
          * btree, so we would never hit this block.
          */
         WT_ASSERT_ALWAYS(session,
-          __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader,
+          __wt_conn_is_disagg(session) && !S2C(session)->disagg_layered_leader,
           "prepared update restoration should only happen on disaggregated follower nodes");
 
         WT_ERR(__wt_scr_alloc(session, 0, &value));
@@ -430,7 +430,7 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
         if (!has_prepare)
             continue;
         /* If this is a follower node, open the stable table and search for prepared update there */
-        if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+        if (__wt_conn_is_disagg(session) && !S2C(session)->disagg_layered_leader) {
             /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
             WT_ERR(__wt_meta_checkpoint_last_name(session, uri, &checkpoint_name, NULL, NULL));
             WT_ASSERT(session, ret == 0);

@@ -919,7 +919,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
@@ -1031,7 +1031,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
         return;
 
     WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
+      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->disagg_layered_leader);
 
     /*
      * Test before setting the dirty flag, it's a hot cache line.
@@ -1132,7 +1132,7 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
 
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
@@ -1172,7 +1172,7 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
         return (0);
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
 
     /*
      * This function exists as a place to stash this comment. There are a few places where we need
@@ -2245,7 +2245,7 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
     if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return (true);
 
-    if (!conn->layered_table_manager.leader)
+    if (!conn->disagg_layered_leader)
         return (true);
 
     rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
