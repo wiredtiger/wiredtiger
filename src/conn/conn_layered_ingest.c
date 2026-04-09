@@ -359,6 +359,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 prev_upd->next = upd;
             else
                 upds = upd;
+
+            prev_upd = upd;
         }
     }
 
