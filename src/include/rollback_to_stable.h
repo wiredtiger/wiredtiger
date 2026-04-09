@@ -130,14 +130,12 @@ struct __wt_rollback_to_stable {
     /* RTS progress tracking. */
     struct {
         WT_TIMER start_timer;                    /* Overall RTS start time. */
-        WT_TIMER btree_apply_timer;              /* When btree-apply phase began. */
         uint64_t total_btrees;                   /* From metadata count pass (set once). */
         wt_shared uint32_t phase;                /* Current RTS phase (WT_RTS_PHASE_*). */
         wt_shared uint64_t overall_report_count; /* CAS-guarded overall report throttle. */
         wt_shared uint64_t btrees_processed;     /* Btrees fully processed (atomic). */
         wt_shared uint64_t btrees_skipped;       /* Btrees skipped, no work needed (atomic). */
         wt_shared uint64_t pages_walked;         /* Pages walked across all btrees (atomic). */
-        wt_shared uint64_t max_btree_eta_sec;    /* Largest per-btree ETA seen (atomic). */
     } progress;
 };
 
