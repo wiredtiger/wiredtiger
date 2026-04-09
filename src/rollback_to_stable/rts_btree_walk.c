@@ -121,7 +121,7 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_DECL_RET;
     WT_REF *ref;
     WT_TIMER timer;
-    double npos;
+    double max_npos, npos;
     uint64_t btree_pages, clock_now, clock_start, elapsed_ns, msg_count;
     uint32_t flags;
 
@@ -130,6 +130,7 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
     msg_count = 0;
     btree_pages = 0;
+    max_npos = 0.0;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
@@ -147,7 +148,13 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
         elapsed_ns = __wt_clock_to_nsec(clock_now, clock_start);
         if ((elapsed_ns / ((uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
             npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
-            __wti_rts_progress_msg_walk(session, &timer, &msg_count, npos, btree_pages);
+            /*
+             * npos can fluctuate due to unbalanced trees, so track the maximum seen so far to get
+             * a monotonically increasing progress indicator.
+             */
+            if (npos > max_npos)
+                max_npos = npos;
+            __wti_rts_progress_msg_walk(session, &timer, &msg_count, max_npos, btree_pages);
         }
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
