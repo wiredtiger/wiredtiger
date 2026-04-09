@@ -5,7 +5,7 @@
 <dt>Chunk cache is deprecated</dt>
 <dd>
 The chunk cache feature has been deprecated and is no longer supported. Opening a connection with
-\c chunk_cache=(enabled=true) will now result in an error. If \c chunk_cache configuration is
+<code>chunk_cache=(enabled=true)</code> will now result in an error. If \c chunk_cache configuration is
 present but disabled, a deprecation warning will be issued and the configuration will be ignored.
 Existing databases that have chunk cache settings persisted in their \c WiredTiger.basecfg file
 will continue to open successfully as long as chunk cache is not enabled. The \c WiredTigerCC.wt
