@@ -102,7 +102,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
     /* On followers, it is possible not to have any stable table. This is a transient state. */
-    if (!conn->layered_table_manager.leader && stable_ret == ENOENT) {
+    if (!conn->disagg_layered_leader && stable_ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
           "Verify (layered): %s stable table not found on follower, it can be a transient state.",
           stable_uri);
@@ -116,7 +116,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     /*
      * Verify the ingest table of the layered table on leader.
      */
-    if (conn->layered_table_manager.leader) {
+    if (conn->disagg_layered_leader) {
         /*
          * On leader, if verifying ingest returns EBUSY, it means ingest is not empty (dirty
          * content, or open cursors), which is an invalid state.

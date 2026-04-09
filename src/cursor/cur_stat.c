@@ -433,7 +433,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 retry:
     stable_uri = layered->stable_uri;
     /* Now do the stable table. */
-    if (!S2C(session)->layered_table_manager.leader) {
+    if (!S2C(session)->disagg_layered_leader) {
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         WT_ERR_NOTFOUND_OK(
           __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);

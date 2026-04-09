@@ -72,7 +72,7 @@ __drop_file(
      */
     WT_ERR(ret);
     if (id_found && !F_ISSET(conn, WT_CONN_IN_MEMORY) && F_ISSET_ATOMIC_32(conn, WT_CONN_READY) &&
-      (!__wt_conn_is_disagg(session) || conn->layered_table_manager.leader ||
+      (!__wt_conn_is_disagg(session) || conn->disagg_layered_leader ||
         !WT_BTREE_ID_SHARED(id)))
         if (__wt_hs_btree_truncate(session, id) != 0)
             __wt_verbose_warning(
@@ -196,7 +196,7 @@ __drop_layered(
 
     /* Only the leader can remove the metadata from shared metadata table and issue a trim command.
      */
-    if (S2C(session)->layered_table_manager.leader) {
+    if (S2C(session)->disagg_layered_leader) {
         WT_ERR(__drop_issue_trim(session, stable_uri));
 
         /* Remove the all associated metadata from shared metadata table. */

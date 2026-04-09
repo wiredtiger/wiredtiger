@@ -704,8 +704,6 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
       session, ret = __schema_open_layered_ingest(session, layered, layered->ingest_uri));
     WT_RET(ret);
 
-    WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
-
     return (0);
 }
 
