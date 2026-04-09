@@ -1479,18 +1479,16 @@ err:
 static int
 __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 {
-    WT_DECL_RET;
-
     if (!F_ISSET(&S2C(session)->log_mgr, WT_LOG_ENABLED))
         return (0);
 
     switch (log_flags) {
     case WT_TXN_LOG_CKPT_PREPARE:
-        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     case WT_TXN_LOG_CKPT_START:
-        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
-        WT_ERR(__wt_log_system_backup_id(session));
+        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_RET(__wt_log_system_backup_id(session));
         break;
     case WT_TXN_LOG_CKPT_FLUSH:
         /* FIXME-WT-15069: Remove this if condition as part of this FIXME. This is a temporary
@@ -1502,23 +1500,21 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
         /* Crash before metadata sync if checkpoint crash point is configured. */
         if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
             __wt_debug_crash(session);
-        WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
+        WT_RET(__wt_log_flush(session, WT_LOG_FSYNC));
         break;
     case WT_TXN_LOG_CKPT_STOP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     case WT_TXN_LOG_CKPT_CLEANUP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_ERR(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     default:
-        WT_ERR(__wt_illegal_value(session, log_flags));
+        WT_RET(__wt_illegal_value(session, log_flags));
     }
 
-err:
-
-    return (ret);
+    return (0);
 }
 
 /*
