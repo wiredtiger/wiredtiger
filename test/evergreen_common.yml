@@ -1,3 +1,16 @@
+#
+# WiredTiger Evergreen — Shared variables and task definitions
+#
+# This file contains YAML anchor/variable definitions and all task definitions.
+# Variables and tasks must stay in the same file because tasks reference
+# variable anchors via YAML's <<: *anchor syntax, which only works within
+# a single file.
+#
+# Note: Tasks with cross-variant dependencies (variant: <name> in depends_on)
+# cannot live here — they must be in the same file as the variant they
+# reference. See the endian tasks in evergreen.yml for an example.
+#
+
 variables:
   # Configure flags for builtins.
   - &configure_flags_with_builtins

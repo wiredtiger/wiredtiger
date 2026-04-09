@@ -1,3 +1,10 @@
+#
+# WiredTiger Evergreen — Shared function definitions
+#
+# This file contains all reusable Evergreen function definitions (command
+# sequences like "compile wiredtiger", "fetch artifacts", "unit test", etc.).
+#
+
 functions:
   "setup environment":
     - command: expansions.update
