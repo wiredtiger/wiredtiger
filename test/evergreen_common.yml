@@ -1,5 +1,5 @@
 #
-# WiredTiger Evergreen — Shared variables and task definitions
+# WiredTiger Evergreen Shared variables and task definitions
 #
 # This file contains YAML anchor/variable definitions and all task definitions.
 # Variables and tasks must stay in the same file because tasks reference
@@ -7,7 +7,7 @@
 # a single file.
 #
 # Note: Tasks with cross-variant dependencies (variant: <name> in depends_on)
-# cannot live here — they must be in the same file as the variant they
+# cannot live here. They must be in the same file as the variant they
 # reference. See the endian tasks in evergreen.yml for an example.
 #
 
@@ -52,7 +52,6 @@ variables:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: 0
-
 
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
@@ -2185,7 +2184,6 @@ tasks:
             set -o errexit
             set -o verbose
             test/compatibility/compatibility_test_for_releases.sh -i
-
 
   - name: clang-analyzer
     tags: ["lint"]
@@ -4976,4 +4974,3 @@ tasks:
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=1
       - func: "build and push antithesis container"
-

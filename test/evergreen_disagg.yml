@@ -1,5 +1,5 @@
 #
-# WiredTiger Evergreen Configuration — Disagg failure-expected project
+# WiredTiger Evergreen Configuration Disagg failure-expected project
 #
 # This file is used by the wiredtiger-disagg Evergreen project to run
 # disaggregated storage stress tests that are expected to fail. These

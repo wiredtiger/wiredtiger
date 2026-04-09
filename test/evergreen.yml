@@ -87,8 +87,8 @@ variables:
 # variant: big-endian) in their depends_on fields. Evergreen treats unmatched
 # variant selectors in depends_on as a hard error (unlike unmatched task tags,
 # which are just warnings). Because the disagg project does not define
-# little-endian/big-endian variants, these tasks must live here — not in
-# evergreen_common.yml — to avoid breaking projects that include the common file.
+# little-endian/big-endian variants, these tasks must live here to avoid
+# breaking projects that include the common file.
 tasks:
   - name: generate-datafile-little-endian
     commands:
