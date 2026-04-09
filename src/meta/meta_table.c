@@ -384,6 +384,89 @@ err:
     return (ret);
 }
 
+/* Btree ID / URI pair, used when checking for duplicate IDs in metadata. */
+typedef struct {
+    uint32_t id;
+    char *uri;
+} WT_META_ID_ENTRY;
+
+/*
+ * __meta_id_cmp --
+ *     Comparator for sorting btree ID entries by ID.
+ */
+static int WT_CDECL
+__meta_id_cmp(const void *a, const void *b)
+{
+    uint32_t ia, ib;
+
+    ia = ((const WT_META_ID_ENTRY *)a)->id;
+    ib = ((const WT_META_ID_ENTRY *)b)->id;
+    return (ia < ib ? -1 : (ia == ib ? 0 : 1));
+}
+
+/*
+ * __wt_meta_verify_id_uniqueness --
+ *     Scan all metadata entries and verify that no two btree objects share the same ID. Called when
+ *     verify_metadata=true is set at connection open.
+ */
+int
+__wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM id_val;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_META_ID_ENTRY *entries;
+    size_t allocated, count, i;
+    const char *config, *uri;
+
+    entries = NULL;
+    allocated = count = 0;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+        /*
+         * Only check stable constituent files (file:*.wt_stable). These are the shared btrees whose
+         * IDs are visible to SLS; a duplicate ID here would cause data corruption. Ingest files and
+         * non-layered files are local and not subject to this constraint.
+         */
+        if (!WT_PREFIX_MATCH(uri, "file:") || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
+            continue;
+        WT_ERR(cursor->get_value(cursor, &config));
+        ret = __wt_config_getones(session, config, "id", &id_val);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            continue;
+        }
+        WT_ERR(ret);
+
+        /* Grow the entries array as needed (zero-fills new space). */
+        WT_ERR(__wt_realloc_def(session, &allocated, count + 1, &entries));
+        entries[count].id = (uint32_t)id_val.val;
+        WT_ERR(__wt_strdup(session, uri, &entries[count].uri));
+        ++count;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    /* Sort by ID and report the first pair of adjacent duplicates found. */
+    if (count > 1) {
+        __wt_qsort(entries, count, sizeof(WT_META_ID_ENTRY), __meta_id_cmp);
+        for (i = 0; i < count - 1; ++i) {
+            if (entries[i].id == entries[i + 1].id)
+                WT_ERR_MSG(session, WT_ERROR,
+                  "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", entries[i].id,
+                  entries[i].uri, entries[i + 1].uri);
+        }
+    }
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    for (i = 0; i < count; ++i)
+        __wt_free(session, entries[i].uri);
+    __wt_free(session, entries);
+    return (ret);
+}
+
 /*
  * __wt_verbose_dump_metadata --
  *     Output diagnostic information about metadata contents.

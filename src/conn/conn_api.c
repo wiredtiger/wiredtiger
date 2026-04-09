@@ -3514,6 +3514,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         wt_session = &session->iface;
         ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
         WT_ERR(ret);
+        /* Btree ID uniqueness is only a concern for disaggregated storage. */
+        if (__wt_conn_is_disagg(session))
+            WT_ERR(__wt_meta_verify_id_uniqueness(session));
     }
 
     /*
