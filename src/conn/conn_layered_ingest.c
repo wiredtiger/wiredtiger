@@ -271,6 +271,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              */
             if (is_prepare_rollback) {
                 WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
+                /* Only resolve the updates from the same prepared transaction once. */
                 if (!prepare_resolved) {
                     /*
                      * The original transaction id is stored in start timestamp and the rollback
@@ -286,6 +287,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                     prepare_resolved = true;
                 }
             } else if (start_prepared_id != WT_PREPARED_ID_NONE) {
+                /* Only resolve the updates from the same prepared transaction once. */
                 if (!prepare_resolved) {
                     WT_TXN_TIME_POINT txn_time_point;
                     txn_time_point.id = start_txn;
@@ -317,12 +319,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             }
         }
 
-        if (prev_upd != NULL)
-            prev_upd->next = upd;
-        else
-            upds = upd;
-
-        prev_upd = upd;
+        if (upd != NULL) {
+            if (prev_upd != NULL)
+                prev_upd->next = upd;
+            else
+                upds = upd;
+        }
     }
 
 err:
