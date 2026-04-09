@@ -404,23 +404,31 @@ __meta_id_cmp(const void *a, const void *b)
     return (ia < ib ? -1 : (ia == ib ? 0 : 1));
 }
 
+/* Maximum number of duplicate btree ID pairs reported when read_corrupt is set. */
+#define WT_META_VERIFY_MAX_DUPLICATE_IDS 10
+
 /*
  * __wt_meta_verify_id_uniqueness --
- *     Scan all metadata entries and verify that no two btree objects share the same ID. Called when
- *     verify_metadata=true is set at connection open.
+ *     Scan all metadata entries and verify that no two stable constituent files share the same btree
+ *     ID. When read_corrupt is set, logs up to WT_META_VERIFY_MAX_DUPLICATE_IDS duplicates before
+ *     returning an error, instead of stopping at the first one.
  */
 int
-__wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session)
+__wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CONFIG_ITEM id_val;
+    WT_CONFIG_ITEM cval, id_val;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_META_ID_ENTRY *entries;
-    size_t allocated, count, i;
+    size_t allocated, count, i, num_duplicates;
+    bool read_corrupt;
     const char *config, *uri;
 
     entries = NULL;
     allocated = count = 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
+    read_corrupt = cval.val != 0;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
@@ -448,14 +456,27 @@ __wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    /* Sort by ID and report the first pair of adjacent duplicates found. */
+    /* Sort by ID and scan for adjacent duplicates. */
     if (count > 1) {
         __wt_qsort(entries, count, sizeof(WT_META_ID_ENTRY), __meta_id_cmp);
+        num_duplicates = 0;
         for (i = 0; i < count - 1; ++i) {
-            if (entries[i].id == entries[i + 1].id)
+            if (entries[i].id != entries[i + 1].id)
+                continue;
+            if (!read_corrupt)
                 WT_ERR_MSG(session, WT_ERROR,
-                  "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", entries[i].id,
-                  entries[i].uri, entries[i + 1].uri);
+                  "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s",
+                  entries[i].id, entries[i].uri, entries[i + 1].uri);
+            /*
+             * In read_corrupt mode, report each duplicate pair and keep going so the caller gets a
+             * complete picture, up to a reasonable limit.
+             */
+            __wt_err(session, WT_ERROR,
+              "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", entries[i].id,
+              entries[i].uri, entries[i + 1].uri);
+            ret = WT_ERROR;
+            if (++num_duplicates >= WT_META_VERIFY_MAX_DUPLICATE_IDS)
+                break;
         }
     }
 
