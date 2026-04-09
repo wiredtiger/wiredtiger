@@ -324,11 +324,11 @@ class test_layered89(wttest.WiredTigerTestCase):
             walk_func=self.collect_keys_prev, delete=True)
         self.assertEqual(sorted(keys), all_keys)
 
-    def test_search_prepared_update(self):
+    def test_search_and_search_near_prepared_update(self):
         """
-        cursor.search() on a follower must return the committed value without
-        WT_PREPARE_CONFLICT when the primary has checkpointed a prepared update
-        for that key.
+        cursor.search() and cursor.search_near() on a follower must both return the
+        committed value without WT_PREPARE_CONFLICT when the primary has checkpointed
+        a prepared update for that key.
         """
         all_keys = [1, 2, 3]
         prepare_keys = [2]
@@ -346,15 +346,21 @@ class test_layered89(wttest.WiredTigerTestCase):
         cursor = session_follow.open_cursor(self.uri)
         session_follow.begin_transaction()
 
-        # Key 1: no prepared update; returns the committed value.
+        # Key 1: no prepared update; both lookups return the committed value.
         cursor.set_key(1)
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), 'committed_1')
+        cursor.set_key(1)
+        self.assertEqual(cursor.search_near(), 0)
+        self.assertEqual(cursor.get_value(), 'committed_1')
 
         # Key 2: primary checkpointed a prepared update; follower rolled back its copy.
-        # cursor.search() must return the committed value without WT_PREPARE_CONFLICT.
+        # Both lookups must return the committed value without WT_PREPARE_CONFLICT.
         cursor.set_key(2)
         self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.get_value(), 'committed_2')
+        cursor.set_key(2)
+        self.assertEqual(cursor.search_near(), 0)
         self.assertEqual(cursor.get_value(), 'committed_2')
 
         session_follow.rollback_transaction()
