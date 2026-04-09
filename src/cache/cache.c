@@ -83,7 +83,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
         /* FIXME-WT-17066: We should pick a hash size wisely. */
         hash_size = (u_int)WT_MAX(S2C(session)->cache_size / 500 / 100, 512);
         WT_RET(__wti_shared_dsk_cache_init(session, hash_size));
-        WT_STAT_CONN_SET(session, shared_dsk_cache_hash_size, hash_size);
+        WT_STAT_CONN_SET(session, cache_shared_dsk_hash_size, hash_size);
     }
 
     /*

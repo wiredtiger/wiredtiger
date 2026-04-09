@@ -41,7 +41,7 @@ struct __wt_cache_eviction_controls {
 struct __wt_shared_dsk_item {
     TAILQ_ENTRY(__wt_shared_dsk_item) hashq;
 
-    const void *data;
+    void *data;
     uint32_t data_size;
 
     wt_shared int32_t ref_count; /* References */
@@ -61,8 +61,10 @@ struct __wt_shared_dsk_cache {
     WT_SPINLOCK *hash_locks;
     u_int hash_size;
     u_int hash_lock_size;
-    uint32_t max_bucket_size;
     int32_t max_ref_count;
+#ifdef HAVE_DIAGNOSTIC
+    uint32_t max_bucket_walk;
+#endif
 };
 
 /*
