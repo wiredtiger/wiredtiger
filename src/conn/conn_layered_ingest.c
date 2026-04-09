@@ -269,7 +269,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              * table still has the unresolved prepared cell from a prior checkpoint. Resolve it now
              * before applying the ingest updates.
              */
-            if (is_prepare_rollback) {
+            if (is_prepare_rollback && start_prepare_ts <= last_checkpoint_timestamp) {
+                /*
+                 * The last checkpoint writes the prepared update, resolve it if we haven't resolved
+                 * it yet.
+                 */
                 WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
                 /* Only resolve the updates from the same prepared transaction once. */
                 if (!prepare_resolved) {
@@ -286,7 +290,14 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                       WT_RECNO_OOB, false, &prepare_cursor));
                     prepare_resolved = true;
                 }
-            } else if (start_prepared_id != WT_PREPARED_ID_NONE) {
+            } else if (start_prepared_id != WT_PREPARED_ID_NONE &&
+              start_prepare_ts <= last_checkpoint_timestamp) {
+                /*
+                 * The last checkpoint writes the prepared update, resolve it if we haven't resolved
+                 * it yet.
+                 */
+                /* Prepared transactions must have a prepared id in disagg. */
+                WT_ASSERT(session, start_prepare_ts != WT_TS_NONE);
                 /* Only resolve the updates from the same prepared transaction once. */
                 if (!prepare_resolved) {
                     WT_TXN_TIME_POINT txn_time_point;
@@ -301,6 +312,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 }
             } else {
                 /*
+                 * If the update is not a prepared update or a resolved prepared update never been
+                 * written to the checkpoint as a prepared update, move it to the stable table
+                 * directly.
+                 */
+                /*
                  * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
                  * way now.
                  */
@@ -308,11 +324,27 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
                 else
                     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-                upd->prepare_ts = start_prepare_ts;
-                upd->prepared_id = start_prepared_id;
-                upd->txnid = start_txn;
-                upd->upd_start_ts = start_ts;
-                upd->upd_durable_ts = durable_start_ts;
+                /*
+                 * If the prepared update is aborted, move the aborted update to the stable table
+                 * because we may write a prepared update to the disk in a future reconciliation.
+                 */
+                if (is_prepare_rollback) {
+                    /*
+                     * The original transaction id is stored in start timestamp and the rollback
+                     * timestamp is stored in durable timestamp.
+                     */
+                    upd->txnid = WT_TXN_ABORTED;
+                    upd->prepare_ts = start_prepare_ts;
+                    upd->prepared_id = start_prepared_id;
+                    upd->upd_saved_txnid = start_ts;
+                    upd->upd_rollback_ts = durable_start_ts;
+                } else {
+                    upd->txnid = start_txn;
+                    upd->prepare_ts = start_prepare_ts;
+                    upd->prepared_id = start_prepared_id;
+                    upd->upd_start_ts = start_ts;
+                    upd->upd_durable_ts = durable_start_ts;
+                }
                 /* This is for debugging purpose and it is not checked in the code. */
                 F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
                 last_upd = upd;

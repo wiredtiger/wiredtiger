@@ -28,13 +28,19 @@
 #
 # test_prepare45.py
 #   Tests that prepared transactions captured unresolved in a leader checkpoint are correctly
-#   resolved (committed or rolled back) on follower step-up. Covers five operation types:
+#   resolved (committed or rolled back) on follower step-up. Covers seven operation types:
 #   - test_prepare_insert: prepared inserts on new keys
 #   - test_prepare_update: prepared updates on existing keys
 #   - test_prepare_delete: prepared deletes on existing keys
 #   - test_prepare_delete_between_values: prepared delete sandwiched between two committed values
 #   - test_prepare_multiple_updates_same_key: single prepared transaction writes the same key
 #     multiple times, all updates captured unresolved in the checkpoint
+#   - test_prepare_not_captured_insert: prepared insert with prepare_ts > stable_ts; prepare not
+#     in checkpoint so the key is absent on the follower
+#   - test_prepare_not_captured_update: prepared update with prepare_ts > stable_ts; prepare not
+#     in checkpoint so the follower sees only the pre-prepare committed value
+#   - test_prepare_not_captured_delete: prepared delete with prepare_ts > stable_ts; prepare not
+#     in checkpoint so the follower sees the key as still present
 
 import wiredtiger
 import wttest
@@ -441,14 +447,13 @@ class test_prepare45(wttest.WiredTigerTestCase):
         read_session.close()
 
     def test_prepare_multiple_updates_same_key(self):
-        """A single prepared transaction writes the same key multiple times, creating multiple
-        updates in the prepared update chain captured unresolved in the checkpoint."""
+        """A single prepared transaction writes the same key multiple times. On commit only the
+        last write is visible; on rollback the pre-prepare value is restored."""
 
         # Phase 1 (Leader):
         # - Commit initial value at ts=60.
         # - Within one prepared transaction, write key 1 three times ("value_a", "value_b",
-        #   "value_c"). The last write is what a commit should expose. Leave the transaction
-        #   open so the checkpoint captures all three updates as unresolved.
+        #   "value_c"). Leave the transaction open so the checkpoint captures it as unresolved.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
 
@@ -514,6 +519,176 @@ class test_prepare45(wttest.WiredTigerTestCase):
             self.assertEqual(read_cursor[1], "value_c")
         else:
             self.assertEqual(read_cursor[1], "original_value")
+        read_session.rollback_transaction()
+
+        read_cursor.close()
+        read_session.close()
+
+    def test_prepare_not_captured_insert(self):
+        """Prepared insert whose prepare_ts exceeds stable_ts at checkpoint time is not durable:
+        the follower sees the inserted key as absent."""
+
+        # Phase 1 (Leader):
+        # - Commit key 1 at ts=20 (durable at checkpoint).
+        # - Insert key 2 in a prepared transaction at prepare_ts=100 > stable_ts=50; because the
+        #   prepare timestamp exceeds the stable timestamp, the write is not durable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+
+        self.session.begin_transaction()
+        cursor[1] = "committed_value"
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(20))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
+
+        # Prepare an insert on key 2 with prepare_ts=100 > stable_ts=50.
+        self.session.begin_transaction()
+        cursor[2] = "prepared_value"
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +
+                                        ',prepared_id=' + self.prepared_id_str(123))
+
+        # Checkpoint at stable=50 (below prepare_ts=100).
+        self._checkpoint(self.conn)
+
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
+        cursor.close()
+        self.conn.close("debug=(skip_checkpoint=true)")
+
+        # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
+        conn_follow = self._open_follower(checkpoint_meta)
+
+        # Phase 3: Step up and verify.
+        self._step_up(conn_follow)
+
+        read_session = conn_follow.open_session()
+        read_cursor = read_session.open_cursor(self.uri)
+
+        # At ts=20: key 1 is visible (committed before the checkpoint).
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(20))
+        self.assertEqual(read_cursor[1], "committed_value")
+        read_session.rollback_transaction()
+
+        # At ts=200: key 2 is absent because the prepare was not durable at checkpoint time.
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
+        read_cursor.set_key(2)
+        self.assertEqual(wiredtiger.WT_NOTFOUND, read_cursor.search())
+        read_session.rollback_transaction()
+
+        read_cursor.close()
+        read_session.close()
+
+    def test_prepare_not_captured_update(self):
+        """Prepared update whose prepare_ts exceeds stable_ts at checkpoint time is not durable:
+        the follower sees only the pre-prepare committed value."""
+
+        # Phase 1 (Leader):
+        # - Commit key 1 with "original_value" at ts=20 (durable at checkpoint).
+        # - Update key 1 in a prepared transaction at prepare_ts=100 > stable_ts=50; because the
+        #   prepare timestamp exceeds the stable timestamp, the update is not durable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+
+        self.session.begin_transaction()
+        cursor[1] = "original_value"
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(20))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
+
+        # Prepare an update on key 1 with prepare_ts=100 > stable_ts=50.
+        self.session.begin_transaction()
+        cursor[1] = "prepared_value"
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +
+                                        ',prepared_id=' + self.prepared_id_str(123))
+
+        # Checkpoint at stable=50 (below prepare_ts=100).
+        self._checkpoint(self.conn)
+
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
+        cursor.close()
+        self.conn.close("debug=(skip_checkpoint=true)")
+
+        # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
+        conn_follow = self._open_follower(checkpoint_meta)
+
+        # Phase 3: Step up and verify.
+        self._step_up(conn_follow)
+
+        read_session = conn_follow.open_session()
+        read_cursor = read_session.open_cursor(self.uri)
+
+        # At ts=20: original value visible (committed before the checkpoint).
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(20))
+        self.assertEqual(read_cursor[1], "original_value")
+        read_session.rollback_transaction()
+
+        # At ts=200: still "original_value" because the update was not durable at checkpoint time.
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
+        self.assertEqual(read_cursor[1], "original_value")
+        read_session.rollback_transaction()
+
+        read_cursor.close()
+        read_session.close()
+
+    def test_prepare_not_captured_delete(self):
+        """Prepared delete whose prepare_ts exceeds stable_ts at checkpoint time is not durable:
+        the follower sees the key as still present."""
+
+        # Phase 1 (Leader):
+        # - Commit key 1 with "original_value" at ts=20 (durable at checkpoint).
+        # - Delete key 1 in a prepared transaction at prepare_ts=100 > stable_ts=50; because the
+        #   prepare timestamp exceeds the stable timestamp, the delete is not durable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+
+        self.session.begin_transaction()
+        cursor[1] = "original_value"
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(20))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
+
+        # Prepare a delete on key 1 with prepare_ts=100 > stable_ts=50.
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.assertEqual(0, cursor.remove())
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +
+                                        ',prepared_id=' + self.prepared_id_str(123))
+
+        # Checkpoint at stable=50 (below prepare_ts=100).
+        self._checkpoint(self.conn)
+
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
+        cursor.close()
+        self.conn.close("debug=(skip_checkpoint=true)")
+
+        # Phase 2 (Follower): the prepare was not durable; no prepare replay is issued.
+        conn_follow = self._open_follower(checkpoint_meta)
+
+        # Phase 3: Step up and verify.
+        self._step_up(conn_follow)
+
+        read_session = conn_follow.open_session()
+        read_cursor = read_session.open_cursor(self.uri)
+
+        # At ts=20: original value visible (committed before the checkpoint).
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(20))
+        self.assertEqual(read_cursor[1], "original_value")
+        read_session.rollback_transaction()
+
+        # At ts=200: still "original_value" because the delete was not durable at checkpoint time.
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
+        self.assertEqual(read_cursor[1], "original_value")
         read_session.rollback_transaction()
 
         read_cursor.close()
