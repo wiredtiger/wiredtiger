@@ -1663,11 +1663,7 @@ retry:
              * rollback to stable and when we are told to ignore non-globally visible tombstones.
              */
             if (!have_stop_tw) {
-                WT_VISIBLE_TYPE visible_type = __wt_txn_tw_stop_visible(session, &tw);
-                if (visible_type == WT_VISIBLE_PREPARE) {
-                    if (!F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
-                        return (WT_PREPARE_CONFLICT);
-                } else if (visible_type == WT_VISIBLE_TRUE &&
+                if (__wt_txn_tw_stop_visible(session, &tw) == WT_VISIBLE_TRUE &&
                   !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
                     cbt->upd_value->buf.data = NULL;
                     cbt->upd_value->buf.size = 0;
@@ -1697,11 +1693,7 @@ retry:
                 return (0);
             }
 
-            WT_VISIBLE_TYPE visible_type = __wt_txn_tw_start_visible(session, &tw);
-            if (visible_type == WT_VISIBLE_PREPARE) {
-                if (!F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
-                    return (WT_PREPARE_CONFLICT);
-            } else if (visible_type == WT_VISIBLE_TRUE) {
+            if (__wt_txn_tw_start_visible(session, &tw) == WT_VISIBLE_TRUE) {
                 if (cbt->upd_value->skip_buf) {
                     cbt->upd_value->buf.data = NULL;
                     cbt->upd_value->buf.size = 0;
