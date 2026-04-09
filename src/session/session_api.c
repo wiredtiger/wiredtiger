@@ -1825,7 +1825,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
      * constituent files share the same btree ID. Duplicate IDs are visible to SLS and can cause
      * data corruption.
      */
-    if (strcmp(uri, WT_METAFILE_URI) == 0 && __wt_conn_is_disagg(session))
+    if (WT_IS_URI_METADATA(uri) && __wt_conn_is_disagg(session))
         WT_ERR(__wt_meta_verify_id_uniqueness(session));
 
 err:
