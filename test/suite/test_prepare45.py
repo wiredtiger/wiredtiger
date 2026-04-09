@@ -28,11 +28,13 @@
 #
 # test_prepare45.py
 #   Tests that prepared transactions captured unresolved in a leader checkpoint are correctly
-#   resolved (committed or rolled back) on follower step-up. Covers four operation types:
+#   resolved (committed or rolled back) on follower step-up. Covers five operation types:
 #   - test_prepare_insert: prepared inserts on new keys
 #   - test_prepare_update: prepared updates on existing keys
 #   - test_prepare_delete: prepared deletes on existing keys
 #   - test_prepare_delete_between_values: prepared delete sandwiched between two committed values
+#   - test_prepare_multiple_updates_same_key: single prepared transaction writes the same key
+#     multiple times, all updates captured unresolved in the checkpoint
 
 import wiredtiger
 import wttest
@@ -433,6 +435,85 @@ class test_prepare45(wttest.WiredTigerTestCase):
         # At ts=220: value_220 visible regardless of resolution.
         read_session.begin_transaction("read_timestamp=" + self.timestamp_str(220))
         self.assertEqual(read_cursor[1], "value_220")
+        read_session.rollback_transaction()
+
+        read_cursor.close()
+        read_session.close()
+
+    def test_prepare_multiple_updates_same_key(self):
+        """A single prepared transaction writes the same key multiple times, creating multiple
+        updates in the prepared update chain captured unresolved in the checkpoint."""
+
+        # Phase 1 (Leader):
+        # - Commit initial value at ts=60.
+        # - Within one prepared transaction, write key 1 three times ("value_a", "value_b",
+        #   "value_c"). The last write is what a commit should expose. Leave the transaction
+        #   open so the checkpoint captures all three updates as unresolved.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+
+        self.session.begin_transaction()
+        cursor[1] = "original_value"
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(60))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(70))
+
+        # Single prepared transaction with multiple writes to key 1.
+        self.session.begin_transaction()
+        cursor[1] = "value_a"
+        cursor[1] = "value_b"
+        cursor[1] = "value_c"
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +
+                                        ',prepared_id=' + self.prepared_id_str(123))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
+        self._checkpoint(self.conn)
+
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
+        cursor.close()
+        self.conn.close("debug=(skip_checkpoint=true)")
+
+        # Phase 2 (Follower): Replay the same prepared transaction (same prepared_id, same
+        # sequence of writes) and resolve it.
+        conn_follow = self._open_follower(checkpoint_meta)
+
+        session_f = conn_follow.open_session()
+        cursor_f = session_f.open_cursor(self.uri)
+        session_f.begin_transaction()
+        cursor_f[1] = "value_a"
+        cursor_f[1] = "value_b"
+        cursor_f[1] = "value_c"
+        session_f.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +
+                                      ',prepared_id=' + self.prepared_id_str(123))
+        if self.commit:
+            session_f.commit_transaction("commit_timestamp=" + self.timestamp_str(200) +
+                                         ",durable_timestamp=" + self.timestamp_str(210))
+        else:
+            session_f.rollback_transaction('rollback_timestamp=' + self.timestamp_str(210))
+        cursor_f.close()
+        session_f.close()
+
+        # Phase 3: Step up and verify.
+        self._step_up(conn_follow)
+
+        read_session = conn_follow.open_session()
+        read_cursor = read_session.open_cursor(self.uri)
+
+        # At ts=60: original value visible regardless of resolution.
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(60))
+        self.assertEqual(read_cursor[1], "original_value")
+        read_session.rollback_transaction()
+
+        # At ts=200: commit  last write "value_c" visible; rollback  original value visible.
+        read_session.begin_transaction("read_timestamp=" + self.timestamp_str(200))
+        if self.commit:
+            self.assertEqual(read_cursor[1], "value_c")
+        else:
+            self.assertEqual(read_cursor[1], "original_value")
         read_session.rollback_transaction()
 
         read_cursor.close()

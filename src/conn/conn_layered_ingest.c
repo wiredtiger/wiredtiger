@@ -183,7 +183,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
-    WT_UPDATE *last_upd, *prev_upd, *tombstone, *upd, *upds;
+    WT_UPDATE *last_upd, *prev_upd, *upd, *upds;
     wt_timestamp_t last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
       stop_ts;
@@ -192,10 +192,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     int cmp;
     char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
-    bool has_stop, is_prepare_rollback, prepare_resolved;
+    bool is_prepare_rollback, prepare_resolved;
 
     prepare_cursor = stable_cursor = version_cursor = NULL;
-    last_upd = prev_upd = tombstone = upd = upds = NULL;
+    last_upd = prev_upd = upd = upds = NULL;
     prepare_resolved = false;
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
@@ -219,7 +219,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     WT_ERR(__wt_scr_alloc(session, 0, &value));
 
     for (;;) {
-        tombstone = upd = NULL;
+        upd = NULL;
         WT_ERR_NOTFOUND_OK(version_cursor->next(version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
@@ -257,24 +257,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
           &start_prepare_ts, &start_prepared_id, &stop_txn, &stop_ts, &durable_stop_ts,
           &stop_prepare_ts, &stop_prepared_id, &type, &prepare, &flags, &location, value));
 
-        has_stop = stop_txn != WT_TXN_MAX;
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
-        /* We assume the updates returned will be in timestamp order. */
-        if (prev_upd != NULL) {
-            WT_ASSERT(
-              session, stop_txn <= prev_upd->txnid && durable_stop_ts <= prev_upd->upd_durable_ts);
-            WT_ASSERT(session,
-              (is_prepare_rollback || start_txn <= prev_upd->txnid) &&
-                durable_start_ts <= prev_upd->upd_durable_ts);
-            if (stop_txn != prev_upd->txnid || durable_stop_ts != prev_upd->upd_durable_ts)
-                WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        } else if (has_stop)
-            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-
         /*
          * It is possible to see a full value that is smaller than or equal to the last checkpoint
-         * timestamp with a tombstone that is larger than the last checkpoint timestamp. Ignore the
-         * update in this case.
+         * timestamp with a stop timestamp that is larger than the last checkpoint timestamp. Ignore
+         * the update in this case.
          */
         if (durable_start_ts > last_checkpoint_timestamp) {
             /*
@@ -315,14 +302,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                  * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
                  * way now.
                  */
-                if (__wt_clayered_deleted(value)) {
-                    /*
-                     * If we use tombstone value, we should never see a real tombstone on the ingest
-                     * table.
-                     */
-                    WT_ASSERT(session, tombstone == NULL);
+                if (__wt_clayered_deleted(value))
                     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                } else
+                else
                     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
                 upd->prepare_ts = start_prepare_ts;
                 upd->prepared_id = start_prepared_id;
@@ -333,49 +315,18 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
                 last_upd = upd;
             }
-        } else {
-            WT_ASSERT(session, tombstone != NULL);
-            last_upd = tombstone;
         }
 
-        /*
-         * FIXME-WT-14732: we can simplify the algorithm if we don't use real tombstones on the
-         * ingest table.
-         */
-        if (tombstone != NULL) {
-            tombstone->txnid = stop_txn;
-            tombstone->upd_start_ts = stop_ts;
-            tombstone->upd_durable_ts = durable_stop_ts;
-            tombstone->prepare_ts = stop_prepare_ts;
-            tombstone->prepared_id = stop_prepared_id;
-            tombstone->next = upd;
-            /* This is for debugging purpose and it is not checked in the code. */
-            F_SET(tombstone, WT_UPDATE_RESTORED_FROM_INGEST);
+        if (prev_upd != NULL)
+            prev_upd->next = upd;
+        else
+            upds = upd;
 
-            WT_ASSERT(session, tombstone->upd_durable_ts > last_checkpoint_timestamp);
-
-            if (prev_upd != NULL)
-                prev_upd->next = tombstone;
-            else
-                upds = tombstone;
-
-            prev_upd = upd;
-            tombstone = NULL;
-            upd = NULL;
-        } else {
-            if (prev_upd != NULL)
-                prev_upd->next = upd;
-            else
-                upds = upd;
-
-            prev_upd = upd;
-            upd = NULL;
-        }
+        prev_upd = upd;
+        upd = NULL;
     }
 
 err:
-    if (tombstone != NULL)
-        __wt_free(session, tombstone);
     if (upd != NULL)
         __wt_free(session, upd);
     if (upds != NULL)
