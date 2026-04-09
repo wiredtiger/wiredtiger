@@ -626,10 +626,9 @@ __schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
 
     /*
-     * This is a bit of a hack. The problem is that during shutdown, all dhandles are closed. But as
-     * part of closing a layered table, we need to get the IDs of the B-Trees backing the
-     * constituent tables (to remove them from the manager thread). This involves dereferencing the
-     * dhandle pointer, but that's been freed.
+     * Record the ingest btree file id while the ingest handle is open. During connection close,
+     * dhandles are torn down in an order where the layered or ingest handle may no longer be
+     * safely dereferenced when other layered code still needs the id.
      */
     ingest_btree = (WT_BTREE *)session->dhandle->handle;
     layered->ingest_btree_id = ingest_btree->id;
