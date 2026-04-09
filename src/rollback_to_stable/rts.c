@@ -412,7 +412,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
 
         /* Rename session while joining workers so log messages identify us as a worker. */
         saved_session_name = session->name;
-        session->name = "rts-worker (main)";
+        session->name = "rts-main-wkr";
         while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
             __wti_rts_pop_work(session, &entry);
             if (entry == NULL)
