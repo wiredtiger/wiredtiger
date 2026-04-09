@@ -1371,17 +1371,15 @@ static int
 __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *c;
     WT_DECL_RET;
     bool found;
 
-    c = NULL;
     conn = S2C(session);
     found = false;
 
     if (!conn->layered_table_manager.leader) {
-        c = clayered->ingest_cursor;
-        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
+        WT_ERR_NOTFOUND_OK(
+          __clayered_lookup_constituent(clayered->ingest_cursor, clayered, value), true);
         if (ret == 0) {
             found = true;
             if (__wt_clayered_deleted(value))
@@ -1396,10 +1394,9 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
      * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
      * the stable constituent.
      */
-    if (!found && F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor != NULL) {
-        c = clayered->stable_cursor;
-        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
-    }
+    if (!found && F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor != NULL)
+        WT_ERR_NOTFOUND_OK(
+          __clayered_lookup_constituent(clayered->stable_cursor, clayered, value), true);
 
 err:
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
