@@ -70,12 +70,12 @@ __rts_emit_overall_progress(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wti_rts_progress_msg --
+ * __rts_progress_msg --
  *     Log a verbose message about the overall progress of rollback to stable. Called from the
  *     metadata walk loop in __wti_rts_btree_apply_all.
  */
-void
-__wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t *msg_count)
+static void
+__rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t *msg_count)
 {
     uint64_t time_diff_ms;
 
@@ -146,11 +146,11 @@ __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, WT_TIMER *btree_start, uin
 }
 
 /*
- * __wti_rts_progress_init --
+ * __rts_progress_init --
  *     Initialize the RTS progress tracking fields.
  */
-void
-__wti_rts_progress_init(WT_SESSION_IMPL *session)
+static void
+__rts_progress_init(WT_SESSION_IMPL *session)
 {
     WT_ROLLBACK_TO_STABLE *rts;
 
@@ -300,7 +300,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     const char *config, *saved_session_name, *uri;
     bool have_cursor, rts_threads_started;
 
-    __wti_rts_progress_init(session);
+    __rts_progress_init(session);
     __wt_atomic_store_uint32_relaxed(
       &S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
 
@@ -340,7 +340,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         /* Log a progress message. */
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
-        __wti_rts_progress_msg(session, &timer, &rollback_msg_count);
+        __rts_progress_msg(session, &timer, &rollback_msg_count);
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wti_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
