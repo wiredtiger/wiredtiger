@@ -192,10 +192,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     int cmp;
     char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
-    bool has_stop, is_prepare_rollback;
+    bool has_stop, is_prepare_rollback, prepare_resolved;
 
     prepare_cursor = stable_cursor = version_cursor = NULL;
     last_upd = prev_upd = tombstone = upd = upds = NULL;
+    prepare_resolved = false;
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
@@ -248,6 +249,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
             upds = NULL;
             prev_upd = NULL;
+            prepare_resolved = false;
             WT_ERR(__wt_buf_set(session, key, tmp_key->data, tmp_key->size));
         }
 
@@ -282,26 +284,32 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              */
             if (is_prepare_rollback) {
                 WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
-                /*
-                 * The original transaction id is stored in start timestamp and the rollback
-                 * timestamp is stored in durable timestamp.
-                 */
-                WT_TXN_TIME_POINT txn_time_point;
-                txn_time_point.id = start_ts;
-                txn_time_point.prepared_id = start_prepared_id;
-                txn_time_point.prepare_timestamp = start_prepare_ts;
-                txn_time_point.rollback_timestamp = durable_start_ts;
-                WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point, key,
-                  WT_RECNO_OOB, false, &prepare_cursor));
+                if (!prepare_resolved) {
+                    /*
+                     * The original transaction id is stored in start timestamp and the rollback
+                     * timestamp is stored in durable timestamp.
+                     */
+                    WT_TXN_TIME_POINT txn_time_point;
+                    txn_time_point.id = start_ts;
+                    txn_time_point.prepared_id = start_prepared_id;
+                    txn_time_point.prepare_timestamp = start_prepare_ts;
+                    txn_time_point.rollback_timestamp = durable_start_ts;
+                    WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point, key,
+                      WT_RECNO_OOB, false, &prepare_cursor));
+                    prepare_resolved = true;
+                }
             } else if (start_prepared_id != WT_PREPARED_ID_NONE) {
-                WT_TXN_TIME_POINT txn_time_point;
-                txn_time_point.id = start_txn;
-                txn_time_point.prepared_id = start_prepared_id;
-                txn_time_point.prepare_timestamp = start_prepare_ts;
-                txn_time_point.commit_timestamp = start_ts;
-                txn_time_point.durable_timestamp = durable_start_ts;
-                WT_ERR(__wt_txn_resolve_prepared_op(
-                  session, CUR2BT(cbt), &txn_time_point, key, WT_RECNO_OOB, true, &prepare_cursor));
+                if (!prepare_resolved) {
+                    WT_TXN_TIME_POINT txn_time_point;
+                    txn_time_point.id = start_txn;
+                    txn_time_point.prepared_id = start_prepared_id;
+                    txn_time_point.prepare_timestamp = start_prepare_ts;
+                    txn_time_point.commit_timestamp = start_ts;
+                    txn_time_point.durable_timestamp = durable_start_ts;
+                    WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point, key,
+                      WT_RECNO_OOB, true, &prepare_cursor));
+                    prepare_resolved = true;
+                }
             } else {
                 /*
                  * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
