@@ -215,7 +215,7 @@ __wti_rts_progress_init(WT_SESSION_IMPL *session)
     WT_ROLLBACK_TO_STABLE *rts;
 
     rts = S2C(session)->rts;
-    memset(&rts->progress, 0, sizeof(rts->progress));
+    WT_CLEAR(rts->progress);
     __wt_timer_start(session, &rts->progress.start_timer);
 }
 

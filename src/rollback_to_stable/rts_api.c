@@ -262,7 +262,7 @@ __rollback_to_stable_finalize(WT_ROLLBACK_TO_STABLE *rts)
 {
     rts->dryrun = false;
     rts->threads_num = 0;
-    memset(&rts->progress, 0, sizeof(rts->progress));
+    WT_CLEAR(rts->progress);
 }
 
 /*
