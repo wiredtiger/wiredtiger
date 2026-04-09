@@ -84,7 +84,7 @@ __rts_emit_overall_progress(WT_SESSION_IMPL *session)
 {
     WT_ROLLBACK_TO_STABLE *rts;
     uint64_t btrees_completed, btrees_processed, btrees_skipped, elapsed_ms, eta_sec,
-      pages_per_sec, pages_walked, pct, total_btrees;
+      max_btree_eta, pages_per_sec, pages_walked, pct, total_btrees;
     uint32_t phase;
 
     rts = S2C(session)->rts;
@@ -100,6 +100,13 @@ __rts_emit_overall_progress(WT_SESSION_IMPL *session)
     pct = total_btrees > 0 ? (100 * btrees_completed / total_btrees) : 0;
     pages_per_sec = elapsed_ms > 0 ? (pages_walked * WT_THOUSAND / elapsed_ms) : 0;
     eta_sec = __rts_compute_eta_sec(session);
+
+    /* Overall ETA can't be less than the largest per-btree ETA currently in progress. */
+    max_btree_eta = __wt_atomic_load_uint64_relaxed(&rts->progress.max_btree_eta_sec);
+    if (eta_sec < max_btree_eta)
+        eta_sec = max_btree_eta;
+    /* Reset for next reporting period so stale values don't persist. */
+    __wt_atomic_store_uint64_relaxed(&rts->progress.max_btree_eta_sec, 0);
     if (eta_sec > 0)
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "Rollback to stable [%s] overall: running for %" PRIu64 " seconds, %" PRIu64
@@ -172,6 +179,10 @@ __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, WT_TIMER *btree_start, uin
     btree_eta_sec = 0;
     if (npos > 0.05 && npos < 1.0)
         btree_eta_sec = (uint64_t)((1.0 - npos) * (double)elapsed_ms / (npos * WT_THOUSAND));
+
+    /* Update the global max btree ETA so overall ETA can use it as a floor. */
+    if (btree_eta_sec > __wt_atomic_load_uint64_relaxed(&rts->progress.max_btree_eta_sec))
+        __wt_atomic_store_uint64_relaxed(&rts->progress.max_btree_eta_sec, btree_eta_sec);
 
     if (btree_eta_sec > 0)
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,

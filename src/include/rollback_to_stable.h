@@ -137,6 +137,7 @@ struct __wt_rollback_to_stable {
         wt_shared uint64_t btrees_processed;     /* Btrees fully processed (atomic). */
         wt_shared uint64_t btrees_skipped;       /* Btrees skipped, no work needed (atomic). */
         wt_shared uint64_t pages_walked;         /* Pages walked across all btrees (atomic). */
+        wt_shared uint64_t max_btree_eta_sec;    /* Largest per-btree ETA seen (atomic). */
     } progress;
 };
 
