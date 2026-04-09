@@ -438,12 +438,7 @@ __wt_meta_verify_id_uniqueness(WT_SESSION_IMPL *session, const char *cfg[])
         if (!WT_PREFIX_MATCH(uri, "file:") || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
             continue;
         WT_ERR(cursor->get_value(cursor, &config));
-        ret = __wt_config_getones(session, config, "id", &id_val);
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
-            continue;
-        }
-        WT_ERR(ret);
+        WT_ERR(__wt_config_getones(session, config, "id", &id_val));
 
         /* Grow the entries array as needed (zero-fills new space). */
         WT_ERR(__wt_realloc_def(session, &allocated, count + 1, &entries));
