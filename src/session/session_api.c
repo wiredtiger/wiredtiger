@@ -1822,8 +1822,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /*
      * When verifying the metadata file in disaggregated storage, check that no two stable
-     * constituent files share the same btree ID. Duplicate IDs are visible to SLS and can cause
-     * data corruption.
+     * constituent files share the same btree ID.
      */
     if (WT_IS_URI_METADATA(uri) && __wt_conn_is_disagg(session))
         WT_ERR(__wt_meta_verify_id_uniqueness(session));
