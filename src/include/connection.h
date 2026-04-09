@@ -516,7 +516,16 @@ struct __wt_name_flag {
  *	Queue entry for layered table drain threads.
  */
 struct __wt_layered_drain_entry {
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    /*
+     * Drain work items are constructed from the connection dhandle list at the time a drain is
+     * initiated. Keep a per-work-item copy of the layered table manager entry populated from the
+     * pinned layered dhandle.
+     */
+    WT_LAYERED_TABLE_MANAGER_ENTRY entry;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entryp;
+    char *layered_uri_alloc;
+    char *ingest_uri_alloc;
+    char *stable_uri_alloc;
     TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 

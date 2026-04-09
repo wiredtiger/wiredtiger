@@ -209,31 +209,47 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_DATA_HANDLE *dhandle;
+    WT_LAYERED_TABLE *layered;
     WT_UPDATE *upd;
-    uint32_t i, table_count;
+    char *ingest_uri;
 
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
     cursor = NULL;
-    entry = NULL;
+    ingest_uri = NULL;
     conn = S2C(session);
-    manager = &conn->layered_table_manager;
-    table_count = manager->open_layered_table_count;
-    for (i = 0; i < table_count; i++) {
-        /* Find the entry with stable uri that matches the currently opened dhandle. */
-        if (manager->entries[i] != NULL) {
-            if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
-                entry = manager->entries[i];
+
+    /*
+     * Find the matching layered table by walking the connection handle list and comparing the
+     * stable URI from the layered handle.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        for (dhandle = NULL;;) {
+            WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+            if (dhandle == NULL)
+                break;
+            if (dhandle->type != WT_DHANDLE_TYPE_LAYERED || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+                continue;
+
+            layered = (WT_LAYERED_TABLE *)dhandle;
+            if (layered->stable_uri != NULL && WT_STREQ(layered->stable_uri, stable_uri)) {
+                WT_DHANDLE_ACQUIRE(dhandle);
                 break;
             }
         }
-    }
-    WT_ASSERT_ALWAYS(
-      session, entry != NULL, "Unable to find matching ingest table to restore prepared update");
+    });
+
+    WT_ASSERT_ALWAYS(session, dhandle != NULL,
+      "Unable to find matching layered table to restore prepared update");
+
+    layered = (WT_LAYERED_TABLE *)dhandle;
+    WT_ASSERT(session, layered->ingest_uri != NULL);
+    WT_ERR(__wt_strdup(session, layered->ingest_uri, &ingest_uri));
+    WT_DHANDLE_RELEASE(dhandle);
+
     /* Open cursor on the ingest table */
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
+    WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cfg, &cursor));
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     size_t size;
@@ -247,5 +263,6 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
 err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
+    __wt_free(session, ingest_uri);
     return (ret);
 }
