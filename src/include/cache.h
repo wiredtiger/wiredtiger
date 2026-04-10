@@ -44,7 +44,12 @@ struct __wt_shared_dsk_item {
     void *data;
     uint32_t data_size;
 
-    wt_shared int32_t ref_count; /* References */
+    /*
+     * Reference count tracking how many pages share this disk image. Incremented on get or put
+     * collision, decremented on release. The entry is removed from the hash table when the count
+     * drops to zero.
+     */
+    wt_shared int32_t ref_count;
 
     uint32_t fid;      /* File ID */
     uint8_t addr_size; /* Address cookie */
@@ -61,9 +66,9 @@ struct __wt_shared_dsk_cache {
     WT_SPINLOCK *hash_locks;
     u_int hash_size;
     u_int hash_lock_size;
-    int32_t max_ref_count;
+    wt_shared int32_t max_ref_count;
 #ifdef HAVE_DIAGNOSTIC
-    uint32_t max_bucket_walk;
+    wt_shared uint32_t max_bucket_walk;
 #endif
 };
 

@@ -260,7 +260,8 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
     /* Destroy the shared disk cache if it was initialized. */
-    __wti_shared_dsk_cache_destroy(session);
+    if (conn->cache->shared_dsk_cache.enabled)
+        __wti_shared_dsk_cache_destroy(session);
 
     __wt_free(session, conn->cache);
     return (0);
