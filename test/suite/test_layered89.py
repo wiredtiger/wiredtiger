@@ -57,17 +57,13 @@ class test_layered89(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def setup_with_prepared_updates(self, all_keys, prepare_keys, commit_ts=10, prepare_ts=20):
+    def setup_primary_and_follower(self, all_keys, commit_ts=10):
         """
-        Both the primary and follower commit initial values for all_keys, then prepare
-        updates for prepare_keys using the same prepared_id (simulating oplog replay).
-        The primary checkpoints with the prepare still active (preserve_prepared=true)
-        so the snapshot includes the pending update. The follower advances its checkpoint
-        to pick up the primary's snapshot.
+        Open a follower, commit initial values for all_keys on both the primary and
+        follower (simulating oplog replay), then checkpoint both so the committed values
+        are in the snapshot before any prepare is introduced.
 
-        Returns (conn_follow, session_follow, prepare_session_primary, prepare_session_follow).
-        The caller must rollback prepare_session_follow before walking the cursor, then call
-        resolve_prepared(prepare_session_primary) for cleanup.
+        Returns (conn_follow, session_follow).
         """
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
@@ -95,119 +91,69 @@ class test_layered89(wttest.WiredTigerTestCase):
         cursor_follow.close()
 
         # Checkpoint the committed writes before introducing the prepare so that when the
-        # primary later checkpoints with the prepare active, both the pending update and
-        # the committed values are accessible in the snapshot.
+        # primary later checkpoints with the prepare active, the committed values remain
+        # readable on the follower after the prepare is rolled back.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(commit_ts))
         self.session.checkpoint()
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(commit_ts))
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Prepare updates on the primary.
-        prepare_session_primary = self.conn.open_session()
-        prepare_cursor_primary = prepare_session_primary.open_cursor(self.uri)
-        prepare_session_primary.begin_transaction()
-        for key in prepare_keys:
-            prepare_cursor_primary[key] = 'prepared_' + str(key)
-        prepare_session_primary.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(prepare_ts) +
-            ',prepared_id=' + self.prepared_id_str(1))
-        prepare_cursor_primary.close()
+        return conn_follow, session_follow
 
-        # Replay the same prepared transaction on the follower (simulating oplog replay).
-        prepare_session_follow = conn_follow.open_session()
-        prepare_cursor_follow = prepare_session_follow.open_cursor(self.uri)
-        prepare_session_follow.begin_transaction()
-        for key in prepare_keys:
-            prepare_cursor_follow[key] = 'prepared_' + str(key)
-        prepare_session_follow.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(prepare_ts) +
-            ',prepared_id=' + self.prepared_id_str(1))
-        prepare_cursor_follow.close()
-
-        # Checkpoint the primary while the prepare is still active; with
-        # preserve_prepared=true the pending update is included in the snapshot.
+    def checkpoint_with_prepare(self, conn_follow, prepare_ts):
+        """
+        Checkpoint the primary with the prepare still active (preserve_prepared=true),
+        then advance the follower checkpoint to pick up the primary's snapshot.
+        """
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(prepare_ts))
         chkpt_session = self.conn.open_session()
         chkpt_session.checkpoint()
         chkpt_session.close()
 
-        # Advance the follower checkpoint to pick up the primary's snapshot.
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(prepare_ts))
         self.disagg_advance_checkpoint(conn_follow)
 
-        return conn_follow, session_follow, prepare_session_primary, prepare_session_follow
+    def prepare_on_conn(self, conn, keys, prepare_ts, delete=False):
+        """Open a session on conn, prepare updates (or deletes) for keys, and return the session."""
+        session = conn.open_session()
+        cursor = session.open_cursor(self.uri)
+        session.begin_transaction()
+        for key in keys:
+            if delete:
+                cursor.set_key(key)
+                cursor.remove()
+            else:
+                cursor[key] = 'prepared_' + str(key)
+        session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(prepare_ts) +
+            ',prepared_id=' + self.prepared_id_str(1))
+        cursor.close()
+        return session
 
-    def setup_with_prepared_tombstones(self, all_keys, delete_keys, commit_ts=10, prepare_ts=20):
+    def setup_with_prepare(self, all_keys, prepare_keys, commit_ts=10, prepare_ts=20, delete=False):
         """
-        Same as setup_with_prepared_updates but prepares deletes for delete_keys instead
-        of value updates. Both primary and follower apply the same committed writes and
-        the same prepared deletes (same prepared_id).
+        Both the primary and follower commit initial values for all_keys, then prepare
+        the same updates (or deletes if delete=True) for prepare_keys using the same
+        prepared_id (simulating oplog replay). The primary checkpoints with the prepare
+        still active (preserve_prepared=true) so the snapshot includes the pending update.
+        The follower advances its checkpoint to pick up the primary's snapshot.
 
         Returns (conn_follow, session_follow, prepare_session_primary, prepare_session_follow).
+        The caller must rollback prepare_session_follow before walking the cursor, then call
+        resolve_prepared(prepare_session_primary) for cleanup.
         """
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        conn_follow, session_follow = self.setup_primary_and_follower(all_keys, commit_ts)
 
-        conn_follow = self.wiredtiger_open('follower',
-            self.extensionsConfig() + self.conn_base_config +
-            'disaggregated=(role="follower")')
-        session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, 'key_format=i,value_format=S')
-        conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        prepare_session_primary = self.prepare_on_conn(self.conn, prepare_keys, prepare_ts, delete)
+        # Replay the same prepared transaction on the follower (simulating oplog replay).
+        prepare_session_follow = self.prepare_on_conn(conn_follow, prepare_keys, prepare_ts, delete)
 
-        cursor = self.session.open_cursor(self.uri)
-        for key in all_keys:
-            self.session.begin_transaction()
-            cursor[key] = 'committed_' + str(key)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-        cursor.close()
-
-        # Replay the same committed writes on the follower (simulating oplog replay).
-        cursor_follow = session_follow.open_cursor(self.uri)
-        for key in all_keys:
-            session_follow.begin_transaction()
-            cursor_follow[key] = 'committed_' + str(key)
-            session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-        cursor_follow.close()
-
-        # Prepare deletes on the primary.
-        prepare_session_primary = self.conn.open_session()
-        prepare_cursor_primary = prepare_session_primary.open_cursor(self.uri)
-        prepare_session_primary.begin_transaction()
-        for key in delete_keys:
-            prepare_cursor_primary.set_key(key)
-            prepare_cursor_primary.remove()
-        prepare_session_primary.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(prepare_ts) +
-            ',prepared_id=' + self.prepared_id_str(1))
-        prepare_cursor_primary.close()
-
-        # Replay the same prepared deletes on the follower (simulating oplog replay).
-        prepare_session_follow = conn_follow.open_session()
-        prepare_cursor_follow = prepare_session_follow.open_cursor(self.uri)
-        prepare_session_follow.begin_transaction()
-        for key in delete_keys:
-            prepare_cursor_follow.set_key(key)
-            prepare_cursor_follow.remove()
-        prepare_session_follow.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(prepare_ts) +
-            ',prepared_id=' + self.prepared_id_str(1))
-        prepare_cursor_follow.close()
-
-        # Checkpoint the primary while the prepare is still active.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(prepare_ts))
-        chkpt_session = self.conn.open_session()
-        chkpt_session.checkpoint()
-        chkpt_session.close()
-
-        # Advance the follower checkpoint to pick up the primary's snapshot.
-        conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(prepare_ts))
-        self.disagg_advance_checkpoint(conn_follow)
+        self.checkpoint_with_prepare(conn_follow, prepare_ts)
 
         return conn_follow, session_follow, prepare_session_primary, prepare_session_follow
 
     def evict_page(self, session, key):
-        """Release the cached page so the next access reads from the checkpoint."""
+        """Force the follower to reload data from its checkpoint on the next cursor access."""
         evict_session = session.connection.open_session('debug=(release_evict_page)')
         evict_cursor = evict_session.open_cursor(self.uri)
         evict_cursor.set_key(key)
@@ -215,23 +161,13 @@ class test_layered89(wttest.WiredTigerTestCase):
         evict_cursor.close()
         evict_session.close()
 
-    def collect_keys_next(self, session):
-        """Walk forward and return all visible keys."""
+    def collect_keys(self, session, forward=True):
+        """Walk the cursor and return all visible keys. forward=True uses next(), False uses prev()."""
         cursor = session.open_cursor(self.uri)
         session.begin_transaction()
+        step = cursor.next if forward else cursor.prev
         keys = []
-        while cursor.next() != wiredtiger.WT_NOTFOUND:
-            keys.append(cursor.get_key())
-        session.rollback_transaction()
-        cursor.close()
-        return keys
-
-    def collect_keys_prev(self, session):
-        """Walk backward and return all visible keys."""
-        cursor = session.open_cursor(self.uri)
-        session.begin_transaction()
-        keys = []
-        while cursor.prev() != wiredtiger.WT_NOTFOUND:
+        while step() != wiredtiger.WT_NOTFOUND:
             keys.append(cursor.get_key())
         session.rollback_transaction()
         cursor.close()
@@ -253,20 +189,16 @@ class test_layered89(wttest.WiredTigerTestCase):
         Common harness for cursor-walk tests on a follower whose checkpoint contains
         prepared updates (or tombstones). Returns the keys returned by walk_func.
         """
-        if delete:
-            conn_follow, session_follow, prepare_session_primary, prepare_session_follow = \
-                self.setup_with_prepared_tombstones(all_keys, prepare_keys)
-        else:
-            conn_follow, session_follow, prepare_session_primary, prepare_session_follow = \
-                self.setup_with_prepared_updates(all_keys, prepare_keys)
+        conn_follow, session_follow, prepare_session_primary, prepare_session_follow = \
+            self.setup_with_prepare(all_keys, prepare_keys, delete=delete)
 
-        # Roll back the follower's prepared transaction; the prior committed value
-        # is now the most recent visible version on the follower.
+        # Roll back the follower's prepared transaction so the committed value
+        # is what the cursor returns on the follower.
         prepare_session_follow.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(30))
         prepare_session_follow.close()
 
-        # Evict cached pages so the next access reads from the checkpointed snapshot.
+        # Force the follower to reload from its checkpoint on the next cursor access.
         self.evict_page(session_follow, all_keys[0])
 
         keys = walk_func(session_follow)
@@ -286,7 +218,7 @@ class test_layered89(wttest.WiredTigerTestCase):
         """
         all_keys = [1, 2, 3, 4, 5]
         keys = self.run_walk_test(all_keys, prepare_keys=[2, 4],
-            walk_func=self.collect_keys_next)
+            walk_func=lambda s: self.collect_keys(s, forward=True))
         self.assertEqual(sorted(keys), all_keys)
 
     def test_prev_walk_prepared_update(self):
@@ -297,7 +229,7 @@ class test_layered89(wttest.WiredTigerTestCase):
         """
         all_keys = [1, 2, 3, 4, 5]
         keys = self.run_walk_test(all_keys, prepare_keys=[2, 4],
-            walk_func=self.collect_keys_prev)
+            walk_func=lambda s: self.collect_keys(s, forward=False))
         self.assertEqual(sorted(keys), all_keys)
 
     def test_next_walk_prepared_tombstone(self):
@@ -309,7 +241,7 @@ class test_layered89(wttest.WiredTigerTestCase):
         """
         all_keys = [1, 2, 3, 4, 5]
         keys = self.run_walk_test(all_keys, prepare_keys=[2, 4],
-            walk_func=self.collect_keys_next, delete=True)
+            walk_func=lambda s: self.collect_keys(s, forward=True), delete=True)
         self.assertEqual(sorted(keys), all_keys)
 
     def test_prev_walk_prepared_tombstone(self):
@@ -321,7 +253,7 @@ class test_layered89(wttest.WiredTigerTestCase):
         """
         all_keys = [1, 2, 3, 4, 5]
         keys = self.run_walk_test(all_keys, prepare_keys=[2, 4],
-            walk_func=self.collect_keys_prev, delete=True)
+            walk_func=lambda s: self.collect_keys(s, forward=False), delete=True)
         self.assertEqual(sorted(keys), all_keys)
 
     def test_search_and_search_near_prepared_update(self):
@@ -334,7 +266,7 @@ class test_layered89(wttest.WiredTigerTestCase):
         prepare_keys = [2]
 
         conn_follow, session_follow, prepare_session_primary, prepare_session_follow = \
-            self.setup_with_prepared_updates(all_keys, prepare_keys)
+            self.setup_with_prepare(all_keys, prepare_keys)
 
         # Roll back the follower's prepared transaction.
         prepare_session_follow.rollback_transaction(
