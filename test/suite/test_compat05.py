@@ -46,7 +46,11 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
         ('remove-override-order2', dict(remove_arg = 'remove=true,archive=false', removed = True)),
         ('remove-true', dict(remove_arg = 'remove=true', removed = True)),
     ]
-    scenarios = make_scenarios(remove_values)
+    if wttest.isfast():
+        # Keep a representative configuration in fast runs.
+        scenarios = make_scenarios([('default', dict(remove_arg = '', removed = True))])
+    else:
+        scenarios = make_scenarios(remove_values)
 
     log1 = 'WiredTigerLog.0000000001'
     log2 = 'WiredTigerLog.0000000002'
@@ -57,14 +61,29 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Check if the log file has been removed.
     def check_remove(self):
+        # When we expect removal, wait longer; otherwise we only need to ensure it doesn't
+        # disappear quickly (the long suite covers extended waiting).
+        if wttest.isfast():
+            max_wait = 10.0 if self.removed else 1.0
+        elif wttest.islongtest():
+            max_wait = 90.0
+        else:
+            max_wait = 30.0 if self.removed else 5.0
+
+        deadline = time.monotonic() + max_wait
+        sleep = 0.05
         removed = False
-        for i in range(1,90):
-            # Sleep and then see if log removal ran. We do this in a loop
-            # for slow machines. Max out at 90 seconds.
-            time.sleep(1.0)
-            if not os.path.exists(self.log1):
+        while True:
+            exists = os.path.exists(self.log1)
+            if not exists:
                 removed = True
                 break
+            if time.monotonic() >= deadline:
+                removed = False
+                break
+            time.sleep(sleep)
+            # Exponential backoff up to 1s reduces wasted wakeups.
+            sleep = min(1.0, sleep * 2)
         return removed
 
     # Run a single test.

@@ -30,6 +30,7 @@ import threading
 from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+import wttest
 from wtscenario import make_scenarios
 from wtthread import checkpoint_thread
 
@@ -109,11 +110,12 @@ class test_prepare21(test_rollback_to_stable_base):
             ckpt.start()
 
             # Wait for checkpoint to start before committing last transaction.
-            ckpt_started = 0
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+            self.wait_for_stat(
+                stat.conn.checkpoint_state,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             self.evict_cursor(uri, nrows)
         finally:

@@ -29,6 +29,7 @@
 import threading, time
 from compact_util import compact_util
 from wiredtiger import stat
+import wttest
 from wtthread import checkpoint_thread
 
 # test_compact16
@@ -65,12 +66,12 @@ class test_compact16(compact_util):
             ckpt.start()
 
             # Wait for checkpoint to start before calling compact.
-            ckpt_started = False
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
-                time.sleep(0.1)
+            self.wait_for_stat(
+                stat.conn.checkpoint_state,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
             self.session.compact(self.uri)
         finally:
             done.set()

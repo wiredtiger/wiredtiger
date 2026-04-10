@@ -41,9 +41,14 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
     format='key_format=i,value_format=S'
     tablebase = 'test_sweep06'
     uri = 'table:' + tablebase
-    conn_config = 'file_manager=(close_handle_minimum=0,' + \
-                  'close_idle_time=60,close_scan_interval=30),session_max=530,' + \
-                  'verbose=(sweep:3)'
+    def conn_config(self):
+        # In fast runs, make the sweep server run quickly so we don't waste wall time
+        # waiting for the default 30s scan interval.
+        close_idle = 2 if wttest.isfast() else 60
+        close_scan = 1 if wttest.isfast() else 30
+        return 'file_manager=(close_handle_minimum=0,' + \
+               f'close_idle_time={close_idle},close_scan_interval={close_scan}),' + \
+               'session_max=530,verbose=(sweep:3)'
 
     cursor_caching = [
         ('cursor_caching_disabled', dict(cursor_caching=False)),
@@ -73,21 +78,39 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
         session.close()
 
     def test_dhandles(self):
+        # This test historically used a long-running stress loop to ensure the sweep server ran.
+        # Use sweep statistics to wait for a sweep pass instead, and scale the workload down for fast runs.
+        dhandles = 20 if wttest.isfast() else self.dhandles
+        iterations = 3 if wttest.isfast() else 20
+        rows = 50 if wttest.isfast() else 100
+
         if self.cursor_caching:
             self.session.reconfigure('cache_cursors=true')
-        for i in range(1,self.dhandles):
+        for i in range(1, dhandles):
             uri = self.uri + str(i)
             self.session.create(uri, self.format)
 
-        for i in range(1,100):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        sweep_baseline = stat_cursor[stat.conn.dh_sweeps][2]
+        stat_cursor.close()
+
+        for i in range(1, iterations + 1):
             threads = []
-            for i in range(1,self.dhandles):
-                thread = threading.Thread(target=self.insert, args=(i, 0, 100))
+            for i in range(1, dhandles):
+                thread = threading.Thread(target=self.insert, args=(i, 0, rows))
                 thread.start()
                 threads.append(thread)
 
             for thread in threads:
                 thread.join()
+
+        # Wait for the sweep server to run (let it run twice; dh_sweeps increments at sweep start).
+        self.wait_for_stat(
+            stat.conn.dh_sweeps,
+            predicate=lambda v: v > sweep_baseline + 1,
+            timeout=5.0 if wttest.isfast() else 30.0,
+            interval=0.25,
+        )
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         close1 = stat_cursor[stat.conn.dh_sweep_dead_close][2]

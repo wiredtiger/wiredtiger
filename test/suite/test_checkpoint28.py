@@ -125,12 +125,12 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             ckpt.start()
 
             # Wait for checkpoint to start before committing.
-            ckpt_started = 0
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
-                time.sleep(1)
+            self.wait_for_stat(
+                stat.conn.checkpoint_snapshot_acquired,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             # Commit the transaction at 25 but make it durable at 35.
             session2.timestamp_transaction('commit_timestamp=' + self.timestamp_str(25))

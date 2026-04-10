@@ -117,16 +117,12 @@ class test_checkpoint_snapshot05(backup_base):
             ckpt.start()
 
             # Wait for checkpoint to acquire its snapshot executing the commit.
-            ckpt_snapshot = 0
-            while not ckpt_snapshot:
-                with open_cursor(self.session, 'statistics:') as stat_cursor:
-                    ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
-
-                # We want the checkpoint thread to advance without actually completing.
-                # Hence the configuration: timing_stress_for_test=[checkpoint_slow].
-                # Though the appropriate poll interval is really a guess, favor aggression
-                # as this test is run in isolation.
-                time.sleep(0.1)
+            self.wait_for_stat(
+                stat.conn.checkpoint_snapshot_acquired,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             session1.commit_transaction()
 

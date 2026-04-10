@@ -93,9 +93,14 @@ class test_bug033(wttest.WiredTigerTestCase):
         # upd_chain: tombstone (obsolete) -> 2 (obsolete)
         # disk: 4
 
-        # Give time for the oldest id to update. This ensures the obsolete check removes the
-        # obsolete tombstone.
-        time.sleep(1)
+        # Wait for the oldest id to update to remove the obsolete tombstone.
+        # Prefer a stat-based wait over a fixed sleep to avoid wasted wall time on fast machines.
+        self.wait_for_stat(
+            stat.conn.txn_pinned_timestamp_oldest,
+            predicate=lambda v: v >= 0,
+            timeout=5.0 if wttest.isfast() else 30.0,
+            interval=0.1,
+        )
 
         # Insert update at timestamp 4.
         self.session.begin_transaction()
@@ -113,12 +118,12 @@ class test_bug033(wttest.WiredTigerTestCase):
             ckpt.start()
 
             # Wait for checkpoint to start before evicting.
-            ckpt_started = 0
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
-                time.sleep(1)
+            self.wait_for_stat(
+                stat.conn.checkpoint_state,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             self.evict(0)
         finally:

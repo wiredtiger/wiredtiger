@@ -89,11 +89,12 @@ class test_cc_base(wttest.WiredTigerTestCase):
         if ckpt_name:
             ckpt_config += f",name={ckpt_name}"
         self.session.checkpoint(ckpt_config)
-        while cc_success - prev_cc_success == 0:
-            time.sleep(0.1)
-            c = self.session.open_cursor('statistics:')
-            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
-            c.close()
+        self.wait_for_stat(
+            stat.conn.checkpoint_cleanup_success,
+            predicate=lambda v: v - prev_cc_success > 0,
+            timeout=5.0 if wttest.isfast() else 30.0,
+            interval=0.1,
+        )
 
     # Trigger checkpoint clean up and check it has visited and removed pages.
     def check_cc_stats(self, ckpt_name = ""):

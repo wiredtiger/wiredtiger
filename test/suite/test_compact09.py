@@ -29,6 +29,7 @@
 import time
 from compact_util import compact_util
 from wiredtiger import stat
+import wttest
 
 megabyte = 1024 * 1024
 
@@ -83,15 +84,23 @@ class test_compact09(compact_util):
         self.session.compact(None, config)
 
         # Background compaction should exclude all files.
-        while self.get_bg_compaction_files_excluded() < self.n_tables:
-            time.sleep(0.1)
+        self.wait_for_condition(
+            lambda: self.get_bg_compaction_files_excluded() >= self.n_tables,
+            timeout=10.0 if wttest.isfast() else 60.0,
+            interval=0.1,
+            desc='background compaction exclude all files',
+        )
         assert self.get_files_compacted(uris) == 0
         num_files_excluded = self.get_bg_compaction_files_excluded()
         assert num_files_excluded == self.n_tables
 
         # Make sure the background server is stopped by now.
-        while self.get_bg_compaction_running():
-            time.sleep(0.1)
+        self.wait_for_condition(
+            lambda: not self.get_bg_compaction_running(),
+            timeout=10.0 if wttest.isfast() else 60.0,
+            interval=0.1,
+            desc='background compaction stop',
+        )
 
         # Enable background compaction and exclude only one table.
         exclude_list = f'["{self.uri_prefix}_0.wt"]'
@@ -100,13 +109,21 @@ class test_compact09(compact_util):
 
         # Background compaction should exclude only one file now. Since the stats are cumulative, we
         # need to take into account the previous check.
-        while self.get_bg_compaction_files_excluded() < num_files_excluded + 1:
-            time.sleep(0.1)
+        self.wait_for_condition(
+            lambda: self.get_bg_compaction_files_excluded() >= num_files_excluded + 1,
+            timeout=10.0 if wttest.isfast() else 60.0,
+            interval=0.1,
+            desc='background compaction exclude one more file',
+        )
         assert self.get_bg_compaction_files_excluded() == num_files_excluded + 1
 
         # We should now start compacting the second table.
-        while self.get_files_compacted(uris) == 0:
-            time.sleep(0.1)
+        self.wait_for_condition(
+            lambda: self.get_files_compacted(uris) != 0,
+            timeout=10.0 if wttest.isfast() else 60.0,
+            interval=0.1,
+            desc='background compaction compact second table',
+        )
         assert self.get_files_compacted(uris) == 1
 
         # Make sure we have compacted the right table.

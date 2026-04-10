@@ -56,7 +56,11 @@ class test_checkpoint_snapshot06(backup_base):
         ("backup", dict(restart=False)),
     ]
 
-    scenarios = make_scenarios(format_values, restart_values)
+    if wttest.isfast():
+        scenarios = make_scenarios([('row_integer', dict(key_format='i', value_format='S'))],
+                                  [("backup", dict(restart=False))])
+    else:
+        scenarios = make_scenarios(format_values, restart_values)
 
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),debug_mode=(log_retention=10),timing_stress_for_test=[checkpoint_slow]'
@@ -181,12 +185,12 @@ class test_checkpoint_snapshot06(backup_base):
             ckpt.start()
 
             # Wait for checkpoint to start and acquire its snapshot before committing.
-            ckpt_snapshot = 0
-            while not ckpt_snapshot:
-                time.sleep(1)
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
-                stat_cursor.close()
+            self.wait_for_stat(
+                stat.conn.checkpoint_snapshot_acquired,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             # commit the operations in out of order. Insert followed by truncate.
             session2.commit_transaction()

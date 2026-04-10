@@ -66,7 +66,17 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
         ('precise', dict(ckpt_config='precise_checkpoint=true')),
     ]
-    scenarios = make_scenarios(format_values, overlap_values, name_values, log_values, ckpt_precision)
+    if wttest.isfast():
+        # Keep one representative scenario in fast runs: still exercises the inconsistent
+        # checkpoint reader path without paying the full cross-product cost.
+        _format = [('string_row', dict(key_format='S', value_format='S', extraconfig=''))]
+        _overlap = [('overlap', dict(do_overlap=True))]
+        _name = [('named', dict(second_checkpoint='second_checkpoint', do_reopen=False))]
+        _log = [('logged', dict(do_log=True))]
+        _prec = [('fuzzy', dict(ckpt_config='precise_checkpoint=false'))]
+        scenarios = make_scenarios(_format, _overlap, _name, _log, _prec)
+    else:
+        scenarios = make_scenarios(format_values, overlap_values, name_values, log_values, ckpt_precision)
 
     def conn_config(self):
         cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
@@ -143,12 +153,12 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             ckpt.start()
 
             # Wait for checkpoint to start before committing.
-            ckpt_started = 0
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
-                time.sleep(1)
+            self.wait_for_stat(
+                stat.conn.checkpoint_snapshot_acquired,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             session2.commit_transaction()
         finally:

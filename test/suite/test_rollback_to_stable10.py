@@ -31,6 +31,7 @@ from helper import copy_wiredtiger_home, simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+import wttest
 from wtscenario import make_scenarios
 from wtthread import checkpoint_thread
 
@@ -52,6 +53,11 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
     ]
 
     scenarios = make_scenarios(format_values, prepare_values)
+    if wttest.isfast():
+        scenarios = make_scenarios(
+            [('row_integer', dict(key_format='i'))],
+            [('no_prepare', dict(prepare=False))]
+        )
 
     def conn_config(self):
         config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[history_store_checkpoint_delay],verbose=(rts:5)'
@@ -144,8 +150,13 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         try:
             self.pr("start checkpoint")
             ckpt.start()
-            # Sleep for sometime so that checkpoint starts.
-            time.sleep(2)
+            # Wait for checkpoint to start.
+            self.wait_for_stat(
+                stat.conn.checkpoint_state,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             # Perform several updates in parallel with checkpoint.
             # Rollbacks may occur when checkpoint is running, so retry as needed.
@@ -274,12 +285,12 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             ckpt.start()
 
             # Wait for checkpoint to start before committing.
-            ckpt_started = 0
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
-                time.sleep(1)
+            self.wait_for_stat(
+                stat.conn.checkpoint_state,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             # Perform several updates in parallel with checkpoint.
             session_p1 = self.conn.open_session()

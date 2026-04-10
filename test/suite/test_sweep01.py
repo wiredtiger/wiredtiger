@@ -73,7 +73,7 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
             for k in range(self.numkv):
                 c[k+1] = 1
             c.close()
-            if f % 20 == 0:
+            if (not wttest.isfast()) and f % 20 == 0:
                 time.sleep(1)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -106,30 +106,35 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
         #
         c = self.session.open_cursor(uri, None)
         k = 0
-        sleep = 0
-        max = 60
+        elapsed = 0.0
+        max = 20 if wttest.isfast() else 60
         final_nfile = 5
-        while sleep < max:
+        while elapsed < max:
             self.session.checkpoint()
             k = k+1
             c[k] = 1
-            sleep += 0.5
-            time.sleep(0.5)
-            # Give slow machines time to process files.
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            this_nfile = stat_cursor[stat.conn.file_open][2]
-            removed = stat_cursor[stat.conn.dh_sweep_remove][2]
-            stat_cursor.close()
-            self.pr("==== loop " + str(sleep))
-            self.pr("this_nfile " + str(this_nfile))
-            self.pr("removed " + str(removed))
             # On slow machines there can be a lag where files get closed but
             # the sweep server cannot yet remove the handles.  So wait for the
             # removed statistic to indicate forward progress too.
-            if this_nfile == final_nfile and removed != remove1:
+            def done():
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                try:
+                    this_nfile = stat_cursor[stat.conn.file_open][2]
+                    removed = stat_cursor[stat.conn.dh_sweep_remove][2]
+                finally:
+                    stat_cursor.close()
+                self.pr("==== loop " + str(elapsed))
+                self.pr("this_nfile " + str(this_nfile))
+                self.pr("removed " + str(removed))
+                return this_nfile == final_nfile and removed != remove1
+
+            # Poll for up to 0.5s each iteration; avoids wasting time on fast machines while
+            # still allowing progress on slow ones.
+            if self.poll_for_condition(done, timeout=0.5, interval=0.1):
                 break
+            elapsed += 0.5
         c.close()
-        self.pr("Sweep loop took " + str(sleep))
+        self.pr("Sweep loop took " + str(elapsed))
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         close2 = stat_cursor[stat.conn.dh_sweep_dead_close][2]

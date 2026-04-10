@@ -83,12 +83,12 @@ class test_truncate11(wttest.WiredTigerTestCase):
             ckpt.start()
 
             # Wait for checkpoint to start before committing last transaction.
-            ckpt_started = 0
-            while not ckpt_started:
-                time.sleep(1)
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+            self.wait_for_stat(
+                stat.conn.checkpoint_snapshot_acquired,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 30.0,
+                interval=0.1,
+            )
 
             # Start a transaction.
             self.session.begin_transaction()
