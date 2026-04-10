@@ -1555,9 +1555,7 @@ __conn_cleanup_chunk_cache(WT_SESSION_IMPL *session)
         return (0);
 
     /* Only drop the chunk cache metadata table if it exists. */
-    WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, WT_CC_METAFILE_URI, &value));
-    if (ret == WT_NOTFOUND)
-        return (0);
+    WT_RET_NOTFOUND_OK(__wt_metadata_search(session, WT_CC_METAFILE_URI, &value));
     __wt_free(session, value);
 
     WT_WITH_SCHEMA_LOCK(
@@ -1575,7 +1573,7 @@ static int
 __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const char *source)
 {
     WT_CONFIG_ITEM cval;
-    int ret;
+    WT_DECL_RET;
     bool cc_enabled;
 
     if (config == NULL)
