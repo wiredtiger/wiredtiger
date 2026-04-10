@@ -56,10 +56,10 @@ For example:
 <table>
 @hrow{WiredTiger API, C standard library equivalent}
 @row{`WT_ACQUIRE_BARRIER`, `atomic_thread_fence(memory_order_acquire)`}
-@row{`__wt_atomic_load_<type>_<order>`, `atomic_load_explicit(..., <order>)`}
-@row{`__wt_atomic_cas_<type>`, `atomic_compare_exchange_strong(..., memory_order_seq_cst)`}
-@row{`__wt_atomic_sub_<type>`, `atomic_fetch_sub(..., <order>)`}
-@row{`__wt_atomic_or_generic_relaxed`, `atomic_fetch_or_explicit(..., memory_order_relaxed)`}
+@row{`WT_COMPILER_BARRIER`, `atomic_signal_fence(memory_order_seq_cst)`}
+@row{`__wt_atomic_load_<type>_<order>`, `atomic_load_explicit(<order>)`}
+@row{`__wt_atomic_cas_<type>`, `atomic_compare_exchange_strong_explicit(memory_order_seq_cst)`}
+@row{`__wt_atomic_or_generic_relaxed`, `atomic_fetch_or_explicit(memory_order_relaxed)`}
 </table>
 
 Given that all WiredTiger lock-free primitives behave in accordance with the C standard library
@@ -76,13 +76,5 @@ interfaces: `WT_READ/WRITE_ONCE` and `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER
 `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER` is a relaxed atomic load or store combined with an
 acquire or release barrier. However, note that these interfaces have been deprecated and should not
 be used in newly developed code.
-
-@subsection com-bar Compiler barrier
-
-A compiler barrier prevents compiler optimizations and code reordering across the barrier point.
-It is invoked via the \c WT_COMPILER_BARRIER macro and does not affect CPU reordering.
-
-This is the only lock-free synchronization primitive in WiredTiger that has no equivalent and cannot
-be implemented through the C standard library.
 
 */
