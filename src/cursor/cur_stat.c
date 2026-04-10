@@ -489,22 +489,16 @@ err:
 
 /*
  * __wt_curstat_size_local --
- *     Fast-path size retrieval for tables backed by a local file. If the file exists, set *was_fast
+ *     Fast-path size retrieval for tables backed by a local file. If the file exists, set *existp
  *     and return the size via *sizep.
  */
 int
 __wt_curstat_size_local(
-  WT_SESSION_IMPL *session, const char *filename, bool *was_fast, wt_off_t *sizep)
+  WT_SESSION_IMPL *session, const char *filename, bool *existp, wt_off_t *sizep)
 {
-    bool exist;
-
-    *was_fast = false;
-
-    WT_RET(__wt_fs_exist(session, filename, &exist));
-    if (exist) {
+    WT_RET(__wt_fs_exist(session, filename, existp));
+    if (*existp)
         WT_RET(__wt_block_manager_named_size(session, filename, sizep));
-        *was_fast = true;
-    }
 
     return (0);
 }
@@ -512,17 +506,17 @@ __wt_curstat_size_local(
 /*
  * __wt_curstat_size_disagg --
  *     Fast-path size retrieval for disaggregated tables. There is no underlying file on disk, so
- *     read the checkpoint size directly from the file's metadata entry. If successful, set
- *     *was_fast and return the size via *sizep.
+ *     read the checkpoint size directly from the file's metadata entry. If successful, set *existp
+ *     and return the size via *sizep.
  */
 int
-__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, wt_off_t *sizep)
+__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, wt_off_t *sizep)
 {
     WT_DECL_RET;
     uint64_t ckpt_size;
     char *fileconf;
 
-    *was_fast = false;
+    *existp = false;
     fileconf = NULL;
 
     if (__wt_metadata_search(session, uri, &fileconf) == 0) {
@@ -530,7 +524,7 @@ __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *was_fa
         __wt_free(session, fileconf);
         if (ret == 0) {
             *sizep = (wt_off_t)ckpt_size;
-            *was_fast = true;
+            *existp = true;
         }
     }
 
@@ -549,7 +543,7 @@ __curstat_file_init(
     WT_DECL_RET;
     wt_off_t size;
     const char *filename;
-    bool was_fast;
+    bool exist;
 
     /*
      * If we are only getting the size of the file, we don't need to open the tree. This only
@@ -560,10 +554,10 @@ __curstat_file_init(
         WT_PREFIX_SKIP(filename, "file:");
 
         size = 0;
-        WT_RET(__wt_curstat_size_local(session, filename, &was_fast, &size));
-        if (!was_fast)
-            WT_RET(__wt_curstat_size_disagg(session, uri, &was_fast, &size));
-        if (was_fast) {
+        WT_RET(__wt_curstat_size_local(session, filename, &exist, &size));
+        if (!exist)
+            WT_RET(__wt_curstat_size_disagg(session, uri, &exist, &size));
+        if (exist) {
             __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
             cst->u.dsrc_stats.block_size = size;
             __wt_curstat_dsrc_final(cst);
