@@ -179,8 +179,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_URI_DESC *entry
         const char *stable_cfg[4];
 
         layered = (WT_LAYERED_TABLE *)session->dhandle;
-        WT_ASSERT(session, layered->stable_uri != NULL && layered->ingest_uri != NULL);
-        ingest_uri = layered->ingest_uri;
+        WT_ASSERT(session, layered->stable_uri != NULL && layered->n_ingest_uris > 0);
+        ingest_uri = WT_LAYERED_PRIMARY_INGEST_URI(layered);
         stable_uri = layered->stable_uri;
 
         stable_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
@@ -525,9 +525,10 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
         /* Populate URIs from the pinned layered handle. */
         WT_WITH_DHANDLE(session, work_item->entry.pinned_dhandle, {
             layered = (WT_LAYERED_TABLE *)session->dhandle;
-            WT_ASSERT(session, layered->ingest_uri != NULL && layered->stable_uri != NULL);
-            work_item->entry.ingest_id = layered->ingest_btree_id;
-            WT_ERR(__wt_strdup(session, layered->ingest_uri, &work_item->ingest_uri_alloc));
+            WT_ASSERT(session, layered->n_ingest_uris > 0 && layered->stable_uri != NULL);
+            work_item->entry.ingest_id = WT_LAYERED_PRIMARY_INGEST_BTREE_ID(layered);
+            WT_ERR(__wt_strdup(
+              session, WT_LAYERED_PRIMARY_INGEST_URI(layered), &work_item->ingest_uri_alloc));
             WT_ERR(__wt_strdup(session, layered->stable_uri, &work_item->stable_uri_alloc));
         });
         work_item->entry.ingest_uri = work_item->ingest_uri_alloc;
@@ -600,6 +601,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     wt_timestamp_t prune_timestamp;
     int64_t ckpt_inuse, last_ckpt;
     int32_t layered_dhandle_inuse, stable_dhandle_inuse;
+    uint32_t i;
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
@@ -684,37 +686,42 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
      * that it hasn't been opened yet. In that case, we need to skip updating its timestamp for
      * pruning, and we'll get another chance to update the prune timestamp at the next checkpoint.
      */
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: Handle not found for ingest table uri: %s", layered_table->iface.name,
-          layered_table->ingest_uri);
-        ret = 0;
-        goto err;
+    for (i = 0; i < layered_table->n_ingest_uris; i++) {
+        WT_ERR_NOTFOUND_OK(
+          __wt_session_get_dhandle(session, layered_table->ingest_uris[i], NULL, NULL, 0), true);
+        if (ret == WT_NOTFOUND) {
+            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+              "GC %s: Handle not found for ingest table uri: %s", layered_table->iface.name,
+              layered_table->ingest_uris[i]);
+            ret = 0;
+            continue;
+        }
+
+        btree = (WT_BTREE *)session->dhandle->handle;
+
+        if (prune_timestamp != WT_TS_NONE) {
+            uint64_t btree_prune_timestamp =
+              __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+            WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
+
+            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+              "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64
+              " and checkpoint in use from %" PRId64 " to %" PRId64,
+              layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
+              layered_table->last_ckpt_inuse, ckpt_inuse);
+
+            /*
+             * The prune timestamp should be monotonically increasing. It is fine for the user to
+             * read the obsolete value. Therefore, no synchronization is required.
+             */
+            __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
+        }
+
+        WT_ERR(__wt_session_release_dhandle(session));
     }
 
-    btree = (WT_BTREE *)session->dhandle->handle;
-
-    if (prune_timestamp != WT_TS_NONE) {
-        uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-        WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
-
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64
-          " and checkpoint in use from %" PRId64 " to %" PRId64,
-          layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
-          layered_table->last_ckpt_inuse, ckpt_inuse);
-
-        /*
-         * The prune timestamp should be monotonically increasing. It is fine for the user to read
-         * the obsolete value. Therefore, no synchronization is required.
-         */
-        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
+    if (prune_timestamp != WT_TS_NONE)
         layered_table->last_ckpt_inuse = ckpt_inuse;
-    }
-
-    WT_ERR(__wt_session_release_dhandle(session));
 
 err:
     WT_ASSERT(session, layered_table != NULL);

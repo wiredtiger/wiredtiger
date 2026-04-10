@@ -75,7 +75,13 @@ struct __wt_table {
 struct __wt_layered_table {
     WT_DATA_HANDLE iface;
 
-    uint32_t ingest_btree_id;
+    /*
+     * Ingest tables from oldest to newest; the last URI is the primary (active) ingest for writes
+     * and the btree id used where a single id is still required.
+     */
+    char **ingest_uris;
+    uint32_t *ingest_btree_ids;
+    uint32_t n_ingest_uris;
 
     WT_COLLATOR *collator; /* Custom collator */
     int collator_owned;
@@ -87,8 +93,17 @@ struct __wt_layered_table {
     int64_t last_ckpt_inuse;
 
     const char *key_format, *value_format;
-    const char *ingest_uri, *stable_uri;
+    const char *stable_uri;
 };
+
+/*
+ * Primary ingest URI for layered tables (newest chunk).
+ */
+#define WT_LAYERED_PRIMARY_INGEST_URI(l) \
+    ((l)->n_ingest_uris > 0 ? (l)->ingest_uris[(l)->n_ingest_uris - 1] : NULL)
+
+#define WT_LAYERED_PRIMARY_INGEST_BTREE_ID(l) \
+    ((l)->n_ingest_uris > 0 ? (l)->ingest_btree_ids[(l)->n_ingest_uris - 1] : 0)
 
 /* Holds metadata entry name and the associated config string. */
 struct __wt_import_entry {

@@ -85,11 +85,11 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    const char *ingest_uri = layered->ingest_uri;
     const char *stable_uri = layered->stable_uri;
+    u_int ingest_idx;
 
     WT_ASSERT(session, stable_uri != NULL);
-    WT_ASSERT(session, ingest_uri != NULL);
+    WT_ASSERT(session, layered->n_ingest_uris > 0);
     WT_ASSERT(session, file_func == __wt_verify);
 
     /*
@@ -121,25 +121,34 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
          * On leader, if verifying ingest returns EBUSY, it means ingest is not empty (dirty
          * content, or open cursors), which is an invalid state.
          */
-        WT_WITHOUT_DHANDLE(session,
-          ingest_ret =
-            __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
+        ingest_ret = 0;
+        for (ingest_idx = 0; ingest_idx < layered->n_ingest_uris; ingest_idx++) {
+            int one_ret;
 
-        WT_ASSERT_ALWAYS(session, ingest_ret != EBUSY,
-          "Verify: %s ingest table on leader cannot be verified. "
-          "Ingest contains dirty content or open cursors, which is an invalid "
-          "state.",
-          ingest_uri);
+            one_ret = 0;
+            WT_WITHOUT_DHANDLE(session,
+              one_ret = __wt_schema_worker(session, layered->ingest_uris[ingest_idx], file_func,
+                name_func, cfg, open_flags));
+            if (one_ret != 0)
+                ingest_ret = one_ret;
 
-        WT_ERR_MSG_CHK(session, ingest_ret,
-          "Verify (layered): %s ingest table verification failed. Ingest on leader must be empty.",
-          ingest_uri);
+            WT_ASSERT_ALWAYS(session, one_ret != EBUSY,
+              "Verify: %s ingest table on leader cannot be verified. "
+              "Ingest contains dirty content or open cursors, which is an invalid "
+              "state.",
+              layered->ingest_uris[ingest_idx]);
+
+            WT_ERR_MSG_CHK(session, one_ret,
+              "Verify (layered): %s ingest table verification failed. Ingest on leader must be "
+              "empty.",
+              layered->ingest_uris[ingest_idx]);
+        }
     }
 
 err:
     __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
-      "Verify (layered): stable table %s returned %s, ingest table %s returned %s", stable_uri,
-      __wt_wiredtiger_error(stable_ret), ingest_uri, __wt_wiredtiger_error(ingest_ret));
+      "Verify (layered): stable table %s returned %s, ingest tables returned %s", stable_uri,
+      __wt_wiredtiger_error(stable_ret), __wt_wiredtiger_error(ingest_ret));
 
     WT_TRET(__wt_session_release_dhandle(session));
 
