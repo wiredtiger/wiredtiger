@@ -1898,6 +1898,34 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the region was remapped via write",
   "block-manager: time spent(usecs) on the most recent linear walk of extents during first-fit "
   "allocation",
+  "cache: application checked if eviction is needed",
+  "cache: application eviction accepted: proceeding to evict",
+  "cache: application eviction skipped: busy and cache below target",
+  "cache: application eviction skipped: cache-resident tree or metadata",
+  "cache: application eviction skipped: checkpoint cursor transaction",
+  "cache: application eviction skipped: eviction disabled via cache_max_wait_us",
+  "cache: application eviction skipped: eviction not needed",
+  "cache: application eviction skipped: holding locks or ignoring cache size",
+  "cache: application eviction skipped: in-memory configuration",
+  "cache: application eviction skipped: incremental score too low",
+  "cache: application eviction skipped: prefetch thread",
+  "cache: application eviction skipped: server not running",
+  "cache: application eviction skipped: session cannot reconcile",
+  "cache: application eviction skipped: session is cache-trigger tolerant",
+  "cache: application eviction skipped: transaction is prepared",
+  "cache: application eviction skipped: user or interruptible check failed",
+  "cache: application eviction worker: entered work loop",
+  "cache: application eviction worker: eviction queue was empty",
+  "cache: application eviction worker: exited because eviction not needed or enough progress made",
+  "cache: application eviction worker: exited busy after successful eviction",
+  "cache: application eviction worker: exited due to cache wait timeout",
+  "cache: application eviction worker: exited due to operation timeout",
+  "cache: application eviction worker: exited due to user or interruptible check",
+  "cache: application eviction worker: page eviction attempted",
+  "cache: application eviction worker: page eviction returned EBUSY",
+  "cache: application eviction worker: page eviction returned hard error",
+  "cache: application eviction worker: page eviction succeeded",
+  "cache: application eviction worker: rollback due to cache overflow timeout",
   "cache: application requested eviction interrupt",
   "cache: application threads eviction requested with cache fill ratio < 25%",
   "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
@@ -1908,6 +1936,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
   "cache: application threads page write from cache to disk time (usecs)",
+  "cache: application tried to evict",
   "cache: bytes allocated for updates",
   "cache: bytes allocated for updates from the ingest btrees",
   "cache: bytes allocated for updates from the stable btrees",
@@ -2083,6 +2112,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: number of times updates trigger was reached",
   "cache: number of times when cas update the btree max_lsn failed",
   "cache: obsolete updates removed",
+  "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page eviction blocked due to materialization frontier",
@@ -2935,6 +2965,34 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
     /* not clearing block_first_srch_walk_time */
+    /* not clearing application_check_evict */
+    /* not clearing app_evict_accepted */
+    /* not clearing app_evict_refused_busy_below_target */
+    /* not clearing app_evict_refused_no_evict_or_metadata */
+    /* not clearing app_evict_refused_checkpoint_txn */
+    /* not clearing app_evict_refused_max_wait_disabled */
+    /* not clearing app_evict_refused_not_needed */
+    /* not clearing app_evict_refused_locks_or_ignore_cache */
+    /* not clearing app_evict_refused_in_memory */
+    /* not clearing app_evict_refused_incremental_score */
+    /* not clearing app_evict_refused_prefetch */
+    /* not clearing app_evict_refused_server_not_running */
+    /* not clearing app_evict_refused_no_reconcile */
+    /* not clearing app_evict_refused_cache_tolerant */
+    /* not clearing app_evict_refused_prepare */
+    /* not clearing app_evict_refused_user_not_ok */
+    /* not clearing app_evict_worker_entered */
+    /* not clearing app_evict_worker_evict_queue_empty */
+    /* not clearing app_evict_worker_exit_not_needed_or_progress */
+    /* not clearing app_evict_worker_exit_busy_after_success */
+    /* not clearing app_evict_worker_exit_cache_timeout */
+    /* not clearing app_evict_worker_exit_op_timer */
+    /* not clearing app_evict_worker_exit_user_not_ok */
+    /* not clearing app_evict_worker_evict_attempt */
+    /* not clearing app_evict_worker_evict_busy */
+    /* not clearing app_evict_worker_evict_hard_error */
+    /* not clearing app_evict_worker_evict_success */
+    /* not clearing app_evict_worker_exit_rollback_cache_overflow */
     stats->eviction_interupted_by_app = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
@@ -2945,6 +3003,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
     stats->cache_write_app_time = 0;
+    /* not clearing application_try_evict */
     /* not clearing cache_bytes_updates */
     /* not clearing cache_bytes_updates_ingest */
     /* not clearing cache_bytes_updates_stable */
@@ -3100,6 +3159,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_cas_btree_max_lsn_race = 0;
     stats->cache_obsolete_updates_removed = 0;
+    stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_blocked_materialization = 0;
@@ -3938,6 +3998,49 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
     to->block_first_srch_walk_time += WT_STAT_CONN_READ(from, block_first_srch_walk_time);
+    to->application_check_evict += WT_STAT_CONN_READ(from, application_check_evict);
+    to->app_evict_accepted += WT_STAT_CONN_READ(from, app_evict_accepted);
+    to->app_evict_refused_busy_below_target +=
+      WT_STAT_CONN_READ(from, app_evict_refused_busy_below_target);
+    to->app_evict_refused_no_evict_or_metadata +=
+      WT_STAT_CONN_READ(from, app_evict_refused_no_evict_or_metadata);
+    to->app_evict_refused_checkpoint_txn +=
+      WT_STAT_CONN_READ(from, app_evict_refused_checkpoint_txn);
+    to->app_evict_refused_max_wait_disabled +=
+      WT_STAT_CONN_READ(from, app_evict_refused_max_wait_disabled);
+    to->app_evict_refused_not_needed += WT_STAT_CONN_READ(from, app_evict_refused_not_needed);
+    to->app_evict_refused_locks_or_ignore_cache +=
+      WT_STAT_CONN_READ(from, app_evict_refused_locks_or_ignore_cache);
+    to->app_evict_refused_in_memory += WT_STAT_CONN_READ(from, app_evict_refused_in_memory);
+    to->app_evict_refused_incremental_score +=
+      WT_STAT_CONN_READ(from, app_evict_refused_incremental_score);
+    to->app_evict_refused_prefetch += WT_STAT_CONN_READ(from, app_evict_refused_prefetch);
+    to->app_evict_refused_server_not_running +=
+      WT_STAT_CONN_READ(from, app_evict_refused_server_not_running);
+    to->app_evict_refused_no_reconcile += WT_STAT_CONN_READ(from, app_evict_refused_no_reconcile);
+    to->app_evict_refused_cache_tolerant +=
+      WT_STAT_CONN_READ(from, app_evict_refused_cache_tolerant);
+    to->app_evict_refused_prepare += WT_STAT_CONN_READ(from, app_evict_refused_prepare);
+    to->app_evict_refused_user_not_ok += WT_STAT_CONN_READ(from, app_evict_refused_user_not_ok);
+    to->app_evict_worker_entered += WT_STAT_CONN_READ(from, app_evict_worker_entered);
+    to->app_evict_worker_evict_queue_empty +=
+      WT_STAT_CONN_READ(from, app_evict_worker_evict_queue_empty);
+    to->app_evict_worker_exit_not_needed_or_progress +=
+      WT_STAT_CONN_READ(from, app_evict_worker_exit_not_needed_or_progress);
+    to->app_evict_worker_exit_busy_after_success +=
+      WT_STAT_CONN_READ(from, app_evict_worker_exit_busy_after_success);
+    to->app_evict_worker_exit_cache_timeout +=
+      WT_STAT_CONN_READ(from, app_evict_worker_exit_cache_timeout);
+    to->app_evict_worker_exit_op_timer += WT_STAT_CONN_READ(from, app_evict_worker_exit_op_timer);
+    to->app_evict_worker_exit_user_not_ok +=
+      WT_STAT_CONN_READ(from, app_evict_worker_exit_user_not_ok);
+    to->app_evict_worker_evict_attempt += WT_STAT_CONN_READ(from, app_evict_worker_evict_attempt);
+    to->app_evict_worker_evict_busy += WT_STAT_CONN_READ(from, app_evict_worker_evict_busy);
+    to->app_evict_worker_evict_hard_error +=
+      WT_STAT_CONN_READ(from, app_evict_worker_evict_hard_error);
+    to->app_evict_worker_evict_success += WT_STAT_CONN_READ(from, app_evict_worker_evict_success);
+    to->app_evict_worker_exit_rollback_cache_overflow +=
+      WT_STAT_CONN_READ(from, app_evict_worker_exit_rollback_cache_overflow);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       WT_STAT_CONN_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
@@ -3953,6 +4056,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_app_time += WT_STAT_CONN_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
     to->cache_write_app_time += WT_STAT_CONN_READ(from, cache_write_app_time);
+    to->application_try_evict += WT_STAT_CONN_READ(from, application_try_evict);
     to->cache_bytes_updates += WT_STAT_CONN_READ(from, cache_bytes_updates);
     to->cache_bytes_updates_ingest += WT_STAT_CONN_READ(from, cache_bytes_updates_ingest);
     to->cache_bytes_updates_stable += WT_STAT_CONN_READ(from, cache_bytes_updates_stable);
@@ -4173,6 +4277,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_trigger_updates_reached);
     to->cache_cas_btree_max_lsn_race += WT_STAT_CONN_READ(from, cache_cas_btree_max_lsn_race);
     to->cache_obsolete_updates_removed += WT_STAT_CONN_READ(from, cache_obsolete_updates_removed);
+    to->eviction_timed_out_ops += WT_STAT_CONN_READ(from, eviction_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_CONN_READ(from, cache_read_overflow);

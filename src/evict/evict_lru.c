@@ -1105,13 +1105,14 @@ __evict_get_ref(
     WT_PAGE *page;
     WT_REF *ref;
     WT_REF_STATE previous_state;
-    uint32_t i, iter, j, min_level, max_level, num_buckets, total_iter;
-    int early_skipped_tree, skipped, skip_locked;
+    WT_TXN *txn;
     bool skip_page;
+    int early_skipped_tree, skipped, skip_locked;
+    uint32_t i, iter, j, min_level, max_level, num_buckets, total_iter;
+    uint64_t cumulative, rand_val, total_items;
 
 #if PRINT_CACHE_STATE
     int empty_buckets;
-    uint64_t total_items;
     WT_CACHE *cache;
 #endif
 
@@ -1119,14 +1120,16 @@ __evict_get_ref(
     bucketset = NULL;
     conn = S2C(session);
     evict = conn->evict;
+    early_skipped_tree = skipped = skip_locked = 0;
+    cumulative = total_items = 0;
     i = 0;
     iter = total_iter = 0;
     min_level = max_level = 0;
     previous_state = 0;
-    early_skipped_tree = skipped = skip_locked = 0;
+    txn = session->txn;
+
 #if PRINT_CACHE_STATE
     cache = conn->cache;
-    total_items = 0;
 #endif
     /*
      * It is polite to initialize output variables, but it isn't safe for callers to use the
@@ -1173,6 +1176,36 @@ __evict_get_ref(
         max_level = WT_EVICT_LEVELS - 1;
         printf("URGENT EVICTION!!!!!!!!!!!!\n");
     }
+
+    /* Sum items across all eligible bucketsets. */
+    for (i = min_level; i <= max_level; i++)
+        total_items += evict->evict_bucketset[i].bucketset_num_items;
+
+    /* If no items in any eligible bucket, nothing to evict. */
+    if (total_items == 0)
+        goto done;
+
+    /* Pick a random point in [0, total_items) and find the corresponding level. */
+    rand_val = __wt_random(&session->rnd_random) % total_items;
+
+    for (i = min_level; i <= max_level; i++) {
+        cumulative += evict->evict_bucketset[i].bucketset_num_items;
+        if (rand_val < cumulative) {
+            // min_level = i;
+            cumulative = i;
+            break;
+        }
+    }
+
+
+    /*
+     * Get the snapshot for the eviction server when we want to evict dirty content under cache
+     * pressure. This snapshot is used to check for the visibility of the last modified transaction
+     * id on the page.
+     */
+    if (F_ISSET(session, WT_SESSION_INTERNAL) &&
+        F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD))
+        __wt_txn_bump_snapshot(session);
 
     for (i = min_level; i <= max_level; i++) {
         if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
@@ -1299,20 +1332,23 @@ done:
 
         WT_STAT_CONN_INCR(session, eviction_get_ref_success);
 #if PRINT_CACHE_STATE
-        if (total_iter > 1000) {
-            printf("Server read_gen is %" PRIu64
-                   ". Evict flags: %d. Found ref in %d iterations at level %s. Min_level %d, "
-                   "max_level = %d\n",
-              evict->read_gen, (int)evict->flags, (int)total_iter, __evict_level_to_string(i),
-              (int)min_level, (int)max_level);
-
+        if (total_iter % 1000 == 0) {
+            (void) empty_buckets;
+            /*
             empty_buckets = 0;
             for (i = 0; i < bucketset->num_buckets; i++) {
                 if (TAILQ_EMPTY(&bucketset->buckets[i].evict_queue))
                     empty_buckets++;
             }
+            */
+            printf("Server read_gen is %" PRIu64
+                   ". Evict flags: %d. Found ref in %d iterations at level %s. Min_level %d, "
+                   "max_level = %d\n",
+                   evict->read_gen, (int)evict->flags, (int)total_iter, __evict_level_to_string(i),
+                   (int)min_level, (int)max_level);
 
-            printf("At level %d, %d buckets empty\n", (int)bucketset->level, empty_buckets);
+
+//            printf("At level %d, %d buckets empty\n", (int)bucketset->level, empty_buckets);
 
             for (i = 0; i < WT_EVICT_LEVELS; i++) {
                 total_items += evict->evict_bucketset[i].bucketset_num_items;
@@ -1328,6 +1364,8 @@ done:
     } else
         WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
 
+    if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        __wt_txn_release_snapshot(session);
     WT_STAT_CONN_INCRV(session, eviction_get_ref_iterations, total_iter);
     ret = (*refp == NULL ? WT_NOTFOUND : 0);
     return (ret);
@@ -1984,6 +2022,7 @@ __evict_internal_page_has_cached_children(WT_SESSION_IMPL *session, WT_REF *ref)
     return (has_cached_children);
 }
 
+#if 0
 /* !!!
  * __wt_evict_check_if_blocking
  *    Check if this session is blocking eviction.
@@ -2021,15 +2060,213 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
 #if APP_HELP
     if (!F_ISSET(conn, WT_CONN_RECOVERING) && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
         __wt_evict_needed(session, false, false /*FIX*/, &pct_full)
-        && pct_full > 95) {
-        uint32_t session_cnt;
+        && pct_full > 90) {
+        uint32_t factor, session_cnt;
         WT_READ_ONCE(session_cnt, conn->session_array.cnt);
 
-        if (session_cnt == 0)
-            session_cnt = 1;
-        if ((session->id % (session_cnt / WT_EVICT_EXPECTED_CONTENTION / 2)) == 0)
-            WT_RET_BUSY_OK(__evict_page(session));
+        /* If factor is low or zero there is little contention */
+        factor = session_cnt / WT_EVICT_EXPECTED_CONTENTION / 2;
+        if (factor != 0 && (session->id % factor) == 0) {
+            ret = __evict_page(session);
+            if (ret == EBUSY) ret = 0;
+            if (ret == WT_NOTFOUND) ret = 0;
+        }
     }
 #endif
     return ret;
+}
+#endif
+
+/*
+ * __wti_evict_app_assist_worker --
+ *     Worker function for __wt_evict_app_assist_worker_check: evict pages if the cache crosses
+ *     eviction trigger thresholds.
+ *
+ * The function returns an error code from either __evict_page or __wt_txn_is_blocking.
+ */
+int
+__wti_evict_app_assist_worker(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible)
+{
+    WT_DECL_RET;
+    WT_TRACK_OP_DECL;
+
+    WT_TRACK_OP_INIT(session);
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_EVICT *evict = conn->evict;
+    uint64_t time_start = 0;
+    WT_TXN_GLOBAL *txn_global = &conn->txn_global;
+    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
+
+    uint64_t cache_max_wait_us =
+      session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
+
+    /*
+     * Before we enter the eviction generation, make sure this session has a cached history store
+     * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
+     * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
+     * inside eviction waiting on a handle list read lock to open a history store cursor. The
+     * eviction server should be started at this point so it is safe to open the history store.
+     */
+    WT_ERR(__wt_curhs_cache(session));
+
+    /* Wake the eviction server if we need to do work. */
+    __wt_evict_server_wake(session);
+
+    /* Track how long application threads spend doing eviction. */
+    if (!F_ISSET(session, WT_SESSION_INTERNAL))
+        time_start = __wt_clock(session);
+
+    WT_STAT_CONN_INCR(session, app_evict_worker_entered);
+
+    /*
+     * Note that this for loop is designed to reset expected eviction error codes before exiting,
+     * namely, the busy return and empty eviction queue. We do not need the calling functions to
+     * have to deal with internal eviction return codes.
+     */
+    for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);;
+         ret = 0) {
+        /*
+         * If eviction is stuck, check if this thread is likely causing problems and should be
+         * rolled back. Ignore if in recovery, those transactions can't be rolled back.
+         */
+        if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
+            ret = __wt_txn_is_blocking(session);
+            if (ret == WT_ROLLBACK) {
+                __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
+                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                      session->err_info.err_msg);
+            }
+            WT_ERR(ret);
+        }
+
+        /*
+         * Check if we've exceeded our operation timeout, this would also get called from the
+         * previous txn is blocking call, however it won't pickup transactions that have been
+         * committed or rolled back as their mod count is 0, and that txn needs to be the oldest.
+         *
+         * Additionally we don't return rollback which could confuse the caller.
+         */
+        if (__wt_op_timer_fired(session)) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_exit_op_timer);
+            break;
+        }
+
+        /* Check if we have exceeded the global or the session timeout for waiting on the cache. */
+        if (time_start != 0 && cache_max_wait_us != 0) {
+            uint64_t time_stop = __wt_clock(session);
+            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us) {
+                WT_STAT_CONN_INCR(session, app_evict_worker_exit_cache_timeout);
+                break;
+            }
+        }
+
+        /*
+         * Check if we have become busy.
+         *
+         * If we're busy (because of the transaction check we just did or because our caller is
+         * waiting on a longer-than-usual event such as a page read), and the cache level drops
+         * below 100%, limit the work to 5 evictions and return. If that's not the case, we can do
+         * more.
+         */
+        if (!busy && __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
+          __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
+            __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id))
+            busy = true;
+        uint64_t max_progress = busy ? 5 : 20;
+
+        /* See if eviction is still needed. */
+        double pct_full;
+        if (!__wt_evict_needed(session, busy, readonly, true, &pct_full) ||
+          (pct_full < 100.0 &&
+            (__wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress) >
+              initial_progress + max_progress))) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_exit_not_needed_or_progress);
+            break;
+        }
+
+        if (!__evict_check_user_ok_with_eviction(session, interruptible)) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_exit_user_not_ok);
+            break;
+        }
+
+        /* Evict a page. */
+        WT_STAT_CONN_INCR(session, app_evict_worker_evict_attempt);
+        ret = __evict_page(session);
+        if (ret == 0) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_evict_success);
+            /* If the caller holds resources, we can stop after a successful eviction. */
+            if (busy) {
+                WT_STAT_CONN_INCR(session, app_evict_worker_exit_busy_after_success);
+                break;
+            }
+        } else if (ret == WT_NOTFOUND) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_evict_queue_empty);
+            /* Allow the queue to re-populate before retrying. */
+            __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+            __wt_tsan_suppress_add_uint64(&evict->app_waits, 1);
+        } else if (ret != EBUSY) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_evict_hard_error);
+            WT_ERR(ret);
+        } else {
+            WT_STAT_CONN_INCR(session, app_evict_worker_evict_busy);
+        }
+
+        /* Update elapsed cache metrics. */
+        if (time_start != 0) {
+            uint64_t time_stop = __wt_clock(session);
+            uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+            WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
+            if (!interruptible) {
+                WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+                WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
+            } else {
+                WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+                WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
+            }
+            session->cache_wait_us += elapsed;
+            time_start = time_stop;
+        }
+    }
+
+err:
+    if (time_start != 0) {
+        uint64_t time_stop = __wt_clock(session);
+        uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_STAT_CONN_INCR(session, application_cache_ops);
+        WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
+        WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
+        if (!interruptible) {
+            WT_STAT_CONN_INCR(session, application_cache_uninterruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
+        } else {
+            WT_STAT_CONN_INCR(session, application_cache_interruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
+        }
+        session->cache_wait_us += elapsed;
+        /*
+         * Check if a rollback is required only if there has not been an error. Returning an error
+         * takes precedence over asking for a rollback. We can not do both.
+         */
+        if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
+            ret = WT_ROLLBACK;
+            WT_STAT_CONN_INCR(session, app_evict_worker_exit_rollback_cache_overflow);
+            __wt_session_set_last_error(
+              session, ret, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
+            __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
+
+            WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
+            if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                __wt_verbose_notice(
+                  session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
+        }
+    }
+
+    WT_TRACK_OP_END(session);
+
+    return (ret);
 }

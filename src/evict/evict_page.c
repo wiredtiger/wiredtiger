@@ -178,39 +178,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     else
         WT_STAT_CONN_DSRC_INCR(session, eviction_app_evict_attempt);
 
-    WT_IGNORE_RET(__evict_get_target_destination(session, page, &bucketset, NULL));
-    bucketset_level = bucketset->level;
-
-    /* Update the stats */
-    switch (bucketset_level) {
-    case WT_EVICT_LEVEL_WONT_NEED_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_wont_need_leaf);
-        break;
-    case WT_EVICT_LEVEL_CLEAN_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_clean_leaf);
-        break;
-    case WT_EVICT_LEVEL_DIRTY_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_dirty_leaf);
-        break;
-    case WT_EVICT_LEVEL_WONT_NEED_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_wont_need_internal);
-        break;
-    case WT_EVICT_LEVEL_DIRTY_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_dirty_internal);
-        break;
-    case WT_EVICT_LEVEL_UPDATES_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_updates_leaf);
-        break;
-    case WT_EVICT_LEVEL_UPDATES_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_updates_internal);
-        break;
-    case WT_EVICT_LEVEL_CLEAN_INTERNAL:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_clean_internal);
-        break;
-    default:
-        WT_ASSERT(session, 0);
-    }
-
     tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
     if (tree_dead)
         LF_SET(WT_EVICT_CALL_NO_SPLIT);
@@ -258,6 +225,39 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         goto err;
     }
 #endif
+
+    WT_IGNORE_RET(__evict_get_target_destination(session, page, &bucketset, NULL));
+    bucketset_level = bucketset->level;
+
+    /* Update the stats */
+    switch (bucketset_level) {
+    case WT_EVICT_LEVEL_WONT_NEED_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_wont_need_leaf);
+        break;
+    case WT_EVICT_LEVEL_CLEAN_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_clean_leaf);
+        break;
+    case WT_EVICT_LEVEL_DIRTY_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_dirty_leaf);
+        break;
+    case WT_EVICT_LEVEL_WONT_NEED_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_wont_need_internal);
+        break;
+    case WT_EVICT_LEVEL_DIRTY_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_dirty_internal);
+        break;
+    case WT_EVICT_LEVEL_UPDATES_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_updates_leaf);
+        break;
+    case WT_EVICT_LEVEL_UPDATES_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_updates_internal);
+        break;
+    case WT_EVICT_LEVEL_CLEAN_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_clean_internal);
+        break;
+    default:
+        WT_ASSERT(session, 0);
+    }
 
     if (!WT_EVICT_PAGE_CLEARED(page))
         __wt_evict_remove(session, ref, false);
@@ -813,7 +813,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Don't add more cache pressure. */
-    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_cache_stuck(session))
+    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_cache_stuck(session))
         return (0);
 
     /*

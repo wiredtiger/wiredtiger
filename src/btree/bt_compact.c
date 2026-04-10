@@ -331,7 +331,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_REF *ref;
     u_int i;
-    bool first, skip;
+    bool eviction_happened, first, skip;
 
     uint64_t stats_pages_reviewed; /* Pages reviewed */
 
@@ -381,7 +381,15 @@ __wt_compact(WT_SESSION_IMPL *session)
             i = 0;
         }
 
-        WT_ERR(__wt_evict_check_if_blocking(session));
+        /*
+         * Compact pulls pages into cache during the walk without checking whether the cache is
+         * full. Check now to throttle compact to match eviction speed.
+         */
+        WT_ERR(
+            __wt_evict_app_assist_worker_check(session, false, false, false, &eviction_happened));
+        if (eviction_happened)
+            WT_STAT_CONN_INCR(session, session_table_compact_eviction);
+
         /*
          * Pages read for compaction aren't "useful"; don't update the read generation of pages
          * already in memory, and if a page is read, set its generation to a low value so it is
