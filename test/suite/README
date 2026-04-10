@@ -11,3 +11,10 @@ is required when new tests is introduced into test/suite. (WT-4441)
 
 Before the above mentioned mechanism is put into place, please double check
 test/evergreen.yml and test run logs to make sure new test are covered.
+
+Fast suite / timing assessment (from the CMake build directory):
+  python3 ../test/suite/run.py --fast           # sets wttest.isfast() for pruned tests
+  python3 ../test/suite/run.py --timing-report FILE   # JSON Lines per scenario (fcntl-locked; tear_down_incomplete if teardown errored)
+  python3 ../test/suite/suite_stats.py scenarios      # scenario counts by module (dry-run)
+  python3 ../test/suite/suite_stats.py summarize-timing FILE   # aggregate seconds by module
+  python3 ../test/suite/suite_stats.py analyze-jsonl FILE       # full breakdown (slowest + totals)
