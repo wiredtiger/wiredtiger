@@ -673,6 +673,7 @@ const char __WT_CONFIG_CHOICE_chunkcache[] = "chunkcache";
 const char __WT_CONFIG_CHOICE_compact[] = "compact";
 const char __WT_CONFIG_CHOICE_compact_progress[] = "compact_progress";
 const char __WT_CONFIG_CHOICE_configuration[] = "configuration";
+const char __WT_CONFIG_CHOICE_cross_checkpoint_cache[] = "cross_checkpoint_cache";
 const char __WT_CONFIG_CHOICE_disaggregated_storage[] = "disaggregated_storage";
 const char __WT_CONFIG_CHOICE_error_returns[] = "error_returns";
 const char __WT_CONFIG_CHOICE_eviction[] = "eviction";
@@ -714,19 +715,20 @@ static const char *confchk_verbose_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CON
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
   __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
-  __WT_CONFIG_CHOICE_disaggregated_storage, __WT_CONFIG_CHOICE_error_returns,
-  __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
-  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_layered,
-  __WT_CONFIG_CHOICE_live_restore, __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log,
-  __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order,
-  __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch,
-  __WT_CONFIG_CHOICE_read, __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery,
-  __WT_CONFIG_CHOICE_recovery_progress, __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage,
-  __WT_CONFIG_CHOICE_shared_cache, __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep,
-  __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered,
-  __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify,
-  __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
+  __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
+  __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
+  __WT_CONFIG_CHOICE_history_store, __WT_CONFIG_CHOICE_history_store_activity,
+  __WT_CONFIG_CHOICE_layered, __WT_CONFIG_CHOICE_live_restore,
+  __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_metadata,
+  __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow,
+  __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep, __WT_CONFIG_CHOICE_temporary,
+  __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp,
+  __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version,
+  __WT_CONFIG_CHOICE_write, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12,
@@ -859,8 +861,9 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"configuration\",\"disaggregated_storage\""
-    ",\"error_returns\",\"eviction\",\"extension\",\"fileops\","
+    "\"compact_progress\",\"configuration\","
+    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
+    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
     "\"generation\",\"handleops\",\"history_store\","
     "\"history_store_activity\",\"layered\",\"live_restore\","
     "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
@@ -3017,19 +3020,20 @@ static const char *confchk_verbose13_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
   __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
-  __WT_CONFIG_CHOICE_disaggregated_storage, __WT_CONFIG_CHOICE_error_returns,
-  __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
-  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_layered,
-  __WT_CONFIG_CHOICE_live_restore, __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log,
-  __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order,
-  __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch,
-  __WT_CONFIG_CHOICE_read, __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery,
-  __WT_CONFIG_CHOICE_recovery_progress, __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage,
-  __WT_CONFIG_CHOICE_shared_cache, __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep,
-  __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered,
-  __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify,
-  __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
+  __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
+  __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
+  __WT_CONFIG_CHOICE_history_store, __WT_CONFIG_CHOICE_history_store_activity,
+  __WT_CONFIG_CHOICE_layered, __WT_CONFIG_CHOICE_live_restore,
+  __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_metadata,
+  __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow,
+  __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep, __WT_CONFIG_CHOICE_temporary,
+  __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp,
+  __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version,
+  __WT_CONFIG_CHOICE_write, NULL};
 
 static const char *confchk_write_through_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
@@ -3228,8 +3232,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"configuration\",\"disaggregated_storage\""
-    ",\"error_returns\",\"eviction\",\"extension\",\"fileops\","
+    "\"compact_progress\",\"configuration\","
+    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
+    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
     "\"generation\",\"handleops\",\"history_store\","
     "\"history_store_activity\",\"layered\",\"live_restore\","
     "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
@@ -3294,19 +3299,20 @@ static const char *confchk_verbose14_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
   __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
-  __WT_CONFIG_CHOICE_disaggregated_storage, __WT_CONFIG_CHOICE_error_returns,
-  __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
-  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_layered,
-  __WT_CONFIG_CHOICE_live_restore, __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log,
-  __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order,
-  __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch,
-  __WT_CONFIG_CHOICE_read, __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery,
-  __WT_CONFIG_CHOICE_recovery_progress, __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage,
-  __WT_CONFIG_CHOICE_shared_cache, __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep,
-  __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered,
-  __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify,
-  __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
+  __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
+  __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
+  __WT_CONFIG_CHOICE_history_store, __WT_CONFIG_CHOICE_history_store_activity,
+  __WT_CONFIG_CHOICE_layered, __WT_CONFIG_CHOICE_live_restore,
+  __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_metadata,
+  __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow,
+  __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep, __WT_CONFIG_CHOICE_temporary,
+  __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp,
+  __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version,
+  __WT_CONFIG_CHOICE_write, NULL};
 
 static const char *confchk_write_through2_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
@@ -3505,8 +3511,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"configuration\",\"disaggregated_storage\""
-    ",\"error_returns\",\"eviction\",\"extension\",\"fileops\","
+    "\"compact_progress\",\"configuration\","
+    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
+    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
     "\"generation\",\"handleops\",\"history_store\","
     "\"history_store_activity\",\"layered\",\"live_restore\","
     "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
@@ -3574,19 +3581,20 @@ static const char *confchk_verbose15_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
   __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
-  __WT_CONFIG_CHOICE_disaggregated_storage, __WT_CONFIG_CHOICE_error_returns,
-  __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
-  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_layered,
-  __WT_CONFIG_CHOICE_live_restore, __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log,
-  __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order,
-  __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch,
-  __WT_CONFIG_CHOICE_read, __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery,
-  __WT_CONFIG_CHOICE_recovery_progress, __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage,
-  __WT_CONFIG_CHOICE_shared_cache, __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep,
-  __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered,
-  __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify,
-  __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
+  __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
+  __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
+  __WT_CONFIG_CHOICE_history_store, __WT_CONFIG_CHOICE_history_store_activity,
+  __WT_CONFIG_CHOICE_layered, __WT_CONFIG_CHOICE_live_restore,
+  __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_metadata,
+  __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow,
+  __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep, __WT_CONFIG_CHOICE_temporary,
+  __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp,
+  __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version,
+  __WT_CONFIG_CHOICE_write, NULL};
 
 static const char *confchk_write_through3_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
@@ -3773,8 +3781,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"configuration\",\"disaggregated_storage\""
-    ",\"error_returns\",\"eviction\",\"extension\",\"fileops\","
+    "\"compact_progress\",\"configuration\","
+    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
+    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
     "\"generation\",\"handleops\",\"history_store\","
     "\"history_store_activity\",\"layered\",\"live_restore\","
     "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
@@ -3842,19 +3851,20 @@ static const char *confchk_verbose16_choices[] = {__WT_CONFIG_CHOICE_all, __WT_C
   __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_checkpoint_cleanup,
   __WT_CONFIG_CHOICE_checkpoint_progress, __WT_CONFIG_CHOICE_chunkcache, __WT_CONFIG_CHOICE_compact,
   __WT_CONFIG_CHOICE_compact_progress, __WT_CONFIG_CHOICE_configuration,
-  __WT_CONFIG_CHOICE_disaggregated_storage, __WT_CONFIG_CHOICE_error_returns,
-  __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension, __WT_CONFIG_CHOICE_fileops,
-  __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops, __WT_CONFIG_CHOICE_history_store,
-  __WT_CONFIG_CHOICE_history_store_activity, __WT_CONFIG_CHOICE_layered,
-  __WT_CONFIG_CHOICE_live_restore, __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log,
-  __WT_CONFIG_CHOICE_metadata, __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order,
-  __WT_CONFIG_CHOICE_overflow, __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch,
-  __WT_CONFIG_CHOICE_read, __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery,
-  __WT_CONFIG_CHOICE_recovery_progress, __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage,
-  __WT_CONFIG_CHOICE_shared_cache, __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep,
-  __WT_CONFIG_CHOICE_temporary, __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered,
-  __WT_CONFIG_CHOICE_timestamp, __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify,
-  __WT_CONFIG_CHOICE_version, __WT_CONFIG_CHOICE_write, NULL};
+  __WT_CONFIG_CHOICE_cross_checkpoint_cache, __WT_CONFIG_CHOICE_disaggregated_storage,
+  __WT_CONFIG_CHOICE_error_returns, __WT_CONFIG_CHOICE_eviction, __WT_CONFIG_CHOICE_extension,
+  __WT_CONFIG_CHOICE_fileops, __WT_CONFIG_CHOICE_generation, __WT_CONFIG_CHOICE_handleops,
+  __WT_CONFIG_CHOICE_history_store, __WT_CONFIG_CHOICE_history_store_activity,
+  __WT_CONFIG_CHOICE_layered, __WT_CONFIG_CHOICE_live_restore,
+  __WT_CONFIG_CHOICE_live_restore_progress, __WT_CONFIG_CHOICE_log, __WT_CONFIG_CHOICE_metadata,
+  __WT_CONFIG_CHOICE_mutex, __WT_CONFIG_CHOICE_out_of_order, __WT_CONFIG_CHOICE_overflow,
+  __WT_CONFIG_CHOICE_page_delta, __WT_CONFIG_CHOICE_prefetch, __WT_CONFIG_CHOICE_read,
+  __WT_CONFIG_CHOICE_reconcile, __WT_CONFIG_CHOICE_recovery, __WT_CONFIG_CHOICE_recovery_progress,
+  __WT_CONFIG_CHOICE_rts, __WT_CONFIG_CHOICE_salvage, __WT_CONFIG_CHOICE_shared_cache,
+  __WT_CONFIG_CHOICE_split, __WT_CONFIG_CHOICE_sweep, __WT_CONFIG_CHOICE_temporary,
+  __WT_CONFIG_CHOICE_thread_group, __WT_CONFIG_CHOICE_tiered, __WT_CONFIG_CHOICE_timestamp,
+  __WT_CONFIG_CHOICE_transaction, __WT_CONFIG_CHOICE_verify, __WT_CONFIG_CHOICE_version,
+  __WT_CONFIG_CHOICE_write, NULL};
 
 static const char *confchk_write_through4_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
@@ -4041,8 +4051,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
     "\"checkpoint_progress\",\"chunkcache\",\"compact\","
-    "\"compact_progress\",\"configuration\",\"disaggregated_storage\""
-    ",\"error_returns\",\"eviction\",\"extension\",\"fileops\","
+    "\"compact_progress\",\"configuration\","
+    "\"cross_checkpoint_cache\",\"disaggregated_storage\","
+    "\"error_returns\",\"eviction\",\"extension\",\"fileops\","
     "\"generation\",\"handleops\",\"history_store\","
     "\"history_store_activity\",\"layered\",\"live_restore\","
     "\"live_restore_progress\",\"log\",\"metadata\",\"mutex\","
