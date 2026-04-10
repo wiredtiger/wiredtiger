@@ -1581,12 +1581,11 @@ __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const cha
           "chunk cache has been deprecated and is no longer supported, chunk_cache "
           "configuration should be removed%s%s",
           source != NULL ? " from " : "", source != NULL ? source : "");
-    else {
+    else
         __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
           "chunk cache has been deprecated and is no longer supported, ignoring chunk_cache "
           "configuration%s%s",
           source != NULL ? " in " : "", source != NULL ? source : "");
-    }
 
     return (0);
 }
@@ -3188,9 +3187,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Basic initialization of the connection structure. */
     WT_ERR(__wti_connection_init(conn));
 
-    /*
-     * Check for deprecated chunk cache configuration before validating.
-     */
+    /* Check for deprecated chunk cache configuration before validating. */
     WT_ERR(__conn_chunk_cache_check(session, config, NULL));
 
     /* Check the application-specified configuration string. */

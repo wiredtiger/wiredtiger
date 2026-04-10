@@ -1265,9 +1265,9 @@ wiredtiger_open_live_restore_configuration = [
     ])
 ]
 
-# Chunk cache has been deprecated and removed. We need to keep the sub-configs around because
-# they get persisted to WiredTiger.basecfg. It's OK to warn on any chunk cache config, but we
-# only error if enabled=true since the feature is gone.
+# Chunk cache has been deprecated and removed. We need to keep the sub-configs because
+# they get persisted to WiredTiger.basecfg. WiredTiger will throw an error if the config contains
+# enabled=true but only log warnings for any other chunk cache config.
 wiredtiger_open_chunk_cache_configuration = [
     Config('chunk_cache', '', r'''
         deprecated option, retained for backward compatibility''',
