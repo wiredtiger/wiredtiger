@@ -57,7 +57,7 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
     TAILQ_FOREACH (shared_dsk_item, &shared_dsk_cache->hash[bucket], hashq) {
         if (shared_dsk_item->addr_size == addr_size && shared_dsk_item->fid == S2BT(session)->id &&
           memcmp(shared_dsk_item->addr, addr, addr_size) == 0) {
-            (void)__wt_atomic_add_int32(&shared_dsk_item->ref_count, 1);
+            (void)__wt_atomic_add_int32_relaxed(&shared_dsk_item->ref_count, 1);
             break;
         }
     }
@@ -137,7 +137,7 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
 #endif
         if (shared_dsk_item->addr_size == addr_size && shared_dsk_item->fid == S2BT(session)->id &&
           memcmp(shared_dsk_item->addr, addr, addr_size) == 0) {
-            (void)__wt_atomic_add_int32(&shared_dsk_item->ref_count, 1);
+            (void)__wt_atomic_add_int32_relaxed(&shared_dsk_item->ref_count, 1);
             __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
 
             *shared_dsk_retp = shared_dsk_item;
@@ -200,7 +200,7 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
 
     __wt_spin_lock(session, &shared_dsk_cache->hash_locks[lock_idx]);
     /* Remove the shared dsk item when ref count is reduced to 0. */
-    if (__wt_atomic_sub_int32(&shared_dsk_item->ref_count, 1) == 0) {
+    if (__wt_atomic_sub_int32_relaxed(&shared_dsk_item->ref_count, 1) == 0) {
         TAILQ_REMOVE(&shared_dsk_cache->hash[bucket], shared_dsk_item, hashq);
         __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
 
