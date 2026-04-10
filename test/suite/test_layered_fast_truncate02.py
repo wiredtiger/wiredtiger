@@ -60,11 +60,9 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
     def setup_leader(self):
-        # Insert all rows, checkpoint, evict so pages are disk-resident, then
-        # fast-truncate the middle range and checkpoint again.
-        # Eviction before truncation is required: __wt_delete_page only produces
-        # page-level fast delete markers (WT_CELL_ADDR_DEL) when the page is not
-        # in cache.  Without it, truncation falls back to individual tombstones.
+        # Insert all rows and checkpoint, then evict all pages to disk before truncating.
+        # Pages must be on disk first so truncation uses page-level fast delete markers
+        # rather than falling back to individual tombstones per key.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         self.session.create(self.uri, 'key_format=i,value_format=S')
         cur = self.session.open_cursor(self.uri)
@@ -75,9 +73,8 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         cur.close()
         self.leader_checkpoint(self.ts_insert)
 
-        # Evict stable btree pages so they are disk-resident before truncation.
-        # Must search() to position the cursor before reset() triggers eviction;
-        # set_key alone does not set WT_CURSTD_KEY_SET on the stable constituent.
+        # Evict all pages to disk before truncating.
+        # search() must be called to position the cursor; set_key alone is not enough.
         evict_cur = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
         self.session.begin_transaction('ignore_prepare=true')
         for i in range(1, self.nrows + 1):
@@ -108,7 +105,7 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         return conn, sess
 
     def search_at(self, sess, key, ts=None):
-        """Read key at ts (or no timestamp if ts=None); return (wt_ret, value_or_None)."""
+        """Look up key at the given timestamp. Returns (ret, value) or (WT_NOTFOUND, None)."""
         cur = sess.open_cursor(self.uri)
         txn_cfg = ('read_timestamp=' + self.timestamp_str(ts)) if ts is not None else ''
         sess.begin_transaction(txn_cfg)
@@ -136,7 +133,7 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         for key in [1, self.trunc_start - 1, self.trunc_stop + 1, self.nrows]:
             ret, val = self.search_at(sess, key, self.ts_read)
             self.assertEqual(ret, 0, f'key {key} must be found')
-            self.assertEqual(val, self.value)
+            self.assertEqual(val, self.value, f'key {key} must have the original value')
 
         sess.close()
         conn.close()
@@ -158,7 +155,7 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         for key in [self.trunc_start, mid, self.trunc_stop]:
             ret, val = self.search_at(sess, key, self.ts_insert)
             self.assertEqual(ret, 0, f'key {key} must be visible before truncation')
-            self.assertEqual(val, self.value)
+            self.assertEqual(val, self.value, f'key {key} must have the original value before truncation')
 
         # Full scan at ts_insert must see every row that was inserted.
         cur = sess.open_cursor(self.uri)
@@ -197,15 +194,16 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         ret = cur.next()
         while ret == 0:
             key = cur.get_key()
-            self.assertNotIn(key, trunc_range)
+            self.assertNotIn(key, trunc_range, f'scan must not visit deleted key {key}')
             if prev_key == self.trunc_start - 1 and first_after_gap is None:
                 first_after_gap = key
             prev_key = key
             count += 1
             ret = cur.next()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        self.assertEqual(count, expected)
-        self.assertEqual(first_after_gap, self.trunc_stop + 1)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND, 'scan must end at WT_NOTFOUND')
+        self.assertEqual(count, expected, f'scan must visit exactly {expected} non-truncated rows')
+        self.assertEqual(first_after_gap, self.trunc_stop + 1,
+            'scan must jump directly to trunc_stop+1 after the gap')
         sess.rollback_transaction()
         cur.close()
 
@@ -217,55 +215,13 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         cur.set_key(mid)
         exact = cur.search_near()
         self.assertIn(exact, (-1, 1), 'search_near must not find an exact match in the truncated range')
-        self.assertNotIn(cur.get_key(), trunc_range)
-        self.assertEqual(cur.get_value(), self.value)
+        self.assertNotIn(cur.get_key(), trunc_range, 'search_near must land outside the truncated range')
+        self.assertEqual(cur.get_value(), self.value, 'key found by search_near must have the original value')
         sess.rollback_transaction()
         cur.close()
 
         sess.close()
         conn.close()
-
-    # ------------------------------------------------------------------
-    # Scenario 4 -- ingest write on a truncated key
-    # ------------------------------------------------------------------
-
-    def test_ingest_write_on_truncated_key(self):
-        """
-        Follower writes to fast-truncated keys; writes route to ingest, not stable.
-        At ts_write the ingest value is visible.  At ts_read the stable deletion
-        still wins.  Unwritten truncated keys stay WT_NOTFOUND at both timestamps.
-        """
-        self.setup_leader()
-        conn, sess = self.open_follower()
-
-        write_keys = [self.trunc_start, self.trunc_start + 500,
-                      (self.trunc_start + self.trunc_stop) // 2]
-        skip_key   = self.trunc_start + 250
-
-        cur = sess.open_cursor(self.uri)
-        sess.begin_transaction()
-        for key in write_keys:
-            cur.set_key(key)
-            cur.set_value(f'ingest_{key}')
-            self.assertEqual(cur.insert(), 0)
-        sess.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_write))
-        cur.close()
-
-        for key in write_keys:
-            ret, val = self.search_at(sess, key, self.ts_write)
-            self.assertEqual(ret, 0)
-            self.assertEqual(val, f'ingest_{key}')
-
-        ret, _ = self.search_at(sess, skip_key, self.ts_write)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-
-        for key in write_keys + [skip_key]:
-            ret, _ = self.search_at(sess, key, self.ts_read)
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-
-        sess.close()
-        conn.close()
-
 
 if __name__ == '__main__':
     wttest.run()

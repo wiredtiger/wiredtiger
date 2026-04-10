@@ -288,6 +288,12 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND,
             'stable deletion must still be visible at ts_read')
 
+        # A nearby truncated key that was never written must also stay deleted at ts_write.
+        skip_key = target + 100
+        ret, _ = self.search_at(sess, skip_key, self.ts_write)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND,
+            'an unwritten truncated key must stay deleted even after ingest writes nearby')
+
         sess.close()
         conn.close()
 
