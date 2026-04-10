@@ -1852,12 +1852,12 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
-
-        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Completed disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",
-          meta_lsn, checkpoint_timestamp,
-          __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
     }
+
+    __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "%s disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",
+      ckpt_success ? "Completed" : "Failed", meta_lsn, checkpoint_timestamp,
+      __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
 
     WT_ERR(__disagg_begin_checkpoint(session));
 
