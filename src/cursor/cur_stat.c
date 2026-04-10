@@ -489,8 +489,8 @@ err:
 
 /*
  * __wt_curstat_size_local --
- *     Fast-path size retrieval for tables backed by a local file. If the file exists, set *existp
- *     and return the size via *sizep.
+ *     Fast-path size retrieval for a local file. If the file exists, set *existp and return the
+ *     size via *sizep. A non-existent file is not an error; *existp will be false.
  */
 int
 __wt_curstat_size_local(
@@ -505,9 +505,9 @@ __wt_curstat_size_local(
 
 /*
  * __wt_curstat_size_disagg --
- *     Fast-path size retrieval for disaggregated tables. There is no underlying file on disk, so
- *     read the checkpoint size directly from the file's metadata entry. If successful, set *existp
- *     and return the size via *sizep.
+ *     Fast-path size retrieval for a disaggregated table. There is no local file on disk, so the
+ *     size comes from the last checkpoint entry in the metadata. If found, set *existp and return
+ *     the size via *sizep. A missing metadata entry is not an error; *existp will be false.
  */
 int
 __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, wt_off_t *sizep)
@@ -532,6 +532,27 @@ __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp
 }
 
 /*
+ * __curstat_file_size --
+ *     Fast-path size retrieval for a file: URI. Try to determine the size without opening the
+ *     dhandle: first check for a local file on disk, then fall back to reading the checkpoint size
+ *     from the metadata (for disaggregated storage). If neither succeeds, *existp is false and the
+ *     caller should fall through to the slow path.
+ */
+static int
+__curstat_file_size(
+  WT_SESSION_IMPL *session, const char *uri, const char *filename, bool *existp, wt_off_t *sizep)
+{
+    /* Try the local file first. */
+    WT_RET(__wt_curstat_size_local(session, filename, existp, sizep));
+    if (*existp)
+        return (0);
+
+    /* No local file; check the metadata for a disagg checkpoint size. */
+    WT_RET(__wt_curstat_size_disagg(session, uri, existp, sizep));
+    return (0);
+}
+
+/*
  * __curstat_file_init --
  *     Initialize the statistics for a file.
  */
@@ -546,17 +567,16 @@ __curstat_file_init(
     bool exist;
 
     /*
-     * If we are only getting the size of the file, we don't need to open the tree. This only
-     * applies to file: types. Tiered tables need to use the dhandle.
+     * If we are only getting the size of the file, try to avoid opening the dhandle. This only
+     * applies to file: types. Tiered tables need to use the dhandle. If the fast path fails to
+     * determine a size, fall through to the slow path below.
      */
     if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
         filename = uri;
         WT_PREFIX_SKIP(filename, "file:");
 
         size = 0;
-        WT_RET(__wt_curstat_size_local(session, filename, &exist, &size));
-        if (!exist)
-            WT_RET(__wt_curstat_size_disagg(session, uri, &exist, &size));
+        WT_RET(__curstat_file_size(session, uri, filename, &exist, &size));
         if (exist) {
             __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
             cst->u.dsrc_stats.block_size = size;
