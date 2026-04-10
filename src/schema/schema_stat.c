@@ -90,17 +90,13 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
         goto err;
 
     /*
-     * Layered disaggregated tables use a .wt_stable file in the metadata rather than a local .wt
-     * file. Check both block_manager and type configs to determine which extension to use.
+     * Layered tables use a .wt_stable file in the metadata rather than a local .wt file. Detect
+     * them so we can build the correct filename and use the disagg size path.
      */
-    ret = __wt_config_getones(session, tableconf, "block_manager", &cval);
+    ret = __wt_config_getones(session, tableconf, "type", &cval);
     WT_ERR_NOTFOUND_OK(ret, false);
-    if (ret == 0 && WT_CONFIG_LIT_MATCH("disagg", cval)) {
-        ret = __wt_config_getones(session, tableconf, "type", &cval);
-        WT_ERR_NOTFOUND_OK(ret, false);
-        if (ret == 0 && WT_CONFIG_LIT_MATCH("layered", cval))
-            disagg = true;
-    }
+    if (ret == 0 && WT_CONFIG_LIT_MATCH("layered", cval))
+        disagg = true;
 
     /*
      * Build up the file name from the table URI using the appropriate extension. For disagg the
