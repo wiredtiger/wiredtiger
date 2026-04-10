@@ -94,8 +94,8 @@ __rts_progress_msg(WT_SESSION_IMPL *session, uint64_t *last_report_clock)
  *     tree and estimate time remaining for this btree.
  */
 void
-__wti_rts_progress_msg_walk(
-  WT_SESSION_IMPL *session, uint64_t *last_report_clock, double npos, uint64_t btree_pages)
+__wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, uint64_t btree_start_clock,
+  uint64_t *last_report_clock, double npos, uint64_t btree_pages)
 {
     WT_ROLLBACK_TO_STABLE *rts;
     uint64_t btree_eta_sec, btree_pct, btree_pages_per_sec, clock_now, elapsed_ns, elapsed_sec,
@@ -104,9 +104,9 @@ __wti_rts_progress_msg_walk(
 
     rts = S2C(session)->rts;
 
-    /* The caller has already verified it's time to report; compute values for the message. */
+    /* Use total btree walk time (not interval) for pages/sec and ETA calculations. */
     clock_now = __wt_clock(session);
-    elapsed_ns = __wt_clock_to_nsec(clock_now, *last_report_clock);
+    elapsed_ns = __wt_clock_to_nsec(clock_now, btree_start_clock);
     elapsed_sec = elapsed_ns / WT_BILLION;
 
     phase = __wt_atomic_load_uint32_relaxed(&rts->progress.phase);

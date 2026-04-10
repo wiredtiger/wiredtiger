@@ -121,10 +121,11 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_DECL_RET;
     WT_REF *ref;
     double max_npos, npos;
-    uint64_t btree_pages, clock_now, elapsed_ns, last_report_clock;
+    uint64_t btree_pages, btree_start_clock, clock_now, elapsed_ns, last_report_clock;
     uint32_t flags;
 
-    last_report_clock = __wt_clock(session);
+    btree_start_clock = __wt_clock(session);
+    last_report_clock = btree_start_clock;
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
     btree_pages = 0;
     max_npos = 0.0;
@@ -151,7 +152,8 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
              */
             if (npos > max_npos)
                 max_npos = npos;
-            __wti_rts_progress_msg_walk(session, &last_report_clock, max_npos, btree_pages);
+            __wti_rts_progress_msg_walk(
+              session, btree_start_clock, &last_report_clock, max_npos, btree_pages);
         }
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))

@@ -328,7 +328,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_END "finished rollback to stable%s with %" PRIu32
-                          " worker threads and has ran for %" PRIu64 " milliseconds",
+                          " worker threads, ran for %" PRIu64 " milliseconds",
       dryrun ? " dryrun" : "", threads, time_diff_ms);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
