@@ -1734,35 +1734,27 @@ err:
  */
 static WT_INLINE int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
-  const WT_ITEM *value, bool position, bool reserve)
+  const WT_ITEM *value, bool update)
 {
-    WT_CURSOR *c;
-    int (*func)(WT_CURSOR *);
+    /*
+     * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
+     * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
+     */
+    if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
+        WT_RET(__clayered_reset_cursors(clayered, true));
 
-    if (S2C(session)->layered_table_manager.leader)
-        c = clayered->stable_cursor;
-    else {
-        c = clayered->ingest_cursor;
+    bool leader = S2C(session)->layered_table_manager.leader;
+    WT_CURSOR *constituent = leader ? clayered->stable_cursor : clayered->ingest_cursor;
+    int (*func)(WT_CURSOR *) = update ? constituent->update : constituent->insert;
 
-        /*
-         * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
-         */
-        if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
-            WT_RET(__clayered_reset_cursors(clayered, true));
-    }
+    constituent->set_key(constituent, key);
+    constituent->set_value(constituent, value);
 
-    c->set_key(c, key);
-    func = c->insert;
-    if (position)
-        func = reserve ? c->reserve : c->update;
-    if (func != c->reserve)
-        c->set_value(c, value);
-    WT_RET(func(c));
+    WT_RET(func(constituent));
 
     /* If necessary, set the position for future scans. */
-    if (position)
-        clayered->current_cursor = c;
+    if (update)
+        clayered->current_cursor = constituent;
 
     return (0);
 }
@@ -1923,7 +1915,7 @@ __clayered_insert(WT_CURSOR *cursor)
     }
 
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
-    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, false, false));
+    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, false));
 
     /*
      * WT_CURSOR.insert doesn't leave the cursor positioned, and the application may want to free
@@ -1979,7 +1971,7 @@ __clayered_update(WT_CURSOR *cursor)
         WT_ERR(__cursor_needkey(cursor));
     }
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
-    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, true, false));
+    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, true));
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor.
@@ -2056,6 +2048,36 @@ err:
 }
 
 /*
+ * __clayered_reserve_constituent --
+ *     Reserve a key in the appropriate sub-cursor for the layered table.
+ */
+static int
+__clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *key)
+{
+    WT_DECL_RET;
+
+    bool leader = S2C(session)->layered_table_manager.leader;
+    WT_CURSOR *reserve_cursor = leader ? clayered->stable_cursor : clayered->ingest_cursor;
+
+    CURSOR_UPDATE_API_CALL_BTREE(reserve_cursor, session, ret, reserve);
+    WT_ERR(__clayered_reset_cursors(clayered, true));
+
+    reserve_cursor->set_key(reserve_cursor, key);
+
+    /*
+     * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet (it
+     * lives only in the stable table), so we need overwrite mode to allow the reserve to succeed
+     * without the key being present in the update tree.
+     */
+    ret = __wt_btcur_reserve((WT_CURSOR_BTREE *)reserve_cursor, !leader);
+
+err:
+    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_reserve);
+
+    return (ret);
+}
+
+/*
  * __clayered_reserve --
  *     WT_CURSOR->reserve method for the layered cursor type.
  */
@@ -2088,14 +2110,14 @@ __clayered_reserve(WT_CURSOR *cursor)
 
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     F_CLR(cursor, WT_CURSTD_OVERWRITE);
-    WT_ERR(__clayered_enter(clayered, false, S2C(session)->layered_table_manager.leader, false));
+    WT_ERR(__clayered_enter(clayered, false, true, false));
     WT_ERR(__clayered_lookup(session, clayered, &value));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    ret = __clayered_put(session, clayered, &cursor->key, NULL, true, true);
+    ret = __clayered_reserve_constituent(session, clayered, &cursor->key);
 
 err:
     if (overwrite)
