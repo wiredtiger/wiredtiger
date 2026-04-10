@@ -209,7 +209,6 @@ fill_random_data(void)
     data_str[str_len - 1] = '\0';
 }
 
-
 /*
  * recover_validate --
  *     Open wiredtiger and validate the data.

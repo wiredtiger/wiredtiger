@@ -1546,6 +1546,7 @@ __conn_cleanup_chunk_cache(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
+    char *value;
 
     conn = S2C(session);
 
@@ -1553,7 +1554,12 @@ __conn_cleanup_chunk_cache(WT_SESSION_IMPL *session)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    /* The chunk cache metadata table may exist on upgrade. Discard it. */
+    /* Only drop the chunk cache metadata table if it exists. */
+    WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, WT_CC_METAFILE_URI, &value));
+    if (ret == WT_NOTFOUND)
+        return (0);
+    __wt_free(session, value);
+
     WT_WITH_SCHEMA_LOCK(
       session, ret = __wt_schema_drop(session, WT_CC_METAFILE_URI, drop_cfg, false));
 
@@ -1569,9 +1575,14 @@ static int
 __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const char *source)
 {
     WT_CONFIG_ITEM cval;
+    int ret;
     bool cc_enabled;
 
-    if (config == NULL || __wt_config_getones(session, config, "chunk_cache.enabled", &cval) != 0)
+    if (config == NULL)
+        return (0);
+
+    WT_RET_NOTFOUND_OK(ret = __wt_config_getones(session, config, "chunk_cache.enabled", &cval));
+    if (ret == WT_NOTFOUND)
         return (0);
 
     cc_enabled = cval.val != 0;
