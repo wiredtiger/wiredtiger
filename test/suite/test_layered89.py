@@ -106,9 +106,7 @@ class test_layered89(wttest.WiredTigerTestCase):
         then advance the follower checkpoint to pick up the primary's snapshot.
         """
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(prepare_ts))
-        chkpt_session = self.conn.open_session()
-        chkpt_session.checkpoint()
-        chkpt_session.close()
+        self.session.checkpoint()
 
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(prepare_ts))
         self.disagg_advance_checkpoint(conn_follow)
@@ -173,16 +171,11 @@ class test_layered89(wttest.WiredTigerTestCase):
         cursor.close()
         return keys
 
-    def resolve_prepared(self, prepare_session_primary, rollback_ts):
-        """
-        Roll back the primary's prepared transaction and create a clean checkpoint
-        so that test teardown can verify the table without error.
-        """
-        prepare_session_primary.rollback_transaction(
+    def resolve_prepared(self, prepare_session, rollback_ts):
+        """Roll back a prepared transaction and close its session."""
+        prepare_session.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(rollback_ts))
-        prepare_session_primary.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(rollback_ts))
-        self.session.checkpoint()
+        prepare_session.close()
 
     def run_walk_test(self, all_keys, prepare_keys, walk_func, delete=False):
         """
@@ -194,12 +187,13 @@ class test_layered89(wttest.WiredTigerTestCase):
 
         # Roll back the follower's prepared transaction so the committed value
         # is what the cursor returns on the follower.
-        prepare_session_follow.rollback_transaction(
-            'rollback_timestamp=' + self.timestamp_str(30))
-        prepare_session_follow.close()
+        self.resolve_prepared(prepare_session_follow, rollback_ts=30)
 
-        # Force the follower to reload from its checkpoint on the next cursor access.
-        self.evict_page(session_follow, all_keys[0])
+        # Force the follower to reload the pages with prepared cells from the checkpoint.
+        # Without eviction the cursor would read the in-memory update chain (which already
+        # reflects the rollback), bypassing the on-disk prepared cells we need to exercise.
+        for key in prepare_keys:
+            self.evict_page(session_follow, key)
 
         keys = walk_func(session_follow)
 
@@ -207,6 +201,8 @@ class test_layered89(wttest.WiredTigerTestCase):
         conn_follow.close()
 
         self.resolve_prepared(prepare_session_primary, rollback_ts=30)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.session.checkpoint()
 
         return keys
 
@@ -269,11 +265,10 @@ class test_layered89(wttest.WiredTigerTestCase):
             self.setup_with_prepare(all_keys, prepare_keys)
 
         # Roll back the follower's prepared transaction.
-        prepare_session_follow.rollback_transaction(
-            'rollback_timestamp=' + self.timestamp_str(30))
-        prepare_session_follow.close()
+        self.resolve_prepared(prepare_session_follow, rollback_ts=30)
 
-        self.evict_page(session_follow, 1)
+        # Evict the page for the prepared key so the cursor reads from the on-disk checkpoint.
+        self.evict_page(session_follow, 2)
 
         cursor = session_follow.open_cursor(self.uri)
         session_follow.begin_transaction()
@@ -301,3 +296,5 @@ class test_layered89(wttest.WiredTigerTestCase):
         session_follow.close()
         conn_follow.close()
         self.resolve_prepared(prepare_session_primary, rollback_ts=30)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.session.checkpoint()
