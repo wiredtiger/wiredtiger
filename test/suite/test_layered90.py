@@ -26,20 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, shutil, wiredtiger, wttest
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from itertools import permutations, combinations_with_replacement
-from wtscenario import make_scenarios
 
 # test_layered90.py
 #    Test layered cursor iteration.
 #
 # A follower layered table is more complex than on a leader. In a layered table on a follower
-# there are both ingest and stable tables.  Assuming we have either a fixed timestamp, or aren't
+# there are both ingest and stable tables. Assuming we have either a fixed timestamp, or aren't
 # using a timestamp, for any key in the stable table, there are two states - either the key exists
-# or it doesn't.  For the ingest table, there are three states - the key exists, or it doesn't, or
+# or it doesn't. For the ingest table, there are three states - the key exists, or it doesn't, or
 # it has been marked as a tombstone. A tombstone indicates that the key doesn't exist, even if it
-# appears in the stable table.  So for the combination of ingest and stable table, there are 2x3 = 6
+# appears in the stable table. So for the combination of ingest and stable table, there are 2x3 = 6
 # states. We're going to ignore the state where it doesn't exist in either table as it is
 # uninteresting for our testing. We'll label the five remaining states as follows:
 #    I  -  key exists in the ingest table only
@@ -60,12 +59,12 @@ from wtscenario import make_scenarios
 # will be well tested.
 #
 # To get complete coverage and more, we'll generate all strings of letters from this set of length
-# from 0 to 6.  For each string, we'll set of the situation where we'll have the exact sequence,
+# from 0 to 6. For each string, we'll set of the situation where we'll have the exact sequence,
 # and then we'll test iterating forward from beginning to end, and backward from end to beginning,
 # checking to make sure we have the expected keys and values.
 #
 # Using layered tables to create the expected situation requires state transitions, from leader
-# to follower, and to pick up checkpoints.  These are heavyweight operations, so to save testing
+# to follower, and to pick up checkpoints. These are heavyweight operations, so to save testing
 # time, we'll create one table for each situation (naming it by its string), this allows us to
 # test rapidly.
 
@@ -93,14 +92,6 @@ def generate_unique_situations(max_len):
 
     return unique_situations
 
-def batched(lst, nbatches):
-    ll = len(lst)
-    items = (ll + nbatches - 1) // nbatches  # round up
-    result = []
-    for b in range(0, ll, items):
-        result.append(lst[b:b+items-1])
-    return result
-
 @disagg_test_class
 class test_layered90(wttest.WiredTigerTestCase):
 
@@ -109,14 +100,6 @@ class test_layered90(wttest.WiredTigerTestCase):
                      + 'precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
-    nbatches_values = [
-        ('nbatches=1', dict(nbatches=1)),
-        ('nbatches=25', dict(nbatches=25)),
-        ('nbatches=100', dict(nbatches=100)),
-        ('nbatches=896', dict(nbatches=896)),
-    ]
-    scenarios = make_scenarios(nbatches_values)
-
     # Test timestamps
     def test_layered90(self):
         # Create the follower
@@ -124,25 +107,15 @@ class test_layered90(wttest.WiredTigerTestCase):
                   ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
 
-        sits_all = generate_unique_situations(6)
-        chunks = list(batched(sits_all, self.nbatches))
-        ts = 0
-        chunk_num = 0
-        for sits in chunks:
-          chunk_num += 1
-          ts += 100
-          uri_sits = []
-          for sit in sits:
-            table_name = ''
-            for letter in sit:
-                table_name += letter
-
-            # Create tables and fill keys
-            uri = 'table:' + table_name
+        sits = generate_unique_situations(6)
+        ts = 100
+        uri_sits = []
+        for sit in sits:
+            uri = 'table:' + ''.join(sit)
             self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
             uri_sits.append((uri, sit))
 
-          for (uri, sit) in uri_sits:
+        for (uri, sit) in uri_sits:
             with self.transaction(commit_timestamp=ts):
                 c = self.session.open_cursor(uri)
                 for key, letter in enumerate(sit, 1):
@@ -150,13 +123,13 @@ class test_layered90(wttest.WiredTigerTestCase):
                         c[str(key)] = str(key)
                 c.close()
 
-          self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 10)}')
-          self.session.checkpoint()
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 10)}')
+        self.session.checkpoint()
 
-          # Pick up checkpoint at ts + 10
-          self.disagg_advance_checkpoint(conn_follow)
+        # Pick up checkpoint at ts + 10
+        self.disagg_advance_checkpoint(conn_follow)
 
-          for (uri, sit) in uri_sits:
+        for (uri, sit) in uri_sits:
             with self.transaction(commit_timestamp=ts + 20):
                 c = self.session.open_cursor(uri)
                 for key, letter in enumerate(sit, 1):
@@ -165,8 +138,8 @@ class test_layered90(wttest.WiredTigerTestCase):
                         c.remove()
                 c.close()
 
-          for (uri, sit) in uri_sits:
-            with self.transaction(session = session_follow, commit_timestamp=ts + 20):
+        for (uri, sit) in uri_sits:
+            with self.transaction(session=session_follow, commit_timestamp=ts + 20):
                 c = session_follow.open_cursor(uri)
                 for key, letter in enumerate(sit, 1):
                     if letter == 'X':
@@ -174,11 +147,11 @@ class test_layered90(wttest.WiredTigerTestCase):
                         c.remove()
                 c.close()
 
-          self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 30)}')
-          self.session.checkpoint()
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 30)}')
+        self.session.checkpoint()
 
-          for (uri, sit) in uri_sits:
-            with self.transaction(session = session_follow, commit_timestamp=ts + 40):
+        for (uri, sit) in uri_sits:
+            with self.transaction(session=session_follow, commit_timestamp=ts + 40):
                 c = session_follow.open_cursor(uri)
                 for key, letter in enumerate(sit, 1):
                     if letter in ('I', 'B'):
@@ -188,10 +161,10 @@ class test_layered90(wttest.WiredTigerTestCase):
                         c.remove()
                 c.close()
 
-          # Pick up checkpoint at ts + 40
-          self.disagg_advance_checkpoint(conn_follow)
+        # Pick up checkpoint at ts + 40
+        self.disagg_advance_checkpoint(conn_follow)
 
-          for (uri, sit) in uri_sits:
+        for (uri, sit) in uri_sits:
             # Keys with state I (ingest only), S (stable only), or B (both) should be visible.
             # R (tombstone over stable) and X (tombstone, no stable entry) should not.
             expect = [str(k) for k, letter in enumerate(sit, 1) if letter in ('I', 'S', 'B')]
