@@ -277,7 +277,7 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
           uri, ret == ENOENT ? "does not exist" : "is corrupted.");
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
         ret = 0;
-    } else
+    } else if (ret == 0)
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_processed, 1);
     return (ret);
 }

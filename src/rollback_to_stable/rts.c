@@ -133,8 +133,8 @@ __wti_rts_progress_msg_walk(
           btree_pages_per_sec);
 
     /*
-     * Emit an overall progress line. Use CAS on overall_last_report so that exactly one thread
-     * wins per reporting period, regardless of which thread it is.
+     * Emit an overall progress line. Use CAS on overall_last_report so that exactly one thread wins
+     * per reporting period, regardless of which thread it is.
      */
     overall_last = __wt_atomic_load_uint64_relaxed(&rts->progress.overall_last_report);
     if (__wt_clock_to_nsec(clock_now, overall_last) >=
