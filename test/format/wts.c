@@ -536,6 +536,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
+    CONFIG_APPEND(p, ",checkpoint_threads=%" PRIu32, GV(CHECKPOINT_THREADS));
+
     if (GV(PRECISE_CHECKPOINT))
         CONFIG_APPEND(p, ",precise_checkpoint=true");
 
@@ -824,6 +826,8 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
             CONFIG_APPEND(p, ",%s", s);
         if (g.config_open != NULL)
             CONFIG_APPEND(p, ",%s", g.config_open);
+
+        CONFIG_APPEND(p, ",checkpoint_threads=%" PRIu32, GV(CHECKPOINT_THREADS));
 
         if (GV(PRECISE_CHECKPOINT))
             CONFIG_APPEND(p, ",precise_checkpoint=true");
