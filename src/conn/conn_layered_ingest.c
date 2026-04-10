@@ -210,8 +210,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         buf2[0] = '\0';
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
-      "cross_key=true,show_prepared_rollback=true,%s))",
-      buf2));
+      "cross_key=true,show_prepared_rollback=%s,%s))",
+      preserve_prepared ? "true" : "false", buf2));
     cfg[1] = buf;
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
 
@@ -324,7 +324,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                  */
                 if (is_prepare_rollback) {
                     /* Prepared transactions must have a prepared id in disagg. */
-                    WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
+                    WT_ASSERT(
+                      session, preserve_prepared && start_prepared_id != WT_PREPARED_ID_NONE);
                     /*
                      * The original transaction id is stored in start timestamp and the rollback
                      * timestamp is stored in durable timestamp.
