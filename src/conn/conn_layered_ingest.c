@@ -192,11 +192,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     int cmp;
     char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
-    bool is_prepare_rollback, prepare_resolved;
+    bool is_prepare_rollback, prepare_resolved, preserve_prepared;
 
     prepare_cursor = stable_cursor = version_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
     prepare_resolved = false;
+    preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
@@ -265,57 +266,49 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          */
         if (durable_start_ts > last_checkpoint_timestamp) {
             /*
-             * If the ingest table contained a resolved prepared update for this key, the stable
-             * table still has the unresolved prepared cell from a prior checkpoint. Resolve it now
-             * before applying the ingest updates.
+             * If the "preserve prepared" option is enabled and the ingest btree contains a resolved
+             * prepared update for this key whose prepared timestamp is less than or equal to the
+             * last checkpoint timestamp, the stable btree must still contain an unresolved prepared
+             * cell from a previous checkpoint. To ensure data consistency, resolve the unresolved
+             * prepared cell before applying the ingest updates.
              */
-            if (is_prepare_rollback && start_prepare_ts <= last_checkpoint_timestamp) {
-                /*
-                 * The last checkpoint writes the prepared update, resolve it if we haven't resolved
-                 * it yet.
-                 */
-                /* Prepared transactions must have a prepared id in disagg. */
-                WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
-                /* Only resolve the updates from the same prepared transaction once. */
-                if (!prepare_resolved) {
-                    /*
-                     * The original transaction id is stored in start timestamp and the rollback
-                     * timestamp is stored in durable timestamp.
-                     */
-                    WT_TXN_TIME_POINT txn_time_point;
-                    txn_time_point.id = start_ts;
-                    txn_time_point.prepared_id = start_prepared_id;
-                    txn_time_point.prepare_timestamp = start_prepare_ts;
-                    txn_time_point.rollback_timestamp = durable_start_ts;
-                    WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point, key,
-                      WT_RECNO_OOB, false, &prepare_cursor));
-                    prepare_resolved = true;
-                }
-            } else if (start_prepared_id != WT_PREPARED_ID_NONE &&
+            if (preserve_prepared && start_prepared_id != WT_PREPARED_ID_NONE &&
               start_prepare_ts <= last_checkpoint_timestamp) {
-                /*
-                 * The last checkpoint writes the prepared update, resolve it if we haven't resolved
-                 * it yet.
-                 */
-                /* Prepared transactions must have a prepared id in disagg. */
-                WT_ASSERT(session, start_prepare_ts != WT_TS_NONE);
-                /* Only resolve the updates from the same prepared transaction once. */
-                if (!prepare_resolved) {
-                    WT_TXN_TIME_POINT txn_time_point;
-                    txn_time_point.id = start_txn;
-                    txn_time_point.prepared_id = start_prepared_id;
-                    txn_time_point.prepare_timestamp = start_prepare_ts;
-                    txn_time_point.commit_timestamp = start_ts;
-                    txn_time_point.durable_timestamp = durable_start_ts;
-                    WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point, key,
-                      WT_RECNO_OOB, true, &prepare_cursor));
-                    prepare_resolved = true;
+                if (is_prepare_rollback) {
+                    /* Only resolve the updates from the same prepared transaction once. */
+                    if (!prepare_resolved) {
+                        /*
+                         * The original transaction id is stored in start timestamp and the rollback
+                         * timestamp is stored in durable timestamp.
+                         */
+                        WT_TXN_TIME_POINT txn_time_point;
+                        txn_time_point.id = start_ts;
+                        txn_time_point.prepared_id = start_prepared_id;
+                        txn_time_point.prepare_timestamp = start_prepare_ts;
+                        txn_time_point.rollback_timestamp = durable_start_ts;
+                        WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point,
+                          key, WT_RECNO_OOB, false, &prepare_cursor));
+                        prepare_resolved = true;
+                    }
+                } else {
+                    /* Only resolve the updates from the same prepared transaction once. */
+                    if (!prepare_resolved) {
+                        WT_TXN_TIME_POINT txn_time_point;
+                        txn_time_point.id = start_txn;
+                        txn_time_point.prepared_id = start_prepared_id;
+                        txn_time_point.prepare_timestamp = start_prepare_ts;
+                        txn_time_point.commit_timestamp = start_ts;
+                        txn_time_point.durable_timestamp = durable_start_ts;
+                        WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point,
+                          key, WT_RECNO_OOB, true, &prepare_cursor));
+                        prepare_resolved = true;
+                    }
                 }
             } else {
                 /*
-                 * If the update is not a prepared update or a resolved prepared update never been
-                 * written to the checkpoint as a prepared update, move it to the stable table
-                 * directly.
+                 * If the update is not a prepared update or a resolved prepared update that has
+                 * never been written to the checkpoint as a prepared update, move it to the stable
+                 * table directly.
                  */
                 /*
                  * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
