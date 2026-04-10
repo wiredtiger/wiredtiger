@@ -459,6 +459,14 @@ format_die(void)
     if (syntax_check)
         exit(1);
 
+    /* If we are expecting a failure, report that and exit without error. */
+    if (g.expect_failure) {
+        fprintf(stderr, "\n%s: run finished due to an expected failure\n", progname);
+        fflush(stderr);
+        fflush(stdout);
+        exit(0);
+    }
+
     /*
      * Turn off progress reports and tracing so we don't obscure the error message or drop core when
      * using a session that's being closed. The lock we're about to acquire will act as a barrier to

@@ -225,6 +225,7 @@ typedef struct {
 
     bool backward_compatible; /* Backward compatibility testing */
     bool configured;          /* Configuration completed */
+    bool expect_failure;      /* We expect a failure */
     bool reopen;              /* Reopen an existing database */
     bool workers_finished;    /* Operations completed */
 
