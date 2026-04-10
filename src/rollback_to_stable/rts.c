@@ -75,16 +75,15 @@ __rts_emit_overall_progress(WT_SESSION_IMPL *session)
  *     metadata walk loop in __wti_rts_btree_apply_all.
  */
 static void
-__rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t *msg_count)
+__rts_progress_msg(WT_SESSION_IMPL *session, uint64_t *last_report_clock)
 {
-    uint64_t time_diff_ms;
+    uint64_t clock_now, elapsed_ns;
 
-    /* Time since the rollback started. */
-    __wt_timer_evaluate_ms(session, rollback_start, &time_diff_ms);
-
-    if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *msg_count) {
+    clock_now = __wt_clock(session);
+    elapsed_ns = __wt_clock_to_nsec(clock_now, *last_report_clock);
+    if (elapsed_ns >= (uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD) {
         __rts_emit_overall_progress(session);
-        *msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+        *last_report_clock = clock_now;
     }
 }
 
@@ -95,54 +94,55 @@ __rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint64_t 
  *     tree and estimate time remaining for this btree.
  */
 void
-__wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, WT_TIMER *btree_start, uint64_t *msg_count,
-  double npos, uint64_t btree_pages)
+__wti_rts_progress_msg_walk(
+  WT_SESSION_IMPL *session, uint64_t *last_report_clock, double npos, uint64_t btree_pages)
 {
     WT_ROLLBACK_TO_STABLE *rts;
-    uint64_t btree_eta_sec, btree_pct, btree_pages_per_sec, elapsed_ms, overall_elapsed_ms,
-      overall_report_count;
+    uint64_t btree_eta_sec, btree_pct, btree_pages_per_sec, clock_now, elapsed_ns, elapsed_sec,
+      overall_last;
     uint32_t phase;
 
     rts = S2C(session)->rts;
 
     /* The caller has already verified it's time to report; compute values for the message. */
-    __wt_timer_evaluate_ms(session, btree_start, &elapsed_ms);
+    clock_now = __wt_clock(session);
+    elapsed_ns = __wt_clock_to_nsec(clock_now, *last_report_clock);
+    elapsed_sec = elapsed_ns / WT_BILLION;
 
     phase = __wt_atomic_load_uint32_relaxed(&rts->progress.phase);
     btree_pct = (uint64_t)(npos * 100);
-    btree_pages_per_sec = elapsed_ms > 0 ? (btree_pages * WT_THOUSAND / elapsed_ms) : 0;
+    btree_pages_per_sec = elapsed_sec > 0 ? (btree_pages / elapsed_sec) : 0;
 
     /* Estimate time remaining for this btree based on npos progression. */
     btree_eta_sec = 0;
     if (npos > 0.05 && npos < 1.0)
-        btree_eta_sec = (uint64_t)((1.0 - npos) * (double)elapsed_ms / (npos * WT_THOUSAND));
+        btree_eta_sec = (uint64_t)((1.0 - npos) * (double)elapsed_sec / npos);
 
     if (btree_eta_sec > 0)
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "Rollback to stable [%s] btree walk on %s for %" PRIu64 " seconds, %" PRIu64
           "%% through btree, %" PRIu64 " pages walked (%" PRIu64 " pages/sec), btree ETA %" PRIu64
           " seconds",
-          __rts_phase_string(phase), session->dhandle->name, elapsed_ms / WT_THOUSAND, btree_pct,
-          btree_pages, btree_pages_per_sec, btree_eta_sec);
+          __rts_phase_string(phase), session->dhandle->name, elapsed_sec, btree_pct, btree_pages,
+          btree_pages_per_sec, btree_eta_sec);
     else
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "Rollback to stable [%s] btree walk on %s for %" PRIu64 " seconds, %" PRIu64
           "%% through btree, %" PRIu64 " pages walked (%" PRIu64 " pages/sec)",
-          __rts_phase_string(phase), session->dhandle->name, elapsed_ms / WT_THOUSAND, btree_pct,
-          btree_pages, btree_pages_per_sec);
+          __rts_phase_string(phase), session->dhandle->name, elapsed_sec, btree_pct, btree_pages,
+          btree_pages_per_sec);
 
     /*
-     * Emit an overall progress line. Use CAS on overall_report_count so that exactly one thread
+     * Emit an overall progress line. Use CAS on overall_last_report so that exactly one thread
      * wins per reporting period, regardless of which thread it is.
      */
-    __wt_timer_evaluate_ms(session, &rts->progress.start_timer, &overall_elapsed_ms);
-    overall_report_count = __wt_atomic_load_uint64_relaxed(&rts->progress.overall_report_count);
-    if ((overall_elapsed_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > overall_report_count &&
-      __wt_atomic_cas_uint64(
-        &rts->progress.overall_report_count, overall_report_count, overall_report_count + 1))
+    overall_last = __wt_atomic_load_uint64_relaxed(&rts->progress.overall_last_report);
+    if (__wt_clock_to_nsec(clock_now, overall_last) >=
+        (uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD &&
+      __wt_atomic_cas_uint64(&rts->progress.overall_last_report, overall_last, clock_now))
         __rts_emit_overall_progress(session);
 
-    *msg_count = elapsed_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+    *last_report_clock = clock_now;
 }
 
 /*
@@ -157,6 +157,7 @@ __rts_progress_init(WT_SESSION_IMPL *session)
     rts = S2C(session)->rts;
     WT_CLEAR(rts->progress);
     __wt_timer_start(session, &rts->progress.start_timer);
+    __wt_atomic_store_uint64_relaxed(&rts->progress.overall_last_report, __wt_clock(session));
 }
 
 /*
@@ -294,8 +295,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_RTS_WORK_UNIT *entry;
-    WT_TIMER timer;
-    uint64_t max_count, rollback_msg_count;
+    uint64_t last_report_clock, max_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *saved_session_name, *uri;
     bool have_cursor, rts_threads_started;
@@ -304,10 +304,9 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     __wt_atomic_store_uint32_relaxed(
       &S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
 
-    __wt_timer_start(session, &timer);
+    last_report_clock = __wt_clock(session);
     max_count = 0;
     saved_session_name = session->name;
-    rollback_msg_count = 0;
     rts_threads_started = false;
 
     /*
@@ -340,7 +339,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         /* Log a progress message. */
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
-        __rts_progress_msg(session, &timer, &rollback_msg_count);
+        __rts_progress_msg(session, &last_report_clock);
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wti_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
