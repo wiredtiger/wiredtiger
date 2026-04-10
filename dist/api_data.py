@@ -539,7 +539,8 @@ table_meta = format_meta + table_only_config
 
 layered_config = [
     Config('ingest', '', r'''
-        URI for layered ingest table''',
+        ingest table URI(s): a single quoted URI, or a parenthesized comma-separated list of URIs
+        from oldest to newest chunk; the last URI is the active ingest''',
         type='string', undoc=True),
     Config('stable', '', r'''
         URI for layered stable table''',

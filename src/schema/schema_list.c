@@ -237,6 +237,14 @@ __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
     /* Free copies of copied configuration items. */
     __wt_free(session, layered->key_format);
     __wt_free(session, layered->value_format);
-    __wt_free(session, layered->ingest_uri);
+    if (layered->ingest_uris != NULL) {
+        u_int j;
+
+        for (j = 0; j < layered->n_ingest_uris; j++)
+            __wt_free(session, layered->ingest_uris[j]);
+        __wt_free(session, layered->ingest_uris);
+    }
+    layered->n_ingest_uris = 0;
+    __wt_free(session, layered->ingest_btree_ids);
     __wt_free(session, layered->stable_uri);
 }

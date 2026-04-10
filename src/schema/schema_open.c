@@ -615,11 +615,78 @@ __wt_schema_open_table(WT_SESSION_IMPL *session)
 }
 
 /*
- * __schema_open_layered_ingest --
- *     Open the ingest table for a layered table.
+ * __schema_layered_parse_ingest_uris --
+ *     Parse layered ingest metadata: a single URI, or ingest=(uri1,uri2,...).
  */
 static int
-__schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, const char *uri)
+__schema_layered_parse_ingest_uris(
+  WT_SESSION_IMPL *session, const char *str, size_t len, char ***urisp, uint32_t *np)
+{
+    WT_DECL_RET;
+    const char *body, *body_end, *comma, *seg;
+    char **uris;
+    size_t alloc, seglen;
+    uint32_t n;
+
+    uris = NULL;
+    alloc = 0;
+    n = 0;
+
+    if (len == 0)
+        WT_RET_MSG(session, EINVAL, "layered table metadata is missing ingest configuration");
+
+    body = str;
+    body_end = str + len;
+    if (len >= 2 && str[0] == '(' && str[len - 1] == ')') {
+        body = str + 1;
+        body_end = str + len - 1;
+    }
+
+    while (body < body_end) {
+        while (body < body_end && *body == ' ')
+            ++body;
+        if (body >= body_end)
+            break;
+        comma = body;
+        while (comma < body_end && *comma != ',')
+            ++comma;
+        seg = body;
+        seglen = (size_t)(comma - seg);
+        while (seglen > 0 && seg[seglen - 1] == ' ')
+            --seglen;
+        if (seglen == 0) {
+            body = comma;
+            if (body < body_end && *body == ',')
+                ++body;
+            continue;
+        }
+        WT_ERR(__wt_realloc_def(session, &alloc, n + 1, &uris));
+        WT_ERR(__wt_strndup(session, seg, seglen, &uris[n++]));
+        body = comma;
+        if (body < body_end && *body == ',')
+            ++body;
+    }
+
+    if (n == 0)
+        WT_ERR_MSG(session, EINVAL, "layered table ingest list is empty");
+    *urisp = uris;
+    *np = n;
+    return (0);
+
+err:
+    while (n > 0)
+        __wt_free(session, uris[--n]);
+    __wt_free(session, uris);
+    return (ret);
+}
+
+/*
+ * __schema_open_layered_ingest --
+ *     Open one ingest table for a layered table and record its btree id.
+ */
+static int
+__schema_open_layered_ingest(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, const char *uri, uint32_t ingest_idx)
 {
     WT_BTREE *ingest_btree;
 
@@ -631,7 +698,7 @@ __schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered
      * safely dereferenced when other layered code still needs the id.
      */
     ingest_btree = (WT_BTREE *)session->dhandle->handle;
-    layered->ingest_btree_id = ingest_btree->id;
+    layered->ingest_btree_ids[ingest_idx] = ingest_btree->id;
 
     WT_RET(__wt_session_release_dhandle(session));
     return (0);
@@ -665,7 +732,10 @@ __schema_open_layered(WT_SESSION_IMPL *session)
     WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->value_format));
 
     WT_RET(__wt_config_gets(session, layered_cfg, "ingest", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->ingest_uri));
+    WT_RET(__schema_layered_parse_ingest_uris(session, cval.str, cval.len, &layered->ingest_uris,
+      &layered->n_ingest_uris));
+    WT_RET(__wt_calloc_def(session, layered->n_ingest_uris, &layered->ingest_btree_ids));
+
     WT_RET(__wt_config_gets(session, layered_cfg, "stable", &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->stable_uri));
 
@@ -681,6 +751,7 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
+    uint32_t i;
 
     if (!__wt_conn_is_disagg(session)) {
         __wt_err(session, EINVAL, "layered table is only supported for disaggregated storage");
@@ -699,8 +770,9 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
      * threads are opening a layered table, the regular handle open scheme handles races of getting
      * these sub-handles into the connection.
      */
-    WT_SAVE_DHANDLE(
-      session, ret = __schema_open_layered_ingest(session, layered, layered->ingest_uri));
+    for (i = 0; i < layered->n_ingest_uris; i++)
+        WT_SAVE_DHANDLE(session,
+          ret = __schema_open_layered_ingest(session, layered, layered->ingest_uris[i], i));
     WT_RET(ret);
 
     return (0);

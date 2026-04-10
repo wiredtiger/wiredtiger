@@ -244,8 +244,8 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
       "Unable to find matching layered table to restore prepared update");
 
     layered = (WT_LAYERED_TABLE *)dhandle;
-    WT_ASSERT(session, layered->ingest_uri != NULL);
-    WT_ERR(__wt_strdup(session, layered->ingest_uri, &ingest_uri));
+    WT_ASSERT(session, layered->n_ingest_uris > 0);
+    WT_ERR(__wt_strdup(session, WT_LAYERED_PRIMARY_INGEST_URI(layered), &ingest_uri));
     WT_DHANDLE_RELEASE(dhandle);
 
     /* Open cursor on the ingest table */

@@ -417,6 +417,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
     WT_LAYERED_TABLE *layered = NULL;
     const char *checkpoint_name = NULL;
     const char *stable_uri = NULL;
+    uint32_t i;
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
     dhandle = session->dhandle;
@@ -425,10 +426,12 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 
     __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
 
-    /* Do the ingest table. */
-    WT_ERR(__wt_session_get_dhandle(session, layered->ingest_uri, NULL, NULL, 0));
-    WT_ERR(__init_layered_constituent_stats(session, cst));
-    WT_ERR(__wt_session_release_dhandle(session));
+    /* Aggregate ingest table statistics (oldest through newest). */
+    for (i = 0; i < layered->n_ingest_uris; i++) {
+        WT_ERR(__wt_session_get_dhandle(session, layered->ingest_uris[i], NULL, NULL, 0));
+        WT_ERR(__init_layered_constituent_stats(session, cst));
+        WT_ERR(__wt_session_release_dhandle(session));
+    }
 
 retry:
     stable_uri = layered->stable_uri;
