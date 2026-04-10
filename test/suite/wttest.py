@@ -38,7 +38,12 @@ from __future__ import print_function
 import unittest
 
 from contextlib import contextmanager
-import errno, glob, os, re, shutil, sys, threading, time, traceback, types, shutil
+import errno, glob, json, os, re, shutil, sys, threading, time, traceback, types, shutil
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import abstract_test_case, test_result, wiredtiger, wthooks, wtscenario
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -122,6 +127,8 @@ class ExtensionList(list):
 
 class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     _globalSetup = False
+    _fast = False
+    _timing_report_path = None
 
     # We store the current test case in thread local storage.  There are
     # certain odd cases where this is useful, like hooks, where we don't
@@ -173,7 +180,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
                     printOutput = False, seedw = 0, seedz = 0, hookmgr = None,
-                    ss_random_prefix = 0, timeout = 0):
+                    ss_random_prefix = 0, timeout = 0, fast = False, timing_report = None):
         # Make a readonly view of the command line options passed in.
         # This view will be shared by all test cases.
         WiredTigerTestCase._command_line_vars = ReadonlySimpleNamespace(command_line_vars)
@@ -185,12 +192,14 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
         WiredTigerTestCase._extralongtest = extralongtest
+        WiredTigerTestCase._fast = fast
         WiredTigerTestCase._zstdtest = zstdtest
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._ss_random_prefix = ss_random_prefix
         WiredTigerTestCase._retriesAfterRollback = 0
         WiredTigerTestCase._testsRun = 0
         WiredTigerTestCase._timeout = timeout
+        WiredTigerTestCase._timing_report_path = timing_report
         if hookmgr == None:
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
@@ -200,6 +209,35 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase.setupIO('results.txt', ignoreStdout, printOutput, verbose)
         WiredTigerTestCase.setupRandom(seedw, seedz)
         WiredTigerTestCase._globalSetup = True
+
+    @staticmethod
+    def _append_timing_report(testcase, elapsed, passed, skipped, tear_down_incomplete=False):
+        path = WiredTigerTestCase._timing_report_path
+        if not path:
+            return
+        record = {
+            'class': testcase.class_name(),
+            'method': testcase._testMethodName,
+            'module': testcase.module_name(),
+            'passed': passed,
+            'pid': os.getpid(),
+            'scenario_name': getattr(testcase, 'scenario_name', None),
+            'scenario_number': getattr(testcase, 'scenario_number', None),
+            'seconds': round(elapsed, 6),
+            'skipped': skipped,
+            'tear_down_incomplete': tear_down_incomplete,
+        }
+        line = json.dumps(record, sort_keys=True) + '\n'
+        # threading.Lock is not reliable across forked parallel workers; use file locks on POSIX.
+        with open(path, 'a', encoding='utf-8') as fp:
+            if fcntl is not None:
+                fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
+            try:
+                fp.write(line)
+                fp.flush()
+            finally:
+                if fcntl is not None:
+                    fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
 
     @staticmethod
     def finalReport():
@@ -502,6 +540,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def setUp(self):
         if not hasattr(self.__class__, 'wt_ntests'):
             self.__class__.wt_ntests = 0
+        self._wt_timing_report_written = False
 
         # Testcases can view command line options via: self.vars.some_variable_name
         self.vars = WiredTigerTestCase._command_line_vars
@@ -638,92 +677,112 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
-        passed = not (self.failed() or teardown_failed)
-
-        if passed and self.__module__.startswith("test_layered"):
-            self.verifyLayered()
-
+        passed = False
         try:
-            self.platform_api.tearDown(self)
-        except:
-            self.pr('ERROR: failed to tear down the platform API')
-            self.prexception(sys.exc_info())
+            passed = not (self.failed() or teardown_failed)
 
-        # Download the files from the bucket for tiered tests if the test fails or preserve is
-        # turned on.
-        try:
-            if hasattr(self, 'ss_name') and not self.skipped and \
-                (not passed or WiredTigerTestCase._preserveFiles):
-                    self.pr('downloading object files')
-                    self.download_objects(self.bucket, self.bucket_prefix)
-        except:
-            self.pr('ERROR: failed to download objects')
-            self.prexception(sys.exc_info())
+            if passed and self.__module__.startswith("test_layered"):
+                self.verifyLayered()
 
-        self.pr('finishing')
-
-        # Close all connections that weren't explicitly closed.
-        # Connections left open (as a result of a test failure)
-        # can result in cascading errors.  We also make sure
-        # self.conn is on the list of active connections.
-        if not self.conn in self._connections:
-            self._connections.append(self.conn)
-        close_failed = False
-        for conn in self._connections:
             try:
-                conn.close()
-            except wiredtiger.WiredTigerError as err:
-                # If the test already failed, we let the connection close fail silently to avoid
-                # unnecessary noise.
-                if passed:
-                    self.prexception(sys.exc_info())
-                    sys.stderr.write('Error log from closing a connection:\n')
-                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
-                    close_failed = True
-                    dumped_error_log = True
-                    passed = False
+                self.platform_api.tearDown(self)
             except:
-                pass
-        self._connections = []
-        try:
-            self.fdTearDown()
-            if not (dueToRetry or self.ignoreTearDownLogs or dumped_error_log):
-                self.captureout.check(self)
-                self.captureerr.check(self)
-        finally:
-            # always get back to original directory
-            os.chdir(self.origcwd)
-
-        if not self.skipped:
-            self.pr('passed=' + str(passed))
-        self.pr('skipped=' + str(self.skipped))
-
-        # Clean up unless there's a failure
-        self.readyDirectoryForRemoval(self.testdir)
-        if (passed and (not WiredTigerTestCase._preserveFiles)) or self.skipped:
-            try:
-                shutil.rmtree(self.testdir, ignore_errors=True)
-            except:
-                self.pr('ERROR: failed to delete the test directory: ' + self.testdir)
+                self.pr('ERROR: failed to tear down the platform API')
                 self.prexception(sys.exc_info())
-        else:
-            self.pr('preserving directory ' + self.testdir)
 
-        self._threadLocal.currentTestCase = None
+            # Download the files from the bucket for tiered tests if the test fails or preserve is
+            # turned on.
+            try:
+                if hasattr(self, 'ss_name') and not self.skipped and \
+                    (not passed or WiredTigerTestCase._preserveFiles):
+                        self.pr('downloading object files')
+                        self.download_objects(self.bucket, self.bucket_prefix)
+            except:
+                self.pr('ERROR: failed to download objects')
+                self.prexception(sys.exc_info())
 
-        elapsed = time.time() - self.starttime
-        if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
-            print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
-        if teardown_failed:
-            self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
-        if close_failed:
-            self.fail(f'Closing the connection failed')
-        if (not passed or teardown_failed) and (not self.skipped):
-            print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
-            self.pr('FAIL')
-            self.pr('preserving directory ' + self.testdir)
-        if WiredTigerTestCase._verbose > 2:
-            self.prhead('TEST COMPLETED')
+            self.pr('finishing')
+
+            # Close all connections that weren't explicitly closed.
+            # Connections left open (as a result of a test failure)
+            # can result in cascading errors.  We also make sure
+            # self.conn is on the list of active connections.
+            if not self.conn in self._connections:
+                self._connections.append(self.conn)
+            close_failed = False
+            for conn in self._connections:
+                try:
+                    conn.close()
+                except wiredtiger.WiredTigerError as err:
+                    # If the test already failed, we let the connection close fail silently to avoid
+                    # unnecessary noise.
+                    if passed:
+                        self.prexception(sys.exc_info())
+                        sys.stderr.write('Error log from closing a connection:\n')
+                        wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+                        close_failed = True
+                        dumped_error_log = True
+                        passed = False
+                except:
+                    pass
+            self._connections = []
+            try:
+                self.fdTearDown()
+                if not (dueToRetry or self.ignoreTearDownLogs or dumped_error_log):
+                    self.captureout.check(self)
+                    self.captureerr.check(self)
+            finally:
+                # always get back to original directory
+                os.chdir(self.origcwd)
+
+            if not self.skipped:
+                self.pr('passed=' + str(passed))
+            self.pr('skipped=' + str(self.skipped))
+
+            # Clean up unless there's a failure
+            self.readyDirectoryForRemoval(self.testdir)
+            if (passed and (not WiredTigerTestCase._preserveFiles)) or self.skipped:
+                try:
+                    shutil.rmtree(self.testdir, ignore_errors=True)
+                except:
+                    self.pr('ERROR: failed to delete the test directory: ' + self.testdir)
+                    self.prexception(sys.exc_info())
+            else:
+                self.pr('preserving directory ' + self.testdir)
+
+            self._threadLocal.currentTestCase = None
+
+            if teardown_failed:
+                self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
+            if close_failed:
+                self.fail(f'Closing the connection failed')
+            if (not passed or teardown_failed) and (not self.skipped):
+                print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
+                self.pr('FAIL')
+                self.pr('preserving directory ' + self.testdir)
+            if WiredTigerTestCase._verbose > 2:
+                self.prhead('TEST COMPLETED')
+        finally:
+            # Always emit a timing row unless this is a partial teardown for rollback retry.
+            # Rows were previously dropped when captureout/captureerr checks raised before append.
+            if dueToRetry or not WiredTigerTestCase._timing_report_path:
+                pass
+            elif getattr(self, '_wt_timing_report_written', False):
+                pass
+            else:
+                self._wt_timing_report_written = True
+                if hasattr(self, 'starttime'):
+                    elapsed = time.time() - self.starttime
+                else:
+                    elapsed = 0.0
+                exc_info = sys.exc_info()
+                tear_down_incomplete = exc_info[0] is not None
+                record_passed = bool(passed) and not tear_down_incomplete
+                WiredTigerTestCase._append_timing_report(
+                    self, elapsed, record_passed, self.skipped,
+                    tear_down_incomplete=tear_down_incomplete)
+                if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
+                    print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
 
     def backup(self, backup_dir, session=None):
         if session is None:
@@ -741,6 +800,54 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
     def runningHook(self, name):
         return name in WiredTigerTestCase.hook_names
+
+    def wait_for_stat(self, stat_key, predicate=None, timeout=5.0, interval=0.1):
+        """
+        Poll a connection statistic until it matches predicate or timeout expires.
+
+        stat_key should be a wiredtiger.stat.* key.
+        predicate is a callable taking the integer stat value and returning True when satisfied.
+        """
+        if predicate is None:
+            predicate = lambda v: v != 0
+        end = time.monotonic() + float(timeout)
+        last = None
+        while True:
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            try:
+                last = stat_cursor[stat_key][2]
+            finally:
+                stat_cursor.close()
+            if predicate(last):
+                return last
+            if time.monotonic() >= end:
+                self.fail(f"Timed out waiting for stat {stat_key} to satisfy predicate, last={last}")
+            time.sleep(float(interval))
+
+    def wait_for_condition(self, predicate, timeout=5.0, interval=0.1, desc='condition'):
+        """
+        Poll predicate() until it returns True or timeout expires.
+        """
+        end = time.monotonic() + float(timeout)
+        while True:
+            if predicate():
+                return
+            if time.monotonic() >= end:
+                self.fail(f"Timed out waiting for {desc}")
+            time.sleep(float(interval))
+
+    def poll_for_condition(self, predicate, timeout=5.0, interval=0.1):
+        """
+        Poll predicate() until it returns True or timeout expires.
+        Returns True if satisfied, False if timed out.
+        """
+        end = time.monotonic() + float(timeout)
+        while True:
+            if predicate():
+                return True
+            if time.monotonic() >= end:
+                return False
+            time.sleep(float(interval))
 
     @contextmanager
     def expectedStdout(self, expect, ignore_pat=None):
@@ -1142,6 +1249,9 @@ def register_skipped_test(test, hook, skip_reason):
 
 def islongtest():
     return WiredTigerTestCase._longtest
+
+def isfast():
+    return WiredTigerTestCase._fast
 
 def getseed():
     return WiredTigerTestCase._seeds

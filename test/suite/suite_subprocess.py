@@ -191,8 +191,10 @@ class suite_subprocess:
                 '", should be three part dotted name')
         topdir = os.path.dirname(self.buildDirectory())
         runscript = os.path.join(topdir, 'test', 'suite', 'run.py')
-        procargs = [ sys.executable, runscript, '-p', '--dir', directory,
-            funcname]
+        procargs = [ sys.executable, runscript, '-p', '--dir', directory ]
+        if WiredTigerTestCase._fast:
+            procargs.append('--fast')
+        procargs.append(funcname)
 
         returncode = -1
         os.makedirs(directory)

@@ -73,6 +73,9 @@ Options:\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
   -l      | --long               run nearly the entire test suite except tests tagged extralongtest\n\
   -xl     | --extra-long         run the entire test suite\n\
+  -F      | --fast               fast suite mode (sets wttest.isfast(); use with pruned tests)\n\
+            --timing-report file append one JSON object per scenario (for suite_stats.py);\n\
+                                 includes tear_down_incomplete if teardown aborted early\n\
           | --noremove           do not remove WT_TEST or -D target before run\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
   -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
@@ -328,7 +331,8 @@ def error(exitval, prefix, msg):
 
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = printOutput = extralongtest = False
+    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = printOutput = extralongtest = fast = False
+    timing_report = None
     removeAtStart = True
     asan = False
     parallel = 0
@@ -420,6 +424,15 @@ if __name__ == '__main__':
                 continue
             if option == '-zstd' or option == 'z':
                 zstdtest = True
+                continue
+            if option == '-fast' or option == 'F':
+                fast = True
+                continue
+            if option == '-timing-report':
+                if timing_report != None or len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                timing_report = args.pop(0)
                 continue
             if option == '-noremove':
                 removeAtStart = False
@@ -608,12 +621,20 @@ if __name__ == '__main__':
 
     command_line_vars = verify_command_line_vars(command_line_vars)
 
+    if longtest or extralongtest:
+        fast = False
+
+    if timing_report != None:
+        with open(timing_report, 'w', encoding='utf-8'):
+            pass
+
     # All global variables should be set before any test classes are loaded.
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(command_line_vars, preserve, removeAtStart, timestamp,
                                           gdbSub, lldbSub, verbose, wt_builddir, dirarg, longtest,
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
-                                          seedw, seedz, hookmgr, ss_random_prefix, timeout)
+                                          seedw, seedz, hookmgr, ss_random_prefix, timeout,
+                                          fast, timing_report)
 
     skipTests = []
     if skipFileForTests:
