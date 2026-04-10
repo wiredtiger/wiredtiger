@@ -88,10 +88,11 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
 
 /*
  * __wt_shared_dsk_cache_put --
- *     Put a disk image into the shared disk cache. On success, ownership of data transfers to the
- *     cache and insertedp is set to true. On collision, the existing entry is returned with its
- *     reference count incremented and insertedp is set to false; the caller retains ownership of
- *     data. On error, the caller retains ownership of data.
+ *     Put a disk image into the shared disk cache.
+ *     1. On success, ownership of data transfers to the cache and insertedp is set to true.
+ *     2. On collision, the existing entry is returned with its reference count incremented and
+ *        insertedp is set to false; the caller retains ownership of data.
+ *     3. On error, the caller retains ownership of data.
  */
 int
 __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size,
