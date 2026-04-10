@@ -200,6 +200,10 @@ class test_layered89(wttest.WiredTigerTestCase):
         session_follow.close()
         conn_follow.close()
 
+        # Roll back the primary's prepare and take a clean checkpoint so that test teardown
+        # (which verifies the table) does not encounter a dangling prepared transaction.
+        # stable_timestamp must be advanced past the prepare_timestamp first so the
+        # checkpoint can move past the prepared update.
         self.resolve_prepared(prepare_session_primary, rollback_ts=30)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         self.session.checkpoint()
@@ -295,6 +299,10 @@ class test_layered89(wttest.WiredTigerTestCase):
 
         session_follow.close()
         conn_follow.close()
+        # Roll back the primary's prepare and take a clean checkpoint so that test teardown
+        # (which verifies the table) does not encounter a dangling prepared transaction.
+        # stable_timestamp must be advanced past the prepare_timestamp first so the
+        # checkpoint can move past the prepared update.
         self.resolve_prepared(prepare_session_primary, rollback_ts=30)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         self.session.checkpoint()
