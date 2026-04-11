@@ -62,7 +62,7 @@ wait_for_process()
 				log="WT_TEST_$config_name.log"
 
 				# Test recovery of jobs configured for random abort.
-				if grep 'aborting to test recovery' $log > /dev/null; then
+				if [ -f "$log" ] && grep -q 'aborting to test recovery' "$log" 2>/dev/null; then
 					rec_dir="$dir.RECOVER"
 					cp -pr $dir $rec_dir
 

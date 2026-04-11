@@ -460,7 +460,7 @@ format_die(void)
         exit(1);
 
     /* If we are expecting a failure, report that and exit without error. */
-    if (g.expect_failure) {
+    if (__wt_atomic_load_bool_acquire(&g.expect_failure)) {
         fprintf(stderr, "\n%s: run finished due to an expected failure\n", progname);
         fflush(stderr);
         fflush(stdout);
