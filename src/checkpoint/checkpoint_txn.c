@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
+static int __checkpoint_teardown(WT_SESSION_IMPL *, bool, WT_TXN_ISOLATION);
 static int __checkpoint_fsync_post(
   WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
@@ -1537,7 +1538,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
     uint64_t drop_size, generation;
-    u_int i;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
     void *saved_meta_next;
@@ -1949,36 +1949,7 @@ err:
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
     }
 
-    for (i = 0; i < session->ckpt.handle_next; ++i) {
-        if (session->ckpt.handle[i] == NULL)
-            continue;
-        /*
-         * If the operation failed, mark all trees dirty so they are included if a future checkpoint
-         * can succeed.
-         */
-        if (failed)
-            WT_WITH_DHANDLE(session, session->ckpt.handle[i], __checkpoint_fail_reset(session));
-        WT_WITH_DHANDLE(
-          session, session->ckpt.handle[i], WT_TRET(__wt_session_release_dhandle(session)));
-    }
-
-    if (session->ckpt.drop_list != NULL)
-        __wt_scr_free(session, &session->ckpt.drop_list);
-
-    __checkpoint_clear_time(session);
-
-    /* Clear the timestamp of the in-progress checkpoint now that we are done. */
-    conn->disaggregated_storage.cur_checkpoint_timestamp = WT_TS_NONE;
-
-    __wt_free(session, session->ckpt.handle);
-    WT_ASSERT(session, session->ckpt.crash_trigger_point == 0 && session->ckpt.crash_point == 0);
-    session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
-
-    /* Reset accumulated change in database size. Failed checkpoints do not affect database size. */
-    session->ckpt.ckpt_size_delta = 0;
-
-    session->isolation = txn->isolation = saved_isolation;
-    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+    WT_TRET(__checkpoint_teardown(session, failed, saved_isolation));
 
     return (ret);
 }
@@ -2744,6 +2715,52 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 
 err:
     __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __checkpoint_teardown --
+ *     Release dhandles, free checkpoint resources, and reset session checkpoint state.
+ */
+static int
+__checkpoint_teardown(WT_SESSION_IMPL *session, bool failed, WT_TXN_ISOLATION saved_isolation)
+{
+    WT_DECL_RET;
+
+    WT_TXN *txn = session->txn;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    for (u_int i = 0; i < session->ckpt.handle_next; ++i) {
+        if (session->ckpt.handle[i] == NULL)
+            continue;
+        /*
+         * If the operation failed, mark all trees dirty so they are included if a future checkpoint
+         * can succeed.
+         */
+        if (failed)
+            WT_WITH_DHANDLE(session, session->ckpt.handle[i], __checkpoint_fail_reset(session));
+        WT_WITH_DHANDLE(
+          session, session->ckpt.handle[i], WT_TRET(__wt_session_release_dhandle(session)));
+    }
+
+    if (session->ckpt.drop_list != NULL)
+        __wt_scr_free(session, &session->ckpt.drop_list);
+
+    __checkpoint_clear_time(session);
+
+    /* Clear the timestamp of the in-progress checkpoint now that we are done. */
+    conn->disaggregated_storage.cur_checkpoint_timestamp = WT_TS_NONE;
+
+    __wt_free(session, session->ckpt.handle);
+    WT_ASSERT(session, session->ckpt.crash_trigger_point == 0 && session->ckpt.crash_point == 0);
+    session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
+
+    /* Reset accumulated change in database size. Failed checkpoints do not affect database size. */
+    session->ckpt.ckpt_size_delta = 0;
+
+    session->isolation = txn->isolation = saved_isolation;
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+
     return (ret);
 }
 
