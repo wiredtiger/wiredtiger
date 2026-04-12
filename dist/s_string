@@ -24,8 +24,10 @@ type aspell > /dev/null 2>&1 || {
 run_aspell_for() {
     case "$1" in
     *.yml|*.yaml)
-        # aspell's built-in -mode=comment is broken (the .amf escaping bug means the # delimiter is
-        # never matched), so we replicate its intended behavior via CLI flags.
+        # aspell's built-in --mode=comment is broken
+        # (see https://github.com/GNUAspell/aspell/issues/505). This combines the
+        # workaround from that issue with the filters defined in comment.amf to
+        # replicate the comment filter.
         aspell --clear-filter --add-filter=url --add-filter=context \
             --clear-context-delimiters --add-context-delimiters='# \0' \
             --lang=en_US list;;
