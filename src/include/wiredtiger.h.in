@@ -2184,14 +2184,6 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait
      * between each checkpoint cleanup., an integer between \c 1 and \c 100000; default \c 300.}
      * @config{ ),,}
-     * @config{chunk_cache = (, chunk cache reconfiguration options., a set of related configuration
-     * options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;pinned, List of "table:" URIs
-     * exempt from cache eviction.  Capacity config overrides this\, tables exceeding capacity will
-     * not be fully retained.  Table names can appear in both this and the preload list\, but not in
-     * both this and the exclude list.  Duplicate names are allowed., a list of strings; default
-     * empty.}
-     * @config{ ),,}
      * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
      * version requires that there are no active operations for the duration of the call., a set of
      * related configuration options defined as follows.}
@@ -2415,13 +2407,10 @@ struct __wt_connection {
      * @config{io_capacity = (, control how many bytes per second are written and read.  Exceeding
      * the capacity results in throttling., a set of related configuration options defined as
      * follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache, number of bytes per second available
-     * to the chunk cache.  The minimum non-zero setting is 1MB., an integer between \c 0 and \c
-     * 1TB; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per second
-     * available to all subsystems in total.  When set\, decisions about what subsystems are
-     * throttled\, and in what proportion\, are made internally.  The minimum non-zero setting is
-     * 1MB., an integer between \c 0 and \c 1TB; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per second available to all
+     * subsystems in total.  When set\, decisions about what subsystems are throttled\, and in what
+     * proportion\, are made internally.  The minimum non-zero setting is 1MB., an integer between
+     * \c 0 and \c 1TB; default \c 0.}
      * @config{ ),,}
      * @config{json_output, enable JSON formatted messages on the event handler interface.  Options
      * are given as a list\, where each option specifies an event handler category e.g.  'error'
@@ -2526,15 +2515,15 @@ struct __wt_connection {
      * (DEBUG_1) to (DEBUG_5). \c all is a special case that defines the verbosity level for all
      * categories not explicitly set in the config string., a list\, with values chosen from the
      * following options: \c "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c
-     * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
-     * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "disaggregated_storage"\, \c
-     * "error_returns"\, \c "eviction"\, \c "extension"\, \c "fileops"\, \c "generation"\, \c
-     * "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "layered"\, \c
-     * "live_restore"\, \c "live_restore_progress"\, \c "log"\, \c "metadata"\, \c "mutex"\, \c
-     * "out_of_order"\, \c "overflow"\, \c "page_delta"\, \c "prefetch"\, \c "read"\, \c
-     * "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
-     * "shared_cache"\, \c "split"\, \c "sweep"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\,
-     * \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
+     * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "compact"\, \c
+     * "compact_progress"\, \c "configuration"\, \c "disaggregated_storage"\, \c "error_returns"\,
+     * \c "eviction"\, \c "extension"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
+     * "history_store"\, \c "history_store_activity"\, \c "layered"\, \c "live_restore"\, \c
+     * "live_restore_progress"\, \c "log"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c
+     * "overflow"\, \c "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\,
+     * \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
+     * "sweep"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c
+     * "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
      * @configend
      * @errors
      */
@@ -3095,26 +3084,6 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
- * @config{chunk_cache = (, chunk cache configuration options., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory or storage
- * to use for the chunk cache., an integer between \c 512KB and \c 100TB; default \c 10GB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache_evict_trigger, chunk cache percent full that triggers
- * eviction., an integer between \c 0 and \c 100; default \c 90.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * chunk_size, size of cached chunks., an integer between \c 512KB and \c 100GB; default \c 1MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable chunk cache., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, number of buckets in the hashtable that keeps track of
- * objects., an integer between \c 64 and \c 1048576; default \c 1024.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;pinned, List of "table:" URIs exempt from cache eviction.
- * Capacity config overrides this\, tables exceeding capacity will not be fully retained.  Table
- * names can appear in both this and the preload list\, but not in both this and the exclude list.
- * Duplicate names are allowed., a list of strings; default empty.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * storage_path, the path (absolute or relative) to the file used as cache location.  This should be
- * on a filesystem that supports file truncation.  All filesystems in common use meet this
- * criteria., a string; default empty.}
- * @config{ ),,}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of
  * related configuration options defined as follows.}
@@ -3387,8 +3356,6 @@ struct __wt_connection {
  * flag; default \c false.}
  * @config{io_capacity = (, control how many bytes per second are written and read.  Exceeding the
  * capacity results in throttling., a set of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache, number of bytes per second available to the chunk
- * cache.  The minimum non-zero setting is 1MB., an integer between \c 0 and \c 1TB; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per second available to all subsystems in
  * total.  When set\, decisions about what subsystems are throttled\, and in what proportion\, are
  * made internally.  The minimum non-zero setting is 1MB., an integer between \c 0 and \c 1TB;
@@ -3577,15 +3544,15 @@ struct __wt_connection {
  * (DEBUG_5). \c all is a special case that defines the verbosity level for all categories not
  * explicitly set in the config string., a list\, with values chosen from the following options: \c
  * "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c "checkpoint"\, \c
- * "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c "compact"\, \c
- * "compact_progress"\, \c "configuration"\, \c "disaggregated_storage"\, \c "error_returns"\, \c
- * "eviction"\, \c "extension"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
- * "history_store"\, \c "history_store_activity"\, \c "layered"\, \c "live_restore"\, \c
- * "live_restore_progress"\, \c "log"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c
- * "overflow"\, \c "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
- * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "sweep"\, \c
- * "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\,
- * \c "version"\, \c "write"; default \c [].}
+ * "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "compact"\, \c "compact_progress"\, \c
+ * "configuration"\, \c "disaggregated_storage"\, \c "error_returns"\, \c "eviction"\, \c
+ * "extension"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c "history_store"\, \c
+ * "history_store_activity"\, \c "layered"\, \c "live_restore"\, \c "live_restore_progress"\, \c
+ * "log"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "page_delta"\, \c
+ * "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c
+ * "salvage"\, \c "shared_cache"\, \c "split"\, \c "sweep"\, \c "temporary"\, \c "thread_group"\, \c
+ * "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default
+ * \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
  * opening a connection from a backup.  This API allows verification and detection of corruption in
  * WiredTiger metadata., a boolean flag; default \c false.}
