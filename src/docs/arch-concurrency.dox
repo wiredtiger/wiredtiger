@@ -62,9 +62,6 @@ For example:
 @row{`__wt_atomic_or_generic_relaxed`, `atomic_fetch_or_explicit(memory_order_relaxed)`}
 </table>
 
-Given that all WiredTiger lock-free primitives behave in accordance with the C standard library
-primitives, any data races in WiredTiger constitute undefined behavior and must be avoided.
-
 Some WiredTiger interfaces do not explicitly mirror any API from the C standard library, but can be
 implemented through a combination of C-compatible API calls. There are only two types of such
 interfaces: `WT_READ/WRITE_ONCE` and `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER`.
@@ -76,5 +73,9 @@ interfaces: `WT_READ/WRITE_ONCE` and `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER
 `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER` is a relaxed atomic load or store combined with an
 acquire or release barrier. However, note that these interfaces have been deprecated and should not
 be used in newly developed code.
+
+Given that all WiredTiger lock-free primitives behave in accordance with the C standard library
+primitives, any data races in WiredTiger constitute undefined behavior and must be avoided.
+
 
 */
