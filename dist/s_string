@@ -23,7 +23,7 @@ type aspell > /dev/null 2>&1 || {
 #    Run aspell with the correct mode for a given file type.
 run_aspell_for() {
     case "$1" in
-    *.yml)
+    *.yml|*.yaml)
         # aspell's built-in -mode=comment is broken (the .amf escaping bug means the # delimiter is
         # never matched), so we replicate its intended behavior via CLI flags.
         aspell --clear-filter --add-filter=url --add-filter=context \
