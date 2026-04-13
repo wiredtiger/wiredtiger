@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from itertools import permutations, product
 
-# test_layered90.py
+# test_layered91.py
 #    Test layered cursor iteration.
 #
 # A follower layered table is more complex than on a leader. In a layered table on a follower
@@ -79,7 +79,7 @@ def generate_unique_situations(max_len):
     return sorted(result)
 
 @disagg_test_class
-class test_layered90(wttest.WiredTigerTestCase):
+class test_layered91(wttest.WiredTigerTestCase):
 
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
@@ -140,7 +140,7 @@ class test_layered90(wttest.WiredTigerTestCase):
                 self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         c.close()
 
-    def test_layered90(self):
+    def test_layered91(self):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + \
                   ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
