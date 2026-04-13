@@ -1109,8 +1109,9 @@ __evict_get_ref(
     bool skip_page;
     int early_skipped_tree, skipped, skip_locked;
     uint32_t i, iter, j, min_level, max_level, num_buckets, total_iter;
+#if 0
     uint64_t cumulative, rand_val, total_items;
-
+#endif
 #if PRINT_CACHE_STATE
     int empty_buckets;
     WT_CACHE *cache;
@@ -1121,7 +1122,7 @@ __evict_get_ref(
     conn = S2C(session);
     evict = conn->evict;
     early_skipped_tree = skipped = skip_locked = 0;
-    cumulative = total_items = 0;
+    //cumulative = total_items = 0;
     i = 0;
     iter = total_iter = 0;
     min_level = max_level = 0;
@@ -1166,7 +1167,7 @@ __evict_get_ref(
         max_level = WT_EVICT_LEVEL_UPDATES_LEAF; // WT_EVICT_LEVEL_UPDATES_INTERNAL;
 
     if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-        min_level = WT_EVICT_LEVEL_DIRTY_LEAF;
+        min_level = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
     if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
 
@@ -1177,6 +1178,7 @@ __evict_get_ref(
         printf("URGENT EVICTION!!!!!!!!!!!!\n");
     }
 
+#if 0
     /* Sum items across all eligible bucketsets. */
     for (i = min_level; i <= max_level; i++)
         total_items += evict->evict_bucketset[i].bucketset_num_items;
@@ -1191,12 +1193,44 @@ __evict_get_ref(
     for (i = min_level; i <= max_level; i++) {
         cumulative += evict->evict_bucketset[i].bucketset_num_items;
         if (rand_val < cumulative) {
-            // min_level = i;
-            cumulative = i;
+            min_level = i;
             break;
         }
     }
+#endif
 
+    /* Keep track of the starting bucket where we look for pages to evict */
+    switch (min_level) {
+    case WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_wont_need_clean_leaf);
+        break;
+    case WT_EVICT_LEVEL_CLEAN_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_clean_leaf);
+        break;
+    case WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_wont_need_dirty_leaf);
+        break;
+    case WT_EVICT_LEVEL_DIRTY_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_dirty_leaf);
+        break;
+    case WT_EVICT_LEVEL_WONT_NEED_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_wont_need_internal);
+        break;
+    case WT_EVICT_LEVEL_DIRTY_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_dirty_internal);
+        break;
+    case WT_EVICT_LEVEL_UPDATES_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_updates_leaf);
+        break;
+    case WT_EVICT_LEVEL_UPDATES_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_updates_internal);
+        break;
+    case WT_EVICT_LEVEL_CLEAN_INTERNAL:
+        WT_STAT_CONN_INCR(session, eviction_min_bucket_clean_internal);
+        break;
+    default:
+        WT_ASSERT(session, 0);
+    }
 
     /*
      * Get the snapshot for the eviction server when we want to evict dirty content under cache

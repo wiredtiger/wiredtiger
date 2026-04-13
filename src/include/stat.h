@@ -595,8 +595,9 @@ struct __wt_connection_stats {
     int64_t eviction_target_bucket_dirty_leaf;
     int64_t eviction_target_bucket_updates_internal;
     int64_t eviction_target_bucket_updates_leaf;
+    int64_t eviction_target_bucket_wont_need_clean_leaf;
+    int64_t eviction_target_bucket_wont_need_dirty_leaf;
     int64_t eviction_target_bucket_wont_need_internal;
-    int64_t eviction_target_bucket_wont_need_leaf;
     int64_t eviction_server_race_reconfigure_disagg;
     int64_t eviction_server_readgen;
     int64_t eviction_skip_intl_page_non_aggressive;
@@ -625,6 +626,15 @@ struct __wt_connection_stats {
     int64_t eviction_skip_page_again;
     int64_t eviction_skip_page_last_running;
     int64_t eviction_skip_pages_retry;
+    int64_t eviction_min_bucket_clean_internal;
+    int64_t eviction_min_bucket_clean_leaf;
+    int64_t eviction_min_bucket_dirty_internal;
+    int64_t eviction_min_bucket_dirty_leaf;
+    int64_t eviction_min_bucket_updates_internal;
+    int64_t eviction_min_bucket_updates_leaf;
+    int64_t eviction_min_bucket_wont_need_clean_leaf;
+    int64_t eviction_min_bucket_wont_need_dirty_leaf;
+    int64_t eviction_min_bucket_wont_need_internal;
     int64_t eviction_state;
     int64_t eviction_target_strategy_both_clean_and_dirty;
     int64_t eviction_threshold_cache_full_target;

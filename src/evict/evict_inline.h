@@ -129,12 +129,15 @@ static WT_INLINE int
 __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     uint64_t read_gen;
-    if (//!__wt_page_is_modified(page) && (page->modify == NULL) &&
-        ((read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen)) ==
+    if (((read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen)) ==
         WT_READGEN_WONT_NEED ||
          read_gen == WT_READGEN_EVICT_SOON)) {
-        if (!WT_PAGE_IS_INTERNAL(page))
-            return WT_EVICT_LEVEL_WONT_NEED_LEAF;
+        if (!WT_PAGE_IS_INTERNAL(page)) {
+            if (!__wt_page_is_modified(page) && (page->modify == NULL))
+                return WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
+            else
+                return WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
+        }
         else
             return WT_EVICT_LEVEL_WONT_NEED_INTERNAL;
     } else if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page) && page->modify == NULL)

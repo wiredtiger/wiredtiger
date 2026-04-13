@@ -231,11 +231,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     /* Update the stats */
     switch (bucketset_level) {
-    case WT_EVICT_LEVEL_WONT_NEED_LEAF:
-        WT_STAT_CONN_INCR(session, eviction_target_bucket_wont_need_leaf);
+    case WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_wont_need_clean_leaf);
         break;
     case WT_EVICT_LEVEL_CLEAN_LEAF:
         WT_STAT_CONN_INCR(session, eviction_target_bucket_clean_leaf);
+        break;
+    case WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF:
+        WT_STAT_CONN_INCR(session, eviction_target_bucket_wont_need_dirty_leaf);
         break;
     case WT_EVICT_LEVEL_DIRTY_LEAF:
         WT_STAT_CONN_INCR(session, eviction_target_bucket_dirty_leaf);
