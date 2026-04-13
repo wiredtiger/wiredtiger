@@ -2477,6 +2477,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor update operations",
   "layered: checkpoints performed on this table by the layered table manager",
+  "layered: disagg abandon checkpoints failed",
+  "layered: disagg abandon checkpoints succeeded",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
   "layered: how many log applications the layered table manager applied on this tree",
@@ -3536,6 +3538,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_update = 0;
     stats->layered_table_manager_checkpoints = 0;
+    stats->layered_table_manager_checkpoints_disagg_abandon_failed = 0;
+    stats->layered_table_manager_checkpoints_disagg_abandon_succeed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
     stats->layered_table_manager_logops_applied = 0;
@@ -4712,6 +4716,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
     to->layered_table_manager_checkpoints +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints);
+    to->layered_table_manager_checkpoints_disagg_abandon_failed +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_abandon_failed);
+    to->layered_table_manager_checkpoints_disagg_abandon_succeed +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_abandon_succeed);
     to->layered_table_manager_checkpoints_disagg_pick_up_failed +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
     to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=

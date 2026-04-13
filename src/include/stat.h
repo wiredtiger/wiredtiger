@@ -1024,6 +1024,8 @@ struct __wt_connection_stats {
     int64_t layered_curs_search_stable;
     int64_t layered_curs_update;
     int64_t layered_table_manager_checkpoints;
+    int64_t layered_table_manager_checkpoints_disagg_abandon_failed;
+    int64_t layered_table_manager_checkpoints_disagg_abandon_succeed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;
