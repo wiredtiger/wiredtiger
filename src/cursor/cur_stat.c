@@ -494,11 +494,15 @@ err:
  */
 int
 __wt_curstat_size_local(
-  WT_SESSION_IMPL *session, const char *filename, bool *existp, wt_off_t *sizep)
+  WT_SESSION_IMPL *session, const char *filename, bool *existp, int64_t *sizep)
 {
+    wt_off_t size;
+
     WT_RET(__wt_fs_exist(session, filename, existp));
-    if (*existp)
-        WT_RET(__wt_block_manager_named_size(session, filename, sizep));
+    if (*existp) {
+        WT_RET(__wt_block_manager_named_size(session, filename, &size));
+        *sizep = (int64_t)size;
+    }
 
     return (0);
 }
@@ -510,7 +514,7 @@ __wt_curstat_size_local(
  *     the size via *sizep. A missing metadata entry is not an error; *existp will be false.
  */
 int
-__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, wt_off_t *sizep)
+__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, int64_t *sizep)
 {
     WT_DECL_RET;
     uint64_t ckpt_size;
@@ -523,7 +527,7 @@ __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp
         ret = __wt_ckpt_last_size(session, fileconf, &ckpt_size);
         __wt_free(session, fileconf);
         if (ret == 0) {
-            *sizep = (wt_off_t)ckpt_size;
+            *sizep = (int64_t)ckpt_size;
             *existp = true;
         }
     }
@@ -540,7 +544,7 @@ __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp
  */
 static int
 __curstat_file_size(
-  WT_SESSION_IMPL *session, const char *uri, const char *filename, bool *existp, wt_off_t *sizep)
+  WT_SESSION_IMPL *session, const char *uri, const char *filename, bool *existp, int64_t *sizep)
 {
     /* Try the local file first. */
     WT_RET(__wt_curstat_size_local(session, filename, existp, sizep));
@@ -562,7 +566,7 @@ __curstat_file_init(
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    wt_off_t size;
+    int64_t size;
     const char *filename;
     bool exist;
 

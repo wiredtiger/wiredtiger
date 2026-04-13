@@ -67,7 +67,7 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
     WT_CONFIG_ITEM ckey, colconf, cval;
     WT_DECL_RET;
     WT_ITEM namebuf;
-    wt_off_t size;
+    int64_t size;
     char *tableconf;
     bool disagg;
 
