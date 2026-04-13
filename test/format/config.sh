@@ -4,7 +4,7 @@
 # modify this file and then run it as a script.
 
 fc="format_config_def.c"
-fh="config.h"
+fh="format_config.h"
 
 cat<<END_OF_HEADER_FILE_PREFIX>$fh
 /* DO NOT EDIT: automatically built by format/config.sh. */
@@ -205,6 +205,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 16, 256}
 
+{"disagg.preserve", "preserve layered table constituents after data mismatches", C_IGNORE | C_BOOL, 100, 1, 0}
+
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0}
@@ -276,6 +278,8 @@ CONFIG configuration_list[] = {
 {"ops.bound_cursor", "configure bound cursor reads", C_BOOL, 5, 0, 0}
 
 {"ops.prepare", "configure transaction prepare", C_BOOL, 5, 0, 0}
+
+{"ops.reserve", "cursor reserve operations (percentage)", 0, 0, 20, 100}
 
 {"ops.random_cursor", "configure random cursor reads", C_BOOL, 10, 0, 0}
 
