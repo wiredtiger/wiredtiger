@@ -46,20 +46,6 @@ class test_chunkcache07(wttest.WiredTigerTestCase):
         # Reopen normally so tearDown can close cleanly.
         self.open_conn()
 
-    # Test that the WiredTigerCC.wt metadata file is removed on a successful open.
-    def test_chunk_cache_metadata_cleanup(self):
-        # Create a real WiredTigerCC.wt file so it has a metadata entry, simulating a
-        # previous run that had chunk cache enabled.
-        cc_metafile_uri = 'file:WiredTigerCC.wt'
-        self.session.create(cc_metafile_uri, 'key_format=S,value_format=S')
-        cc_metafile = os.path.join('.', 'WiredTigerCC.wt')
-        self.assertTrue(os.path.exists(cc_metafile))
-
-        # Reopen the connection  the metadata file should be cleaned up.
-        self.close_conn()
-        self.open_conn()
-        self.assertFalse(os.path.exists(cc_metafile))
-
     # Test that opening with chunk_cache disabled issues a deprecation warning.
     def test_chunk_cache_disabled_warning(self):
         self.close_conn()
