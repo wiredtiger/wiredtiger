@@ -81,6 +81,15 @@ class test_disagg_checkpoint_size05(wttest.WiredTigerTestCase):
         self.assertGreater(len(sizes), 0, "No size= found in checkpoint metadata")
         return int(sizes[-1])
 
+    # Test that querying stats before the first checkpoint returns zero and does not error.
+    def test_block_size_zero_before_first_checkpoint(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.insert_rows(500)
+
+        self.assertEqual(self.get_block_size_slow(), 0,
+            "slow-path block_size should be zero before the first checkpoint")
+        self.assertEqual(self.get_block_size_fast(), 0,
+            "fast-path block_size should be zero before the first checkpoint")
 
     # Test that both paths must return the same value, and it must match the raw metadata.
     def test_slow_and_fast_path_agree_with_metadata(self):
