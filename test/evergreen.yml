@@ -2877,6 +2877,28 @@ tasks:
           # As follower, run a minimal functionality test
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower,table_prefix=table)" base01
 
+  - name: unit-test-hook-parallel-checkpoint
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-tsan
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test tsan parallel"
+    vars:
+      additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
+      unit_test_parallel_ignore: test/suite/tsan.fail
+      unit_test_parallel_args: -v 2 --timeout 300 --hook "parallel_checkpoint"
+
   - name: unit-test-hook-timing-stress-log
     tags: ["python"]
     depends_on:
@@ -6624,6 +6646,7 @@ buildvariants:
     - name: configure-combinations
     - name: unit-test-zstd
     - name: unit-test-hook-disagg-leader-key-provider
+    - name: unit-test-hook-parallel-checkpoint
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
@@ -6735,6 +6758,7 @@ buildvariants:
     - name: unit-test-hook-disagg-follower-tsan
       distros: ubuntu2004-large
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-disagg-leader-tsan
       distros: ubuntu2004-large
     - name: format-stress-test-tsan
@@ -7504,6 +7528,7 @@ buildvariants:
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
       distros: amazon2023.3-arm64-large
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-tsan
       distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Enable the common test format tag for TSAN
