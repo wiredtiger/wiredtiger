@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
-from itertools import permutations, combinations_with_replacement
+from helper_disagg import disagg_test_class
+from itertools import permutations, product
 
 # test_layered90.py
 #    Test layered cursor iteration.
@@ -59,9 +59,9 @@ from itertools import permutations, combinations_with_replacement
 # will be well tested.
 #
 # To get complete coverage and more, we'll generate all strings of letters from this set of length
-# from 0 to 6. For each string, we'll set of the situation where we'll have the exact sequence,
-# and then we'll test iterating forward from beginning to end, and backward from end to beginning,
-# checking to make sure we have the expected keys and values.
+# from 0 to 5 (will raise to 6 following WT-17160). For each string, we'll set of the situation where
+# we'll have the exact sequence, and then we'll test iterating forward from beginning to end,
+# and backward from end to beginning, checking to make sure we have the expected keys and values.
 #
 # Using layered tables to create the expected situation requires state transitions, from leader
 # to follower, and to pick up checkpoints. These are heavyweight operations, so to save testing
@@ -69,28 +69,14 @@ from itertools import permutations, combinations_with_replacement
 # test rapidly.
 
 def generate_unique_situations(max_len):
-    # Create all combinations of letters where each letter appears 0 to 2 times
+    # Create all permutations (up to max_len) of letters where each letter appears 0 to 2 times
     elements = ['I', 'S', 'B', 'R', 'X']
-    all_situations = []
-
-    for counts in combinations_with_replacement(range(3), len(elements)):
-        # Generate every combination respecting the max count of 2 for each letter
-        current_situation = []
-        for letter, count in zip(elements, counts):
-            current_situation.extend([letter] * count)
-        if len(current_situation) <= max_len:
-            all_situations.append(current_situation)
-
-    # Generate permutations for all combinations
-    all_permutations = set()
-    for sit in all_situations:
-        # Add all permutations of the current situation to the set
-        all_permutations.update(permutations(sit))
-
-    # Convert the set to a sorted list
-    unique_situations = sorted(all_permutations)
-
-    return unique_situations
+    result = set()
+    for counts in product(range(3), repeat=len(elements)):
+        situation = [l for l, c in zip(elements, counts) for _ in range(c)]
+        if len(situation) <= max_len:
+            result.update(permutations(situation))
+    return sorted(result)
 
 @disagg_test_class
 class test_layered90(wttest.WiredTigerTestCase):
@@ -100,14 +86,67 @@ class test_layered90(wttest.WiredTigerTestCase):
                      + 'precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
-    # Test timestamps
+    def _apply_ops(self, session, uri, sit, inserts, removes, ts):
+        '''Insert or remove keys based on their situation letter.'''
+        if not any(letter in inserts or letter in removes for letter in sit):
+            return
+        with self.transaction(session=session, commit_timestamp=ts):
+            c = session.open_cursor(uri)
+            for key, letter in enumerate(sit, 1):
+                if letter in inserts:
+                    c[str(key)] = str(key)
+                elif letter in removes:
+                    c.set_key(str(key))
+                    c.remove()
+            c.close()
+
+    def _verify_cursor(self, session, uri, sit):
+        '''Verify forward/backward iteration and point reads on a layered cursor.'''
+        # Keys with state I (ingest only), S (stable only), or B (both) should be visible.
+        # R (tombstone over stable) and X (tombstone, no stable entry) should not.
+        expect = [str(k) for k, letter in enumerate(sit, 1) if letter in ('I', 'S', 'B')]
+
+        # Forward iteration: cursor.next() should yield exactly the visible keys in order.
+        got = []
+        c = session.open_cursor(uri)
+        for k, v in c:
+            self.assertEqual(k, v)
+            got.append(k)
+        c.close()
+        self.assertEqual(expect, got)
+
+        # Backward iteration: cursor.prev() should yield the visible keys in reverse order.
+        got_rev = []
+        c = session.open_cursor(uri)
+        ret = c.prev()
+        while ret == 0:
+            k, v = c.get_key(), c.get_value()
+            self.assertEqual(k, v)
+            got_rev.append(k)
+            ret = c.prev()
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        c.close()
+        self.assertEqual(list(reversed(expect)), got_rev)
+
+        # Point reads: cursor.search() must find visible keys and return WT_NOTFOUND for hidden ones.
+        c = session.open_cursor(uri)
+        for key, letter in enumerate(sit, 1):
+            c.set_key(str(key))
+            ret = c.search()
+            if letter in ('I', 'S', 'B'):
+                self.assertEqual(ret, 0)
+                self.assertEqual(c.get_value(), str(key))
+            else:
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        c.close()
+
     def test_layered90(self):
-        # Create the follower
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + \
                   ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
 
-        sits = generate_unique_situations(6)
+        # FIXME-WT-17160: Increasing the number of situations results in abort due to cache stuck.
+        sits = generate_unique_situations(5)
         ts = 100
         uri_sits = []
         for sit in sits:
@@ -115,90 +154,28 @@ class test_layered90(wttest.WiredTigerTestCase):
             self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
             uri_sits.append((uri, sit))
 
-        for (uri, sit) in uri_sits:
-            with self.transaction(commit_timestamp=ts):
-                c = self.session.open_cursor(uri)
-                for key, letter in enumerate(sit, 1):
-                    if letter in ('S', 'B', 'R', 'X'):
-                        c[str(key)] = str(key)
-                c.close()
+        # Populate stable keys (S, B, R, X) on the leader.
+        for uri, sit in uri_sits:
+            self._apply_ops(self.session, uri, sit, inserts='SBRX', removes='', ts=ts)
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 10)}')
         self.session.checkpoint()
-
-        # Pick up checkpoint at ts + 10
         self.disagg_advance_checkpoint(conn_follow)
 
-        for (uri, sit) in uri_sits:
-            with self.transaction(commit_timestamp=ts + 20):
-                c = self.session.open_cursor(uri)
-                for key, letter in enumerate(sit, 1):
-                    if letter == 'X':
-                        c.set_key(str(key))
-                        c.remove()
-                c.close()
-
-        for (uri, sit) in uri_sits:
-            with self.transaction(session=session_follow, commit_timestamp=ts + 20):
-                c = session_follow.open_cursor(uri)
-                for key, letter in enumerate(sit, 1):
-                    if letter == 'X':
-                        c.set_key(str(key))
-                        c.remove()
-                c.close()
+        # Remove X keys on both leader and follower.
+        for session in [self.session, session_follow]:
+            for uri, sit in uri_sits:
+                self._apply_ops(session, uri, sit, inserts='', removes='X', ts=ts + 20)
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts + 30)}')
         self.session.checkpoint()
 
-        for (uri, sit) in uri_sits:
-            with self.transaction(session=session_follow, commit_timestamp=ts + 40):
-                c = session_follow.open_cursor(uri)
-                for key, letter in enumerate(sit, 1):
-                    if letter in ('I', 'B'):
-                        c[str(key)] = str(key)
-                    elif letter == 'R':
-                        c.set_key(str(key))
-                        c.remove()
-                c.close()
+        # On the follower: insert ingest keys (I, B) and tombstone R keys.
+        for uri, sit in uri_sits:
+            self._apply_ops(session_follow, uri, sit, inserts='IB', removes='R', ts=ts + 40)
 
-        # Pick up checkpoint at ts + 40
         self.disagg_advance_checkpoint(conn_follow)
 
-        for (uri, sit) in uri_sits:
-            # Keys with state I (ingest only), S (stable only), or B (both) should be visible.
-            # R (tombstone over stable) and X (tombstone, no stable entry) should not.
-            expect = [str(k) for k, letter in enumerate(sit, 1) if letter in ('I', 'S', 'B')]
-
-            # Forward iteration: cursor.next() should yield exactly the visible keys in order.
-            got = []
-            c = session_follow.open_cursor(uri)
-            for (k, v) in c:
-                self.assertEqual(k, v)
-                got.append(k)
-            c.close()
-            self.assertEqual(expect, got)
-
-            # Backward iteration: cursor.prev() should yield the visible keys in reverse order.
-            got_rev = []
-            c = session_follow.open_cursor(uri)
-            ret = c.prev()
-            while ret == 0:
-                k, v = c.get_key(), c.get_value()
-                self.assertEqual(k, v)
-                got_rev.append(k)
-                ret = c.prev()
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-            c.close()
-            self.assertEqual(list(reversed(expect)), got_rev)
-
-            # Point reads: cursor.search() must find visible keys and return WT_NOTFOUND for hidden ones.
-            c = session_follow.open_cursor(uri)
-            for key, letter in enumerate(sit, 1):
-                c.set_key(str(key))
-                ret = c.search()
-                if letter in ('I', 'S', 'B'):
-                    self.assertEqual(ret, 0)
-                    self.assertEqual(c.get_value(), str(key))
-                else:
-                    self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-            c.close()
+        # Verify cursor iteration and point reads on the follower.
+        for uri, sit in uri_sits:
+            self._verify_cursor(session_follow, uri, sit)
