@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __checkpoint_disagg_put_and_advance(WT_SESSION_IMPL *, wt_timestamp_t, bool);
+static int __checkpoint_disagg_put_and_advance(WT_SESSION_IMPL *, wt_timestamp_t);
 static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
 static int __checkpoint_teardown(WT_SESSION_IMPL *, bool, WT_TXN_ISOLATION);
 static int __checkpoint_fsync_post(
@@ -1918,7 +1918,8 @@ err:
     WT_TRET(__checkpoint_log_stage(
       session, (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP));
 
-    WT_TRET(__checkpoint_disagg_put_and_advance(session, ckpt_tmp_ts, failed));
+    if (!failed)
+        WT_TRET(__checkpoint_disagg_put_and_advance(session, ckpt_tmp_ts));
 
     WT_TRET(__checkpoint_teardown(session, failed, saved_isolation));
 
@@ -2696,8 +2697,7 @@ err:
  *     checkpoint.
  */
 static int
-__checkpoint_disagg_put_and_advance(
-  WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts, bool failed)
+__checkpoint_disagg_put_and_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -2709,7 +2709,7 @@ __checkpoint_disagg_put_and_advance(
      * disaggregated storage, even if there were no other changes. Also check for any updated key
      * encryption information.
      */
-    if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
@@ -2732,7 +2732,7 @@ __checkpoint_disagg_put_and_advance(
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
         WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
-        if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
+        if (__wt_disagg_advance_checkpoint(session, ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
     }
 
