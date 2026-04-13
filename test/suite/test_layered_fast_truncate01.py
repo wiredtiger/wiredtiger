@@ -33,16 +33,16 @@ from wtscenario import make_scenarios
 # test_layered88.py
 #   Test basic fast truncate functionality.
 @disagg_test_class
-class test_layered88(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader"),'
-
+/
     uris = [
-        ('layered', dict(uri='layered:test_layered88')),
-        ('table', dict(uri='table:test_layered88')),
+        ('layered', dict(uri='layered:test_layered_fast_truncate01')),
+        ('table', dict(uri='table:test_layered_fast_truncate01')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered88', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_fast_truncate01', disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages, uris)
 
