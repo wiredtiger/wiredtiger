@@ -1883,12 +1883,8 @@ err:
          */
         WT_DHANDLE_CLEAR(session);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ROLLBACK);
-
-        int ret2 = __wt_txn_rollback(session, NULL, false);
-        WT_TRET(ret2);
-        if(ret2 != 0)
-            __wt_verbose_error(
-              session, WT_VERB_CHECKPOINT, "Checkpoint transaction rolled back failed: %d", ret2);
+        WT_TRET_MSG(session, __wt_txn_rollback(session, NULL, false), "%s",
+          "Checkpoint transaction rollback failed");
     }
 
     /*
@@ -1912,24 +1908,10 @@ err:
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
-        int ret2;
-        if (conn->key_provider != NULL) {
-            ret2 = __wt_disagg_put_crypt_helper(session);
-            WT_TRET(ret2);
-            if (ret2 != 0)
-                __wt_verbose_error(session, WT_VERB_CHECKPOINT,
-                  "Failed to update key encryption information metadata: %d", ret2);
-        }
-        ret2 = __wt_disagg_put_checkpoint_meta(
-          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts);
-        WT_TRET(ret2);
-        if (ret2 != 0)
-            __wt_verbose_error(session, WT_VERB_CHECKPOINT,
-              "Failed to update checkpoint metadata in disaggregated storage: %d", ret2);
-        else
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
-              "Updated disaggregated storage checkpoint metadata because the stable timestamp "
-              "advanced");
+        if (conn->key_provider != NULL)
+            WT_TRET(__wt_disagg_put_crypt_helper(session));
+        WT_TRET(__wt_disagg_put_checkpoint_meta(
+          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
     }
 
     /*

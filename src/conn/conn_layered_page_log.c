@@ -660,7 +660,10 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     checkpoint_root_copy = NULL;
 
 err:
-    if (ret != 0)
+    if (ret == 0)
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Updated disaggregated storage checkpoint metadata");
+    else
         __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Failed to write disaggregated checkpoint metadata: %d", ret);
     __wt_free(session, checkpoint_root_copy);

@@ -219,6 +219,19 @@ __wt_tret_error_ok(int *pret, int a, int e)
                 ret = __ret;                                                                      \
         }                                                                                         \
     } while (0)
+#define WT_TRET_MSG(session, a, ...)                                                              \
+    do {                                                                                          \
+        int __ret;                                                                                \
+        if ((__ret = (a)) != 0) {                                                                 \
+            __wt_error_log_add_helper(#a, __ret, WT_NONE);                                        \
+            if (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND || \
+              ret == WT_RESTART) {                                                                \
+                __wt_err(session, __ret, __VA_ARGS__);                                            \
+                __wt_session_set_last_error(session, __ret, WT_NONE, __VA_ARGS__);                \
+                ret = __ret;                                                                      \
+            }                                                                                     \
+        }                                                                                         \
+    } while (0)
 #endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
 
 #define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
