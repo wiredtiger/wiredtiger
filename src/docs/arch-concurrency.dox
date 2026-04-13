@@ -77,5 +77,4 @@ be used in newly developed code.
 Given that all WiredTiger lock-free primitives behave in accordance with the C standard library
 primitives, any data races in WiredTiger constitute undefined behavior and must be avoided.
 
-
 */
