@@ -648,6 +648,8 @@ conn_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
+    LayeredStat('layered_table_manager_checkpoints_disagg_abandon_failed', 'disagg abandon checkpoints failed'),
+    LayeredStat('layered_table_manager_checkpoints_disagg_abandon_succeed', 'disagg abandon checkpoints succeeded'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 
