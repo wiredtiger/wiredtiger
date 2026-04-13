@@ -14,6 +14,8 @@ static int __checkpoint_fsync_post(
   WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
+static int __checkpoint_metadata(
+  WT_SESSION_IMPL *, const char *[], WT_TXN *, WT_TXN_GLOBAL *, struct timespec *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
@@ -1540,7 +1542,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t drop_size, generation;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
-    void *saved_meta_next;
 
     WT_CLEAR(ckpt_cfg);
     WT_CLEAR(precise_ckpt_saved_triggers);
@@ -1780,62 +1781,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
         __wt_debug_crash(session);
 
-    /*
-     * Stress point to stop just before we sync the metadata file. Used to recreate log recovery
-     * scenarios with an incomplete checkpoint.
-     */
-    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
-    /* Wait prior to flush the checkpoint stop log record. */
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, &tsp);
-    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 0);
-
-    /*
-     * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
-     * checkpointing the metadata or syncing the log file works. Recovery relies on the checkpoint
-     * LSN in the metadata being updated by only checkpoints of all files, i.e. full checkpoints.
-     * Together these require checkpointing the metadata for full checkpoints or partial checkpoints
-     * that include non-logged files, and syncing the log file for only partial checkpoints of
-     * logged files. Since partial checkpoints are not supported, checkpoint the metadata for all
-     * checkpoints.
-     *
-     * This is very similar to __wt_meta_track_off, ideally they would be merged.
-     */
-    session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
-
-    /*
-     * Checkpoint the shared metadata table last, as it could have changed. Also checkpoint it after
-     * we have released the checkpoint transaction. Otherwise, during the checkpoint, we have
-     * reconciled the pages on the tree and may have cleaned them (checkpoint can see its own
-     * uncommitted updates). In that case, we may evict it and the checkpoint transaction cannot
-     * commit as the updates have gone from memory.
-     */
-    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
-        if (S2BT(session)->modified)
-            WT_ERR(__wt_checkpoint_file(session, cfg));
-    }
-
-    /* Disable metadata tracking during the metadata checkpoint. */
-    saved_meta_next = session->meta_track_next;
-    session->meta_track_next = NULL;
-    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_CKPT);
-    WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
-      WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
-    session->meta_track_next = saved_meta_next;
-    WT_ERR(ret);
-
-    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_SYNC);
-    WT_WITH_DHANDLE(
-      session, WT_SESSION_META_DHANDLE(session), ret = __wt_checkpoint_sync(session, NULL));
-    WT_ERR(ret);
-
-    __checkpoint_verbose_track(session, "metadata sync completed");
-
-    /*
-     * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
-     * the checkpoint_pinned flag.
-     */
-    __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
+    WT_ERR(__checkpoint_metadata(session, cfg, txn, txn_global, &tsp));
 
     __checkpoint_stats(session);
 
@@ -3107,6 +3053,83 @@ err:
         __checkpoint_verbose_track(session, "checkpointing individual trees completed");
     else
         __checkpoint_verbose_track(session, "checkpointing individual trees failed");
+
+    return (ret);
+}
+
+/*
+ * __checkpoint_metadata --
+ *     Checkpoint the metadata file and sync it to ensure durability before resolving the
+ *     checkpoint.
+ */
+static int
+__checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn,
+  WT_TXN_GLOBAL *txn_global, struct timespec *tsp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    void *saved_meta_next;
+
+    conn = S2C(session);
+
+    /*
+     * Stress point to stop just before we sync the metadata file. Used to recreate log recovery
+     * scenarios with an incomplete checkpoint.
+     */
+    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
+    /* Wait prior to flush the checkpoint stop log record. */
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, tsp);
+    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 0);
+
+    /*
+     * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
+     * checkpointing the metadata or syncing the log file works. Recovery relies on the checkpoint
+     * LSN in the metadata being updated by only checkpoints of all files, i.e. full checkpoints.
+     * Together these require checkpointing the metadata for full checkpoints or partial checkpoints
+     * that include non-logged files, and syncing the log file for only partial checkpoints of
+     * logged files. Since partial checkpoints are not supported, checkpoint the metadata for all
+     * checkpoints.
+     *
+     * This is very similar to __wt_meta_track_off, ideally they would be merged.
+     */
+    session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
+
+    /*
+     * Checkpoint the shared metadata table last, as it could have changed. Also checkpoint it after
+     * we have released the checkpoint transaction. Otherwise, during the checkpoint, we have
+     * reconciled the pages on the tree and may have cleaned them (checkpoint can see its own
+     * uncommitted updates). In that case, we may evict it and the checkpoint transaction cannot
+     * commit as the updates have gone from memory.
+     */
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+        WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
+        if (S2BT(session)->modified)
+            WT_ERR(__wt_checkpoint_file(session, cfg));
+    }
+
+    /* Disable metadata tracking during the metadata checkpoint. */
+    saved_meta_next = session->meta_track_next;
+    session->meta_track_next = NULL;
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_CKPT);
+    WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
+      WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
+    session->meta_track_next = saved_meta_next;
+    WT_ERR(ret);
+
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_SYNC);
+    WT_WITH_DHANDLE(
+      session, WT_SESSION_META_DHANDLE(session), ret = __wt_checkpoint_sync(session, NULL));
+    WT_ERR(ret);
+
+    __checkpoint_verbose_track(session, "metadata sync completed");
+
+    /*
+     * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
+     * the checkpoint_pinned flag.
+     */
+    __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
+
+err:
 
     return (ret);
 }
