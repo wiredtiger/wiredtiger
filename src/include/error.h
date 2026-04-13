@@ -220,6 +220,9 @@ __wt_tret_error_ok(int *pret, int a, int e)
                 ret = __ret;                               \
         }                                                  \
     } while (0)
+#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
+
+#define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
 #define WT_TRET_MSG(session, a, ...)                                               \
     do {                                                                           \
         int __ret;                                                                 \
@@ -232,9 +235,6 @@ __wt_tret_error_ok(int *pret, int a, int e)
             }                                                                      \
         }                                                                          \
     } while (0)
-#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
-
-#define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
 /* Return WT_PANIC regardless of earlier return codes. */
