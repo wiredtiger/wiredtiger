@@ -174,9 +174,11 @@ __block_disagg_ckpt_size(WT_SESSION_IMPL *session, uint64_t *sizep)
 
     fileconf = NULL;
     *sizep = 0;
-    WT_RET(__wt_metadata_search(session, session->dhandle->name, &fileconf));
-    ret = __wt_ckpt_last_size(session, fileconf, sizep);
-    __wt_free(session, fileconf);
+    ret = __wt_metadata_search(session, session->dhandle->name, &fileconf);
+    if (ret == 0) {
+        ret = __wt_ckpt_last_size(session, fileconf, sizep);
+        __wt_free(session, fileconf);
+    }
     WT_RET_NOTFOUND_OK(ret);
     return (0);
 }
