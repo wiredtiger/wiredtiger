@@ -583,6 +583,10 @@ __curstat_file_init(
             __wt_curstat_dsrc_final(cst);
             return (0);
         }
+        /*
+         * Neither the local file nor the disagg metadata entry was found; fall through to the slow
+         * path which opens the dhandle.
+         */
     }
 
     WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));
