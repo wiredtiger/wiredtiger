@@ -1684,15 +1684,14 @@ pageLogCompleteCheckpointArgsSetMetadata(
 	WT_DECL_RET;
 
 	metadata = NULL;
-	WT_RET(pageLogCompleteCheckpointArgsClearMetadata(args));
-	WT_RET(__wt_calloc_one(NULL, &metadata));
+	WT_ERR(pageLogCompleteCheckpointArgsClearMetadata(args));
+	WT_ERR(__wt_calloc_one(NULL, &metadata));
 	if (value != NULL && value->size != 0)
 		WT_ERR(__wt_buf_set(NULL, metadata, value->data, value->size));
 	args->checkpoint_metadata = metadata;
-	return (0);
 
 err:
-	if (metadata != NULL) {
+	if (ret != 0 && metadata != NULL) {
 		__wt_buf_free(NULL, metadata);
 		__wt_free(NULL, metadata);
 	}
