@@ -164,7 +164,8 @@ class test_disagg_checkpoint_size05(wttest.WiredTigerTestCase):
 
     # The fast path reads the size from the last checkpoint in the metadata. Verify that inserting
     # more data without checkpointing does not change the reported size -- it must reflect the
-    # last checkpoint, not uncommitted data.
+    # last checkpoint, not uncommitted data. Also force eviction to confirm that reconciliation
+    # writing dirty pages to disk does not affect the reported size either.
     def test_block_size_unchanged_without_checkpoint(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.insert_rows(500)
@@ -181,3 +182,21 @@ class test_disagg_checkpoint_size05(wttest.WiredTigerTestCase):
             "fast-path block_size should not change without a new checkpoint")
         self.assertEqual(self.get_block_size_slow(), size_after_ckpt,
             "slow-path block_size should not change without a new checkpoint")
+        self.assertEqual(self.get_block_size_slow(), self.get_block_size_fast(),
+            f"slow-path block_size should still match the fast-path block_size without a new checkpoint")
+
+        # Force eviction so reconciliation writes dirty pages to disk. Both paths read from
+        # checkpoint metadata, so neither should change without a new checkpoint.
+        evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+        for i in range(0, 1500, 100):
+            evict_cursor.set_key(f'key{i:08d}')
+            evict_cursor.search()
+            evict_cursor.reset()
+        evict_cursor.close()
+
+        self.assertEqual(self.get_block_size_fast(), size_after_ckpt,
+            "fast-path block_size should not change after eviction without a checkpoint")
+        self.assertEqual(self.get_block_size_slow(), size_after_ckpt,
+            "slow-path block_size should not change after eviction without a checkpoint")
+        self.assertEqual(self.get_block_size_slow(), self.get_block_size_fast(),
+            f"slow-path block_size should still match the fast-path block_size after eviction without a checkpoint")
