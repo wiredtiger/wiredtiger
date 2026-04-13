@@ -7772,68 +7772,68 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DH_SESSION_HANDLES			1573
 /*! data-handle: session sweep attempts */
 #define	WT_STAT_CONN_DH_SESSION_SWEEPS			1574
+/*! disagg: abandon checkpoints failed */
+#define	WT_STAT_CONN_DISAGG_ABANDON_CHECKPOINT_FAILED	1575
+/*! disagg: abandon checkpoints succeeded */
+#define	WT_STAT_CONN_DISAGG_ABANDON_CHECKPOINT_SUCCEED	1576
 /*! disagg: database size */
-#define	WT_STAT_CONN_DISAGG_DATABASE_SIZE		1575
+#define	WT_STAT_CONN_DISAGG_DATABASE_SIZE		1577
 /*! disagg: role leader */
-#define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1576
+#define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1578
 /*! disagg: step down most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STEP_DOWN_TIME		1577
+#define	WT_STAT_CONN_DISAGG_STEP_DOWN_TIME		1579
 /*! disagg: step up most recent time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STEP_UP_TIME		1578
+#define	WT_STAT_CONN_DISAGG_STEP_UP_TIME		1580
 /*!
  * layered: Layered table cursor advances to a newer checkpoint for the
  * stable btree
  */
-#define	WT_STAT_CONN_LAYERED_CURS_ADVANCE_STABLE	1579
+#define	WT_STAT_CONN_LAYERED_CURS_ADVANCE_STABLE	1581
 /*! layered: Layered table cursor insert operations */
-#define	WT_STAT_CONN_LAYERED_CURS_INSERT		1580
+#define	WT_STAT_CONN_LAYERED_CURS_INSERT		1582
 /*! layered: Layered table cursor modify operations */
-#define	WT_STAT_CONN_LAYERED_CURS_MODIFY		1581
+#define	WT_STAT_CONN_LAYERED_CURS_MODIFY		1583
 /*! layered: Layered table cursor next operations */
-#define	WT_STAT_CONN_LAYERED_CURS_NEXT			1582
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT			1584
 /*! layered: Layered table cursor next operations from the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_NEXT_INGEST		1583
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT_INGEST		1585
 /*! layered: Layered table cursor next operations from the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_NEXT_STABLE		1584
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT_STABLE		1586
 /*! layered: Layered table cursor prev operations */
-#define	WT_STAT_CONN_LAYERED_CURS_PREV			1585
+#define	WT_STAT_CONN_LAYERED_CURS_PREV			1587
 /*! layered: Layered table cursor prev operations from the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_PREV_INGEST		1586
+#define	WT_STAT_CONN_LAYERED_CURS_PREV_INGEST		1588
 /*! layered: Layered table cursor prev operations from the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_PREV_STABLE		1587
+#define	WT_STAT_CONN_LAYERED_CURS_PREV_STABLE		1589
 /*! layered: Layered table cursor remove operations */
-#define	WT_STAT_CONN_LAYERED_CURS_REMOVE		1588
+#define	WT_STAT_CONN_LAYERED_CURS_REMOVE		1590
 /*! layered: Layered table cursor reopens ingest btree */
-#define	WT_STAT_CONN_LAYERED_CURS_REOPEN_INGEST		1589
+#define	WT_STAT_CONN_LAYERED_CURS_REOPEN_INGEST		1591
 /*! layered: Layered table cursor search near operations */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR		1590
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR		1592
 /*!
  * layered: Layered table cursor search near operations from the ingest
  * btrees
  */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST	1591
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST	1593
 /*!
  * layered: Layered table cursor search near operations from the stable
  * btrees
  */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE	1592
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE	1594
 /*! layered: Layered table cursor search operations */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH		1593
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH		1595
 /*! layered: Layered table cursor search operations from the ingest btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1594
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1596
 /*! layered: Layered table cursor search operations from the stable btrees */
-#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1595
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1597
 /*! layered: Layered table cursor update operations */
-#define	WT_STAT_CONN_LAYERED_CURS_UPDATE		1596
+#define	WT_STAT_CONN_LAYERED_CURS_UPDATE		1598
 /*!
  * layered: checkpoints performed on this table by the layered table
  * manager
  */
-#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS	1597
-/*! layered: disagg abandon checkpoints failed */
-#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_ABANDON_FAILED	1598
-/*! layered: disagg abandon checkpoints succeeded */
-#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_ABANDON_SUCCEED	1599
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS	1599
 /*! layered: disagg pick up checkpoints failed */
 #define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FAILED	1600
 /*! layered: disagg pick up checkpoints succeeded */

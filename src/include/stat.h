@@ -1001,6 +1001,8 @@ struct __wt_connection_stats {
     int64_t dh_sweep_skip_ckpt;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
+    int64_t disagg_abandon_checkpoint_failed;
+    int64_t disagg_abandon_checkpoint_succeed;
     int64_t disagg_database_size;
     int64_t disagg_role_leader;
     int64_t disagg_step_down_time;
@@ -1024,8 +1026,6 @@ struct __wt_connection_stats {
     int64_t layered_curs_search_stable;
     int64_t layered_curs_update;
     int64_t layered_table_manager_checkpoints;
-    int64_t layered_table_manager_checkpoints_disagg_abandon_failed;
-    int64_t layered_table_manager_checkpoints_disagg_abandon_succeed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;

@@ -1185,9 +1185,9 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
       disagg->npage_log->page_log, &session->iface);
 
     if (ret == 0)
-        WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_abandon_succeed);
+        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_succeed);
     else
-        WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_abandon_failed);
+        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_failed);
 
     return (ret);
 }

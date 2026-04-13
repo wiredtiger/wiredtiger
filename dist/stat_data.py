@@ -616,6 +616,8 @@ conn_stats = [
     ##########################################
     # Disagg statistics
     ##########################################
+    DisaggStat('disagg_abandon_checkpoint_failed', 'abandon checkpoints failed'),
+    DisaggStat('disagg_abandon_checkpoint_succeed', 'abandon checkpoints succeeded'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
@@ -648,8 +650,6 @@ conn_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
-    LayeredStat('layered_table_manager_checkpoints_disagg_abandon_failed', 'disagg abandon checkpoints failed'),
-    LayeredStat('layered_table_manager_checkpoints_disagg_abandon_succeed', 'disagg abandon checkpoints succeeded'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 
