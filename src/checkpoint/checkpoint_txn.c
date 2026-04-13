@@ -1895,8 +1895,9 @@ err:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
         if (ret == 0 && F_ISSET(CUR2BT(session->meta_cursor), WT_BTREE_SKIP_CKPT))
             idle = true;
-        WT_TRET(__wt_checkpoint_log(session, true,
-          (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP, NULL));
+        WT_TRET_MSG(session, __wt_checkpoint_log(session, true,
+          (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP, NULL), "%s",
+          "Checkpoint log operation failed");
     }
 
     /*
@@ -2878,7 +2879,8 @@ fake:
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm) {
-        WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
+        WT_TRET_MSG(session, bm->checkpoint_resolve(bm, session, ret != 0), "%s",
+            "Checkpoint resolve failed");
 
         /*
          * If in disaggregated mode, discard the root page associated with checkpoints that are
@@ -2899,7 +2901,9 @@ err:
                  * the discard logic would also need to be reconsidered.
                  */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
-                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, true));
+                    WT_TRET_MSG(session,
+                      bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, true), "%s",
+                      "Checkpoint root page discard failed");
             }
         }
     }
