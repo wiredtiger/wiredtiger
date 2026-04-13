@@ -1829,11 +1829,13 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
-        WT_ERR(__wt_buf_fmt(session, meta,
-          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
-          ",version=%d,compatible_version=%d",
-          meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
-          WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
+        WT_ERR_MSG_CHK(session,
+          __wt_buf_fmt(session, meta,
+            "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
+            ",version=%d,compatible_version=%d",
+            meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
+            WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION),
+          "Failed to format checkpoint metadata");
         /*
          * FIXME-WT-16821: Remove the if branch keep non-ext version only.
          */
@@ -1844,21 +1846,29 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
             complete_args.checkpoint_oldest_timestamp =
               conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
             complete_args.lsn = 0;
-            WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint(
-              disagg->npage_log->page_log, &session->iface, &complete_args));
+            WT_ERR_MSG_CHK(session,
+              disagg->npage_log->page_log->pl_complete_checkpoint(
+                disagg->npage_log->page_log, &session->iface, &complete_args),
+              "Failed to complete checkpoint");
         } else
-            WT_ERR(
+            WT_ERR_MSG_CHK(session,
               disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
-                &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
+                &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL),
+              "Failed to complete checkpoint");
 
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
-    }
 
-    __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "%s disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",
-      ckpt_success ? "Completed" : "Failed", meta_lsn, checkpoint_timestamp,
-      __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Completed disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",
+          meta_lsn, checkpoint_timestamp,
+          __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
+    } else
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Checkpoint completion skipped due to unsuccessful checkpoint: lsn=%" PRIu64
+          ", timestamp=%" PRIu64 " %s",
+          meta_lsn, checkpoint_timestamp,
+          __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
 
     WT_ERR(__disagg_begin_checkpoint(session));
 
