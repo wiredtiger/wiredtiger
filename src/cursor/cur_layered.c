@@ -1491,8 +1491,10 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_CURSOR *cursor;
     bool found;
 
+    cursor = &clayered->iface;
     conn = S2C(session);
     found = false;
 
@@ -1507,7 +1509,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
 
         if (!found) {
             WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-                                 session, (WT_LAYERED_TABLE *)clayered->dhandle, &c->key, NULL),
+                                 session, (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL),
               true);
             if (ret == 0) {
                 found = true;
