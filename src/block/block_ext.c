@@ -700,7 +700,7 @@ __wti_block_off_free(
     else if (ret == WT_NOTFOUND)
         ret = __block_merge(session, block, &block->live.discard, offset, size);
 
-    /* 
+    /*
      * Salvage is a corruption repair operation. Including it in the block_free stat would create
      * misleading spikes unrelated to workload behavior, making the stat unreliable for monitoring
      * normal user driven activity.
