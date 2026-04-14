@@ -1850,6 +1850,29 @@ err:
 }
 
 /*
+ * __clayered_reserve_constituent --
+ *     Reserve a key in the constituent cursor.
+ */
+static int
+__clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR *constituent)
+{
+    WT_DECL_RET;
+    CURSOR_UPDATE_API_CALL_BTREE(constituent, session, ret, reserve);
+
+    /*
+     * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet (it
+     * lives only in the stable table), so we need overwrite mode to allow the reserve to succeed
+     * without the key being present in the update tree.
+     */
+    WT_ERR(__wt_btcur_reserve((WT_CURSOR_BTREE *)constituent, S2C(session)->layered_table_manager.leader));
+
+err:
+    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_reserve);
+
+    return (ret);
+}
+
+/*
  * __clayered_put --
  *     Put an entry into the desired tree.
  */
@@ -1895,7 +1918,7 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
          * (it lives only in the stable table), so we need overwrite mode to allow the reserve to
          * succeed without the key being present in the update tree.
          */
-        WT_RET(__wt_btcur_reserve((WT_CURSOR_BTREE *)c, !leader));
+        __clayered_reserve_constituent(session, c);
         break;
     }
 
