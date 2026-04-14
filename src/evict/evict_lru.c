@@ -1908,6 +1908,18 @@ retry:
             continue;
         }
 
+        /*
+         * For ingest trees, if the prune timestamp hasn't advanced since our last walk, every page
+         * will be skipped anyway. Aggressively throttle walks instead of performing them, but never
+         * skip entirely the system must still walk occasionally to avoid cache pressure deadlocks.
+         * When eviction is aggressive (cache critically full), override the throttle.
+         */
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+            if (__wt_atomic_load_uint64_relaxed(&btree->prune_timestamp) !=
+              btree->last_walked_prune_timestamp)
+                __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, 0);
+        }
+
         btree->evict_walk_skips = 0;
 
         __evict_set_saved_walk_tree(session, dhandle);
@@ -1930,6 +1942,11 @@ retry:
                   session, dhandle, ret = __evict_walk_tree(session, queue, max_entries, &slot));
 
                 WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) == 0);
+
+                /* Set the last walked prune timestamp for ingest trees. */
+                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                    btree->last_walked_prune_timestamp =
+                      __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
             }
             __wt_spin_unlock(session, &evict->evict_walk_lock);
             WT_ERR(ret);
@@ -2798,10 +2815,22 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
     /* If we couldn't find the number of pages we were looking for, skip the tree next time. */
     evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
-    if (pages_queued < target_pages / 2 && !urgent_queued)
-        __wt_atomic_store_uint32_relaxed(
-          &btree->evict_walk_period, WT_MIN(WT_MAX(1, 2 * evict_walk_period), 100));
-    else if (pages_queued == target_pages) {
+    if (pages_queued < target_pages / 2 && !urgent_queued) {
+        /*
+         * For ingest trees, if the walk gave up (saw enough pages to conclude the tree is useless)
+         * and the prune timestamp hasn't moved since the walk started, jump straight to the maximum
+         * throttle. The prune-timestamp reset in __evict_walk ensures we walk promptly when new
+         * candidates may appear.
+         */
+        if (give_up && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+          btree->last_walked_prune_timestamp ==
+            __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp)) {
+            __wt_atomic_store_uint32_relaxed(
+              &btree->evict_walk_period, WTI_EVICT_INGEST_WALK_PERIOD_MAX);
+        } else
+            __wt_atomic_store_uint32_relaxed(
+              &btree->evict_walk_period, WT_MIN(WT_MAX(1, 2 * evict_walk_period), 100));
+    } else if (pages_queued == target_pages) {
         __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, 0);
         /*
          * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
