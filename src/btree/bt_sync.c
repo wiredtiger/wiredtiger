@@ -391,21 +391,17 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /*
-<<<<<<< HEAD
              * Handle unresolved multiblock reconciliations. Some of these will be pages left dirty
              * by checkpoint. Which means eviction will still not be able to evict them, however it
              * can still realize the split and avoid checkpoint splitting the page again.
              */
             __sync_check_for_multiblock_rec(session, walk, is_internal);
 
-            /* Update checkpoint IO tracking data. */
-            if (__wt_checkpoint_verbose_timer_started(session))
-=======
+            /*
              * Update checkpoint IO tracking data for the session running the checkpoint. Other
              * session can execute this code but we are not tracking their progress.
              */
             if (WT_SESSION_IS_CHECKPOINT(session) && __wt_checkpoint_verbose_timer_started(session))
->>>>>>> develop
                 __wt_checkpoint_progress_stats(
                   session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
         }
