@@ -31,7 +31,7 @@
 #include <sys/wait.h>
 
 /*
- * GETOPTS: command-line flags for testutil_parse_single_opt.
+ * Command-line flags for testutil_parse_single_opt.
  *   b: build directory override
  *   G: enable disaggregated storage
  *   h: home directory for the WiredTiger database
@@ -51,6 +51,10 @@
 #define URI2 "file:test2"
 #define TABLE_CONFIG "key_format=S,value_format=S,block_manager=disagg"
 
+/*
+ * panic_event_handler --
+ *     Event handler that exits cleanly on WT_PANIC so the parent can verify the panic.
+ */
 static int
 panic_event_handler(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
@@ -89,7 +93,7 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn)) subtest_run(TEST_OPTS *opts)
     int i;
     char filename[512], key[64], value[64];
 
-    /* No core files — the panic may trigger diagnostic assertions during cleanup. */
+    /* No core files  the panic may trigger diagnostic assertions during cleanup. */
     memset(&rlim, 0, sizeof(rlim));
     testutil_check(setrlimit(RLIMIT_CORE, &rlim));
 
@@ -151,6 +155,10 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn)) subtest_run(TEST_OPTS *opts)
     _exit(EXIT_FAILURE);
 }
 
+/*
+ * main --
+ *     Test that disaggregated storage checkpoint failures correctly trigger WT_PANIC.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -180,7 +188,7 @@ main(int argc, char *argv[])
     if (pid == 0) {
         /* Child process: run the subtest that triggers the panic. */
         subtest_run(opts);
-        /* Not reached — subtest_run calls _exit. */
+        /* Not reached  subtest_run calls _exit. */
     }
 
     /* Parent: wait for the child. */

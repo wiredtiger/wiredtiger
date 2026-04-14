@@ -1853,10 +1853,8 @@ err:
     __checkpoint_set_scrub_target(session, 0.0);
 
     /*
-     * In disaggregated storage, a checkpoint failure after metadata has been written is
-     * unrecoverable. The transaction cannot be safely rolled back because metadata updates must
-     * never be rolled back, and there is no WAL to provide crash recovery. Panic before attempting
-     * the rollback.
+     * In disaggregated storage, a checkpoint failure is unrecoverable. The transaction cannot be
+     * safely rolled back, panic before attempting the rollback.
      */
     if (failed && __wt_conn_is_disagg(session))
         WT_RET_PANIC(session, ret,
@@ -2072,8 +2070,8 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
         WT_IGNORE_RET(
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
     if (ret != 0 && __wt_conn_is_disagg(session))
-        WT_RET_PANIC(
-          session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption");
+        WT_IGNORE_RET(__wt_panic(
+          session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption"));
     WT_ERR(ret);
 
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
