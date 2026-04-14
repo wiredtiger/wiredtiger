@@ -894,13 +894,19 @@ __cursors_must_be_readonly(WT_SESSION_IMPL *session, const char *cfg[], bool *re
 }
 
 /*
- * __cursors_can_be_cached --
+ * __wt_cursors_can_be_cached --
  *     Determine whether cfg[] allows that a cursor be cached.
  */
-static int
-__cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
+int
+__wt_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
 {
     WT_CONFIG_ITEM cval;
+
+    /* With the default configuration, cursors can be cached. */
+    if (__wt_config_empty(cfg)) {
+        *cacheablep = true;
+        return (0);
+    }
 
     /*
      * Any cursors that have special configuration cannot be cached. There are some exceptions for
@@ -911,16 +917,19 @@ __cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cache
     if (cval.val)
         goto return_false;
 
-    WT_RET(__wt_config_gets_def(session, cfg, "debug", 0, &cval));
-    if (cval.len != 0)
+    /*
+     * To check if string values deviate from the default, we see if the value is within the default
+     * string. If so, that indicates that no later configuration overrode it. This is perhaps
+     * slightly more conservative that it needs to be; for example, we would not cache cursors
+     * opened with configuration explicitly set to "debug=()". But this check is quite fast and
+     * works for the cases we care about.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "debug", &cval));
+    if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
         goto return_false;
 
     WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
     if (cval.len != 0)
-        goto return_false;
-
-    WT_RET(__wt_config_gets(session, cfg, "force", &cval));
-    if (WT_CONFIG_LIT_MATCH("true", cval))
         goto return_false;
 
     WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
@@ -933,7 +942,10 @@ __cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cache
 
     /* Checkpoints are readonly, we won't cache them. */
     WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-    if (cval.val) {
+    if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
+        goto return_false;
+
+    if (0) {
 return_false:
         *cacheablep = false;
     } else {
@@ -1060,7 +1072,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
         overwrite_flag = WT_CURSTD_OVERWRITE;
 
     if (have_config) {
-        WT_RET(__cursors_can_be_cached(session, cfg, &cacheable));
+        WT_RET(__wt_cursors_can_be_cached(session, cfg, &cacheable));
         if (!cacheable)
             return (WT_NOTFOUND);
     }
