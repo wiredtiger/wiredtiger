@@ -1625,8 +1625,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         WT_WITH_SCHEMA_LOCK(
           session, ret = __checkpoint_process_disagg_metadata(session, &drop_size));
         if (ret != 0)
-            return (__wt_panic(session, WT_PANIC,
-              "Disaggregated storage checkpoint failed while processing shared metadata queue."));
+            WT_ERR_MSG(session, ret,
+              "Disaggregated storage checkpoint failed while processing shared metadata queue");
     }
 
     /*
@@ -1852,6 +1852,16 @@ err:
 
     __checkpoint_set_scrub_target(session, 0.0);
 
+    /*
+     * In disaggregated storage, a checkpoint failure after metadata has been written is
+     * unrecoverable. The transaction cannot be safely rolled back because metadata updates must
+     * never be rolled back, and there is no WAL to provide crash recovery. Panic before attempting
+     * the rollback.
+     */
+    if (failed && __wt_conn_is_disagg(session))
+        WT_RET_PANIC(session, ret,
+          "Disaggregated storage checkpoint failed, unable to rollback, panic to avoid corruption");
+
     if (F_ISSET(txn, WT_TXN_RUNNING)) {
         /*
          * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -1884,17 +1894,16 @@ err:
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
-        if (conn->key_provider != NULL) {
-            ret = __wt_disagg_put_crypt_helper(session);
-            if (ret != 0)
-                return (__wt_panic(session, WT_PANIC,
-                  "Disaggregated storage checkpoint failed to write encryption metadata."));
-        }
-        ret = __wt_disagg_put_checkpoint_meta(
-          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts);
+        if (conn->key_provider != NULL)
+            WT_TRET(__wt_disagg_put_crypt_helper(session));
         if (ret != 0)
-            return (__wt_panic(session, WT_PANIC,
-              "Disaggregated storage checkpoint failed to write checkpoint metadata."));
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+              "Disaggregated storage checkpoint failed to write encryption metadata");
+        WT_TRET(__wt_disagg_put_checkpoint_meta(
+          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
+        if (ret != 0)
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+              "Disaggregated storage checkpoint failed to write checkpoint metadata");
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
           "Updated disaggregated storage checkpoint metadata because the stable timestamp "
           "advanced");
@@ -1909,12 +1918,14 @@ err:
      */
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
-        if (failed)
-            return (__wt_panic(session, WT_PANIC,
-              "Disaggregated storage checkpoint failed after writing metadata to the page log."));
-        WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
-        if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
-            return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
+        if (failed) {
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+              "Disaggregated storage checkpoint failed after writing metadata to the page log");
+        } else {
+            WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
+            if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
+                return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
+        }
     }
 
     for (i = 0; i < session->ckpt.handle_next; ++i) {
@@ -2065,6 +2076,9 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     if (ret != 0 && flush)
         WT_IGNORE_RET(
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
+    if (ret != 0 && __wt_conn_is_disagg(session))
+        WT_RET_PANIC(
+          session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption");
     WT_ERR(ret);
 
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
