@@ -179,6 +179,7 @@ GetLastError
 GetModuleHandleExW
 GetProcAddress
 Getters
+Gh
 Golomb
 HANDLEOPS
 HFS
