@@ -230,8 +230,8 @@ __reconcile_post_wrapup(
     /*
      * When threads perform eviction, don't cache block manager structures (even across calls), we
      * can have a significant number of threads doing eviction at the same time with large items.
-     * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
-     * discarded.
+     * Ignore the main checkpoint thread, once the checkpoint completes, all unnecessary session
+     * resources will be discarded. Checkpoint worker threads need to clean up their own resources.
      */
     if (!WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         /*
