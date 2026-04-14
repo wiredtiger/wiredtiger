@@ -31,25 +31,32 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
  * __key_within_truncate_range --
  *     Search if the key is within a truncate range.
  */
-static bool
+static int
 __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key)
+  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key, bool *is_within_range)
 {
-    int start_cmp, stop_cmp;
+    int compare_result;
 
-    WT_RET(__wt_compare(session, collator, key, start_key, &start_cmp));
-    if (start_cmp < 0)
-        return (false);
+    WT_ASSERT(session, is_within_range != NULL);
+    *is_within_range = false;
+
+    WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
+    if (compare_result < 0)
+        return (0);
 
     /* A zeroed stop key indicates a truncate to end of table. */
-    if (stop_key->size == 0)
-        return (true);
+    if (stop_key->size == 0) {
+        *is_within_range = true;
+        return (0);
+    }
 
-    WT_RET(__wt_compare(session, collator, key, stop_key, &stop_cmp));
-    if (stop_cmp > 0)
-        return (false);
+    WT_RET(__wt_compare(session, collator, key, stop_key, &compare_result));
+    if (compare_result <= 0) {
+        *is_within_range = true;
+        return (0);
+    }
 
-    return (true);
+    return (0);
 }
 
 /*
@@ -117,7 +124,9 @@ int
 __wt_layered_table_truncate_detect_write_conflict(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
 {
+    WT_DECL_RET;
     WT_TRUNCATE *entry;
+    bool is_within_range;
 
     if (!__wt_process.disagg_fast_truncate_2026)
         return (0);
@@ -135,8 +144,15 @@ __wt_layered_table_truncate_detect_write_conflict(
         if (__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
             continue;
 
-        if (__key_within_truncate_range(
-              session, collator, &entry->start_key, &entry->stop_key, key)) {
+        ret = __key_within_truncate_range(
+          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range);
+
+        if (ret != 0) {
+            __wt_readunlock(session, &layered_table->truncate_lock);
+            return (ret);
+        }
+
+        if (is_within_range) {
             __wt_readunlock(session, &layered_table->truncate_lock);
             return (WT_WRITE_CONFLICT);
         }
@@ -153,7 +169,9 @@ int
 __wt_truncate_delete_visible_check(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
 {
+    WT_DECL_RET;
     WT_TRUNCATE *entry;
+    bool is_within_range;
 
     if (!__wt_process.disagg_fast_truncate_2026)
         return (WT_NOTFOUND);
@@ -170,8 +188,15 @@ __wt_truncate_delete_visible_check(
         if (!__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
             continue;
 
-        if (__key_within_truncate_range(
-              session, collator, &entry->start_key, &entry->stop_key, key)) {
+        ret = __key_within_truncate_range(
+          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range);
+
+        if (ret != 0) {
+            __wt_readunlock(session, &layered_table->truncate_lock);
+            return (ret);
+        }
+
+        if (is_within_range) {
             if (tp != NULL)
                 *tp = entry;
             __wt_readunlock(session, &layered_table->truncate_lock);
