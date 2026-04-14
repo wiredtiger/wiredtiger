@@ -17,12 +17,12 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    if (entry == NULL)
+    if (entry == NULL || *entry == NULL)
         return;
 
     __wt_free(session, (*entry)->uri);
-    __wt_free(session, (*entry)->start_key);
-    __wt_free(session, (*entry)->stop_key);
+    __wt_buf_free(session, &(*entry)->start_key);
+    __wt_buf_free(session, &(*entry)->stop_key);
     __wt_free(session, *entry);
     *entry = NULL;
 }
@@ -31,25 +31,31 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
  * __key_within_truncate_range --
  *     Search if the key is within a truncate range.
  */
-static bool
+static int
 __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key)
+  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key, bool *is_within_range)
 {
-    int start_cmp, stop_cmp;
+    int compare_result;
 
-    WT_RET(__wt_compare(session, collator, key, start_key, &start_cmp));
-    if (start_cmp < 0)
-        return (false);
+    WT_ASSERT(session, is_within_range != NULL);
+    *is_within_range = false;
+
+    /* A zeroed start key indicates a truncate from the beginning of the table. */
+    if (start_key->size != 0) {
+        WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
+        if (compare_result < 0)
+            return (0);
+    }
 
     /* A zeroed stop key indicates a truncate to end of table. */
-    if (stop_key->size == 0)
-        return (true);
+    if (stop_key->size == 0) {
+        *is_within_range = true;
+        return (0);
+    }
 
-    WT_RET(__wt_compare(session, collator, key, stop_key, &stop_cmp));
-    if (stop_cmp > 0)
-        return (false);
-
-    return (true);
+    WT_RET(__wt_compare(session, collator, key, stop_key, &compare_result));
+    *is_within_range = (compare_result <= 0);
+    return (0);
 }
 
 /*
@@ -62,7 +68,8 @@ __wt_insert_truncate_entry(
 {
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
-    WT_TRUNCATE *t;
+    WT_TRUNCATE *t = NULL;
+    int truncate_ret;
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
@@ -76,9 +83,13 @@ __wt_insert_truncate_entry(
     WT_ASSERT(session, __wt_session_get_dhandle(session, uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_RET(__wt_calloc_def(session, sizeof(WT_TRUNCATE), &t));
+    WT_ERR(__wt_calloc_one(session, &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
-    WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
+
+    /* A NULL start key indicates a truncate starts from the beginning of the table. */
+    if (start_key != NULL)
+        WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
+
     /* A NULL stop key indicates a truncate to end of table. */
     if (stop_key != NULL)
         WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
@@ -88,8 +99,15 @@ __wt_insert_truncate_entry(
      * max_upd_txn.
      */
     WT_ERR(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
-    WT_ERR(__wt_txn_truncate(session, t));
-    WT_ERR(__wt_session_release_dhandle(session));
+    truncate_ret = __wt_txn_truncate(session, t);
+    WT_TRET(__wt_session_release_dhandle(session));
+
+    /*
+     * A release failure alone must not skip the insert below: once __wt_txn_truncate succeeds, t is
+     * owned by the txn op list and freeing it via err would leave a dangling pointer.
+     */
+    if (truncate_ret != 0)
+        WT_ERR(truncate_ret);
 
     session->dhandle = (WT_DATA_HANDLE *)layered_table;
     __wt_writelock(session, &layered_table->truncate_lock);
@@ -99,6 +117,12 @@ __wt_insert_truncate_entry(
     if (0) {
 err:
         __disagg_truncate_free(session, &t);
+
+        /*
+         * We only reach the err path with the ingest dhandle already released; reset so the release
+         * below targets the layered dhandle.
+         */
+        session->dhandle = (WT_DATA_HANDLE *)layered_table;
     }
     WT_TRET(__wt_session_release_dhandle(session));
 
@@ -117,31 +141,45 @@ int
 __wt_layered_table_truncate_detect_write_conflict(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
 {
+    WT_COLLATOR *collator;
+    WT_DECL_RET;
     WT_TRUNCATE *entry;
+    bool is_within_range;
 
     if (!__wt_process.disagg_fast_truncate_2026)
         return (0);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
+    collator = layered_table->collator;
+    is_within_range = false;
 
     __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         /*
-         * If the truncate entry has already been committed if it is visible to this transaction. We
+         * The truncate entry has already been committed if it is visible to this transaction. We
          * can ignore these entries.
          */
         if (__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
             continue;
 
-        if (__key_within_truncate_range(
-              session, collator, &entry->start_key, &entry->stop_key, key)) {
-            __wt_readunlock(session, &layered_table->truncate_lock);
-            return (WT_WRITE_CONFLICT);
-        }
+        ret = __key_within_truncate_range(
+          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range);
+
+        if ((ret != 0) || is_within_range)
+            break;
     }
     __wt_readunlock(session, &layered_table->truncate_lock);
+
+    WT_RET(ret);
+
+    if (is_within_range) {
+        WT_STAT_CONN_INCR(session, txn_update_conflict);
+        __wt_session_set_last_error(
+          session, WT_ROLLBACK, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
+        return (WT_ROLLBACK);
+    }
+
     return (0);
 }
 
@@ -153,33 +191,44 @@ int
 __wt_truncate_delete_visible_check(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
 {
+    WT_COLLATOR *collator;
+    WT_DECL_RET;
     WT_TRUNCATE *entry;
+    bool is_within_range;
 
     if (!__wt_process.disagg_fast_truncate_2026)
         return (WT_NOTFOUND);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
-    WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
+
+    collator = layered_table->collator;
+    is_within_range = false;
 
     __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         /*
-         * Ignore all truncate entries that hasn't been committed. They won't be visible to this
+         * Ignore all truncate entries that haven't been committed. They won't be visible to this
          * transaction.
          */
         if (!__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
             continue;
 
-        if (__key_within_truncate_range(
-              session, collator, &entry->start_key, &entry->stop_key, key)) {
-            if (tp != NULL)
-                *tp = entry;
-            __wt_readunlock(session, &layered_table->truncate_lock);
-            return (0);
-        }
+        WT_ERR(__key_within_truncate_range(
+          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range));
+
+        if (!is_within_range)
+            continue;
+
+        if (tp != NULL)
+            *tp = entry;
+
+        break;
     }
+
+err:
     __wt_readunlock(session, &layered_table->truncate_lock);
-    return (WT_NOTFOUND);
+    WT_RET(ret);
+    return (is_within_range ? 0 : WT_NOTFOUND);
 }
 
 /*
@@ -213,8 +262,9 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     entry->start_ts = session->txn->time_point.commit_timestamp;
     entry->durable_ts = session->txn->time_point.durable_timestamp;
     __wt_writeunlock(session, &layered_table->truncate_lock);
+
     WT_TRET(__wt_session_release_dhandle(session));
-    return (0);
+    return (ret);
 }
 
 /*
@@ -247,9 +297,10 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     __wt_writelock(session, &layered_table->truncate_lock);
     TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
     __wt_writeunlock(session, &layered_table->truncate_lock);
+    __disagg_truncate_free(session, &entry);
 
     WT_TRET(__wt_session_release_dhandle(session));
-    return (0);
+    return (ret);
 }
 
 /*
