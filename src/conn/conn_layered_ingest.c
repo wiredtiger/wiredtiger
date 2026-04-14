@@ -331,12 +331,15 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                      * timestamp is stored in durable timestamp.
                      */
                     upd->txnid = WT_TXN_ABORTED;
+                    upd->prepare_state = WT_PREPARE_INPROGRESS;
                     upd->prepare_ts = start_prepare_ts;
                     upd->prepared_id = start_prepared_id;
                     upd->upd_saved_txnid = start_ts;
                     upd->upd_rollback_ts = durable_start_ts;
                 } else {
                     upd->txnid = start_txn;
+                    if (start_prepared_id != WT_PREPARED_ID_NONE)
+                        upd->prepare_state = WT_PREPARE_RESOLVED;
                     upd->prepare_ts = start_prepare_ts;
                     upd->prepared_id = start_prepared_id;
                     upd->upd_start_ts = start_ts;
