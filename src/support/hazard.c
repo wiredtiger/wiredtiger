@@ -87,6 +87,11 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      */
     current_state = WT_REF_GET_STATE(ref);
     if (current_state != WT_REF_MEM) {
+        if (current_state == WT_REF_LOCKED)
+            WT_STAT_CONN_INCR(session, hazard_acquire_busy_blocked_locked);
+        else
+            WT_STAT_CONN_INCR(session, hazard_acquire_busy_blocked_other);
+
         *busyp = true;
         return (0);
     }

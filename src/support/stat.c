@@ -2805,12 +2805,17 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: connection close blocked waiting for transaction state stabilization",
   "thread-yield: data handle lock yielded",
   "thread-yield: get reference for page index and slot time sleeping (usecs)",
+  "thread-yield: hazard acquire busy blocked due to locked state",
+  "thread-yield: hazard acquire busy blocked due to other non-memory state",
   "thread-yield: page access yielded due to prepare state change",
   "thread-yield: page acquire busy blocked",
   "thread-yield: page acquire eviction blocked",
   "thread-yield: page acquire locked blocked",
   "thread-yield: page acquire read blocked",
   "thread-yield: page acquire time sleeping (usecs)",
+  "thread-yield: page acquire total blocked wall time (usecs)",
+  "thread-yield: page acquire total retry iterations",
+  "thread-yield: page acquire yield calls before sleeping",
   "thread-yield: page delete rollback time sleeping for state change (usecs)",
   "thread-yield: page reconciliation yielded due to child modification",
   "thread-yield: page split and restart read",
@@ -3862,12 +3867,17 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_release_blocked = 0;
     stats->dhandle_lock_blocked = 0;
     stats->page_index_slot_ref_blocked = 0;
+    stats->hazard_acquire_busy_blocked_locked = 0;
+    stats->hazard_acquire_busy_blocked_other = 0;
     stats->prepared_transition_blocked_page = 0;
     stats->page_busy_blocked = 0;
     stats->page_forcible_evict_blocked = 0;
     stats->page_locked_blocked = 0;
     stats->page_read_blocked = 0;
     stats->page_sleep = 0;
+    stats->page_acquire_blocked_time_us = 0;
+    stats->page_acquire_retries = 0;
+    stats->page_acquire_yield_count = 0;
     stats->page_del_rollback_blocked = 0;
     stats->child_modify_blocked_page = 0;
     stats->page_split_restart = 0;
@@ -5151,6 +5161,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_release_blocked += WT_STAT_CONN_READ(from, txn_release_blocked);
     to->dhandle_lock_blocked += WT_STAT_CONN_READ(from, dhandle_lock_blocked);
     to->page_index_slot_ref_blocked += WT_STAT_CONN_READ(from, page_index_slot_ref_blocked);
+    to->hazard_acquire_busy_blocked_locked +=
+      WT_STAT_CONN_READ(from, hazard_acquire_busy_blocked_locked);
+    to->hazard_acquire_busy_blocked_other +=
+      WT_STAT_CONN_READ(from, hazard_acquire_busy_blocked_other);
     to->prepared_transition_blocked_page +=
       WT_STAT_CONN_READ(from, prepared_transition_blocked_page);
     to->page_busy_blocked += WT_STAT_CONN_READ(from, page_busy_blocked);
@@ -5158,6 +5172,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->page_locked_blocked += WT_STAT_CONN_READ(from, page_locked_blocked);
     to->page_read_blocked += WT_STAT_CONN_READ(from, page_read_blocked);
     to->page_sleep += WT_STAT_CONN_READ(from, page_sleep);
+    to->page_acquire_blocked_time_us += WT_STAT_CONN_READ(from, page_acquire_blocked_time_us);
+    to->page_acquire_retries += WT_STAT_CONN_READ(from, page_acquire_retries);
+    to->page_acquire_yield_count += WT_STAT_CONN_READ(from, page_acquire_yield_count);
     to->page_del_rollback_blocked += WT_STAT_CONN_READ(from, page_del_rollback_blocked);
     to->child_modify_blocked_page += WT_STAT_CONN_READ(from, child_modify_blocked_page);
     to->page_split_restart += WT_STAT_CONN_READ(from, page_split_restart);

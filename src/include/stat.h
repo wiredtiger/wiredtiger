@@ -1347,12 +1347,17 @@ struct __wt_connection_stats {
     int64_t txn_release_blocked;
     int64_t dhandle_lock_blocked;
     int64_t page_index_slot_ref_blocked;
+    int64_t hazard_acquire_busy_blocked_locked;
+    int64_t hazard_acquire_busy_blocked_other;
     int64_t prepared_transition_blocked_page;
     int64_t page_busy_blocked;
     int64_t page_forcible_evict_blocked;
     int64_t page_locked_blocked;
     int64_t page_read_blocked;
     int64_t page_sleep;
+    int64_t page_acquire_blocked_time_us;
+    int64_t page_acquire_retries;
+    int64_t page_acquire_yield_count;
     int64_t page_del_rollback_blocked;
     int64_t child_modify_blocked_page;
     int64_t page_split_restart;

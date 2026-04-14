@@ -493,13 +493,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_REF_STATE current_state;
     WT_TXN *txn;
     size_t sleep_count;
-    uint64_t sleep_usecs, yield_cnt;
+    uint64_t blocked_start, sleep_usecs, yield_cnt;
     int force_attempts;
     bool busy, cache_work, evict_skip, read_from_disk, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
-    sleep_count = 0;
+    blocked_start = sleep_count = 0;
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
@@ -695,6 +695,10 @@ read:
             }
 
 skip_evict:
+            /* If we were blocked record how long we were blocked for. */
+            if (blocked_start != 0)
+                WT_STAT_CONN_INCRV(session, page_acquire_blocked_time_us,
+                  WT_CLOCKDIFF_US(__wt_clock(session), blocked_start));
             page = ref->page;
             WT_ASSERT(session, page != NULL);
 
@@ -740,10 +744,14 @@ skip_evict:
          * We failed to get the page -- yield before retrying, and if we've yielded enough times,
          * start sleeping so we don't burn CPU to no purpose.
          */
+        WT_STAT_CONN_INCR(session, page_acquire_retries);
+        if (blocked_start == 0)
+            blocked_start = __wt_clock(session);
         if (yield_cnt < WT_THOUSAND) {
             if (!stalled) {
                 ++yield_cnt;
                 __wt_yield();
+                WT_STAT_CONN_INCR(session, page_acquire_yield_count);
                 continue;
             }
             yield_cnt = WT_THOUSAND;
