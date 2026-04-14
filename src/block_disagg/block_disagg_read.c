@@ -69,7 +69,7 @@ err:
     __wt_errx(session,
       "%s: read error for %" PRIu32
       "B block at "
-      "page %" PRIu64 ", lsn %" PRIu64 ", table %" PRIu64 ", %s, %s",
+      "page %" PRIu64 ", lsn %" PRIu64 ", table_id %" PRIu64 ", %s, %s",
       name, size, page_id, lsn, table_id, page_desc, context_msg);
 }
 
@@ -295,7 +295,8 @@ corrupt:
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
         if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             WT_ERR(WT_ERROR);
-        WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
+        WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
+          block_disagg->name, block_disagg->tableid);
     }
 
     /*
