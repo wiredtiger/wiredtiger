@@ -14,8 +14,7 @@ static int __checkpoint_fsync_post(
   WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
-static int __checkpoint_metadata(
-  WT_SESSION_IMPL *, const char *[], WT_TXN *, WT_TXN_GLOBAL *, struct timespec *);
+static int __checkpoint_metadata(WT_SESSION_IMPL *, const char *[], WT_TXN *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
@@ -1781,7 +1780,22 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_SYNC)
         __wt_debug_crash(session);
 
-    WT_ERR(__checkpoint_metadata(session, cfg, txn, txn_global, &tsp));
+    /*
+     * Stress point to stop just before we sync the metadata file. Used to recreate log recovery
+     * scenarios with an incomplete checkpoint.
+     */
+    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
+    /* Wait prior to flush the checkpoint stop log record. */
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, &tsp);
+    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 0);
+
+    WT_ERR(__checkpoint_metadata(session, cfg, txn));
+
+    /*
+     * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
+     * the checkpoint_pinned flag.
+     */
+    __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
 
     __checkpoint_stats(session);
 
@@ -3063,23 +3077,13 @@ err:
  *     checkpoint.
  */
 static int
-__checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn,
-  WT_TXN_GLOBAL *txn_global, struct timespec *tsp)
+__checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     void *saved_meta_next;
 
     conn = S2C(session);
-
-    /*
-     * Stress point to stop just before we sync the metadata file. Used to recreate log recovery
-     * scenarios with an incomplete checkpoint.
-     */
-    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
-    /* Wait prior to flush the checkpoint stop log record. */
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, tsp);
-    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 0);
 
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
@@ -3122,12 +3126,6 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn,
     WT_ERR(ret);
 
     __checkpoint_verbose_track(session, "metadata sync completed");
-
-    /*
-     * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
-     * the checkpoint_pinned flag.
-     */
-    __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
 
 err:
 
