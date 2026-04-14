@@ -2878,7 +2878,7 @@ tasks:
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower,table_prefix=table)" base01
 
   - name: unit-test-hook-parallel-checkpoint
-    tags: ["python"]
+    tags: ["python", "unit_test_xsan"]
     depends_on:
       - name: compile
     commands:
