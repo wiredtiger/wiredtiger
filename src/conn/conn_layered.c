@@ -1844,8 +1844,9 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         complete_args.checkpoint_oldest_timestamp =
           conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
         complete_args.lsn = 0;
-        WT_ERR_MSG_CHK(session, disagg->npage_log->page_log->pl_complete_checkpoint(
-          disagg->npage_log->page_log, &session->iface, &complete_args),
+        WT_ERR_MSG_CHK(session,
+          disagg->npage_log->page_log->pl_complete_checkpoint(
+            disagg->npage_log->page_log, &session->iface, &complete_args),
           "Failed to complete checkpoint");
 
         __wt_atomic_store_uint64_release(
