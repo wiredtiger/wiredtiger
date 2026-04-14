@@ -192,18 +192,23 @@ class suite_subprocess:
         topdir = os.path.dirname(self.buildDirectory())
         runscript = os.path.join(topdir, 'test', 'suite', 'run.py')
         procargs = [ sys.executable, runscript, '-p', '--dir', directory ]
-        if WiredTigerTestCase._fast:
-            procargs.append('--fast')
+        mode = wttest.suite_mode()
+        if mode:
+            procargs.extend(['--mode', mode])
         procargs.append(funcname)
 
         returncode = -1
         os.makedirs(directory)
+        env = os.environ.copy()
+        # Ensure run.py can locate the correct build directory when the subprocess cwd is inside
+        # a per-test working directory like WT_TEST/.../SUBPROCESS.
+        env['WT_BUILDDIR'] = wt_builddir
         # We cannot put the output/error files in the subdirectory, as
         # that will be cleared by the run.py script.
         with open("subprocess.err", "w") as wterr:
             with open("subprocess.out", "w") as wtout:
                 returncode = subprocess.call(
-                    procargs, stdout=wtout, stderr=wterr)
+                    procargs, stdout=wtout, stderr=wterr, env=env)
                 if returncode != 0 and not silent:
                     # This is not necessarily an error, the primary reason to
                     # run in a subprocess is that it may crash.

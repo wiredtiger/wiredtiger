@@ -128,6 +128,7 @@ class ExtensionList(list):
 class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     _globalSetup = False
     _fast = False
+    _suite_mode = 'full'
     _timing_report_path = None
 
     # We store the current test case in thread local storage.  There are
@@ -180,7 +181,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
                     printOutput = False, seedw = 0, seedz = 0, hookmgr = None,
-                    ss_random_prefix = 0, timeout = 0, fast = False, timing_report = None):
+                    ss_random_prefix = 0, timeout = 0, fast = False, timing_report = None,
+                    suite_mode = None):
         # Make a readonly view of the command line options passed in.
         # This view will be shared by all test cases.
         WiredTigerTestCase._command_line_vars = ReadonlySimpleNamespace(command_line_vars)
@@ -192,7 +194,41 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
         WiredTigerTestCase._extralongtest = extralongtest
-        WiredTigerTestCase._fast = fast
+        # suite_mode is the canonical selector; fast/long/extralong are maintained for
+        # compatibility and existing decorators.
+        if suite_mode is None:
+            if extralongtest:
+                suite_mode = 'extra-long'
+            elif longtest:
+                suite_mode = 'long'
+            elif fast:
+                suite_mode = 'fast'
+            else:
+                suite_mode = 'full'
+        suite_mode = str(suite_mode).strip().lower()
+        if suite_mode in ('extra-long', 'extralong', 'extra_long', 'xl'):
+            suite_mode = 'extra-long'
+        elif suite_mode in ('superfast', 'super-fast', 'super_fast'):
+            suite_mode = 'superfast'
+        elif suite_mode in ('plaid', 'plain'):
+            suite_mode = 'plaid'
+        elif suite_mode in ('full', 'long', 'fast'):
+            pass
+        else:
+            suite_mode = 'full'
+        WiredTigerTestCase._suite_mode = suite_mode
+        # Backfill legacy booleans from the canonical suite mode (important for callers that
+        # pass only suite_mode, e.g. subprocess runs).
+        if suite_mode == 'extra-long':
+            WiredTigerTestCase._longtest = True
+            WiredTigerTestCase._extralongtest = True
+        elif suite_mode == 'long':
+            WiredTigerTestCase._longtest = True
+            WiredTigerTestCase._extralongtest = False
+        else:
+            WiredTigerTestCase._longtest = False
+            WiredTigerTestCase._extralongtest = False
+        WiredTigerTestCase._fast = suite_mode in ('fast', 'superfast', 'plaid')
         WiredTigerTestCase._zstdtest = zstdtest
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._ss_random_prefix = ss_random_prefix
@@ -450,6 +486,23 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if hasattr(config, '__call__'):
             config = self.conn_config()
 
+        # In fast mode, reduce RTS verbose logging. Many RTS tests run a log verifier in tearDown,
+        # and large RTS logs can dominate runtime without increasing behavior coverage.
+        if WiredTigerTestCase._fast and 'verbose' in config and 'rts:' in config:
+            def _cap_rts_verbose(m):
+                inner = m.group(1)
+                inner = re.sub(
+                    r'rts:(\d+)',
+                    lambda mm: 'rts:1' if int(mm.group(1)) > 1 else mm.group(0),
+                    inner,
+                )
+                # Rebuild the full match: keep original delimiters.
+                return m.group(0)[0:m.start(1) - m.start(0)] + inner + m.group(0)[m.end(1) - m.start(0):]
+
+            # Handle both verbose=(...) and verbose=[...]
+            config = re.sub(r'verbose=\(([^)]*)\)', _cap_rts_verbose, config)
+            config = re.sub(r'verbose=\[([^\]]*)\]', _cap_rts_verbose, config)
+
         # Collect all statistics for Python tests by default unless configured otherwise.
         if not("statistics" in config):
             config += ',statistics=(all)'
@@ -537,6 +590,40 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         """
         pass
 
+    def _ensure_gcov_prefix(self):
+        """
+        When collecting gcov coverage in parallel, unsynchronized writes to the same .gcda files can
+        corrupt profile data. If WT_GCOV_PREFIX_BASE is set, redirect each process' .gcda output to
+        a per-pid directory using GCC's GCOV_PREFIX/GCOV_PREFIX_STRIP.
+        """
+        base = os.environ.get("WT_GCOV_PREFIX_BASE")
+        if not base:
+            return
+
+        pid = os.getpid()
+        # Avoid repeated work in the same process.
+        if getattr(WiredTigerTestCase, "_gcov_prefix_pid", None) == pid:
+            return
+
+        builddir = getattr(WiredTigerTestCase, "_builddir", None)
+        if not builddir:
+            return
+
+        try:
+            from pathlib import Path
+
+            strip = Path(builddir).resolve()
+            # parts includes '/', but GCOV_PREFIX_STRIP does not count the filesystem root.
+            strip_n = max(len(strip.parts) - 1, 0)
+        except Exception:
+            return
+
+        outdir = os.path.join(base, str(pid))
+        os.makedirs(outdir, exist_ok=True)
+        os.environ["GCOV_PREFIX"] = outdir + os.sep
+        os.environ["GCOV_PREFIX_STRIP"] = str(strip_n)
+        WiredTigerTestCase._gcov_prefix_pid = pid
+
     def setUp(self):
         if not hasattr(self.__class__, 'wt_ntests'):
             self.__class__.wt_ntests = 0
@@ -544,6 +631,9 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
         # Testcases can view command line options via: self.vars.some_variable_name
         self.vars = WiredTigerTestCase._command_line_vars
+
+        # If requested, redirect coverage output per-process for parallel runs.
+        self._ensure_gcov_prefix()
 
         # We want to have a unique execution directory name for each test.
         # When a test fails, or with the -p option, we want to preserve the
@@ -1251,7 +1341,22 @@ def islongtest():
     return WiredTigerTestCase._longtest
 
 def isfast():
+    # "fast" is any mode that is faster than full (fast/superfast/plaid).
     return WiredTigerTestCase._fast
+
+def suite_mode():
+    return getattr(WiredTigerTestCase, '_suite_mode', 'full')
+
+def issuperfast():
+    return suite_mode() == 'superfast'
+
+
+def isfull():
+    return suite_mode() == 'full'
+
+
+def isplaid():
+    return suite_mode() == 'plaid'
 
 def getseed():
     return WiredTigerTestCase._seeds

@@ -71,11 +71,22 @@ Options:\n\
   -h      | --help               show this message\n\
           | --hook name[=arg]    set up hooks from hook_<name>.py, with optional arg\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
+            --mode MODE          suite mode: full, long, fast, superfast, plaid\n\
+                                 (aliases: --full, --long, --fast, --superfast, --plaid/--plain)\n\
+                                 Note: --extra-long implies long.\n\
+            --full               explicit full mode (default)\n\
   -l      | --long               run nearly the entire test suite except tests tagged extralongtest\n\
   -xl     | --extra-long         run the entire test suite\n\
   -F      | --fast               fast suite mode (sets wttest.isfast(); use with pruned tests)\n\
-            --timing-report file append one JSON object per scenario (for suite_stats.py);\n\
-                                 includes tear_down_incomplete if teardown aborted early\n\
+            --superfast          superfast suite mode (subset of --fast)\n\
+            --plaid              plaid/plain suite mode (tiny local sample)\n\
+            --plain              alias for --plaid\n\
+            --timing-report file truncate file, then append one JSON object per scenario\n\
+                                 (for suite_stats.py); includes tear_down_incomplete if teardown\n\
+                                 aborted early\n\
+            --timing-report-append file same as --timing-report but do not truncate; use to\n\
+                                 accumulate timings across multiple partial runs; then\n\
+                                 suite_stats.py dedupe-jsonl and prune-to-fast-jsonl as needed\n\
           | --noremove           do not remove WT_TEST or -D target before run\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
   -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
@@ -322,7 +333,7 @@ def testsFromArg(tests, loader, arg, scenario, skipTests):
         start, end = (int(a) for a in arg.split('-'))
     else:
         start, end = int(arg), int(arg)
-    for t in xrange(start, end+1):
+    for t in range(start, end + 1):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
 def error(exitval, prefix, msg):
@@ -332,7 +343,9 @@ def error(exitval, prefix, msg):
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
     preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = printOutput = extralongtest = fast = False
+    suite_mode = None
     timing_report = None
+    timing_report_truncate = True
     removeAtStart = True
     asan = False
     parallel = 0
@@ -425,14 +438,46 @@ if __name__ == '__main__':
             if option == '-zstd' or option == 'z':
                 zstdtest = True
                 continue
+            if option == '-mode':
+                if suite_mode is not None or len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                suite_mode = args.pop(0)
+                continue
+            if option == '-full':
+                if suite_mode is not None:
+                    usage()
+                    sys.exit(2)
+                suite_mode = 'full'
+                continue
             if option == '-fast' or option == 'F':
                 fast = True
+                continue
+            if option == '-superfast':
+                if suite_mode is not None:
+                    usage()
+                    sys.exit(2)
+                suite_mode = 'superfast'
+                continue
+            if option == '-plaid' or option == '-plain':
+                if suite_mode is not None:
+                    usage()
+                    sys.exit(2)
+                suite_mode = 'plaid'
                 continue
             if option == '-timing-report':
                 if timing_report != None or len(args) == 0:
                     usage()
                     sys.exit(2)
                 timing_report = args.pop(0)
+                timing_report_truncate = True
+                continue
+            if option == '-timing-report-append':
+                if timing_report != None or len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                timing_report = args.pop(0)
+                timing_report_truncate = False
                 continue
             if option == '-noremove':
                 removeAtStart = False
@@ -621,10 +666,44 @@ if __name__ == '__main__':
 
     command_line_vars = verify_command_line_vars(command_line_vars)
 
+    # Name the default discovery run explicitly as "full" (same manifest as --full / --mode full).
+    if suite_mode is None and not longtest and not extralongtest and not fast:
+        suite_mode = 'full'
+
+    # Normalize suite mode to legacy booleans for compatibility, while passing the full mode
+    # through to wttest so tests can branch naturally.
+    if suite_mode is not None:
+        # Disallow mixing --mode / aliases with existing boolean switches.
+        if longtest or extralongtest or fast:
+            usage()
+            sys.exit(2)
+        mode = str(suite_mode).strip().lower()
+        if mode in ('full',):
+            longtest = extralongtest = fast = False
+        elif mode in ('long',):
+            longtest, extralongtest, fast = True, False, False
+        elif mode in ('extra-long', 'extralong', 'extra_long', 'xl'):
+            longtest, extralongtest, fast = True, True, False
+        elif mode in ('fast',):
+            longtest = extralongtest = False
+            fast = True
+        elif mode in ('superfast', 'super-fast', 'super_fast'):
+            longtest = extralongtest = False
+            fast = True
+            suite_mode = 'superfast'
+        elif mode in ('plaid', 'plain'):
+            longtest = extralongtest = False
+            fast = True
+            suite_mode = 'plaid'
+        else:
+            print('unknown suite mode: ' + str(suite_mode))
+            usage()
+            sys.exit(2)
+
     if longtest or extralongtest:
         fast = False
 
-    if timing_report != None:
+    if timing_report != None and timing_report_truncate:
         with open(timing_report, 'w', encoding='utf-8'):
             pass
 
@@ -634,7 +713,7 @@ if __name__ == '__main__':
                                           gdbSub, lldbSub, verbose, wt_builddir, dirarg, longtest,
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
                                           seedw, seedz, hookmgr, ss_random_prefix, timeout,
-                                          fast, timing_report)
+                                          fast, timing_report, suite_mode)
 
     skipTests = []
     if skipFileForTests:
@@ -650,6 +729,37 @@ if __name__ == '__main__':
     if len(testargs) == 0:
         from discover import defaultTestLoader as loader
         suites = loader.discover(suitedir)
+
+        # Mode manifests: in modes like "plaid", discovery is filtered to a curated subset.
+        def _first_testcase(suite):
+            for t in suite:
+                if type(t) is unittest.TestSuite:
+                    ft = _first_testcase(t)
+                    if ft is not None:
+                        return ft
+                else:
+                    return t
+            return None
+
+        def _filter_suites_by_module(suites, allow_modules):
+            out = []
+            allow = set(allow_modules)
+            for s in suites:
+                ft = _first_testcase(s)
+                if ft is None:
+                    continue
+                mod = ft.__class__.__module__
+                if mod in allow:
+                    out.append(s)
+            return out
+
+        try:
+            import suite_modes
+            allow = suite_modes.tests_for_mode(suite_mode)
+        except Exception:
+            allow = None
+        if allow:
+            suites = _filter_suites_by_module(suites, allow)
 
         # Remove tests if the skip list is not empty.
         if skipTests:
@@ -688,6 +798,53 @@ if __name__ == '__main__':
     else:
         for arg in testargs:
             testsFromArg(tests, loader, arg, scenario, skipTests)
+
+    # Superfast mode: keep broad module coverage but cap scenario explosion.
+    # This is deterministic: for each (module, class, method), keep the lowest scenario numbers.
+    if suite_mode == 'superfast':
+        def _flatten_tests(suite):
+            for t in suite:
+                if type(t) is unittest.TestSuite:
+                    yield from _flatten_tests(t)
+                else:
+                    yield t
+
+        # Keep the first N scenarios per method for better coverage while
+        # staying under the superfast wall-clock budget.
+        #
+        # Some modules have expensive early scenarios; keep those at 1 to avoid
+        # pushing the suite over the 2-minute target.
+        heavy_modules_cap1 = {
+            'test_backup01',
+            'test_checkpoint01',
+            'test_checkpoint34',
+            'test_checkpoint_snapshot02',
+            'test_cursor13',
+            'test_rollback_to_stable10',
+            'test_rollback_to_stable14',
+        }
+        per_method_cap_default = 2
+        kept = []
+        counts = {}
+        for t in sorted(_flatten_tests(tests), key=lambda x: (
+            getattr(x, '__module__', ''),
+            x.__class__.__name__,
+            getattr(x, '_testMethodName', ''),
+            getattr(x, 'scenario_number', -1),
+            getattr(x, 'scenario_name', ''),
+        )):
+            k = (
+                getattr(t, '__module__', ''),
+                t.__class__.__name__,
+                getattr(t, '_testMethodName', ''),
+            )
+            if hasattr(t, 'scenario_number'):
+                cap = 1 if k[0] in heavy_modules_cap1 else per_method_cap_default
+                if counts.get(k, 0) >= cap:
+                    continue
+                counts[k] = counts.get(k, 0) + 1
+            kept.append(t)
+        tests = unittest.TestSuite(kept)
 
     hookmgr.register_skipped_tests(tests)
 
@@ -729,8 +886,11 @@ if __name__ == '__main__':
         # Break it into just our batch.
         tests = unittest.TestSuite(all_tests[batchnum::batchtotal])
     if dryRun:
-        for line in tests:
-            print(line)
+        try:
+            for line in tests:
+                print(line)
+        except BrokenPipeError:
+            pass
     else:
         result = wttest.runsuite(tests, parallel)
         sys.exit(0 if result.wasSuccessful() else 1)
