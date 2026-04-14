@@ -396,6 +396,10 @@ snap_clear_above_ts(uint64_t ts)
     size_t statenum;
     uint32_t i;
 
+    /* Nothing to clear if the thread info list has already been torn down. */
+    if (tinfo_list == NULL)
+        return;
+
     for (i = 0; i < GV(RUNS_THREADS); i++) {
         tinfo = tinfo_list[i];
         for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
