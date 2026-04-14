@@ -65,3 +65,6 @@ class test_txn06(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We were trying to generate a message matching this pattern.
         self.captureout.checkAdditionalPattern(self, "pinned in session")
+        # The eviction server may continue emitting these messages after the assertion;
+        # ignore any trailing occurrences so teardown does not flag them as unexpected.
+        self.ignoreStdoutPattern("pinned in session")
