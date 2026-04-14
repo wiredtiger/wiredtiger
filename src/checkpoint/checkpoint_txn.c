@@ -1584,9 +1584,19 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_log_system_backup_id(session));
     }
 
-    /* Add a ten second wait to simulate checkpoint slowness. */
-    tsp.tv_sec = 10;
-    tsp.tv_nsec = 0;
+    /*
+     * Add a randomized wait to simulate checkpoint slowness.
+     *
+     * We used to sleep a fixed 10 seconds, but that can dominate test suite runtime. Keep this
+     * stressor useful while avoiding extreme slowdowns by selecting a delay in the range
+     * 0.1-3.0 seconds.
+     */
+    {
+        uint64_t ms;
+        ms = 100 + (__wt_random(&session->rnd_random) % 2901); /* [100, 3000] */
+        tsp.tv_sec = (time_t)(ms / WT_THOUSAND);
+        tsp.tv_nsec = (long)((ms % WT_THOUSAND) * WT_MILLION);
+    }
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CKPT_TREE);
