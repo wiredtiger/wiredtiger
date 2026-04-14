@@ -2754,7 +2754,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 /*
                  * If the discarded block has the same page_id as the page, invalidate it. The block
                  * has been discarded in the page log, so the page_id must not be reused by the next
-                 * reconciliation — the first write after a discard must have backlink_lsn of 0.
+                 * reconciliation. The first write after a discard must have backlink_lsn of 0.
                  */
                 if (page->disagg_info != NULL && multi->block_meta != NULL &&
                   multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
