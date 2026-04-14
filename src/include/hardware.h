@@ -57,7 +57,7 @@
  */
 #if defined(__GNUC__) || defined(__clang__)
 #define WT_READ_ONCE(v, val) \
-    (v) = __wt_atomic_load_generic_relaxed((volatile __typeof__(val) *)&(val))
+    (v) = (__typeof__(v))__wt_atomic_load_generic_relaxed((volatile __typeof__(val) *)&(val))
 #else
 #define WT_READ_ONCE(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
 #endif
@@ -86,10 +86,10 @@
 #if defined(TSAN_BUILD)
 #define WT_ACQUIRE_READ_WITH_BARRIER(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE)
 #else
-#define WT_ACQUIRE_READ_WITH_BARRIER(v, val)            \
-    do {                                                \
-        (v) = __wt_atomic_load_generic_relaxed(&(val)); \
-        WT_ACQUIRE_BARRIER();                           \
+#define WT_ACQUIRE_READ_WITH_BARRIER(v, val)                           \
+    do {                                                               \
+        (v) = (__typeof__(v))__wt_atomic_load_generic_relaxed(&(val)); \
+        WT_ACQUIRE_BARRIER();                                          \
     } while (0)
 #endif
 
