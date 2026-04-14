@@ -41,10 +41,15 @@ struct __wt_cache_eviction_controls {
 struct __wt_shared_dsk_item {
     TAILQ_ENTRY(__wt_shared_dsk_item) hashq;
 
-    const void *data;
+    void *data;
     uint32_t data_size;
 
-    wt_shared int32_t ref_count; /* References */
+    /*
+     * Reference count tracking how many pages share this disk image. Incremented on get or put
+     * collision, decremented on release. The entry is removed from the hash table when the count
+     * drops to zero. All accesses must be protected by the lock.
+     */
+    int32_t ref_count;
 
     uint32_t fid;      /* File ID */
     uint8_t addr_size; /* Address cookie */
@@ -58,11 +63,14 @@ struct __wt_shared_dsk_cache {
     bool enabled;
 
     TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
+    /* FIXME-WT-17168: Investigate whether spinlock should be changed to rwlock. */
     WT_SPINLOCK *hash_locks;
     u_int hash_size;
     u_int hash_lock_size;
-    uint32_t max_bucket_size;
+#ifdef HAVE_DIAGNOSTIC
     int32_t max_ref_count;
+    uint32_t max_bucket_walk;
+#endif
 };
 
 /*
