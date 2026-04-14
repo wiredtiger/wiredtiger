@@ -210,6 +210,7 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     /* Mark the session as a checkpoint worker session. */
     F_SET(session, WT_SESSION_CHECKPOINT);
     F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
+    session->syncing = true;
 
     /* Wait until the next event. */
     __wt_cond_wait_signal(
