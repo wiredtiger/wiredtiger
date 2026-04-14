@@ -118,19 +118,20 @@ __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, uint64_t btree_start_clock
     if (npos > 0.05 && npos < 1.0)
         btree_eta_sec = (uint64_t)((1.0 - npos) * (double)elapsed_sec / npos);
 
+#define WT_RTS_BTREE_WALK_PROGRESS_FMT                                           \
+    "Rollback to stable [%s] btree walk on %s for %" PRIu64 " seconds, %" PRIu64 \
+    "%% through btree, %" PRIu64 " pages walked (%" PRIu64 " pages/sec)"
+#define WT_RTS_BTREE_WALK_PROGRESS_ARGS                                                     \
+    __rts_phase_string(phase), session->dhandle->name, elapsed_sec, btree_pct, btree_pages, \
+      btree_pages_per_sec
+
     if (btree_eta_sec > 0)
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-          "Rollback to stable [%s] btree walk on %s for %" PRIu64 " seconds, %" PRIu64
-          "%% through btree, %" PRIu64 " pages walked (%" PRIu64 " pages/sec), btree ETA %" PRIu64
-          " seconds",
-          __rts_phase_string(phase), session->dhandle->name, elapsed_sec, btree_pct, btree_pages,
-          btree_pages_per_sec, btree_eta_sec);
+          WT_RTS_BTREE_WALK_PROGRESS_FMT ", btree ETA %" PRIu64 " seconds",
+          WT_RTS_BTREE_WALK_PROGRESS_ARGS, btree_eta_sec);
     else
-        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-          "Rollback to stable [%s] btree walk on %s for %" PRIu64 " seconds, %" PRIu64
-          "%% through btree, %" PRIu64 " pages walked (%" PRIu64 " pages/sec)",
-          __rts_phase_string(phase), session->dhandle->name, elapsed_sec, btree_pct, btree_pages,
-          btree_pages_per_sec);
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS, WT_RTS_BTREE_WALK_PROGRESS_FMT,
+          WT_RTS_BTREE_WALK_PROGRESS_ARGS);
 
     /*
      * Emit an overall progress line. Use CAS on overall_last_report so that exactly one thread wins
