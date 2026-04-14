@@ -493,16 +493,6 @@ err:
 
         if (ebusy_only && ret != EBUSY)
             WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
-
-        /*
-         * If eviction fails after reconciliation on a dirty disaggregated page, invalidate the
-         * page ID when the old block was freed. EMPTY frees the block during wrapup (the page_id
-         * is already invalid at this point) and MULTIBLOCK assigns new page IDs to the split
-         * pages, making the original stale. REPLACE reuses the same page ID so it remains valid.
-         */
-        if (ebusy_only && is_dirty && page->disagg_info != NULL &&
-          page->modify != NULL && page->modify->rec_result != WT_PM_REC_REPLACE)
-            page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
 
 done:

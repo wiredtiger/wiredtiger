@@ -2748,9 +2748,18 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
         if (multi->addr.block_cookie != NULL) {
-            if (free_blocks)
+            if (free_blocks) {
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+                /*
+                 * If the discarded block has the same page_id as the page, invalidate it. The block
+                 * has been discarded in the page log, so the page_id must not be reused by the next
+                 * reconciliation — the first write after a discard must have backlink_lsn of 0.
+                 */
+                if (page->disagg_info != NULL && multi->block_meta != NULL &&
+                  multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
+                    page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+            }
             __wt_free(session, multi->addr.block_cookie);
         }
         __wt_free(session, multi->block_meta);
