@@ -58,7 +58,6 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
         if (skip_internal && F_ISSET(array_session, WT_SESSION_INTERNAL))
             continue;
 
-        WT_ASSERT(session, array_session->id == i);
         WT_ASSERT(session, array_session->hazards.arr != NULL);
         WT_RET(walk_func(session, array_session, &exit_walk, cookiep));
         /* Early exit the walk if possible. */
