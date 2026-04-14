@@ -73,10 +73,10 @@ __wt_insert_truncate_entry(
      * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
      * dhandle list, if there are entries in the truncate list.
      */
-    WT_ASSERT(session, __wt_session_get_dhandle(session, uri, NULL, NULL, 0) == 0);
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_RET(__wt_calloc_def(session, sizeof(WT_TRUNCATE), &t));
+    WT_ERR(__wt_calloc_def(session, sizeof(WT_TRUNCATE), &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
     WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
     /* A NULL stop key indicates a truncate to end of table. */
