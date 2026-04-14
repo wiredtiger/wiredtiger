@@ -579,6 +579,15 @@ struct __wt_connection_stats {
     int64_t eviction_worker_evict_attempt;
     int64_t eviction_app_evict_fail;
     int64_t eviction_worker_evict_fail;
+    int64_t eviction_bucket_clean_internal_items;
+    int64_t eviction_bucket_clean_leaf_items;
+    int64_t eviction_bucket_dirty_internal_items;
+    int64_t eviction_bucket_dirty_leaf_items;
+    int64_t eviction_bucket_updates_internal_items;
+    int64_t eviction_bucket_updates_leaf_items;
+    int64_t eviction_bucket_wont_need_clean_leaf_items;
+    int64_t eviction_bucket_wont_need_dirty_leaf_items;
+    int64_t eviction_bucket_wont_need_internal_items;
     int64_t eviction_get_ref_empty;
     int64_t eviction_get_ref_success;
     int64_t eviction_aggressive_set;

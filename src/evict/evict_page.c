@@ -59,10 +59,44 @@ static void
 __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 {
     WT_CONNECTION_IMPL *conn;
+    int i;
     uint64_t eviction_time, eviction_time_milliseconds;
 
     conn = S2C(session);
 
+    for (i = 0; i < WT_EVICT_LEVELS; i++) {
+        switch (i) {
+        case WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF:
+            WT_STAT_CONN_SET(session, eviction_bucket_wont_need_clean_leaf_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_CLEAN_LEAF:
+            WT_STAT_CONN_SET(session, eviction_bucket_clean_leaf_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF:
+            WT_STAT_CONN_SET(session, eviction_bucket_wont_need_dirty_leaf_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_DIRTY_LEAF:
+            WT_STAT_CONN_SET(session, eviction_bucket_dirty_leaf_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_WONT_NEED_INTERNAL:
+            WT_STAT_CONN_SET(session, eviction_bucket_wont_need_internal_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_DIRTY_INTERNAL:
+            WT_STAT_CONN_SET(session, eviction_bucket_dirty_internal_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_UPDATES_LEAF:
+            WT_STAT_CONN_SET(session, eviction_bucket_updates_leaf_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_UPDATES_INTERNAL:
+            WT_STAT_CONN_SET(session, eviction_bucket_updates_internal_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        case WT_EVICT_LEVEL_CLEAN_INTERNAL:
+            WT_STAT_CONN_SET(session, eviction_bucket_clean_internal_items, conn->evict->evict_bucketset[i].bucketset_num_items);
+            break;
+        default:
+            WT_ASSERT(session, 0);
+        }
+    }
     if (session->evict_timeline.reentry_hs_eviction) {
         session->evict_timeline.reentry_hs_evict_finish = __wt_clock(session);
         eviction_time = WT_CLOCKDIFF_US(session->evict_timeline.reentry_hs_evict_finish,

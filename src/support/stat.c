@@ -1958,6 +1958,15 @@ static const char *const __stats_connection_desc[] = {
   "cache: evict page attempts by eviction worker threads",
   "cache: evict page failures by application threads",
   "cache: evict page failures by eviction worker threads",
+  "cache: eviction bucket items clean internal",
+  "cache: eviction bucket items clean leaf",
+  "cache: eviction bucket items dirty internal",
+  "cache: eviction bucket items dirty leaf",
+  "cache: eviction bucket items updates internal",
+  "cache: eviction bucket items updates leaf",
+  "cache: eviction bucket items won't need clean leaf",
+  "cache: eviction bucket items won't need dirty leaf",
+  "cache: eviction bucket items won't need internal",
   "cache: eviction calls to get a page could not find a page",
   "cache: eviction calls to get a page found a page",
   "cache: eviction currently operating in aggressive mode",
@@ -3035,6 +3044,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_worker_evict_attempt = 0;
     stats->eviction_app_evict_fail = 0;
     stats->eviction_worker_evict_fail = 0;
+    stats->eviction_bucket_clean_internal_items = 0;
+    stats->eviction_bucket_clean_leaf_items = 0;
+    stats->eviction_bucket_dirty_internal_items = 0;
+    stats->eviction_bucket_dirty_leaf_items = 0;
+    stats->eviction_bucket_updates_internal_items = 0;
+    stats->eviction_bucket_updates_leaf_items = 0;
+    stats->eviction_bucket_wont_need_clean_leaf_items = 0;
+    stats->eviction_bucket_wont_need_dirty_leaf_items = 0;
+    stats->eviction_bucket_wont_need_internal_items = 0;
     stats->eviction_get_ref_empty = 0;
     stats->eviction_get_ref_success = 0;
     /* not clearing eviction_aggressive_set */
@@ -4101,6 +4119,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
     to->eviction_app_evict_fail += WT_STAT_CONN_READ(from, eviction_app_evict_fail);
     to->eviction_worker_evict_fail += WT_STAT_CONN_READ(from, eviction_worker_evict_fail);
+    to->eviction_bucket_clean_internal_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_clean_internal_items);
+    to->eviction_bucket_clean_leaf_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_clean_leaf_items);
+    to->eviction_bucket_dirty_internal_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_dirty_internal_items);
+    to->eviction_bucket_dirty_leaf_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_dirty_leaf_items);
+    to->eviction_bucket_updates_internal_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_updates_internal_items);
+    to->eviction_bucket_updates_leaf_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_updates_leaf_items);
+    to->eviction_bucket_wont_need_clean_leaf_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_wont_need_clean_leaf_items);
+    to->eviction_bucket_wont_need_dirty_leaf_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_wont_need_dirty_leaf_items);
+    to->eviction_bucket_wont_need_internal_items +=
+      WT_STAT_CONN_READ(from, eviction_bucket_wont_need_internal_items);
     to->eviction_get_ref_empty += WT_STAT_CONN_READ(from, eviction_get_ref_empty);
     to->eviction_get_ref_success += WT_STAT_CONN_READ(from, eviction_get_ref_success);
     to->eviction_aggressive_set += WT_STAT_CONN_READ(from, eviction_aggressive_set);

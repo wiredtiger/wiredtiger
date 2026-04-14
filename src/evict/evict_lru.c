@@ -1147,6 +1147,34 @@ __evict_get_ref(
             WT_STAT_CONN_INCR(session, eviction_target_strategy_updates_only);
     }
 
+    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
+        max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+    }
+    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
+        min_level = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
+        max_level = WT_EVICT_LEVEL_DIRTY_LEAF;
+    }
+    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
+        max_level = WT_EVICT_LEVEL_UPDATES_LEAF; // WT_EVICT_LEVEL_UPDATES_INTERNAL;
+        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
+            min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
+    }
+
+    /* Only evict from all levels, including clean internal pages, if this is urgent */
+    /* XXX FIx this */
+    if (F_ISSET(evict, WT_EVICT_CACHE_URGENT)) {
+        min_level = 0;
+        max_level = WT_EVICT_LEVELS - 1;
+        printf("URGENT EVICTION!!!!!!!!!!!!\n");
+    }
+
+    if (min_level == 0 && max_level == 0)
+        WT_ASSERT(session, 0);
+
+    if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+        min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
+#if 0
     /*
      * We iterate over bucket sets in eviction priority order from highest to lowest is:
      * 1. Clean leaf pages.
@@ -1177,7 +1205,7 @@ __evict_get_ref(
         max_level = WT_EVICT_LEVELS - 1;
         printf("URGENT EVICTION!!!!!!!!!!!!\n");
     }
-
+#endif
 #if 0
     /* Sum items across all eligible bucketsets. */
     for (i = min_level; i <= max_level; i++)
@@ -1400,6 +1428,10 @@ done:
 
     if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_release_snapshot(session);
+
+    if (!F_ISSET(session, WT_SESSION_INTERNAL) && ret == WT_NOTFOUND)
+        ret = EBUSY;
+
     WT_STAT_CONN_INCRV(session, eviction_get_ref_iterations, total_iter);
     ret = (*refp == NULL ? WT_NOTFOUND : 0);
     return (ret);
