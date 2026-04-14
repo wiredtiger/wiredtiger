@@ -41,7 +41,6 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
     WT_SHARED_DSK_ITEM *shared_dsk_item;
     uint64_t hash;
-    int32_t ref_count;
     u_int bucket, lock_idx;
 
     *foundp = false;
@@ -57,7 +56,14 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
     TAILQ_FOREACH (shared_dsk_item, &shared_dsk_cache->hash[bucket], hashq) {
         if (shared_dsk_item->addr_size == addr_size && shared_dsk_item->fid == S2BT(session)->id &&
           memcmp(shared_dsk_item->addr, addr, addr_size) == 0) {
-            (void)__wt_atomic_add_int32_relaxed(&shared_dsk_item->ref_count, 1);
+            ++shared_dsk_item->ref_count;
+#ifdef HAVE_DIAGNOSTIC
+            if (shared_dsk_cache->max_ref_count < shared_dsk_item->ref_count) {
+                shared_dsk_cache->max_ref_count = shared_dsk_item->ref_count;
+                __wt_verbose_debug2(session, WT_VERB_CROSS_CHECKPOINT_CACHE,
+                  "get: new max_ref_count=%" PRId32, shared_dsk_item->ref_count);
+            }
+#endif
             break;
         }
     }
@@ -66,16 +72,6 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
     if (shared_dsk_item != NULL) {
         *shared_dsk_retp = shared_dsk_item;
         *foundp = true;
-        /*
-         * The ref_count and max_ref_count reads here are intentionally outside the lock. This
-         * tracking is best-effort for verbose diagnostics and does not need to be precise.
-         */
-        ref_count = __wt_atomic_load_int32_relaxed(&shared_dsk_item->ref_count);
-        if (__wt_atomic_load_int32_relaxed(&shared_dsk_cache->max_ref_count) < ref_count) {
-            __wt_atomic_store_int32_relaxed(&shared_dsk_cache->max_ref_count, ref_count);
-            __wt_verbose_debug2(session, WT_VERB_CROSS_CHECKPOINT_CACHE,
-              "get: new max_ref_count=%" PRId32, ref_count);
-        }
         WT_STAT_CONN_INCR(session, cache_shared_dsk_hit);
         __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,
           "get: disk image found in shared dsk cache", hash, bucket, lock_idx, addr, addr_size);
@@ -88,11 +84,10 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
 
 /*
  * __wt_shared_dsk_cache_put --
- *     Put a disk image into the shared disk cache.
- *     1. On success, ownership of data transfers to the cache and insertedp is set to true.
- *     2. On collision, the existing entry is returned with its reference count incremented and
- *        insertedp is set to false; the caller retains ownership of data.
- *     3. On error, the caller retains ownership of data.
+ *     Put a disk image into the shared disk cache. 1. On success, ownership of data transfers to
+ *     the cache and insertedp is set to true. 2. On collision, the existing entry is returned with
+ *     its reference count incremented and insertedp is set to false; the caller retains ownership
+ *     of data. 3. On error, the caller retains ownership of data.
  */
 int
 __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size,
@@ -137,7 +132,7 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
 #endif
         if (shared_dsk_item->addr_size == addr_size && shared_dsk_item->fid == S2BT(session)->id &&
           memcmp(shared_dsk_item->addr, addr, addr_size) == 0) {
-            (void)__wt_atomic_add_int32_relaxed(&shared_dsk_item->ref_count, 1);
+            ++shared_dsk_item->ref_count;
             __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
 
             *shared_dsk_retp = shared_dsk_item;
@@ -150,8 +145,8 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
 #ifdef HAVE_DIAGNOSTIC
     __wt_verbose_debug2(session, WT_VERB_CROSS_CHECKPOINT_CACHE,
       "put: bucket=%u, walked %" PRIu32 " entries", bucket, bucket_walk);
-    if (__wt_atomic_load_uint32_relaxed(&shared_dsk_cache->max_bucket_walk) < bucket_walk) {
-        __wt_atomic_store_uint32_relaxed(&shared_dsk_cache->max_bucket_walk, bucket_walk);
+    if (shared_dsk_cache->max_bucket_walk < bucket_walk) {
+        shared_dsk_cache->max_bucket_walk = bucket_walk;
         __wt_verbose_debug2(session, WT_VERB_CROSS_CHECKPOINT_CACHE,
           "put: new max_bucket_walk=%" PRIu32, bucket_walk);
     }
@@ -190,7 +185,6 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
     u_int bucket, lock_idx;
 
     WT_ASSERT(session, shared_dsk_item != NULL);
-    WT_ASSERT(session, __wt_atomic_load_int32_relaxed(&shared_dsk_item->ref_count) > 0);
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
     WT_ASSERT(session, shared_dsk_cache->enabled);
@@ -199,8 +193,9 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
     lock_idx = bucket % shared_dsk_cache->hash_lock_size;
 
     __wt_spin_lock(session, &shared_dsk_cache->hash_locks[lock_idx]);
+    WT_ASSERT(session, shared_dsk_item->ref_count > 0);
     /* Remove the shared dsk item when ref count is reduced to 0. */
-    if (__wt_atomic_sub_int32_relaxed(&shared_dsk_item->ref_count, 1) == 0) {
+    if (--shared_dsk_item->ref_count == 0) {
         TAILQ_REMOVE(&shared_dsk_cache->hash[bucket], shared_dsk_item, hashq);
         __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
 
@@ -234,8 +229,8 @@ __wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
     shared_dsk_cache->hash_lock_size = WT_MIN(hash_size, WT_SHARED_DSK_CACHE_MAX_LOCKS);
 #ifdef HAVE_DIAGNOSTIC
     shared_dsk_cache->max_bucket_walk = 0;
-#endif
     shared_dsk_cache->max_ref_count = 0;
+#endif
 
     WT_ERR(__wt_calloc_def(session, shared_dsk_cache->hash_size, &shared_dsk_cache->hash));
     WT_ERR(
