@@ -516,20 +516,13 @@ __wt_curstat_size_local(
 int
 __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, int64_t *sizep)
 {
-    WT_DECL_RET;
     uint64_t ckpt_size;
-    char *fileconf;
 
     *existp = false;
-    fileconf = NULL;
-
-    if (__wt_metadata_search(session, uri, &fileconf) == 0) {
-        ret = __wt_ckpt_last_size(session, fileconf, &ckpt_size);
-        __wt_free(session, fileconf);
-        if (ret == 0) {
-            *sizep = (int64_t)ckpt_size;
-            *existp = true;
-        }
+    WT_RET(__wt_block_disagg_ckpt_size(session, uri, &ckpt_size));
+    if (ckpt_size > 0) {
+        *sizep = (int64_t)ckpt_size;
+        *existp = true;
     }
 
     return (0);
