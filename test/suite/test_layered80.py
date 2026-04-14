@@ -117,7 +117,7 @@ class test_layered80(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
 
         # Begin a truncate transaction. On follower, this inserts an entry into the
-        # layered dhandle's in-memory truncate list — state that must not be swept away.
+        # layered dhandle's in-memory truncate list  state that must not be swept away.
         c_start = self.session.open_cursor(self.uri)
         c_start.set_key(100)
         c_stop = self.session.open_cursor(self.uri)
