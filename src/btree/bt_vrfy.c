@@ -56,6 +56,7 @@ static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_unique_table_id(WT_SESSION_IMPL *);
 
 /*
  * __verify_config --
@@ -214,6 +215,129 @@ __verify_disagg_accumulate_size(
     return (0);
 }
 
+typedef struct {
+    uint32_t id;
+    char *uri;
+} WT_ID_URI_PAIR;
+
+/*
+ * __meta_id_cmp --
+ *     Comparator for sorting btree ID entries by ID.
+ */
+static int WT_CDECL
+__meta_id_cmp(const void *a, const void *b)
+{
+    uint32_t ia, ib;
+
+    ia = ((const WT_ID_URI_PAIR *)a)->id;
+    ib = ((const WT_ID_URI_PAIR *)b)->id;
+    return (ia < ib ? -1 : (ia == ib ? 0 : 1));
+}
+
+/*
+ * __verify_metadata_unique_table_id --
+ *     Verify that all btree IDs are unique.
+ */
+static int
+__verify_metadata_unique_table_id(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *log_prefix)
+{
+    WT_CONFIG_ITEM id_val;
+    WT_DECL_RET;
+    WT_ID_URI_PAIR *table_pairs;
+    size_t allocated, count, i;
+    const char *metadata_key, *metadata_value;
+
+    metadata_key = NULL;
+    metadata_value = NULL;
+    table_pairs = NULL;
+    allocated = count = 0;
+    i = 0;
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &metadata_key));
+        if (!WT_PREFIX_MATCH(metadata_key, "file:") || !WT_SUFFIX_MATCH(metadata_key, ".wt_stable"))
+            continue;
+        WT_ERR(cursor->get_value(cursor, &metadata_value));
+        WT_ERR(__wt_config_getones(session, metadata_value, "id", &id_val));
+        WT_ERR(__wt_realloc_def(session, &allocated, count + 1, &table_pairs));
+        table_pairs[count].id = (uint32_t)id_val.val;
+        WT_ERR(__wt_strdup(session, metadata_key, &table_pairs[count].uri));
+        count++;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+    if (count > 1) {
+        __wt_qsort(table_pairs, count, sizeof(WT_ID_URI_PAIR), __meta_id_cmp);
+        for (i = 0; i < count - 1; ++i) {
+            if (table_pairs[i].id != table_pairs[i + 1].id)
+                continue;
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "%s metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", log_prefix,
+              table_pairs[i].id, table_pairs[i].uri, table_pairs[i + 1].uri);
+            ret = WT_ERROR;
+        }
+    }
+
+err:
+    return (ret);
+}
+
+/*
+ * __verify_unique_table_id --
+ *     Verify that local and remote metadata have unique btree IDs.
+ */
+static int
+__verify_unique_table_id(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *md_cursor, *disagg_md_cursor;
+    WT_DECL_ITEM(metadata_uri_buf);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+    const char *metadata_checkpoint_name;
+    const char *cfg[3] = {NULL};
+
+    internal_session = NULL;
+    metadata_checkpoint_name = NULL;
+    md_cursor = NULL;
+    disagg_md_cursor = NULL;
+
+    WT_ERR(__wt_open_internal_session(
+      S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
+
+    /*
+     * Verify local cursor
+     */
+    WT_ERR(__wt_metadata_cursor(internal_session, &md_cursor));
+    WT_ERR(__verify_metadata_unique_table_id(internal_session, md_cursor, "local"));
+
+    /*
+     * Verify disagg cursor, referenced from __disagg_apply_checkpoint_meta
+     */
+    WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                         internal_session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
+      false);
+    if (metadata_checkpoint_name == NULL)
+        goto err;
+    WT_ERR(__wt_scr_alloc(internal_session, 0, &metadata_uri_buf));
+    WT_ERR(__wt_buf_fmt(
+      internal_session, metadata_uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, metadata_checkpoint_name));
+
+    cfg[0] = WT_CONFIG_BASE(internal_session, WT_SESSION_open_cursor);
+    WT_ERR(__wt_open_cursor(internal_session, metadata_uri_buf->data, NULL, cfg, &disagg_md_cursor));
+
+    WT_ERR(__verify_metadata_unique_table_id(internal_session, disagg_md_cursor, "disagg"));
+
+err:
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(internal_session, &md_cursor));
+    if (disagg_md_cursor != NULL)
+        WT_TRET(disagg_md_cursor->close(disagg_md_cursor));
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
+
+    return (ret);
+}
+
 /*
  * __wt_verify --
  *     Verify a file.
@@ -262,6 +386,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     if (quit)
         goto done;
+
+    WT_ERR(__verify_unique_table_id(session));
 
     /*
      * Get a list of the checkpoints for this file. Empty objects and ingest tables have no
