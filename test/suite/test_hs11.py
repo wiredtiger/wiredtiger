@@ -60,8 +60,37 @@ class test_hs11(wttest.WiredTigerTestCase):
         ('insert-list', dict(insert=True)),
         ('update-list', dict(insert=False))
     ]
-    scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values, last_update_type_values, nrows, location)
+    # Full cross-product in default / --long runs. In --fast, keep behavioral axes (update vs
+    # deletion, long txn, modify, insert vs update list) on string-row only; omit column and
+    # integer-row and the 10k-row tier to cut wall time.
+    if wttest.isfast():
+        format_values_fast = [
+            ('string-row', dict(key_format='S')),
+        ]
+        nrows_fast = [
+            ('small-nrows', dict(nrows=80)),
+        ]
+        scenarios = make_scenarios(
+            format_values_fast,
+            update_type_values,
+            long_running_txn_values,
+            last_update_type_values,
+            nrows_fast,
+            location,
+        )
+    else:
+        scenarios = make_scenarios(
+            format_values,
+            update_type_values,
+            long_running_txn_values,
+            last_update_type_values,
+            nrows,
+            location,
+        )
     timestamps = 5
+
+    def value_bytes(self):
+        return 64 if wttest.isfast() else 500
 
     def create_key(self, i):
         if self.key_format == 'S':
@@ -91,9 +120,10 @@ class test_hs11(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-        mod_value = 'm' + 'a' * 499
+        vb = self.value_bytes()
+        value1 = 'a' * vb
+        value2 = 'b' * vb
+        mod_value = 'm' + 'a' * (vb - 1)
 
         # Apply a series of updates from timestamps 1-4.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
@@ -173,9 +203,10 @@ class test_hs11(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-        mod_value = 'm' + 'a' * 499
+        vb = self.value_bytes()
+        value1 = 'a' * vb
+        value2 = 'b' * vb
+        mod_value = 'm' + 'a' * (vb - 1)
 
         # Apply a series of updates from timestamps 1-4.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))

@@ -302,8 +302,18 @@ class test_truncate_cursor(test_truncate_base):
         ('big', dict(nentries=1000,skip=37)),
     ]
 
-    scenarios = make_scenarios(types, keyfmt, size, reopen,
-        prune=10, prunelong=1000)
+    if wttest.isfast():
+        # Keep a small representative subset for fast runs. The full cross-product is expensive.
+        scenarios = make_scenarios(
+            [('table', dict(type='table:', valuefmt='S',
+                config='allocation_size=512,leaf_page_max=512', P=0.5))],
+            [('string', dict(keyfmt='S'))],
+            [('big', dict(nentries=1000, skip=37))],
+            [('on-disk', dict(reopen=True))],
+        )
+    else:
+        scenarios = make_scenarios(types, keyfmt, size, reopen,
+            prune=10, prunelong=1000)
 
     # Set a cursor key.
     def cursorKey(self, ds, uri, key):
@@ -389,6 +399,13 @@ class test_truncate_cursor(test_truncate_base):
             # leading skipped list, delete point overlap
             (self.skip + 3, 1, 0, 0),
         ]
+        if wttest.isfast():
+            # Keep a subset that still exercises leading/trailing insert + skipped cases.
+            layout = [
+                (0, 0, 0, 0),
+                (0, 0, 0, self.skip + 3),
+                (self.skip + 3, 1, 0, 0),
+            ]
 
         # list: truncation patterns applied on top of the layout.
         #
@@ -408,6 +425,13 @@ class test_truncate_cursor(test_truncate_base):
             (1, 1),                             # begin to begin
             (self.nentries, self.nentries),     # end to end
             (self.skip, self.skip)              # middle to same middle
+            ]
+        if wttest.isfast():
+            # Focus on key boundary shapes (None endpoints + middle truncation) in fast runs.
+            list = [
+                (-1, self.nentries),
+                (1, -1),
+                (self.skip, self.nentries - self.skip),
             ]
 
         # Using this data set to compare only, it doesn't create or populate.

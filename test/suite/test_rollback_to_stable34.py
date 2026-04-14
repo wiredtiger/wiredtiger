@@ -66,8 +66,18 @@ class test_rollback_to_stable34(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, prepare_values, second_checkpoint_values,
-        rollback_modes, worker_thread_values)
+    if wttest.isfast():
+        # Keep the recovery path (crash restart) and a small thread count for fast runs.
+        scenarios = make_scenarios(
+            [('integer_row', dict(key_format='i'))],
+            [('no_prepare', dict(prepare=False)), ('prepare', dict(prepare=True))],
+            [('no_second_checkpoint', dict(second_checkpoint=False))],
+            [('recovery', dict(crash=True))],
+            [('4', dict(threads=4))],
+        )
+    else:
+        scenarios = make_scenarios(format_values, prepare_values, second_checkpoint_values,
+            rollback_modes, worker_thread_values)
 
     # Make all the values different so it's easier to see what happens if ranges go missing.
     def mkdata(self, basevalue, i):
@@ -107,7 +117,7 @@ class test_rollback_to_stable34(test_rollback_to_stable_base):
         if self.prepare and not self.crash:
             return
 
-        nrows = 10000
+        nrows = 2000 if wttest.isfast() else 10000
 
         # Create a table without logging.
         uri = "table:rollback_to_stable34"

@@ -73,6 +73,10 @@ class test_layered39(wttest.WiredTigerTestCase):
         self.conn.reconfigure('disaggregated=(role="leader")')
         page_log = self.conn.get_page_log(self.vars.page_log)
 
+        nitems = 12_000 if wttest.isfast() else self.nitems
+        ckpt_stride = 4_000 if wttest.isfast() else 10_000
+        reconfig_stride = 8_000 if wttest.isfast() else 20_000
+
         # The cache is sized for this workload so that it results in a lot of eviction. Ensure that
         # we only evict pages that have been materialized.
         self.session.create(self.uri, self.session_create_config())
@@ -80,7 +84,7 @@ class test_layered39(wttest.WiredTigerTestCase):
 
         # Build key data structure for easier management and reuse in evict function
         data = []
-        for i in range(self.nitems):
+        for i in range(nitems):
             keys = [
                 "Hello " + f"{i}",
                 "Hi " + f"{i}",
@@ -89,13 +93,13 @@ class test_layered39(wttest.WiredTigerTestCase):
             data.extend(keys)
 
         # Insert data using the prepared keys and corresponding values
-        for i in range(self.nitems):
+        for i in range(nitems):
             self.session.begin_transaction()
             cursor[data[i*3]] = "World"
             cursor[data[i*3+1]] = "There"
             cursor[data[i*3+2]] = "Go"
             self.session.commit_transaction('commit_timestamp='+self.timestamp_str(15))
-            if i % 10_000 == 0:
+            if i % ckpt_stride == 0:
                 self.pr(f'Checkpoint {i}')
                 self.session.checkpoint()
                 (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
@@ -103,7 +107,7 @@ class test_layered39(wttest.WiredTigerTestCase):
                 self.assertEqual(ret, 0)
                 page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
                 # Test both ways of setting the last materialized LSN.
-                if i % 20_000 == 0:
+                if i % reconfig_stride == 0:
                     self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={last_lsn})')
                 else:
                     self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
@@ -144,7 +148,7 @@ class test_layered39(wttest.WiredTigerTestCase):
         scrub_restore = self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)
         self.assertGreater(scrub_restore, 0)
         self.assertGreater(
-            self.get_stat(wiredtiger.stat.conn.checkpoint_pages_reconciled_bytes), self.nitems * 3 * 10)
+            self.get_stat(wiredtiger.stat.conn.checkpoint_pages_reconciled_bytes), nitems * 3 * 10)
         self.assertGreaterEqual(scrub_restore,
             self.get_stat(wiredtiger.stat.conn.cache_eviction_ahead_of_last_materialized_lsn))
 

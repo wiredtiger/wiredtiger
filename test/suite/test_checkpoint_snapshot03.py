@@ -51,7 +51,10 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         ('row_string', dict(key_format='S', value_format='S')),
     ]
 
-    scenarios = make_scenarios(format_values)
+    if wttest.isfast():
+        scenarios = make_scenarios([('row_string', dict(key_format='S', value_format='S'))])
+    else:
+        scenarios = make_scenarios(format_values)
 
     def conn_config(self):
         config = 'cache_size=250MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
@@ -65,8 +68,18 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
             cursor[ds.key(i)] = value
         cursor.close()
 
-    def check(self, check_value, uri, nrows):
+    def check(self, check_value, uri, ds, nrows):
         session = self.session
+        if wttest.isfast():
+            # Full cursor walks over large tables dominate runtime; sample keys in fast runs.
+            cursor = session.open_cursor(uri)
+            for i in (1, nrows // 2, nrows):
+                cursor.set_key(ds.key(i))
+                self.assertEqual(cursor.search(), 0)
+                self.assertEqual(cursor.get_value(), check_value)
+            cursor.close()
+            return
+
         session.begin_transaction()
         cursor = session.open_cursor(uri)
         count = 0
@@ -77,6 +90,8 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
 
     def test_checkpoint_snapshot(self):
+        if wttest.isfast():
+            self.nrows = 30000
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
                 config='leaf_page_max=4k')
@@ -95,7 +110,7 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
             self.assertEqual(cursor1.insert(), 0)
 
         self.large_updates(self.uri, valuea, ds, self.nrows)
-        self.check(valuea, self.uri, self.nrows)
+        self.check(valuea, self.uri, ds, self.nrows)
 
         self.session.checkpoint()
         session1.rollback_transaction()
@@ -103,7 +118,7 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
 
         # Check the table contains the last checkpointed value.
         self.session.breakpoint()
-        self.check(valuea, self.uri, self.nrows)
+        self.check(valuea, self.uri, ds, self.nrows)
 
         session1 = self.conn.open_session()
         session1.begin_transaction()

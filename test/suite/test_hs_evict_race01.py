@@ -44,6 +44,7 @@ from wtscenario import make_scenarios
 # 4. Complete the checkpoint.
 # 5. Simulate a crash.
 # 6. Read the value and see if it matches the expected value.
+@wttest.longtest("history store eviction race requires checkpoint timing stress")
 class test_hs_evict_race01(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=(checkpoint_slow)'
     uri = 'table:hs_evict_race01'

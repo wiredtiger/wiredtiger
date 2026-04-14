@@ -62,7 +62,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
 
     def conn_config(self):
         config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=(rts:5)'
-        if self.restart_config:
+        if wttest.islongtest() and self.restart_config:
             config += ',timing_stress_for_test=[checkpoint_slow]'
         else:
             config += ',timing_stress_for_test=[history_store_checkpoint_delay]'

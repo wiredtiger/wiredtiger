@@ -76,10 +76,10 @@ class test_checkpoint05(wttest.WiredTigerTestCase):
 
         # Checkpoints created immediately after a backup cursor may get pinned.
         # Pause to avoid this.
-        time.sleep(2)
+        time.sleep(0.05 if wttest.isfast() else 2)
 
         # Take a bunch of checkpoints.
-        for i in range (50):
+        for i in range(12 if wttest.isfast() else 50):
             self.session.checkpoint('force=true')
         cursor.close()
 

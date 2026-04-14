@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, shutil, re
+import wttest
 from wtbackup import backup_base
 from compact_util import compact_util
 
@@ -57,6 +58,10 @@ class test_compact11(backup_base, compact_util):
         return blocks
 
     def test_compact11(self):
+        if wttest.isfast():
+            self.num_tables = 2
+            self.table_numkv = 20 * 1000
+
         # Create N tables.
         uris = []
         files = []
@@ -105,7 +110,9 @@ class test_compact11(backup_base, compact_util):
 
         # Turn on background compaction to allow the bitmap blocks to be modified from compact
         # operation. Only run compaction once to process each table and avoid overwriting stats.
-        self.turn_on_bg_compact('free_space_target=1MB,run_once=true')
+        # free_space_target has a minimum of 1MB.
+        free_target = '1MB'
+        self.turn_on_bg_compact(f'free_space_target={free_target},run_once=true')
 
         bytes_recovered = 0
         # Wait for background compaction to process all the tables.

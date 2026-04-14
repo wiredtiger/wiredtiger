@@ -40,18 +40,19 @@ class test_reconfig03(wttest.WiredTigerTestCase):
     # Reconfigure similar to MongoDB tests.  Sleep so that checkpoint
     # can run after we've made modifications.
     def test_reconfig03_mdb(self):
-        entries = 10000
+        entries = 2500 if wttest.isfast() else 10_000
+        sleep_s = 0.15 if wttest.isfast() else 1.0
         SimpleDataSet(self, self.uri, entries).populate()
-        time.sleep(1)
+        time.sleep(sleep_s)
         self.conn.reconfigure("eviction_target=81")
         SimpleDataSet(self, self.uri, entries * 2).populate()
-        time.sleep(1)
+        time.sleep(sleep_s)
         self.conn.reconfigure("cache_size=81M")
         SimpleDataSet(self, self.uri, entries * 3).populate()
-        time.sleep(1)
+        time.sleep(sleep_s)
         self.conn.reconfigure("eviction_dirty_target=18")
         SimpleDataSet(self, self.uri, entries * 4).populate()
-        time.sleep(1)
+        time.sleep(sleep_s)
         self.conn.reconfigure("shared_cache=(chunk=11MB, name=bar, reserve=12MB, size=1G)")
 
     def test_reconfig03_log_size(self):

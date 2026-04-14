@@ -30,6 +30,7 @@ import time
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
 # test_hs07.py
 # Test history store sweep cleans the obsolete history store entries and gives expected results.
@@ -44,14 +45,28 @@ class test_hs07(wttest.WiredTigerTestCase):
     value_format='S'
     scenarios = make_scenarios(format_values)
 
+    def get_stat(self, stat_key):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        val = stat_cursor[stat_key][2]
+        stat_cursor.close()
+        return val
+
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records, we'll hang if the history store table isn't working.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(1, nrows + 1):
+        if wttest.isfast():
+            # All updates share the same commit timestamp, so we can batch them in a single
+            # transaction to reduce overhead in fast runs.
             session.begin_transaction()
-            cursor[ds.key(i)] = value
+            for i in range(1, nrows + 1):
+                cursor[ds.key(i)] = value
             session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        else:
+            for i in range(1, nrows + 1):
+                session.begin_transaction()
+                cursor[ds.key(i)] = value
+                session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
@@ -66,7 +81,9 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
 
     def test_hs(self):
-        nrows = 10000
+        nrows = 2000 if wttest.isfast() else 10000
+        key_step = 20 if wttest.isfast() else 1
+        do_third_round = not wttest.isfast()
 
         # Create a table.
         uri = "table:hs07_main"
@@ -101,8 +118,15 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100) +
             ',stable_timestamp=' + self.timestamp_str(100))
 
-        # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
-        time.sleep(10)
+        # Wait for the history store sweep server to make progress (replacing fixed sleep).
+        # In some configurations the sweep stat may not advance quickly; don't fail the test
+        # waiting for it. Use a best-effort poll to avoid fixed sleeps.
+        hs_before = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
+        self.poll_for_condition(
+            predicate=lambda b=hs_before: self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal) > b,
+            timeout=2.0 if wttest.isfast() else 15.0,
+            interval=0.2,
+        )
 
         # Check that the new updates are only seen after the update timestamp
         self.check(bigvalue, uri, nrows, 100)
@@ -110,27 +134,27 @@ class test_hs07(wttest.WiredTigerTestCase):
         # Load a slight modification with a later timestamp.
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, nrows):
+        for i in range(1, nrows, key_step):
             cursor.set_key(i)
             mods = [wiredtiger.Modify('A', 10, 1)]
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(110))
 
-        # Load a slight modification with a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify('B', 20, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(120))
+        if not wttest.isfast():
+            # Additional modify rounds are useful coverage but expensive; keep them for non-fast runs.
+            self.session.begin_transaction()
+            for i in range(1, nrows, key_step):
+                cursor.set_key(i)
+                mods = [wiredtiger.Modify('B', 20, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(120))
 
-        # Load a slight modification with a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify('C', 30, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(130))
+            self.session.begin_transaction()
+            for i in range(1, nrows, key_step):
+                cursor.set_key(i)
+                mods = [wiredtiger.Modify('C', 30, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(130))
         cursor.close()
 
         # Second set of update operations with increased timestamp
@@ -146,8 +170,12 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(200) +
             ',stable_timestamp=' + self.timestamp_str(200))
 
-        # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
-        time.sleep(10)
+        hs_before = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
+        self.poll_for_condition(
+            predicate=lambda b=hs_before: self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal) > b,
+            timeout=2.0 if wttest.isfast() else 15.0,
+            interval=0.2,
+        )
 
         # Check that the new updates are only seen after the update timestamp
         self.check(bigvalue2, uri, nrows, 200)
@@ -155,46 +183,50 @@ class test_hs07(wttest.WiredTigerTestCase):
         # Load a slight modification with a later timestamp.
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, nrows):
+        for i in range(1, nrows, key_step):
             cursor.set_key(i)
             mods = [wiredtiger.Modify('A', 10, 1)]
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(210))
 
-        # Load a slight modification with a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify('B', 20, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(220))
+        if not wttest.isfast():
+            self.session.begin_transaction()
+            for i in range(1, nrows, key_step):
+                cursor.set_key(i)
+                mods = [wiredtiger.Modify('B', 20, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(220))
 
-        # Load a slight modification with a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify('C', 30, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(230))
+            self.session.begin_transaction()
+            for i in range(1, nrows, key_step):
+                cursor.set_key(i)
+                mods = [wiredtiger.Modify('C', 30, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(230))
         cursor.close()
 
-        # Third set of update operations with increased timestamp
-        self.large_updates(uri, bigvalue, ds, nrows, 300)
+        if do_third_round:
+            # Third set of update operations with increased timestamp
+            self.large_updates(uri, bigvalue, ds, nrows, 300)
 
-        # Force out most of the pages by updating a different tree
-        self.large_updates(uri2, bigvalue, ds2, nrows, 300)
+            # Force out most of the pages by updating a different tree
+            self.large_updates(uri2, bigvalue, ds2, nrows, 300)
 
-        # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue, uri, nrows, 300)
+            # Check that the new updates are only seen after the update timestamp
+            self.check(bigvalue, uri, nrows, 300)
 
-        # Pin oldest and stable to timestamp 400.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(300) +
-            ',stable_timestamp=' + self.timestamp_str(300))
+            # Pin oldest and stable to timestamp 400.
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(300) +
+                ',stable_timestamp=' + self.timestamp_str(300))
 
-        # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
-        time.sleep(10)
+            hs_before = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
+            self.poll_for_condition(
+                predicate=lambda b=hs_before: self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal) > b,
+                timeout=2.0 if wttest.isfast() else 15.0,
+                interval=0.2,
+            )
 
-        # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue, uri, nrows, 300)
+            # Check that the new updates are only seen after the update timestamp
+            self.check(bigvalue, uri, nrows, 300)
 
         self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')

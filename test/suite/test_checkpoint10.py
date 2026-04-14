@@ -79,7 +79,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         scenarios = make_scenarios(format_values, overlap_values, name_values, log_values, ckpt_precision)
 
     def conn_config(self):
-        cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
+        cfg = 'statistics=(all),' + self.ckpt_config
+        if wttest.islongtest():
+            cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
         if self.do_log:
             cfg += ',log=(enabled=true)'
         return cfg

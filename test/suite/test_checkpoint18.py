@@ -61,7 +61,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values, ckpt_precision)
 
     def conn_config(self):
-        return 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
+        config = 'statistics=(all),' + self.ckpt_config
+        if wttest.islongtest():
+            config = config + ',timing_stress_for_test=[checkpoint_slow]'
+        return config
     def large_updates(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
         self.session.begin_transaction()
@@ -125,11 +128,13 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             ckpt.start()
 
             # Wait for checkpoint to start before committing.
+            # checkpoint_snapshot_acquired is a transient flag (set to 1 briefly, then reset to 0),
+            # so poll more aggressively in fast runs to avoid missing the window.
             self.wait_for_stat(
                 stat.conn.checkpoint_snapshot_acquired,
                 predicate=lambda v: v != 0,
-                timeout=5.0 if wttest.isfast() else 30.0,
-                interval=0.1,
+                timeout=15.0 if wttest.isfast() else 30.0,
+                interval=0.01 if wttest.isfast() else 0.1,
             )
 
             session2.commit_transaction()

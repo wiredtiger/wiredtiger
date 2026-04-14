@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time
+import wttest
 from compact_util import compact_util
 from wiredtiger import stat
 from wtbackup import backup_base
@@ -39,8 +40,12 @@ class test_compact10(backup_base, compact_util):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
     uri_prefix = 'table:test_compact10'
 
-    num_tables = 5
-    table_numkv = 100 * 1000
+    if wttest.isfast():
+        num_tables = 2
+        table_numkv = 15_000
+    else:
+        num_tables = 5
+        table_numkv = 100 * 1000
 
     # This function generates the required data for the test by performing the following:
     # - Create N tables and populate them,

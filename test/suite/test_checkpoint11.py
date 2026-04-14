@@ -41,7 +41,11 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("disagg", "layered trees do not support named checkpoints")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
+    def conn_config(self):
+        config = 'statistics=(all)'
+        if wttest.islongtest():
+            config += ',timing_stress_for_test=[checkpoint_slow]'
+        return config
     session_config = 'isolation=snapshot'
     rollbacks_allowed = 10
 
@@ -174,8 +178,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             self.wait_for_stat(
                 stat.conn.checkpoint_snapshot_acquired,
                 predicate=lambda v: v != 0,
-                timeout=5.0 if wttest.isfast() else 30.0,
-                interval=0.1,
+                timeout=15.0 if wttest.isfast() else 30.0,
+                interval=0.01 if wttest.isfast() else 0.1,
             )
 
             session2.commit_transaction('commit_timestamp=' + self.timestamp_str(30))

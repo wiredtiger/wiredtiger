@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import wttest
 from rollback_to_stable_util import test_rollback_to_stable_base
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -49,11 +50,25 @@ class test_rollback_to_stable22(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(worker_thread_values)
+    if wttest.isfast():
+        # Keep the concurrent RTS path covered in fast runs.
+        scenarios = make_scenarios([('4', dict(threads=4))])
+    else:
+        scenarios = make_scenarios(worker_thread_values)
 
     def test_rollback_to_stable(self):
-        nrows = 1000
-        nds = 10
+        if wttest.isfast():
+            nrows = 500
+            nds = 6
+            iterations = 250
+            rts_every = 25
+            value_len = 200
+        else:
+            nrows = 1000
+            nds = 10
+            iterations = 1000
+            rts_every = 100
+            value_len = 100
 
         # Create a few tables and populate them with some initial data.
         #
@@ -74,9 +89,9 @@ class test_rollback_to_stable22(test_rollback_to_stable_base):
         # 100 bytes of data are being inserted into 1000 rows.
         # This happens 1000 iterations.
         # Overall, that's 100MB of data which is guaranteed to kick start eviction.
-        for i in range(1, 1000):
+        for i in range(1, iterations):
             # Generate a value, timestamp and table based off the index.
-            value = str(i)[0] * 100
+            value = str(i)[0] * value_len
             ts = i * 10
             ds = ds_list[i % nds]
 
@@ -85,7 +100,7 @@ class test_rollback_to_stable22(test_rollback_to_stable_base):
 
             # Every hundred updates, let's run rollback to stable. This is likely to happen during
             # a history store eviction at least once.
-            if i % 100 == 0:
+            if i % rts_every == 0:
                 # Put the timestamp backwards so we can rollback the updates we just did.
                 stable_ts = (i - 1) * 10
                 self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(stable_ts))

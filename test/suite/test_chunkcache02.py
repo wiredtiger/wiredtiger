@@ -47,6 +47,8 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
     uri = "table:test_chunkcache02"
     rows = 10000
     num_threads = 5
+    read_factor = 10
+    value_repeat = None
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
@@ -64,15 +66,33 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
 
-    scenarios = make_scenarios(format_values, cache_types, io_capacities)
+    if wttest.isfast():
+        # Keep representative coverage while reducing runtime:
+        # - Exercise both chunk cache implementations when available.
+        # - Prefer the throttled IO capacity scenario to keep that path covered.
+        fast_io = [('notmuch', dict(io_capacity='5M'))]
+        fast_formats = [('row_string', dict(key_format='S', value_format='S'))]
+        if sys.byteorder == 'little':
+            fast_cache_types = [
+                ('in-memory', dict(chunk_cache_type='DRAM')),
+                ('on-disk', dict(chunk_cache_type='FILE')),
+            ]
+        else:
+            fast_cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
+        scenarios = make_scenarios(fast_formats, fast_cache_types, fast_io)
+    else:
+        scenarios = make_scenarios(format_values, cache_types, io_capacities)
 
     def conn_config(self):
         if not os.path.exists('bucket2'):
             os.mkdir('bucket2')
 
+        # In fast runs, reduce chunk cache capacity so we still exercise eviction with a smaller
+        # dataset/workload.
+        capacity = '5MB' if wttest.isfast() else '20MB'
         return 'tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=20MB,type={},storage_path=WiredTigerChunkCache],' \
-            'io_capacity=(total=100G,chunk_cache={})'.format(self.chunk_cache_type, self.io_capacity)
+            'chunk_cache=[enabled=true,chunk_size=512KB,capacity={},type={},storage_path=WiredTigerChunkCache],' \
+            'io_capacity=(total=100G,chunk_cache={})'.format(capacity, self.chunk_cache_type, self.io_capacity)
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':
@@ -82,13 +102,24 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
     def read_and_verify(self, rows, ds):
         session = self.conn.open_session()
         cursor = session.open_cursor(self.uri)
-        for i in range(1, rows * 10):
+        for i in range(1, rows * self.read_factor):
             key = random.randint(1, rows - 1)
             cursor.set_key(ds.key(key))
             cursor.search()
-            self.assertEqual(cursor.get_value(), str(key) * self.rows)
+            repeat = self.value_repeat if self.value_repeat is not None else self.rows
+            self.assertEqual(cursor.get_value(), str(key) * repeat)
 
     def test_chunkcache02(self):
+        if wttest.isfast():
+            # Scale down the workload for fast runs while still ensuring:
+            # - enough data is written to create tiered chunks,
+            # - reads exceed cache capacity and trigger evictions,
+            # - concurrent access stresses the chunk/bitmap management.
+            self.rows = 2000
+            self.num_threads = 2
+            self.read_factor = 3
+            self.value_repeat = 2000
+
         ds = SimpleDataSet(
             self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
@@ -96,7 +127,8 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         # Insert a large amount of data.
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, self.rows):
-            cursor[ds.key(i)] = str(i) * self.rows
+            repeat = self.value_repeat if self.value_repeat is not None else self.rows
+            cursor[ds.key(i)] = str(i) * repeat
 
         self.session.checkpoint()
         self.session.checkpoint('flush_tier=(enabled)')

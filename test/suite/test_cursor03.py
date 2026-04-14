@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import wttest
 from test_cursor_tracker import TestCursorTracker
 from wtscenario import make_scenarios
 
@@ -39,16 +40,24 @@ class test_cursor03(TestCursorTracker):
     key/value content and to track/verify content
     after inserts and removes.
     """
-    scenarios = make_scenarios([
-            ('row', dict(tablekind='row', keysize=None, valsize=None, uri='table')),
-            ('col', dict(tablekind='col', keysize=None, valsize=None, uri='table')),
-            ('row.val10k', dict(tablekind='row', keysize=None, valsize=[10, 10000], uri='table')),
-            ('col.val10k', dict(tablekind='col', keysize=None, valsize=[10, 10000], uri='table')),
-            ('row.keyval10k', dict(tablekind='row', keysize=[10,10000], valsize=[10, 10000], uri='table')),
-        ], [
-            ('count1000', dict(tablecount=1000)),
-            ('count10000', dict(tablecount=10000))
+    if wttest.isfast():
+        scenarios = make_scenarios([
+                ('row', dict(tablekind='row', keysize=None, valsize=None, uri='table')),
+                ('col', dict(tablekind='col', keysize=None, valsize=None, uri='table')),
+            ], [
+                ('count1000', dict(tablecount=1000)),
             ])
+    else:
+        scenarios = make_scenarios([
+                ('row', dict(tablekind='row', keysize=None, valsize=None, uri='table')),
+                ('col', dict(tablekind='col', keysize=None, valsize=None, uri='table')),
+                ('row.val10k', dict(tablekind='row', keysize=None, valsize=[10, 10000], uri='table')),
+                ('col.val10k', dict(tablekind='col', keysize=None, valsize=[10, 10000], uri='table')),
+                ('row.keyval10k', dict(tablekind='row', keysize=[10,10000], valsize=[10, 10000], uri='table')),
+            ], [
+                ('count1000', dict(tablecount=1000)),
+                ('count10000', dict(tablecount=10000))
+                ])
 
     def create_session_and_cursor(self):
         tablearg = self.uri + ":" + self.table_name1

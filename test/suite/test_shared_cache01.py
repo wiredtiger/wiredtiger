@@ -106,12 +106,13 @@ class test_shared_cache01(wttest.WiredTigerTestCase):
 
     # Do enough work for the shared cache to be fully allocated.
     def test_shared_cache_full(self):
-        nops = 10000
+        nops = 2500 if wttest.isfast() else 10_000
+        n_rounds = 6 if wttest.isfast() else 20
         self.openConnections(['WT_TEST1', 'WT_TEST2'])
         for sess in self.sessions:
             sess.create(self.uri, "key_format=S,value_format=S")
 
-        for i in range(20):
+        for i in range(n_rounds):
             for sess in self.sessions:
                 self.add_records(sess, i * nops, (i + 1) * nops)
         self.closeConnections()
@@ -119,7 +120,7 @@ class test_shared_cache01(wttest.WiredTigerTestCase):
     # Switch the work between connections, to test rebalancing.
     def test_shared_cache_rebalance(self):
         # About 100 MB of data with ~250 byte values.
-        nops = 200000
+        nops = 25_000 if wttest.isfast() else 200_000
         self.openConnections(['WT_TEST1', 'WT_TEST2'])
 
         for sess in self.sessions:

@@ -46,15 +46,17 @@ class test_compact16(compact_util):
         if self.runningHook('tiered'):
             self.skipTest("Tiered tables do not support compaction")
 
+        table_numkv = 120_000 if wttest.isfast() else self.table_numkv
+
         # Create and populate a table.
         self.session.create(self.uri, self.create_params)
-        self.populate(self.uri, 0, self.table_numkv)
+        self.populate(self.uri, 0, table_numkv)
 
         # Write to disk.
         self.session.checkpoint()
 
         # Remove 1/4 of the data.
-        self.delete_range(self.uri, self.table_numkv // 4)
+        self.delete_range(self.uri, table_numkv // 4)
 
         # Write everything to disk.
         self.reopen_conn()

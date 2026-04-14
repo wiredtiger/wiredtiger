@@ -77,6 +77,7 @@ class test_stat08(wttest.WiredTigerTestCase):
     def test_session_stats(self):
         # We want to configure for pages to be explicitly evicted when we are done with them so
         # that we can correctly verify the statistic measuring bytes read from cache.
+        nentries = 12_000 if wttest.isfast() else self.nentries
         self.session = self.conn.open_session("debug=(release_evict_page=true)")
         self.session.create("table:test_stat08", "key_format=i,value_format=S")
         cursor =  self.session.open_cursor('table:test_stat08', None, None)
@@ -86,7 +87,7 @@ class test_stat08(wttest.WiredTigerTestCase):
         self.assertEqual(txn_dirty, 0)
         self.assertLessEqual(txn_dirty, cache_dirty)
         # Write the entries.
-        for i in range(1, self.nentries):
+        for i in range(1, nentries):
             txn_dirty_before = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
             cursor[i] = self.entry_value
             txn_dirty_after = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)

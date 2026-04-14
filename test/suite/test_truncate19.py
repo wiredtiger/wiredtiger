@@ -61,7 +61,10 @@ class test_truncate19(wttest.WiredTigerTestCase):
     @wttest.skip_for_hook("tiered", "test depends of sizes of associated file objects")
     def test_truncate19(self):
         uri = 'table:oplog'
-        nrows = 1000000
+        nrows = 200_000 if wttest.isfast() else 1_000_000
+        n_outer = 10 if wttest.isfast() else 50
+        trunc_rows = 8_000 if wttest.isfast() else 10_000
+        max_file_bytes = 200_000_000 if wttest.isfast() else 600_000_000
 
         # Create a table.
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
@@ -83,13 +86,11 @@ class test_truncate19(wttest.WiredTigerTestCase):
         # Session for long running transaction, to make truncate not globally visible
         session3 = self.conn.open_session()
 
-        trunc_rows = 0
         start_num = 1
         end_num = nrows
-        for i in range(1, 50):
+        for i in range(1, n_outer):
             # Start a long running transaction
             session3.begin_transaction()
-            trunc_rows = 10000
 
             self.do_truncate(ds, start_num, trunc_rows)
 
@@ -101,8 +102,8 @@ class test_truncate19(wttest.WiredTigerTestCase):
 
             # Take a checkpoint.
             session2.checkpoint()
-            # Ensure the datasize is smaller than 600M
-            self.assertGreater(600000000, os.path.getsize("oplog.wt"))
+            # Ensure the datasize stays bounded (tighter cap in --fast with smaller workload).
+            self.assertGreater(max_file_bytes, os.path.getsize("oplog.wt"))
             session3.rollback_transaction()
 
             self.append_rows(uri, ds, end_num, trunc_rows, value_a)
@@ -111,5 +112,4 @@ class test_truncate19(wttest.WiredTigerTestCase):
             start_num = start_num + trunc_rows
 
         session2.checkpoint()
-        # Ensure the datasize is smaller than 600M
-        self.assertGreater(600000000, os.path.getsize("oplog.wt"))
+        self.assertGreater(max_file_bytes, os.path.getsize("oplog.wt"))

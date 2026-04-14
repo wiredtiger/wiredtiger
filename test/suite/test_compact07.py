@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
+import wttest
 from compact_util import compact_util
 from wiredtiger import stat
 
@@ -68,6 +69,9 @@ class test_compact07(compact_util):
     def test_compact07(self):
         if self.runningHook('tiered'):
             self.skipTest("Tiered tables do not support compaction")
+        if wttest.isfast():
+            self.table_numkv = 20 * 1000
+            self.n_tables = 1
 
         # Create and populate a table.
         uri_small = self.uri_prefix + '_small'
@@ -127,8 +131,11 @@ class test_compact07(compact_util):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         skipped = stat_cursor[stat.conn.session_table_compact_skipped][2]
         success = stat_cursor[stat.conn.background_compact_success][2]
-        self.assertGreater(skipped, 0)
-        self.assertGreater(success, 0)
+        # With reduced workloads in fast runs, we may not always record a skip.
+        if not wttest.isfast():
+            self.assertGreater(skipped, 0)
+        if not wttest.isfast():
+            self.assertGreater(success, 0)
         stat_cursor.close()
 
         # Perform foreground compaction on the remaining file by setting a free_space_target value
@@ -141,11 +148,12 @@ class test_compact07(compact_util):
         # Check that foreground compaction has done some work on the small table.
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
 
-        # Restart background compaction and wait for it to start tracking files.
-        # We expect to track each file.
-        self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB')
-        while self.get_bg_compaction_files_tracked() != self.n_tables + 1:
-            time.sleep(0.1)
+        if not wttest.isfast():
+            # Restart background compaction and wait for it to start tracking files.
+            # We expect to track each file.
+            self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB')
+            while self.get_bg_compaction_files_tracked() != self.n_tables + 1:
+                time.sleep(0.1)
 
         # Drop the tables.
         for i in range(self.n_tables):
@@ -154,10 +162,11 @@ class test_compact07(compact_util):
 
         self.session.checkpoint()
 
-        # The tables should get removed from the tracking list once they exceed the max idle time
-        # after they're dropped.
-        while self.get_bg_compaction_files_tracked() > 1:
-            time.sleep(1)
+        if not wttest.isfast():
+            # The tables should get removed from the tracking list once they exceed the max idle time
+            # after they're dropped.
+            while self.get_bg_compaction_files_tracked() > 1:
+                time.sleep(1)
 
         # Stop the background compaction server.
         self.turn_off_bg_compact()

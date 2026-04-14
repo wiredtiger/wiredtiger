@@ -46,7 +46,16 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
         ('large', dict(nentries=100000, valuesize=1)),
         ('jumboval', dict(nentries=100, valuesize=4200000)),
     ]
-    scenarios = make_scenarios(keyfmt, nentries)
+    if wttest.isfast():
+        # Keep one row-store and one column-store case, plus the jumbo value case.
+        scenarios = make_scenarios(
+            [('row', dict(keyfmt='S', storekind='row')),
+             ('col', dict(keyfmt='r', storekind='col'))],
+            [('medium', dict(nentries=10000, valuesize=20)),
+             ('jumboval', dict(nentries=100, valuesize=4200000))],
+        )
+    else:
+        scenarios = make_scenarios(keyfmt, nentries)
     conn_config = 'statistics=(all)'
 
     def init_test(self):
@@ -80,8 +89,9 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
 
         count = 0
         # Insert entries, periodically checking that stats match.
+        check_every = 200 if wttest.isfast() else 50
         for i in range(0, self.nentries):
-            if count % 50 == 0:
+            if count % check_every == 0:
                 self.checkcount(uri, count)
             cursor[self.genkey(i)] = self.genvalue(i)
             count += 1

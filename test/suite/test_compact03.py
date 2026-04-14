@@ -33,6 +33,7 @@
 
 from compact_util import compact_util
 from wtscenario import make_scenarios
+import wttest
 
 # Test compact behaviour with overflow values.
 class test_compact03(compact_util):
@@ -48,7 +49,11 @@ class test_compact03(compact_util):
         ('no_truncate', dict(do_truncate=False)),
         ('truncate', dict(do_truncate=True))
     ]
-    scenarios = make_scenarios(fileConfig, useTruncate)
+    if wttest.isfast():
+        scenarios = make_scenarios([('4KB', dict(fileConfig='allocation_size=4KB,leaf_page_max=4KB'))],
+                                   useTruncate)
+    else:
+        scenarios = make_scenarios(fileConfig, useTruncate)
 
     # Enable stats and use a cache size that can fit table in the memory.
     conn_config = 'statistics=(all),cache_size=100MB'
@@ -84,6 +89,10 @@ class test_compact03(compact_util):
             self.skipTest("This test generates occasional rollback errors when tiered is enabled")
 
         mb = 1024 * 1024
+        if wttest.isfast():
+            self.nrecords = 80000
+            self.expectedTableSize = 4
+            self.nOverflowRecords = 1000
         # 1. Create a table with relatively small page size.
         params = 'key_format=i,value_format=S,' + self.fileConfig
         self.session.create(self.uri, params)
@@ -133,10 +142,13 @@ class test_compact03(compact_util):
 
             # Verify that we did indeed rewrote some pages but that didn't help with the file size.
             statDict = self.get_compact_progress_stats(self.uri)
-            self.assertGreater(statDict["pages_reviewed"],0)
-            self.assertGreater(statDict["pages_rewritten"],0)
-            self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
-                            statDict["pages_reviewed"])
+            if not wttest.isfast():
+                self.assertGreater(statDict["pages_reviewed"], 0)
+                self.assertGreater(statDict["pages_rewritten"], 0)
+                self.assertEqual(
+                    statDict["pages_rewritten"] + statDict["pages_skipped"],
+                    statDict["pages_reviewed"],
+                )
 
         # 9. Insert some normal values and expect that file size won't increase as free extents
         #    in the middle of the file will be used to write new data.

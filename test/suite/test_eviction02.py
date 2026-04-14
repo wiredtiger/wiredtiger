@@ -29,6 +29,7 @@
 from eviction_util import eviction_util
 from wiredtiger import stat
 from wtscenario import make_scenarios
+import wttest
 
 # test_eviction02.py
 # Verify evicting a clean page removes any obsolete time window information present on the page.
@@ -45,11 +46,20 @@ class test_eviction02(eviction_util):
         ('500_pages', dict(expected_cleanup=True, obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[eviction_obsolete_tw_pages_dirty_max=500]')),
     ]
 
-    scenarios = make_scenarios(conn_config_values)
+    if wttest.isfast():
+        # Keep a small representative subset for fast runs.
+        scenarios = make_scenarios([
+            ('no_pages', dict(expected_cleanup=False, obsolete_tw_max=0,
+                              conn_config=f'{conn_config_common},heuristic_controls=[eviction_obsolete_tw_pages_dirty_max=0]')),
+            ('100_pages', dict(expected_cleanup=True, obsolete_tw_max=100,
+                               conn_config=f'{conn_config_common},heuristic_controls=[eviction_obsolete_tw_pages_dirty_max=100]')),
+        ])
+    else:
+        scenarios = make_scenarios(conn_config_values)
 
     def test_evict(self):
         create_params = 'key_format=i,value_format=S'
-        nrows = 10000
+        nrows = 3000 if wttest.isfast() else 10000
         prev_obsolete_tw_value = 0
         # Stats may have a stale value, allow some buffer.
         threshold = self.obsolete_tw_max * 1.5
@@ -58,7 +68,8 @@ class test_eviction02(eviction_util):
 
         self.session.create(uri, create_params)
 
-        for i in range(10):
+        loops = 4 if wttest.isfast() else 10
+        for i in range(loops):
             # Add some data.
             start_key = nrows * i
             num_keys = nrows * (i + 1)

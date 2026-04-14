@@ -89,7 +89,7 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
 
     def test_update_restore_evict_recovery(self):
         uri = 'table:test_debug_mode10'
-        nrows = 10000
+        nrows = 8000 if wttest.isfast() else 10_000
 
         # Create our table.
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,

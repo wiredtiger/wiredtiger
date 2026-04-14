@@ -65,7 +65,17 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, dryrun_values, worker_thread_values)
+    if wttest.isfast():
+        # Keep a small representative subset for fast runs.
+        scenarios = make_scenarios(
+            [('row_integer', dict(key_format='i'))],
+            [('no_inmem', dict(in_memory=False))],
+            [('no_prepare', dict(prepare=False)), ('prepare', dict(prepare=True))],
+            [('dryrun', dict(dryrun=True)), ('no_dryrun', dict(dryrun=False))],
+            [('4', dict(threads=4))],
+        )
+    else:
+        scenarios = make_scenarios(format_values, in_memory_values, prepare_values, dryrun_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=100MB,statistics=(all),verbose=(rts:5)'
@@ -74,7 +84,7 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         return config
 
     def test_rollback_to_stable(self):
-        nrows = 10000
+        nrows = 2000 if wttest.isfast() else 10000
 
         # Create a table.
         uri = "table:rollback_to_stable02"

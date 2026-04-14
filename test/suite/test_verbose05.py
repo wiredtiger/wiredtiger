@@ -50,7 +50,11 @@ class test_verbose05(test_verbose_base):
         ('small_db', dict(initial_rows=100)),
         ('large_db', dict(initial_rows=200000)),
     ]
-    scenarios = make_scenarios(size_scenarios)
+    if wttest.isfast():
+        # Keep the large database case (needed to trigger intermediate progress messages) but scale down.
+        scenarios = make_scenarios([('large_db', dict(initial_rows=50000))])
+    else:
+        scenarios = make_scenarios(size_scenarios)
 
     def populate(self, session, row_count, seed):
         with WiredTigerCursor(session, self.uri) as cursor:

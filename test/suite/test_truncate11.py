@@ -38,7 +38,11 @@ from wtthread import checkpoint_thread
 # FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
 @wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate11(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[checkpoint_slow]'
+    def conn_config(self):
+        config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
+        if wttest.islongtest():
+            config += ',timing_stress_for_test=[checkpoint_slow]'
+        return config
 
     format_values = [
         ('column', dict(key_format='r')),
@@ -86,8 +90,8 @@ class test_truncate11(wttest.WiredTigerTestCase):
             self.wait_for_stat(
                 stat.conn.checkpoint_snapshot_acquired,
                 predicate=lambda v: v != 0,
-                timeout=5.0 if wttest.isfast() else 30.0,
-                interval=0.1,
+                timeout=15.0 if wttest.isfast() else 30.0,
+                interval=0.01 if wttest.isfast() else 0.1,
             )
 
             # Start a transaction.

@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import wttest
 from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
@@ -54,14 +55,22 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(format_values, prepare_values)
+    if wttest.isfast():
+        # The core subtree-skipping logic isn't format-specific; keep one representative format and
+        # the non-prepare path for fast runs.
+        scenarios = make_scenarios([('row_integer', dict(key_format='i'))],
+                                   [('no_prepare', dict(prepare=False))])
+    else:
+        scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=500MB,statistics=(all),verbose=(rts:5)'
         return config
 
     def test_rollback_to_stable(self):
-        nrows = 1000000
+        # This test relies on a large table to produce internal page structure that RTS can skip.
+        # Scale down in fast runs while keeping multiple internal levels.
+        nrows = 100000 if wttest.isfast() else 1000000
 
         # Create a table.
         uri = "table:rollback_to_stable12"

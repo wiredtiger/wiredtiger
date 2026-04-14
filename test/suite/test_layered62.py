@@ -132,16 +132,14 @@ class test_layered62(wttest.WiredTigerTestCase):
         def checkpoint_thread_fn(conn):
             session = conn.open_session('')
             self.pr('Checkpoint started')
-            # This checkpoint will take at least 10 seconds due to timing_stress_for_test.
+            # This checkpoint should be slowed down by timing_stress_for_test.
             session.checkpoint()
             self.pr('Checkpoint complete')
             session.close()
         checkpoint_thread = threading.Thread(target=checkpoint_thread_fn, args=(self.conn,))
         checkpoint_thread.start()
 
-        # Wait for the checkpoint to start, and then a tiny bit more just in case. There should be
-        # enough time for us to do this, because the checkpoint will take at least 10 seconds due
-        # to the timing stress.
+        # Wait for the checkpoint to start, and then a tiny bit more just in case.
         self.wait_for_checkpoint_start()
         time.sleep(0.5)
 

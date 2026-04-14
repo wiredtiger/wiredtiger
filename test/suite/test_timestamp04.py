@@ -124,7 +124,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         cur_nots_nolog = self.session.open_cursor(self.table_nots_nolog)
 
         # Insert keys each with timestamp=key, in some order.
-        key_range = 10000
+        key_range = 2500 if wttest.isfast() else 10_000
         keys = list(range(1, key_range + 1))
 
         # Set keys 1-key_range to value 1.

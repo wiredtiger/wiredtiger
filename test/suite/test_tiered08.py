@@ -49,11 +49,14 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
-    batch_size = 100000
-
-    # Keep inserting keys until we've done this many checkpoints and flushes.
-    ckpt_target = 200
-    flush_target = 50
+    if wttest.isfast():
+        batch_size = 12_000
+        ckpt_target = 28
+        flush_target = 8
+    else:
+        batch_size = 100_000
+        ckpt_target = 200
+        flush_target = 50
 
     uri = "table:test_tiered08"
 

@@ -47,7 +47,15 @@ class test_cursor12(wttest.WiredTigerTestCase):
         ('file', dict(uri='file:modify')),
         ('table', dict(uri='table:modify')),
     ]
-    scenarios = make_scenarios(types, keyfmt, valuefmt)
+    if wttest.isfast():
+        # Keep a small representative subset for fast runs.
+        scenarios = make_scenarios(
+            [('table', dict(uri='table:modify'))],
+            [('string', dict(keyfmt='S'))],
+            [('string', dict(valuefmt='S'))],
+        )
+    else:
+        scenarios = make_scenarios(types, keyfmt, valuefmt)
 
     # List with original value, final value, and modifications to get
     # there.
@@ -348,7 +356,8 @@ class test_cursor12(wttest.WiredTigerTestCase):
         orig = self.make_value('abcdefghijklmnopqrstuvwxyz')
         c.set_value(orig)
         self.assertEqual(c.update(), 0)
-        for i in range(0, 50000):
+        n_mods = 6_000 if wttest.isfast() else 50_000
+        for i in range(0, n_mods):
             new = self.make_value("".join([random.choice(string.digits) \
                 for i in range(5)]))
             orig = orig[:10] + new + orig[15:]

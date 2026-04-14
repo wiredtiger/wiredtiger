@@ -63,8 +63,12 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     def test_hs_recovery(self):
-        ntables = 100
-        nrows = 5
+        if wttest.isfast():
+            ntables = 25
+            nrows = 3
+        else:
+            ntables = 100
+            nrows = 5
 
         bigvalue = b"aaaaa" * 100
         bigvalue2 = b"ccccc" * 100
@@ -102,12 +106,12 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
 
             # Poll the checkpoint stop timing stress stat until we know we've reached the stress
             # point.
-            ckpt_stop_timing_stress = 0
-            while not ckpt_stop_timing_stress:
-                time.sleep(1)
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_stop_timing_stress = stat_cursor[stat.conn.checkpoint_stop_stress_active][2]
-                stat_cursor.close()
+            self.wait_for_stat(
+                stat.conn.checkpoint_stop_stress_active,
+                predicate=lambda v: v != 0,
+                timeout=5.0 if wttest.isfast() else 60.0,
+                interval=0.2,
+            )
 
             copy_wiredtiger_home(self, '.', "RESTART")
 

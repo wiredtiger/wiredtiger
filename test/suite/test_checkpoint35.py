@@ -44,11 +44,14 @@ class test_checkpoint35(wttest.WiredTigerTestCase):
 
     conn_config = "precise_checkpoint=true"
 
-    scenarios = make_scenarios(format_values)
+    if wttest.isfast():
+        scenarios = make_scenarios([('string_row', dict(key_format='S', value_format='S', extraconfig=''))])
+    else:
+        scenarios = make_scenarios(format_values)
 
     def test_checkpoint(self):
         uri = 'table:checkpoint35'
-        nrows = 1000000
+        nrows = 100000 if wttest.isfast() else 1000000
 
         # Create a table.
         ds = SimpleDataSet(
@@ -56,8 +59,8 @@ class test_checkpoint35(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds.populate()
 
-        value_a =  "aaaaa" * 100
-        value_b = "bbbbb" * 100
+        value_a =  "aaaaa" * (20 if wttest.isfast() else 100)
+        value_b = "bbbbb" * (20 if wttest.isfast() else 100)
 
         ts = 2
 

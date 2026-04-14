@@ -61,7 +61,7 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         default_val = 'ABCD' * 60
         new_val = 'YYYY' * 60
-        n_rows = 480000
+        n_rows = 90_000 if wttest.isfast() else 480_000
 
         # Populate
         self.session.create(uri, table_params + self.extraconfig)

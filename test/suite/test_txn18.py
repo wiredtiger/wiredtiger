@@ -72,7 +72,8 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
         # from the create.
         self.session.checkpoint()
         c = self.session.open_cursor(self.t1, None, None)
-        for i in range(1, 10001):
+        n_ins = 2500 if wttest.isfast() else 10_000
+        for i in range(1, n_ins + 1):
             c[i] = self.mkvalue(i + 1)
         c.close()
         olddir = "."
@@ -103,7 +104,7 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(i, key)
             self.assertEqual(self.mkvalue(i+1), value)
             i += 1
-        self.assertEqual(i, 10001)
+        self.assertEqual(i, n_ins + 1)
         c.close()
         self.close_conn()
         # Reopening with recover=error after a clean shutdown should succeed.

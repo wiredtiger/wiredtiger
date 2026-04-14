@@ -67,7 +67,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         scenarios = make_scenarios(format_values, name_values, ckpt_precision)
 
     def conn_config(self):
-        return 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
+        cfg = 'statistics=(all),' + self.ckpt_config
+        if wttest.islongtest():
+            cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
+        return cfg
     def large_updates(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -99,7 +102,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             self.conn.set_timestamp('stable_timestamp=1')
 
         uri = 'table:checkpoint14'
-        nrows = 10000
+        nrows = 3500 if wttest.isfast() else 10000
 
         # Create a table.
         ds = SimpleDataSet(
@@ -107,9 +110,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds.populate()
 
-        value_a = "aaaaa" * 100
-        value_b = "bbbbb" * 100
-        value_c = "ccccc" * 100
+        mult = 20 if wttest.isfast() else 100
+        value_a = "aaaaa" * mult
+        value_b = "bbbbb" * mult
+        value_c = "ccccc" * mult
 
         # Write some baseline data.
         self.large_updates(uri, ds, nrows, value_a)

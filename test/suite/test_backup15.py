@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 import os
+import wttest
 from wtbackup import backup_base
 
 # test_backup15.py
@@ -85,6 +86,9 @@ class test_backup15(backup_base):
             self.bkup_id += 1
 
     def test_backup15(self):
+        if wttest.isfast():
+            self.nops = 12_000
+            self.max_iteration = 3
         os.mkdir(self.bkp_home)
         self.home = self.bkp_home
         self.session.create(self.uri, "key_format=S,value_format=S")

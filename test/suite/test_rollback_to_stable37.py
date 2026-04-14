@@ -30,6 +30,7 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
+import wttest
 
 # test_rollback_to_stable37.py
 # Test that the rollback to stable to restore proper stable update from history store when a no timestamp
@@ -55,7 +56,15 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, dryrun_values, worker_thread_values)
+    if wttest.isfast():
+        # Keep a representative scenario in fast runs.
+        scenarios = make_scenarios(
+            [('row_integer', dict(key_format='i'))],
+            [('no_dryrun', dict(dryrun=False))],
+            [('4', dict(threads=4))],
+        )
+    else:
+        scenarios = make_scenarios(format_values, dryrun_values, worker_thread_values)
 
     def test_rollback_to_stable(self):
         uri = 'table:test_rollback_to_stable37'
@@ -75,7 +84,8 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
             ',stable_timestamp=' + self.timestamp_str(1))
 
         # Insert 300 updates to the same key.
-        for i in range (20, 320):
+        end = 120 if wttest.isfast() else 320
+        for i in range(20, end):
             self.large_updates(uri, value_a + str(i), ds, nrows, False, i)
 
         old_reader_session = self.conn.open_session()

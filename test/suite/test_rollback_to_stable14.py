@@ -30,6 +30,7 @@ import threading, time
 from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
+import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wtthread import checkpoint_thread

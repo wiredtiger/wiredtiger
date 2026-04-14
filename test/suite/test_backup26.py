@@ -39,7 +39,10 @@ from wtdataset import SimpleDataSet
 class test_backup26(backup_base):
     dir='backup.dir'                    # Backup directory name
     uri="table_backup"
-    ntables = 10000 if wttest.islongtest() else 500
+    if wttest.isfast():
+        ntables = 120
+    else:
+        ntables = 10000 if wttest.islongtest() else 500
 
     # Reverse the backup restore list, WiredTiger should still succeed in this case.
     reverse = [
@@ -55,7 +58,14 @@ class test_backup26(backup_base):
         ('ten_percent', dict(percentage=0.1)),
         ('zero_percent', dict(percentage=0)),
     ]
-    scenarios = make_scenarios(percentage, reverse)
+    if wttest.isfast():
+        # Keep a representative subset for fast runs.
+        scenarios = make_scenarios(
+            [('fifty_percent', dict(percentage=0.5))],
+            [["target_list", dict(reverse=False)]],
+        )
+    else:
+        scenarios = make_scenarios(percentage, reverse)
 
     def test_backup26(self):
         selective_remove_uri_file_list = []

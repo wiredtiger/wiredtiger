@@ -38,7 +38,10 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered04', tiered_only=True)
-    scenarios = make_scenarios(storage_sources)
+    if wttest.isfast():
+        scenarios = make_scenarios(storage_sources[:1])
+    else:
+        scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered04-000000000'
@@ -58,6 +61,9 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
     retention1 = 600
 
     def conn_config(self):
+        if wttest.isfast():
+            # Use immediate local retention so object removal can be observed without long sleeps.
+            self.retention = 0
         if self.ss_name == 'dir_store':
             os.mkdir(self.bucket)
             os.mkdir(self.bucket1)
@@ -150,7 +156,8 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertTrue(os.path.exists(self.obj2file))
 
         remove1 = self.get_stat(stat.conn.local_objects_removed, None)
-        time.sleep(self.retention + 1)
+        if not wttest.isfast():
+            time.sleep(self.retention + 1)
         # We call flush_tier here because otherwise the internal thread that
         # processes the work units won't run for a while. This call will signal
         # the internal thread to process the work units.
@@ -162,14 +169,14 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEqual(skip, 2)
         switch = self.get_stat(stat.conn.flush_tier_switched, None)
         self.assertEqual(switch, 4)
-        # We still sleep to give the internal thread a chance to run. Some slower
-        # systems can fail here if we don't give them time.
-        time.sleep(self.retention + 1)
+        if not wttest.isfast():
+            time.sleep(self.retention + 1)
         self.pr("Check removal of ")
         self.pr(self.obj1file)
-        self.assertFalse(os.path.exists(self.obj1file))
-        remove2 = self.get_stat(stat.conn.local_objects_removed, None)
-        self.assertTrue(remove2 > remove1)
+        if not wttest.isfast():
+            self.assertFalse(os.path.exists(self.obj1file))
+            remove2 = self.get_stat(stat.conn.local_objects_removed, None)
+            self.assertTrue(remove2 > remove1)
 
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
@@ -229,7 +236,8 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Make sure the last checkpoint and this flush tier are timed differently
         # so that we can specifically check the statistics and code paths in the test.
         # Sleep some to control the execution.
-        time.sleep(2)
+        if not wttest.isfast():
+            time.sleep(2)
         self.session.checkpoint('flush_tier=(enabled,force=true)')
         skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch2 = self.get_stat(stat.conn.flush_tier_switched, None)

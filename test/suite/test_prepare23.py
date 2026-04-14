@@ -46,7 +46,11 @@ class test_prepare23(wttest.WiredTigerTestCase):
         ('non-delete', dict(delete=False)),
     ]
 
-    scenarios = make_scenarios(format_values, delete)
+    if wttest.isfast():
+        scenarios = make_scenarios([('row_integer', dict(key_format='i'))],
+                                   [('non-delete', dict(delete=False))])
+    else:
+        scenarios = make_scenarios(format_values, delete)
 
     def test_prepare23(self):
         uri = "table:test_prepare23"
@@ -63,7 +67,8 @@ class test_prepare23(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         evict_cursor = session2.open_cursor(uri, None, 'debug=(release_evict)')
         ts = 0
-        for i in range (1, 1001):
+        iters = 200 if wttest.isfast() else 1000
+        for i in range(1, iters + 1):
             # Do the first update
             self.session.begin_transaction()
             cursor[i] = value_a

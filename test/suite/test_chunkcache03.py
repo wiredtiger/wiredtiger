@@ -39,6 +39,8 @@ from wtscenario import make_scenarios
 '''
 class test_chunkcache03(wttest.WiredTigerTestCase):
     rows = 10000
+    fast_rows = 800
+    fast_value_repeat = 20
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
@@ -52,14 +54,20 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
     pinned_uris = ["table:chunkcache01", "table:chunkcache02"]
 
-    scenarios = make_scenarios(format_values, cache_types)
+    if wttest.isfast():
+        # Keep row-store and both cache types when available.
+        fast_formats = [('row_string', dict(key_format='S', value_format='S'))]
+        scenarios = make_scenarios(fast_formats, cache_types)
+    else:
+        scenarios = make_scenarios(format_values, cache_types)
 
     def conn_config(self):
         if not os.path.exists('bucket2'):
             os.mkdir('bucket2')
 
+        capacity = '64MB' if wttest.isfast() else '1GB'
         return 'tiered_storage=(auth_token=Secret,bucket=bucket2,bucket_prefix=pfx_,name=dir_store),' \
-            'chunk_cache=[enabled=true,chunk_size=512KB,capacity=1GB,pinned=' \
+            f'chunk_cache=[enabled=true,chunk_size=512KB,capacity={capacity},pinned=' \
                 + '("' + '{}'.format("\",\"".join(self.pinned_uris)) \
                 + '"),type={},storage_path=WiredTigerChunkCache]'.format(self.chunk_cache_type)
 
@@ -69,7 +77,8 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
 
     def get_stat(self, stat):
-        time.sleep(0.5) # Try to avoid race conditions.
+        # Prefer to avoid fixed sleeps; small delay remains for stability.
+        time.sleep(0.02 if wttest.isfast() else 0.5)
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
         stat_cursor.close()
@@ -77,15 +86,19 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
     def insert(self, uri, ds):
         cursor = self.session.open_cursor(uri)
-        for i in range(1, self.rows):
-            cursor[ds.key(i)] = str(i) * 100
+        rows = self.fast_rows if wttest.isfast() else self.rows
+        repeat = self.fast_value_repeat if wttest.isfast() else 100
+        for i in range(1, rows):
+            cursor[ds.key(i)] = str(i) * repeat
 
     def read_and_verify(self, uri, ds):
         cursor = self.session.open_cursor(uri)
-        for i in range(1, self.rows):
+        rows = self.fast_rows if wttest.isfast() else self.rows
+        repeat = self.fast_value_repeat if wttest.isfast() else 100
+        for i in range(1, rows):
             cursor.set_key(ds.key(i))
             cursor.search()
-            self.assertEqual(cursor.get_value(), str(i) * 100)
+            self.assertEqual(cursor.get_value(), str(i) * repeat)
 
     def test_chunkcache03(self):
         uris = self.pinned_uris + ["table:chunkcache03", "table:chunkcache04"]

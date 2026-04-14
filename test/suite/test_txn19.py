@@ -122,6 +122,18 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # All the other cases are valid
         return True
 
+    # Plaid/superfast: keep representative corruption behaviors but avoid the full cartesian
+    # explosion of scenarios (this module is intentionally heavy).
+    if wttest.isplaid():
+        # Avoid list comprehensions in class scope (they don't capture class locals in Py3).
+        corruption_type = [corruption_type[0], corruption_type[1], corruption_type[7]]  # removal, truncate, garbage-middle
+        corruption_pos = [corruption_pos[0], corruption_pos[2], corruption_pos[5]]  # (0,0,0), (6,0,0), (3,0,2)
+        nrecords = [nrecords[0]]  # 10
+    elif wttest.issuperfast():
+        corruption_type = [corruption_type[0], corruption_type[1], corruption_type[7], corruption_type[8]]  # + garbage-end
+        corruption_pos = [corruption_pos[0], corruption_pos[1], corruption_pos[2], corruption_pos[5]]  # add (0,0,2)
+        nrecords = [nrecords[0]]  # 10
+
     scenarios = make_scenarios(
         key_format_values, corruption_type, corruption_pos, nrecords,
         include=includeFunc, prune=20, prunelong=1000)

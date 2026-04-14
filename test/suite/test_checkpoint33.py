@@ -85,6 +85,11 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         if os.environ.get("TSAN_OPTIONS"):
             self.skipTest("FIXME-WT-14098 This test fails to compress the table when run under TSan")
 
+        if wttest.isfast():
+            self.table_numkv = 70_000
+            self.value_size = 256
+            self.value = 'a' * self.value_size
+
         # Pin oldest timestamp 1.
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -123,7 +128,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         # checkpoint cleanup. Multiple checkpoints are required to move the blocks around and
         # eventually reach the minimum file size of 12KB.
         checkpoints = 0
-        max_checkpoints = 10
+        max_checkpoints = 6 if wttest.isfast() else 10
         while True:
             self.wait_for_cc_to_run() # Wait for checkpoint cleanup to clean up all the deleted pages.
             self.session.checkpoint()

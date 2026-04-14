@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 from helper import copy_wiredtiger_home
 from wiredtiger import stat
 from wtbackup import backup_base
+import wttest
 
 # test_checkpoint_snapshot06.py
 #   This test is to run checkpoint and truncate and insert followed by eviction
@@ -63,7 +64,9 @@ class test_checkpoint_snapshot06(backup_base):
         scenarios = make_scenarios(format_values, restart_values)
 
     def conn_config(self):
-        config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),debug_mode=(log_retention=10),timing_stress_for_test=[checkpoint_slow]'
+        config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),debug_mode=(log_retention=10)'
+        if wttest.islongtest():
+            config += ',timing_stress_for_test=[checkpoint_slow]'
         return config
 
     def moresetup(self):

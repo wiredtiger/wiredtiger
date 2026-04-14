@@ -486,7 +486,7 @@ class test_cursor13_big(test_cursor13_big_base):
         ('table', dict(uri='table:cursor13_sweep_b'))
     ])
 
-    nopens = 500000
+    nopens = 75_000 if wttest.isfast() else 500_000
 
     def test_cursor_big(self):
         rand = suite_random()

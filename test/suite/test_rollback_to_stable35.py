@@ -83,7 +83,10 @@ class test_rollback_to_stable35(test_rollback_to_stable_base):
         cursor_2.close()
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all),log=(enabled,force_write_wait=60),timing_stress_for_test=[checkpoint_slow, checkpoint_stop],verbose=(rts:5)'
+        config = 'cache_size=50MB,statistics=(all),log=(enabled,force_write_wait=60),verbose=(rts:5)'
+        # This test relies on checkpoint_stop to pause a checkpoint so we can copy the home
+        # directory while a checkpoint is mid-flight.
+        config += ',timing_stress_for_test=[checkpoint_slow, checkpoint_stop]'
         return config
 
     def test_rollback_to_stable(self):

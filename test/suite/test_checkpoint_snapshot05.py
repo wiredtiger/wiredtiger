@@ -52,7 +52,11 @@ class test_checkpoint_snapshot05(backup_base):
     scenarios = make_scenarios(format_values)
 
     def conn_config(self):
-        config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
+        config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true)'
+        # This test relies on checkpoint_slow to widen the window for creating an inconsistent
+        # checkpoint; keep it enabled in fast mode (stressor is bounded to short delays).
+        if wttest.islongtest() or wttest.isfast():
+            config += ',timing_stress_for_test=[checkpoint_slow]'
         return config
 
     def moresetup(self):
@@ -120,8 +124,8 @@ class test_checkpoint_snapshot05(backup_base):
             self.wait_for_stat(
                 stat.conn.checkpoint_snapshot_acquired,
                 predicate=lambda v: v != 0,
-                timeout=5.0 if wttest.isfast() else 30.0,
-                interval=0.1,
+                timeout=15.0 if wttest.isfast() else 30.0,
+                interval=0.01 if wttest.isfast() else 0.1,
             )
 
             session1.commit_transaction()

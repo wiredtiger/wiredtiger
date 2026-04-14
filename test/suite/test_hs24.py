@@ -48,9 +48,14 @@ class test_hs24(wttest.WiredTigerTestCase):
         ('history_store_checkpoint_delay_stress', dict(checkpoint_stress='history_store_checkpoint_delay')),
     ]
 
-    scenarios = make_scenarios(format_values, checkpoint_stress_scenarios)
+    if wttest.islongtest():
+        scenarios = make_scenarios(format_values, checkpoint_stress_scenarios)
+    else:
+        scenarios = make_scenarios(format_values)
 
     def conn_config(self):
+        if not wttest.islongtest():
+            return ''
         return 'timing_stress_for_test=({})'.format(self.checkpoint_stress)
 
     uri = 'table:test_hs24'

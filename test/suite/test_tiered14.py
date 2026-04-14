@@ -57,7 +57,22 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
         ('simple', dict(dataset='simple')),
         #('complex', dict(dataset='complex', long_only=True)),
     ]
-    scenarios = make_scenarios(multiplier, keyfmt, dataset, storage_sources)
+    if wttest.isfast():
+        # Reduce scenario count in fast runs while still exercising tiered storage:
+        # - keep a small and a medium multiplier,
+        # - keep integer keys (representative),
+        # - keep simple dataset,
+        # - keep only the first tiered storage source.
+        fast_multiplier = [
+            ('0', dict(multiplier=0)),
+            ('M', dict(multiplier=10)),
+        ]
+        fast_keyfmt = [('integer', dict(keyfmt='i'))]
+        fast_dataset = [('simple', dict(dataset='simple'))]
+        fast_sources = storage_sources[:1]
+        scenarios = make_scenarios(fast_multiplier, fast_keyfmt, fast_dataset, fast_sources)
+    else:
+        scenarios = make_scenarios(multiplier, keyfmt, dataset, storage_sources)
 
     def conn_config(self):
         return TieredConfigMixin.conn_config(self)
@@ -134,19 +149,27 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Test tiered storage with checkpoints and flush_tier calls.
     def test_tiered(self):
         random.seed(0)
+        if wttest.isfast():
+            # Reduce the number of generated operation sequences for fast runs.
+            self.num_ops = 30
+            heavy_loops = 2
+            mix_loops = 2
+        else:
+            heavy_loops = 10
+            mix_loops = 10
 
         # Get started with a fixed sequence of basic operations.
         # There's no particular reason to start with this sequence.
         testnum = 0
         self.playback(testnum, "aaaaacaaa.uucrauaf.aauaac.auu.aacrauafa.uruua.")
 
-        for i in range(0, 10):
+        for i in range(0, heavy_loops):
             testnum += 1
             # Generate a sequence of operations that is heavy on additions and updates.
             s = ''.join(random.choices('aaaaauuuuufcr.', k=self.num_ops))
             self.playback(testnum, s)
 
-        for i in range(0, 10):
+        for i in range(0, mix_loops):
             testnum += 1
             # Generate a sequence of operations that is has a greater mix of 'operational' functions.
             s = ''.join(random.choices('aufcr.', k=self.num_ops))

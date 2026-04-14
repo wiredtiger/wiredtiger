@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
+import wttest
 from wiredtiger import stat
 from compact_util import compact_util
 
@@ -47,13 +48,16 @@ class test_compact13(compact_util):
         if self.runningHook('tiered'):
             self.skipTest("Tiered tables do not support compaction")
 
+        table_numkv = 20_000 if wttest.isfast() else self.table_numkv
+        n_tables = 1 if wttest.isfast() else self.n_tables
+
         # Create and populate tables.
         uris = []
-        for i in range(self.n_tables):
+        for i in range(n_tables):
             uri = f'{self.uri_prefix}_{i}'
             uris.append(uri)
             self.session.create(uri, self.create_params)
-            self.populate(uri, 0, self.table_numkv)
+            self.populate(uri, 0, table_numkv)
 
         # Write to disk.
         self.session.checkpoint()
@@ -63,15 +67,15 @@ class test_compact13(compact_util):
         self.turn_on_bg_compact(bg_compact_config)
 
         # Nothing should be compacted.
-        while self.get_bg_compaction_files_skipped() < self.n_tables + 1:
+        while self.get_bg_compaction_files_skipped() < n_tables + 1:
             time.sleep(0.1)
 
         self.turn_off_bg_compact()
 
         # Delete the first 90%.
-        for i in range(self.n_tables):
+        for i in range(n_tables):
             uri = self.uri_prefix + f'_{i}'
-            self.delete_range(uri, 90 * self.table_numkv // 100)
+            self.delete_range(uri, 90 * table_numkv // 100)
 
         # Write to disk.
         self.session.checkpoint()
@@ -79,5 +83,5 @@ class test_compact13(compact_util):
         # Now the files can be compacted.
         self.turn_on_bg_compact(bg_compact_config)
 
-        while self.get_files_compacted(uris) < 2:
+        while self.get_files_compacted(uris) < n_tables:
             time.sleep(0.1)

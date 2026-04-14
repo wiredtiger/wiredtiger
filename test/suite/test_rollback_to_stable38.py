@@ -75,7 +75,7 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
         if os.environ.get("TESTUTIL_TSAN") == "1":
             self.skipTest("Not compatible with TSan")
 
-        nrows = 1000000
+        nrows = 50000 if wttest.isfast() else 1000000
 
         # Create a table.
         uri = "table:rollback_to_stable38"
@@ -85,7 +85,7 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
             config=self.extraconfig)
         ds.populate()
 
-        value_a = "aaaaa" * 100
+        value_a = "aaaaa" * (20 if wttest.isfast() else 100)
 
         # Pin a transaction
         session2 = self.conn.open_session()

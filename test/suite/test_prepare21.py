@@ -45,7 +45,10 @@ class test_prepare21(test_rollback_to_stable_base):
 
     value_format='S'
 
-    scenarios = make_scenarios(format_values)
+    if wttest.isfast():
+        scenarios = make_scenarios([('row_integer', dict(key_format='i'))])
+    else:
+        scenarios = make_scenarios(format_values)
 
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),timing_stress_for_test=[history_store_checkpoint_delay]'

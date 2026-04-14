@@ -33,6 +33,7 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wtthread import checkpoint_thread
+import wttest
 
 # test_rollback_to_stable26.py
 # Test the rollback to stable does properly restore the prepare rollback entry
@@ -61,10 +62,23 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
         ('prepare_remove', dict(prepare_remove=True))
     ]
 
-    scenarios = make_scenarios(format_values, hs_remove_values, prepare_values, prepare_remove_values)
+    if wttest.isfast():
+        # Keep one representative scenario in fast runs: exercises HS remove + prepare rollback restore.
+        scenarios = make_scenarios(
+            [('row_integer', dict(key_format='i'))],
+            [('hs_remove', dict(hs_remove=True))],
+            [('prepare', dict(prepare=True))],
+            [('prepare_remove', dict(prepare_remove=True))],
+        )
+    else:
+        scenarios = make_scenarios(format_values, hs_remove_values, prepare_values, prepare_remove_values)
 
     def conn_config(self):
-        config = 'cache_size=10MB,statistics=(all),timing_stress_for_test=[history_store_checkpoint_delay],verbose=(rts:5)'
+        # High RTS verbosity can generate very large logs and slow the test down substantially.
+        # Keep verbose logging in non-fast runs; reduce it in fast runs to retain behavior coverage
+        # without the log-volume cost.
+        verbose = 'verbose=(rts:1)' if wttest.isfast() else 'verbose=(rts:5)'
+        config = f'cache_size=10MB,statistics=(all),timing_stress_for_test=[history_store_checkpoint_delay],{verbose}'
         return config
 
     def evict_cursor(self, uri, nrows):
@@ -124,7 +138,10 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
+        # A single checkpoint is sufficient to create the required overlap with the prepared
+        # transaction rollback; running repeated checkpoints can dominate runtime under timing
+        # stress configurations.
+        ckpt = checkpoint_thread(self.conn, done, checkpoint_count_max=1)
         try:
             ckpt.start()
 
