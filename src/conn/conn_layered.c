@@ -1181,14 +1181,16 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * checkpoint completion record and drop all later records. If there are no more updates after
      * the last complete checkpoint, the function would have no effect.
      */
-    ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface);
+    WT_ERR_MSG_CHK(session,
+      disagg->npage_log->page_log->pl_abandon_checkpoint(
+        disagg->npage_log->page_log, &session->iface),
+      "Failed to abandon checkpoint");
 
+err:
     if (ret == 0)
         WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_succeed);
     else
         WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_failed);
-
     return (ret);
 }
 
