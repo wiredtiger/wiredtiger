@@ -2888,6 +2888,16 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         disagg_page_is_valid = true;
 
     /*
+     * Determine whether the previous disaggregated block must be freed. Free it when reconciliation
+     * produces zero pages, multiple pages, or a single page with a new page_id. r->multi == NULL
+     * implies r->multi_next == 0; short-circuit ensures block_meta is only accessed when multi_next
+     * == 1.
+     */
+    if (disagg_page_is_valid)
+        disagg_page_free_required =
+          (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
+
+    /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
      * entirely consistent at that point (the underlying block manager is presumably going to do
      * some action to resolve the list of allocated/free/whatever blocks that are associated with
@@ -2920,17 +2930,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             break;
         }
 
-        /*
-         * Free the disaggregated block if reconciliation results in zero pages, multiple pages, or
-         * a single empty page.
-         */
-        if (disagg_page_is_valid)
-            /*
-             * r->multi == NULL implies r->multi_next == 0; thus it is safe to access block_meta
-             * directly.
-             */
-            disagg_page_free_required =
-              (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
         /*
          * Update the tree size accounting if we don't free the page id and we terminate the delta
@@ -2956,21 +2955,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                              * checkpoints, and must be explicitly dropped.
                              */
         if (!__wt_ref_is_root(ref)) {
-            /*
-             * We have skipped writing a delta in the first reconciliation after the page is read
-             * from disk.
-             */
-            /*
-             * Free the disaggregated block if reconciliation results in zero pages, multiple pages,
-             * or a single empty page.
-             */
-            if (disagg_page_is_valid)
-                /*
-                 * r->multi == NULL implies r->multi_next == 0; thus it is safe to access block_meta
-                 * directly.
-                 */
-                disagg_page_free_required =
-                  (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
             if (mod->mod_replace.block_cookie == NULL) {
                 WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
                 /*
