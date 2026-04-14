@@ -105,7 +105,7 @@ struct __wt_config_parser_impl {
     ((str) >= (ref_str) && (str) <= &(ref_str)[strlen(ref_str)])
 
 /* Return true iff the configuration value lies within the default configuration for a function. */
-#define WT_CONFIG_MATCHES_DEFAULT(session, func, cval)              \
+#define WT_CONFIG_MATCHES_DEFAULT(session, func, cval) \
     WT_CONFIG_STRING_WITHIN_DEFAULT((cval).str, WT_CONFIG_BASE(session, func))
 
 /*
@@ -117,9 +117,9 @@ __wt_config_empty(const char *cfg[])
 {
     /* If the caller's config string is NULL or "", it is empty */
     if (cfg == NULL || cfg[0] == NULL || cfg[1] == NULL || (cfg[2] == NULL && cfg[1][0] == '\0'))
-        return true;
+        return (true);
     else
-        return false;
+        return (false);
 }
 
 #define WT_CONFIG_UNSET (-1)
