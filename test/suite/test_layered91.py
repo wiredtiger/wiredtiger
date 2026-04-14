@@ -71,11 +71,11 @@ from itertools import permutations, product
 def generate_unique_situations(max_len):
     # Create all permutations (up to max_len) of letters where each letter appears 0 to 2 times
     elements = ['I', 'S', 'B', 'R', 'X']
-    result = set()
-    for counts in product(range(3), repeat=len(elements)):
-        situation = [l for l, c in zip(elements, counts) for _ in range(c)]
-        if len(situation) <= max_len:
-            result.update(permutations(situation))
+    result = []
+    for length in range(max_len + 1):
+            for seq in product(elements, repeat=length):
+                if all(seq.count(e) <= 2 for e in elements):
+                    result.append(seq)
     return sorted(result)
 
 @disagg_test_class
