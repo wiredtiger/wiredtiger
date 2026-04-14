@@ -15,6 +15,13 @@ static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
+/* Operations passed to __clayered_put. */
+typedef enum {
+    WT_CLAYERED_PUT_INSERT,
+    WT_CLAYERED_PUT_UPDATE,
+    WT_CLAYERED_PUT_RESERVE,
+} WT_CLAYERED_PUT_OP;
+
 /*
  * __clayered_is_deleted_encoded --
  *     Check if the value starts with the tombstone.
@@ -759,6 +766,112 @@ err:
 }
 
 /*
+ * __clayered_leader_reposition_iterate --
+ *     Detect if the stable cursor position has been truncated. If so, position the cursor to
+ *     next/prev visible position.
+ */
+static int
+__clayered_leader_reposition_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, bool forward)
+{
+    WT_COLLATOR *collator;
+    WT_DECL_RET;
+    int cmp;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_TRUNCATE *t;
+
+    if (!__wt_process.disagg_fast_truncate_2026)
+        return (0);
+
+    /* Fast truncate only works under snapshot isolation. */
+    WT_ASSERT(session, session->txn->isolation == WT_ISO_SNAPSHOT);
+    __clayered_get_collator(clayered, &collator);
+
+    /*
+     * There could be overlapping truncates in the layered table truncate list. So we need to loop
+     * until we find a non-truncated key or reach the end of the range.
+     */
+    for (;;) {
+        ret = __wt_truncate_delete_visible_check(
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
+        if (ret == WT_NOTFOUND)
+            break;
+
+        stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
+        WT_RET(stable->search_near(stable, &cmp));
+
+        while (forward ? cmp < 0 : cmp > 0) {
+            /*
+             * The cursor next()/prev() could return back WT_NOTFOUND, meaning we have reached the
+             * end of the table.
+             */
+            WT_RET(forward ? stable->next(stable) : stable->prev(stable));
+
+            WT_RET(__wt_compare(
+              session, collator, &stable->key, forward ? &t->stop_key : &t->start_key, &cmp));
+        }
+    }
+    return (0);
+}
+
+/*
+ * __wt_layered_truncate --
+ *     Discard a cursor range from the layered table.
+ */
+int
+__wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    const char *uri;
+
+    session = trunc_info->session;
+    uri = trunc_info->uri;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
+    WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
+    WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
+
+    /*
+     * On leader mode, we can directly perform truncate operation on the stable table. On follower
+     * mode, we need to perform truncate on the ingest table and add an entry inside the truncate
+     * list.
+     */
+    if (S2C(session)->layered_table_manager.leader) {
+        trunc_info->start = clayered_start->stable_cursor;
+        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
+            trunc_info->stop = clayered_stop->stable_cursor;
+        WT_WITH_BTREE(
+          session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
+        WT_RET(ret);
+    } else {
+        /*
+         * Set the original keys on the ingest cursors. The ingest cursor may not have its key set
+         * if the layered cursor was positioned via next/prev, or if search_near on an empty ingest
+         * table reset the cursor position.
+         */
+        clayered_start->ingest_cursor->set_key(
+          clayered_start->ingest_cursor, trunc_info->orig_start_key);
+        trunc_info->start = clayered_start->ingest_cursor;
+
+        trunc_info->stop = NULL;
+        if (clayered_stop != NULL) {
+            clayered_stop->ingest_cursor->set_key(
+              clayered_stop->ingest_cursor, trunc_info->orig_stop_key);
+            trunc_info->stop = clayered_stop->ingest_cursor;
+        }
+
+        /* Perform truncate on ingest table. */
+        WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));
+
+        /* Add a truncate entry inside layered table truncate list. */
+        WT_RET(__wt_insert_truncate_entry(
+          session, uri, trunc_info->orig_start_key, trunc_info->orig_stop_key));
+    }
+    return (0);
+}
+
+/*
  * __clayered_position_alternate --
  *     Position an alternate cursor to the right position according to the current one.
  */
@@ -879,6 +992,9 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
          * on the ingest cursor.
          */
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward), false);
+        /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
+        WT_ERR_NOTFOUND_OK(
+          __clayered_leader_reposition_iterate(clayered, c_stable, forward), false);
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward), false);
         goto done;
     }
@@ -929,13 +1045,23 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && c_current == c_ingest) {
         WT_ERR(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
-        if (cmp == 0)
+        if (cmp == 0) {
             WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward), false);
+            /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
+            if (c_alternate == c_stable)
+                WT_ERR_NOTFOUND_OK(
+                  __clayered_leader_reposition_iterate(clayered, c_stable, forward), false);
+        }
     }
 
     /* Move the current cursor if we haven't done so. */
-    if (!current_moved)
+    if (!current_moved) {
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward), false);
+        /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
+        if (c_current == c_stable)
+            WT_ERR_NOTFOUND_OK(
+              __clayered_leader_reposition_iterate(clayered, c_stable, forward), false);
+    }
 
 done:
 err:
@@ -1371,22 +1497,31 @@ static int
 __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *c;
+    WT_CURSOR *cursor;
     WT_DECL_RET;
-    bool found, reset_ignore_prepare;
+    bool found;
 
-    c = NULL;
+    cursor = &clayered->iface;
     conn = S2C(session);
     found = false;
-    reset_ignore_prepare = false;
 
     if (!conn->layered_table_manager.leader) {
-        c = clayered->ingest_cursor;
-        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
+        WT_ERR_NOTFOUND_OK(
+          __clayered_lookup_constituent(clayered->ingest_cursor, clayered, value), true);
         if (ret == 0) {
             found = true;
             if (__wt_clayered_deleted(value))
                 ret = WT_NOTFOUND;
+        }
+
+        if (!found) {
+            WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session,
+                                 (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL),
+              true);
+            if (ret == 0) {
+                found = true;
+                ret = WT_NOTFOUND;
+            }
         }
     } else
         /* Be sure we'll make a search attempt further down.  */
@@ -1397,25 +1532,11 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
      * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
      * the stable constituent.
      */
-    if (!found && F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor != NULL) {
-        c = clayered->stable_cursor;
-        /*
-         * Temporarily set ignore prepared flag when searching for update in the stable cursor. In
-         * disaggregated storage, the stable table may contain prepared updates that is rolled back
-         * on ingest table. If reading this prepared update on stable table, it will cause prepared
-         * conflict issue. Therefore for layered cursor operations, we need to ignore these prepared
-         * updates to allow reading through to committed data.
-         */
-        if (!conn->layered_table_manager.leader && !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-            reset_ignore_prepare = true;
-            F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
-        }
-        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
-    }
+    if (!found && F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor != NULL)
+        WT_ERR_NOTFOUND_OK(
+          __clayered_lookup_constituent(clayered->stable_cursor, clayered, value), true);
 
 err:
-    if (reset_ignore_prepare)
-        F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
     if (ret != 0 && ret != WT_PREPARE_CONFLICT)
         WT_TRET(__clayered_reset_cursors(clayered, false));
 
@@ -1734,27 +1855,53 @@ err:
  */
 static WT_INLINE int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
-  const WT_ITEM *value, bool update)
+  const WT_ITEM *value, WT_CLAYERED_PUT_OP op)
 {
-    /*
-     * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
-     * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
-     */
-    if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
-        WT_RET(__clayered_reset_cursors(clayered, true));
 
     bool leader = S2C(session)->layered_table_manager.leader;
-    WT_CURSOR *constituent = leader ? clayered->stable_cursor : clayered->ingest_cursor;
-    int (*func)(WT_CURSOR *) = update ? constituent->update : constituent->insert;
 
-    constituent->set_key(constituent, key);
-    constituent->set_value(constituent, value);
+    if (!leader) {
+        /*
+         * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer.
+         * Doing so would remove the cursor write operation dependency on the truncate list.
+         */
+        WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
 
-    WT_RET(func(constituent));
+        /*
+         * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
+         * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
+         */
+        if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
+            WT_RET(__clayered_reset_cursors(clayered, true));
+    }
+
+    WT_CURSOR *c = leader ? clayered->stable_cursor : clayered->ingest_cursor;
+    c->set_key(c, key);
+    /* Reserve does not require a value. */
+    if (op != WT_CLAYERED_PUT_RESERVE)
+        c->set_value(c, value);
+
+    switch (op) {
+    case WT_CLAYERED_PUT_INSERT:
+        WT_RET(c->insert(c));
+        break;
+    case WT_CLAYERED_PUT_UPDATE:
+        WT_RET(c->update(c));
+        break;
+    case WT_CLAYERED_PUT_RESERVE:
+        /*
+         * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet
+         * (it lives only in the stable table), so we need overwrite mode to allow the reserve to
+         * succeed without the key being present in the update tree.
+         */
+        WT_RET(__wt_btcur_reserve((WT_CURSOR_BTREE *)c, !leader));
+        break;
+    }
 
     /* If necessary, set the position for future scans. */
-    if (update)
-        clayered->current_cursor = constituent;
+    if (op != WT_CLAYERED_PUT_INSERT)
+        clayered->current_cursor = c;
 
     return (0);
 }
@@ -1801,6 +1948,12 @@ __clayered_remove_follower(
     if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
         WT_RET(__clayered_reset_cursors(clayered, true));
 
+    /*
+     * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing
+     * so would remove the write cursor operations dependency on the truncate list.
+     */
+    WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+      session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
     c->set_value(c, &__wt_tombstone);
     WT_ERR(c->update(c));
     clayered->current_cursor = c;
@@ -1915,7 +2068,7 @@ __clayered_insert(WT_CURSOR *cursor)
     }
 
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
-    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, false));
+    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, WT_CLAYERED_PUT_INSERT));
 
     /*
      * WT_CURSOR.insert doesn't leave the cursor positioned, and the application may want to free
@@ -1971,7 +2124,7 @@ __clayered_update(WT_CURSOR *cursor)
         WT_ERR(__cursor_needkey(cursor));
     }
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
-    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, true));
+    WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, WT_CLAYERED_PUT_UPDATE));
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor.
@@ -2048,36 +2201,6 @@ err:
 }
 
 /*
- * __clayered_reserve_constituent --
- *     Reserve a key in the appropriate sub-cursor for the layered table.
- */
-static int
-__clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *key)
-{
-    WT_DECL_RET;
-
-    bool leader = S2C(session)->layered_table_manager.leader;
-    WT_CURSOR *reserve_cursor = leader ? clayered->stable_cursor : clayered->ingest_cursor;
-
-    CURSOR_UPDATE_API_CALL_BTREE(reserve_cursor, session, ret, reserve);
-    WT_ERR(__clayered_reset_cursors(clayered, true));
-
-    reserve_cursor->set_key(reserve_cursor, key);
-
-    /*
-     * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet (it
-     * lives only in the stable table), so we need overwrite mode to allow the reserve to succeed
-     * without the key being present in the update tree.
-     */
-    ret = __wt_btcur_reserve((WT_CURSOR_BTREE *)reserve_cursor, !leader);
-
-err:
-    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_reserve);
-
-    return (ret);
-}
-
-/*
  * __clayered_reserve --
  *     WT_CURSOR->reserve method for the layered cursor type.
  */
@@ -2088,11 +2211,9 @@ __clayered_reserve(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
-    bool overwrite;
 
     WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
-    overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
 
@@ -2106,20 +2227,14 @@ __clayered_reserve(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
 
-    /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
-    F_CLR(cursor, WT_CURSTD_OVERWRITE);
     WT_ERR(__clayered_enter(clayered, false, true, false));
+
+    /* WT_CURSOR.reserve is update-without-overwrite so we should check whether the key exists. */
     WT_ERR(__clayered_lookup(session, clayered, &value));
-    /*
-     * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
-     * landed on.
-     */
-    WT_ERR(__cursor_needkey(cursor));
-    ret = __clayered_reserve_constituent(session, clayered, &cursor->key);
+
+    WT_ERR(__clayered_put(session, clayered, &cursor->key, NULL, WT_CLAYERED_PUT_RESERVE));
 
 err:
-    if (overwrite)
-        F_SET(cursor, WT_CURSTD_OVERWRITE);
     __clayered_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
 
