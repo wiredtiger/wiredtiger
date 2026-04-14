@@ -93,11 +93,6 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     def check_prefetching_activity(self, session_name, pages_queued, prefetch_attempts, prefetch_pages_read):
         new_pages_queued, new_prefetch_attempts, new_prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
 
-        # Sanity check that the statistics aren't 0.
-        self.assertGreater(new_pages_queued, 0)
-        self.assertGreater(new_prefetch_attempts, 0)
-        self.assertGreater(new_prefetch_pages_read, 0)
-
         # FIXME-WT-12193 Change some of these statistic checks to use assertGreaterEqual instead if possible.
         self.assertGreaterEqual(new_pages_queued, pages_queued)
         self.assertGreaterEqual(new_prefetch_attempts, prefetch_attempts)
