@@ -318,6 +318,7 @@ __hazard_check_callback(
     }
 
     WT_ASSERT(session, hazard_inuse == 0 || *(uint8_t *)cookie->ret_hp != WT_DEBUG_BYTE);
+    WT_ASSERT(session, hazard_inuse <= array_session->hazards.size);
     for (i = 0; i < hazard_inuse; ++cookie->ret_hp, ++i) {
         ++cookie->walk_cnt;
         if (cookie->ret_hp->ref == cookie->search_ref) {
