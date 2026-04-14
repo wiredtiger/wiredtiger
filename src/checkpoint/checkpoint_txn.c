@@ -1910,6 +1910,9 @@ err:
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Update requested for disaggregated storage checkpoint metadata because the stable "
+          "timestamp advanced");
         if (conn->key_provider != NULL)
             WT_TRET(__wt_disagg_put_crypt_helper(session));
         WT_TRET(__wt_disagg_put_checkpoint_meta(
