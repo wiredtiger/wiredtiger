@@ -30,6 +30,9 @@
 # Test that the sweep server does not close ingest table dhandles and layered dhandles on a follower
 # or during step-up. Closing the ingest dhandle discards all in-memory data for
 # that table (WT-16974, WT-16703).
+# Also tests that the sweep server does not close a layered dhandle that has pending follower
+# truncate state (entries in its in-memory truncate list), as doing so would discard the truncate
+# entries and corrupt visibility (WT-16798).
 
 import time, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -90,5 +93,57 @@ class test_layered80(wttest.WiredTigerTestCase):
         cursor.close()
         self.assertEqual(wiredtiger.WT_NOTFOUND, ret)
         self.assertEqual(count, self.nrows)
+
+        self.ignoreStdoutPattern('WT_VERB_SWEEP')
+
+    def test_layered_dhandle_not_swept_with_truncate_state(self):
+        """
+        Verify that the sweep server does not close the layered dhandle while it holds
+        pending follower truncate state (entries in its in-memory truncate list).
+        If the dhandle were closed during this window, the truncate entries are
+        discarded.
+        """
+        if wiredtiger.disagg_fast_truncate_build() == 0:
+            self.skipTest("fast truncate support is not enabled.")
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        # Write data as follower with timestamps.
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
+
+        # Begin a truncate transaction. On follower, this inserts an entry into the
+        # layered dhandle's in-memory truncate list — state that must not be swept away.
+        c_start = self.session.open_cursor(self.uri)
+        c_start.set_key(100)
+        c_stop = self.session.open_cursor(self.uri)
+        c_stop.set_key(700)
+
+        self.session.begin_transaction()
+        self.session.truncate(None, c_start, c_stop, None)
+
+        # Give the aggressive sweep server time to run several cycles.
+        # If the layered dhandle is incorrectly swept while the truncate entry lives
+        # in its truncate list, the commit below will fail or the truncated range
+        # will reappear.
+        time.sleep(3)
+
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows + 1))
+        c_start.close()
+        c_stop.close()
+
+        # Verify the truncate still exists: rows 100-700 should be gone.
+        cursor = self.session.open_cursor(self.uri)
+        count = 0
+        while (ret := cursor.next()) == 0:
+            count += 1
+        cursor.close()
+        self.assertEqual(wiredtiger.WT_NOTFOUND, ret)
+        # rows 0-99 = 100 rows, rows 701-999 = 299 rows
+        self.assertEqual(count, 100 + (self.nrows - 701))
 
         self.ignoreStdoutPattern('WT_VERB_SWEEP')
