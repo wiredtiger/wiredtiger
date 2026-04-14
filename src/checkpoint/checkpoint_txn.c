@@ -1918,14 +1918,9 @@ err:
      */
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
-        if (failed) {
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
-              "Disaggregated storage checkpoint failed after writing metadata to the page log");
-        } else {
-            WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
-            if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
-                return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
-        }
+        WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
+        if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
+            return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
     }
 
     for (i = 0; i < session->ckpt.handle_next; ++i) {
