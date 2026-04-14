@@ -63,6 +63,7 @@ struct __wt_shared_dsk_cache {
     bool enabled;
 
     TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
+    /* FIXME-WT-17168: Investigate whether spinlock should be changed to rwlock. */
     WT_SPINLOCK *hash_locks;
     u_int hash_size;
     u_int hash_lock_size;
