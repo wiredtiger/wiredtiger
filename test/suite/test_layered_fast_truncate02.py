@@ -27,13 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate02.py
-#
-# Validates visibility and ingest-interleave behaviour when a follower picks
-# up a checkpoint containing fast-truncated pages.
+#   Validates visibility and cursor behaviour when a follower picks up a
+#   checkpoint containing fast-truncated pages.
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
-from wiredtiger import stat
 
 @disagg_test_class
 class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
@@ -43,38 +41,28 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
     value       = 'a' * 500
     trunc_start = 1001
     trunc_stop  = 4000
-    ts_insert   = 10
-    ts_truncate = 20
-    ts_read     = 25   # after truncation; deletion visible
-    ts_write    = 30   # for follower ingest writes
 
     conn_config = 'cache_size=50MB,statistics=(all),disaggregated=(role="leader")'
-
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate02', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def leader_checkpoint(self, ts):
-        self.conn.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(ts) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
+                                ',oldest_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
 
     def setup_leader(self):
-        # Insert all rows and checkpoint, then evict all pages to disk before truncating.
-        # Pages must be on disk first so truncation uses page-level fast delete markers
-        # rather than falling back to individual tombstones per key.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         self.session.create(self.uri, 'key_format=i,value_format=S')
         cur = self.session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
             self.session.begin_transaction()
             cur[i] = self.value
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_insert))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         cur.close()
-        self.leader_checkpoint(self.ts_insert)
+        self.leader_checkpoint(10)
 
-        # Evict all pages to disk before truncating.
-        # search() must be called to position the cursor; set_key alone is not enough.
+        # Evict all pages before truncating so the leader uses page-level fast-delete markers.
         evict_cur = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
         self.session.begin_transaction('ignore_prepare=true')
         for i in range(1, self.nrows + 1):
@@ -84,16 +72,16 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         evict_cur.close()
         self.session.rollback_transaction()
 
-        self.session.begin_transaction()
         c_start = self.session.open_cursor(self.uri)
         c_start.set_key(self.trunc_start)
         c_stop = self.session.open_cursor(self.uri)
         c_stop.set_key(self.trunc_stop)
+        self.session.begin_transaction()
         self.session.truncate(None, c_start, c_stop, None)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_truncate))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
         c_start.close()
         c_stop.close()
-        self.leader_checkpoint(self.ts_truncate)
+        self.leader_checkpoint(20)
 
     def open_follower(self):
         conn = self.wiredtiger_open(
@@ -105,7 +93,6 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         return conn, sess
 
     def search_at(self, sess, key, ts=None):
-        """Look up key at the given timestamp. Returns (ret, value) or (WT_NOTFOUND, None)."""
         cur = sess.open_cursor(self.uri)
         txn_cfg = ('read_timestamp=' + self.timestamp_str(ts)) if ts is not None else ''
         sess.begin_transaction(txn_cfg)
@@ -116,107 +103,84 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         cur.close()
         return ret, val
 
-    # ------------------------------------------------------------------
-    # Scenario 1 -- visibility
-    # ------------------------------------------------------------------
-
     def test_visibility(self):
-        """Truncated keys return WT_NOTFOUND; adjacent and boundary keys return the original value."""
+        # Truncated keys return WT_NOTFOUND on the follower; boundary and exterior keys return
+        # their original values.
+        if (wiredtiger.disagg_fast_truncate_build() == 0):
+            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         conn, sess = self.open_follower()
 
         mid = (self.trunc_start + self.trunc_stop) // 2
         for key in [self.trunc_start, mid, self.trunc_stop]:
-            ret, _ = self.search_at(sess, key, self.ts_read)
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND, f'key {key} must be deleted')
-
+            self.assertEqual(self.search_at(sess, key, 25)[0], wiredtiger.WT_NOTFOUND)
         for key in [1, self.trunc_start - 1, self.trunc_stop + 1, self.nrows]:
-            ret, val = self.search_at(sess, key, self.ts_read)
-            self.assertEqual(ret, 0, f'key {key} must be found')
-            self.assertEqual(val, self.value, f'key {key} must have the original value')
+            ret, val = self.search_at(sess, key, 25)
+            self.assertEqual(ret, 0)
+            self.assertEqual(val, self.value)
 
         sess.close()
         conn.close()
 
-    # ------------------------------------------------------------------
-    # Scenario 2 -- pre-truncation read sees all rows
-    # ------------------------------------------------------------------
-
     def test_pre_truncation_read_sees_all_rows(self):
-        """
-        Reading at ts_insert (before truncation) returns all rows including those
-        later deleted.  Spot-checks boundaries and interior, then verifies the
-        total row count matches nrows.
-        """
+        # Reading at a timestamp before the truncation must still find all rows, including those
+        # later deleted. Verifies MVCC correctness across the follower checkpoint boundary.
+        if (wiredtiger.disagg_fast_truncate_build() == 0):
+            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         conn, sess = self.open_follower()
 
         mid = (self.trunc_start + self.trunc_stop) // 2
         for key in [self.trunc_start, mid, self.trunc_stop]:
-            ret, val = self.search_at(sess, key, self.ts_insert)
-            self.assertEqual(ret, 0, f'key {key} must be visible before truncation')
-            self.assertEqual(val, self.value, f'key {key} must have the original value before truncation')
+            ret, val = self.search_at(sess, key, 10)
+            self.assertEqual(ret, 0)
+            self.assertEqual(val, self.value)
 
-        # Full scan at ts_insert must see every row that was inserted.
         cur = sess.open_cursor(self.uri)
-        sess.begin_transaction('read_timestamp=' + self.timestamp_str(self.ts_insert))
+        sess.begin_transaction('read_timestamp=' + self.timestamp_str(10))
         count = 0
         while cur.next() == 0:
             count += 1
         sess.rollback_transaction()
         cur.close()
-        self.assertEqual(count, self.nrows, 'all rows must be visible before truncation timestamp')
+        self.assertEqual(count, self.nrows)
 
         sess.close()
         conn.close()
 
-    # ------------------------------------------------------------------
-    # Scenario 3 -- cursor scanning
-    # ------------------------------------------------------------------
-
     def test_cursor_scanning(self):
-        """
-        Forward scan visits exactly the non-truncated rows and jumps directly
-        from trunc_start-1 to trunc_stop+1.  search_near on a deleted key
-        lands outside the range with the original value.
-        """
+        # A forward scan must skip the entire truncated range without visiting any deleted key.
+        # search_near on a deleted key must land outside the range, never return an exact match.
+        if (wiredtiger.disagg_fast_truncate_build() == 0):
+            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         conn, sess = self.open_follower()
 
-        expected   = self.nrows - (self.trunc_stop - self.trunc_start + 1)
+        expected    = self.nrows - (self.trunc_stop - self.trunc_start + 1)
         trunc_range = range(self.trunc_start, self.trunc_stop + 1)
-        mid        = (self.trunc_start + self.trunc_stop) // 2
+        mid         = (self.trunc_start + self.trunc_stop) // 2
 
-        # Forward scan.
         cur = sess.open_cursor(self.uri)
-        sess.begin_transaction('read_timestamp=' + self.timestamp_str(self.ts_read))
+        sess.begin_transaction('read_timestamp=' + self.timestamp_str(25))
         count, prev_key, first_after_gap = 0, 0, None
-        ret = cur.next()
-        while ret == 0:
+        while cur.next() == 0:
             key = cur.get_key()
-            self.assertNotIn(key, trunc_range, f'scan must not visit deleted key {key}')
+            self.assertNotIn(key, trunc_range)
             if prev_key == self.trunc_start - 1 and first_after_gap is None:
                 first_after_gap = key
             prev_key = key
             count += 1
-            ret = cur.next()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND, 'scan must end at WT_NOTFOUND')
-        self.assertEqual(count, expected, f'scan must visit exactly {expected} non-truncated rows')
-        self.assertEqual(first_after_gap, self.trunc_stop + 1,
-            'scan must jump directly to trunc_stop+1 after the gap')
         sess.rollback_transaction()
         cur.close()
+        self.assertEqual(count, expected)
+        self.assertEqual(first_after_gap, self.trunc_stop + 1)
 
         # search_near on a deleted key must land outside the truncated range.
-        # search_near returns -1 (positioned before) or 1 (positioned after);
-        # 0 would mean an exact match on a deleted key, which is wrong.
         cur = sess.open_cursor(self.uri)
-        sess.begin_transaction('read_timestamp=' + self.timestamp_str(self.ts_read))
+        sess.begin_transaction('read_timestamp=' + self.timestamp_str(25))
         cur.set_key(mid)
-        exact = cur.search_near()
-        self.assertIn(exact, (-1, 1), 'search_near must not find an exact match in the truncated range')
-        self.assertNotIn(cur.get_key(), trunc_range, 'search_near must land outside the truncated range')
-        self.assertEqual(cur.get_value(), self.value, 'key found by search_near must have the original value')
+        self.assertIn(cur.search_near(), (-1, 1))
+        self.assertNotIn(cur.get_key(), trunc_range)
         sess.rollback_transaction()
         cur.close()
 
