@@ -21,8 +21,8 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
         return;
 
     __wt_free(session, (*entry)->uri);
-    __wt_free(session, (*entry)->start_key);
-    __wt_free(session, (*entry)->stop_key);
+    __wt_buf_free(session, &(*entry)->start_key);
+    __wt_buf_free(session, &(*entry)->stop_key);
     __wt_free(session, *entry);
     *entry = NULL;
 }
