@@ -1854,7 +1854,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
     }
 
-    WT_ERR(__disagg_begin_checkpoint(session));
+    WT_ERR_MSG_CHK(session, __disagg_begin_checkpoint(session), "Failed to begin a new checkpoint");
 
 err:
     __wt_scr_free(session, &meta);
