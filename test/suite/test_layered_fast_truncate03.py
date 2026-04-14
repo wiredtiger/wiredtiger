@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate01.py
+# test_layered_fast_truncate03.py
 #
 # Tests that a follower correctly handles pages that were fast-truncated on the
 # leader. The follower must not dirty stable pages it reads, and deleted state
@@ -37,9 +37,9 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 @disagg_test_class
-class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
 
-    uri         = 'layered:test_layered_fast_truncate01'
+    uri         = 'layered:test_layered_fast_truncate03'
     nrows       = 5000
     value       = 'a' * 500
     trunc_start = 1001
@@ -51,7 +51,7 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
 
     conn_config = 'cache_size=50MB,statistics=(all),disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate01', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_fast_truncate03', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def get_stat(self, conn, stat_key):
