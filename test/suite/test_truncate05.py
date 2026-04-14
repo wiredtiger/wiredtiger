@@ -26,13 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
+from wiredtiger import disagg_fast_truncate_build, WiredTigerError
 from wtscenario import make_scenarios
 
 # test_truncate05.py
 # Test various fast truncate visibility scenarios
-# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
-@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate05(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
 
@@ -42,6 +41,11 @@ class test_truncate05(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(format_values)
+
+    def setUp(self):
+        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
+            self.skipTest("fast truncate support in not enabled")
+        super().setUp()
 
     def test_truncate_read_older_than_newest(self):
         uri = 'table:test_truncate05'
@@ -86,5 +90,5 @@ class test_truncate05(wttest.WiredTigerTestCase):
 
         # Call the truncate and expect failure.
         self.assertRaisesException(
-            wiredtiger.WiredTigerError,lambda: self.session.truncate(None, start, end, None))
+            WiredTigerError,lambda: self.session.truncate(None, start, end, None))
         self.session.rollback_transaction()
