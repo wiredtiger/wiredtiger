@@ -64,7 +64,7 @@ class test_truncate05(wttest.WiredTigerTestCase):
 
         # Reopen the connection to force all content to disk.
         self.reopen_conn()
-        self.session.create(uri, 'key_format=i,value_format=S')
+        self.session.create(uri, format + self.extraconfig)
         cursor = self.session.open_cursor(uri)
 
         # Insert a single update at a later timestamp.
