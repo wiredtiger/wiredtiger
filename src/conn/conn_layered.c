@@ -1856,7 +1856,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           meta_lsn, checkpoint_timestamp,
           __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
     } else
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Checkpoint completion skipped due to unsuccessful checkpoint: lsn=%" PRIu64
           ", timestamp=%" PRIu64 " %s",
           meta_lsn, checkpoint_timestamp,
