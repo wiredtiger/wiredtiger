@@ -15,6 +15,7 @@ ARG
 ARGS
 ASAN
 ASM
+ASan
 AUS
 AWS
 AWS's
@@ -34,12 +35,15 @@ BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
+BFGs
+BIGENDIAN
 BLKCACHE
 BLmpRrSVv
 BOOL
 BSR
 BTREE
 BUF
+Bazel
 Bitfield
 Bitstring
 Bitwise
@@ -48,6 +52,7 @@ Brueckner
 Bsearch
 Btree
 Buf
+Buildvariants
 Bxxx
 CACHEABLE
 CAS
@@ -60,6 +65,7 @@ CKPT
 CLAYERED
 CLOEXEC
 CMP
+CMake
 CONF
 CONFIG
 CPP
@@ -78,18 +84,19 @@ Checksums
 CityHash
 ClmSvxz
 CloseHandle
+Cmd
 Codec
 Comparator
 Config
 Coverity
+Cppsuite
 CreateFileMappingW
 CreateFileW
 Crt
 Crummey
 CustomersPhone
 Cygwin
-DBI
-DEK
+DENABLE
 DESC
 DEST
 DHANDLE
@@ -99,6 +106,7 @@ DNE
 DONTNEED
 DS
 DUPLICATEV
+Decrementing
 Decrypt
 DeleteFileW
 Deterministically
@@ -132,6 +140,7 @@ EXTSUBPATH
 Emplace
 Encryptor
 Encryptors
+EngFlow's
 Enqueue
 Eron
 Exxx
@@ -206,6 +215,7 @@ Intra
 Iu
 JIRA
 JSON
+Jira
 Jyrki
 KEK
 KV
@@ -213,9 +223,9 @@ Kanowski's
 Keyedness
 Kounavis
 LANGID
+LD
 LF
 LLVMFuzzerTestOneInput
-LMDB
 LOGOP
 LOGREC
 LOGSCAN
@@ -241,7 +251,6 @@ LogSink
 LogSystemInterface
 MADV
 MALLOC
-MDB
 MEM
 MERCHANTABILITY
 MONGODB
@@ -258,6 +267,7 @@ MacOS
 MapViewOfFile
 Marsaglia's
 Mellor
+MemorySanitizer
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -265,7 +275,6 @@ Multithreaded
 Mutex
 Mutexes
 MySecret
-NAMESPACE
 NNN
 NOLINT
 NOLINTNEXTLINE
@@ -286,13 +295,16 @@ Nul
 OBJECTID
 ONDISK
 OOB
+OOM
 OPLOG
 OPTRACK
 OVFL
 ObWgfvgw
+Og
 Optane
 Outfmt
 PALI
+PALite
 PDEATHSIG
 PFX
 PID
@@ -356,6 +368,7 @@ Reentrancy
 Reify
 Rogerio
 Runtime
+SCons
 SDK
 SIMD
 SLS
@@ -386,8 +399,8 @@ Strobed
 Su
 Subdirectory
 Subprocess
-Synchronize
 TAILQ
+TCMALLOC
 TCMalloc
 TESTUTIL
 TID
@@ -475,13 +488,14 @@ WiredTigerShared
 WiredTigerSharedHS
 WiredTigerTmplog
 WithSeeds
-Wmissing
 WriteFile
 Wundef
 Wuninitialized
 Wunused
 XP
+XSAN
 XXXXXX
+Xcode
 YCSB
 ZSTD
 Zlib
@@ -496,6 +510,7 @@ ackSstu
 acqrel
 addr
 addrs
+af
 agc
 ajn
 alloc
@@ -510,6 +525,7 @@ arg
 argc
 args
 argv
+asan
 assertfmt
 atomicity
 atomics
@@ -523,6 +539,8 @@ backlink
 backoff
 bal
 basecfg
+bazel
+bazelrc
 bb
 bba
 bbb
@@ -568,6 +586,7 @@ btrees
 buf
 bufsz
 builddir
+buildvariant
 builtins
 bursty
 bytestring
@@ -612,8 +631,10 @@ cksum
 clayered
 cloexec
 closedir
+cmake
 cmp
 cntvct
+codebase
 colcheck
 colgroup
 colgroups
@@ -675,8 +696,10 @@ cv
 cval
 cx
 cxa
+cygwin
 dKB
 dT
+da
 darwin
 data's
 datalen
@@ -685,6 +708,7 @@ datasource
 datastore
 dbar
 dbs
+dcafba
 dcalloc
 ddd
 dec
@@ -701,7 +725,6 @@ decryptor
 decrypts
 deflateEnd
 deflateInit
-dek
 del
 dequeued
 der
@@ -724,6 +747,7 @@ dirlist
 disagg
 disaggregated
 disproportionally
+distros
 dlclose
 dlh
 dll
@@ -747,16 +771,19 @@ dsync
 dup
 dv
 dylib
+eb
 eee
 eg
 ejnprx
 el
+elif
 emp
 encodings
 encryptor
 encryptors
 endian
 endptr
+engflow
 enomem
 enqueue
 enum
@@ -853,7 +880,6 @@ gettimeofday
 ggg
 gid
 github
-globals
 globfree
 gobare
 goesc
@@ -882,10 +908,12 @@ iS
 iSh
 iaa
 iaaInterface
+icecream
 icount
 idx
 ie
 iface
+ifdef
 ifdef's
 iff
 iiSii
@@ -926,7 +954,6 @@ isalnum
 isalpha
 isascii
 isb
-isd
 isdigit
 ish
 ishld
@@ -957,7 +984,6 @@ las
 lazyfs
 lbrace
 lbracket
-lc
 ld
 ldapr
 ldaprb
@@ -973,6 +999,7 @@ lf
 libdatasource
 libmemkind
 libpthread
+libpython
 libs
 libsodium
 libwiredtiger
@@ -1013,12 +1040,14 @@ luc
 lwsync
 lz
 mP
+macOS
 madvise
 majorp
 malloc
 mappable
 maxdbs
 maxdiff
+maxruns
 maxv
 mb
 mbll
@@ -1028,6 +1057,7 @@ membar
 memcmp
 memcpy
 memdup
+meminfo
 memkind
 memmove
 memset
@@ -1044,7 +1074,10 @@ mmap
 mmrand
 mn
 mnt
+mongo
 mongod
+mongodb
+mongodbtoolchain
 mrs
 msecs
 msg
@@ -1079,7 +1112,6 @@ nextprev
 nf
 nfilename
 nhex
-nilly
 nlohmann
 nlpo
 nocase
@@ -1094,7 +1126,6 @@ nonoverlapping
 noop
 nop
 noraw
-noreturn
 notsup
 novalue
 nowait
@@ -1148,7 +1179,6 @@ pfx
 pid
 pindexp
 plh
-plhandle
 pluggable
 pmem
 poptable
@@ -1159,6 +1189,7 @@ posint
 posix
 postrun
 postsize
+powershell
 pre
 pread
 prealloc
@@ -1169,6 +1200,7 @@ precompiling
 prefetch
 prefetching
 preload
+preloaded
 prepend
 prepended
 prepending
@@ -1190,6 +1222,7 @@ ptrdiff
 pv
 pwrite
 py
+pymongo
 qdown
 qn
 qrrSS
@@ -1298,6 +1331,7 @@ spinlock
 spinlocks
 src
 srch
+srv
 ss
 ssize
 statlog
@@ -1307,6 +1341,7 @@ stdbool
 stderr
 stdin
 stdout
+stepback
 stepp
 stlr
 stlrb
@@ -1350,6 +1385,8 @@ sunused
 supd
 superset
 sw
+symlink
+symlinks
 syncop
 sys
 syscall
@@ -1359,6 +1396,7 @@ sz
 t's
 tIf
 tV
+tcmalloc
 td
 teardown
 tempdir
@@ -1370,6 +1408,7 @@ timeslice
 timespec
 tinfo
 tlb
+tmalloc
 tmp
 tmstmp
 tod
@@ -1404,6 +1443,7 @@ txt
 typedef
 typeof
 uS
+ubuntu
 uid
 uint
 uintAny
@@ -1413,7 +1453,6 @@ unallocated
 unbare
 unbuffered
 uncached
-unclosed
 unconfigured
 uncustomized
 undef
@@ -1425,6 +1464,7 @@ unescaped
 unhandled
 uninstantiated
 unistd
+unittests
 unlink
 unmap
 unmodify
@@ -1454,6 +1494,8 @@ utf
 util
 utils
 uu
+vCPU
+vCPUs
 vN
 vPodir
 vW
@@ -1464,7 +1506,6 @@ valuev
 variadic
 vd
 vdata
-ve
 vec
 vectorized
 verifier
@@ -1486,7 +1527,6 @@ waker
 wakeup
 wakeups
 warmup
-wc
 whitespace
 wiredTiger
 wiredTigerTables
@@ -1514,6 +1554,7 @@ xxpermdi
 xxxx
 xxxxx
 xxxxxx
+yml
 zalloc
 zf
 zfree

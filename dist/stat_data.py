@@ -95,7 +95,7 @@ class ConnStat(Stat):
 class CursorErrorStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorStat.prefix, desc, flags)
+        Stat.__init__(self, name, CursorErrorStat.prefix, desc, flags)
 class CursorStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
@@ -103,7 +103,7 @@ class CursorStat(Stat):
 class CursorSweepStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorStat.prefix, desc, flags)
+        Stat.__init__(self, name, CursorSweepStat.prefix, desc, flags)
 class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
@@ -160,7 +160,7 @@ class SessionOpStat(Stat):
 class StorageStat(Stat):
     prefix = 'tiered-storage'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
+        Stat.__init__(self, name, StorageStat.prefix, desc, flags)
 class ThreadStat(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
@@ -366,6 +366,7 @@ conn_stats = [
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
     EvictStat('eviction_fail_checkpoint_no_ts', 'pages selected for eviction unable to be evicted because of race between checkpoint and updates without timestamps'),
     EvictStat('eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
+    EvictStat('eviction_fail_ingest', 'pages selected for eviction unable to be evicted belonging to ingest btrees'),
     EvictStat('eviction_force', 'forced eviction - pages selected count'),
     EvictStat('eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
     EvictStat('eviction_force_delete', 'forced eviction - pages selected because of too many deleted items count'),
@@ -374,10 +375,13 @@ conn_stats = [
     EvictStat('eviction_force_hs', 'forced eviction - history store pages selected while session has history store cursor open'),
     EvictStat('eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     EvictStat('eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
+    EvictStat('eviction_force_ingest_fail', 'forced eviction - pages selected belonging to ingest btrees unable to be evicted count'),
+    EvictStat('eviction_force_ingest_success', 'forced eviction - pages evicted belonging to ingest btrees count'),
     EvictStat('eviction_force_long_update_list', 'forced eviction - pages selected because of a large number of updates to a single item'),
     EvictStat('eviction_force_no_retry', 'forced eviction - do not retry count to evict pages selected to evict during reconciliation'),
     EvictStat('eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     EvictStat('eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),
+    EvictStat('eviction_ingest_success', 'ingest pages evicted'),
     EvictStat('eviction_internal_pages_already_queued', 'internal pages seen by eviction walk that are already queued'),
     EvictStat('eviction_internal_pages_queued', 'internal pages queued for eviction'),
     EvictStat('eviction_internal_pages_seen', 'internal pages seen by eviction walk'),
@@ -524,6 +528,7 @@ conn_stats = [
     CheckpointStat('checkpoint_prep_running', 'prepare currently running', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_total', 'prepare total time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_presync', 'number of handles visited after writes complete'),
+    CheckpointStat('checkpoint_rec_blkcache_write', 'total time (msecs) writing pages to stable storage during checkpoint reconciliation'),
     CheckpointStat('checkpoint_scrub_max', 'scrub max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_min', 'scrub min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_scrub_recent', 'scrub most recent time (msecs)', 'no_clear,no_scale'),
@@ -611,6 +616,7 @@ conn_stats = [
     ##########################################
     # Disagg statistics
     ##########################################
+    DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
@@ -643,6 +649,7 @@ conn_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
+    LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 
     ##########################################
@@ -1024,6 +1031,7 @@ dsrc_stats = [
     ##########################################
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
     BtreeStat('btree_checkpoint_pages_reconciled', 'btree number of pages reconciled during checkpoint', 'no_clear,no_scale'),
+    BtreeStat('btree_checkpoint_reconcile_duration', 'time spent walking the tree for checkpoint including dirty page reconciliation time (usecs)', 'no_clear,no_scale'),
     BtreeStat('btree_clean_checkpoint_timer', 'btree clean tree checkpoint expiration time', 'no_clear,no_scale'),
     BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_internal', 'column-store internal pages', 'no_scale,tree_walk'),
@@ -1249,6 +1257,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_update_processed', 'history store table update to be processed'),
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
+    CacheStat('cache_inmem_split_ingest', 'in-memory page splits performed on ingest btree pages'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_obsolete_updates_removed', 'obsolete updates removed'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
@@ -1362,6 +1371,7 @@ conn_dsrc_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
+    LayeredStat('layered_curs_advance_stable', 'Layered table cursor advances to a newer checkpoint for the stable btree'),
     LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
     LayeredStat('layered_curs_modify', 'Layered table cursor modify operations'),
     LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
@@ -1371,6 +1381,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from the ingest btrees'),
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from the stable btrees'),
     LayeredStat('layered_curs_remove', 'Layered table cursor remove operations'),
+    LayeredStat('layered_curs_reopen_ingest', 'Layered table cursor reopens ingest btree'),
     LayeredStat('layered_curs_search', 'Layered table cursor search operations'),
     LayeredStat('layered_curs_search_ingest', 'Layered table cursor search operations from the ingest btrees'),
     LayeredStat('layered_curs_search_near', 'Layered table cursor search near operations'),
@@ -1378,8 +1389,6 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_search_near_stable', 'Layered table cursor search near operations from the stable btrees'),
     LayeredStat('layered_curs_search_stable', 'Layered table cursor search operations from the stable btrees'),
     LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
-    LayeredStat('layered_curs_upgrade_ingest', 'Layered table cursor upgrade state for the ingest btrees'),
-    LayeredStat('layered_curs_upgrade_stable', 'Layered table cursor upgrade state for the stable btrees'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_failed', 'disagg pick up checkpoints failed'),

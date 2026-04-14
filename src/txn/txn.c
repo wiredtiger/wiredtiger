@@ -1361,6 +1361,7 @@ __txn_mod_sortable_key(WT_TXN_OP *opt)
     case (WT_TXN_OP_REF_DELETE):
     case (WT_TXN_OP_TRUNCATE_COL):
     case (WT_TXN_OP_TRUNCATE_ROW):
+    case (WT_TXN_OP_FOLLOWER_TRUNCATE):
         return (false);
     case (WT_TXN_OP_BASIC_COL):
     case (WT_TXN_OP_BASIC_ROW):
@@ -1618,6 +1619,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ERR(__wti_mark_committed_truncate_table(session, op));
             break;
         }
 
@@ -1988,6 +1992,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_delete_apply_prepare_state(session, op, false);
             break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
@@ -2117,6 +2122,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_TRET(__wt_delete_page_rollback(session, op));
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_RET(__wti_layered_table_truncate_rollback(session, op));
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2340,7 +2348,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     }
 
     durable_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
-    oldest_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
+    oldest_timestamp = __wt_get_oldest_timestamp(session);
     pinned_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->pinned_timestamp);
 
     if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < pinned_timestamp)
@@ -2759,6 +2767,8 @@ __wt_verbose_dump_txn_one(
           session, snapshot_buf, "%s%" PRIu64, i == 0 ? "" : ", ", txn->snapshot_data.snapshot[i]));
     WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
     buf_len = (uint32_t)snapshot_buf->size + 512;
+    if (txn_err_info->err_msg != NULL)
+        buf_len += strlen(txn_err_info->err_msg);
     WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
 
     WT_ERR(__wt_lsn_string(&txn->ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));

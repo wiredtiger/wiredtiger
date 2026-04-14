@@ -654,19 +654,19 @@ connection_runtime_config = [
             type='category', subconfig=[
             Config('before_insert_colgroup', 'false', r'''
                 if true, force crash in table creation before inserting the colgroup metadata entry.
-                This is intended for testing purposes only.''', 
+                This is intended for testing purposes only.''',
                 type='boolean'),
             Config('before_insert_file', 'false', r'''
-                if true, force crash in table creation before inserting the file metadata entry. 
+                if true, force crash in table creation before inserting the file metadata entry.
                 This is intended for testing purposes only.''',
                 type='boolean'),
             Config('after_drop_colgroup', 'false', r'''
                 if true, force crash in table drop after dropping the table metadata entry. This is
-                intended for testing purposes only.''', 
+                intended for testing purposes only.''',
                 type='boolean'),
             Config('after_drop_file', 'false', r'''
-                if true, force crash in table drop after dropping the colgroup metadata entry. This 
-                is intended for testing purposes only.''', 
+                if true, force crash in table drop after dropping the colgroup metadata entry. This
+                is intended for testing purposes only.''',
                 type='boolean')
             ]),
         Config('corruption_abort', 'true', r'''
@@ -759,7 +759,8 @@ connection_runtime_config = [
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
-                eviction worker thread uses a session from the configured session_max''',
+                eviction worker thread uses a session from a reserved pool of WT_EVICT_MAX_WORKERS
+                (64) sessions''',
                 min=1, max=64), # !!! Must match WT_EVICT_MAX_WORKERS
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help evict pages from
@@ -1760,6 +1761,10 @@ methods = {
                 Config('cross_key', 'false', r'''
                     Allow version cursos to walk across keys while calling next().
                     ''',
+                    type='boolean', undoc=True),
+                Config('show_prepared_rollback', 'false', r'''
+                    Return prepared-aborted updates. Non-prepared aborted
+                    updates will be skipped.''',
                     type='boolean', undoc=True),
         ]),
         Config('release_evict', 'false', r'''
