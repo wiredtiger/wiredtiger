@@ -89,6 +89,7 @@ __wt_insert_truncate_entry(
     WT_ERR(__wt_calloc_one(session, &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
 
+    /* A NULL stop key indicates a truncate starts from the beginning of the table. */
     if (start_key != NULL)
         WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
 
