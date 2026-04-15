@@ -76,8 +76,7 @@ _operations = [
 
 @disagg_test_class
 class test_layered91(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),precise_checkpoint=true,' \
-                  'disaggregated=(role="leader")'
+    conn_config = 'disaggregated=(role="leader")'
 
     uri = 'layered:test_layered91'
 
@@ -90,8 +89,7 @@ class test_layered91(wttest.WiredTigerTestCase):
     def create_follower(self):
         self.conn_follow = self.wiredtiger_open(
             'follower',
-            self.extensionsConfig() + ',create,statistics=(all),' +
-            'disaggregated=(role="follower")')
+            self.extensionsConfig() + ',create,disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
 
     def create_table(self, nkeys=10):
