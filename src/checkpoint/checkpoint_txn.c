@@ -157,6 +157,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
              * write a checkpoint to the disk and we cannot get the dhandle now.
              */
             if (ret == EBUSY) {
+                __wt_session_reset_last_error(session);
                 WT_STAT_CONN_INCR(session, flush_tier_skipped);
                 continue;
             }

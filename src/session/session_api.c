@@ -1039,6 +1039,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
      */
     WT_ERR_ERROR_OK(__session_alter_internal(session, uri, cfg), EBUSY, true);
     if (ret == EBUSY) {
+        __wt_session_reset_last_error(session);
         WT_ERR(__session_blocking_checkpoint(session));
         WT_STAT_CONN_INCR(session, session_table_alter_trigger_checkpoint);
         ret = __session_alter_internal(session, uri, cfg);

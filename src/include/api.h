@@ -261,9 +261,12 @@
  * Success is passed to the API_END macro. If the method is about to return WT_NOTFOUND map it to
  * ENOENT.
  */
-#define API_END_RET_NO_TXN_ERROR(s, ret) \
-    API_END(s, 0);                       \
-    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+#define API_END_RET_NO_TXN_ERROR(s, ret)         \
+    (s)->err_info.err = 0;                       \
+    API_END(s, 0);                               \
+    ret = (ret) == WT_NOTFOUND ? ENOENT : (ret); \
+    (s)->err_info.err = ret;                     \
+    return (ret)
 
 #define API_USER_ENTRY(s) (s)->api_call_counter == 1
 
