@@ -93,7 +93,6 @@ class test_layered80(wttest.WiredTigerTestCase):
         # to skip layered dhandles, it would mark and close them, causing gaps when
         # draining the ingest table at step-up.
         self.wait_for_sweep()
-        #time.sleep(30)
 
         # Step up to leader.
         self.conn.reconfigure('disaggregated=(role="leader")')
