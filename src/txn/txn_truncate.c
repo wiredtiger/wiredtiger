@@ -271,10 +271,11 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
     __wt_writelock(session, &layered_table->truncate_lock);
     TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
+    __disagg_truncate_free(session, &entry);
     __wt_writeunlock(session, &layered_table->truncate_lock);
 
     WT_TRET(__wt_session_release_dhandle(session));
-    return (0);
+    return (ret);
 }
 
 /*
