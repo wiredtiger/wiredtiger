@@ -1852,15 +1852,17 @@ err:
 
     __checkpoint_set_scrub_target(session, 0.0);
 
-    /*
-     * In disaggregated storage, a checkpoint failure is unrecoverable. The transaction cannot be
-     * safely rolled back, panic before attempting the rollback.
-     */
-    if (failed && __wt_conn_is_disagg(session))
-        WT_RET_PANIC(session, ret,
-          "Disaggregated storage checkpoint failed, unable to rollback, panic to avoid corruption");
-
     if (F_ISSET(txn, WT_TXN_RUNNING)) {
+        /*
+         * In disaggregated storage, a checkpoint failure is unrecoverable once the checkpoint
+         * transaction has started. The transaction cannot be safely rolled back, panic before
+         * attempting the rollback.
+         */
+        if (failed && __wt_conn_is_disagg(session))
+            WT_RET_PANIC(session, ret,
+              "Disaggregated storage checkpoint failed, unable to rollback, panic to avoid "
+              "corruption");
+
         /*
          * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
          * bother restoring the handle since it doesn't make sense to carry a handle across a
