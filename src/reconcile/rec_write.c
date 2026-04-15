@@ -90,8 +90,16 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
-    /* It's an error to be called with a clean page. */
-    WT_ASSERT(session, __wt_page_is_modified(page));
+    /*
+     * It's normally an error to be called with a clean page. In the two-phase eviction model
+     * (non-closing), multiple eviction threads may both observe a page as dirty and race to
+     * reconcile it. They serialize on WT_PAGE_LOCK; the second thread may find the page already
+     * clean after acquiring the lock and will exit early (see check below). Allow a clean page here
+     * on that path so we reach the early-exit check inside the lock.
+     */
+    WT_ASSERT(session,
+      __wt_page_is_modified(page) ||
+        (LF_ISSET(WT_REC_EVICT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING)));
 
     /*
      * Reconciliation acquires and releases pages, and in rare cases that page release triggers
@@ -119,6 +127,24 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     if (LF_ISSET(WT_REC_EVICT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
       !__wt_page_can_evict(session, ref, NULL))
         WT_ERR(__wt_set_return(session, EBUSY));
+
+    /*
+     * Two-phase eviction: in phase 1 the ref stays in WT_REF_MEM, so multiple eviction threads
+     * may both reach this point for the same page (e.g. an LRU worker and a force-evict thread).
+     * They serialize on the page lock, so only one reconciles at a time. If the second thread
+     * finds the page already clean after waiting for the lock, skip re-reconciling — the first
+     * thread already did the CAS DIRTY_FIRSTCLEAN and decremented the dirty count. Forcibly
+     * resetting page_state to DIRTY_FIRST here would cause a double dirty-count decrement.
+     *
+     * Release the lock and return success: the page already has a valid reconcile result, and
+     * __wt_evict will evict it via __evict_page_dirty_update on the normal post-reconcile path.
+     */
+    if (LF_ISSET(WT_REC_EVICT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
+      __wt_atomic_load_uint32_acquire(&page->modify->page_state) == WT_PAGE_CLEAN) {
+        WT_PAGE_UNLOCK(session, page);
+        page_locked = false;
+        goto err; /* ret == 0; cleanup will restore WT_SESSION_NO_RECONCILE and return 0 */
+    }
 
     /*
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
@@ -511,6 +537,13 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         btree->rec_max_timestamp = r->max_ts;
 
     /*
+     * Record whether reconciliation left the page dirty (update-restore). Two-phase eviction reads
+     * this in the phase-2 dirty-gap check to avoid a spurious re-reconcile on intentionally-dirty
+     * pages whose in-memory update chain is preserved on eviction.
+     */
+    mod->rec_leave_dirty = r->leave_dirty;
+
+    /*
      * Set the page's status based on whether or not we cleaned the page.
      */
     if (r->leave_dirty) {
@@ -550,9 +583,14 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         if (__wt_atomic_cas_uint32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
             __wt_cache_dirty_decr(session, page);
-        else
-            WT_ASSERT_ALWAYS(
-              session, !F_ISSET(r, WT_REC_EVICT), "Page state has been modified during eviction");
+        /*
+         * In the two-phase eviction model the page ref stays in WT_REF_MEM during phase-1
+         * reconciliation. WT_PAGE_MODIFY_EXCLUSIVE is not set for normal eviction (only for the
+         * closing-path), so writers can call __wt_page_only_modify_set and CAS page_state from
+         * WT_PAGE_DIRTY_FIRST to WT_PAGE_DIRTY concurrently with phase-1 or a checkpoint
+         * reconciliation. The CAS failure above means the page remains dirty; it will be picked up
+         * by the next checkpoint or eviction pass. This is a known, benign race.
+         */
     }
 }
 
@@ -692,7 +730,14 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track that the page is being reconciled and if it is exclusive (e.g. eviction). */
     F_SET(page->modify, WT_PAGE_MODIFY_RECONCILING);
-    if (LF_ISSET(WT_REC_EVICT))
+    /*
+     * Set the exclusive flag only on the closing/file-close eviction path, where the tree is
+     * exclusively locked and no writer can reach this page. In the two-phase eviction model the ref
+     * stays in WT_REF_MEM during phase-1 reconciliation, so writers are allowed to add updates —
+     * the dirty-gap check in __wt_evict handles the case where updates arrive during
+     * reconciliation.
+     */
+    if (LF_ISSET(WT_REC_EVICT) && LF_ISSET(WT_REC_EVICT_CALL_CLOSING))
         F_SET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE);
 
     /*
@@ -2871,6 +2916,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     uint32_t i;
     bool disagg_page_free_required;
     bool disagg_page_is_valid;
+    bool ref_pre_locked;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -2881,6 +2927,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     previous_ref_state = 0;
     disagg_page_is_valid = false;
     disagg_page_free_required = false;
+    ref_pre_locked = false;
 
     /*
      * If using the history store table eviction path and we found updates that weren't globally
@@ -3199,13 +3246,19 @@ split:
          * the page_del structure at this point (even though the page has been instantiated) and we
          * need to wait for those to finish before discarding it.
          *
-         * Note: if we're in eviction, the ref is already locked.
+         * Note: in closing eviction the ref is already WT_REF_LOCKED. In two-phase eviction
+         * (non-closing), phase-1 leaf reconciliation has the ref in WT_REF_MEM, so we lock it here.
+         * Phase-2 internal page reconciliation also has the ref pre-locked (WT_REF_LOCKED), so skip
+         * the lock/unlock the same way as the closing path.
          */
-        if (!F_ISSET(r, WT_REC_EVICT)) {
+        ref_pre_locked = F_ISSET(r, WT_REC_EVICT) &&
+          (F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+        if (ref_pre_locked)
+            WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+        else {
             WT_REF_LOCK(session, ref, &previous_ref_state);
             WT_ASSERT(session, previous_ref_state == WT_REF_MEM);
-        } else
-            WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+        }
 
         /* Check the instantiated flag again in case it got cleared while we waited. */
         if (mod->instantiated) {
@@ -3213,7 +3266,7 @@ split:
             __wt_free(session, ref->page_del);
         }
 
-        if (!F_ISSET(r, WT_REC_EVICT))
+        if (!ref_pre_locked)
             WT_REF_UNLOCK(ref, previous_ref_state);
     }
 

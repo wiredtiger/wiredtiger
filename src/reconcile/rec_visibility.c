@@ -951,10 +951,17 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                         (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                           F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
                       "Should never salvage a prepared update not from disk.");
-                    /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
-                    WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                      "Should never concurrently resolve a prepared update during reconciliation "
-                      "if we are not in a checkpoint.");
+                    /*
+                     * WT_PREPARE_LOCKED is a transient commit state. Two-phase eviction Phase-1 may
+                     * observe it because the page is reconciled under WT_REF_MEM, allowing a
+                     * concurrent prepared commit. Skip the update and leave the page dirty so
+                     * Phase-2 handles it under the exclusive lock once the commit completes.
+                     */
+                    if (prepare_state == WT_PREPARE_LOCKED) {
+                        *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                        *has_newer_updatesp = true;
+                        continue;
+                    }
                 }
             }
         }
@@ -1136,10 +1143,18 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             continue;
         }
         /*
-         * Always skip prepared updates. Since we can only reach here in eviction, prepare state
-         * cannot be WT_PREPARE_LOCKED
+         * Always skip prepared updates. WT_PREPARE_LOCKED is a transient commit state: the
+         * committing thread has set it but not yet written the commit timestamps. Two-phase
+         * eviction Phase-1 reconciles under WT_REF_MEM, so a concurrent prepared commit can set
+         * this state while we are scanning the update chain. Treat it like WT_PREPARE_INPROGRESS:
+         * leave the page dirty so Phase-2 picks it up under the exclusive lock once the commit
+         * completes. Skip the max_txn/max_ts update here because the commit timestamps are still in
+         * flux during WT_PREPARE_LOCKED.
          */
-        WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
+        if (upd->prepare_state == WT_PREPARE_LOCKED) {
+            *has_newer_updatesp = true;
+            continue;
+        }
         /* Keep track of max transaction ID and max timestamp */
         if (max_txn < upd->txnid)
             max_txn = upd->txnid;
@@ -1496,9 +1511,16 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     /* Keep track of the selected update. */
     upd = upd_select->upd;
 
+    /*
+     * During two-phase eviction the ref stays WT_REF_MEM, so a concurrent transaction rollback can
+     * set upd->txnid = WT_TXN_ABORTED after __rec_upd_select chose this update. The later paranoia
+     * check returns EBUSY for eviction; allow it to reach that handler rather than aborting here.
+     * Reserved updates are never expected.
+     */
     WT_ASSERT_ALWAYS(session,
       upd == NULL ||
-        ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || upd->txnid != WT_TXN_ABORTED) &&
+        ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || upd->txnid != WT_TXN_ABORTED ||
+           F_ISSET(r, WT_REC_EVICT)) &&
           upd->type != WT_UPDATE_RESERVE),
       "Reconciliation should never see an aborted or reserved update");
 
@@ -1624,12 +1646,22 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
 
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.
+     *
+     * In two-phase eviction the ref stays WT_REF_MEM during phase-1 reconciliation. A concurrent
+     * transaction rollback can set upd->txnid = WT_TXN_ABORTED between our selection in
+     * __rec_upd_select and this check — without acquiring WT_PAGE_LOCK, which only gates new
+     * update insertions, not rollbacks of existing ones. Return EBUSY so the phase-1 caller
+     * retries under WT_REF_LOCKED, where concurrent rollbacks of this page are not possible.
+     *
+     * In non-eviction contexts (checkpoint, salvage) this is a genuine invariant violation.
      */
-    WT_ASSERT_ALWAYS(session,
-      upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED ||
-        (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-          WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)),
-      "Updated selected that has since been rolled back");
+    if (upd_select->upd != NULL && upd_select->upd->txnid == WT_TXN_ABORTED &&
+      !(F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+        WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw))) {
+        if (F_ISSET(r, WT_REC_EVICT))
+            return (__wt_set_return(session, EBUSY));
+        WT_ASSERT_ALWAYS(session, false, "Updated selected that has since been rolled back");
+    }
 
     /*
      * Returning an update means the original on-page value might be lost, and that's a problem if

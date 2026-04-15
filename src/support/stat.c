@@ -3075,7 +3075,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_queue_empty = 0;
     stats->eviction_queue_not_empty = 0;
     /* not clearing eviction_dhandle_complete_walk */
-    stats->eviction_server_push_pages_failed_when_flaging = 0;
+    stats->eviction_server_push_pages_failed_when_flagging = 0;
     stats->eviction_server_race_reconfigure_disagg = 0;
     stats->eviction_server_skip_intl_page_non_aggressive = 0;
     stats->eviction_server_skip_pages_already_in_urgent_queue = 0;
@@ -4121,8 +4121,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_queue_empty += WT_STAT_CONN_READ(from, eviction_queue_empty);
     to->eviction_queue_not_empty += WT_STAT_CONN_READ(from, eviction_queue_not_empty);
     to->eviction_dhandle_complete_walk += WT_STAT_CONN_READ(from, eviction_dhandle_complete_walk);
-    to->eviction_server_push_pages_failed_when_flaging +=
-      WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flaging);
+    to->eviction_server_push_pages_failed_when_flagging +=
+      WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flagging);
     to->eviction_server_race_reconfigure_disagg +=
       WT_STAT_CONN_READ(from, eviction_server_race_reconfigure_disagg);
     to->eviction_server_skip_intl_page_non_aggressive +=

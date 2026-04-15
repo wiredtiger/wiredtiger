@@ -1056,10 +1056,12 @@ int
 __wti_rts_btree_abort_updates(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
+    WT_DECL_RET;
     WT_PAGE *page;
-    bool dryrun, modified;
+    bool dryrun, modified, page_locked;
 
     dryrun = S2C(session)->rts->dryrun;
+    page_locked = false;
 
     /*
      * If we have a ref with clean page, find out whether the page has any modifications that are
@@ -1080,12 +1082,26 @@ __wti_rts_btree_abort_updates(
       WT_RTS_VERB_TAG_PAGE_ROLLBACK "roll back page of type= %s, addr=%p modified=%s",
       __wt_page_type_str(page->type), (void *)ref, modified ? "true" : "false");
 
+    /*
+     * Acquire the page lock to serialize with reconciliation. Two-phase eviction reconciles pages
+     * under WT_REF_MEM with only the page lock held (not WT_REF_LOCKED). Without this lock, RTS can
+     * modify update chains (aborting updates, clearing WT_UPDATE_HS flags) concurrently with
+     * reconciliation's main pass and HS wrapup, causing assertion failures and data corruption.
+     *
+     * The lock is only needed when page->modify exists — without it, the page has never been
+     * dirtied, so reconciliation cannot be running on it (reconciliation skips clean pages).
+     */
+    if (page->modify != NULL) {
+        WT_PAGE_LOCK(session, page);
+        page_locked = true;
+    }
+
     switch (page->type) {
     case WT_PAGE_COL_VAR:
-        WT_RET(__rts_btree_abort_col_var(session, ref, rollback_timestamp));
+        WT_ERR(__rts_btree_abort_col_var(session, ref, rollback_timestamp));
         break;
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__rts_btree_abort_row_leaf(session, ref, rollback_timestamp));
+        WT_ERR(__rts_btree_abort_row_leaf(session, ref, rollback_timestamp));
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -1093,11 +1109,17 @@ __wti_rts_btree_abort_updates(
         WT_ASSERT(session, false);
         /* Fall through. */
     default:
-        WT_RET(__wt_illegal_value(session, page->type));
+        WT_ERR(__wt_illegal_value(session, page->type));
     }
 
     /* Mark the page as dirty to reconcile the page. */
     if (!dryrun && page->modify)
         __wt_page_modify_set(session, page);
-    return (0);
+
+    if (0) {
+err:;
+    }
+    if (page_locked)
+        WT_PAGE_UNLOCK(session, page);
+    return (ret);
 }

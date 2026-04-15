@@ -94,25 +94,32 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     *skipp = false;
 
-    /* If we have a clean page in memory, attempt to evict it. */
+    /*
+     * If we have a clean page in memory, attempt to evict it. Use a hazard pointer to pin the page
+     * while checking, matching the two-phase eviction model where __wt_evict expects the caller to
+     * hold a hazard pointer on non-closing paths.
+     */
     previous_state = WT_REF_GET_STATE(ref);
-    if (previous_state == WT_REF_MEM &&
-      WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
-        if (__wt_page_is_modified(ref->page)) {
-            WT_REF_SET_STATE(ref, previous_state);
-            return (0);
-        }
+    if (previous_state == WT_REF_MEM) {
+        bool busy;
+        WT_RET(__wt_hazard_set(session, ref, &busy));
+        if (!busy) {
+            if (__wt_page_is_modified(ref->page)) {
+                WT_IGNORE_RET(__wt_hazard_clear(session, ref));
+                return (0);
+            }
 
-        ret = __wt_curhs_cache(session);
-        if (ret != 0) {
-            WT_REF_SET_STATE(ref, previous_state);
-            return (ret);
+            ret = __wt_curhs_cache(session);
+            if (ret != 0) {
+                WT_IGNORE_RET(__wt_hazard_clear(session, ref));
+                return (ret);
+            }
+            (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
+            ret = __wt_evict(session, ref, previous_state, 0);
+            (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+            WT_RET_BUSY_OK(ret);
+            ret = 0;
         }
-        (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
-        ret = __wt_evict(session, ref, previous_state, 0);
-        (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
-        WT_RET_BUSY_OK(ret);
-        ret = 0;
     }
 
     /*

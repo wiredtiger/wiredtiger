@@ -2314,6 +2314,12 @@ struct __wt_connection {
      * threads_min, minimum number of threads WiredTiger will start to help evict pages from cache.
      * The number of threads currently running will vary depending on the current eviction load., an
      * integer between \c 1 and \c 64; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * two_phase_eviction, Perform eviction in two phases: reconcile the page under a hazard pointer
+     * while it remains accessible to readers (phase 1)\, then acquire the exclusive lock only for
+     * the fast swap-out (phase 2). Improves read concurrency during eviction.  Disable to revert to
+     * the original single-phase model where the exclusive lock is held for the entire eviction., a
+     * boolean flag; default \c true.}
      * @config{ ),,}
      * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring
      * the dirty content in cache to this level.  It is a percentage of the cache size if the value
@@ -3241,6 +3247,11 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start to
  * help evict pages from cache.  The number of threads currently running will vary depending on the
  * current eviction load., an integer between \c 1 and \c 64; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;two_phase_eviction, Perform eviction in two phases: reconcile the
+ * page under a hazard pointer while it remains accessible to readers (phase 1)\, then acquire the
+ * exclusive lock only for the fast swap-out (phase 2). Improves read concurrency during eviction.
+ * Disable to revert to the original single-phase model where the exclusive lock is held for the
+ * entire eviction., a boolean flag; default \c true.}
  * @config{ ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring the
  * dirty content in cache to this level.  It is a percentage of the cache size if the value is
@@ -6596,7 +6607,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: eviction server push pages to queue failed because of racing
  * with setting flag
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING	1143
+#define	WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGGING	1143
 /*! cache: eviction server races with the reconfigure API call in disagg */
 #define	WT_STAT_CONN_EVICTION_SERVER_RACE_RECONFIGURE_DISAGG	1144
 /*!

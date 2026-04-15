@@ -56,13 +56,6 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     /*
-     * If this session has more than one hazard pointer, eviction will fail and there is no point
-     * trying.
-     */
-    if (__wt_hazard_count(session, ref) > 1)
-        return (false);
-
-    /*
      * If the page is less than the maximum size and can be split in-memory, let's try that first
      * without forcing the page to evict on release.
      */
@@ -101,22 +94,17 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_REF_STATE previous_state;
     uint32_t evict_flags;
-    bool locked;
 
     btree = S2BT(session);
 
     /*
-     * This function always releases the hazard pointer - ensure that's done regardless of whether
-     * we can get exclusive access. Take some care with order of operations: if we release the
-     * hazard pointer without first locking the page, it could be evicted in between.
+     * Record the previous state. If it's not WT_REF_MEM the page is already being evicted or has
+     * transitioned; clear our hazard pointer and give up.
      */
     previous_state = WT_REF_GET_STATE(ref);
-    locked =
-      previous_state == WT_REF_MEM && WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED);
-    if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
-        if (locked)
-            WT_REF_SET_STATE(ref, previous_state);
-        return (ret == 0 ? EBUSY : ret);
+    if (previous_state != WT_REF_MEM) {
+        WT_IGNORE_RET(__wt_hazard_clear(session, ref));
+        return (__wt_set_return(session, EBUSY));
     }
 
     evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
@@ -132,11 +120,15 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
         ret = __wt_curhs_cache(session);
         if (ret != 0) {
-            WT_ASSERT(session, locked);
-            WT_REF_SET_STATE(ref, previous_state);
+            WT_IGNORE_RET(__wt_hazard_clear(session, ref));
             return (ret);
         }
     }
+
+    /*
+     * Pass our existing hazard pointer to __wt_evict as the phase-1 pin. All non-closing callers
+     * must hold a hazard pointer before calling __wt_evict. __wt_evict's done-path clears it.
+     */
     (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
     ret = __wt_evict(session, ref, previous_state, evict_flags);
     (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
