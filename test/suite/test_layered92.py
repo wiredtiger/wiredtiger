@@ -27,7 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered92.py
-#   WT_CURSOR.reserve on layered tables: leader/follower x key-location matrix.
+#   Test the reserve() operation on layered cursors for keys in different states:
+#   present in stable, present in ingest, present in both, or not present.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
