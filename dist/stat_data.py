@@ -617,6 +617,8 @@ conn_stats = [
     ##########################################
     # Disagg statistics
     ##########################################
+    DisaggStat('disagg_abandon_checkpoint_failed', 'abandon checkpoints failed'),
+    DisaggStat('disagg_abandon_checkpoint_succeed', 'abandon checkpoints succeeded'),
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_role_leader', 'role leader'),
