@@ -586,6 +586,8 @@ extern int __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *leaderp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
   const char *table_name, WT_SHARED_METADATA_OP metadata_op)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
