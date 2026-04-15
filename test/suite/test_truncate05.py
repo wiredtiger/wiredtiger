@@ -44,7 +44,7 @@ class test_truncate05(wttest.WiredTigerTestCase):
 
     def setUp(self):
         if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support in not enabled")
+            self.skipTest("fast truncate support is not enabled")
         super().setUp()
 
     def test_truncate_read_older_than_newest(self):

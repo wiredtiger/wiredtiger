@@ -48,7 +48,7 @@ class test_truncate11(wttest.WiredTigerTestCase):
 
     def setUp(self):
         if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support in not enabled")
+            self.skipTest("fast truncate support is not enabled")
         super().setUp()
 
     @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")

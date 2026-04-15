@@ -47,7 +47,7 @@ class test_truncate20(test_cc_base):
 
     def setUp(self):
         if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support in not enabled")
+            self.skipTest("fast truncate support is not enabled")
         super().setUp()
 
     def append_rows(self, uri, ds, start_row, nrows, value):

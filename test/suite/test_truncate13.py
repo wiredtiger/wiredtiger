@@ -67,7 +67,7 @@ class test_truncate13(wttest.WiredTigerTestCase):
 
     def setUp(self):
         if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support in not enabled")
+            self.skipTest("fast truncate support is not enabled")
         super().setUp()
 
     # Make all the values different to avoid having VLCS RLE condense the table.
