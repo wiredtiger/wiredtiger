@@ -268,7 +268,7 @@ rollback_to_stable(WT_SESSION *session)
 
 done:
     /* Check the saved snap operations for consistency. */
-    snap_repeat_repeatable(session, tinfo_list, GV(RUNS_THREADS));
+    snap_repeat_stable(session, tinfo_list, GV(RUNS_THREADS));
 }
 
 /*
