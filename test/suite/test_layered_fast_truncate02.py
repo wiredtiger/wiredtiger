@@ -108,7 +108,7 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         return ret, val
 
     def test_visibility(self):
-        # At ts=25 (after truncation at ts=20): truncated keys return WT_NOTFOUND, boundary and
+        # At ts=20 (equal to truncation at ts=20): truncated keys return WT_NOTFOUND, boundary and
         # exterior keys return their values. At ts=15 (before truncation): all keys are visible.
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
@@ -118,10 +118,11 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
 
         # Truncation is visible: deleted keys are gone, surrounding keys survive.
         for key in [self.trunc_start, self.trunc_mid, self.trunc_stop]:
-            ret, _ = self.search_at(sess, key, 25)
+            ret, _ = self.search_at(sess, key, 20)
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+
         for key in [1, self.trunc_start - 1, self.trunc_stop + 1, self.nrows]:
-            ret, val = self.search_at(sess, key, 25)
+            ret, val = self.search_at(sess, key, 20)
             self.assertEqual(ret, 0)
             self.assertEqual(val, self.value)
 

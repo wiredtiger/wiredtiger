@@ -44,7 +44,6 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
     value       = 'a' * 500
     trunc_start = 1001
     trunc_stop  = 4000
-    trunc_mid   = (trunc_start + trunc_stop) // 2
 
     conn_config = 'cache_size=50MB,statistics=(all),disaggregated=(role="leader")'
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate03', disagg_only=True)
