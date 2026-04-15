@@ -74,11 +74,11 @@ struct __wt_table {
  */
 struct __wt_truncate {
     /*
-     * The uri is used to grab the layered table handle.
-     *
-     * FIXME-WT-16789: Investigate if there is more efficient way to get the dhandle.
+     * Pointer to the layered table data handle. A reference is held via WT_DHANDLE_ACQUIRE to
+     * prevent the sweep server from discarding the dhandle while truncate entries exist.
      */
-    const char *uri;
+    WT_DATA_HANDLE *dhandle;
+
     uint64_t txn_id;
     wt_timestamp_t start_ts;
     wt_timestamp_t durable_ts;

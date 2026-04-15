@@ -17,10 +17,12 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    if (entry == NULL || *entry == NULL)
+    if ((entry == NULL) || (*entry == NULL))
         return;
 
-    __wt_free(session, (*entry)->uri);
+    if ((*entry)->dhandle != NULL)
+        WT_DHANDLE_RELEASE((*entry)->dhandle);
+
     __wt_buf_free(session, &(*entry)->start_key);
     __wt_buf_free(session, &(*entry)->stop_key);
     __wt_free(session, *entry);
@@ -76,18 +78,18 @@ __wt_insert_truncate_entry(
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    /*
-     * Get the layered table from the provided URI. We don't hold any global locks so that's
-     * possible that it was already removed.
-     *
-     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
-     * dhandle list, if there are entries in the truncate list.
-     */
-    WT_ASSERT(session, __wt_session_get_dhandle(session, uri, NULL, NULL, 0) == 0);
-    layered_table = (WT_LAYERED_TABLE *)session->dhandle;
+    WT_RET(__wt_calloc_one(session, &t));
 
-    WT_ERR(__wt_calloc_one(session, &t));
-    WT_ERR(__wt_strdup(session, uri, &t->uri));
+    /*
+     * Resolve the URI to the layered table dhandle. Acquire a reference on the dhandle to prevent
+     * the sweep server from discarding it while the truncate entry exists.
+     */
+    WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+    t->dhandle = (WT_DATA_HANDLE *)session->dhandle;
+    WT_DHANDLE_ACQUIRE(t->dhandle);
+
+    layered_table = (WT_LAYERED_TABLE *)t->dhandle;
+    WT_TRET(__wt_session_release_dhandle(session));
 
     /* A NULL start key indicates a truncate starts from the beginning of the table. */
     if (start_key != NULL)
@@ -103,9 +105,8 @@ __wt_insert_truncate_entry(
      */
     WT_ERR(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
     WT_ERR(__wt_txn_truncate(session, t));
-    WT_ERR(__wt_session_release_dhandle(session));
+    WT_TRET(__wt_session_release_dhandle(session));
 
-    session->dhandle = (WT_DATA_HANDLE *)layered_table;
     __wt_writelock(session, &layered_table->truncate_lock);
     TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
     __wt_writeunlock(session, &layered_table->truncate_lock);
@@ -114,7 +115,6 @@ __wt_insert_truncate_entry(
 err:
         __disagg_truncate_free(session, &t);
     }
-    WT_TRET(__wt_session_release_dhandle(session));
 
     return (ret);
 }
@@ -221,35 +221,24 @@ __wt_truncate_delete_visible_check(
  * __wti_mark_committed_truncate_table --
  *     Mark a truncate table entry as committed, updating truncate entries timestamp information.
  */
-int
+void
 __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *entry;
 
-    layered_table = NULL;
     entry = op->u.follower_truncate.t;
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    /*
-     * Get the layered table from the provided URI. We don't hold any global locks so that's
-     * possible that it was already removed.
-     *
-     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
-     * dhandle list, if there are entries in the truncate list.
-     */
-    WT_ASSERT(session, __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0) == 0);
-    layered_table = (WT_LAYERED_TABLE *)session->dhandle;
+    /* The truncate entry holds a reference on the dhandle, so it is safe to access directly. */
+    layered_table = (WT_LAYERED_TABLE *)entry->dhandle;
 
     __wt_writelock(session, &layered_table->truncate_lock);
     entry->txn_id = session->txn->time_point.id;
     entry->start_ts = session->txn->time_point.commit_timestamp;
     entry->durable_ts = session->txn->time_point.durable_timestamp;
     __wt_writeunlock(session, &layered_table->truncate_lock);
-    WT_TRET(__wt_session_release_dhandle(session));
-    return (ret);
 }
 
 /*
@@ -257,35 +246,23 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
  *     Perform transaction rollback for a truncate operation, removing the truncate entry from the
  *     layered table truncate list.
  */
-int
+void
 __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *entry;
 
-    layered_table = NULL;
     entry = op->u.follower_truncate.t;
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    /*
-     * Get the layered table from the provided URI. We don't hold any global locks so that's
-     * possible that it was already removed.
-     *
-     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
-     * dhandle list, if there are entries in the truncate list.
-     */
-    WT_ASSERT(session, __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0) == 0);
-    layered_table = (WT_LAYERED_TABLE *)session->dhandle;
+    /* The truncate entry holds a reference on the dhandle, so it is safe to access directly. */
+    layered_table = (WT_LAYERED_TABLE *)entry->dhandle;
 
     __wt_writelock(session, &layered_table->truncate_lock);
     TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
     __wt_writeunlock(session, &layered_table->truncate_lock);
     __disagg_truncate_free(session, &entry);
-
-    WT_TRET(__wt_session_release_dhandle(session));
-    return (ret);
 }
 
 /*
