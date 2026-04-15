@@ -60,10 +60,10 @@ functions:
               export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
               export TESTUTIL_BYPASS_ASAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
-              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_MSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
-              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_TSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
@@ -690,6 +690,19 @@ functions:
             fi
 
           done
+    - command: shell.exec
+      type: setup
+      params:
+        shell: bash
+        silent: true
+        script: |
+          set -o errexit
+
+          # We could have exited the previous command for the same reason.
+          if [[ "${branch_name}" != "develop" ]]; then
+            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
+            exit 0
+          fi
 
           # Push the above-generated commit
           ${PREPARE_PATH}
