@@ -30,6 +30,7 @@
 #   Tests that a follower correctly handles pages that were fast-truncated on the
 #   leader: stable pages must never be dirtied, and deleted state must survive
 #   eviction and reconnection.
+
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
@@ -43,6 +44,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
     value       = 'a' * 500
     trunc_start = 1001
     trunc_stop  = 4000
+    trunc_mid   = (trunc_start + trunc_stop) // 2
 
     conn_config = 'cache_size=50MB,statistics=(all),disaggregated=(role="leader")'
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate03', disagg_only=True)
@@ -72,7 +74,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
 
         # Evict all pages before truncating so the leader uses page-level fast-delete markers.
         evict_cur = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        self.session.begin_transaction('ignore_prepare=true')
+        self.session.begin_transaction()
         for i in range(1, self.nrows + 1):
             evict_cur.set_key(i)
             evict_cur.search()
@@ -80,16 +82,18 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         evict_cur.close()
         self.session.rollback_transaction()
 
+    def truncate_and_checkpoint(self, trunc_start, trunc_stop, ts):
+        # Fast-truncate rows [trunc_start, trunc_stop] on the leader and checkpoint.
         c_start = self.session.open_cursor(self.uri)
-        c_start.set_key(self.trunc_start)
+        c_start.set_key(trunc_start)
         c_stop = self.session.open_cursor(self.uri)
-        c_stop.set_key(self.trunc_stop)
+        c_stop.set_key(trunc_stop)
         self.session.begin_transaction()
         self.session.truncate(None, c_start, c_stop, None)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         c_start.close()
         c_stop.close()
-        self.leader_checkpoint(20)
+        self.leader_checkpoint(ts)
 
     def open_follower(self):
         conn = self.wiredtiger_open(
@@ -114,9 +118,9 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         evict_cur.close()
         sess.rollback_transaction()
 
-    def search_at(self, sess, key, ts=None):
+    def search_at(self, sess, key, ts):
         cur = sess.open_cursor(self.uri)
-        txn_cfg = ('read_timestamp=' + self.timestamp_str(ts)) if ts is not None else ''
+        txn_cfg = ('read_timestamp=' + self.timestamp_str(ts))
         sess.begin_transaction(txn_cfg)
         cur.set_key(key)
         ret = cur.search()
@@ -131,10 +135,12 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
+        self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
         sample = list(range(self.trunc_start, self.trunc_stop + 1, 10))
         dirty_before = self.get_stat(conn, stat.conn.cache_pages_dirty)
 
+        # Initial read: no deleted key found, no pages dirtied.
         cur = sess.open_cursor(self.uri)
         sess.begin_transaction('read_timestamp=' + self.timestamp_str(25))
         for key in sample:
@@ -146,6 +152,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
 
         self.evict_range(sess, self.trunc_start, self.trunc_stop)
 
+        # After eviction: reloaded pages still show no keys and remain clean.
         cur = sess.open_cursor(self.uri)
         sess.begin_transaction('read_timestamp=' + self.timestamp_str(25))
         for key in sample:
@@ -165,15 +172,18 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
+        self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
         target = self.trunc_start + 100
         dirty_before = self.get_stat(conn, stat.conn.cache_pages_dirty)
 
+        # Confirm the target is deleted on the stable page without dirtying it.
         ret, _ = self.search_at(sess, target, 25)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         self.assertEqual(self.get_stat(conn, stat.conn.cache_pages_dirty), dirty_before)
         self.evict_range(sess, target, target)
 
+        # Write the key on the follower (routes to ingest) and advance the checkpoint.
         cur = sess.open_cursor(self.uri)
         sess.begin_transaction()
         cur.set_key(target)
@@ -184,6 +194,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
 
         self.advance_follower(conn)
 
+        # Ingest write is visible at ts=30; stable deletion still visible at ts=25.
         ret, val = self.search_at(sess, target, 30)
         self.assertEqual(ret, 0)
         self.assertEqual(val, 'ingest_value')
@@ -204,10 +215,12 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
         self.setup_leader(',leaf_page_max=4096')
+        self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
         sample = list(range(self.trunc_start, self.trunc_stop + 1, 10))
         dirty_before = self.get_stat(conn, stat.conn.cache_pages_dirty)
 
+        # No pages dirtied by reading the truncated range across many small leaf pages.
         cur = sess.open_cursor(self.uri)
         sess.begin_transaction('read_timestamp=' + self.timestamp_str(25))
         for key in sample:
@@ -220,6 +233,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         self.evict_range(sess, self.trunc_start, self.trunc_stop)
         self.advance_follower(conn)
 
+        # Write a subset of truncated keys to ingest.
         ingest_keys = set(sample[::3])
         cur = sess.open_cursor(self.uri)
         sess.begin_transaction()
@@ -230,6 +244,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         sess.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cur.close()
 
+        # Ingest keys are found; unwritten truncated keys remain deleted.
         cur = sess.open_cursor(self.uri)
         sess.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         for key in ingest_keys:
@@ -251,13 +266,15 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
+        self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
 
         truncated_keys     = [self.trunc_start, self.trunc_start + 100, self.trunc_stop]
         non_truncated_keys = [1, self.trunc_start - 1, self.trunc_stop + 1, self.nrows]
 
         def verify(sess):
             for key in truncated_keys:
-                self.assertEqual(self.search_at(sess, key, 25)[0], wiredtiger.WT_NOTFOUND)
+                ret, _ = self.search_at(sess, key, 25)
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
             for key in non_truncated_keys:
                 ret, val = self.search_at(sess, key, 25)
                 self.assertEqual(ret, 0)
@@ -275,11 +292,13 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
+        self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
 
         dirty_before = self.get_stat(conn, stat.conn.cache_pages_dirty)
         rd_before    = self.get_stat(conn, stat.conn.cache_read_deleted)
 
+        # Pre-truncation read forces page load: key found, read_deleted increments, page stays clean.
         ret, val = self.search_at(sess, self.trunc_start + 100, 10)
         self.assertEqual(ret, 0)
         self.assertEqual(val, self.value)
