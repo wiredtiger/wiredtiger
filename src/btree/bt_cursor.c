@@ -1674,16 +1674,10 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt, bool overwrite)
      * we update the ingest one).
      */
     old_overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
-
-    F_CLR(cursor, WT_CURSTD_OVERWRITE);
-    if (overwrite)
-        F_SET(cursor, WT_CURSTD_OVERWRITE);
-
+    overwrite ? F_SET(cursor, WT_CURSTD_OVERWRITE) : F_CLR(cursor, WT_CURSTD_OVERWRITE);
     ret = __btcur_update(cbt, NULL, WT_UPDATE_RESERVE);
+    old_overwrite ? F_SET(cursor, WT_CURSTD_OVERWRITE) :  F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    F_CLR(cursor, WT_CURSTD_OVERWRITE);
-    if (old_overwrite)
-        F_SET(cursor, WT_CURSTD_OVERWRITE);
     return (ret);
 }
 
