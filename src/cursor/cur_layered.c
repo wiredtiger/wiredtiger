@@ -1914,11 +1914,6 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
         WT_RET(c->update(c));
         break;
     case WT_CLAYERED_PUT_RESERVE:
-        /*
-         * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet
-         * (it lives only in the stable table), so we need overwrite mode to allow the reserve to
-         * succeed without the key being present in the update tree.
-         */
         WT_RET(__clayered_reserve_constituent(session, c));
         break;
     }
