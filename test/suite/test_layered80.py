@@ -62,7 +62,8 @@ class test_layered80(wttest.WiredTigerTestCase):
             stat_cursor = self.session.open_cursor('statistics:', None, None)
             sweeps = stat_cursor[stat.conn.dh_sweeps][2]
             stat_cursor.close()
-            if sweeps - baseline >= 2:
+            # Sweep server only closes after the handle goes through multiple phases.
+            if sweeps - baseline >= 3:
                 return
             time.sleep(1)
         self.assertTrue(False, 'sweep server did not run within 120s')
@@ -92,6 +93,7 @@ class test_layered80(wttest.WiredTigerTestCase):
         # to skip layered dhandles, it would mark and close them, causing gaps when
         # draining the ingest table at step-up.
         self.wait_for_sweep()
+        #time.sleep(30)
 
         # Step up to leader.
         self.conn.reconfigure('disaggregated=(role="leader")')
