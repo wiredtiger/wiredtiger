@@ -177,7 +177,7 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 static int
 __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
 {
-    WT_CURSOR *prepare_cursor, *stable_cursor, *version_cursor;
+    WT_CURSOR *ingest_version_cursor, *prepare_cursor, *stable_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(tmp_key);
@@ -194,7 +194,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     bool is_prepare_rollback, prepare_resolved, preserve_prepared;
 
-    prepare_cursor = stable_cursor = version_cursor = NULL;
+    ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
     prepare_resolved = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
@@ -213,7 +213,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
       "cross_key=true,show_prepared_rollback=%s,%s))",
       preserve_prepared ? "true" : "false", buf2));
     cfg[1] = buf;
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
+    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &ingest_version_cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
@@ -221,7 +221,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
     for (;;) {
         upd = NULL;
-        WT_ERR_NOTFOUND_OK(version_cursor->next(version_cursor), true);
+        WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
@@ -233,7 +233,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             break;
         }
 
-        WT_ERR(version_cursor->get_key(version_cursor, tmp_key));
+        WT_ERR(ingest_version_cursor->get_key(ingest_version_cursor, tmp_key));
         WT_ERR(__wt_compare(session, CUR2BT(cbt)->collator, key, tmp_key, &cmp));
         if (cmp != 0) {
             /*
@@ -254,9 +254,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             WT_ERR(__wt_buf_set(session, key, tmp_key->data, tmp_key->size));
         }
 
-        WT_ERR(version_cursor->get_value(version_cursor, &start_txn, &start_ts, &durable_start_ts,
-          &start_prepare_ts, &start_prepared_id, &stop_txn, &stop_ts, &durable_stop_ts,
-          &stop_prepare_ts, &stop_prepared_id, &type, &prepare, &flags, &location, value));
+        WT_ERR(ingest_version_cursor->get_value(ingest_version_cursor, &start_txn, &start_ts,
+          &durable_start_ts, &start_prepare_ts, &start_prepared_id, &stop_txn, &stop_ts,
+          &durable_stop_ts, &stop_prepare_ts, &stop_prepared_id, &type, &prepare, &flags, &location,
+          value));
 
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /*
@@ -274,9 +275,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              */
             if (preserve_prepared && start_prepared_id != WT_PREPARED_ID_NONE &&
               start_prepare_ts <= last_checkpoint_timestamp) {
-                if (is_prepare_rollback) {
-                    /* Only resolve the updates from the same prepared transaction once. */
-                    if (!prepare_resolved) {
+                /* Only resolve the updates from the same prepared transaction once. */
+                if (!prepare_resolved) {
+                    if (is_prepare_rollback) {
                         /*
                          * The original transaction id is stored in start timestamp and the rollback
                          * timestamp is stored in durable timestamp.
@@ -288,11 +289,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                         txn_time_point.rollback_timestamp = durable_start_ts;
                         WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point,
                           key, WT_RECNO_OOB, false, &prepare_cursor));
-                        prepare_resolved = true;
-                    }
-                } else {
-                    /* Only resolve the updates from the same prepared transaction once. */
-                    if (!prepare_resolved) {
+                    } else {
                         WT_TXN_TIME_POINT txn_time_point;
                         txn_time_point.id = start_txn;
                         txn_time_point.prepared_id = start_prepared_id;
@@ -301,8 +298,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                         txn_time_point.durable_timestamp = durable_start_ts;
                         WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point,
                           key, WT_RECNO_OOB, true, &prepare_cursor));
-                        prepare_resolved = true;
                     }
+                    prepare_resolved = true;
                 }
             } else {
                 /*
@@ -371,10 +368,10 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &tmp_key);
     __wt_scr_free(session, &value);
+    if (ingest_version_cursor != NULL)
+        WT_TRET(ingest_version_cursor->close(ingest_version_cursor));
     if (prepare_cursor != NULL)
         WT_TRET(prepare_cursor->close(prepare_cursor));
-    if (version_cursor != NULL)
-        WT_TRET(version_cursor->close(version_cursor));
     if (stable_cursor != NULL)
         WT_TRET(stable_cursor->close(stable_cursor));
     return (ret);
