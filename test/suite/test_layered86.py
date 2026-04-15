@@ -25,180 +25,77 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_layered_follower_insert_update.py
-#   Validate that cursor insert and update on a follower node skip the key
-#   search.  On the follower, the primary already validated the operation so
-#   the key-existence lookup is redundant and can be skipped to improve
-#   performance.
 
-import wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+import re
+import wiredtiger
+import wttest
+from metadata_helper import extract_id
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
+# test_layered86.py
+# Make sure that a follower picks up and applies new file IDs.
 @disagg_test_class
-class test_layered85(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = 'disaggregated=(page_log=palite),'
-    disagg_storages = gen_disagg_storages('test_layered85', disagg_only=True)
+class test_layered86(wttest.WiredTigerTestCase):
+    conn_config = 'disaggregated=(role="leader")'
+    conn_config_follower = 'disaggregated=(role="follower")'
+
+    uri = "layered:test_layered86"
+
+    disagg_storages = gen_disagg_storages('test_layered86', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:test_layered_follower_insert_update'
-    nkeys = 50
-
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
-
-    def create_and_populate(self):
-        """Create the table and insert nkeys initial records on the leader."""
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys):
-            self.session.begin_transaction()
-            c[i] = 'initial_{}'.format(i)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
-        c.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.nkeys))
+    def test_standby_uses_table_id_high_water_mark(self):
+        # Make 100 tables, then checkpoint.
+        for i in range(0, 100):
+            self.session.create(f"layered:test_layered86_{i}", 'key_format=S,value_format=S')
+        self.conn.set_timestamp('stable_timestamp=1') # Don't upset precise checkpoint
         self.session.checkpoint()
 
-    def switch_to_follower(self):
-        """Reopen the connection in follower mode at the latest checkpoint."""
-        meta = self.disagg_get_complete_checkpoint_meta()
-        self.reopen_conn(config=self.conn_base_config +
-            f'disaggregated=(role="follower",checkpoint_meta="{meta}")')
+        # Record the highest file ID.
+        md_cursor = self.session.open_cursor('metadata:', None, None)
+        max_file_id = 0
+        for key, value in md_cursor:
+            if not key.startswith('file:') and not key == 'metadata:':
+                continue
 
-    def test_follower_insert_overwrite(self):
-        """Insert new keys on follower with overwrite cursor. verify values are readable."""
-        self.create_and_populate()
-        self.switch_to_follower()
+            curr_file_id = extract_id(value)
+            if curr_file_id > max_file_id:
+                max_file_id = curr_file_id
 
-        # Insert additional keys (beyond those in stable) on the follower.
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys, self.nkeys * 2):
-            self.session.begin_transaction()
-            c[i] = 'follower_{}'.format(i)
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(self.nkeys + i + 1))
-        c.close()
+        # Drop those tables, checkpoint again.
+        for i in range(0, 100):
+            self.session.drop(f"layered:test_layered86_{i}")
+        self.session.checkpoint()
 
-        # Verify the inserted keys are readable on the follower.
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys, self.nkeys * 2):
-            self.assertEqual(c[i], 'follower_{}'.format(i))
-        c.close()
+        # Make a follower and feed it the latest checkpoint.
+        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+                                                self.conn_config_follower)
+        self.session_follow = self.conn_follow.open_session('')
+        self.disagg_advance_checkpoint(self.conn_follow)
 
-    def test_follower_insert_non_overwrite_skips_duplicate_check(self):
-        """
-        Insert with overwrite=false on a follower skips the duplicate key search.
-        The primary already validated the insert. The follower goes straight to writing
-        the ingest cursor without checking for an existing key in the stable table.
-        The insert must succeed (no WT_DUPLICATE_KEY) and the new value must be visible.
-        """
-        self.create_and_populate()
-        self.switch_to_follower()
+        # Kill the leader. Skip the closing checkpoint -- otherwise, when the follower connection
+        # is closed, we'll discard unclean pages twice. These pages can have the same ID, which
+        # makes PALite think it's seeing a double-free.
+        self.session.close()
+        self.conn.close('debug=(skip_checkpoint=true)')
 
-        # Re-insert the same keys that exist in stable, using overwrite=false.  Before
-        # this optimisation the layered cursor would search stable, find the key, and
-        # return WT_DUPLICATE_KEY.  After the optimisation the search is skipped on
-        # the follower so the insert succeeds and writes the new value to ingest.
-        c = self.session.open_cursor(self.uri, None, 'overwrite=false')
-        for i in range(self.nkeys):
-            self.session.begin_transaction()
-            c.set_key(i)
-            c.set_value('updated_follower_{}'.format(i))
-            ret = c.insert()
-            self.assertEqual(ret, 0,
-                'follower non-overwrite insert should succeed without duplicate key check')
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(self.nkeys + i + 1))
-        c.close()
+        # Follower step-up to leader.
+        self.conn_follow.reconfigure('disaggregated=(role="leader")')
 
-        # Verify the new values are visible (ingest takes priority over stable on follower).
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys):
-            self.assertEqual(c[i], 'updated_follower_{}'.format(i))
-        c.close()
+        # Make a new table on the (new) leader. Checkpoint.
+        self.conn_follow.set_timestamp('stable_timestamp=2') # Don't upset precise checkpoint
+        self.session_follow.create(f"layered:test_layered86_101", 'key_format=S,value_format=S')
+        self.session_follow.checkpoint()
 
-    def test_follower_update_overwrite(self):
-        """Update existing stable keys on follower with overwrite cursor. Verify updated values."""
-        self.create_and_populate()
-        self.switch_to_follower()
+        # Make sure the table ID is higher than what we saw from the old leader
+        md_cursor = self.session_follow.open_cursor('metadata:', None, None)
+        follower_max_file_id = 0
+        for key, value in md_cursor:
+            if not key.startswith('file:') and not key == 'metadata:':
+                continue
 
-        # Update all keys that came from the leader checkpoint.
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys):
-            self.session.begin_transaction()
-            c[i] = 'updated_{}'.format(i)
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(self.nkeys + i + 1))
-        c.close()
-
-        # Verify the updated values are readable.
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys):
-            self.assertEqual(c[i], 'updated_{}'.format(i))
-        c.close()
-
-    def test_follower_update_non_overwrite_skips_key_existence_check(self):
-        """
-        Update with overwrite=false on a follower skips the key-existence search.
-        The primary already confirmed the key exists before dispatching the update.
-        The follower can write directly to the ingest cursor without re-checking stable.
-        The update must succeed and the new value must be visible.
-        """
-        self.create_and_populate()
-        self.switch_to_follower()
-
-        # Update keys that live in stable using a non-overwrite cursor.  Before this
-        # optimisation the layered cursor would search stable to confirm the key exists.
-        # After the optimisation that search is skipped on the follower.
-        c = self.session.open_cursor(self.uri, None, 'overwrite=false')
-        for i in range(self.nkeys):
-            self.session.begin_transaction()
-            c.set_key(i)
-            c.set_value('updated_follower_{}'.format(i))
-            ret = c.update()
-            self.assertEqual(ret, 0,
-                'follower non-overwrite update should succeed without key existence check')
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(self.nkeys + i + 1))
-        c.close()
-
-        # Verify the updated values are visible (ingest takes priority over stable).
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys):
-            self.assertEqual(c[i], 'updated_follower_{}'.format(i))
-        c.close()
-
-    def test_follower_insert_then_update(self):
-        """
-        Insert new keys on follower then update them. Verify the update sees the
-        value written by the prior insert rather than a stale stable value.
-        """
-        self.create_and_populate()
-        self.switch_to_follower()
-
-        # Insert fresh keys into ingest (keys nkeys..2*nkeys-1 do not exist in stable).
-        insert_ts_base = self.nkeys + 1
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys, self.nkeys * 2):
-            self.session.begin_transaction()
-            c[i] = 'insert_{}'.format(i)
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(insert_ts_base + i))
-        c.close()
-
-        # Now update those same keys on the follower.
-        update_ts_base = insert_ts_base + self.nkeys * 2
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys, self.nkeys * 2):
-            self.session.begin_transaction()
-            c[i] = 'update_{}'.format(i)
-            self.session.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(update_ts_base + i))
-        c.close()
-
-        # Verify the final values reflect the update, not the earlier insert.
-        c = self.session.open_cursor(self.uri)
-        for i in range(self.nkeys, self.nkeys * 2):
-            self.assertEqual(c[i], 'update_{}'.format(i))
-        c.close()
+            curr_file_id = extract_id(value)
+            if curr_file_id > follower_max_file_id:
+                follower_max_file_id = curr_file_id
+        self.assertTrue(follower_max_file_id > max_file_id)

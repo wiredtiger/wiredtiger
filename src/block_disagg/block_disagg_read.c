@@ -27,8 +27,9 @@ __wti_block_disagg_corrupt(
 
     /* Crack the cookie, dump the block. */
     WT_ERR(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
-    WT_ERR(__wt_bm_corrupt_dump(
-      session, tmp, 0, (wt_off_t)root_cookie.page_id, root_cookie.size, root_cookie.checksum));
+    __wt_log_data_dump(session, tmp->data, tmp->size,
+      "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
+      (uintmax_t)root_cookie.page_id, root_cookie.size, root_cookie.checksum);
 
 err:
     __wt_scr_free(session, &tmp);
@@ -86,9 +87,10 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
       last_materialized_lsn != WT_DISAGG_START_LSN && lsn > last_materialized_lsn) {
         /* FIXME-WT-15818 Consider crashing upon this check failure. */
         WT_STAT_CONN_INCR(session, disagg_block_read_ahead_frontier);
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "LSN frontier violation: read LSN %" PRIu64
-          " is ahead of the materialization frontier at LSN %" PRIu64,
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "LSN frontier warning: read LSN %" PRIu64
+          " is ahead of the materialization frontier at LSN %" PRIu64
+          " (this is not necessarily an error)",
           lsn, last_materialized_lsn);
     }
 }
@@ -281,8 +283,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
 corrupt:
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            WT_IGNORE_RET(
-              __wt_bm_corrupt_dump(session, current, 0, (wt_off_t)page_id, size, checksum));
+            __wt_log_data_dump(session, current->data, current->size,
+              "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
+              (uintmax_t)page_id, size, checksum);
 
         /* Panic if a checksum fails during an ordinary read. */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
