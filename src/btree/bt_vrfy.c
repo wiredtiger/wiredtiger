@@ -370,7 +370,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
                 if (!skip_hs) {
                     __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
-                    WT_TRET(__wt_hs_verify_one(session, btree->id));
+                    WT_TRET_MSG(session, __wt_hs_verify_one(session, btree->id),
+                      "history store verification failed");
                 }
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
