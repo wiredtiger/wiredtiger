@@ -2071,7 +2071,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     if (ret != 0 && flush)
         WT_IGNORE_RET(
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
-    if (ret != 0 && __wt_conn_is_disagg(session))
+    if (ret != 0 && __wt_conn_is_disagg(session) && F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_IGNORE_RET(__wt_panic(
           session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption"));
     WT_ERR(ret);
