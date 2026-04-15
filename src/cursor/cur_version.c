@@ -261,6 +261,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
             F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
         } else {
             if (version_cursor->start_timestamp != WT_TS_NONE &&
+              upd->upd_durable_ts != WT_TS_NONE &&
               upd->upd_durable_ts <= version_cursor->start_timestamp)
                 goto done;
 

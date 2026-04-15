@@ -171,13 +171,97 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 #endif
 
 /*
+ * __layered_fix_prepared_transaction_callback --
+ *     Callback for session walk to fix prepared transactions that may be active during the ingest
+ *     btree drain.
+ */
+static int
+__layered_fix_prepared_transaction_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
+{
+    WT_FIX_PREPARED_COOKIE *cookie;
+    WT_TXN *txn;
+
+    cookie = (WT_FIX_PREPARED_COOKIE *)cookiep;
+    txn = array_session->txn;
+    *exit_walkp = false;
+
+    if (txn->time_point.id != cookie->txnid)
+        return (0);
+
+    for (size_t i = 0; i < txn->mod_count; i++) {
+        WT_TXN_OP *op = &txn->mod[i];
+
+        if (op->type == WT_TXN_OP_NONE)
+            continue;
+
+        if (op->btree != cookie->ingest_btree) {
+            continue;
+        }
+
+        int cmp;
+        WT_RET(__wt_compare(session, op->btree->collator, &op->u.op_row.key, cookie->key, &cmp));
+
+        if (cmp < 0)
+            continue;
+
+        /* The operation keys in a prepared transaction is sorted. We have passed the key we're
+         * looking for. */
+        if (cmp > 0)
+            break;
+
+        /*
+         * Mark the original update on the ingest btree as aborted. Otherwise, we may get a
+         * WT_ROLLBACK error when we try to truncate the ingest btree.
+         */
+        op->u.op_upd->txnid = WT_TXN_ABORTED;
+        /* Point the operation to the stable btree. */
+        op->btree = cookie->stable_btree;
+
+        /*
+         * Transfer the session_inuse reference from the ingest btree to the stable btree. The
+         * ingest btree's session_inuse was incremented when this operation was recorded in the
+         * transaction, and op->btree's (now the stable btree) session_inuse will be decremented
+         * when the operation is freed. Adjust both counts to keep them balanced.
+         */
+        (void)__wt_atomic_sub_int32(&cookie->ingest_btree->dhandle->session_inuse, 1);
+        (void)__wt_atomic_add_int32(&cookie->stable_btree->dhandle->session_inuse, 1);
+    }
+
+    *exit_walkp = true;
+    return (0);
+}
+
+/*
+ * __layered_fix_prepared_transaction --
+ *     Temporary solution to fix a prepared transaction to point its operations to the stable btree.
+ *     It relies on the assumption that there is no concurrent commit/rollback and there is no
+ *     prepared fast truncate operation.
+ */
+static int
+__layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BTREE *ingest_btree,
+  WT_BTREE *stable_btree, uint64_t txnid)
+{
+    WT_FIX_PREPARED_COOKIE cookie;
+
+    cookie.key = key;
+    cookie.ingest_btree = ingest_btree;
+    cookie.stable_btree = stable_btree;
+    cookie.txnid = txnid;
+
+    return (
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
+}
+
+/*
  * __layered_copy_ingest_table --
  *     Moving all the data from a single ingest table to the corresponding stable table
  */
 static int
 __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
 {
-    WT_CURSOR *ingest_version_cursor, *prepare_cursor, *stable_cursor;
+    WT_BTREE *ingest_btree, *stable_btree;
+    WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(tmp_key);
@@ -192,28 +276,31 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     int cmp;
     char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
-    bool is_prepare_rollback, prepare_resolved, preserve_prepared;
+    bool is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
-    prepare_resolved = false;
+    prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
+    stable_btree = CUR2BT(cbt);
     if (last_checkpoint_timestamp != WT_TS_NONE)
         WT_ERR(__wt_snprintf(
           buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
     else
         buf2[0] = '\0';
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
-      "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
-      "cross_key=true,show_prepared_rollback=%s,%s))",
+      "debug=(dump_version=(enabled=true,raw_key_value=true,timestamp_order=true,cross_key=true,"
+      "show_prepared_rollback=%s,%s))",
       preserve_prepared ? "true" : "false", buf2));
     cfg[1] = buf;
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &ingest_version_cursor));
+    ingest_btree_cursor = ((WT_CURSOR_VERSION *)ingest_version_cursor)->file_cursor;
+    ingest_btree = CUR2BT(ingest_btree_cursor);
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
@@ -234,7 +321,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         }
 
         WT_ERR(ingest_version_cursor->get_key(ingest_version_cursor, tmp_key));
-        WT_ERR(__wt_compare(session, CUR2BT(cbt)->collator, key, tmp_key, &cmp));
+        WT_ERR(__wt_compare(session, stable_btree->collator, key, tmp_key, &cmp));
         if (cmp != 0) {
             /*
              * Ensure keys returned are in correctly sorted order. Only perform this check when key
@@ -250,6 +337,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
             upds = NULL;
             prev_upd = NULL;
+            prepare_txn_fixed = false;
             prepare_resolved = false;
             WT_ERR(__wt_buf_set(session, key, tmp_key->data, tmp_key->size));
         }
@@ -260,12 +348,13 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
           value));
 
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
+
         /*
          * It is possible to see a full value that is smaller than or equal to the last checkpoint
          * timestamp with a stop timestamp that is larger than the last checkpoint timestamp. Ignore
          * the update in this case.
          */
-        if (durable_start_ts > last_checkpoint_timestamp) {
+        if (prepare || durable_start_ts > last_checkpoint_timestamp) {
             /*
              * If the "preserve prepared" option is enabled and the ingest btree contains a resolved
              * prepared update for this key whose prepared timestamp is less than or equal to the
@@ -275,8 +364,15 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              */
             if (preserve_prepared && start_prepared_id != WT_PREPARED_ID_NONE &&
               start_prepare_ts <= last_checkpoint_timestamp) {
-                /* Only resolve the updates from the same prepared transaction once. */
-                if (!prepare_resolved) {
+                if (prepare) {
+                    if (!prepare_txn_fixed) {
+                        WT_ASSERT(session, upds == NULL);
+                        WT_ERR(__layered_fix_prepared_transaction(
+                          session, key, ingest_btree, stable_btree, start_txn));
+                        prepare_txn_fixed = true;
+                    }
+                } else if (!prepare_resolved) {
+                    /* Only resolve the updates from the same prepared transaction once. */
                     if (is_prepare_rollback) {
                         /*
                          * The original transaction id is stored in start timestamp and the rollback
@@ -287,7 +383,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                         txn_time_point.prepared_id = start_prepared_id;
                         txn_time_point.prepare_timestamp = start_prepare_ts;
                         txn_time_point.rollback_timestamp = durable_start_ts;
-                        WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point,
+                        WT_ERR(__wt_txn_resolve_prepared_op(session, stable_btree, &txn_time_point,
                           key, WT_RECNO_OOB, false, &prepare_cursor));
                     } else {
                         WT_TXN_TIME_POINT txn_time_point;
@@ -296,7 +392,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                         txn_time_point.prepare_timestamp = start_prepare_ts;
                         txn_time_point.commit_timestamp = start_ts;
                         txn_time_point.durable_timestamp = durable_start_ts;
-                        WT_ERR(__wt_txn_resolve_prepared_op(session, CUR2BT(cbt), &txn_time_point,
+                        WT_ERR(__wt_txn_resolve_prepared_op(session, stable_btree, &txn_time_point,
                           key, WT_RECNO_OOB, true, &prepare_cursor));
                     }
                     prepare_resolved = true;
@@ -321,8 +417,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                  */
                 if (is_prepare_rollback) {
                     /* Prepared transactions must have a prepared id in disagg. */
-                    WT_ASSERT(
-                      session, preserve_prepared && start_prepared_id != WT_PREPARED_ID_NONE);
+                    WT_ASSERT(session,
+                      !prepare && preserve_prepared && start_prepared_id != WT_PREPARED_ID_NONE);
                     /*
                      * The original transaction id is stored in start timestamp and the rollback
                      * timestamp is stored in durable timestamp.
@@ -334,9 +430,16 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                     upd->upd_saved_txnid = start_ts;
                     upd->upd_rollback_ts = durable_start_ts;
                 } else {
+                    WT_ASSERT(session, !prepare || durable_start_ts == WT_TS_NONE);
                     upd->txnid = start_txn;
-                    if (start_prepared_id != WT_PREPARED_ID_NONE)
-                        upd->prepare_state = WT_PREPARE_RESOLVED;
+                    if (start_prepared_id != WT_PREPARED_ID_NONE) {
+                        /* Temporary solution */
+                        if (prepare)
+                            upd->prepare_state = WT_PREPARE_INPROGRESS;
+                        else
+                            upd->prepare_state = WT_PREPARE_LOCKED;
+                    } else
+                        WT_ASSERT(session, !prepare);
                     upd->prepare_ts = start_prepare_ts;
                     upd->prepared_id = start_prepared_id;
                     upd->upd_start_ts = start_ts;
@@ -345,6 +448,13 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 /* This is for debugging purpose and it is not checked in the code. */
                 F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
                 last_upd = upd;
+
+                if (prepare && !prepare_txn_fixed) {
+                    WT_ASSERT(session, upds == NULL);
+                    WT_ERR(__layered_fix_prepared_transaction(
+                      session, key, ingest_btree, stable_btree, start_txn));
+                    prepare_txn_fixed = true;
+                }
             }
         }
 
