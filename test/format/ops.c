@@ -242,8 +242,11 @@ rollback_to_stable(WT_SESSION *session)
         return;
 
     /* Rollback-to-stable is not supported for precise checkpoint. */
-    if (GV(PRECISE_CHECKPOINT))
+    if (GV(PRECISE_CHECKPOINT)) {
+        /* Check the saved snap operations and clear all saved snap verifications. */
+        snap_repeat_rollback(session, tinfo_list, GV(RUNS_THREADS));
         return;
+    }
 
     /* Rollback the system using the RTS threads config. */
     num_threads = GV(ROLLBACK_TO_STABLE_THREADS);
