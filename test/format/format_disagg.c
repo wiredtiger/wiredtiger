@@ -237,18 +237,6 @@ disagg_switch_roles(void)
         track("[role change] leader -> follower", 0ULL);
         wts_reopen();
         follower_read_latest_checkpoint();
-        /*
-         * Update the stable timestamp to match the checkpoint the follower picked up. The leader
-         * may have advanced the stable timestamp beyond the checkpoint's stable timestamp before
-         * shutdown, so g.stable_timestamp could be higher than what the follower can actually see.
-         */
-        testutil_check(timestamp_query("get=stable_timestamp", &g.stable_timestamp));
-        /*
-         * Invalidate snap entries recorded during leader mode that are above the checkpoint's
-         * stable timestamp. The follower cannot see those operations (they weren't included in the
-         * checkpoint), so attempting to re-verify them would produce false mismatches.
-         */
-        snap_clear_above_ts(g.stable_timestamp);
     } else {
         /* Stepping up: [follower -> leader] */
         track("[role change] follower -> leader", 0ULL);
