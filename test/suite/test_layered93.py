@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered91.py
+# test_layered93.py
 #   Test that cursor operations succeed (or fail) on a follower for keys that exist
 #   only in the stable table (i.e. written by the leader and checkpointed).
 
@@ -75,12 +75,12 @@ _operations = [
 ]
 
 @disagg_test_class
-class test_layered91(wttest.WiredTigerTestCase):
+class test_layered93(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader")'
 
-    uri = 'layered:test_layered91'
+    uri = 'layered:test_layered93'
 
-    disagg_storages = gen_disagg_storages('test_layered91', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered93', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, _operations)
 
     conn_follow = None
@@ -92,14 +92,7 @@ class test_layered91(wttest.WiredTigerTestCase):
             self.extensionsConfig() + ',create,disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
 
-    def create_table(self, nkeys=10):
-        """
-        Create a table on the leader, insert nkeys keys (key=1..nkeys,
-        value='value<i>') under individual transactions, advance the stable
-        timestamp, and checkpoint
-        """
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-
+    def insert_keys(self, nkeys):
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, nkeys + 1):
             self.session.begin_transaction()
@@ -107,15 +100,17 @@ class test_layered91(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i))
         cursor.close()
 
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nkeys))
-        self.session.checkpoint()
-
     def test_follower_ops_on_stable_table(self):
         """
-        Run self.do_op on the follower against self.key. Keys 1-10 exist only
-        in the stable table (never written to the ingest table).
+        Run self.do_op for a key on the follower. Keys 1-10 exist only in the stable table.
         """
-        self.create_table(nkeys=10)
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        nkeys = 10
+        self.insert_keys(nkeys)
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nkeys))
+        self.session.checkpoint()
 
         self.create_follower()
         self.disagg_advance_checkpoint(self.conn_follow)
