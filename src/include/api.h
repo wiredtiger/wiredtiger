@@ -125,37 +125,47 @@
                   (s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0));          \
         }
 
-#define API_END(s, ret)                                                                    \
-    if ((s) != NULL) {                                                                     \
-        WT_TRACK_OP_END(s);                                                                \
-        WT_SINGLE_THREAD_CHECK_STOP(s);                                                    \
-        if ((ret) != 0 && __set_err)                                                       \
-            __wt_txn_err_set(s, (ret));                                                    \
-        /*                                                                                 \
-         * Check if an error code was returned that has not yet been stored in the         \
-         * session. Record this error in the session's WT_ERROR_INFO struct.               \
-         *                                                                                 \
-         * Note that if a different error was recorded earlier in the call, the struct     \
-         * will not be overwritten. The struct can only be overwritten if 0 is passed      \
-         * as the error code (this occurs when the err_info struct is reset).              \
-         */                                                                                \
-        if ((s)->api_call_counter == 1 && (ret) != 0)                                      \
-            __wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY);             \
-        if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                \
-            __wt_op_timer_stop(s);                                                         \
-        /*                                                                                 \
-         * FIXME-WT-7247 Ideally we would not leave any history store cursors open when we \
-         * return from an api call. But we cannot do a stricter check due to the way we    \
-         * nest calls to the API macros.                                                   \
-         */                                                                                \
-        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 3);            \
-        /*                                                                                 \
-         * No code after this line, otherwise error handling                               \
-         * won't be correct.                                                               \
-         */                                                                                \
-        API_SESSION_POP(s);                                                                \
-    }                                                                                      \
-    }                                                                                      \
+#define API_END(s, ret)                                                                           \
+    if ((s) != NULL) {                                                                            \
+        WT_TRACK_OP_END(s);                                                                       \
+        WT_SINGLE_THREAD_CHECK_STOP(s);                                                           \
+        if ((ret) != 0 && __set_err)                                                              \
+            __wt_txn_err_set(s, (ret));                                                           \
+        if ((s)->api_call_counter == 1) {                                                         \
+            /*                                                                                    \
+             * Check if an error code was returned that has not yet been stored in the            \
+             * session. Record this error in the session's WT_ERROR_INFO struct.                  \
+             *                                                                                    \
+             * Note that if a different error was recorded earlier in the call, the struct        \
+             * will not be overwritten. The struct can only be overwritten if 0 is passed         \
+             * as the error code (this occurs when the err_info struct is reset).                 \
+             */                                                                                   \
+            if ((ret) != 0)                                                                       \
+                __wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY);                \
+            /*                                                                                    \
+             * Log a warning if we have stored an error code that was later ignored, discarded or \
+             * overwritten.                                                                       \
+             */                                                                                   \
+            if (F_ISSET(s, WT_SESSION_SAVE_ERRORS) && (ret) != (s)->err_info.err)                 \
+                __wt_verbose_warning((s), WT_VERB_API,                                            \
+                  "API return value %d does not match the recorded error code %d", (ret),         \
+                  (s)->err_info.err);                                                             \
+            if (!F_ISSET(s, WT_SESSION_INTERNAL))                                                 \
+                __wt_op_timer_stop(s);                                                            \
+        }                                                                                         \
+        /*                                                                                        \
+         * FIXME-WT-7247 Ideally we would not leave any history store cursors open when we        \
+         * return from an api call. But we cannot do a stricter check due to the way we           \
+         * nest calls to the API macros.                                                          \
+         */                                                                                       \
+        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 3);                   \
+        /*                                                                                        \
+         * No code after this line, otherwise error handling                                      \
+         * won't be correct.                                                                      \
+         */                                                                                       \
+        API_SESSION_POP(s);                                                                       \
+    }                                                                                             \
+    }                                                                                             \
     while (0)
 
 /* An API call wrapped in a transaction if necessary. */
