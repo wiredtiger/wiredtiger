@@ -174,6 +174,7 @@ __wt_block_disagg_ckpt_size(WT_SESSION_IMPL *session, const char *uri, uint64_t 
 
     fileconf = NULL;
     *sizep = 0;
+    /* Reading checkpoint size requires the file's metadata config string, so look it up first. */
     ret = __wt_metadata_search(session, uri, &fileconf);
     if (ret == 0) {
         ret = __wt_ckpt_last_size(session, fileconf, sizep);
