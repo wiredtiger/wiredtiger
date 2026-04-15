@@ -886,6 +886,7 @@ designator
 dest
 destSize
 destructor
+deterministically
 dev
 dh
 dhandle
@@ -1179,6 +1180,7 @@ keyedness
 keyid
 keyids
 keylen
+keyno
 keynum
 keystr
 keyv
@@ -1714,6 +1716,7 @@ tIf
 tV
 tabconfig
 tablename
+tbl
 tc
 tcmalloc
 td

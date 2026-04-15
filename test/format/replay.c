@@ -161,37 +161,12 @@ replay_operation_enabled(thread_op op)
         return (true);
 
     /*
-     * We don't permit modify operations with predictable replay.
-     *
-     * The problem is read timestamps. As currently implemented, the read timestamp selected is
-     * variable, based on the state of other threads and their progress with other timestamped
-     * operations. And if two changes are made to the same key in a short amount of time, if the
-     * second operation were to be performed sometimes with a read timestamp before the first
-     * operation, and sometimes with a read timestamp after the first operation, then the results
-     * would be variable.
-     *
-     * We could track recent operations on a key (in its lane, for instance), but when we realize
-     * the read timestamp isn't recent enough, we would need to wait for the stable timestamp to
-     * move forward (and our waiting can affect/delay other thread's operations as well). Having the
-     * stable timestamp move forward is the only way our read timestamp can progress.
-     *
-     * Another possibility that also involves tracking recent operations on a key would be to
-     * disallow modifies that occur within, say 10000 timestamps of a previous write operation on
-     * the same key. Those modifies could be silently converted to reads, for instance. If our read
-     * timestamp was greater than 10000 timestamps behind, we'd still need to wait for the stable
-     * timestamp to catch up.
+     * We don't permit modify operations with predictable replay. A modify applies a delta on top of
+     * the existing value read at the transaction's read timestamp. The read timestamp is
+     * non-deterministic, so a modify can produce different results across runs if the read
+     * timestamp straddles a prior write to the same key.
      */
     if (op == MODIFY)
-        return (false);
-
-    /*
-     * FIXME-WT-10570. We don't permit remove operations with predictable replay.
-     *
-     * This should be something we can and should fix. The problem may be similar to the problem
-     * with modify, where having a varying read timestamp can cause different results for different
-     * runs.
-     */
-    if (op == REMOVE)
         return (false);
 
     /*
@@ -482,6 +457,7 @@ replay_committed(TINFO *tinfo)
      * timestamps to advance.
      */
     WT_RELEASE_WRITE_WITH_BARRIER(g.lanes[lane].last_commit_ts, tinfo->replay_ts);
+
     if (g.timestamp <= tinfo->replay_ts + LANE_COUNT) {
         WT_RELEASE_WRITE_WITH_BARRIER(g.lanes[lane].in_use, false);
         tinfo->lane = LANE_NONE;
@@ -491,6 +467,126 @@ replay_committed(TINFO *tinfo)
         tinfo->replay_again = true;
     }
     testutil_check(pthread_rwlock_unlock(&g.lane_lock));
+}
+
+/*
+ * replay_adjust_key_for_lane --
+ *     Force the bottom lane bits of keyno to match the given lane, with boundary clamping.
+ */
+static void
+replay_adjust_key_for_lane(uint64_t *keynop, uint32_t lane, uint64_t max_rows)
+{
+    uint64_t keyno;
+
+    keyno = (*keynop & ~(uint64_t)(LANE_COUNT - 1)) | lane;
+    if (keyno == 0)
+        keyno = LANE_COUNT;
+    else if (keyno >= max_rows)
+        keyno -= LANE_COUNT;
+    *keynop = keyno;
+}
+
+/*
+ * replay_target_remove --
+ *     Derive a deterministic remove target from one of four equally likely buckets: key from the
+ *     initial bulk load; key from ops history, 1 to 10 cycles back; key from ops history, 1 to 100
+ *     cycles back; key from ops history, 1 to 1000 cycles back. Sets target_ts to the source
+ *     timestamp (0 for bulk-load targets). Returns a skip result if no suitable target exists.
+ */
+replay_remove_result
+replay_target_remove(TINFO *tinfo, TABLE **tablep, uint64_t *keynop, uint64_t *target_tsp)
+{
+    WT_RAND_STATE temp_rnd;
+    TABLE *target_table;
+    uint64_t cycles, keyno, max_cycles, range_max, target_ts;
+    uint32_t bucket, lane, max_rows, target_op_pct;
+
+    max_cycles = tinfo->replay_ts / LANE_COUNT;
+    bucket = mmrand(&tinfo->data_rnd, 0, 2);
+
+    if (bucket == 3) {
+        /* Bucket 3: remove a bulk-loaded key. */
+        if (ntables == 0)
+            target_table = tables[0];
+        else
+            target_table = tables[mmrand(&tinfo->data_rnd, 1, ntables)];
+
+        max_rows = target_table->v[V_TABLE_RUNS_ROWS].v;
+        keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
+        if (target_table->v[V_TABLE_OPS_PARETO].v) {
+            keyno =
+              testutil_pareto(keyno, (u_int)max_rows, target_table->v[V_TABLE_OPS_PARETO_SKEW].v);
+            if (keyno == 0)
+                keyno++;
+        }
+        replay_adjust_key_for_lane(&keyno, tinfo->lane, max_rows);
+
+        *tablep = target_table;
+        *keynop = keyno;
+        *target_tsp = 0; /* bulk-loaded, no source timestamp */
+        return (REPLAY_REMOVE_OK);
+    }
+
+    /*
+     * Buckets 0-2: look back a random number of lane cycles and target the key that was written (if
+     * it was a write) at that earlier timestamp. Need at least one cycle of history.
+     */
+    if (max_cycles == 0)
+        return (REPLAY_REMOVE_SKIP_HISTORY);
+
+    range_max = 10;
+    for (uint32_t b = 0; b < bucket; ++b)
+        range_max *= 10;
+    range_max = WT_MIN(range_max, max_cycles);
+    cycles = mmrand(&tinfo->data_rnd, 1, (u_int)range_max);
+    target_ts = tinfo->replay_ts - cycles * LANE_COUNT;
+
+    /*
+     * Seed a temporary data RNG and replay the exact call sequence from ops_worker at target_ts:
+     * table_select, prepare check, op selection, key selection.
+     */
+    testutil_random_from_seed(&temp_rnd, target_ts ^ GV(RANDOM_DATA_SEED));
+
+    /* Table selection: matches table_select(tinfo, true). */
+    if (ntables == 0)
+        target_table = tables[0];
+    else
+        target_table = tables[mmrand(&temp_rnd, 1, ntables)];
+
+    /* Prepare check: only consumes an RNG call if OPS_PREPARE is configured. */
+    if (GV(OPS_PREPARE))
+        (void)mmrand(&temp_rnd, 1, 10);
+
+    /*
+     * Op selection: if the operation at target_ts was not a write, no key was written there.
+     * Removing it would create a redundant tombstone, so skip to avoid history store bloat.
+     */
+    target_op_pct = mmrand(&temp_rnd, 1, 100);
+    if (target_op_pct < target_table->v[V_TABLE_OPS_PCT_DELETE].v)
+        return (REPLAY_REMOVE_SKIP_PRIOR);
+    if (target_op_pct >= target_table->v[V_TABLE_OPS_PCT_DELETE].v +
+        target_table->v[V_TABLE_OPS_PCT_INSERT].v + target_table->v[V_TABLE_OPS_PCT_MODIFY].v +
+        target_table->v[V_TABLE_OPS_PCT_WRITE].v)
+        return (REPLAY_REMOVE_SKIP_READ);
+
+    /* Key selection: use configured RUNS_ROWS (not rows_current) for cross-run consistency. */
+    max_rows = target_table->v[V_TABLE_RUNS_ROWS].v;
+    keyno = mmrand(&temp_rnd, 1, (u_int)max_rows);
+    if (target_table->v[V_TABLE_OPS_PARETO].v) {
+        keyno = testutil_pareto(keyno, (u_int)max_rows, target_table->v[V_TABLE_OPS_PARETO_SKEW].v);
+        if (keyno == 0)
+            keyno++;
+    }
+
+    /* Adjust key for lane target_ts is always in the same lane as replay_ts. */
+    lane = LANE_NUMBER(target_ts);
+    testutil_assert(lane == tinfo->lane);
+    replay_adjust_key_for_lane(&keyno, lane, max_rows);
+
+    *tablep = target_table;
+    *keynop = keyno;
+    *target_tsp = target_ts;
+    return (REPLAY_REMOVE_OK);
 }
 
 /*

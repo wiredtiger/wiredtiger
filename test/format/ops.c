@@ -356,6 +356,14 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     replay_run_begin(session);
 
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        char replay_log_path[MAX_FORMAT_PATH];
+        testutil_snprintf(
+          replay_log_path, sizeof(replay_log_path), "%s/replay_ops_%u.log", g.home, run_current);
+        g.replay_op_log = fopen(replay_log_path, "w");
+        testutil_assertfmt(g.replay_op_log != NULL, "failed to open %s", replay_log_path);
+    }
+
     for (i = 0; i < GV(RUNS_THREADS); ++i) {
         tinfo = tinfo_list[i];
         testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
@@ -500,6 +508,23 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     rollback_to_stable(session);
 
     disagg_sync_multi_node(session);
+
+    if (g.replay_op_log != NULL) {
+        uint64_t ok = 0, skip_history = 0, skip_read = 0, skip_prior = 0;
+        TINFO **tlp;
+        for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
+            ok += (*tlp)->replay_remove_ok;
+            skip_history += (*tlp)->replay_remove_skip_history;
+            skip_read += (*tlp)->replay_remove_skip_read;
+            skip_prior += (*tlp)->replay_remove_skip_prior;
+        }
+        fprintf(g.replay_op_log,
+          "REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64 " (no-history=%" PRIu64
+          " target-read=%" PRIu64 " target-remove=%" PRIu64 ")\n",
+          ok, skip_history + skip_read + skip_prior, skip_history, skip_read, skip_prior);
+        fclose(g.replay_op_log);
+        g.replay_op_log = NULL;
+    }
 
     replay_run_end(session);
 
@@ -779,8 +804,12 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * Inserts, removes and updates can be done following a cursor set-key, or based on a cursor
          * position taken from a previous search. If not already doing a read, position the cursor
          * at an existing point in the tree 20% of the time.
+         *
+         * For predictable replay, don't pre-position the cursor. Each operation must be
+         * independent, always using the explicit set-key path with the key derived from the replay
+         * timestamp.
          */
-        if (op != READ && mmrand(&tinfo->data_rnd, 1, 5) == 1) {
+        if (!GV(RUNS_PREDICTABLE_REPLAY) && op != READ && mmrand(&tinfo->data_rnd, 1, 5) == 1) {
             ++tinfo->search;
             ret = read_row(tinfo);
             if (ret == 0) {
@@ -795,9 +824,14 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * can't be done at lower isolation levels). Reserving a row in an implicit transaction will
          * work, but doesn't make sense. Reserving a row before a read won't be useful but it's not
          * unexpected. A row cannot be reserved with ignore prepare.
+         *
+         * For predictable replay, skip the reserve. cursor->reserve() depends on key visibility at
+         * the non-deterministic read timestamp. If it succeeds in one run but fails in another,
+         * positioned differs, which changes whether key_gen_insert consumes data_rnd, causing all
+         * subsequent random decisions to diverge.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT && tinfo->ignore_prepare == false &&
-          mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
+        if (!GV(RUNS_PREDICTABLE_REPLAY) && intxn && iso_level == ISOLATION_SNAPSHOT &&
+          tinfo->ignore_prepare == false && mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
@@ -996,10 +1030,12 @@ ops(void *arg)
     iso_level_t iso_level;
     thread_op op;
     uint64_t reset_op, session_op, throttle_delay, truncate_op;
+    uint64_t rlog_keyno, rlog_lane, rlog_read_ts, rlog_ts, rlog_write_ts;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i, throttle_delay_max;
-    const char *iso_config;
+    u_int i, rlog_table_id, throttle_delay_max;
+    const char *iso_config, *rlog_skip_reason, *rlog_op_name;
     bool greater_than, intxn, prepared, mirrored_truncate;
+    bool rlog_remove, rlog_to_update, rlog_write;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1021,6 +1057,10 @@ ops(void *arg)
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
+    rlog_remove = rlog_to_update = rlog_write = false;
+    rlog_keyno = rlog_lane = rlog_read_ts = rlog_ts = rlog_write_ts = 0;
+    rlog_table_id = 0;
+    rlog_skip_reason = rlog_op_name = NULL;
 
     /*
      * Calculate max delay so that per-table ops/sec is as set. We use 2* here as our random
@@ -1199,6 +1239,66 @@ rollback_retry:
                 tinfo->keyno++;
         }
         replay_adjust_key(tinfo, max_rows);
+
+        /*
+         * For predictable replay removes: derive the target key deterministically from replay_ts by
+         * re-simulating the data_rnd state at a randomly chosen earlier timestamp in the same lane.
+         * The cursor uses overwrite mode so remove() writes a tombstone at commit_ts regardless of
+         * key visibility at read_ts.
+         */
+        if (GV(RUNS_PREDICTABLE_REPLAY)) {
+            if (op == REMOVE) {
+                TABLE *target_table;
+                uint64_t target_keyno, target_ts;
+                replay_remove_result remove_result;
+
+                remove_result =
+                  replay_target_remove(tinfo, &target_table, &target_keyno, &target_ts);
+                if (remove_result == REPLAY_REMOVE_OK) {
+                    ++tinfo->replay_remove_ok;
+                    if (tinfo->lane == 1) {
+                        rlog_remove = true;
+                        rlog_lane = tinfo->lane;
+                        rlog_ts = tinfo->replay_ts;
+                        rlog_read_ts = tinfo->read_ts;
+                        rlog_keyno = target_keyno;
+                        rlog_write_ts = target_ts;
+                        rlog_table_id = target_table->id;
+                    }
+                    tinfo->keyno = target_keyno;
+                    table = tinfo->table = target_table;
+                } else {
+                    if (remove_result == REPLAY_REMOVE_SKIP_HISTORY)
+                        ++tinfo->replay_remove_skip_history;
+                    else if (remove_result == REPLAY_REMOVE_SKIP_READ)
+                        ++tinfo->replay_remove_skip_read;
+                    else
+                        ++tinfo->replay_remove_skip_prior;
+                    if (tinfo->lane == 1) {
+                        static const char *const skip_names[] = {
+                          [REPLAY_REMOVE_SKIP_HISTORY] = "not enough history",
+                          [REPLAY_REMOVE_SKIP_READ] = "target was a read",
+                          [REPLAY_REMOVE_SKIP_PRIOR] = "target was a remove",
+                        };
+                        rlog_to_update = true;
+                        rlog_skip_reason = skip_names[remove_result];
+                        rlog_lane = tinfo->lane;
+                        rlog_ts = tinfo->replay_ts;
+                    }
+                    op = UPDATE;
+                }
+            }
+            /* Log all non-remove operations for lane 1. */
+            if (tinfo->lane == 1 && (op == INSERT || op == READ || op == UPDATE)) {
+                rlog_write = true;
+                rlog_op_name = op == INSERT ? "INSERT" : (op == READ ? "READ" : "UPDATE");
+                rlog_lane = tinfo->lane;
+                rlog_ts = tinfo->replay_ts;
+                rlog_read_ts = tinfo->read_ts;
+                rlog_keyno = tinfo->keyno;
+                rlog_table_id = table->id;
+            }
+        }
 
         /*
          * If the operation is a truncate, select a range.
@@ -1387,6 +1487,17 @@ skip_operation:
             prepared = true;
         }
 
+/*
+ * Emit a replay log line to stderr and to the per-run log file. Defined here so it can be used in
+ * the commit case below.
+ */
+#define rlog_emit(fmt, ...)                             \
+    do {                                                \
+        fprintf(stderr, fmt, __VA_ARGS__);              \
+        if (g.replay_op_log != NULL)                    \
+            fprintf(g.replay_op_log, fmt, __VA_ARGS__); \
+    } while (0)
+
         /*
          * If we're in a transaction, commit 40% of the time and rollback 10% of the time (we
          * already continued to add operations to the transaction the remaining half of the time).
@@ -1399,6 +1510,23 @@ skip_operation:
             __wt_yield(); /* Encourage races */
             commit_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, true);
+            if (rlog_remove) {
+                rlog_emit("REMOVE lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64
+                          " -> remove keyno=%" PRIu64 " target_ts=%" PRIu64 " tbl=%u\n",
+                  rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_write_ts, rlog_table_id);
+                rlog_remove = false;
+            }
+            if (rlog_to_update) {
+                rlog_emit("REMOVE lane=%" PRIu64 " ts=%" PRIu64 " -> UPDATE (%s)\n", rlog_lane,
+                  rlog_ts, rlog_skip_reason);
+                rlog_to_update = false;
+            }
+            if (rlog_write) {
+                rlog_emit("%s lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
+                          " tbl=%u\n",
+                  rlog_op_name, rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id);
+                rlog_write = false;
+            }
             break;
         case 5: /* 10% */
 rollback:
@@ -1419,6 +1547,7 @@ rollback:
             snap_repeat_update(tinfo, false);
             break;
         }
+#undef rlog_emit
 
         /*
          * If this operation was a mirrored truncate, verify the mirrors. This runs after both
@@ -2133,8 +2262,14 @@ row_remove(TINFO *tinfo, bool positioned)
         cursor->set_key(cursor, tinfo->key);
     }
 
-    /* We use the cursor in overwrite mode, check for existence. */
-    if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
+    /*
+     * We use the cursor in overwrite mode, check for existence. For predictable replay, skip the
+     * search and call remove directly overwrite mode writes a tombstone at commit_ts regardless of
+     * key visibility at read_ts, making the outcome deterministic across runs.
+     */
+    if (GV(RUNS_PREDICTABLE_REPLAY))
+        ret = cursor->remove(cursor);
+    else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
         ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
@@ -2161,8 +2296,10 @@ col_remove(TINFO *tinfo, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
-    /* We use the cursor in overwrite mode, check for existence. */
-    if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
+    /* See row_remove for the predictable replay rationale. */
+    if (GV(RUNS_PREDICTABLE_REPLAY))
+        ret = cursor->remove(cursor);
+    else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
         ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
