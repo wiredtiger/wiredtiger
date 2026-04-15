@@ -80,7 +80,7 @@ __wt_insert_truncate_entry(
      * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
      * dhandle list, if there are entries in the truncate list.
      */
-    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+    WT_ASSERT(session, __wt_session_get_dhandle(session, uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     WT_ERR(__wt_calloc_one(session, &t));
@@ -218,6 +218,7 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *entry;
 
+    layered_table = NULL;
     entry = op->u.follower_truncate.t;
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
@@ -229,7 +230,7 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
      * dhandle list, if there are entries in the truncate list.
      */
-    WT_RET(__wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0));
+    WT_ASSERT(session, __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     __wt_writelock(session, &layered_table->truncate_lock);
