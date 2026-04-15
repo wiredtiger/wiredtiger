@@ -277,6 +277,7 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
           WT_RTS_VERB_TAG_SKIP_DAMAGE
           "%s: skipped performing rollback to stable because the file %s",
           uri, ret == ENOENT ? "does not exist" : "is corrupted.");
+        WT_STAT_CONN_INCR(session, txn_rts_btrees_skipped);
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
         ret = 0;
     } else if (ret == 0)
@@ -388,6 +389,7 @@ __wti_rts_btree_walk_btree_apply(
           WT_RTS_VERB_TAG_FILE_SKIP
           "skipping rollback to stable on file=%s because has never been checkpointed",
           uri);
+        WT_STAT_CONN_INCR(session, txn_rts_btrees_skipped);
         (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
         return (0);
     }
