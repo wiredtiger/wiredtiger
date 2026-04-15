@@ -214,7 +214,7 @@ config_bool(
 config_bool(
     WT_DISAGG_FAST_TRUNCATE_BUILD
     "Support Disaggregated Fast Truncate POC on WT build"
-    DEFAULT OFF
+    DEFAULT ON
 )
 
 config_bool(
