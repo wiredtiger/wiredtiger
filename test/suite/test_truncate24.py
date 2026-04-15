@@ -80,9 +80,11 @@ class test_truncate24(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
         # Check stats to make sure we fast-deleted at least one page.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
-        self.assertGreater(fastdelete_pages, 0)
+        # Fast-truncate is not used for layered tables in disagg mode.
+        if not self.runningHook("disagg"):
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            fastdelete_pages = stat_cursor[wiredtiger.stat.conn.rec_page_delete_fast][2]
+            self.assertGreater(fastdelete_pages, 0)
 
         # Verify the data.
         for i in range(1, 100000):
