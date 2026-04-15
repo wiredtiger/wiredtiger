@@ -166,19 +166,18 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.reset()
 
         # Advance to a new checkpoint that adds odd keys.
+        # In production, the follower replicates all leader operations to its ingest table
+        # before the checkpoint is picked up.
         odd_keys = list(range(1, self.nkeys, 2))
         self.insert_leader(odd_keys)
+        self.insert_follower(odd_keys)
         self.do_checkpoint()
 
-        # Trigger the cursor to pick up the new checkpoint via search, then verify full scan sees all 1000 keys.
-        all_keys = [self.fmt_key(i) for i in range(self.nkeys)]
-        cursor.set_key(self.fmt_key(0))
-        self.assertEqual(cursor.search(), 0)
-        cursor.reset()
+        # After picking up the checkpoint, the full scan must see all 1000 keys.
         keys = []
         while cursor.next() == 0:
             keys.append(cursor.get_key())
-        self.assertEqual(keys, all_keys)
+        self.assertEqual(keys, [self.fmt_key(i) for i in range(self.nkeys)])
         cursor.close()
 
     # -----------------------------------------------------------------------
@@ -204,6 +203,7 @@ class test_layered81(wttest.WiredTigerTestCase):
         update_keys = list(range(0, self.nkeys, 10))
         update_vals = [f"updated_{i:06d}" for i in update_keys]
         self.insert_leader(update_keys, values=update_vals)
+        self.insert_follower(update_keys, values=update_vals)
         self.do_checkpoint()
 
         # After checkpoint advance, should see new values for updated keys.
@@ -272,9 +272,10 @@ class test_layered81(wttest.WiredTigerTestCase):
 
         # Advance checkpoint: adds key 1000.
         self.insert_leader([1000])
+        self.insert_follower([1000])
         self.do_checkpoint()
 
-        # Without resetting, verify the cursor can find new stable data.
+        # Without resetting, verify the cursor can find new data.
         cursor.set_key(self.fmt_key(1000))
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), self.fmt_val(1000))
@@ -331,6 +332,7 @@ class test_layered81(wttest.WiredTigerTestCase):
 
         # Add 500 and checkpoint.
         self.insert_leader([500])
+        self.insert_follower([500])
         self.do_checkpoint()
 
         # After checkpoint advance, search_near should find exact match.
@@ -340,6 +342,57 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), self.fmt_key(500))
         self.assertEqual(cursor.get_value(), self.fmt_val(500))
         cursor.close()
+
+    # -----------------------------------------------------------------------
+    # Test: Cursor open in an explicit transaction during checkpoint advance.
+    #
+    # With a fixed snapshot, __clayered_can_advance_stable always returns
+    # false (snapshot_gen is frozen). New data is only visible because it
+    # is in the ingest table. Without ingest replication this test fails
+    # deterministically — unlike autocommit tests where the snapshot may
+    # incidentally change between cursor calls.
+    # -----------------------------------------------------------------------
+    def test_checkpoint_advance_cursor_open_in_explicit_transaction(self):
+
+        all_keys = list(range(500))
+        self.insert_leader(all_keys)
+        self.do_checkpoint()
+
+        # Use a separate session for ingest writes: session_follow cannot
+        # call begin_transaction while it already has an active transaction.
+        ingest_session = self.conn_follow.open_session('')
+
+        # Fix the snapshot for the cursor's lifetime.
+        self.session_follow.begin_transaction()
+        cursor = self.session_follow.open_cursor(self.uri)
+        cursor.set_key(self.fmt_key(0))
+        self.assertEqual(cursor.search(), 0)
+        cursor.reset()
+
+        # Replicate new keys to ingest before checkpoint pickup. Without this
+        # the cursor would not see keys 500-999: the stable cursor cannot
+        # advance (snapshot_gen is frozen by the explicit transaction).
+        new_keys = list(range(500, self.nkeys))
+        self.insert_leader(new_keys)
+        ingest_cursor = ingest_session.open_cursor(self.uri)
+        for k in new_keys:
+            ingest_session.begin_transaction()
+            ingest_cursor[self.fmt_key(k)] = self.fmt_val(k)
+            ingest_session.commit_transaction(
+                f"commit_timestamp={self.timestamp_str(self.next_ts())}")
+        ingest_cursor.close()
+        self.do_checkpoint()
+
+        # Stable cursor cannot advance (same snapshot_gen), but new keys
+        # are visible via the ingest table.
+        keys = []
+        while cursor.next() == 0:
+            keys.append(cursor.get_key())
+        self.assertEqual(keys, [self.fmt_key(i) for i in range(self.nkeys)])
+
+        cursor.close()
+        self.session_follow.rollback_transaction()
+        ingest_session.close()
 
     # -----------------------------------------------------------------------
     # Test: Read timestamp controls which checkpoint's data is visible.
@@ -420,6 +473,7 @@ class test_layered81(wttest.WiredTigerTestCase):
 
         # Add more data outside bounds and checkpoint.
         self.insert_leader([1001, 1002])
+        self.insert_follower([1001, 1002])
         self.do_checkpoint()
 
         cursor.set_key(self.fmt_key(500))
@@ -463,19 +517,14 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(keys, expected_even_bounded)
 
         cursor.reset()
-        cursor.set_key(self.fmt_key(200))
-        cursor.bound("bound=lower")
-        cursor.set_key(self.fmt_key(800))
-        cursor.bound("bound=upper")
 
         # Add odd keys inside and outside bounds.
+        # In production, the follower replicates all leader operations to its ingest table
+        # before the checkpoint is picked up.
         odd_keys = list(range(1, self.nkeys, 2))
         self.insert_leader(odd_keys)
+        self.insert_follower(odd_keys)
         self.do_checkpoint()
-
-        cursor.set_key(self.fmt_key(500))
-        self.assertEqual(cursor.search(), 0)
-        cursor.reset()
 
         # Re-apply bounds after reset.
         cursor.set_key(self.fmt_key(200))

@@ -497,7 +497,6 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session;
-    WT_TXN_SHARED *txn_shared;
     uint64_t last_checkpoint_meta_lsn;
     bool change_ingest, change_stable, current_leader;
 
@@ -578,7 +577,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 
 done:
     clayered->snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
-    txn_shared = WT_SESSION_TXN_SHARED(session);
+    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     clayered->read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
     return (0);
 }
