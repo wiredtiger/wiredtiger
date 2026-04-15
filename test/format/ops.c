@@ -266,7 +266,6 @@ rollback_to_stable(WT_SESSION *session)
     if (GV(RUNS_PREDICTABLE_REPLAY))
         g.timestamp = g.stable_timestamp;
 
-
 done:
     /* Check the saved snap operations for consistency. */
     snap_repeat_repeatable(session, tinfo_list, GV(RUNS_THREADS));
