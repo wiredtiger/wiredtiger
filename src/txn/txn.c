@@ -1360,6 +1360,7 @@ __txn_mod_sortable_key(WT_TXN_OP *opt)
     case (WT_TXN_OP_REF_DELETE):
     case (WT_TXN_OP_TRUNCATE_COL):
     case (WT_TXN_OP_TRUNCATE_ROW):
+    case (WT_TXN_OP_FOLLOWER_TRUNCATE):
         return (false);
     case (WT_TXN_OP_BASIC_COL):
     case (WT_TXN_OP_BASIC_ROW):
@@ -1617,6 +1618,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ERR(__wti_mark_committed_truncate_table(session, op));
             break;
         }
 
@@ -1987,6 +1991,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_delete_apply_prepare_state(session, op, false);
             break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
@@ -2116,6 +2121,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_TRET(__wt_delete_page_rollback(session, op));
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_RET(__wti_layered_table_truncate_rollback(session, op));
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
