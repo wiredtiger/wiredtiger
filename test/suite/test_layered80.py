@@ -36,6 +36,7 @@
 
 import time, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from wiredtiger import stat
 from wtscenario import make_scenarios
 
 @disagg_test_class
@@ -52,6 +53,19 @@ class test_layered80(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered80', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
+
+    def wait_for_sweep(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        baseline = stat_cursor[stat.conn.dh_sweeps][2]
+        stat_cursor.close()
+        for _ in range(120):
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            sweeps = stat_cursor[stat.conn.dh_sweeps][2]
+            stat_cursor.close()
+            if sweeps - baseline >= 2:
+                return
+            time.sleep(1)
+        self.assertTrue(False, 'sweep server did not run within 120s')
 
     def test_layered_dhandle_not_swept_during_stepup(self):
         """
@@ -74,11 +88,10 @@ class test_layered80(wttest.WiredTigerTestCase):
         # Pin the ingest table dhandle, so it doesn't get swept away on purpose.
         cursor = self.session.open_cursor("file:test_layered80.wt_ingest")
 
-        # Give the aggressive sweep server time to run several cycles.
-        # If the sweep server is not configured to skip layered dhandles,
-        # it would mark and close them, causing gaps when draining the
-        # ingest table at step-up.
-        time.sleep(3)
+        # Wait for the sweep server to run several cycles. If it is not configured
+        # to skip layered dhandles, it would mark and close them, causing gaps when
+        # draining the ingest table at step-up.
+        self.wait_for_sweep()
 
         # Step up to leader.
         self.conn.reconfigure('disaggregated=(role="leader")')
@@ -125,14 +138,13 @@ class test_layered80(wttest.WiredTigerTestCase):
 
         self.session.begin_transaction()
         self.session.truncate(None, c_start, c_stop, None)
-
-        # Give the aggressive sweep server time to run several cycles.
-        # If the layered dhandle is incorrectly swept while the truncate entry lives
-        # in its truncate list, the commit below will fail or the truncated range
-        # will reappear.
-        time.sleep(3)
-
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows + 1))
+
+        # Wait for the sweep server to run several cycles. If the layered dhandle is
+        # incorrectly swept while the truncate entry lives in its truncate list,
+        # the truncated range will go missing.
+        self.wait_for_sweep()
+
         c_start.close()
         c_stop.close()
 
