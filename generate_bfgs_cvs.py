@@ -5,7 +5,7 @@ from pathlib import Path
 from bb_client import BuildBaronClient, BBSearchBfgsSpec, get_oauth_credentials
 from bb_client.models.bfg import AttributeType
 
-BF_KEY = "WT-16531"
+BF_KEY = "WT-17002"
 OUT_CSV = Path("bfgs.csv")
 
 def get_client():
