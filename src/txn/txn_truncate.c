@@ -161,7 +161,10 @@ __wt_layered_table_truncate_detect_write_conflict(
 
         if (is_within_range) {
             __wt_readunlock(session, &layered_table->truncate_lock);
-            return (WT_WRITE_CONFLICT);
+            WT_STAT_CONN_INCR(session, txn_update_conflict);
+            __wt_session_set_last_error(
+              session, WT_ROLLBACK, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
+            return (WT_ROLLBACK);
         }
     }
     __wt_readunlock(session, &layered_table->truncate_lock);
