@@ -1379,6 +1379,26 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_disagg_config_get_role --
+ *     Parse the disaggregated role from the configuration and return whether this node is a leader.
+ */
+int
+__wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *leaderp)
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("follower", cval))
+        *leaderp = false;
+    else if (WT_CONFIG_LIT_MATCH("leader", cval))
+        *leaderp = true;
+    else
+        WT_RET_MSG(session, EINVAL, "Invalid node role");
+
+    return (0);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -1431,14 +1451,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR_MSG_CHK(session, __wti_disagg_set_last_materialized_lsn(session, (uint64_t)cval.val),
           "Failed to set the last materialized LSN to %" PRIu64, (uint64_t)cval.val);
 
-    /* Set the role. */
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
-    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("follower", cval))
-        leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval))
-        leader = true;
-    else
-        WT_ERR_MSG(session, EINVAL, "Invalid node role");
+    /* Get the configured role. */
+    WT_ERR(__wt_disagg_config_get_role(session, cfg, &leader));
 
     if (!reconfig) {
         /* Set the initial role. */
