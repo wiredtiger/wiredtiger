@@ -50,7 +50,7 @@ class test_truncate05(wttest.WiredTigerTestCase):
     def test_truncate_read_older_than_newest(self):
         uri = 'table:test_truncate05'
         format = 'key_format={},value_format={}'.format(self.key_format, 'S')
-        self.session.create(uri, format + self.extraconfig)
+        self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
 
         value1 = 'a' * 500
@@ -64,7 +64,7 @@ class test_truncate05(wttest.WiredTigerTestCase):
 
         # Reopen the connection to force all content to disk.
         self.reopen_conn()
-        self.session.create(uri, format + self.extraconfig)
+        self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
 
         # Insert a single update at a later timestamp.
