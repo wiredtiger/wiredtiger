@@ -685,6 +685,7 @@ struct __wt_connection_stats {
     int64_t eviction_internal_pages_seen;
     int64_t eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
+    int64_t cache_pages_inuse_leaf;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_bytes_max;
@@ -977,6 +978,9 @@ struct __wt_connection_stats {
     int64_t dh_sweep_skip_ckpt;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
+    int64_t disagg_abandon_checkpoint_failed;
+    int64_t disagg_abandon_checkpoint_succeed;
+    int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_role_leader;
     int64_t disagg_step_down_time;
