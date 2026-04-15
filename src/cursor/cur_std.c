@@ -894,11 +894,11 @@ __cursors_must_be_readonly(WT_SESSION_IMPL *session, const char *cfg[], bool *re
 }
 
 /*
- * __wt_cursors_can_be_cached --
+ * __wti_cursors_can_be_cached --
  *     Determine whether cfg[] allows that a cursor be cached.
  */
 int
-__wt_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
+__wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
 {
     WT_CONFIG_ITEM cval;
 
@@ -1072,7 +1072,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
         overwrite_flag = WT_CURSTD_OVERWRITE;
 
     if (have_config) {
-        WT_RET(__wt_cursors_can_be_cached(session, cfg, &cacheable));
+        WT_RET(__wti_cursors_can_be_cached(session, cfg, &cacheable));
         if (!cacheable)
             return (WT_NOTFOUND);
     }

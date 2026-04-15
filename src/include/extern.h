@@ -530,8 +530,6 @@ extern int __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
 extern int __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
   int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cacheablep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_colgroup_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_index_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
@@ -1502,6 +1500,8 @@ extern int __wti_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list a
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[],
+  bool *cacheablep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile,
   bool dump_all_data, bool dump_key_data) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])

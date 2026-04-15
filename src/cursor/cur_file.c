@@ -1064,7 +1064,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     csize = bulk ? sizeof(WT_CURSOR_BULK) : sizeof(WT_CURSOR_BTREE);
     cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
     if (cacheable)
-        WT_RET(__wt_cursors_can_be_cached(session, cfg, &cacheable));
+        WT_RET(__wti_cursors_can_be_cached(session, cfg, &cacheable));
     WT_RET(__wt_calloc(session, 1, csize, &cbt));
     cursor = &cbt->iface;
     *cursor = iface;
