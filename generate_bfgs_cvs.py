@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
+import argparse
 import csv
 from pathlib import Path
 
 from bb_client import BuildBaronClient, BBSearchBfgsSpec, get_oauth_credentials
 from bb_client.models.bfg import AttributeType
 
-BF_KEY = "WT-17002"
 OUT_CSV = Path("bfgs.csv")
 
 def get_client():
@@ -20,11 +20,16 @@ def get_client():
     return BuildBaronClient.new_client(oauth_credentials)
 
 def main():
+    parser = argparse.ArgumentParser(description="Fetch BFGs for a BF key and write bfgs.csv")
+    parser.add_argument("--bf-key", required=True, help="Jira/BuildBaron BF key (e.g. WT-17002)")
+    args = parser.parse_args()
+
+    bf_key = args.bf_key
     client = get_client()
 
     # Search all BFGs linked to this BF key.
     spec = BBSearchBfgsSpec(
-        bf_key=BF_KEY,
+        bf_key=bf_key,
         page_size=1000,  # big page size so we don't make many calls
     )
 
@@ -47,7 +52,7 @@ def main():
         )
 
     if not rows:
-        print(f"No BFGs found for {BF_KEY}")
+        print(f"No BFGs found for {bf_key}")
         return
 
     with OUT_CSV.open("w", newline="") as f:
