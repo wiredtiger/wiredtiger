@@ -17,7 +17,7 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    if (entry == NULL)
+    if (entry == NULL || *entry == NULL)
         return;
 
     __wt_free(session, (*entry)->uri);
@@ -89,7 +89,7 @@ __wt_insert_truncate_entry(
     WT_ERR(__wt_calloc_one(session, &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
 
-    /* A NULL stop key indicates a truncate starts from the beginning of the table. */
+    /* A NULL start key indicates a truncate starts from the beginning of the table. */
     if (start_key != NULL)
         WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
 
