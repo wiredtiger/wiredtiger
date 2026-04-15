@@ -50,8 +50,7 @@ class test_layered37(wttest.WiredTigerTestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern(
-            r"oldest id .* pinned in session|^Session: ID:|^  |^session ID:|^transaction id:")
+        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
 
     def test_ping_ingest_table(self):
         # Create the oplog

@@ -55,8 +55,7 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
     # run on the test output.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern(
-            r'WT_VERB_RTS|oldest id .* pinned in session|^Session: ID:|^  |^session ID:|^transaction id:')
+        self.ignoreStdoutPattern(r'WT_VERB_RTS|oldest id .* pinned in session')
         self.addTearDownAction(verify_rts_logs)
 
     def check(self, ds, value, nrows, ts):

@@ -47,8 +47,7 @@ class test_txn24(wttest.WiredTigerTestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern(
-            r"oldest id .* pinned in session|^Session: ID:|^Cursor @|^  |^session ID:|^transaction id:")
+        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
 
     def conn_config(self):
         return 'cache_size=100MB,eviction=(threads_min=4,threads_max=4)'

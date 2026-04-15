@@ -36,8 +36,7 @@ class test_timestamp20(wttest.WiredTigerTestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern(
-            r"oldest id .* pinned in session|^Session: ID:|^  |^session ID:|^transaction id:")
+        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
 
     format_values = [
         ('string-row', dict(key_format='S', value_format='S')),

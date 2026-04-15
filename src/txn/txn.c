@@ -559,10 +559,11 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     if (current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL &&
       oldest_id != txn_global->oldest_id_last_verbose) {
         txn_global->oldest_id_last_verbose = oldest_id;
-        __wt_verbose_warning(session, WT_VERB_TRANSACTION,
-          "oldest id %" PRIu64 " pinned in session %" PRIu32 " (current_id %" PRIu64 "):",
-          oldest_id, oldest_session->id, current_id);
-        WT_IGNORE_RET(__wt_session_dump(session, oldest_session, false));
+        __wt_verbose_notice(session, WT_VERB_TRANSACTION,
+          "oldest id %" PRIu64 " pinned in session %" PRIu32
+          " [last_op: %s] (current_id %" PRIu64 ")",
+          oldest_id, oldest_session->id,
+          __wt_tsan_suppress_load_const_char_ptr(&oldest_session->lastop), current_id);
     }
 
 done:
