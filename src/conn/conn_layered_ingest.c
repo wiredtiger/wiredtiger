@@ -434,13 +434,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 } else {
                     WT_ASSERT(session, !prepare || durable_start_ts == WT_TS_NONE);
                     upd->txnid = start_txn;
-                    if (start_prepared_id != WT_PREPARED_ID_NONE) {
-                        if (prepare)
-                            upd->prepare_state = WT_PREPARE_INPROGRESS;
-                        else
-                            upd->prepare_state = WT_PREPARE_LOCKED;
-                    } else
-                        WT_ASSERT(session, !prepare);
+                    if (prepare)
+                        upd->prepare_state = WT_PREPARE_INPROGRESS;
+                    else if (start_prepared_id != WT_PREPARED_ID_NONE)
+                        upd->prepare_state = WT_PREPARE_RESOLVED;
                     upd->prepare_ts = start_prepare_ts;
                     upd->prepared_id = start_prepared_id;
                     upd->upd_start_ts = start_ts;
