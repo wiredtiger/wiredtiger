@@ -284,53 +284,24 @@ err:
 
 /*
  * __wt_verify_unique_btree_ids --
- *     Verify that both local and shared (disagg) metadata have unique btree IDs. Must be called
- *     outside the schema lock even with the metadata handle already open, opening a metadata cursor
- *     under the schema lock causes stalls.
+ *     Verify that no two stable constituent files in the local metadata share the same btree ID.
+ *     Local metadata is a superset of the shared (disagg) metadata after the merge, so checking
+ *     local is sufficient. Must be called outside the schema and checkpoint locks.
  */
 int
 __wt_verify_unique_btree_ids(WT_SESSION_IMPL *session)
 {
-    WT_CURSOR *md_cursor, *disagg_md_cursor;
-    WT_DECL_ITEM(metadata_uri_buf);
+    WT_CURSOR *cursor;
     WT_DECL_RET;
-    const char *metadata_checkpoint_name;
-    const char *cfg[2] = {NULL, NULL};
 
-    metadata_checkpoint_name = NULL;
-    md_cursor = NULL;
-    disagg_md_cursor = NULL;
+    cursor = NULL;
 
-    /* Check the local metadata for duplicate btree IDs among stable files. */
-    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-    WT_ERR(__check_duplicate_btree_ids(session, md_cursor, "local"));
-
-    /*
-     * If disaggregated storage is active, also check the shared metadata table. This catches
-     * duplicates that exist only in the remote metadata before they are merged into local.
-     */
-    WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
-                         session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
-      false);
-    if (metadata_checkpoint_name == NULL)
-        goto err;
-
-    WT_ERR(__wt_scr_alloc(session, 0, &metadata_uri_buf));
-    WT_ERR(__wt_buf_fmt(
-      session, metadata_uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, metadata_checkpoint_name));
-
-    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    WT_ERR(__wt_open_cursor(session, metadata_uri_buf->data, NULL, cfg, &disagg_md_cursor));
-
-    WT_ERR(__check_duplicate_btree_ids(session, disagg_md_cursor, "disagg"));
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
+    WT_ERR(__check_duplicate_btree_ids(session, cursor, "local"));
 
 err:
-    if (md_cursor != NULL)
-        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
-    if (disagg_md_cursor != NULL)
-        WT_TRET(disagg_md_cursor->close(disagg_md_cursor));
-    __wt_scr_free(session, &metadata_uri_buf);
-    __wt_free(session, metadata_checkpoint_name);
+    if (cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
 
