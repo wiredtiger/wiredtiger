@@ -1414,6 +1414,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
+
+    /* FIXME-WT-17177: Read-only connections are currently not supported for disagg. */
+    if (F_ISSET(conn, WT_CONN_READONLY))
+        WT_RET_MSG(session, ENOTSUP,
+          "disaggregated storage is not supported with read-only connections");
+
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
     picked_up = false;
