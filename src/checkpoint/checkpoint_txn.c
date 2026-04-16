@@ -2731,6 +2731,8 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
 static int
 __checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, bool ckpt_success)
 {
+    WT_DECL_RET;
+
     WT_CONNECTION_IMPL *conn = S2C(session);
 
     /*
@@ -2743,11 +2745,15 @@ __checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, bo
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
         WT_ASSERT(session, ckpt_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
-        if (__wt_disagg_advance_checkpoint(session, ckpt_success) != 0)
-            return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
+        WT_ERR_MSG_CHK(session, __wt_disagg_advance_checkpoint(session, ckpt_success),
+          "Failed to advance the checkpoint.");
     }
 
-    return (0);
+err:
+    if (ret != 0)
+        return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
+
+    return (ret);
 }
 
 /*
