@@ -2701,10 +2701,9 @@ err:
 static int
 __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
 
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
@@ -2730,9 +2729,7 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
 static int
 __checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts, bool ckpt_success)
 {
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
 
     /*
      * Advance to the next checkpoint in disaggregated storage if we updated the checkpoint metadata
