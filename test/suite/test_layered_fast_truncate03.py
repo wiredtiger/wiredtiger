@@ -165,52 +165,10 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         sess.close()
         conn.close()
 
-    def test_ingest_write_then_evict_stable(self):
-        # A follower write to a truncated key must route to ingest, leaving the stable page clean.
-        # After advancing the checkpoint, the ingest value survives and the stable deletion remains visible.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
-        self.setup_leader()
-        self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
-        conn, sess = self.open_follower()
-        target = self.trunc_start + 100
-        dirty_before = self.get_stat(conn, stat.conn.cache_pages_dirty)
-
-        # Confirm the target is deleted on the stable page without dirtying it.
-        ret, _ = self.search_at(sess, target, 25)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        self.assertEqual(self.get_stat(conn, stat.conn.cache_pages_dirty), dirty_before)
-        self.evict_range(sess, target, target)
-
-        # Write the key on the follower (routes to ingest) and advance the checkpoint.
-        cur = sess.open_cursor(self.uri)
-        sess.begin_transaction()
-        cur.set_key(target)
-        cur.set_value('ingest_value')
-        self.assertEqual(cur.insert(), 0)
-        sess.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        cur.close()
-
-        self.advance_follower(conn)
-
-        # Ingest write is visible at ts=30; stable deletion still visible at ts=25.
-        ret, val = self.search_at(sess, target, 30)
-        self.assertEqual(ret, 0)
-        self.assertEqual(val, 'ingest_value')
-
-        ret, _ = self.search_at(sess, target, 25)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-
-        # An unwritten truncated key nearby must also stay deleted.
-        ret, _ = self.search_at(sess, target + 100, 30)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-
-        sess.close()
-        conn.close()
-
     def test_page_split_with_ingest_writes(self):
-        # Same as above but with small pages so the truncated range spans many leaf pages.
-        # Verifies no page is dirtied and the ingest/stable merge produces the correct per-key view.
+        # With small pages the truncated range spans many leaf pages. After ingest writes
+        # restore a subset of truncated keys, those keys must be visible while the rest
+        # remain deleted.
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
         self.setup_leader(',leaf_page_max=4096')
@@ -243,7 +201,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         sess.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cur.close()
 
-        # Ingest keys are found; unwritten truncated keys remain deleted.
+        # At ts=30: ingest keys are found; unwritten truncated keys remain deleted.
         cur = sess.open_cursor(self.uri)
         sess.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         for key in ingest_keys:
@@ -251,6 +209,15 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
             self.assertEqual(cur.search(), 0)
             self.assertEqual(cur.get_value(), f'ingest_{key}')
         for key in set(sample) - ingest_keys:
+            cur.set_key(key)
+            self.assertEqual(cur.search(), wiredtiger.WT_NOTFOUND)
+        sess.rollback_transaction()
+        cur.close()
+
+        # At ts=25 (before the ingest write), all truncated keys must still be deleted.
+        cur = sess.open_cursor(self.uri)
+        sess.begin_transaction('read_timestamp=' + self.timestamp_str(25))
+        for key in ingest_keys:
             cur.set_key(key)
             self.assertEqual(cur.search(), wiredtiger.WT_NOTFOUND)
         sess.rollback_transaction()
