@@ -75,16 +75,18 @@ __rts_emit_overall_progress(WT_SESSION_IMPL *session)
  *     metadata walk loop in __wti_rts_btree_apply_all.
  */
 static void
-__rts_progress_msg(WT_SESSION_IMPL *session, uint64_t *last_report_clock)
+__rts_progress_msg(WT_SESSION_IMPL *session)
 {
-    uint64_t clock_now, elapsed_ns;
+    WT_ROLLBACK_TO_STABLE *rts;
+    uint64_t clock_now, overall_last;
 
+    rts = S2C(session)->rts;
     clock_now = __wt_clock(session);
-    elapsed_ns = __wt_clock_to_nsec(clock_now, *last_report_clock);
-    if (elapsed_ns >= (uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD) {
+    overall_last = __wt_atomic_load_uint64_relaxed(&rts->progress.overall_last_report);
+    if (__wt_clock_to_nsec(clock_now, overall_last) >=
+        (uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD &&
+      __wt_atomic_cas_uint64(&rts->progress.overall_last_report, overall_last, clock_now))
         __rts_emit_overall_progress(session);
-        *last_report_clock = clock_now;
-    }
 }
 
 /*
@@ -135,13 +137,16 @@ __wti_rts_progress_msg_walk(WT_SESSION_IMPL *session, uint64_t btree_start_clock
 
     /*
      * Emit an overall progress line. Use CAS on overall_last_report so that exactly one thread wins
-     * per reporting period, regardless of which thread it is.
+     * per reporting period, regardless of which thread it is. Skip if progress was not initialized
+     * (e.g., single-file RTS via rollback_to_stable_one).
      */
-    overall_last = __wt_atomic_load_uint64_relaxed(&rts->progress.overall_last_report);
-    if (__wt_clock_to_nsec(clock_now, overall_last) >=
-        (uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD &&
-      __wt_atomic_cas_uint64(&rts->progress.overall_last_report, overall_last, clock_now))
-        __rts_emit_overall_progress(session);
+    if (rts->progress.total_btrees > 0) {
+        overall_last = __wt_atomic_load_uint64_relaxed(&rts->progress.overall_last_report);
+        if (__wt_clock_to_nsec(clock_now, overall_last) >=
+            (uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD &&
+          __wt_atomic_cas_uint64(&rts->progress.overall_last_report, overall_last, clock_now))
+            __rts_emit_overall_progress(session);
+    }
 
     *last_report_clock = clock_now;
 }
@@ -296,7 +301,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_RTS_WORK_UNIT *entry;
-    uint64_t last_report_clock, max_count;
+    uint64_t max_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *saved_session_name, *uri;
     bool have_cursor, rts_threads_started;
@@ -305,7 +310,6 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     __wt_atomic_store_uint32_relaxed(
       &S2C(session)->rts->progress.phase, WT_RTS_PHASE_METADATA_COUNT);
 
-    last_report_clock = __wt_clock(session);
     max_count = 0;
     saved_session_name = session->name;
     rts_threads_started = false;
@@ -340,7 +344,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         /* Log a progress message. */
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
-        __rts_progress_msg(session, &last_report_clock);
+        __rts_progress_msg(session);
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wti_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
