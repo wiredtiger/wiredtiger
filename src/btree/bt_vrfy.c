@@ -214,6 +214,126 @@ __verify_disagg_accumulate_size(
     return (0);
 }
 
+typedef struct {
+    uint32_t id;
+    char *uri;
+} WT_ID_URI_PAIR;
+
+/*
+ * __id_uri_pair_cmp --
+ *     Comparator for sorting btree ID entries by ID.
+ */
+static int WT_CDECL
+__id_uri_pair_cmp(const void *a, const void *b)
+{
+    uint32_t ia, ib;
+
+    ia = ((const WT_ID_URI_PAIR *)a)->id;
+    ib = ((const WT_ID_URI_PAIR *)b)->id;
+    return (ia < ib ? -1 : (ia == ib ? 0 : 1));
+}
+
+/*
+ * __check_duplicate_btree_ids --
+ *     Scan a cursor's entries for stable constituent files and verify that no two share the same
+ *     btree ID.
+ */
+static int
+__check_duplicate_btree_ids(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *log_prefix)
+{
+    WT_CONFIG_ITEM id_val;
+    WT_DECL_RET;
+    WT_ID_URI_PAIR *pairs;
+    size_t allocated, count, i;
+    const char *key, *value;
+
+    pairs = NULL;
+    allocated = count = 0;
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &key));
+        if (!WT_PREFIX_MATCH(key, "file:") || !WT_SUFFIX_MATCH(key, ".wt_stable"))
+            continue;
+        WT_ERR(cursor->get_value(cursor, &value));
+        WT_ERR(__wt_config_getones(session, value, "id", &id_val));
+        WT_ERR(__wt_realloc_def(session, &allocated, count + 1, &pairs));
+        pairs[count].id = (uint32_t)id_val.val;
+        WT_ERR(__wt_strdup(session, key, &pairs[count].uri));
+        ++count;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (count > 1) {
+        __wt_qsort(pairs, count, sizeof(WT_ID_URI_PAIR), __id_uri_pair_cmp);
+        for (i = 0; i < count - 1; ++i) {
+            if (pairs[i].id != pairs[i + 1].id)
+                continue;
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "%s metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", log_prefix,
+              pairs[i].id, pairs[i].uri, pairs[i + 1].uri);
+            ret = WT_ERROR;
+        }
+    }
+
+err:
+    for (i = 0; i < count; ++i)
+        __wt_free(session, pairs[i].uri);
+    __wt_free(session, pairs);
+    return (ret);
+}
+
+/*
+ * __wt_verify_unique_btree_ids --
+ *     Verify that both local and shared (disagg) metadata have unique btree IDs. Must be called
+ *     outside the schema lock even with the metadata handle already open, opening a metadata cursor
+ *     under the schema lock causes stalls.
+ */
+int
+__wt_verify_unique_btree_ids(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *md_cursor, *disagg_md_cursor;
+    WT_DECL_ITEM(metadata_uri_buf);
+    WT_DECL_RET;
+    const char *metadata_checkpoint_name;
+    const char *cfg[2] = {NULL, NULL};
+
+    metadata_checkpoint_name = NULL;
+    md_cursor = NULL;
+    disagg_md_cursor = NULL;
+
+    /* Check the local metadata for duplicate btree IDs among stable files. */
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+    WT_ERR(__check_duplicate_btree_ids(session, md_cursor, "local"));
+
+    /*
+     * If disaggregated storage is active, also check the shared metadata table. This catches
+     * duplicates that exist only in the remote metadata before they are merged into local.
+     */
+    WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                         session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
+      false);
+    if (metadata_checkpoint_name == NULL)
+        goto err;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &metadata_uri_buf));
+    WT_ERR(__wt_buf_fmt(
+      session, metadata_uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, metadata_checkpoint_name));
+
+    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+    WT_ERR(__wt_open_cursor(session, metadata_uri_buf->data, NULL, cfg, &disagg_md_cursor));
+
+    WT_ERR(__check_duplicate_btree_ids(session, disagg_md_cursor, "disagg"));
+
+err:
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+    if (disagg_md_cursor != NULL)
+        WT_TRET(disagg_md_cursor->close(disagg_md_cursor));
+    __wt_scr_free(session, &metadata_uri_buf);
+    __wt_free(session, metadata_checkpoint_name);
+    return (ret);
+}
+
 /*
  * __wt_verify --
  *     Verify a file.
