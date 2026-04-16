@@ -427,7 +427,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_TXN_OP *op, 
         __txn_apply_prepare_state_page_del(session, page_del, commit);
 
     if (WT_DELTA_INT_ENABLED(op->btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
@@ -555,7 +555,7 @@ __wt_txn_op_delete_commit(
         __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
     if (WT_DELTA_INT_ENABLED(op->btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
 err:
     WT_REF_UNLOCK(ref, previous_state);
@@ -754,6 +754,31 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         __wt_txn_unmodify(session);
 
     return (ret);
+}
+
+/*
+ * __wt_txn_truncate --
+ *     Mark a WT_TRUNCATE object modified by the current transaction.
+ */
+static WT_INLINE int
+__wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
+{
+    WT_TXN *txn;
+    WT_TXN_OP *op;
+
+    txn = session->txn;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
+    if (F_ISSET(txn, WT_TXN_READONLY))
+        WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
+
+    WT_RET(__txn_next_op(session, &op));
+    op->type = WT_TXN_OP_FOLLOWER_TRUNCATE;
+    t->txn_id = session->txn->time_point.id;
+
+    op->u.follower_truncate.t = t;
+    return (0);
 }
 
 /*
