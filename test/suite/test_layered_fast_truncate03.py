@@ -50,7 +50,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
 
     def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
+        if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest("fast truncate support is not enabled")
         super().setUp()
 
