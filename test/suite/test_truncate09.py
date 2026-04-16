@@ -34,9 +34,7 @@ from helper import simulate_crash_restart
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
-# FIXME-WT-14721: Re-enable once precise checkpoint is automatically enabled for
-# disaggregated storage.
-@wttest.skip_for_hook("disagg", "precise checkpoint not yet auto-enabled for disagg")
+@wttest.skip_for_hook("disagg", "Disagg does not support RTS")
 class test_truncate09(wttest.WiredTigerTestCase):
     format_values = [
         ('column', dict(key_format='r')),
