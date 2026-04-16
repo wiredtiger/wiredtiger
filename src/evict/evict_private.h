@@ -26,9 +26,10 @@ struct __wti_evict_entry {
     uint64_t score;  /* Relative eviction priority */
 };
 
-#define WTI_EVICT_QUEUE_MAX 3                  /* Two ordinary queues plus urgent */
-#define WTI_EVICT_URGENT_QUEUE 2               /* Urgent queue index */
-#define WTI_EVICT_INGEST_WALK_PERIOD_MAX 10000 /* Maximum walk period for ingest b-trees. */
+#define WTI_EVICT_QUEUE_MAX 3    /* Two ordinary queues plus urgent */
+#define WTI_EVICT_URGENT_QUEUE 2 /* Urgent queue index */
+#define WTI_EVICT_INGEST_WALK_PERIOD_MAX \
+    50 * WT_THOUSAND /* Maximum walk period for ingest b-trees. */
 
 /*
  * WTI_EVICT_QUEUE --

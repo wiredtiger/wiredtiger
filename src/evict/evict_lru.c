@@ -2817,12 +2817,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
     if (pages_queued < target_pages / 2 && !urgent_queued) {
         /*
-         * For ingest trees, if the walk gave up (saw enough pages to conclude the tree is useless)
-         * and the prune timestamp hasn't moved since the walk started, jump straight to the maximum
-         * throttle. The prune-timestamp reset in __evict_walk ensures we walk promptly when new
-         * candidates may appear.
+         * For ingest trees, if the prune timestamp hasn't moved since the walk started, jump
+         * straight to the maximum throttle. The prune-timestamp reset in our caller ensures we walk
+         * promptly when new candidates may appear.
          */
-        if (give_up && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
           btree->last_walked_prune_timestamp ==
             __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp)) {
             __wt_atomic_store_uint32_relaxed(
