@@ -406,6 +406,8 @@ typedef struct {
     uint64_t replay_remove_skip_history; /* skipped: not enough history yet */
     uint64_t replay_remove_skip_read;    /* skipped: target_ts was a read */
     uint64_t replay_remove_skip_prior;   /* skipped: target_ts was itself a remove */
+    uint64_t replay_remove_actual;       /* key existed at read_ts; tombstone meaningful */
+    uint64_t replay_remove_dup;          /* key already absent at read_ts; redundant tombstone */
 
     WT_SESSION *session; /* WiredTiger session */
     WT_CURSOR **cursors; /* WiredTiger cursors, maps one-to-one to tables */

@@ -511,17 +511,27 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     if (g.replay_op_log != NULL) {
         uint64_t ok = 0, skip_history = 0, skip_read = 0, skip_prior = 0;
+        uint64_t actual = 0, dup = 0;
         TINFO **tlp;
         for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
             ok += (*tlp)->replay_remove_ok;
             skip_history += (*tlp)->replay_remove_skip_history;
             skip_read += (*tlp)->replay_remove_skip_read;
             skip_prior += (*tlp)->replay_remove_skip_prior;
+            actual += (*tlp)->replay_remove_actual;
+            dup += (*tlp)->replay_remove_dup;
         }
-        fprintf(g.replay_op_log,
-          "REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64 " (no-history=%" PRIu64
-          " target-read=%" PRIu64 " target-remove=%" PRIu64 ")\n",
+#define summary_print(fmt, ...)                          \
+    do {                                                 \
+        fprintf(stderr, fmt, __VA_ARGS__);               \
+        fprintf(g.replay_op_log, fmt, __VA_ARGS__);      \
+    } while (0)
+        summary_print("REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64 " (no-history=%"
+          PRIu64 " target-read=%" PRIu64 " target-remove=%" PRIu64 ")\n",
           ok, skip_history + skip_read + skip_prior, skip_history, skip_read, skip_prior);
+        summary_print("REMOVE tombstones: actual=%" PRIu64 " dup=%" PRIu64 " (%.1f%% redundant)\n",
+          actual, dup, (actual + dup) > 0 ? 100.0 * dup / (actual + dup) : 0.0);
+#undef summary_print
         fclose(g.replay_op_log);
         g.replay_op_log = NULL;
     }
@@ -2264,12 +2274,18 @@ row_remove(TINFO *tinfo, bool positioned)
 
     /*
      * We use the cursor in overwrite mode, check for existence. For predictable replay, skip the
-     * search and call remove directly overwrite mode writes a tombstone at commit_ts regardless of
-     * key visibility at read_ts, making the outcome deterministic across runs.
+     * search and call remove directly — overwrite mode writes a tombstone at commit_ts regardless
+     * of key visibility at read_ts, making the outcome deterministic across runs.
+     *
+     * Do a probe search first to count actual vs redundant tombstones.
      */
-    if (GV(RUNS_PREDICTABLE_REPLAY))
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        if (read_op(cursor, SEARCH, NULL) == 0)
+            ++tinfo->replay_remove_actual;
+        else
+            ++tinfo->replay_remove_dup;
         ret = cursor->remove(cursor);
-    else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
+    } else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
         ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
@@ -2296,10 +2312,14 @@ col_remove(TINFO *tinfo, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
-    /* See row_remove for the predictable replay rationale. */
-    if (GV(RUNS_PREDICTABLE_REPLAY))
+    /* See row_remove for the predictable replay rationale and probe-search counting. */
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        if (read_op(cursor, SEARCH, NULL) == 0)
+            ++tinfo->replay_remove_actual;
+        else
+            ++tinfo->replay_remove_dup;
         ret = cursor->remove(cursor);
-    else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
+    } else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
         ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
