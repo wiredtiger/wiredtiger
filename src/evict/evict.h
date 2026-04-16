@@ -110,6 +110,8 @@ struct __wt_evict {
      */
     wt_shared volatile uint32_t pass_intr; /* Interrupt eviction pass. */
     uint32_t evict_slots;                  /* LRU list eviction slots */
+    uint32_t evict_walk_base;              /* Pages tracked across file visits (cache-scaled) */
+    uint32_t evict_walk_incr;              /* Pages added each walk (cache-scaled) */
 
 #define WT_EVICT_PRESSURE_THRESHOLD 0.95
 #define WT_EVICT_SCORE_BUMP 10

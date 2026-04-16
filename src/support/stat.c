@@ -88,8 +88,11 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
   "cache: eviction walk target pages histogram - 128 and higher",
+  "cache: eviction walk target pages histogram - 128-255",
+  "cache: eviction walk target pages histogram - 256-511",
   "cache: eviction walk target pages histogram - 32-63",
-  "cache: eviction walk target pages histogram - 64-128",
+  "cache: eviction walk target pages histogram - 512 and higher",
+  "cache: eviction walk target pages histogram - 64-127",
   "cache: eviction walk target pages reduced due to history store cache pressure",
   "cache: garbage collection from the ingest btree page is skipped because the prune timestamp has "
   "not moved",
@@ -551,7 +554,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
+    stats->cache_eviction_target_page_lt256 = 0;
+    stats->cache_eviction_target_page_lt512 = 0;
     stats->cache_eviction_target_page_lt64 = 0;
+    stats->cache_eviction_target_page_ge512 = 0;
     stats->cache_eviction_target_page_lt128 = 0;
     stats->cache_eviction_target_page_reduced = 0;
     stats->cache_eviction_blocked_prune_timestamp = 0;
@@ -988,7 +994,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
     to->cache_eviction_target_page_ge128 += from->cache_eviction_target_page_ge128;
+    to->cache_eviction_target_page_lt256 += from->cache_eviction_target_page_lt256;
+    to->cache_eviction_target_page_lt512 += from->cache_eviction_target_page_lt512;
     to->cache_eviction_target_page_lt64 += from->cache_eviction_target_page_lt64;
+    to->cache_eviction_target_page_ge512 += from->cache_eviction_target_page_ge512;
     to->cache_eviction_target_page_lt128 += from->cache_eviction_target_page_lt128;
     to->cache_eviction_target_page_reduced += from->cache_eviction_target_page_reduced;
     to->cache_eviction_blocked_prune_timestamp += from->cache_eviction_blocked_prune_timestamp;
@@ -1453,7 +1462,13 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_lt32 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 +=
       WT_STAT_DSRC_READ(from, cache_eviction_target_page_ge128);
+    to->cache_eviction_target_page_lt256 +=
+      WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt256);
+    to->cache_eviction_target_page_lt512 +=
+      WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt512);
     to->cache_eviction_target_page_lt64 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt64);
+    to->cache_eviction_target_page_ge512 +=
+      WT_STAT_DSRC_READ(from, cache_eviction_target_page_ge512);
     to->cache_eviction_target_page_lt128 +=
       WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt128);
     to->cache_eviction_target_page_reduced +=
@@ -2063,8 +2078,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
   "cache: eviction walk target pages histogram - 128 and higher",
+  "cache: eviction walk target pages histogram - 128-255",
+  "cache: eviction walk target pages histogram - 256-511",
   "cache: eviction walk target pages histogram - 32-63",
-  "cache: eviction walk target pages histogram - 64-128",
+  "cache: eviction walk target pages histogram - 512 and higher",
+  "cache: eviction walk target pages histogram - 64-127",
   "cache: eviction walk target pages reduced due to history store cache pressure",
   "cache: eviction walk target strategy clean pages",
   "cache: eviction walk target strategy dirty pages",
@@ -3147,7 +3165,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
+    stats->cache_eviction_target_page_lt256 = 0;
+    stats->cache_eviction_target_page_lt512 = 0;
     stats->cache_eviction_target_page_lt64 = 0;
+    stats->cache_eviction_target_page_ge512 = 0;
     stats->cache_eviction_target_page_lt128 = 0;
     stats->cache_eviction_target_page_reduced = 0;
     stats->eviction_target_strategy_clean = 0;
@@ -4253,7 +4274,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_target_page_lt32 += WT_STAT_CONN_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 +=
       WT_STAT_CONN_READ(from, cache_eviction_target_page_ge128);
+    to->cache_eviction_target_page_lt256 +=
+      WT_STAT_CONN_READ(from, cache_eviction_target_page_lt256);
+    to->cache_eviction_target_page_lt512 +=
+      WT_STAT_CONN_READ(from, cache_eviction_target_page_lt512);
     to->cache_eviction_target_page_lt64 += WT_STAT_CONN_READ(from, cache_eviction_target_page_lt64);
+    to->cache_eviction_target_page_ge512 +=
+      WT_STAT_CONN_READ(from, cache_eviction_target_page_ge512);
     to->cache_eviction_target_page_lt128 +=
       WT_STAT_CONN_READ(from, cache_eviction_target_page_lt128);
     to->cache_eviction_target_page_reduced +=

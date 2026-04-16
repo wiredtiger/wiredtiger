@@ -617,7 +617,10 @@ struct __wt_connection_stats {
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
+    int64_t cache_eviction_target_page_lt256;
+    int64_t cache_eviction_target_page_lt512;
     int64_t cache_eviction_target_page_lt64;
+    int64_t cache_eviction_target_page_ge512;
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
     int64_t eviction_target_strategy_clean;
@@ -1526,7 +1529,10 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
+    int64_t cache_eviction_target_page_lt256;
+    int64_t cache_eviction_target_page_lt512;
     int64_t cache_eviction_target_page_lt64;
+    int64_t cache_eviction_target_page_ge512;
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_blocked_prune_timestamp;

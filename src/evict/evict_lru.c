@@ -1484,7 +1484,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * Get some more pages to consider for eviction.
      *
      * If the walk is interrupted, we still need to sort the queue: the next walk assumes there are
-     * no entries beyond WTI_EVICT_WALK_BASE.
+     * no entries beyond evict->evict_walk_base.
      */
     if ((ret = __evict_walk(evict->walk_session, queue)) == EBUSY)
         ret = 0;
@@ -1520,7 +1520,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * figuring out how many of the entries are candidates so we never end up with more candidates
      * than entries.
      */
-    while (entries > WTI_EVICT_WALK_BASE)
+    while (entries > evict->evict_walk_base)
         __evict_list_clear(session, &queue->evict_queue[--entries]);
 
     queue->evict_entries = entries;
@@ -1567,8 +1567,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         else {
             /*
              * Take all of the urgent pages plus a third of ordinary candidates (which could be
-             * expressed as WTI_EVICT_WALK_INCR / WTI_EVICT_WALK_BASE). In the steady state, we want
-             * to get as many candidates as the eviction walk adds to the queue.
+             * expressed as evict_walk_incr / evict_walk_base). In the steady state, we want to get
+             * as many candidates as the eviction walk adds to the queue.
              *
              * That said, if there is only one entry, which is normal when populating an empty file,
              * don't exclude it.
@@ -1734,10 +1734,12 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
+    double cache_fill_pct;
+    uint64_t bytes_inuse, bytes_max;
     uint32_t evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool dhandle_list_locked;
+    bool dhandle_list_locked, use_baseline_slots;
 
     WT_TRACK_OP_INIT(session);
 
@@ -1750,10 +1752,28 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     retries = 0;
 
     /*
-     * Set the starting slot in the queue and the maximum pages added per walk.
+     * Two-zone queue depth policy based on cache fill and eviction pressure flags:
+     *
+     *   Large queue — cache fill >= WTI_EVICT_QUEUE_SCALE_MIN_FILL and neither dirty nor updates
+     *                 has reached the trigger threshold. The cache is meaningfully full and
+     *                 eviction is not in a hard-pressure state; scan broadly for the best
+     *                 eviction candidates.
+     *
+     *   Baseline queue — cache not yet filled to the gate threshold (no benefit scanning a
+     *                    largely-empty cache), or dirty/update bytes have hit trigger level
+     *                    (WT_EVICT_CACHE_DIRTY_HARD or WT_EVICT_CACHE_UPDATES_HARD). In the
+     *                    trigger zone drain cycles must stay short to avoid application threads
+     *                    being drafted into eviction, which causes write-ticket exhaustion.
      */
+    bytes_max = S2C(session)->cache_size + 1;
+    bytes_inuse = __wt_cache_bytes_inuse(cache);
+    cache_fill_pct = (100.0 * (double)bytes_inuse) / (double)bytes_max;
+    use_baseline_slots = (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) ||
+      F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD);
+
     start_slot = slot = queue->evict_entries;
-    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, evict->evict_slots);
+    max_entries = WT_MIN(slot + evict->evict_walk_incr,
+      use_baseline_slots ? WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR : evict->evict_slots);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -2026,15 +2046,26 @@ static uint32_t
 __evict_walk_target(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
-    uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_per_slot, cache_inuse;
-    uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates;
-    bool want_tree;
+    double cache_fill_pct;
+    uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_max, bytes_per_slot,
+      cache_inuse;
+    uint32_t effective_slots, target_pages, target_pages_clean, target_pages_dirty,
+      target_pages_updates;
+    bool use_baseline_slots, want_tree;
 
-    cache = S2C(session)->cache;
-    evict = S2C(session)->evict;
+    conn = S2C(session);
+    cache = conn->cache;
+    evict = conn->evict;
     btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
+
+    bytes_max = conn->cache_size + 1;
+    cache_inuse = __wt_cache_bytes_inuse(cache);
+    cache_fill_pct = (100.0 * (double)cache_inuse) / (double)bytes_max;
+    use_baseline_slots = (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) ||
+      F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD);
 
 /*
  * The minimum number of pages we should consider per tree.
@@ -2044,26 +2075,37 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     /*
      * The target number of pages for this tree is proportional to the space it is taking up in
      * cache. Round to the nearest number of slots so we assign all of the slots to a tree filling
-     * 99+% of the cache (and only have to walk it once).
+     * 99+% of the cache (and only have to walk it once). When eviction.scale_queue_to_cache_size
+     * is enabled, evict_slots grows with cache size so the proportional formula automatically
+     * allocates more slots to larger caches without any additional per-btree adjustment.
+     *
+     * The per-btree target uses the full scaled slot count during steady-state operation so that
+     * each btree receives queue entries proportional to its actual cache footprint. The baseline
+     * effective_slots is used when the cache is under hard pressure (dirty or update bytes at the
+     * trigger threshold) or when cache fill is below WTI_EVICT_QUEUE_SCALE_MIN_FILL; see
+     * __evict_walk for the full rationale.
      */
+    effective_slots =
+      use_baseline_slots ? WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR : evict->evict_slots;
+
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         btree_clean_inuse = __wt_btree_bytes_evictable(session);
         cache_inuse = __wt_cache_bytes_inuse(cache);
-        bytes_per_slot = 1 + cache_inuse / evict->evict_slots;
+        bytes_per_slot = 1 + cache_inuse / effective_slots;
         target_pages_clean = (uint32_t)((btree_clean_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
         btree_dirty_inuse = __wt_btree_dirty_leaf_inuse(session);
         cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
-        bytes_per_slot = 1 + cache_inuse / evict->evict_slots;
+        bytes_per_slot = 1 + cache_inuse / effective_slots;
         target_pages_dirty = (uint32_t)((btree_dirty_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
         btree_updates_inuse = __wt_btree_bytes_updates(session);
         cache_inuse = __wt_cache_bytes_updates(cache);
-        bytes_per_slot = 1 + cache_inuse / evict->evict_slots;
+        bytes_per_slot = 1 + cache_inuse / effective_slots;
         target_pages_updates =
           (uint32_t)((btree_updates_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
@@ -2253,6 +2295,10 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
          * number of pages we can target, unless there are fewer slots available. The aim is to
          * cover the likely ranges of target pages in as few statistics as possible to reduce the
          * overall overhead.
+         *
+         * For targets >= 128, the ge128 total counter is always incremented and one of the three
+         * sub-bucket counters (lt256, lt512, ge512) captures the finer range. This extended range
+         * is relevant when eviction.scale_queue_to_cache_size is enabled for large caches.
          */
         if (target_pages < MIN_PAGES_PER_TREE) {
             WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt10);
@@ -2269,6 +2315,16 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
         } else {
             WT_STAT_CONN_INCR(session, cache_eviction_target_page_ge128);
             WT_STAT_DSRC_INCR(session, cache_eviction_target_page_ge128);
+            if (target_pages < 256) {
+                WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt256);
+                WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt256);
+            } else if (target_pages < 512) {
+                WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt512);
+                WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt512);
+            } else {
+                WT_STAT_CONN_INCR(session, cache_eviction_target_page_ge512);
+                WT_STAT_DSRC_INCR(session, cache_eviction_target_page_ge512);
+            }
         }
     }
 
