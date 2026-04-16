@@ -29,7 +29,6 @@
 # test_layered88.py
 # Test that unsupported cursor and table operations return clear errors for layered tables:
 # - Reverse collator (FIXME-WT-14738)
-# - cursor.reserve() (FIXME-WT-16483)
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -59,11 +58,3 @@ class test_layered88(wttest.WiredTigerTestCase):
         # Drop the table so verifyLayered in tearDown doesn't try to verify an unsupported
         # configuration and fail with EINVAL.
         self.session.drop(self.uri)
-
-    def test_reserve(self):
-        # cursor.reserve() is not yet supported for layered tables. FIXME-WT-16483.
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        cursor = self.session.open_cursor(self.uri)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: cursor.reserve(),
-            '/not currently supported for layered/')
