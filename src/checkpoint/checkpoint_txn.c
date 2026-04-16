@@ -1508,9 +1508,8 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
         break;
     case WT_TXN_LOG_CKPT_CLEANUP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_TRET_MSG(session,
-          __wt_checkpoint_log(session, true, log_flags, NULL),
-        "%s", "Checkpoint log operation failed");
+        WT_TRET_MSG(session, __wt_checkpoint_log(session, true, log_flags, NULL), "%s",
+          "Checkpoint log operation failed");
         break;
     default:
         WT_RET(__wt_illegal_value(session, log_flags));
