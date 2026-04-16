@@ -1808,14 +1808,6 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     SESSION_API_CALL(session, ret, verify, config, cfg, false);
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
-    /*
-     * In disaggregated storage, check that no two stable constituent files share the same btree ID
-     * before running the full verify. Duplicate IDs indicate metadata corruption and there is no
-     * point verifying further. This must run outside the checkpoint and schema locks.
-     */
-    if (__wt_conn_is_disagg(session))
-        WT_ERR(__wt_verify_unique_btree_ids(session));
-
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_WITH_CHECKPOINT_LOCK(session,
       WT_WITH_SCHEMA_LOCK(session,

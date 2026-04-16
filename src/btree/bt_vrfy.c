@@ -56,6 +56,7 @@ static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_unique_btree_ids(WT_SESSION_IMPL *);
 
 /*
  * __verify_config --
@@ -234,21 +235,26 @@ __id_uri_pair_cmp(const void *a, const void *b)
 }
 
 /*
- * __check_duplicate_btree_ids --
- *     Scan a cursor's entries for stable constituent files and verify that no two share the same
- *     btree ID.
+ * __verify_unique_btree_ids --
+ *     Verify that no two stable constituent files in the local metadata share the same btree ID.
+ *     Only called for .wt_stable files, where the verify session's exclusive lock is on the stable
+ *     file not the metadata file so a shared metadata cursor can be opened directly.
  */
 static int
-__check_duplicate_btree_ids(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *log_prefix)
+__verify_unique_btree_ids(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM id_val;
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_ID_URI_PAIR *pairs;
     size_t allocated, count, i;
     const char *key, *value;
 
+    cursor = NULL;
     pairs = NULL;
     allocated = count = 0;
+
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
@@ -269,8 +275,8 @@ __check_duplicate_btree_ids(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const c
             if (pairs[i].id != pairs[i + 1].id)
                 continue;
             __wt_verbose_error(session, WT_VERB_VERIFY,
-              "%s metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", log_prefix,
-              pairs[i].id, pairs[i].uri, pairs[i + 1].uri);
+              "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", pairs[i].id,
+              pairs[i].uri, pairs[i + 1].uri);
             ret = WT_ERROR;
         }
     }
@@ -279,27 +285,6 @@ err:
     for (i = 0; i < count; ++i)
         __wt_free(session, pairs[i].uri);
     __wt_free(session, pairs);
-    return (ret);
-}
-
-/*
- * __wt_verify_unique_btree_ids --
- *     Verify that no two stable constituent files in the local metadata share the same btree ID.
- *     Local metadata is a superset of the shared (disagg) metadata after the merge, so checking
- *     local is sufficient. Must be called outside the schema and checkpoint locks.
- */
-int
-__wt_verify_unique_btree_ids(WT_SESSION_IMPL *session)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-
-    cursor = NULL;
-
-    WT_ERR(__wt_metadata_cursor(session, &cursor));
-    WT_ERR(__check_duplicate_btree_ids(session, cursor, "local"));
-
-err:
     if (cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
@@ -353,6 +338,14 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     if (quit)
         goto done;
+
+    /*
+     * Check that no two stable constituent files share the same btree ID. Only run for stable files
+     * the verify session's exclusive lock is on the stable file, not the metadata file, so a shared
+     * metadata cursor can be opened directly on the verify session.
+     */
+    if (WT_SUFFIX_MATCH(name, ".wt_stable"))
+        WT_ERR(__verify_unique_btree_ids(session));
 
     /*
      * Get a list of the checkpoints for this file. Empty objects and ingest tables have no
