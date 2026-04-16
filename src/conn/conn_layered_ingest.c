@@ -350,7 +350,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
           value));
 
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
-
         /*
          * It is possible to see a full value that is smaller than or equal to the last checkpoint
          * timestamp with a stop timestamp that is larger than the last checkpoint timestamp. Ignore
