@@ -289,12 +289,17 @@ err:
 static int
 __verify_unique_table_id(WT_SESSION_IMPL *session)
 {
-    WT_CURSOR *md_cursor;
+    WT_CURSOR *md_cursor, *disagg_md_cursor;
+    WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session;
+    const char *metadata_checkpoint_name;
+    const char *cfg[3] = {NULL};
 
     internal_session = NULL;
     md_cursor = NULL;
+    metadata_checkpoint_name = NULL;
+    disagg_md_cursor = NULL;
 
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
@@ -305,7 +310,31 @@ __verify_unique_table_id(WT_SESSION_IMPL *session)
     WT_ERR(__wt_metadata_cursor(internal_session, &md_cursor));
     WT_ERR(__verify_metadata_unique_table_id(internal_session, md_cursor, "local"));
 
+    WT_ERR(__wt_metadata_cursor_release(internal_session, &md_cursor));
+
+    if(__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader) {
+        /*
+        * Verify disagg cursor, referenced from __disagg_apply_checkpoint_meta
+        */
+        WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                            session, WT_DISAGG_METADATA_URI, &metadata_checkpoint_name, NULL, NULL),
+        false);
+        if (metadata_checkpoint_name == NULL)
+            goto err;
+        WT_ERR(__wt_scr_alloc(session, 0, &metadata_uri_buf));
+        WT_ERR(__wt_buf_fmt(
+        session, metadata_uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, metadata_checkpoint_name));
+
+        cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+        WT_ERR(__wt_open_cursor(session, metadata_uri_buf->data, NULL, cfg, &disagg_md_cursor));
+
+        WT_ERR(__verify_metadata_unique_table_id(session, disagg_md_cursor, "disagg"));
+        WT_ERR(disagg_md_cursor->close(disagg_md_cursor));
+        disagg_md_cursor = NULL;
+    }
 err:
+    if (disagg_md_cursor != NULL)
+        WT_TRET(disagg_md_cursor->close(disagg_md_cursor));
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(internal_session, &md_cursor));
     if (internal_session != NULL)
