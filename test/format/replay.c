@@ -502,7 +502,7 @@ replay_target_remove(TINFO *tinfo, TABLE **tablep, uint64_t *keynop, uint64_t *t
     uint32_t bucket, lane, max_rows, target_op_pct;
 
     max_cycles = tinfo->replay_ts / LANE_COUNT;
-    bucket = mmrand(&tinfo->data_rnd, 0, 2);
+    bucket = mmrand(&tinfo->data_rnd, 0, 3);
 
     if (bucket == 3) {
         /* Bucket 3: remove a bulk-loaded key. */
