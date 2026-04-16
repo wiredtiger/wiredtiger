@@ -846,6 +846,10 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
      * list.
      */
     if (S2C(session)->layered_table_manager.leader) {
+        /* 
+         * On leader mode, the stable cursors will always be positioned on the table. So we can
+         * directly reference it here.
+         */
         trunc_info->start = clayered_start->stable_cursor;
         if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
             trunc_info->stop = clayered_stop->stable_cursor;
@@ -896,7 +900,6 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
         /* WT_NOTFOUND: no ingest keys at or after start — nothing to remove. */
 
 insert_entry:
-
         /* Add a truncate entry inside layered table truncate list. */
         WT_RET(__wt_insert_truncate_entry(
           session, uri, trunc_info->orig_start_key, trunc_info->orig_stop_key));
@@ -1138,18 +1141,9 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     do {
         WT_ERR(__clayered_iterate_constituents(clayered, iter_flag));
         WT_ERR(__clayered_get_current(session, clayered, iter_flag == WT_CLAYERED_ITERATE_NEXT));
-        if (clayered->current_cursor == clayered->ingest_cursor) {
+        if (clayered->current_cursor == clayered->ingest_cursor)
             deleted = __wt_clayered_deleted(&clayered->current_cursor->value);
-            /*
-             * A committed fast-truncate range takes priority over any live ingest value:
-             * even if the ingest B-tree holds a committed update for this key, the
-             * subsequent range truncation must hide it.
-             */
-            if (!deleted && __wt_process.disagg_fast_truncate_2026 &&
-              __wt_truncate_delete_visible_check(session,
-                (WT_LAYERED_TABLE *)clayered->dhandle, &clayered->current_cursor->key, NULL) == 0)
-                deleted = true;
-        } else
+        else
             deleted = false;
     } while (deleted);
 
