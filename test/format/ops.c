@@ -521,13 +521,13 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
             actual += (*tlp)->replay_remove_actual;
             dup += (*tlp)->replay_remove_dup;
         }
-#define summary_print(fmt, ...)                          \
-    do {                                                 \
-        fprintf(stderr, fmt, __VA_ARGS__);               \
-        fprintf(g.replay_op_log, fmt, __VA_ARGS__);      \
+#define summary_print(fmt, ...)                     \
+    do {                                            \
+        fprintf(stderr, fmt, __VA_ARGS__);          \
+        fprintf(g.replay_op_log, fmt, __VA_ARGS__); \
     } while (0)
-        summary_print("REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64 " (no-history=%"
-          PRIu64 " target-read=%" PRIu64 " target-remove=%" PRIu64 ")\n",
+        summary_print("REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64 " (no-history=%" PRIu64
+                      " target-read=%" PRIu64 " target-remove=%" PRIu64 ")\n",
           ok, skip_history + skip_read + skip_prior, skip_history, skip_read, skip_prior);
         summary_print("REMOVE tombstones: actual=%" PRIu64 " dup=%" PRIu64 " (%.1f%% redundant)\n",
           actual, dup, (actual + dup) > 0 ? 100.0 * dup / (actual + dup) : 0.0);
@@ -2274,8 +2274,8 @@ row_remove(TINFO *tinfo, bool positioned)
 
     /*
      * We use the cursor in overwrite mode, check for existence. For predictable replay, skip the
-     * search and call remove directly — overwrite mode writes a tombstone at commit_ts regardless
-     * of key visibility at read_ts, making the outcome deterministic across runs.
+     * search and call remove directly. Overwrite mode writes a tombstone at commit_ts regardless of
+     * key visibility at read_ts, making the outcome deterministic across runs.
      *
      * Do a probe search first to count actual vs redundant tombstones.
      */
