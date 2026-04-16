@@ -28,6 +28,7 @@
 
 import re, wttest
 from wiredtiger import stat
+from helper import simulate_crash_restart
 from helper_disagg import disagg_test_class
 
 # test_disagg_checkpoint_size05.py
@@ -209,3 +210,45 @@ class test_disagg_checkpoint_size05(wttest.WiredTigerTestCase):
             "slow-path block_size should not change after eviction without a checkpoint")
         self.assertEqual(self.get_block_size_slow(), self.get_block_size_fast(),
             f"slow-path block_size should still match the fast-path block_size after eviction without a checkpoint")
+
+    # Simulate crashes and verify block_size is always consistent with the last successful
+    # checkpoint. First crash without a checkpoint (size should not change), then checkpoint and
+    # crash again (size should reflect the new checkpoint).
+    def test_block_size_survives_crash(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.insert_rows(1000)
+        self.session.checkpoint()
+
+        size_first_ckpt = self.get_block_size_fast()
+        self.assertGreater(size_first_ckpt, 0)
+
+        # Insert more data without checkpointing, then simulate a crash.
+        self.insert_rows(1000, start=1000)
+
+        with self.expectedStdoutPattern("Removing local file"):
+            simulate_crash_restart(self, ".", "RESTART")
+
+        # After crash recovery, both paths should report the pre-crash checkpoint size.
+        self.assertEqual(self.get_block_size_fast(), size_first_ckpt,
+            "fast-path block_size should reflect the last checkpoint after crash without new checkpoint")
+        self.assertEqual(self.get_block_size_slow(), size_first_ckpt,
+            "slow-path block_size should reflect the last checkpoint after crash without new checkpoint")
+
+        # Now insert data, checkpoint, then crash again.
+        self.insert_rows(500, start=1000)
+        self.session.checkpoint()
+
+        size_second_ckpt = self.get_block_size_fast()
+        self.assertGreater(size_second_ckpt, size_first_ckpt)
+
+        # Insert uncheckpointed data and crash.
+        self.insert_rows(500, start=1500)
+
+        with self.expectedStdoutPattern("Removing local file"):
+            simulate_crash_restart(self, "RESTART", "RESTART2")
+
+        # Size should reflect the second checkpoint, not the uncheckpointed data.
+        self.assertEqual(self.get_block_size_fast(), size_second_ckpt,
+            "fast-path block_size should reflect the second checkpoint after crash")
+        self.assertEqual(self.get_block_size_slow(), size_second_ckpt,
+            "slow-path block_size should reflect the second checkpoint after crash")
