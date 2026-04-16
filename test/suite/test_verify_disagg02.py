@@ -71,7 +71,7 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         md_cursor.close()
 
         # Confirm we got a valid config with an ID.
-        self.assertIsNotNone(re.search(r',id=\d+', victim_config))
+        self.assertRegex(stable_file_config, r',id=\d+')
 
         # Inject a fake entry with the same btree ID into the follower's local metadata.
         raw_cursor = session_follow.open_cursor('file:WiredTiger.wt', None, None)
