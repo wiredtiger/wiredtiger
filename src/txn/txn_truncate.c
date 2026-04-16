@@ -146,7 +146,7 @@ __wt_layered_table_truncate_detect_write_conflict(
 }
 
 /*
- * __wt_truncate_delete_visible_check --
+ *  __wt_truncate_delete_visible_check --
  *     Search if the given key has been deleted in the layered table truncate list.
  */
 int
