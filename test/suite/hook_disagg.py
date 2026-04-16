@@ -89,6 +89,10 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     if 'in_memory=true' in conn_config:
         skip_test("cannot run disagg hook on a test that is in-memory")
 
+    # FIXME-WT-17177: Read-only connections are currently not supported for disagg.
+    if 'readonly=true' in conn_config or conn_config.strip() == 'readonly':
+        skip_test("cannot run disagg hook on a test that uses read-only connections")
+
     if 'compatibility=' in conn_config:
         skip_test("cannot run disagg hook on a test that requires compatibility in the config string")
 
@@ -174,7 +178,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
 
     disagg_config += f',{ext_string},{ext_lib}'
     # Load the key provider extension. Configure low verbosity to eliminate test failures due to unexpected output and
-    # to always key expire such that we can perform a key rotation everytime a checkpoint is called.
+    # to always key expire such that we can perform a key rotation every time a checkpoint is called.
     if key_provider:
         key_provider_extension_config =  f'\"{key_provider_extension[0]}\"=(early_load=true,config="verbose=-1,key_expires=0")'
         disagg_config += f',{key_provider_extension_config}'
