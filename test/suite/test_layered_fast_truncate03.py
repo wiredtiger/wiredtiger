@@ -49,6 +49,11 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate03', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
+    def setUp(self):
+        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
+            self.skipTest("fast truncate support is not enabled")
+        super().setUp()
+
     def get_stat(self, conn, stat_key):
         s = conn.open_session('')
         val = s.open_cursor('statistics:')[stat_key][2]
@@ -131,8 +136,6 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
     def test_no_dirty_on_read(self):
         # Reading fast-truncated pages on the follower must never dirty them. Verifies this holds
         # across a full load-evict-reload cycle for both single and bulk page reads.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
@@ -169,8 +172,6 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         # With small pages the truncated range spans many leaf pages. After ingest writes
         # restore a subset of truncated keys, those keys must be visible while the rest
         # remain deleted.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader(',leaf_page_max=4096')
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
@@ -229,8 +230,6 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
     def test_state_preserved_on_reopen(self):
         # Closing and reopening the follower connection must not lose the deleted state.
         # The same checkpoint must still show truncated keys as WT_NOTFOUND after a cold start.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
 
@@ -255,8 +254,6 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
     def test_instantiation_not_globally_visible(self):
         # Reading a deleted page at a timestamp before the truncation forces it to load from disk.
         # The key must be found, cache_read_deleted must increment, and the page must not be dirtied.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()

@@ -48,6 +48,11 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate02', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
+    def setUp(self):
+        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
+            self.skipTest("fast truncate support is not enabled")
+        super().setUp()
+
     def leader_checkpoint(self, ts):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
                                 ',oldest_timestamp=' + self.timestamp_str(1))
@@ -110,8 +115,6 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
     def test_visibility(self):
         # At ts=20 (equal to truncation at ts=20): truncated keys return WT_NOTFOUND, boundary and
         # exterior keys return their values. At ts=15 (before truncation): all keys are visible.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
@@ -138,8 +141,6 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
     def test_pre_truncation_read_sees_all_rows(self):
         # Reading at a timestamp before the truncation must still find all rows, including those
         # later deleted. Verifies mvcc correctness across the follower checkpoint boundary.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
@@ -164,8 +165,6 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
     def test_cursor_scanning(self):
         # Forward and backward scans must skip the entire truncated range without visiting any
         # deleted key. search_near on a deleted key must land outside the range.
-        if (wiredtiger.disagg_fast_truncate_build() == 0):
-            self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
         conn, sess = self.open_follower()
