@@ -80,7 +80,7 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
         raw_cursor.insert()
         raw_cursor.close()
 
-        # Verify the layered table — our check detects the duplicate btree ID.
+        # Verify the layered table. Our check detects the duplicate btree ID.
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: session_follow.verify(self.uri), '/WT_ERROR/')
         self.ignoreStderrPatternIfExists('metadata corruption')
