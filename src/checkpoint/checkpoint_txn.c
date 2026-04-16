@@ -2705,8 +2705,10 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
 
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
-      conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
+    if (!__wt_conn_is_disagg(session) || !conn->layered_table_manager.leader)
+        return (0);
+
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
         if (conn->key_provider != NULL)
