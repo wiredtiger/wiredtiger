@@ -57,19 +57,23 @@ class test_layered88(wttest.WiredTigerTestCase):
             self.extensionsConfig() + ',create,disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
 
-    def follow_next(self, cursor, key, value, txn_config=''):
-        self.session_follow.begin_transaction(txn_config)
+    def follow_next(self, cursor, key, value, txn_config = '', explicit_txn = True):
+        if explicit_txn:
+            self.session_follow.begin_transaction(txn_config)
         self.assertEqual(cursor.next(), 0)
         self.assertEqual(cursor.get_key(), key)
         self.assertEqual(cursor.get_value(), value)
-        self.session_follow.commit_transaction()
+        if explicit_txn:
+            self.session_follow.commit_transaction()
 
-    def follow_prev(self, cursor, key, value, txn_config=''):
-        self.session_follow.begin_transaction(txn_config)
+    def follow_prev(self, cursor, key, value, txn_config = '', explicit_txn = True):
+        if explicit_txn:
+            self.session_follow.begin_transaction(txn_config)
         self.assertEqual(cursor.prev(), 0)
         self.assertEqual(cursor.get_key(), key)
         self.assertEqual(cursor.get_value(), value)
-        self.session_follow.commit_transaction()
+        if explicit_txn:
+            self.session_follow.commit_transaction()
 
     # --------------------------------------------------------------------------
     # Scenario 1: next(), stable is alternate, read_timestamp drops.
@@ -252,99 +256,91 @@ class test_layered88(wttest.WiredTigerTestCase):
         cursor.close()
 
     # --------------------------------------------------------------------------
-    # Scenario 5: next(), ingest is alternate, snapshot advances due to new write.
-    #
-    #   Stable (checkpoint)       Ingest (follower)
-    #   +-----+----+-------+      +-----+----+-------+
-    #   | key | ts | value |      | key | ts | value |
-    #   +-----+----+-------+      +-----+----+-------+
-    #   |   1 |  1 |   1   |      |   2 |  2 |   2   |  <- before T1
-    #   +-----+----+-------+      |   2 |  3 |   3   |  <- committed between T1 and T2
-    #                             +-----+----+-------+
-    #
-    #   T1 (snapshot): next() -> key=1, value=1.
-    #   [write key=2, value=3 commits -> snapshot_gen bumps]
-    #   T2 (snapshot): next() -> key=2, value=3.
+    # Scenarios 5/6: ingest is alternate, snapshot advances due to a new write between calls.
+    # Parameterized by whether the first and second call use an explicit transaction.
     # --------------------------------------------------------------------------
-    def test_talbe_scan_with_snapshot_gen_ingest_next(self):
+    def snapshot_gen_ingest_next(self, first_explicit_txn, second_explicit_txn):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
 
-        # Leader: write key=1 at ts=1.
+        # Leader: key=1, value=1.
         c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
         c['1'] = '1'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
         c.close()
-
-        # Checkpoint and pick it up on the follower.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Follower ingest: key=2 at ts=2, value=2 (visible before T1).
+        # Follower ingest: key=2, value=2 (visible before first call).
         cf = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction()
         cf['2'] = '2'
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         cursor = self.session_follow.open_cursor(self.uri)
-        self.follow_next(cursor, '1', '1')
+        self.follow_next(cursor, '1', '1', explicit_txn=first_explicit_txn)
 
-        # Write between T1 and T2: update key=2 to value=3 -> snapshot_gen bumps.
-        self.session_follow.begin_transaction()
-        cf['2'] = '3'
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+        # Update ingest key=2 to value=22 between calls.
+        cf['2'] = '22'
         cf.close()
 
-        self.follow_next(cursor, '2', '3') # bug: returns '2'
+        if first_explicit_txn or second_explicit_txn:
+            # Isolation boundary detected: ingest cursor re-searched, new value visible.
+            self.follow_next(cursor, '2', '22', explicit_txn=second_explicit_txn)
+        else:
+            # Both autocommit: consistent scan, new write not visible.
+            self.follow_next(cursor, '2', '2', explicit_txn=second_explicit_txn)
         cursor.close()
 
-    # --------------------------------------------------------------------------
-    # Scenario 6: prev(), ingest is alternate, snapshot advances due to new write.
-    #
-    #   Stable (checkpoint)       Ingest (follower)
-    #   +-----+----+-------+      +-----+----+-------+
-    #   | key | ts | value |      | key | ts | value |
-    #   +-----+----+-------+      +-----+----+-------+
-    #   |   2 |  1 |   1   |      |   1 |  2 |   2   |  <- before T1
-    #   +-----+----+-------+      |   1 |  3 |   3   |  <- committed between T1 and T2
-    #                             +-----+----+-------+
-    #
-    #   T1 (snapshot): prev() -> key=2, value=1.
-    #   [write key=1, value=3 commits -> snapshot_gen bumps]
-    #   T2 (snapshot): prev() -> key=1, value=3.
-    # --------------------------------------------------------------------------
-    def test_talbe_scan_with_snapshot_gen_ingest_prev(self):
+    def snapshot_gen_ingest_prev(self, first_explicit_txn, second_explicit_txn):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
 
-        # Leader: write key=2 at ts=1.
+        # Leader: key=2, value=2.
         c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        c['2'] = '1'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
+        c['2'] = '2'
         c.close()
-
-        # Checkpoint and pick it up on the follower.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Follower ingest: key=1 at ts=2, value=2 (visible before T1).
+        # Follower ingest: key=1, value=1 (visible before first call).
         cf = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction()
-        cf['1'] = '2'
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+        cf['1'] = '1'
 
         cursor = self.session_follow.open_cursor(self.uri)
-        self.follow_prev(cursor, '2', '1')
+        self.follow_prev(cursor, '2', '2', explicit_txn=first_explicit_txn)
 
-        # Write between T1 and T2: update key=1 to value=3 -> snapshot_gen bumps.
-        self.session_follow.begin_transaction()
-        cf['1'] = '3'
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+        # Update ingest key=1 to value=11 between calls.
+        cf['1'] = '11'
         cf.close()
 
-        self.follow_prev(cursor, '1', '3') # bug: returns '2'
+        if first_explicit_txn or second_explicit_txn:
+            # Isolation boundary detected: ingest cursor re-searched, new value visible.
+            self.follow_prev(cursor, '1', '11', explicit_txn=second_explicit_txn)
+        else:
+            # Both autocommit: consistent scan, new write not visible.
+            self.follow_prev(cursor, '1', '1', explicit_txn=second_explicit_txn)
         cursor.close()
+
+    def test_snapshot_gen_ingest_next_txn_txn(self):
+        self.snapshot_gen_ingest_next(True, True)
+
+    def test_snapshot_gen_ingest_next_txn_auto(self):
+        self.snapshot_gen_ingest_next(True, False)
+
+    def test_snapshot_gen_ingest_next_auto_txn(self):
+        self.snapshot_gen_ingest_next(False, True)
+
+    def test_snapshot_gen_ingest_next_auto_auto(self):
+        self.snapshot_gen_ingest_next(False, False)
+
+    def test_snapshot_gen_ingest_prev_txn_txn(self):
+        self.snapshot_gen_ingest_prev(True, True)
+
+    def test_snapshot_gen_ingest_prev_txn_auto(self):
+        self.snapshot_gen_ingest_prev(True, False)
+
+    def test_snapshot_gen_ingest_prev_auto_txn(self):
+        self.snapshot_gen_ingest_prev(False, True)
+
+    def test_snapshot_gen_ingest_prev_auto_auto(self):
+        self.snapshot_gen_ingest_prev(False, False)

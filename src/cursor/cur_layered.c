@@ -370,8 +370,7 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
         return (false);
 
     /*
-     * First, layered cursors are sometimes paired with read timestamps. When using read
-     timestamps,
+     * First, layered cursors are sometimes paired with read timestamps. When using read timestamps,
      * it's always safe to update cursors, even during iterations. That's because the view at a
      * timestamp is always consistent, the history store covers that.
      */
@@ -388,8 +387,7 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
          * have a transactional snapshot, or if the snapshot has changed, we can update.
          *
          * Why shouldn't we update when in a transaction? We may have read some values, and we'd
-         * expect to see the same values if we read them again. Reading from a newer checkpoint
-         can
+         * expect to see the same values if we read them again. Reading from a newer checkpoint can
          * violate that.
          */
         if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
@@ -568,6 +566,11 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     *state_updated = (change_ingest || change_stable);
 
 done:
+    /*
+     * A session snapshot is acquired either on explicit transaction begin or on the first
+     * btree operation. In this context, if the operation is not a part of an explicit
+     * transaction, snapshot_gen may still be 0 because no snapshot has been taken yet.
+     */
     clayered->snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     clayered->read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
