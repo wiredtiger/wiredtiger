@@ -48,6 +48,15 @@ class test_layered88(wttest.WiredTigerTestCase):
         extlist.extension('collators', 'reverse')
         self.disagg_conn_extensions(extlist)
 
+    def test_readonly(self):
+        # FIXME-WT-17177: Opening a read-only connection with disagg must be rejected.
+        self.close_conn()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open(self.home,
+                self.extensionsConfig() + ',readonly=true,' + self.conn_config),
+            '/disaggregated storage is not supported with read-only connections/')
+        self.open_conn()
+
     def test_reverse_collator(self):
         # Opening a cursor on a layered table with a custom collator must be rejected.
         # The create succeeds (metadata is written), but opening the layered dhandle checks
