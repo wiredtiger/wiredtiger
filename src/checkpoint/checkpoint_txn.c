@@ -2694,7 +2694,9 @@ err:
 
 /*
  * __checkpoint_disagg_put --
- *     TBD
+ *     Update the disaggregated storage checkpoint metadata if the stable timestamp advanced during
+ *     the checkpoint, even if there were no other changes. Additionally check for any updated key
+ *     encryption information.
  */
 static int
 __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
@@ -2704,11 +2706,6 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
 
     conn = S2C(session);
 
-    /*
-     * If the stable timestamp advanced, ensure that we reflect it in the checkpoint metadata in
-     * disaggregated storage, even if there were no other changes. Also check for any updated key
-     * encryption information.
-     */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
@@ -2727,7 +2724,8 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
 
 /*
  * __checkpoint_disagg_advance --
- *     TBD
+ *     Advance to the next checkpoint in disaggregated storage if the checkpoint metadata was
+ *     updated in the page log.
  */
 static int
 __checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts, bool ckpt_success)
