@@ -433,7 +433,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                     WT_ASSERT(session, !prepare || durable_start_ts == WT_TS_NONE);
                     upd->txnid = start_txn;
                     if (start_prepared_id != WT_PREPARED_ID_NONE) {
-                        /* Temporary solution */
                         if (prepare)
                             upd->prepare_state = WT_PREPARE_INPROGRESS;
                         else
