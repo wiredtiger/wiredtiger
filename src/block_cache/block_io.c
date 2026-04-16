@@ -139,8 +139,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     if (expect_conversion) {
         /*
          * Pre-size the scratch buffer to the leaf page max to avoid realloc when reading typical
-         * pages. The 4KB default forced growth on every page larger than 4KB, causing tcmalloc
-         * contention.
+         * pages.
          */
         WT_RET(__wt_scr_alloc(session, btree->maxleafpage, &tmp));
         ip = tmp;
