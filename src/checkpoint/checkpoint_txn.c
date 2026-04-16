@@ -2712,13 +2712,15 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts)
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
         if (conn->key_provider != NULL)
-            WT_TRET(__wt_disagg_put_crypt_helper(session));
-        WT_TRET(__wt_disagg_put_checkpoint_meta(
+            WT_ERR(__wt_disagg_put_crypt_helper(session));
+        WT_ERR(__wt_disagg_put_checkpoint_meta(
           session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
           "Updated disaggregated storage checkpoint metadata because the stable timestamp "
           "advanced");
     }
+
+err:
 
     return (ret);
 }
