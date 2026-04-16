@@ -224,7 +224,6 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session_follow.verify(self.uri), '/WT_ERROR/')
         self.ignoreStderrPatternIfExists('metadata corruption')
-        self.ignoreStderrPatternIfExists('stable table verification failed')
 
         # Remove the fake entry so teardown verification passes.
         raw_cursor = self.session_follow.open_cursor('file:WiredTiger.wt', None, None)
