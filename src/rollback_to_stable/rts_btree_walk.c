@@ -412,7 +412,7 @@ __wti_rts_btree_walk_btree_apply(
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
     if (file_skipped)
-        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_skipped);
+        WT_STAT_CONN_INCR(session, txn_rts_btrees_skipped);
 
     /*
      * Truncate history store entries for the non-timestamped table.
