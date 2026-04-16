@@ -2702,8 +2702,7 @@ __checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, bo
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
         WT_ASSERT(session, ckpt_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
-        WT_ERR_MSG_CHK(session, __wt_disagg_advance_checkpoint(session, ckpt_success),
-          "Failed to advance the checkpoint.");
+        WT_ERR(__wt_disagg_advance_checkpoint(session, ckpt_success));
     }
 
 err:
