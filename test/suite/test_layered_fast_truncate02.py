@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate02.py
-#   Validates visibility and cursor behaviour when a follower picks up a
+#   Validates visibility and cursor behavior when a follower picks up a
 #   checkpoint containing fast-truncated pages.
 
 import wiredtiger, wttest
@@ -137,7 +137,7 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
 
     def test_pre_truncation_read_sees_all_rows(self):
         # Reading at a timestamp before the truncation must still find all rows, including those
-        # later deleted. Verifies MVCC correctness across the follower checkpoint boundary.
+        # later deleted. Verifies mvcc correctness across the follower checkpoint boundary.
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")
         self.setup_leader()

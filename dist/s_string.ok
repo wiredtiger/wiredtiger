@@ -1317,6 +1317,7 @@ munmap
 mutex
 mutexes
 mux
+mvcc
 myconn
 mytable
 nTemp
