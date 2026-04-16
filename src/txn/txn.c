@@ -1361,6 +1361,7 @@ __txn_mod_sortable_key(WT_TXN_OP *opt)
     case (WT_TXN_OP_REF_DELETE):
     case (WT_TXN_OP_TRUNCATE_COL):
     case (WT_TXN_OP_TRUNCATE_ROW):
+    case (WT_TXN_OP_FOLLOWER_TRUNCATE):
         return (false);
     case (WT_TXN_OP_BASIC_COL):
     case (WT_TXN_OP_BASIC_ROW):
@@ -1618,6 +1619,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ERR(__wti_mark_committed_truncate_table(session, op));
             break;
         }
 
@@ -1988,6 +1992,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_delete_apply_prepare_state(session, op, false);
             break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
@@ -2117,6 +2122,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_TRET(__wt_delete_page_rollback(session, op));
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_RET(__wti_layered_table_truncate_rollback(session, op));
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2368,7 +2376,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     /* Represents the read timestamp of the oldest active reader.*/
     WT_STATP_CONN_SET(
       session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
-    /* Represents the lag of the oldest reader  with respect to the oldest timestamp, if any. */
+    /* Represents the lag of the oldest reader with respect to the oldest timestamp, if any. */
     WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader_lag, oldest_reader_lag);
 
     /* Fetch the global timestamp values for debugging purposes.*/

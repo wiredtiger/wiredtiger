@@ -31,7 +31,8 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
-    bool tiered_shared_2023; /* tiered shared run-time configuration */
+    bool tiered_shared_2023;        /* tiered shared run-time configuration */
+    bool disagg_fast_truncate_2026; /* disagg fast truncate run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
@@ -167,7 +168,7 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 1
+#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 2
 #define WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION 1
 
 /*

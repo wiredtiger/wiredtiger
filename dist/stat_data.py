@@ -95,7 +95,7 @@ class ConnStat(Stat):
 class CursorErrorStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorStat.prefix, desc, flags)
+        Stat.__init__(self, name, CursorErrorStat.prefix, desc, flags)
 class CursorStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
@@ -103,7 +103,7 @@ class CursorStat(Stat):
 class CursorSweepStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorStat.prefix, desc, flags)
+        Stat.__init__(self, name, CursorSweepStat.prefix, desc, flags)
 class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
@@ -160,7 +160,7 @@ class SessionOpStat(Stat):
 class StorageStat(Stat):
     prefix = 'tiered-storage'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
+        Stat.__init__(self, name, StorageStat.prefix, desc, flags)
 class ThreadStat(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
@@ -337,6 +337,7 @@ conn_stats = [
     CacheStat('cache_pages_dirty_stable', 'tracked dirty pages in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_ingest', 'pages currently held in the cache from the ingest btrees', 'no_clear,no_scale'),
+    CacheStat('cache_pages_inuse_leaf', 'leaf pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
@@ -366,6 +367,7 @@ conn_stats = [
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
     EvictStat('eviction_fail_checkpoint_no_ts', 'pages selected for eviction unable to be evicted because of race between checkpoint and updates without timestamps'),
     EvictStat('eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
+    EvictStat('eviction_fail_ingest', 'pages selected for eviction unable to be evicted belonging to ingest btrees'),
     EvictStat('eviction_force', 'forced eviction - pages selected count'),
     EvictStat('eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
     EvictStat('eviction_force_delete', 'forced eviction - pages selected because of too many deleted items count'),
@@ -374,10 +376,13 @@ conn_stats = [
     EvictStat('eviction_force_hs', 'forced eviction - history store pages selected while session has history store cursor open'),
     EvictStat('eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     EvictStat('eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
+    EvictStat('eviction_force_ingest_fail', 'forced eviction - pages selected belonging to ingest btrees unable to be evicted count'),
+    EvictStat('eviction_force_ingest_success', 'forced eviction - pages evicted belonging to ingest btrees count'),
     EvictStat('eviction_force_long_update_list', 'forced eviction - pages selected because of a large number of updates to a single item'),
     EvictStat('eviction_force_no_retry', 'forced eviction - do not retry count to evict pages selected to evict during reconciliation'),
     EvictStat('eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     EvictStat('eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),
+    EvictStat('eviction_ingest_success', 'ingest pages evicted'),
     EvictStat('eviction_internal_pages_already_queued', 'internal pages seen by eviction walk that are already queued'),
     EvictStat('eviction_internal_pages_queued', 'internal pages queued for eviction'),
     EvictStat('eviction_internal_pages_seen', 'internal pages seen by eviction walk'),
@@ -612,6 +617,9 @@ conn_stats = [
     ##########################################
     # Disagg statistics
     ##########################################
+    DisaggStat('disagg_abandon_checkpoint_failed', 'abandon checkpoints failed'),
+    DisaggStat('disagg_abandon_checkpoint_succeed', 'abandon checkpoints succeeded'),
+    DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
@@ -1211,6 +1219,8 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_hs_cursor_not_cached', 'history store cursor not cached during eviction'),
     CacheStat('cache_eviction_hs_shared_cursor_not_cached', 'shared history store cursor not cached during eviction'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
+    CacheStat('cache_eviction_multiblock_checkpoint_flagged', 'pages with an unresolved multiblock split flagged by checkpoint to be evicted soon'),
+    CacheStat('cache_eviction_multiblock_split_re_reconciled', 'pages with an unresolved multiblock split re-reconciled by checkpoint'),
     CacheStat('cache_eviction_pages_queued_clean', 'eviction walk pages queued that were clean'),
     CacheStat('cache_eviction_pages_queued_dirty', 'eviction walk pages queued that were dirty'),
     CacheStat('cache_eviction_pages_queued_updates', 'eviction walk pages queued that had updates'),
@@ -1252,6 +1262,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_update_processed', 'history store table update to be processed'),
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
+    CacheStat('cache_inmem_split_ingest', 'in-memory page splits performed on ingest btree pages'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_obsolete_updates_removed', 'obsolete updates removed'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),

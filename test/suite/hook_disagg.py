@@ -106,7 +106,22 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
             raise RuntimeError(key_provider_extension[0] + ' key provider extension not found')
 
     WiredTigerTestCase.verbose(None, 3, f'role={disagg_parameters.role}')
-    disagg_config = ',verbose=[layered]' \
+
+    # Merge verbose=[layered] with any existing verbose settings in conn_config.
+    # WiredTiger's config parser takes the last occurrence of a duplicate key in a single
+    # config string, so naively appending ',verbose=[layered]' would override any verbose
+    # categories the test already set.
+    # Instead, inject 'layered' into the existing list, or add a fresh verbose=[layered].
+    verbose_re = re.compile(r'verbose=\[([^\]]*)\]')
+    verbose_match = verbose_re.search(conn_config)
+    if verbose_match:
+        existing_verbose = verbose_match.group(1)
+        conn_config = verbose_re.sub(f'verbose=[{existing_verbose},layered]', conn_config, count=1)
+        disagg_verbose_config = ''
+    else:
+        disagg_verbose_config = ',verbose=[layered]'
+
+    disagg_config = disagg_verbose_config \
         + f',disaggregated=(role="{disagg_parameters.role}"' \
         + f',page_log={page_log_name})'
 
@@ -159,7 +174,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
 
     disagg_config += f',{ext_string},{ext_lib}'
     # Load the key provider extension. Configure low verbosity to eliminate test failures due to unexpected output and
-    # to always key expire such that we can perform a key rotation everytime a checkpoint is called.
+    # to always key expire such that we can perform a key rotation every time a checkpoint is called.
     if key_provider:
         key_provider_extension_config =  f'\"{key_provider_extension[0]}\"=(early_load=true,config="verbose=-1,key_expires=0")'
         disagg_config += f',{key_provider_extension_config}'
@@ -490,7 +505,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         # We also allow a set of uris that we never want to be layered.
         # Tests can add to this list.
         #
-        # TODO: When there are multiple connections on multiple home directories,
+        # FIXME-WT-16920: When there are multiple connections on multiple home directories,
         # this may break down.  If we want a more precise accounting, we can associate the
         # uris with the home directory used.
         testcase.layered_uris = set()
@@ -501,11 +516,11 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
             testcase.pr(f'>>>>layered tables: {testcase.layered_uris}<<<<<')
 
     def tableExists(self, name):
-        # TODO: for PALite will need to rummage in kv_home files.
+        # FIXME-WT-16918: for PALite will need to rummage in kv_home files.
         return False
 
     def initialFileName(self, uri):
-        # TODO: there really isn't an equivalent
+        # FIXME-WT-15064: there really isn't an equivalent
         # return 'kv_home/data.mdb'
         return None
 
