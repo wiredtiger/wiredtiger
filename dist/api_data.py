@@ -810,16 +810,17 @@ connection_runtime_config = [
             Config('scale_queue_to_cache_size', 'true', r'''
                 Scale the eviction queue proportionally to the configured cache size and apply
                 an adaptive queue depth policy. When enabled, \c evict_walk_base is computed as
-                clamp(cache_gb * 50, 300, 50000) and \c evict_walk_incr is kept at the
-                compile-time default (100). The queue depth adapts at runtime using a two-zone
-                policy: the full scaled queue is active when cache fill is at or above 70% and
-                neither dirty nor update bytes has reached the hard trigger threshold; the
-                baseline queue depth (400 slots) is used otherwise, keeping drain cycles short
-                and preventing application threads from being drafted into eviction. Disable to
-                revert to the compile-time defaults (base=300, incr=100) and no adaptive depth
-                scaling, which preserves legacy eviction behavior. Note: this option is read
-                only at connection open time; changing it via reconfigure has no effect because
-                the queue cannot be resized after allocation.''',
+                clamp(cache_gb * 100, 300, 50000) and \c evict_walk_incr is derived as
+                evict_walk_base / 3, preserving the 1:3 incr-to-base ratio of the compile-time
+                defaults. The queue depth adapts at runtime using a two-zone policy: the full
+                scaled queue is active when cache fill is at or above 70% and neither dirty nor
+                update bytes has reached the hard trigger threshold; the baseline queue depth
+                (400 slots) is used otherwise, keeping drain cycles short and preventing
+                application threads from being drafted into eviction. Disable to revert to the
+                compile-time defaults (base=300, incr=100) and no adaptive depth scaling, which
+                preserves legacy eviction behavior. Note: this option is read only at connection
+                open time; changing it via reconfigure has no effect because the queue cannot be
+                resized after allocation.''',
                 type='boolean'),
             Config('skip_update_obsolete_check', 'false',
                 r'''Skip checking for obsolete updates whenever an update operation is

@@ -332,10 +332,12 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 int
 __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONFIG_ITEM scale_cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
     int i;
+    uint64_t cache_gb;
 
     conn = S2C(session);
 
@@ -366,31 +368,28 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Set the LRU eviction queue working set (evict_walk_base) and per-walk budget
      * (evict_walk_incr). When eviction.scale_queue_to_cache_size is enabled, evict_walk_base is
-     * computed proportionally from the configured cache size: 50 queue slots per gigabyte, clamped
-     * between WTI_EVICT_WALK_BASE and WTI_EVICT_WALK_BASE_MAX. evict_walk_incr is kept at the
-     * compile-time default (WTI_EVICT_WALK_INCR) regardless of cache size so that the maximum
-     * entries added to the queue per walk call stays small. Combined with the adaptive effective
-     * queue depth in __evict_walk and __evict_walk_target (which drops to the original queue size
-     * under dirty pressure), this keeps dirty drain cycles short and prevents dirty cache from
-     * accumulating to the application-thread trigger threshold. Without the flag, compile-time
-     * defaults are used, which preserves legacy behavior.
+     * computed proportionally from the configured cache size: 100 queue slots per gigabyte, clamped
+     * between WTI_EVICT_WALK_BASE and WTI_EVICT_WALK_BASE_MAX. evict_walk_incr is derived as
+     * evict_walk_base / 3, preserving the 1:3 incr-to-base ratio of the compile-time defaults
+     * (100:300) so the queue fills at a consistent rate relative to its size. Combined with the
+     * adaptive effective queue depth in __evict_walk and __evict_walk_target (which drops to the
+     * original queue size under dirty pressure), this keeps dirty drain cycles short and prevents
+     * dirty cache from accumulating to the application-thread trigger threshold. Without the flag,
+     * compile-time defaults are used, which preserves legacy behavior.
      *
      * This is a startup-only computation: the queue is allocated once here and cannot be resized at
      * runtime. Reconfiguring eviction.scale_queue_to_cache_size after connection open has no
      * effect.
      */
-    {
-        WT_CONFIG_ITEM scale_cval;
-        WT_RET(__wt_config_gets(session, cfg, "eviction.scale_queue_to_cache_size", &scale_cval));
-        if (scale_cval.val != 0) {
-            uint64_t cache_gb = conn->cache_size / WT_GIGABYTE;
-            evict->evict_walk_base =
-              (uint32_t)WT_CLAMP(cache_gb * 50, WTI_EVICT_WALK_BASE, WTI_EVICT_WALK_BASE_MAX);
-            evict->evict_walk_incr = WTI_EVICT_WALK_INCR;
-        } else {
-            evict->evict_walk_base = WTI_EVICT_WALK_BASE;
-            evict->evict_walk_incr = WTI_EVICT_WALK_INCR;
-        }
+    WT_RET(__wt_config_gets(session, cfg, "eviction.scale_queue_to_cache_size", &scale_cval));
+    if (scale_cval.val != 0) {
+        cache_gb = conn->cache_size / WT_GIGABYTE;
+        evict->evict_walk_base =
+          (uint32_t)WT_CLAMP(cache_gb * 100, WTI_EVICT_WALK_BASE, WTI_EVICT_WALK_BASE_MAX);
+        evict->evict_walk_incr = evict->evict_walk_base / 3;
+    } else {
+        evict->evict_walk_base = WTI_EVICT_WALK_BASE;
+        evict->evict_walk_incr = WTI_EVICT_WALK_INCR;
     }
     evict->evict_slots = evict->evict_walk_base + evict->evict_walk_incr;
     for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {

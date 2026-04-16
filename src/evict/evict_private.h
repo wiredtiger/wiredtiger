@@ -12,15 +12,15 @@
  * Tuning constants: I hesitate to call this tuning, but we want to review some number of pages from
  * each file's in-memory tree for each page we evict.
  */
-#define WTI_EVICT_MAX_TREES WT_THOUSAND   /* Maximum walk points */
-#define WTI_EVICT_WALK_BASE 300       /* Minimum pages tracked across file visits */
-#define WTI_EVICT_WALK_BASE_MAX 50000 /* Maximum pages tracked across file visits */
-#define WTI_EVICT_WALK_INCR 100       /* Minimum pages added each walk */
+#define WTI_EVICT_MAX_TREES WT_THOUSAND /* Maximum walk points */
+#define WTI_EVICT_WALK_BASE 300         /* Minimum pages tracked across file visits */
+#define WTI_EVICT_WALK_BASE_MAX 50000   /* Maximum pages tracked across file visits */
+#define WTI_EVICT_WALK_INCR 100         /* Minimum pages added each walk */
 
 /*
- * Minimum cache fill percentage required to activate the scaled (large) eviction queue.
- * Below this threshold the cache is not yet full and the large queue overhead is not
- * justified: use the baseline queue depth instead.
+ * Minimum cache fill percentage required to activate the scaled (large) eviction queue. Below this
+ * threshold the cache is not yet full and the large queue overhead is not justified: use the
+ * baseline queue depth instead.
  */
 #define WTI_EVICT_QUEUE_SCALE_MIN_FILL 70
 

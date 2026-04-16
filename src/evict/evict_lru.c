@@ -1764,8 +1764,11 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
      *                    (WT_EVICT_CACHE_DIRTY_HARD or WT_EVICT_CACHE_UPDATES_HARD). In the
      *                    trigger zone drain cycles must stay short to avoid application threads
      *                    being drafted into eviction, which causes write-ticket exhaustion.
+     *
+     * The identical condition is applied in __evict_walk_target to bound per-btree slot
+     * allocation; both sites must stay in sync.
      */
-    bytes_max = S2C(session)->cache_size + 1;
+    bytes_max = conn->cache_size + 1;
     bytes_inuse = __wt_cache_bytes_inuse(cache);
     cache_fill_pct = (100.0 * (double)bytes_inuse) / (double)bytes_max;
     use_baseline_slots = (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) ||
@@ -2064,6 +2067,11 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     bytes_max = conn->cache_size + 1;
     cache_inuse = __wt_cache_bytes_inuse(cache);
     cache_fill_pct = (100.0 * (double)cache_inuse) / (double)bytes_max;
+    /*
+     * Two-zone depth policy: fall back to the baseline slot count under hard dirty/update pressure
+     * or when cache fill is below the activation threshold. See __evict_walk for the full
+     * rationale; both sites must stay in sync.
+     */
     use_baseline_slots = (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) ||
       F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD);
 
@@ -2090,7 +2098,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         btree_clean_inuse = __wt_btree_bytes_evictable(session);
-        cache_inuse = __wt_cache_bytes_inuse(cache);
+        /* cache_inuse for CLEAN is the same total used bytes already fetched above. */
         bytes_per_slot = 1 + cache_inuse / effective_slots;
         target_pages_clean = (uint32_t)((btree_clean_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
