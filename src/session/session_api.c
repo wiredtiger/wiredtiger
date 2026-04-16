@@ -1814,6 +1814,15 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
         ret = __wt_schema_worker(
           session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
     WT_ERR(ret);
+
+    /*
+     * After the schema lock is released, check that no two stable constituent files share the same
+     * btree ID. This must run outside the schema lock opening a metadata cursor under the schema
+     * lock causes stalls. Only run on fully initialized disagg connections.
+     */
+    if (__wt_conn_is_disagg(session))
+        WT_ERR(__wt_verify_unique_btree_ids(session));
+
 err:
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_verify_fail);
