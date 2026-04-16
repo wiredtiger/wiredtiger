@@ -2878,7 +2878,7 @@ tasks:
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower,table_prefix=table)" base01
 
   - name: unit-test-hook-parallel-checkpoint
-    tags: ["python", "unit_test_xsan"]
+    tags: ["python"]
     depends_on:
       - name: compile
     commands:
@@ -2898,6 +2898,126 @@ tasks:
       additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
       unit_test_parallel_ignore: test/suite/tsan.fail
       unit_test_parallel_args: -v 2 --timeout 300 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-bucket00
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 0/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket01
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 1/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket02
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 2/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket03
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 3/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket04
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 4/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket05
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 5/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket06
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 6/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket07
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 7/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket08
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 8/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket09
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 9/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket10
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 10/12
+
+  - name: unit-test-hook-parallel-checkpoint-bucket11
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+    vars:
+      unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 11/12
 
   - name: unit-test-hook-timing-stress-log
     tags: ["python"]
