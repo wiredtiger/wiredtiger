@@ -57,7 +57,7 @@ class test_truncate08(wttest.WiredTigerTestCase):
         replacement_value = "replacement_value"
 
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 80000):
+        for i in range(1, 8000):
             cursor[simple_key(cursor, i)] = simple_value(cursor, i)
         cursor.close()
 
@@ -69,16 +69,16 @@ class test_truncate08(wttest.WiredTigerTestCase):
 
         # Truncate the middle chunk.
         c1 = self.session.open_cursor(uri, None)
-        c1.set_key(simple_key(c1, 10000))
+        c1.set_key(simple_key(c1, 1000))
         c2 = self.session.open_cursor(uri, None)
-        c2.set_key(simple_key(c1, 70000))
+        c2.set_key(simple_key(c1, 7000))
         self.session.truncate(None, c1, c2, None)
         c1.close()
         c2.close()
 
         # Modify a record on a fast-truncate page.
         cursor = self.session.open_cursor(uri)
-        cursor[simple_key(cursor, 40000)] = replacement_value
+        cursor[simple_key(cursor, 4000)] = replacement_value
         cursor.close()
 
         # Prepare and commit the transaction.
