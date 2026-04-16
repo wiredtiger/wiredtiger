@@ -205,8 +205,10 @@ __layered_fix_prepared_transaction_callback(
         if (cmp < 0)
             continue;
 
-        /* The operation keys in a prepared transaction is sorted. We have passed the key we're
-         * looking for. */
+        /*
+         * The operation keys in a prepared transaction are sorted. We have passed the key we're
+         * looking for.
+         */
         if (cmp > 0)
             break;
 
