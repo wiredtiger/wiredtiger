@@ -101,11 +101,11 @@ TEST_CASE("API_END_RET nested - test that nested API calls only keep explicitly 
     }
 
     /*
-     * These sections DO explicitly set the err_info struct inside the nested API call. Expected
-     * behavior to be determined.
+     * These sections DO explicitly set the err_info struct inside the nested API call.
      */
     SECTION("Test nested API call with WT_NOTFOUND set explicitly inside WT_ERR_NOTFOUND_OK()")
     {
+        // Mismatch between return value and recorded error code, log a warning.
         REQUIRE(api_call_nested_with_notfound(session_impl, cursor, 0, true, true) == 0);
         check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
@@ -114,6 +114,7 @@ TEST_CASE("API_END_RET nested - test that nested API calls only keep explicitly 
       "Test nested API call with WT_NOTFOUND set explicitly inside WT_ERR_NOTFOUND_OK(), followed "
       "by EINVAL")
     {
+        // Mismatch between return value and recorded error code, log a warning.
         REQUIRE(api_call_nested_with_notfound(session_impl, cursor, EINVAL, true, true) == EINVAL);
         check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
