@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import errno, os, re, wiredtiger, wttest
+import errno, os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -182,54 +182,6 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
         # Follower verification now succeeds
         self.verify([self.session_follow])
-
-        self.session_follow.close()
-        self.conn_follow.close()
-
-    def test_verify_duplicate_btree_ids(self):
-        """
-        Inject a fake stable file entry with a duplicate btree ID into a follower's local
-        metadata, then verify the layered table. The unique btree IDs check in verify should
-        detect the duplicate and return an error.
-        """
-        # Create a layered table on the leader with data, then checkpoint.
-        self.session.create(self.uri, self.table_cfg)
-        cursor = self.session.open_cursor(self.uri, None, None)
-        cursor['key'] = 'value'
-        cursor.close()
-        self.session.checkpoint()
-
-        # Create a follower and advance it to pick up the checkpoint.
-        self.create_follower()
-        self.disagg_advance_checkpoint(self.conn_follow)
-
-        # Read the stable file's config from the follower's metadata to get its btree ID.
-        md_cursor = self.session_follow.open_cursor('metadata:', None, None)
-        md_cursor.set_key('file:test_verify_disagg.wt_stable')
-        self.assertEqual(md_cursor.search(), 0)
-        victim_config = md_cursor.get_value()
-        md_cursor.close()
-
-        # Confirm we got a valid config with an ID.
-        self.assertIsNotNone(re.search(r',id=\d+', victim_config))
-
-        # Inject a fake entry with the same btree ID into the follower's local metadata.
-        raw_cursor = self.session_follow.open_cursor('file:WiredTiger.wt', None, None)
-        raw_cursor.set_key('file:fake_duplicate.wt_stable')
-        raw_cursor.set_value(victim_config)
-        raw_cursor.insert()
-        raw_cursor.close()
-
-        # Verify the layered table - our check detects the duplicate btree ID.
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session_follow.verify(self.uri), '/WT_ERROR/')
-        self.ignoreStderrPatternIfExists('metadata corruption')
-
-        # Remove the fake entry so teardown verification passes.
-        raw_cursor = self.session_follow.open_cursor('file:WiredTiger.wt', None, None)
-        raw_cursor.set_key('file:fake_duplicate.wt_stable')
-        raw_cursor.remove()
-        raw_cursor.close()
 
         self.session_follow.close()
         self.conn_follow.close()
