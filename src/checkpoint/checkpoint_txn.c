@@ -2731,7 +2731,7 @@ err:
  *     updated in the page log.
  */
 static int
-__checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts, bool ckpt_success)
+__checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, bool ckpt_success)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
@@ -2744,7 +2744,7 @@ __checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_tmp_ts
      */
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
-        WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
+        WT_ASSERT(session, ckpt_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, ckpt_success) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
     }
