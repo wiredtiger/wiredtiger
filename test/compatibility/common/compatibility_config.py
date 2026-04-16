@@ -34,11 +34,11 @@ import re
 from compatibility_version import WTVersion
 from typing import List
 
-# The branches we use for the testing. We support special branch name 'this' that refers to the
+# The branches we use for testing. We support special branch name 'this' that refers to the
 # current branch. This is useful when debugging a compatibility issue on the current branch, but it
 # should not be enabled when testing on Evergreen.
 
-# To make this branches compatitable with existing "compatibility_test_for_releases.sh", the
+# To make this branches compatible with existing "compatibility_test_for_releases.sh", the
 # version is imported from the bash file of "meta/versions.sh"
 
 class WTBranches:

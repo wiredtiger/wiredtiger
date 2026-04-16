@@ -427,7 +427,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_TXN_OP *op, 
         __txn_apply_prepare_state_page_del(session, page_del, commit);
 
     if (WT_DELTA_INT_ENABLED(op->btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
@@ -555,7 +555,7 @@ __wt_txn_op_delete_commit(
         __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
     if (WT_DELTA_INT_ENABLED(op->btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
 err:
     WT_REF_UNLOCK(ref, previous_state);
@@ -754,6 +754,31 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         __wt_txn_unmodify(session);
 
     return (ret);
+}
+
+/*
+ * __wt_txn_truncate --
+ *     Mark a WT_TRUNCATE object modified by the current transaction.
+ */
+static WT_INLINE int
+__wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
+{
+    WT_TXN *txn;
+    WT_TXN_OP *op;
+
+    txn = session->txn;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
+    if (F_ISSET(txn, WT_TXN_READONLY))
+        WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
+
+    WT_RET(__txn_next_op(session, &op));
+    op->type = WT_TXN_OP_FOLLOWER_TRUNCATE;
+    t->txn_id = session->txn->time_point.id;
+
+    op->u.follower_truncate.t = t;
+    return (0);
 }
 
 /*
@@ -1117,57 +1142,29 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
  * __wt_txn_tw_stop_visible --
  *     Is the given stop time window visible?
  */
-static WT_INLINE WT_VISIBLE_TYPE
+static WT_INLINE bool
 __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     if (!WT_TIME_WINDOW_HAS_STOP(tw))
-        return (WT_VISIBLE_FALSE);
+        return (false);
 
-    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
-        /*
-         * For btrees that are not read-only, we must have seen the prepared update on the update
-         * chain and returned visible prepare if it is visible. For a checkpoint, prepared update is
-         * always not visible.
-         */
-        if (F_ISSET(S2BT(session), WT_BTREE_READONLY) &&
-          !WT_DHANDLE_IS_CHECKPOINT(session->dhandle) &&
-          __wt_txn_visible(session, tw->stop_txn, tw->stop_prepare_ts, tw->stop_prepare_ts))
-            return (WT_VISIBLE_PREPARE);
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
+        return (false);
 
-        return (WT_VISIBLE_FALSE);
-    }
-
-    if (__wt_txn_visible(session, tw->stop_txn, tw->stop_ts, tw->durable_stop_ts))
-        return (WT_VISIBLE_TRUE);
-
-    return (WT_VISIBLE_FALSE);
+    return (__wt_txn_visible(session, tw->stop_txn, tw->stop_ts, tw->durable_stop_ts));
 }
 
 /*
  * __wt_txn_tw_start_visible --
  *     Is the given start time window visible?
  */
-static WT_INLINE WT_VISIBLE_TYPE
+static WT_INLINE bool
 __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw)) {
-        /*
-         * For btrees that are not read-only, we must have seen the prepared update on the update
-         * chain and returned visible prepare if it is visible. For a checkpoint, prepared update is
-         * always not visible.
-         */
-        if (F_ISSET(S2BT(session), WT_BTREE_READONLY) &&
-          !WT_DHANDLE_IS_CHECKPOINT(session->dhandle) &&
-          __wt_txn_visible(session, tw->start_txn, tw->start_prepare_ts, tw->start_prepare_ts))
-            return (WT_VISIBLE_PREPARE);
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
+        return (false);
 
-        return (WT_VISIBLE_FALSE);
-    }
-
-    if (__wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts))
-        return (WT_VISIBLE_TRUE);
-
-    return (WT_VISIBLE_FALSE);
+    return (__wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
 }
 
 /*
@@ -1663,11 +1660,7 @@ retry:
              * rollback to stable and when we are told to ignore non-globally visible tombstones.
              */
             if (!have_stop_tw) {
-                WT_VISIBLE_TYPE visible_type = __wt_txn_tw_stop_visible(session, &tw);
-                if (visible_type == WT_VISIBLE_PREPARE) {
-                    if (!F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
-                        return (WT_PREPARE_CONFLICT);
-                } else if (visible_type == WT_VISIBLE_TRUE &&
+                if (__wt_txn_tw_stop_visible(session, &tw) &&
                   !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
                     cbt->upd_value->buf.data = NULL;
                     cbt->upd_value->buf.size = 0;
@@ -1697,11 +1690,7 @@ retry:
                 return (0);
             }
 
-            WT_VISIBLE_TYPE visible_type = __wt_txn_tw_start_visible(session, &tw);
-            if (visible_type == WT_VISIBLE_PREPARE) {
-                if (!F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
-                    return (WT_PREPARE_CONFLICT);
-            } else if (visible_type == WT_VISIBLE_TRUE) {
+            if (__wt_txn_tw_start_visible(session, &tw)) {
                 if (cbt->upd_value->skip_buf) {
                     cbt->upd_value->buf.data = NULL;
                     cbt->upd_value->buf.size = 0;
