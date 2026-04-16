@@ -427,7 +427,6 @@ Runtime
 RuntimeError
 SCons
 SDK
-SDKROOT
 SIGABRT
 SIMD
 SLS
@@ -888,6 +887,7 @@ destructor
 dev
 dh
 dhandle
+dhandle's
 dhandles
 dicts
 didworkp
@@ -1186,9 +1186,7 @@ kvraw
 kvs
 lang
 las
-latencies
 latin
-layeredp
 lazyfs
 lbrace
 lbracket
