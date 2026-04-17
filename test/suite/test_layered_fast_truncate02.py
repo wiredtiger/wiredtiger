@@ -80,26 +80,21 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         )
         self.reopen_conn(config=follower_config)
 
-    # Truncate the range [start, stop] (inclusive) on the current session.
+    # Truncate the range [start, stop] (inclusive). If stop is None, truncate
+    # from start to the end of the table.
     def truncate_range(self, start, stop):
         c1 = self.session.open_cursor(self.uri)
         c1.set_key(self.key(start))
-        c2 = self.session.open_cursor(self.uri)
-        c2.set_key(self.key(stop))
+        c2 = None
+        if stop is not None:
+            c2 = self.session.open_cursor(self.uri)
+            c2.set_key(self.key(stop))
         self.session.begin_transaction()
         self.session.truncate(None, c1, c2, None)
         self.session.commit_transaction()
         c1.close()
-        c2.close()
-
-    # Truncate from start to the end of the table.
-    def truncate_to_end(self, start):
-        c1 = self.session.open_cursor(self.uri)
-        c1.set_key(self.key(start))
-        self.session.begin_transaction()
-        self.session.truncate(None, c1, None, None)
-        self.session.commit_transaction()
-        c1.close()
+        if c2 is not None:
+            c2.close()
 
     # Return all keys visible via a forward scan.
     def scan_forward(self):
@@ -202,7 +197,7 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
             self.skipTest('fast truncate support is not enabled.')
 
         self.setup_follower()
-        self.truncate_to_end(500)
+        self.truncate_range(500, None)
 
         expected = [self.key(i) for i in range(500)]
 
@@ -233,12 +228,61 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         self.assertEqual(backward, expected,
             'backward scan returned wrong keys with two truncated ranges')
 
-    # FIXME-WT-17133: Follower ingest cursor is passed to __wt_range_truncate without being
-    # positioned (only set_key). remove() on an unpositioned cursor does an exact-key lookup;
-    # if the start key is absent from ingest, it returns WT_NOTFOUND and the loop exits without
-    # removing the later keys that DO exist in ingest. This test exercises that path because
-    # committed updates land in ingest between keys 200-400 while the truncate starts at 100.
-    @unittest.skip("Disabled: ingest truncate needs cursor positioning before remove()")
+    def test_mixed_bounded_and_open_ended_truncates(self):
+        if wiredtiger.disagg_fast_truncate_build() == 0:
+            self.skipTest('fast truncate support is not enabled.')
+
+        # Combine a bounded truncate [100, 300] with an open-ended truncate
+        # [600, end]. Visible keys must be exactly 0-99 and 301-599.
+        self.setup_follower()
+        self.truncate_range(100, 300)
+        self.truncate_range(600, None)
+
+        expected = [self.key(i) for i in range(self.nitems)
+                    if i < 100 or (301 <= i <= 599)]
+
+        forward = self.scan_forward()
+        self.assertEqual(forward, expected,
+            'forward scan returned wrong keys with mixed truncates [100,300] and [600,end]')
+
+        backward = self.scan_backward()
+        self.assertEqual(backward, expected,
+            'backward scan returned wrong keys with mixed truncates [100,300] and [600,end]')
+
+    def test_open_ended_truncate_then_append_then_bounded_to_new_end(self):
+        if wiredtiger.disagg_fast_truncate_build() == 0:
+            self.skipTest('fast truncate support is not enabled.')
+
+        # Open-ended truncate captures a snapshot of "end" at commit time. Keys
+        # appended after the truncate are new data in ingest (the source of
+        # truth for writes on the follower) and must remain visible.
+        self.setup_follower()
+
+        # Open-ended truncate [800, end]: hides the existing keys 800-999 only.
+        self.truncate_range(800, None)
+
+        # Append new keys 1000-1099 to the follower's ingest. These are written
+        # after the truncate committed, so they must remain visible.
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1000, 1100):
+            self.session.begin_transaction()
+            cursor[self.key(i)] = 'appended'
+            self.session.commit_transaction()
+        cursor.close()
+
+        expected = ([self.key(i) for i in range(800)]
+                    + [self.key(i) for i in range(1000, 1100)])
+        forward = self.scan_forward()
+        self.assertEqual(forward, expected,
+            'open-ended truncate must not hide keys appended after it committed')
+
+        backward = self.scan_backward()
+        self.assertEqual(backward, expected,
+            'backward scan must agree with forward scan')
+
+    # FIXME-WT-17133: ingest truncate doesn't remove live ingest keys when the
+    # start key is absent from ingest.
+    @unittest.skip("FIXME-WT-17133")
     def test_mixed_truncate_and_update(self):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest('fast truncate support is not enabled.')
@@ -327,55 +371,45 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    def test_search_near_direction_forward(self):
+    def test_search_near_direction_in_truncated_range(self):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest('fast truncate support is not enabled.')
 
-        # When search_near is called for a key inside a bounded truncated range
-        # [100, 700], the fix tries __clayered_iterate(NEXT) first. Since visible
-        # keys exist after the range (701-999), NEXT succeeds and the cursor lands
-        # at a key greater than the search key, so exact must be 1.
+        # search_near for a key inside a truncated range must land outside the
+        # range: try forward first, fall back to backward only if forward exhausts.
         self.setup_follower()
+
+        # Scenario 1: bounded range [100, 700]. Visible keys 701-999 exist after
+        # the range, so __clayered_iterate(NEXT) succeeds and lands at 0701.
         self.truncate_range(100, 700)
 
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-
         cursor.set_key(self.key(400))
         exact = cursor.search_near()
         result_key = cursor.get_key()
-
-        self.assertFalse(self.key(100) <= result_key <= self.key(700),
-            f'search_near("0400") must not return a key inside the truncated range, got {result_key}')
         self.assertEqual(exact, 1,
-            f'search_near("0400") should advance forward (exact=1) but got exact={exact}')
-
+            f'bounded range: search_near should advance forward (exact=1), got {exact}')
+        self.assertEqual(result_key, self.key(701),
+            f'bounded range: expected to land at 0701, got {result_key}')
         self.session.rollback_transaction()
         cursor.close()
 
-    def test_search_near_direction_backward(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
-        # When search_near is called for a key inside an open-ended truncated range
-        # [500, end), NEXT exhausts the table and the fix falls back to
-        # __clayered_iterate(PREV). The cursor lands at a key less than the search
-        # key, so exact must be -1.
-        self.setup_follower()
-        self.truncate_to_end(500)
+        # Scenario 2: add an open-ended truncation [800, end]. Combined truncated
+        # ranges are [100, 700] and [800, 999]. search_near("0900"): NEXT exhausts
+        # the table (all keys >= 800 are truncated), so the fix falls back to PREV
+        # and lands at 0799 (the highest visible key).
+        self.truncate_range(800, None)
 
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-
-        cursor.set_key(self.key(700))
+        cursor.set_key(self.key(900))
         exact = cursor.search_near()
         result_key = cursor.get_key()
-
-        self.assertLess(result_key, self.key(500),
-            f'search_near("0700") with open-ended truncation must land before key 0500, got {result_key}')
         self.assertEqual(exact, -1,
-            f'search_near("0700") should fall back backward (exact=-1) but got exact={exact}')
-
+            f'open-ended range: search_near should fall back backward (exact=-1), got {exact}')
+        self.assertEqual(result_key, self.key(799),
+            f'open-ended range: expected to land at 0799, got {result_key}')
         self.session.rollback_transaction()
         cursor.close()
 
