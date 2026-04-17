@@ -2659,6 +2659,8 @@ err:
 static int
 __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
 {
+    WT_DECL_RET;
+
     WT_CONNECTION_IMPL *conn = S2C(session);
 
     if (!__wt_conn_is_disagg(session) || !conn->layered_table_manager.leader)
@@ -2668,12 +2670,19 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
      * If the stable timestamp advanced, ensure that we reflect it in the checkpoint metadata in
      * disaggregated storage, even if there were no other changes. Also check for any updated key
      * encryption information.
+     *
+     *
      */
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
+        /*
+         * A failure on __wt_disagg_put_crypt_helper means a key rotation was interrupted before
+         * on_key_update was called, so the key rotation exchange was never completed. The provider
+         * will retry on the next checkpoint. Therefore, it is okay to continue.
+         */
         if (conn->key_provider != NULL)
-            WT_RET(__wt_disagg_put_crypt_helper(session));
+            WT_TRET(__wt_disagg_put_crypt_helper(session));
         WT_RET(__wt_disagg_put_checkpoint_meta(
           session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_ts));
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
@@ -2681,7 +2690,7 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
           "advanced");
     }
 
-    return (0);
+    return (ret);
 }
 
 /*
