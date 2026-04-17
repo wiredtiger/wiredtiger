@@ -188,13 +188,14 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
 /*
  * __txn_apply_prepare_state_update --
- *     Change the prepared state of an update using the provided time point.
+ *     Change the prepared state of an update.
  */
 static WT_INLINE void
-__txn_apply_prepare_state_update(
-  WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TXN_TIME_POINT *time_point, bool commit)
+__txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
-    WT_UNUSED(session);
+    WT_TXN *txn;
+
+    txn = session->txn;
 
     if (commit) {
         /*
@@ -203,25 +204,20 @@ __txn_apply_prepare_state_update(
          * encounter a prepared update resulting in prepare conflict.
          *
          * As updating timestamp might not be an atomic operation, we will manage using state.
+         *
+         * TODO: we can remove the prepare locked state once we separate the prepared timestamp and
+         * commit timestamp.
          */
-        __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_LOCKED);
-        /*
-         * Ensure the transaction id from the prepared update in the ingest btree is propagated
-         * during step-up in disagg to maintain correct transaction visibility both during and after
-         * step-up.
-         */
-        if (__wt_atomic_load_uint64_v_relaxed(&upd->txnid) == WT_TS_NONE)
-            __wt_atomic_store_uint64_v_relaxed(&upd->txnid, time_point->id);
-        else
-            WT_ASSERT(session, time_point->id == __wt_atomic_load_uint64_v_relaxed(&upd->txnid));
-        __wt_atomic_store_uint64_relaxed(&upd->upd_start_ts, time_point->commit_timestamp);
-        __wt_atomic_store_uint64_relaxed(&upd->upd_durable_ts, time_point->durable_timestamp);
+        __wt_tsan_suppress_store_uint8_v(&upd->prepare_state, WT_PREPARE_LOCKED);
+        WT_RELEASE_BARRIER();
+        __wt_atomic_store_uint64_relaxed(&upd->upd_start_ts, txn->time_point.commit_timestamp);
+        __wt_atomic_store_uint64_relaxed(&upd->upd_durable_ts, txn->time_point.durable_timestamp);
         __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp and id. */
-        upd->upd_start_ts = time_point->prepare_timestamp;
-        upd->prepare_ts = time_point->prepare_timestamp;
-        upd->prepared_id = time_point->prepared_id;
+        upd->upd_start_ts = txn->time_point.prepare_timestamp;
+        upd->prepare_ts = txn->time_point.prepare_timestamp;
+        upd->prepared_id = txn->time_point.prepared_id;
 
         /*
          * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
@@ -424,7 +420,7 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_TXN_OP *op, 
         WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
         if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp)
-                __txn_apply_prepare_state_update(session, *updp, &session->txn->time_point, commit);
+                __txn_apply_prepare_state_update(session, *updp, commit);
     }
 
     if ((page_del = ref->page_del) != NULL)
@@ -701,7 +697,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
         else {
             upd = op->u.op_upd;
             /* Resolve prepared update to be committed update. */
-            __txn_apply_prepare_state_update(session, upd, &session->txn->time_point, true);
+            __txn_apply_prepare_state_update(session, upd, true);
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
