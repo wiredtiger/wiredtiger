@@ -575,9 +575,9 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 
 done:
     /*
-     * A session snapshot is acquired either on explicit transaction begin or on the first
-     * btree operation. In this context, if the operation is not a part of an explicit
-     * transaction, snapshot_gen may still be 0 because no snapshot has been taken yet.
+     * A session snapshot is acquired either on explicit transaction begin or on the first btree
+     * operation. In this context, if the operation is not a part of an explicit transaction,
+     * snapshot_gen may still be 0 because no snapshot has been taken yet.
      */
     clayered->snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
@@ -1122,21 +1122,19 @@ err:
 
 /*
  * __clayered_step --
- *     Transaction-aware single step for a layered cursor: enter, detect isolation changes,
- *     iterate, propagate results to the interface cursor, then leave.
+ *     Transaction-aware single step for a layered cursor: enter, detect isolation changes, iterate,
+ *     propagate results to the interface cursor, then leave.
  *
- *     Called only from __clayered_next and __clayered_prev.
+ * Called only from __clayered_next and __clayered_prev.
  */
 static int
 __clayered_step(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 {
-    WT_CURSOR *iface;
     WT_DECL_RET;
-    uint64_t prev_read_ts, prev_snapshot;
 
-    iface = &clayered->iface;
-    prev_snapshot = clayered->snapshot_gen;
-    prev_read_ts = clayered->read_timestamp;
+    WT_CURSOR *iface = &clayered->iface;
+    uint64_t prev_snapshot = clayered->snapshot_gen;
+    uint64_t prev_read_ts = clayered->read_timestamp;
 
     WT_ERR(__clayered_enter(clayered, false, true, true));
 
