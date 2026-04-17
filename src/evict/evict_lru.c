@@ -1735,11 +1735,11 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
     double cache_fill_pct;
-    uint64_t bytes_inuse, bytes_max, dirty_mid, updates_mid;
-    uint32_t evict_walk_period;
+    uint64_t bytes_inuse, bytes_max;
+    uint32_t effective_slots, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
-    bool dhandle_list_locked, use_baseline_slots;
+    bool dhandle_list_locked;
 
     WT_TRACK_OP_INIT(session);
 
@@ -1752,41 +1752,50 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     retries = 0;
 
     /*
-     * Two-zone queue depth policy based on cache fill and eviction pressure:
+     * Graduated queue depth policy: scale effective_slots proportionally between the baseline
+     * (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR) and the full scaled evict_slots based on
+     * eviction pressure. Pressure is defined as the ratio of dirty or update bytes to their
+     * respective trigger thresholds (clamped to [0, 1]).
      *
-     *   Large queue — cache fill >= WTI_EVICT_QUEUE_SCALE_MIN_FILL and dirty/update bytes are
-     *                 in the scrub eviction zone (below the midpoint between their target and
-     *                 trigger thresholds). Eviction is doing background cleanup; scan broadly
-     *                 for the best eviction candidates.
+     *   pressure = 0  (no dirty/update load)  → effective_slots = evict_slots  (full scale)
+     *   pressure = 1  (at trigger threshold)   → effective_slots = baseline
      *
-     *   Baseline queue — cache not yet filled to the activation threshold (no benefit scanning a
-     *                    largely-empty cache), or dirty/update bytes have crossed the midpoint
-     *                    between target and trigger. Beyond the midpoint we are in pressure
-     *                    eviction: drain cycles must stay short to avoid application threads
-     *                    being drafted into eviction, which causes write-ticket exhaustion. The
-     *                    midpoint is the natural handoff from "find the best pages" to "drain
-     *                    fast"; using the full scaled queue past this point deepens per-tree
-     *                    walk passes and starves eviction workers.
+     * This avoids two failure modes observed with a binary switch:
+     *   - Full scale under pressure: per-tree targets of 256–512+ pages → deep btree walks →
+     *     btree lock contention → write-ticket exhaustion.
+     *   - Baseline under pressure: per-tree targets of 0–9 pages → queue starvation →
+     *     eviction server sleeps → application threads drafted → write-ticket exhaustion.
      *
-     * The identical condition is applied in __evict_walk_target to bound per-btree slot
-     * allocation; both sites must stay in sync.
+     * Below WTI_EVICT_QUEUE_SCALE_MIN_FILL the cache is not yet filled enough to justify the
+     * scaled queue; use baseline unconditionally. The identical formula is applied in
+     * __evict_walk_target; both sites must stay in sync.
      */
     bytes_max = conn->cache_size + 1;
     bytes_inuse = __wt_cache_bytes_inuse(cache);
     cache_fill_pct = (100.0 * (double)bytes_inuse) / (double)bytes_max;
-    dirty_mid = (uint64_t)((__wti_evict_dirty_target(evict) +
-                   __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger)) /
-      2.0 * (double)bytes_max / 100.0);
-    updates_mid = (uint64_t)((evict->eviction_updates_target +
-                     __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger)) /
-      2.0 * (double)bytes_max / 100.0);
-    use_baseline_slots = (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) ||
-      __wt_cache_dirty_leaf_inuse(cache) > dirty_mid ||
-      __wt_cache_bytes_updates(cache) > updates_mid;
+    {
+        uint32_t baseline_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
+        if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL ||
+          evict->evict_slots <= baseline_slots)
+            effective_slots = baseline_slots;
+        else {
+            double dirty_pct, updates_pct, pressure;
+            uint64_t dirty_bytes, updates_bytes;
+            dirty_bytes = __wt_cache_dirty_leaf_inuse(cache);
+            updates_bytes = __wt_cache_bytes_updates(cache);
+            dirty_pct = (double)dirty_bytes * 100.0 / (double)bytes_max;
+            updates_pct = (double)updates_bytes * 100.0 / (double)bytes_max;
+            pressure = WT_MAX(
+              dirty_pct / __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger),
+              updates_pct / __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
+            pressure = WT_MIN(pressure, 1.0);
+            effective_slots = baseline_slots +
+              (uint32_t)((1.0 - pressure) * (double)(evict->evict_slots - baseline_slots));
+        }
+    }
 
     start_slot = slot = queue->evict_entries;
-    max_entries = WT_MIN(slot + evict->evict_walk_incr,
-      use_baseline_slots ? WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR : evict->evict_slots);
+    max_entries = WT_MIN(slot + evict->evict_walk_incr, (u_int)effective_slots);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -2063,10 +2072,10 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     WT_EVICT *evict;
     double cache_fill_pct;
     uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_max, bytes_per_slot,
-      cache_inuse, dirty_mid, updates_mid;
+      cache_inuse;
     uint32_t effective_slots, target_pages, target_pages_clean, target_pages_dirty,
       target_pages_updates;
-    bool use_baseline_slots, want_tree;
+    bool want_tree;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -2078,20 +2087,29 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     cache_inuse = __wt_cache_bytes_inuse(cache);
     cache_fill_pct = (100.0 * (double)cache_inuse) / (double)bytes_max;
     /*
-     * Two-zone depth policy: fall back to the baseline slot count when dirty or update bytes
-     * cross the midpoint between their target and trigger thresholds, or when cache fill is
-     * below the activation threshold. See __evict_walk for the full rationale; both sites must
-     * stay in sync.
+     * Graduated effective_slots: see __evict_walk for the full rationale. Both sites must stay
+     * in sync.
      */
-    dirty_mid = (uint64_t)((__wti_evict_dirty_target(evict) +
-                   __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger)) /
-      2.0 * (double)bytes_max / 100.0);
-    updates_mid = (uint64_t)((evict->eviction_updates_target +
-                     __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger)) /
-      2.0 * (double)bytes_max / 100.0);
-    use_baseline_slots = (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) ||
-      __wt_cache_dirty_leaf_inuse(cache) > dirty_mid ||
-      __wt_cache_bytes_updates(cache) > updates_mid;
+    {
+        uint32_t baseline_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
+        if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL ||
+          evict->evict_slots <= baseline_slots)
+            effective_slots = baseline_slots;
+        else {
+            double dirty_pct, updates_pct, pressure;
+            uint64_t dirty_bytes, updates_bytes;
+            dirty_bytes = __wt_cache_dirty_leaf_inuse(cache);
+            updates_bytes = __wt_cache_bytes_updates(cache);
+            dirty_pct = (double)dirty_bytes * 100.0 / (double)bytes_max;
+            updates_pct = (double)updates_bytes * 100.0 / (double)bytes_max;
+            pressure = WT_MAX(
+              dirty_pct / __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger),
+              updates_pct / __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
+            pressure = WT_MIN(pressure, 1.0);
+            effective_slots = baseline_slots +
+              (uint32_t)((1.0 - pressure) * (double)(evict->evict_slots - baseline_slots));
+        }
+    }
 
 /*
  * The minimum number of pages we should consider per tree.
@@ -2104,15 +2122,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      * 99+% of the cache (and only have to walk it once). When eviction.scale_queue_to_cache_size
      * is enabled, evict_slots grows with cache size so the proportional formula automatically
      * allocates more slots to larger caches without any additional per-btree adjustment.
-     *
-     * The per-btree target uses the full scaled slot count during steady-state operation so that
-     * each btree receives queue entries proportional to its actual cache footprint. The baseline
-     * effective_slots is used when the cache is under hard pressure (dirty or update bytes at the
-     * trigger threshold) or when cache fill is below WTI_EVICT_QUEUE_SCALE_MIN_FILL; see
-     * __evict_walk for the full rationale.
      */
-    effective_slots =
-      use_baseline_slots ? WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR : evict->evict_slots;
 
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         btree_clean_inuse = __wt_btree_bytes_evictable(session);
