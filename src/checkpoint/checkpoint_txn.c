@@ -2661,6 +2661,7 @@ static int
 __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_UNUSED(ckpt_ts);
 
     if (!__wt_conn_is_disagg(session) || !conn->layered_table_manager.leader)
         return (0);
@@ -2691,6 +2692,7 @@ __checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, bo
     WT_DECL_RET;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_UNUSED(ckpt_ts);
 
     /*
      * Advance to the next checkpoint in disaggregated storage if we updated the checkpoint metadata
