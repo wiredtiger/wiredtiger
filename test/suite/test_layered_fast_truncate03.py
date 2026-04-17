@@ -98,33 +98,27 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest('fast truncate support is not enabled.')
 
-        # next_random lands on a random key then resolves visibility via
-        # search_near internally. No random sample should land inside the
-        # truncated range.
+        # 200 random samples must all land outside the truncated range.
         self.setup_follower()
         self.truncate_range(100, 700)
 
         cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
         self.session.begin_transaction()
-        samples = 200
-        for _ in range(samples):
-            self.assertEqual(cursor.next(), 0,
-                'next_random must find a visible key while 0-99 and 701-999 exist')
+        for _ in range(200):
+            self.assertEqual(cursor.next(), 0, 'random cursor failed to find a visible key')
             key = cursor.get_key()
             self.assertFalse(self.key(100) <= key <= self.key(700),
-                f'next_random returned truncated key {key}')
+                f'random cursor returned truncated key {key}')
         self.session.rollback_transaction()
         cursor.close()
 
-    # FIXME-WT-17133: next_random inherits the same ingest-truncate gap.
+    # FIXME-WT-17133: random cursor inherits the same ingest-truncate gap.
     @unittest.skip("FIXME-WT-17133")
     def test_random_cursor_skips_truncated_range_with_live_ingest(self):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest('fast truncate support is not enabled.')
 
-        # Follower setup with live committed updates 200-400 in ingest, then truncate
-        # [100, 700]. next_random must never return a key inside the truncated range,
-        # including the live ingest keys 200-400.
+        # Populate on leader, checkpoint, switch to follower.
         self.session.create(self.uri, self.session_create_config())
         cursor = self.session.open_cursor(self.uri)
         for i in range(self.nitems):
@@ -140,7 +134,8 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         )
         self.reopen_conn(config=follower_config)
 
-        # Put live values into ingest inside what will be the truncated range.
+        # Update 200-400 on follower so those keys are live in ingest, then
+        # truncate a range covering them.
         cursor = self.session.open_cursor(self.uri)
         for i in range(200, 401):
             self.session.begin_transaction()
@@ -152,12 +147,10 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
         self.session.begin_transaction()
-        samples = 200
-        for _ in range(samples):
-            self.assertEqual(cursor.next(), 0,
-                'next_random must find a visible key while 0-99 and 701-999 exist')
+        for _ in range(200):
+            self.assertEqual(cursor.next(), 0, 'random cursor failed to find a visible key')
             key = cursor.get_key()
             self.assertFalse(self.key(100) <= key <= self.key(700),
-                f'next_random returned truncated key {key} (live ingest not filtered)')
+                f'random cursor returned truncated key {key} (live ingest leaked)')
         self.session.rollback_transaction()
         cursor.close()
