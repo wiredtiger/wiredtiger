@@ -223,9 +223,6 @@ extern int __wt_block_write_size(WT_SESSION_IMPL *session, WT_BLOCK *block, size
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr,
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t objectid,
-  wt_off_t offset, uint32_t size, uint32_t checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -252,7 +249,7 @@ extern int __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
+extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt, bool overwrite)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reset(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_search(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -589,6 +586,8 @@ extern int __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *leaderp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
   const char *table_name, WT_SHARED_METADATA_OP metadata_op)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -723,6 +722,8 @@ extern int __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag)
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_insert_truncate_entry(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *start_key,
+  WT_ITEM *stop_key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_is_simple_table(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *colconf, bool *is_simplep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t size,
@@ -741,6 +742,11 @@ extern int __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_key_return(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_table_truncate_detect_write_conflict(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_library_init(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
@@ -1138,6 +1144,9 @@ extern int __wt_tree_walk_count(WT_SESSION_IMPL *session, WT_REF **refp, uint64_
 extern int __wt_tree_walk_custom_skip(WT_SESSION_IMPL *session, WT_REF **refp,
   int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool, bool *), void *func_cookie,
   uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_truncate_delete_visible_check(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
@@ -1545,6 +1554,10 @@ extern int __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_table_manager_init(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_meta_track_insert(WT_SESSION_IMPL *session, const char *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_meta_track_update(WT_SESSION_IMPL *session, const char *key)
@@ -1748,10 +1761,15 @@ extern void __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func,
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 6, 7)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_error_log_clear(void);
+extern void __wt_error_log_dump_recent(WT_SESSION_IMPL *session, int max_entries);
 extern void __wt_error_log_to_handler(WT_SESSION_IMPL *session);
 extern void __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line,
   WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 5, 6)))
+    WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_errx_func_id(WT_SESSION_IMPL *session, uint32_t log_id, const char *func, int line,
+  WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 6, 7)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler);
 extern void __wt_ext_scr_free(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, void *p);
@@ -1778,6 +1796,11 @@ extern void __wt_hs_close(WT_SESSION_IMPL *session);
 extern void __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp);
 extern void __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor);
 extern void __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id);
+extern void __wt_layered_table_truncate_clear(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table);
+extern void __wt_log_data_dump(
+  WT_SESSION_IMPL *session, const void *data, size_t size, const char *fmt, ...)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 4, 5)));
 extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
 extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
@@ -1920,10 +1943,6 @@ static WT_INLINE WT_FILE_SYSTEM *__wt_fs_file_system(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE WT_IKEY *__wt_ref_key_instantiated(WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE WT_VISIBLE_TYPE __wt_txn_tw_start_visible(
-  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE WT_VISIBLE_TYPE __wt_txn_tw_stop_visible(
-  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE WT_VISIBLE_TYPE __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
@@ -2011,7 +2030,11 @@ static WT_INLINE bool __wt_txn_timestamp_visible(WT_SESSION_IMPL *session, wt_ti
   wt_timestamp_t durable_timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_timestamp_visible_all(WT_SESSION_IMPL *session,
   wt_timestamp_t timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2272,6 +2295,8 @@ static WT_INLINE int __wt_txn_search_check(WT_SESSION_IMPL *session)
 static WT_INLINE int __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree,
   wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_unpack_fixed_uint32(const uint8_t **pp, size_t maxlen, uint32_t *valuep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
@@ -2410,6 +2435,8 @@ static WT_INLINE uint64_t __wt_cache_dirty_leaf_inuse_stable(WT_CACHE *cache)
 static WT_INLINE uint64_t __wt_cache_pages_inuse(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_cache_pages_inuse_ingest(WT_CACHE *cache)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE uint64_t __wt_cache_pages_inuse_leaf(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_cache_pages_inuse_stable(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
