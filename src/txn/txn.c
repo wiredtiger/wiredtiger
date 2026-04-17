@@ -1996,12 +1996,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         }
     }
 
-    /*
-     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
-     * page within each file are done at the same time.
-     */
-    __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
-
     WT_STAT_CONN_INCRV(session, txn_prepared_updates, prepared_updates);
     WT_STAT_CONN_INCRV(session, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
 #ifdef HAVE_DIAGNOSTIC
@@ -2017,6 +2011,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         __txn_remove_from_global_table(session);
+
+    /*
+     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
+     * page within each file are done at the same time.
+     */
+    __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     return (0);
 }
