@@ -191,7 +191,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     have_cursor = true;
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
-        if (WT_BTREE_PREFIX(uri))
+        if (WT_BTREE_PREFIX(uri) && !WT_IS_URI_HS(uri) && !WT_IS_URI_METADATA(uri))
             ++max_count;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -207,7 +207,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         /* Log a progress message. */
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
-        if (WT_BTREE_PREFIX(uri))
+        if (WT_BTREE_PREFIX(uri) && !WT_IS_URI_HS(uri) && !WT_IS_URI_METADATA(uri))
             ++rollback_count;
         __wti_rts_progress_msg(
           session, &timer, rollback_count, max_count, &rollback_msg_count, false);
