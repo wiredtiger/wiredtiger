@@ -222,21 +222,6 @@ disagg_is_mode_switch(void)
 }
 
 /*
- * disagg_do_checkpoint --
- *     Perform a checkpoint, used by disagg tests after switching roles.
- */
-static void
-disagg_do_checkpoint(void)
-{
-    SAP sap = {0};
-    WT_SESSION *session = NULL;
-
-    wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
-    testutil_check(session->checkpoint(session, NULL));
-    wt_wrap_close_session(session);
-}
-
-/*
  * disagg_switch_roles --
  *     Toggle the current disagg role between "leader" and "follower",
  */
@@ -262,12 +247,6 @@ disagg_switch_roles(void)
         /* Stepping up: [follower -> leader] */
         track("[role change] follower -> leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
-
-        /*
-         * Reconfigure will drain ingest tables, however cache needs a checkpoint to allow eviction
-         * of dirty ingest pages. Perform a checkpoint before verifying the tables contents.
-         */
-        disagg_do_checkpoint();
     }
 
     /* After every switch, verify the contents of each table */

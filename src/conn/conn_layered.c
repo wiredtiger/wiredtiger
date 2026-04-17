@@ -1306,6 +1306,11 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_ERR_MSG_CHK(session, __wti_layered_drain_ingest_tables(internal_session),
       "Failed to drain ingest tables");
 
+    /* Reset ingest tables' prune timestamps to allow eviction of dirty update pages. */
+    WT_ERR_MSG_CHK(session,
+      __wti_layered_iterate_ingest_tables_for_gc_pruning(internal_session, WT_TS_NONE),
+      "Resetting prune timestamp failed");
+
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
