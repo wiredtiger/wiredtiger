@@ -2660,7 +2660,6 @@ static int
 __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_UNUSED(ckpt_ts);
 
     if (!__wt_conn_is_disagg(session) || !conn->layered_table_manager.leader)
         return (0);
