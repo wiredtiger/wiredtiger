@@ -1,7 +1,7 @@
 /*! @arch_page arch-concurrency Concurrency management
 
 WiredTiger supports multi-threaded execution: application threads may call its APIs concurrently,
-and WiredTiger creates internal threads for operations such as checkpointing and eviction. This
+and WiredTiger utilizes internal threads for operations such as checkpointing and eviction. This
 page describes the mechanisms WiredTiger defines to safely manage concurrent access to shared memory.
 The @ref locking and @ref generations sections cover mutual exclusion and shared-object lifecycle
 management. The @ref lock-free section covers atomic operations and memory barriers used for
@@ -58,15 +58,14 @@ For example:
 
 Some WiredTiger interfaces do not explicitly mirror any API from the C standard library, but can be
 implemented through a combination of C-compatible API calls. There are only two types of such
-interfaces: `WT_READ/WRITE_ONCE` and `WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER`.
+interfaces: `WT_[READ|WRITE]_ONCE` and `WT_[ACQUIRE_READ|RELEASE_WRITE]_WITH_BARRIER`.
 
-`WT_READ/WRITE_ONCE` is effectively a relaxed atomic load or store, combined with a cast to
-`volatile` to prevent unsafe compiler optimizations. It is described in more detail earlier in
-@ref volatile.
+`WT_X_ONCE` is effectively a relaxed atomic load or store, combined with a cast to `volatile`
+to prevent unsafe compiler optimizations. It is described in more detail earlier in @ref volatile.
 
-`WT_ACQUIRE_READ/RELEASE_WRITE_WITH_BARRIER` is a relaxed atomic load or store combined with an
-acquire or release barrier. However, note that these interfaces have been deprecated and should not
-be used in newly developed code.
+`WT_X_WITH_BARRIER` is a relaxed atomic load or store combined with an acquire or release barrier.
+However, note that these interfaces have been deprecated and should not be used in newly developed
+code.
 
 Given that all WiredTiger lock-free primitives behave in accordance with the C standard library
 primitives, any data races in WiredTiger constitute undefined behavior and must be avoided.
