@@ -1021,21 +1021,8 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * ingest cursor. Select the ingest cursor as the current cursor.
      */
     if (clayered->current_cursor == NULL) {
-        if (((WT_CURSOR_BTREE *)c_ingest)->ref != NULL)
-            /*
-             * Recovering from a prepared conflict: the ingest cursor is positioned (ref != NULL)
-             * but WT_CURSTD_KEY_INT was cleared. Select ingest as the current cursor.
-             */
-            c_current = c_ingest;
-        else {
-            /*
-             * __clayered_search_near_int detected a fast-truncated key and set current_cursor to
-             * NULL while the stable cursor is still positioned. Advance from the stable cursor's
-             * current position to find the next visible key past the truncated range.
-             */
-            WT_ASSERT(session, F_ISSET(c_stable, WT_CURSTD_KEY_INT));
-            c_current = c_stable;
-        }
+        WT_ASSERT(session, ((WT_CURSOR_BTREE *)c_ingest)->ref != NULL);
+        c_current = c_ingest;
     } else {
         c_current = clayered->current_cursor;
         WT_ASSERT(session,
@@ -1543,22 +1530,18 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
                 ret = WT_NOTFOUND;
         }
 
-        if (!found || ret == 0) {
-            /*
-             * Either the key was not found in ingest (!found) or ingest returned a live value
-             * (ret == 0). In both cases check whether a committed fast-truncate range covers the
-             * key — fast-truncate takes priority over any live ingest value. When ingest had found
-             * a live key (found && ret == 0) and the key is NOT truncated, restore ret to 0 so
-             * the caller still sees the live key.
-             */
+        /*
+         * Ingest is the source of truth for reads on the follower. Only consult the
+         * truncate list when ingest has no entry for this key.
+         */
+        if (!found) {
             WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session,
                                  (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL),
               true);
             if (ret == 0) {
                 found = true;
                 ret = WT_NOTFOUND;
-            } else if (found)
-                ret = 0; /* Live ingest key, not inside any truncate range — keep it visible. */
+            }
         }
     } else
         /* Be sure we'll make a search attempt further down.  */
@@ -1802,14 +1785,17 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
          */
         if (__wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle, &clayered->stable_cursor->key, NULL) == 0) {
             WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-            clayered->current_cursor = NULL;
+            /*
+             * Treat stable as the current cursor so __clayered_iterate advances from stable's
+             * current (truncated) position via the regular path — no NULL overload needed.
+             */
+            clayered->current_cursor = clayered->stable_cursor;
             if ((ret = __clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT)) == 0) {
                 cmp = 1;
                 goto done;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
             /* Nothing visible above the truncated range; step backward instead. */
-            WT_ASSERT(session, clayered->current_cursor == NULL);
             WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
             cmp = -1;
             goto done;
