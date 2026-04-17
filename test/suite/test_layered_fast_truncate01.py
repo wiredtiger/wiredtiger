@@ -25,8 +25,6 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-
-import unittest
 import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
@@ -198,10 +196,6 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         c1.close()
         c2.close()
 
-    # FIXME-WT-16811: Follower truncate uses search_near to position the ingest cursor,
-    # which is a read and does not trigger write conflict detection against uncommitted
-    # updates in ingest. Re-enable once __wt_insert_truncate_entry checks for conflicts.
-    @unittest.skip("Disabled: search_near on ingest does not detect write conflicts")
     def test_truncate_write_conflict_2(self):
         if (wiredtiger.disagg_fast_truncate_build() == 0):
             self.skipTest("fast truncate support is not enabled.")

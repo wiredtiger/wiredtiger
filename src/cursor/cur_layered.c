@@ -862,8 +862,6 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
          * if the layered cursor was positioned via next/prev, or if search_near on an empty ingest
          * table reset the cursor position.
          */
-        int cmp;
-
         clayered_start->ingest_cursor->set_key(
           clayered_start->ingest_cursor, trunc_info->orig_start_key);
         trunc_info->start = clayered_start->ingest_cursor;
@@ -876,30 +874,12 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
         }
 
         /*
-         * Position start and stop via search_near so the cursors are fully instantiated for
-         * __wt_range_truncate. The ingest table may be empty or have no keys in the range;
-         * WT_NOTFOUND from either cursor means there is nothing to remove from ingest.
+         * Perform truncate on ingest table.
+         *
+         * FIXME-WT-17133: We need to position the ingest cursors before we start removing entries.
          */
-        if (trunc_info->stop != NULL) {
-            ret = trunc_info->stop->search_near(trunc_info->stop, &cmp);
-            if (ret == WT_NOTFOUND)
-                goto insert_entry;
-            WT_RET(ret);
-        }
+        WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));
 
-        ret = trunc_info->start->search_near(trunc_info->start, &cmp);
-        if (ret == 0) {
-            if (cmp < 0)
-                ret = trunc_info->start->next(trunc_info->start);
-            if (ret == 0)
-                WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));
-            else if (ret != WT_NOTFOUND)
-                WT_RET(ret);
-        } else if (ret != WT_NOTFOUND)
-            WT_RET(ret);
-        /* WT_NOTFOUND: no ingest keys at or after start — nothing to remove. */
-
-insert_entry:
         /* Add a truncate entry inside layered table truncate list. */
         WT_RET(__wt_insert_truncate_entry(
           session, uri, trunc_info->orig_start_key, trunc_info->orig_stop_key));
