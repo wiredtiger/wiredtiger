@@ -1734,9 +1734,9 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
-    double cache_fill_pct;
-    uint64_t bytes_inuse, bytes_max;
-    uint32_t effective_slots, evict_walk_period;
+    double cache_fill_pct, dirty_pct, pressure, updates_pct;
+    uint64_t bytes_inuse, bytes_max, dirty_bytes, updates_bytes;
+    uint32_t baseline_slots, effective_slots, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
     bool dhandle_list_locked;
@@ -1754,17 +1754,16 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     /*
      * Graduated queue depth policy: scale effective_slots proportionally between the baseline
      * (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR) and the full scaled evict_slots based on
-     * eviction pressure. Pressure is defined as the ratio of dirty or update bytes to their
-     * respective trigger thresholds (clamped to [0, 1]).
-     *
-     *   pressure = 0  (no dirty/update load)  → effective_slots = evict_slots  (full scale)
-     *   pressure = 1  (at trigger threshold)   → effective_slots = baseline
+     * eviction pressure. Pressure is the ratio of dirty or update bytes to their respective
+     * trigger thresholds, clamped to [0, 1]. At zero pressure, effective_slots equals
+     * evict_slots (full depth). At trigger pressure (1.0), effective_slots falls back to the
+     * baseline.
      *
      * This avoids two failure modes observed with a binary switch:
-     *   - Full scale under pressure: per-tree targets of 256–512+ pages → deep btree walks →
-     *     btree lock contention → write-ticket exhaustion.
-     *   - Baseline under pressure: per-tree targets of 0–9 pages → queue starvation →
-     *     eviction server sleeps → application threads drafted → write-ticket exhaustion.
+     *   - Full depth under pressure: per-tree targets of 256-512+ pages, deep btree walks,
+     *     btree lock contention, write-ticket exhaustion.
+     *   - Baseline depth under pressure: per-tree targets of 0-9 pages, queue starvation,
+     *     eviction server sleeps, application threads drafted, write-ticket exhaustion.
      *
      * Below WTI_EVICT_QUEUE_SCALE_MIN_FILL the cache is not yet filled enough to justify the
      * scaled queue; use baseline unconditionally. The identical formula is applied in
@@ -1773,25 +1772,21 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     bytes_max = conn->cache_size + 1;
     bytes_inuse = __wt_cache_bytes_inuse(cache);
     cache_fill_pct = (100.0 * (double)bytes_inuse) / (double)bytes_max;
-    {
-        uint32_t baseline_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
-        if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL ||
-          evict->evict_slots <= baseline_slots)
-            effective_slots = baseline_slots;
-        else {
-            double dirty_pct, updates_pct, pressure;
-            uint64_t dirty_bytes, updates_bytes;
-            dirty_bytes = __wt_cache_dirty_leaf_inuse(cache);
-            updates_bytes = __wt_cache_bytes_updates(cache);
-            dirty_pct = (double)dirty_bytes * 100.0 / (double)bytes_max;
-            updates_pct = (double)updates_bytes * 100.0 / (double)bytes_max;
-            pressure = WT_MAX(
-              dirty_pct / __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger),
-              updates_pct / __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
-            pressure = WT_MIN(pressure, 1.0);
-            effective_slots = baseline_slots +
-              (uint32_t)((1.0 - pressure) * (double)(evict->evict_slots - baseline_slots));
-        }
+    baseline_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
+    if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL ||
+      evict->evict_slots <= baseline_slots)
+        effective_slots = baseline_slots;
+    else {
+        dirty_bytes = __wt_cache_dirty_leaf_inuse(cache);
+        updates_bytes = __wt_cache_bytes_updates(cache);
+        dirty_pct = (double)dirty_bytes * 100.0 / (double)bytes_max;
+        updates_pct = (double)updates_bytes * 100.0 / (double)bytes_max;
+        pressure = WT_MAX(
+          dirty_pct / __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger),
+          updates_pct / __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
+        pressure = WT_MIN(pressure, 1.0);
+        effective_slots = baseline_slots +
+          (uint32_t)((1.0 - pressure) * (double)(evict->evict_slots - baseline_slots));
     }
 
     start_slot = slot = queue->evict_entries;
@@ -2070,10 +2065,10 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
-    double cache_fill_pct;
+    double cache_fill_pct, dirty_pct, pressure, updates_pct;
     uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_max, bytes_per_slot,
-      cache_inuse;
-    uint32_t effective_slots, target_pages, target_pages_clean, target_pages_dirty,
+      cache_inuse, dirty_bytes, updates_bytes;
+    uint32_t baseline_slots, effective_slots, target_pages, target_pages_clean, target_pages_dirty,
       target_pages_updates;
     bool want_tree;
 
@@ -2090,25 +2085,21 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      * Graduated effective_slots: see __evict_walk for the full rationale. Both sites must stay
      * in sync.
      */
-    {
-        uint32_t baseline_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
-        if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL ||
-          evict->evict_slots <= baseline_slots)
-            effective_slots = baseline_slots;
-        else {
-            double dirty_pct, updates_pct, pressure;
-            uint64_t dirty_bytes, updates_bytes;
-            dirty_bytes = __wt_cache_dirty_leaf_inuse(cache);
-            updates_bytes = __wt_cache_bytes_updates(cache);
-            dirty_pct = (double)dirty_bytes * 100.0 / (double)bytes_max;
-            updates_pct = (double)updates_bytes * 100.0 / (double)bytes_max;
-            pressure = WT_MAX(
-              dirty_pct / __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger),
-              updates_pct / __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
-            pressure = WT_MIN(pressure, 1.0);
-            effective_slots = baseline_slots +
-              (uint32_t)((1.0 - pressure) * (double)(evict->evict_slots - baseline_slots));
-        }
+    baseline_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
+    if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL ||
+      evict->evict_slots <= baseline_slots)
+        effective_slots = baseline_slots;
+    else {
+        dirty_bytes = __wt_cache_dirty_leaf_inuse(cache);
+        updates_bytes = __wt_cache_bytes_updates(cache);
+        dirty_pct = (double)dirty_bytes * 100.0 / (double)bytes_max;
+        updates_pct = (double)updates_bytes * 100.0 / (double)bytes_max;
+        pressure = WT_MAX(
+          dirty_pct / __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger),
+          updates_pct / __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
+        pressure = WT_MIN(pressure, 1.0);
+        effective_slots = baseline_slots +
+          (uint32_t)((1.0 - pressure) * (double)(evict->evict_slots - baseline_slots));
     }
 
 /*
