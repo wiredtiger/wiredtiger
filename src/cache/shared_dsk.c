@@ -36,14 +36,13 @@ __shared_dsk_cache_verbose(WT_SESSION_IMPL *session, WT_VERBOSE_LEVEL level, con
  */
 void
 __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
-  WT_SHARED_DSK_ITEM **shared_dsk_retp, bool *foundp)
+  WT_SHARED_DSK_ITEM **shared_dsk_retp)
 {
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
     WT_SHARED_DSK_ITEM *shared_dsk_item;
     uint64_t hash;
     u_int bucket, lock_idx;
 
-    *foundp = false;
     *shared_dsk_retp = NULL;
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
@@ -71,7 +70,6 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
 
     if (shared_dsk_item != NULL) {
         *shared_dsk_retp = shared_dsk_item;
-        *foundp = true;
         WT_STAT_CONN_INCR(session, cache_shared_dsk_hit);
         __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,
           "get: disk image found in shared dsk cache", hash, bucket, lock_idx, addr, addr_size);
@@ -91,7 +89,8 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
  */
 int
 __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size,
-  const uint8_t *addr, size_t addr_size, WT_SHARED_DSK_ITEM **shared_dsk_retp, bool *insertedp)
+  const uint8_t *addr, size_t addr_size, uint32_t page_flags, WT_PAGE_BLOCK_META *block_meta,
+  WT_SHARED_DSK_ITEM **shared_dsk_retp, bool *insertedp)
 {
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
@@ -109,9 +108,13 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
     shared_dsk_store = NULL;
     *shared_dsk_retp = NULL;
 
+    WT_ASSERT(session, block_meta != NULL);
+
     WT_ERR(__wt_calloc(session, 1, sizeof(*shared_dsk_store) + addr_size, &shared_dsk_store));
     shared_dsk_store->data = data;
     shared_dsk_store->data_size = WT_STORE_SIZE(data_size);
+    shared_dsk_store->page_flags = page_flags;
+    shared_dsk_store->block_meta = *block_meta;
     shared_dsk_store->fid = S2BT(session)->id;
     shared_dsk_store->addr_size = (uint8_t)addr_size;
     shared_dsk_store->ref_count = 1;

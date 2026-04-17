@@ -832,6 +832,7 @@ struct __wt_page {
 #else
 #define WT_SPLIT_PAGE_SAVE_STATE(page, session, e, g)
 #endif
+    WT_SHARED_DSK_ITEM *shared_dsk_item;
 };
 
 /*

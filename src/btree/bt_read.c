@@ -213,23 +213,42 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_ITEM *deltas;
+    WT_ITEM *disk_image_buf;
     WT_ITEM new_image, new_image_copy;
     WT_ITEM *tmp;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
     WT_REF_STATE previous_state;
+    WT_SHARED_DSK_CACHE *shared_dsk_cache;
+    WT_SHARED_DSK_ITEM *shared_dsk_item;
     size_t count, i;
     uint32_t page_flags;
-    bool instantiate_upd, disk_image_freed, page_change, build_full_disk_image_from_deltas;
+    bool instantiate_upd, disk_image_freed, page_change, shared_dsk_inserted,
+      build_full_disk_image_from_deltas;
 
+    shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
     btree = S2BT(session);
     WT_CLEAR(block_meta);
     tmp = NULL;
     count = 0;
-    disk_image_freed = page_change = build_full_disk_image_from_deltas = false;
+    disk_image_freed = page_change = shared_dsk_inserted = build_full_disk_image_from_deltas =
+      false;
+    shared_dsk_item = NULL;
     page = NULL;
     WT_CLEAR(new_image);
     WT_CLEAR(new_image_copy);
+
+    page_flags = 0;
+    /*
+     * If a page is read with eviction disabled, we don't count evicting it as progress. Since
+     * disabling eviction allows pages to be read even when the cache is full, we want to avoid
+     * workloads repeatedly reading a page with eviction disabled (e.g., a metadata page), then
+     * evicting that page and deciding that is a sign that eviction is unstuck.
+     */
+    if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
+        FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
+    if (LF_ISSET(WT_READ_PREFETCH))
+        FLD_SET(page_flags, WT_PAGE_PREFETCH);
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -307,6 +326,16 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         }
     }
 
+    if (shared_dsk_cache->enabled) {
+        __wt_shared_dsk_cache_get(session, addr.addr, addr.size, &shared_dsk_item);
+        if (shared_dsk_item != NULL) {
+            FLD_SET(page_flags, shared_dsk_item->page_flags);
+            WT_ERR(__wti_page_inmem(session, ref, shared_dsk_item->data, page_flags, &page,
+              &instantiate_upd, shared_dsk_item));
+            goto skip_disk_read;
+        }
+    }
+
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
     WT_ERR(__wt_blkcache_read_multi(session, &tmp, &count, &block_meta, addr.addr, addr.size));
 
@@ -317,17 +346,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     else
         deltas = NULL;
 
-    /*
-     * If a page is read with eviction disabled, we don't count evicting it as progress. Since
-     * disabling eviction allows pages to be read even when the cache is full, we want to avoid
-     * workloads repeatedly reading a page with eviction disabled (e.g., a metadata page), then
-     * evicting that page and deciding that is a sign that eviction is unstuck.
-     */
-    page_flags = WT_DATA_IN_ITEM(&tmp[0]) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
-    if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-        FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-    if (LF_ISSET(WT_READ_PREFETCH))
-        FLD_SET(page_flags, WT_PAGE_PREFETCH);
+    FLD_SET(page_flags, WT_DATA_IN_ITEM(&tmp[0]) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED);
 
     /* After reading the page from disk, construct a full disk image. */
     if (count > 1) {
@@ -385,27 +404,51 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
         WT_ERR(ret);
     }
-    /*
-     * Build the in-memory version of the page. Clear our local reference to the allocated copy of
-     * the disk image on return, the in-memory object steals it.
-     */
-    if (build_full_disk_image_from_deltas)
-        /* Pass the newly built full disk image data to build in-memory page information. */
-        WT_ERR(
-          __wti_page_inmem(session, ref, new_image_copy.data, page_flags, &page, &instantiate_upd));
-    else {
-        WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
+
+    disk_image_buf = build_full_disk_image_from_deltas ? &new_image_copy : &tmp[0];
+
+    if (shared_dsk_cache->enabled) {
+        /* A cache hit takes the skip_disk_read path, so we can't already have an item here. */
+        WT_ASSERT(session, shared_dsk_item == NULL);
+        /* Disagg should never use mmap, so the image must be an owned allocation. */
+        WT_ASSERT(session, FLD_ISSET(page_flags, WT_PAGE_DISK_ALLOC));
+        /*
+         * Store only the image-ownership flag in the cache entry. Per-read flags
+         * (WT_PAGE_EVICT_NO_PROGRESS / WT_PAGE_PREFETCH) are reapplied per-caller on cache hit.
+         */
+        WT_ERR(__wt_shared_dsk_cache_put(session, disk_image_buf->mem, disk_image_buf->size,
+          addr.addr, addr.size, page_flags & (WT_PAGE_DISK_ALLOC | WT_PAGE_DISK_MAPPED),
+          &block_meta, &shared_dsk_item, &shared_dsk_inserted));
+        if (shared_dsk_inserted) {
+            /* The cache took ownership of the data; clear our local reference. */
+            disk_image_buf->mem = NULL;
+        } else {
+            /*
+             * Another thread cached this image concurrently. Drop our redundant local copy and
+             * use the shared image instead, matching the cache-hit path.
+             */
+            __wt_buf_free(session, disk_image_buf);
+            FLD_SET(page_flags, shared_dsk_item->page_flags);
+        }
+        WT_ASSERT(session, shared_dsk_item != NULL);
+    }
+    WT_ERR(__wti_page_inmem(session, ref,
+      shared_dsk_item != NULL ? shared_dsk_item->data : disk_image_buf->data, page_flags, &page,
+      &instantiate_upd, shared_dsk_item));
+    if (!build_full_disk_image_from_deltas) {
         WT_ASSERT(session, ref->page == page);
         tmp[0].mem = NULL;
     }
+    __wt_free(session, tmp);
+
+skip_disk_read:
     if (page->disagg_info != NULL) {
+        if (shared_dsk_item != NULL)
+            block_meta = shared_dsk_item->block_meta;
         page->disagg_info->block_meta = block_meta;
         page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;
         page->disagg_info->rec_lsn_max = block_meta.disagg_lsn;
     }
-
-    __wt_free(session, tmp);
-
     if (!page_change && instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
 
@@ -449,13 +492,16 @@ skip_read:
 
 err:
     /*
-     * If the function building an in-memory version of the page failed, it discarded the page, but
-     * not the disk image. Discard the page and separately discard the disk image in all cases.
+     * If the page was successfully built but a later step failed, discard it. Track whether the
+     * page took ownership of the disk image so we avoid double-freeing it below.
      */
     if (page != NULL) {
         disk_image_freed = page->dsk != NULL;
         __wt_page_modify_clear(session, page);
         __wt_ref_out(session, ref);
+    } else if (shared_dsk_item != NULL) {
+        /* The page build failed; release the shared dsk ref we acquired. */
+        __wt_shared_dsk_cache_release(session, shared_dsk_item);
     }
 
     /* Free any disk images or delta buffers we allocated or read. */
