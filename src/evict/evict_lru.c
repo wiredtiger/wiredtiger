@@ -1431,18 +1431,23 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 
 /*
  * __evict_queue_scale --
- *     Compute graduated queue-depth values based on current eviction pressure. Each output scales
- *     linearly between its baseline constant (at or above trigger pressure) and its fully scaled
- *     value configured on the connection (at zero pressure). Pressure is the greater of
- *     dirty-bytes-to-trigger and updates-bytes-to-trigger ratios, clamped to [0, 1]. Below
- *     WTI_EVICT_QUEUE_SCALE_MIN_FILL the cache is not filled enough to justify the scaled queue, so
- *     the baseline is returned unconditionally. Scaling all three parameters together keeps the
- *     per-tree target, the walk increment, and the sort trim threshold consistent with a single
- *     notion of pressure.
+ *     Compute graduated queue-depth values based on current eviction pressure. effective_slots and
+ *     effective_walk_base scale linearly between their baseline constants (at or above trigger
+ *     pressure) and their fully scaled values configured on the connection (at zero pressure).
+ *     Pressure is the greater of dirty-bytes-to-trigger and updates-bytes-to-trigger ratios,
+ *     clamped to [0, 1]. Below WTI_EVICT_QUEUE_SCALE_MIN_FILL the cache is not filled enough to
+ *     justify the scaled queue, so both parameters fall back to baseline unconditionally.
+ *
+ * Candidate quality is driven by effective_slots (per-tree target_pages sampling depth) and
+ *     effective_walk_base (the top 75% cutoff applied by the post-sort trim). Both remain scaled so
+ *     that large caches get deeper per-tree sampling and the best candidates survive trim. The walk
+ *     increment is not graduated here and is unrelated to candidate quality: it only caps pages
+ *     added per __evict_walk call and therefore controls walker cadence, not what gets scored or
+ *     kept.
  */
 static void
-__evict_queue_scale(WT_SESSION_IMPL *session, uint32_t *effective_slotsp,
-  uint32_t *effective_walk_basep, uint32_t *effective_walk_incrp)
+__evict_queue_scale(
+  WT_SESSION_IMPL *session, uint32_t *effective_slotsp, uint32_t *effective_walk_basep)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -1462,7 +1467,6 @@ __evict_queue_scale(WT_SESSION_IMPL *session, uint32_t *effective_slotsp,
       cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) {
         *effective_slotsp = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
         *effective_walk_basep = WTI_EVICT_WALK_BASE;
-        *effective_walk_incrp = WTI_EVICT_WALK_INCR;
         return;
     }
 
@@ -1479,8 +1483,6 @@ __evict_queue_scale(WT_SESSION_IMPL *session, uint32_t *effective_slotsp,
         (double)(evict->evict_slots - (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR)));
     *effective_walk_basep = WTI_EVICT_WALK_BASE +
       (uint32_t)((1.0 - pressure) * (double)(evict->evict_walk_base - WTI_EVICT_WALK_BASE));
-    *effective_walk_incrp = WTI_EVICT_WALK_INCR +
-      (uint32_t)((1.0 - pressure) * (double)(evict->evict_walk_incr - WTI_EVICT_WALK_INCR));
 }
 
 /*
@@ -1496,19 +1498,18 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     WTI_EVICT_QUEUE *other_queue, *queue;
     WT_TRACK_OP_DECL;
     uint64_t read_gen_oldest;
-    uint32_t candidates, effective_slots, effective_walk_base, effective_walk_incr, entries;
+    uint32_t candidates, effective_slots, effective_walk_base, entries;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
     evict = conn->evict;
 
     /*
-     * Compute the graduated trim threshold. effective_slots and effective_walk_incr are unused here
-     * but are computed together so that all three scale consistently off a single pressure reading.
+     * Compute the graduated trim threshold. effective_slots is unused here but computed alongside
+     * effective_walk_base so both derive from a single pressure reading.
      */
-    __evict_queue_scale(session, &effective_slots, &effective_walk_base, &effective_walk_incr);
+    __evict_queue_scale(session, &effective_slots, &effective_walk_base);
     WT_UNUSED(effective_slots);
-    WT_UNUSED(effective_walk_incr);
 
     /* Age out the score of how much the queue has been empty recently. */
     if (evict->evict_empty_score > 0)
@@ -1796,7 +1797,7 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
-    uint32_t effective_slots, effective_walk_base, effective_walk_incr, evict_walk_period;
+    uint32_t effective_slots, effective_walk_base, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
     bool dhandle_list_locked;
@@ -1812,17 +1813,18 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     retries = 0;
 
     /*
-     * Graduated queue scaling: compute effective_slots and effective_walk_incr from current
-     * eviction pressure. effective_walk_base is computed here for consistency but only consumed by
-     * the trim step in __evict_lru_walk. Scaling the walk increment alongside the queue cap
-     * shortens per-tree walk chunks under pressure, letting the walker revisit each tree more
-     * frequently and preventing pages from accumulating large update chains before eviction.
+     * Graduated queue scaling: compute effective_slots from current eviction pressure.
+     * effective_walk_base is computed here for consistency but only consumed by the trim step in
+     * __evict_lru_walk. The walk increment stays at the baseline WTI_EVICT_WALK_INCR regardless of
+     * cache size or pressure; scaling it added walker overhead without improving candidate
+     * quality, since quality is driven by effective_slots (sampling depth per btree) and the trim
+     * cutoff, not by how many pages are appended per __evict_walk call.
      */
-    __evict_queue_scale(session, &effective_slots, &effective_walk_base, &effective_walk_incr);
+    __evict_queue_scale(session, &effective_slots, &effective_walk_base);
     WT_UNUSED(effective_walk_base);
 
     start_slot = slot = queue->evict_entries;
-    max_entries = WT_MIN(slot + effective_walk_incr, (u_int)effective_slots);
+    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, (u_int)effective_slots);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -2098,8 +2100,8 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_per_slot, cache_inuse;
-    uint32_t effective_slots, effective_walk_base, effective_walk_incr, target_pages,
-      target_pages_clean, target_pages_dirty, target_pages_updates;
+    uint32_t effective_slots, effective_walk_base, target_pages, target_pages_clean,
+      target_pages_dirty, target_pages_updates;
     bool want_tree;
 
     conn = S2C(session);
@@ -2109,13 +2111,11 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
     /*
-     * Graduated effective_slots: see __evict_queue_scale for the full rationale. The walk base and
-     * increment are unused here but are computed together so all three parameters derive from a
-     * single pressure reading.
+     * Graduated effective_slots drives per-tree target_pages (scoring depth). effective_walk_base
+     * is returned for consistency but unused here; see __evict_queue_scale for the full rationale.
      */
-    __evict_queue_scale(session, &effective_slots, &effective_walk_base, &effective_walk_incr);
+    __evict_queue_scale(session, &effective_slots, &effective_walk_base);
     WT_UNUSED(effective_walk_base);
-    WT_UNUSED(effective_walk_incr);
 
 /*
  * The minimum number of pages we should consider per tree.
