@@ -1431,11 +1431,11 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 
 /*
  * __evict_target_slots --
- *     Return the per-tree sampling depth denominator used by __evict_walk_target. Falls back to the
- *     baseline value when the cache is not yet filled past WTI_EVICT_QUEUE_SCALE_MIN_FILL, since
- *     deeper per-tree sampling is only worth its walker cost when the cache is close to full. The
- *     queue itself is always allocated at the baseline size; this value only controls how many
- *     pages the walker tries to collect from each btree per visit.
+ *     Return the per-tree sampling depth denominator used by __evict_walk_target. Graduates linearly
+ *     from baseline to the configured maximum as dirty/update pressure rises from its target to its
+ *     trigger threshold. At baseline pressure the walk overhead is minimised; as pressure builds the
+ *     walker samples more pages per btree so that the best eviction candidates are found before the
+ *     trigger fires. The queue itself is always allocated at the baseline size.
  */
 static uint32_t
 __evict_target_slots(WT_SESSION_IMPL *session)
@@ -1443,23 +1443,49 @@ __evict_target_slots(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
-    double cache_fill_pct;
-    uint64_t bytes_inuse, bytes_max;
+    double dirty_pct, dirty_target, dirty_trigger, pressure, updates_pct, updates_target,
+      updates_trigger;
+    uint32_t baseline, slots_range;
+    uint64_t bytes_dirty, bytes_max, bytes_updates;
 
     conn = S2C(session);
     cache = conn->cache;
     evict = conn->evict;
 
-    if (evict->evict_target_slots <= WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR)
-        return (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR);
+    baseline = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
+    if (evict->evict_target_slots <= baseline)
+        return (baseline);
 
     bytes_max = conn->cache_size + 1;
-    bytes_inuse = __wt_cache_bytes_inuse(cache);
-    cache_fill_pct = (100.0 * (double)bytes_inuse) / (double)bytes_max;
-    if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL)
-        return (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR);
+    bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
+    bytes_updates = __wt_cache_bytes_updates(cache);
 
-    return (evict->evict_target_slots);
+    dirty_target = __wti_evict_dirty_target(evict);
+    dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
+    dirty_pct = (100.0 * (double)bytes_dirty) / (double)bytes_max;
+
+    updates_target = evict->eviction_updates_target;
+    updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
+    updates_pct = (100.0 * (double)bytes_updates) / (double)bytes_max;
+
+    /*
+     * Compute pressure as the maximum fraction of the way from target to trigger across dirty and
+     * update dimensions. Zero means we are at or below target; one means we have reached the
+     * trigger.
+     */
+    pressure = 0.0;
+    if (dirty_trigger > dirty_target)
+        pressure = WT_MAX(pressure, (dirty_pct - dirty_target) / (dirty_trigger - dirty_target));
+    if (updates_trigger > updates_target)
+        pressure =
+          WT_MAX(pressure, (updates_pct - updates_target) / (updates_trigger - updates_target));
+    pressure = WT_MIN(pressure, 1.0);
+
+    if (pressure <= 0.0)
+        return (baseline);
+
+    slots_range = evict->evict_target_slots - baseline;
+    return (baseline + (uint32_t)(pressure * (double)slots_range));
 }
 
 /*
