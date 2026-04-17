@@ -491,7 +491,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         for (;;) {
             old_rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
             if (old_rec_lsn_max < page->disagg_info->rec_lsn_max &&
-              !__wt_atomic_cas_uint64(
+              !__wt_atomic_cas_uint64_relaxed(
                 &btree->rec_lsn_max, old_rec_lsn_max, page->disagg_info->rec_lsn_max)) {
                 WT_STAT_CONN_DSRC_INCR(session, cache_cas_btree_max_lsn_race);
                 continue;
@@ -3177,7 +3177,7 @@ split:
     }
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this
