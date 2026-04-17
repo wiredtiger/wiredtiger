@@ -8,8 +8,9 @@
 
 #include "wt_internal.h"
 
+static int __checkpoint_disagg_advance(WT_SESSION_IMPL *, wt_timestamp_t, bool);
+static int __checkpoint_disagg_put(WT_SESSION_IMPL *, wt_timestamp_t);
 static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
-static int __checkpoint_teardown(WT_SESSION_IMPL *, bool, WT_TXN_ISOLATION);
 static int __checkpoint_fsync_post(
   WT_SESSION_IMPL *, const char *[], WT_DATA_HANDLE *, WT_DATA_HANDLE *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
@@ -17,6 +18,7 @@ static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_metadata(WT_SESSION_IMPL *, const char *[], WT_TXN *);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_selected_dhandles(WT_SESSION_IMPL *, const char *[]);
+static int __checkpoint_teardown(WT_SESSION_IMPL *, bool, WT_TXN_ISOLATION);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static uint64_t __checkpoint_running_time(WT_SESSION_IMPL *);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
@@ -1508,9 +1510,8 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
         break;
     case WT_TXN_LOG_CKPT_CLEANUP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_TRET_MSG(session,
-          __wt_checkpoint_log(session, true, log_flags, NULL),
-        "%s", "Checkpoint log operation failed");
+        WT_TRET_MSG(session, __wt_checkpoint_log(session, true, log_flags, NULL), "%s",
+          "Checkpoint log operation failed");
         break;
     default:
         WT_RET(__wt_illegal_value(session, log_flags));
@@ -1877,37 +1878,9 @@ err:
     WT_TRET(__checkpoint_log_stage(
       session, (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP));
 
-    /*
-     * If the stable timestamp advanced, ensure that we reflect it in the checkpoint metadata in
-     * disaggregated storage, even if there were no other changes. Also check for any updated key
-     * encryption information.
-     */
-    if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
-      conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
-        conn->disaggregated_storage.num_meta_put &&
-      ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
-        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
-          "Update requested for disaggregated storage checkpoint metadata because the stable "
-          "timestamp advanced");
-        if (conn->key_provider != NULL)
-            WT_TRET(__wt_disagg_put_crypt_helper(session));
-        WT_TRET(__wt_disagg_put_checkpoint_meta(
-          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
-    }
-
-    /*
-     * Advance to the next checkpoint in disaggregated storage if we updated the checkpoint metadata
-     * in the page log. This has to be done after checkpoint resolve, which happens when we turn off
-     * metadata tracking above.
-     *
-     * Ensure that turning off meta tracking worked.
-     */
-    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
-      conn->disaggregated_storage.num_meta_put) {
-        WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
-        if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
-            return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
-    }
+    if (!failed)
+        WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts));
+    WT_TRET(__checkpoint_disagg_advance(session, ckpt_tmp_ts, !failed && ret == 0));
 
     WT_TRET(__checkpoint_teardown(session, failed, saved_isolation));
 
@@ -2675,6 +2648,79 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 
 err:
     __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __checkpoint_disagg_put --
+ *     Write checkpoint metadata to disaggregated storage if the stable timestamp advanced. Also
+ *     writes any new encryption key data information
+ */
+static int
+__checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
+{
+    WT_DECL_RET;
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    if (!__wt_conn_is_disagg(session) || !conn->layered_table_manager.leader)
+        return (0);
+
+    /*
+     * If the stable timestamp advanced, ensure that we reflect it in the checkpoint metadata in
+     * disaggregated storage, even if there were no other changes. Also check for any updated key
+     * encryption information.
+     */
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
+        conn->disaggregated_storage.num_meta_put &&
+      ckpt_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
+        /*
+         * A failure on __wt_disagg_put_crypt_helper means a key rotation was interrupted before
+         * on_key_update was called, so the key rotation exchange was never completed. The provider
+         * will retry on the next checkpoint. Therefore, it is okay to continue.
+         */
+        if (conn->key_provider != NULL)
+            WT_TRET(__wt_disagg_put_crypt_helper(session));
+        WT_TRET(__wt_disagg_put_checkpoint_meta(
+          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_ts));
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Updated disaggregated storage checkpoint metadata because the stable timestamp "
+          "advanced");
+    }
+
+    return (ret);
+}
+
+/*
+ * __checkpoint_disagg_advance --
+ *     Advance to the next checkpoint in disaggregated storage if the checkpoint metadata was
+ *     updated in the page log.
+ */
+static int
+__checkpoint_disagg_advance(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts, bool ckpt_success)
+{
+    WT_DECL_RET;
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_UNUSED(ckpt_ts);
+
+    /*
+     * Advance to the next checkpoint in disaggregated storage if we updated the checkpoint metadata
+     * in the page log. This has to be done after checkpoint resolve, which happens when we turn off
+     * metadata tracking above.
+     *
+     * Ensure that turning off meta tracking worked.
+     */
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
+      conn->disaggregated_storage.num_meta_put) {
+        WT_ASSERT(session, ckpt_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
+        WT_ERR(__wt_disagg_advance_checkpoint(session, ckpt_success));
+    }
+
+err:
+    if (ret != 0)
+        return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
+
     return (ret);
 }
 
