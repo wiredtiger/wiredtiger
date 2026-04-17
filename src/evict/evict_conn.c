@@ -366,34 +366,32 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
 
     /*
-     * Set the LRU eviction queue working set (evict_walk_base) and per-walk budget
-     * (evict_walk_incr). When eviction.scale_queue_to_cache_size is enabled, evict_walk_base is
-     * computed proportionally from the configured cache size: 100 queue slots per gigabyte, clamped
-     * between WTI_EVICT_WALK_BASE and WTI_EVICT_WALK_BASE_MAX. evict_walk_incr is derived as
-     * evict_walk_base / 3, preserving the 1:3 incr-to-base ratio of the compile-time defaults
-     * (100:300) so the queue fills at a consistent rate relative to its size. Combined with the
-     * adaptive effective queue depth in __evict_walk and __evict_walk_target (which drops to the
-     * original queue size under dirty pressure), this keeps dirty drain cycles short and prevents
-     * dirty cache from accumulating to the application-thread trigger threshold. Without the flag,
-     * compile-time defaults are used, which preserves legacy behavior.
+     * Compute the per-tree sampling depth denominator (evict_target_slots). This is used only by
+     * __evict_walk_target to decide how many pages to sample from each btree when the eviction
+     * server walks it; it does not size the LRU queue or cap the walker's budget. When
+     * eviction.scale_queue_to_cache_size is enabled, evict_target_slots is proportional to the
+     * configured cache size (100 per gigabyte, clamped between WTI_EVICT_WALK_BASE and
+     * WTI_EVICT_WALK_BASE_MAX). With a deeper denominator, dominant btrees receive proportionally
+     * larger target_pages values, so the walker persists across multiple __evict_walk calls on the
+     * same btree and samples more of it before moving on. The queue allocation below stays at the
+     * compile-time baseline because the per-pass candidate budget (WTI_EVICT_WALK_INCR) is
+     * unchanged; deepening the queue would only add walker overhead without improving candidate
+     * quality.
      *
-     * This is a startup-only computation: the queue is allocated once here and cannot be resized at
-     * runtime. Reconfiguring eviction.scale_queue_to_cache_size after connection open has no
-     * effect.
+     * This is a startup-only computation. Reconfiguring eviction.scale_queue_to_cache_size after
+     * connection open has no effect.
      */
     WT_RET(__wt_config_gets(session, cfg, "eviction.scale_queue_to_cache_size", &scale_cval));
     if (scale_cval.val != 0) {
         cache_gb = conn->cache_size / WT_GIGABYTE;
-        evict->evict_walk_base =
+        evict->evict_target_slots =
           (uint32_t)WT_CLAMP(cache_gb * 100, WTI_EVICT_WALK_BASE, WTI_EVICT_WALK_BASE_MAX);
-        evict->evict_walk_incr = evict->evict_walk_base / 3;
     } else {
-        evict->evict_walk_base = WTI_EVICT_WALK_BASE;
-        evict->evict_walk_incr = WTI_EVICT_WALK_INCR;
+        evict->evict_target_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
     }
-    evict->evict_slots = evict->evict_walk_base + evict->evict_walk_incr;
     for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
-        WT_RET(__wt_calloc_def(session, evict->evict_slots, &evict->evict_queues[i].evict_queue));
+        WT_RET(__wt_calloc_def(
+          session, WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR, &evict->evict_queues[i].evict_queue));
         WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "evict queue"));
     }
 

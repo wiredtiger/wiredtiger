@@ -1430,59 +1430,36 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 }
 
 /*
- * __evict_queue_scale --
- *     Compute graduated queue-depth values based on current eviction pressure. effective_slots and
- *     effective_walk_base scale linearly between their baseline constants (at or above trigger
- *     pressure) and their fully scaled values configured on the connection (at zero pressure).
- *     Pressure is the greater of dirty-bytes-to-trigger and updates-bytes-to-trigger ratios,
- *     clamped to [0, 1]. Below WTI_EVICT_QUEUE_SCALE_MIN_FILL the cache is not filled enough to
- *     justify the scaled queue, so both parameters fall back to baseline unconditionally.
- *
- * Candidate quality is driven by effective_slots (per-tree target_pages sampling depth) and
- *     effective_walk_base (the top 75% cutoff applied by the post-sort trim). Both remain scaled so
- *     that large caches get deeper per-tree sampling and the best candidates survive trim. The walk
- *     increment is not graduated here and is unrelated to candidate quality: it only caps pages
- *     added per __evict_walk call and therefore controls walker cadence, not what gets scored or
- *     kept.
+ * __evict_target_slots --
+ *     Return the per-tree sampling depth denominator used by __evict_walk_target. Falls back to the
+ *     baseline value when the cache is not yet filled past WTI_EVICT_QUEUE_SCALE_MIN_FILL, since
+ *     deeper per-tree sampling is only worth its walker cost when the cache is close to full. The
+ *     queue itself is always allocated at the baseline size; this value only controls how many
+ *     pages the walker tries to collect from each btree per visit.
  */
-static void
-__evict_queue_scale(
-  WT_SESSION_IMPL *session, uint32_t *effective_slotsp, uint32_t *effective_walk_basep)
+static uint32_t
+__evict_target_slots(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
-    double cache_fill_pct, dirty_pct, pressure, updates_pct;
-    uint64_t bytes_inuse, bytes_max, dirty_bytes, updates_bytes;
+    double cache_fill_pct;
+    uint64_t bytes_inuse, bytes_max;
 
     conn = S2C(session);
     cache = conn->cache;
     evict = conn->evict;
 
+    if (evict->evict_target_slots <= WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR)
+        return (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR);
+
     bytes_max = conn->cache_size + 1;
     bytes_inuse = __wt_cache_bytes_inuse(cache);
     cache_fill_pct = (100.0 * (double)bytes_inuse) / (double)bytes_max;
+    if (cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL)
+        return (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR);
 
-    if (evict->evict_slots <= WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR ||
-      cache_fill_pct < (double)WTI_EVICT_QUEUE_SCALE_MIN_FILL) {
-        *effective_slotsp = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
-        *effective_walk_basep = WTI_EVICT_WALK_BASE;
-        return;
-    }
-
-    dirty_bytes = __wt_cache_dirty_leaf_inuse(cache);
-    updates_bytes = __wt_cache_bytes_updates(cache);
-    dirty_pct = (double)dirty_bytes * 100.0 / (double)bytes_max;
-    updates_pct = (double)updates_bytes * 100.0 / (double)bytes_max;
-    pressure = WT_MAX(dirty_pct / __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger),
-      updates_pct / __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger));
-    pressure = WT_MIN(pressure, 1.0);
-
-    *effective_slotsp = (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR) +
-      (uint32_t)((1.0 - pressure) *
-        (double)(evict->evict_slots - (WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR)));
-    *effective_walk_basep = WTI_EVICT_WALK_BASE +
-      (uint32_t)((1.0 - pressure) * (double)(evict->evict_walk_base - WTI_EVICT_WALK_BASE));
+    return (evict->evict_target_slots);
 }
 
 /*
@@ -1498,18 +1475,11 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     WTI_EVICT_QUEUE *other_queue, *queue;
     WT_TRACK_OP_DECL;
     uint64_t read_gen_oldest;
-    uint32_t candidates, effective_slots, effective_walk_base, entries;
+    uint32_t candidates, entries;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
     evict = conn->evict;
-
-    /*
-     * Compute the graduated trim threshold. effective_slots is unused here but computed alongside
-     * effective_walk_base so both derive from a single pressure reading.
-     */
-    __evict_queue_scale(session, &effective_slots, &effective_walk_base);
-    WT_UNUSED(effective_slots);
 
     /* Age out the score of how much the queue has been empty recently. */
     if (evict->evict_empty_score > 0)
@@ -1547,7 +1517,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * Get some more pages to consider for eviction.
      *
      * If the walk is interrupted, we still need to sort the queue: the next walk assumes there are
-     * no entries beyond evict->evict_walk_base.
+     * no entries beyond WTI_EVICT_WALK_BASE.
      */
     if ((ret = __evict_walk(evict->walk_session, queue)) == EBUSY)
         ret = 0;
@@ -1583,7 +1553,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * figuring out how many of the entries are candidates so we never end up with more candidates
      * than entries.
      */
-    while (entries > effective_walk_base)
+    while (entries > WTI_EVICT_WALK_BASE)
         __evict_list_clear(session, &queue->evict_queue[--entries]);
 
     queue->evict_entries = entries;
@@ -1797,7 +1767,7 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
-    uint32_t effective_slots, effective_walk_base, evict_walk_period;
+    uint32_t evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
     bool dhandle_list_locked;
@@ -1812,19 +1782,8 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     dhandle_list_locked = false;
     retries = 0;
 
-    /*
-     * Graduated queue scaling: compute effective_slots from current eviction pressure.
-     * effective_walk_base is computed here for consistency but only consumed by the trim step in
-     * __evict_lru_walk. The walk increment stays at the baseline WTI_EVICT_WALK_INCR regardless of
-     * cache size or pressure; scaling it added walker overhead without improving candidate
-     * quality, since quality is driven by effective_slots (sampling depth per btree) and the trim
-     * cutoff, not by how many pages are appended per __evict_walk call.
-     */
-    __evict_queue_scale(session, &effective_slots, &effective_walk_base);
-    WT_UNUSED(effective_walk_base);
-
     start_slot = slot = queue->evict_entries;
-    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, (u_int)effective_slots);
+    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -2100,8 +2059,8 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_per_slot, cache_inuse;
-    uint32_t effective_slots, effective_walk_base, target_pages, target_pages_clean,
-      target_pages_dirty, target_pages_updates;
+    uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates,
+      target_slots;
     bool want_tree;
 
     conn = S2C(session);
@@ -2110,12 +2069,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
-    /*
-     * Graduated effective_slots drives per-tree target_pages (scoring depth). effective_walk_base
-     * is returned for consistency but unused here; see __evict_queue_scale for the full rationale.
-     */
-    __evict_queue_scale(session, &effective_slots, &effective_walk_base);
-    WT_UNUSED(effective_walk_base);
+    target_slots = __evict_target_slots(session);
 
 /*
  * The minimum number of pages we should consider per tree.
@@ -2124,30 +2078,31 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 
     /*
      * The target number of pages for this tree is proportional to the space it is taking up in
-     * cache. Round to the nearest number of slots so we assign all of the slots to a tree filling
-     * 99+% of the cache (and only have to walk it once). When eviction.scale_queue_to_cache_size
-     * is enabled, evict_slots grows with cache size so the proportional formula automatically
-     * allocates more slots to larger caches without any additional per-btree adjustment.
+     * cache. When eviction.scale_queue_to_cache_size is enabled, target_slots grows with cache size
+     * so dominant btrees receive a proportionally larger target_pages. The walker keeps visiting
+     * the same btree across multiple __evict_walk calls (guarded by btree->evict_walk_progress)
+     * until target_pages has been sampled, giving deeper per-btree coverage without enlarging the
+     * LRU queue or the per-call walker budget.
      */
 
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         btree_clean_inuse = __wt_btree_bytes_evictable(session);
         cache_inuse = __wt_cache_bytes_inuse(cache);
-        bytes_per_slot = 1 + cache_inuse / effective_slots;
+        bytes_per_slot = 1 + cache_inuse / target_slots;
         target_pages_clean = (uint32_t)((btree_clean_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
         btree_dirty_inuse = __wt_btree_dirty_leaf_inuse(session);
         cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
-        bytes_per_slot = 1 + cache_inuse / effective_slots;
+        bytes_per_slot = 1 + cache_inuse / target_slots;
         target_pages_dirty = (uint32_t)((btree_dirty_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
         btree_updates_inuse = __wt_btree_bytes_updates(session);
         cache_inuse = __wt_cache_bytes_updates(cache);
-        bytes_per_slot = 1 + cache_inuse / effective_slots;
+        bytes_per_slot = 1 + cache_inuse / target_slots;
         target_pages_updates =
           (uint32_t)((btree_updates_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
@@ -3451,7 +3406,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
         urgent_queue->evict_candidates = 0;
     }
     evict_entry = urgent_queue->evict_queue + urgent_queue->evict_candidates;
-    if (evict_entry < urgent_queue->evict_queue + evict->evict_slots &&
+    if (evict_entry < urgent_queue->evict_queue + WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR &&
       __evict_push_candidate(session, urgent_queue, evict_entry, ref)) {
         ++urgent_queue->evict_candidates;
         queued = true;
