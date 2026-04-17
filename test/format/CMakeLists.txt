@@ -46,9 +46,10 @@ set_target_properties(test_format PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_options(test_format PRIVATE -DEXT_LIBPATH="")
 
 # t uses dlopen() at runtime to load extension MODULE libraries from ../../ext/ (relative to the
-# binary). Those libraries are not link-time dependencies, so ninja t won't build them unless we
-# declare them here. Only add MODULE libraries — builtin extensions are OBJECT libraries already
-# compiled into libwiredtiger and don't need a separate dlopen().
+# binary). Those libraries have no link-time dependency on test_format, so they would not be built
+# as part of this target without an explicit dependency declared here. Only MODULE libraries are
+# added — builtin extensions are OBJECT libraries already compiled into libwiredtiger and do not
+# need a separate dlopen().
 foreach(ext_target
         wiredtiger_reverse_collator
         wiredtiger_lz4 wiredtiger_snappy wiredtiger_zlib wiredtiger_zstd
