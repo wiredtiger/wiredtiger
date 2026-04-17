@@ -253,18 +253,15 @@
         API_END_RET(s, ret);          \
     } while (0)
 
-#define API_END_RET_NOTFOUND_MAP(s, ret) \
-    API_END(s, ret);                     \
-    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+#define API_END_RET_NOTFOUND_MAP(s, ret) API_END_RET(s, (ret) == WT_NOTFOUND ? ENOENT : (ret));
 
 /*
  * Used in cases where transaction error should not be set, but the error is returned from the API.
- * Success is passed to the API_END macro. If the method is about to return WT_NOTFOUND map it to
- * ENOENT.
+ * If the method is about to return WT_NOTFOUND map it to ENOENT.
  */
 #define API_END_RET_NO_TXN_ERROR(s, ret) \
-    API_END(s, 0);                       \
-    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+    __set_err = false;                   \
+    API_END_RET_NOTFOUND_MAP(s, ret);
 
 #define API_USER_ENTRY(s) (s)->api_call_counter == 1
 
