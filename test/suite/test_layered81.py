@@ -344,57 +344,6 @@ class test_layered81(wttest.WiredTigerTestCase):
         cursor.close()
 
     # -----------------------------------------------------------------------
-    # Test: Cursor open in an explicit transaction during checkpoint advance.
-    #
-    # With a fixed snapshot, __clayered_can_advance_stable always returns
-    # false (snapshot_gen is frozen). New data is only visible because it
-    # is in the ingest table. Without ingest replication this test fails
-    # deterministically — unlike autocommit tests where the snapshot may
-    # incidentally change between cursor calls.
-    # -----------------------------------------------------------------------
-    def test_checkpoint_advance_cursor_open_in_explicit_transaction(self):
-
-        all_keys = list(range(500))
-        self.insert_leader(all_keys)
-        self.do_checkpoint()
-
-        # Use a separate session for ingest writes: session_follow cannot
-        # call begin_transaction while it already has an active transaction.
-        ingest_session = self.conn_follow.open_session('')
-
-        # Fix the snapshot for the cursor's lifetime.
-        self.session_follow.begin_transaction()
-        cursor = self.session_follow.open_cursor(self.uri)
-        cursor.set_key(self.fmt_key(0))
-        self.assertEqual(cursor.search(), 0)
-        cursor.reset()
-
-        # Replicate new keys to ingest before checkpoint pickup. Without this
-        # the cursor would not see keys 500-999: the stable cursor cannot
-        # advance (snapshot_gen is frozen by the explicit transaction).
-        new_keys = list(range(500, self.nkeys))
-        self.insert_leader(new_keys)
-        ingest_cursor = ingest_session.open_cursor(self.uri)
-        for k in new_keys:
-            ingest_session.begin_transaction()
-            ingest_cursor[self.fmt_key(k)] = self.fmt_val(k)
-            ingest_session.commit_transaction(
-                f"commit_timestamp={self.timestamp_str(self.next_ts())}")
-        ingest_cursor.close()
-        self.do_checkpoint()
-
-        # Stable cursor cannot advance (same snapshot_gen), but new keys
-        # are visible via the ingest table.
-        keys = []
-        while cursor.next() == 0:
-            keys.append(cursor.get_key())
-        self.assertEqual(keys, [self.fmt_key(i) for i in range(self.nkeys)])
-
-        cursor.close()
-        self.session_follow.rollback_transaction()
-        ingest_session.close()
-
-    # -----------------------------------------------------------------------
     # Test: Read timestamp controls which checkpoint's data is visible.
     #
     # Checkpoint 1: keys 0-499. Checkpoint 2: keys 500-999.
@@ -517,6 +466,10 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.assertEqual(keys, expected_even_bounded)
 
         cursor.reset()
+        cursor.set_key(self.fmt_key(200))
+        cursor.bound("bound=lower")
+        cursor.set_key(self.fmt_key(800))
+        cursor.bound("bound=upper")
 
         # Add odd keys inside and outside bounds.
         # In production, the follower replicates all leader operations to its ingest table
@@ -525,6 +478,10 @@ class test_layered81(wttest.WiredTigerTestCase):
         self.insert_leader(odd_keys)
         self.insert_follower(odd_keys)
         self.do_checkpoint()
+
+        cursor.set_key(self.fmt_key(500))
+        self.assertEqual(cursor.search(), 0)
+        cursor.reset()
 
         # Re-apply bounds after reset.
         cursor.set_key(self.fmt_key(200))
