@@ -26,13 +26,13 @@ cursor_api_call_with_notfound(
     CURSOR_API_CALL(cursor, session_impl, ret, next, NULL);
     ret = WT_NOTFOUND;
     if (set_err_info_inside)
-        __wt_session_set_last_error(session_impl, ret, WT_NONE, WT_ERROR_INFO_EMPTY);
+        __wt_session_set_last_error(session_impl, ret, WT_NONE, "Something was not found");
 err:
     API_END_RET(session_impl, ret);
 }
 
 static int
-api_call_nested_with_notfound(WT_SESSION_IMPL *session_impl, WT_CURSOR *cursor, int err,
+api_call_nested_with_notfound(WT_SESSION_IMPL *session_impl, WT_CURSOR *cursor, int final_err,
   bool notfound_ok, bool set_err_info_inside)
 {
     WT_DECL_RET;
@@ -44,9 +44,10 @@ api_call_nested_with_notfound(WT_SESSION_IMPL *session_impl, WT_CURSOR *cursor, 
     else
         WT_ERR(cursor_api_call_with_notfound(cursor, session_impl, set_err_info_inside));
 
-    ret = err;
-    if (err != 0)
-        __wt_session_set_last_error(session_impl, err, WT_NONE, WT_ERROR_INFO_EMPTY);
+    /* Simulate an error being raised later during the API call. */
+    ret = final_err;
+    if (final_err != 0)
+        __wt_session_set_last_error(session_impl, final_err, WT_NONE, "Something was invalid");
 err:
     API_END_RET(session_impl, ret);
 }
@@ -83,7 +84,7 @@ TEST_CASE("API_END_RET nested - test that nested API calls only keep explicitly 
     SECTION("Test nested API call with WT_NOTFOUND inside WT_ERR_NOTFOUND_OK(), followed by EINVAL")
     {
         REQUIRE(api_call_nested_with_notfound(session_impl, cursor, EINVAL, true, false) == EINVAL);
-        check_error_info(err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
+        check_error_info(err_info, EINVAL, WT_NONE, "Something was invalid");
     }
 
     SECTION("Test nested API call with WT_NOTFOUND inside WT_ERR()")
@@ -105,24 +106,22 @@ TEST_CASE("API_END_RET nested - test that nested API calls only keep explicitly 
      */
     SECTION("Test nested API call with WT_NOTFOUND set explicitly inside WT_ERR_NOTFOUND_OK()")
     {
-        // Mismatch between return value and recorded error code, log a warning.
         REQUIRE(api_call_nested_with_notfound(session_impl, cursor, 0, true, true) == 0);
-        check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION(
       "Test nested API call with WT_NOTFOUND set explicitly inside WT_ERR_NOTFOUND_OK(), followed "
       "by EINVAL")
     {
-        // Mismatch between return value and recorded error code, log a warning.
         REQUIRE(api_call_nested_with_notfound(session_impl, cursor, EINVAL, true, true) == EINVAL);
-        check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
+        check_error_info(err_info, EINVAL, WT_NONE, "Something was not found");
     }
 
     SECTION("Test nested API call with WT_NOTFOUND set explicitly inside WT_ERR()")
     {
         REQUIRE(api_call_nested_with_notfound(session_impl, cursor, 0, false, true) == WT_NOTFOUND);
-        check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
+        check_error_info(err_info, WT_NOTFOUND, WT_NONE, "Something was not found");
     }
 
     SECTION(
@@ -130,6 +129,6 @@ TEST_CASE("API_END_RET nested - test that nested API calls only keep explicitly 
     {
         REQUIRE(
           api_call_nested_with_notfound(session_impl, cursor, EINVAL, false, true) == WT_NOTFOUND);
-        check_error_info(err_info, WT_NOTFOUND, WT_NONE, WT_ERROR_INFO_EMPTY);
+        check_error_info(err_info, WT_NOTFOUND, WT_NONE, "Something was not found");
     }
 }
