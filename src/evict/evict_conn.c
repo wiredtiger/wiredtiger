@@ -366,17 +366,16 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
 
     /*
-     * Compute the per-tree sampling depth denominator (evict_target_slots). This is used only by
-     * __evict_walk_target to decide how many pages to sample from each btree when the eviction
-     * server walks it; it does not size the LRU queue or cap the walker's budget. When
+     * Compute the LRU queue capacity (evict_target_slots). When
      * eviction.scale_queue_to_cache_size is enabled, evict_target_slots is proportional to the
      * configured cache size (100 per gigabyte, clamped between WTI_EVICT_WALK_BASE and
-     * WTI_EVICT_WALK_BASE_MAX). With a deeper denominator, dominant btrees receive proportionally
-     * larger target_pages values, so the walker persists across multiple __evict_walk calls on the
-     * same btree and samples more of it before moving on. The queue allocation below stays at the
-     * compile-time baseline because the per-pass candidate budget (WTI_EVICT_WALK_INCR) is
-     * unchanged; deepening the queue would only add walker overhead without improving candidate
-     * quality.
+     * WTI_EVICT_WALK_BASE_MAX). Larger caches get deeper queues so the walker can accumulate more
+     * candidates across passes and __evict_lru_walk sorts/trims the top WTI_EVICT_WALK_BASE by
+     * score -- deeper sampling surfaces better candidates without raising the per-pass walker
+     * budget. __evict_walk_target also uses this value as the pressure-graduated denominator for
+     * per-btree target_pages: when dirty/update pressure is low the denominator stays at baseline
+     * (minimal walker overhead), and rises toward the full allocation as pressure climbs from
+     * target to trigger.
      *
      * This is a startup-only computation. Reconfiguring eviction.scale_queue_to_cache_size after
      * connection open has no effect.
@@ -390,8 +389,8 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
         evict->evict_target_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
     }
     for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
-        WT_RET(__wt_calloc_def(
-          session, WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR, &evict->evict_queues[i].evict_queue));
+        WT_RET(
+          __wt_calloc_def(session, evict->evict_target_slots, &evict->evict_queues[i].evict_queue));
         WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "evict queue"));
     }
 

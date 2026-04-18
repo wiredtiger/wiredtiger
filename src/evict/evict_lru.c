@@ -1809,7 +1809,7 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     retries = 0;
 
     start_slot = slot = queue->evict_entries;
-    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR);
+    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, evict->evict_target_slots);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -2104,11 +2104,13 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 
     /*
      * The target number of pages for this tree is proportional to the space it is taking up in
-     * cache. When eviction.scale_queue_to_cache_size is enabled, target_slots grows with cache size
-     * so dominant btrees receive a proportionally larger target_pages. The walker keeps visiting
-     * the same btree across multiple __evict_walk calls (guarded by btree->evict_walk_progress)
-     * until target_pages has been sampled, giving deeper per-btree coverage without enlarging the
-     * LRU queue or the per-call walker budget.
+     * cache. When eviction.scale_queue_to_cache_size is enabled, target_slots is pressure-graduated
+     * (see __evict_target_slots): it stays at baseline when dirty/update pressure is low and rises
+     * toward the full allocation as pressure climbs from target to trigger. With a deeper
+     * denominator under pressure, dominant btrees receive a proportionally larger target_pages --
+     * but the per-call walker budget (WTI_EVICT_WALK_INCR) and the per-call remaining_slots cap
+     * still bound what any single tree can contribute in one __evict_walk call. Deep sampling
+     * accumulates across passes in the larger LRU queue.
      */
 
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
@@ -2283,16 +2285,8 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
     /*
      * For this handle, calculate the number of target pages to evict. If the number of target pages
      * is zero, then simply return early from this function.
-     *
-     * If the progress has not met the previous target, continue using the previous target.
      */
     target_pages = __evict_walk_target(session);
-
-    if ((target_pages == 0) || btree->evict_walk_progress >= btree->evict_walk_target) {
-        btree->evict_walk_target = target_pages;
-        btree->evict_walk_progress = 0;
-    }
-    target_pages = btree->evict_walk_target - btree->evict_walk_progress;
 
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
@@ -2857,7 +2851,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         if (queued) {
             ++evict_entry;
             ++pages_queued;
-            ++btree->evict_walk_progress;
 
             /* Count internal pages queued. */
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -3432,7 +3425,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
         urgent_queue->evict_candidates = 0;
     }
     evict_entry = urgent_queue->evict_queue + urgent_queue->evict_candidates;
-    if (evict_entry < urgent_queue->evict_queue + WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR &&
+    if (evict_entry < urgent_queue->evict_queue + evict->evict_target_slots &&
       __evict_push_candidate(session, urgent_queue, evict_entry, ref)) {
         ++urgent_queue->evict_candidates;
         queued = true;
