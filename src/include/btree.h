@@ -320,6 +320,9 @@ struct __wt_btree {
     double evict_pos;                          /* Eviction thread's soft location */
     uint32_t linear_walk_restarts;             /* next/prev walk restarts */
     uint64_t evict_priority;                   /* Relative priority of cached pages */
+    uint32_t evict_walk_progress;              /* Eviction walk progress (dominant trees only) */
+    uint32_t evict_walk_target;                /* Eviction walk target (dominant trees only) */
+    bool evict_is_dominant_tree;               /* Holds majority of cache dirty/update bytes */
     wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
     u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
     u_int evict_walk_skips;                    /* Number of walks skipped */

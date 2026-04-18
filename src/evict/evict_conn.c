@@ -366,16 +366,16 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
 
     /*
-     * Compute the LRU queue capacity (evict_target_slots). When
-     * eviction.scale_queue_to_cache_size is enabled, evict_target_slots is proportional to the
-     * configured cache size (100 per gigabyte, clamped between WTI_EVICT_WALK_BASE and
-     * WTI_EVICT_WALK_BASE_MAX). Larger caches get deeper queues so the walker can accumulate more
-     * candidates across passes and __evict_lru_walk sorts/trims the top WTI_EVICT_WALK_BASE by
-     * score -- deeper sampling surfaces better candidates without raising the per-pass walker
-     * budget. __evict_walk_target also uses this value as the pressure-graduated denominator for
-     * per-btree target_pages: when dirty/update pressure is low the denominator stays at baseline
-     * (minimal walker overhead), and rises toward the full allocation as pressure climbs from
-     * target to trigger.
+     * Compute the per-tree sampling depth denominator (evict_target_slots) used by
+     * __evict_walk_target. When eviction.scale_queue_to_cache_size is enabled, evict_target_slots
+     * is proportional to the configured cache size (100 per gigabyte, clamped between
+     * WTI_EVICT_WALK_BASE and WTI_EVICT_WALK_BASE_MAX). Under pressure, a dominant btree's
+     * target_pages grows with the scaled denominator and the walker persists across calls
+     * (btree->evict_walk_progress) to sample it deeply. Non-dominant btrees never engage the
+     * persistence path and are visited round-robin regardless of the denominator. The LRU queue
+     * allocation stays at the compile-time baseline because the post-sort trim at
+     * WTI_EVICT_WALK_BASE makes a larger allocation functionally equivalent: only the top
+     * WTI_EVICT_WALK_BASE candidates by score survive each __evict_lru_walk pass.
      *
      * This is a startup-only computation. Reconfiguring eviction.scale_queue_to_cache_size after
      * connection open has no effect.
@@ -389,8 +389,8 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
         evict->evict_target_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
     }
     for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
-        WT_RET(
-          __wt_calloc_def(session, evict->evict_target_slots, &evict->evict_queues[i].evict_queue));
+        WT_RET(__wt_calloc_def(
+          session, WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR, &evict->evict_queues[i].evict_queue));
         WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "evict queue"));
     }
 

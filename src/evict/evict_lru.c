@@ -1809,7 +1809,7 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     retries = 0;
 
     start_slot = slot = queue->evict_entries;
-    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, evict->evict_target_slots);
+    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -2081,18 +2081,22 @@ __evict_push_candidate(
 static uint32_t
 __evict_walk_target(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *btree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
-    uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_per_slot, cache_inuse;
+    uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse, bytes_per_slot,
+      cache_dirty_inuse, cache_inuse, cache_updates_inuse;
     uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates,
       target_slots;
-    bool want_tree;
+    bool is_dominant, want_tree;
 
+    btree = S2BT(session);
     conn = S2C(session);
     cache = conn->cache;
     evict = conn->evict;
     btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
+    cache_dirty_inuse = cache_updates_inuse = 0;
     target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
     target_slots = __evict_target_slots(session);
@@ -2102,15 +2106,23 @@ __evict_walk_target(WT_SESSION_IMPL *session)
  */
 #define MIN_PAGES_PER_TREE 10
 
+/*
+ * Fraction (in percent) of the cache's dirty or update bytes above which a btree is considered
+ * "dominant" -- the walker engages cross-call persistence on dominant trees so their deep
+ * target_pages budget can be reached over many __evict_walk calls without being reset each pass.
+ * Non-dominant trees are visited round-robin with no persistence so multi-btree workloads are not
+ * starved. 70% picks single-dominant-tree workloads (YCSB load, checkpoint-heavy single
+ * collections) without catching multi-collection workloads (ecommerce, TPCC, mixed_workloads).
+ */
+#define WTI_EVICT_DOMINANT_TREE_PCT 70
+
     /*
      * The target number of pages for this tree is proportional to the space it is taking up in
      * cache. When eviction.scale_queue_to_cache_size is enabled, target_slots is pressure-graduated
      * (see __evict_target_slots): it stays at baseline when dirty/update pressure is low and rises
      * toward the full allocation as pressure climbs from target to trigger. With a deeper
-     * denominator under pressure, dominant btrees receive a proportionally larger target_pages --
-     * but the per-call walker budget (WTI_EVICT_WALK_INCR) and the per-call remaining_slots cap
-     * still bound what any single tree can contribute in one __evict_walk call. Deep sampling
-     * accumulates across passes in the larger LRU queue.
+     * denominator under pressure, dominant btrees receive a proportionally larger target_pages.
+     * The walker persists across calls on dominant trees to reach that deeper target.
      */
 
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
@@ -2122,21 +2134,36 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
         btree_dirty_inuse = __wt_btree_dirty_leaf_inuse(session);
-        cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
-        bytes_per_slot = 1 + cache_inuse / target_slots;
+        cache_dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
+        bytes_per_slot = 1 + cache_dirty_inuse / target_slots;
         target_pages_dirty = (uint32_t)((btree_dirty_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
         btree_updates_inuse = __wt_btree_bytes_updates(session);
-        cache_inuse = __wt_cache_bytes_updates(cache);
-        bytes_per_slot = 1 + cache_inuse / target_slots;
+        cache_updates_inuse = __wt_cache_bytes_updates(cache);
+        bytes_per_slot = 1 + cache_updates_inuse / target_slots;
         target_pages_updates =
           (uint32_t)((btree_updates_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
     target_pages = WT_MAX(target_pages, target_pages_updates);
+
+    /*
+     * Detect whether this btree is dominant: it holds at least WTI_EVICT_DOMINANT_TREE_PCT of the
+     * cache's dirty or update bytes. Only check the dimensions currently driving eviction. A
+     * dominant tree justifies walker persistence (see __evict_get_target_pages) so its deep
+     * target_pages can be sampled across many passes. Non-dominant trees stay round-robin.
+     */
+    is_dominant = false;
+    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && cache_dirty_inuse > 0 &&
+      btree_dirty_inuse * 100 >= cache_dirty_inuse * WTI_EVICT_DOMINANT_TREE_PCT)
+        is_dominant = true;
+    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && cache_updates_inuse > 0 &&
+      btree_updates_inuse * 100 >= cache_updates_inuse * WTI_EVICT_DOMINANT_TREE_PCT)
+        is_dominant = true;
+    btree->evict_is_dominant_tree = is_dominant;
 
     /*
      * Walk trees with a small fraction of the cache in case there are so many trees that none of
@@ -2285,8 +2312,24 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
     /*
      * For this handle, calculate the number of target pages to evict. If the number of target pages
      * is zero, then simply return early from this function.
+     *
+     * For dominant trees (see __evict_walk_target), persist progress across __evict_walk calls so
+     * the deep target_pages budget is reached over many passes instead of being reset each call.
+     * Non-dominant trees skip persistence -- they are visited round-robin and finish per-call.
      */
     target_pages = __evict_walk_target(session);
+
+    if (btree->evict_is_dominant_tree) {
+        if (target_pages == 0 || btree->evict_walk_progress >= btree->evict_walk_target) {
+            btree->evict_walk_target = target_pages;
+            btree->evict_walk_progress = 0;
+        }
+        target_pages = btree->evict_walk_target - btree->evict_walk_progress;
+    } else if (btree->evict_walk_target != 0) {
+        /* Tree transitioned from dominant to non-dominant; clear stale progress. */
+        btree->evict_walk_target = 0;
+        btree->evict_walk_progress = 0;
+    }
 
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
@@ -2851,6 +2894,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         if (queued) {
             ++evict_entry;
             ++pages_queued;
+            if (btree->evict_is_dominant_tree)
+                ++btree->evict_walk_progress;
 
             /* Count internal pages queued. */
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -3425,7 +3470,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
         urgent_queue->evict_candidates = 0;
     }
     evict_entry = urgent_queue->evict_queue + urgent_queue->evict_candidates;
-    if (evict_entry < urgent_queue->evict_queue + evict->evict_target_slots &&
+    if (evict_entry < urgent_queue->evict_queue + WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR &&
       __evict_push_candidate(session, urgent_queue, evict_entry, ref)) {
         ++urgent_queue->evict_candidates;
         queued = true;
