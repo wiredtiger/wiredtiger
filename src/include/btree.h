@@ -323,6 +323,7 @@ struct __wt_btree {
     uint32_t evict_walk_progress;              /* Eviction walk progress (dominant trees only) */
     uint32_t evict_walk_target;                /* Eviction walk target (dominant trees only) */
     bool evict_is_dominant_tree;               /* Holds majority of cache dirty/update bytes */
+    WTI_DIRTY_INDEX *dirty_index;              /* Push-model dirty ring; NULL when disabled */
     wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
     u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
     u_int evict_walk_skips;                    /* Number of walks skipped */

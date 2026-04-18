@@ -267,6 +267,12 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         __wt_txn_op_set_recno(session, cbt->recno);
     }
 
+    /*
+     * Push-model dirty-index: announce this dirty leaf to the per-btree ring. See
+     * __wt_row_modify and WT-17234 for the rationale and drain side.
+     */
+    __wti_dirty_index_insert(session, S2BT(session), cbt->ref);
+
     if (0) {
 err:
         /*

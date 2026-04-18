@@ -483,6 +483,8 @@ struct __wti_delta_leaf_merge_state;
 typedef struct __wti_delta_leaf_merge_state WTI_DELTA_LEAF_MERGE_STATE;
 struct __wti_disk_leaf_merge_state;
 typedef struct __wti_disk_leaf_merge_state WTI_DISK_LEAF_MERGE_STATE;
+struct __wti_dirty_index;
+typedef struct __wti_dirty_index WTI_DIRTY_INDEX;
 struct __wti_evict_entry;
 typedef struct __wti_evict_entry WTI_EVICT_ENTRY;
 struct __wti_evict_queue;

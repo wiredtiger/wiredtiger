@@ -38,6 +38,25 @@ struct __wti_evict_entry {
 #define WTI_EVICT_URGENT_QUEUE 2 /* Urgent queue index */
 
 /*
+ * WTI_DIRTY_INDEX --
+ *	Per-btree ring of WT_REF pointers fed from the modify path. The eviction server
+ *	drains entries in FIFO order to supply dirty candidates without relying on the
+ *	tree-walk sampler. Capacity is a power of two for mask-based indexing.
+ */
+#define WTI_DIRTY_INDEX_MIN_CAPACITY 4096u
+#define WTI_DIRTY_INDEX_MAX_CAPACITY 262144u
+#define WTI_DIRTY_INDEX_SLOTS_PER_GB 500u
+
+struct __wti_dirty_index {
+    WT_SPINLOCK lock;        /* Producer-side serialization */
+    WT_REF **slots;          /* Circular buffer of ref pointers */
+    uint32_t capacity;       /* Slot count (power of two) */
+    uint32_t mask;           /* capacity - 1 */
+    wt_shared uint64_t head; /* Next slot to be filled (monotonic) */
+    wt_shared uint64_t tail; /* Next slot to drain (monotonic) */
+};
+
+/*
  * WTI_EVICT_QUEUE --
  *	Encapsulation of an eviction candidate queue.
  */
@@ -57,8 +76,12 @@ struct __wti_evict_queue {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern int __wti_dirty_index_alloc(WT_SESSION_IMPL *session, WT_BTREE *btree)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,
   bool interruptible) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wti_dirty_index_destroy(WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wti_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref);
 extern void __wti_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref);
 static WT_INLINE bool __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
