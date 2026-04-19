@@ -75,7 +75,7 @@ define_test_variants(test_checkpoint
         "disagg_leader_row_failpoint_rec_before_wrapup|-G -e -p -t r -W 3 -r 2 -s 8 -x -n 100000 -k 100000"
 
         # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
-        "disagg_leader_row_server_93028|-G -e -p -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB`"
+        "disagg_leader_row_server_93028|-G -e -p -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
     LABELS
         check_disagg
         test_checkpoint
