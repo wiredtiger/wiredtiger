@@ -143,7 +143,7 @@
              * error code, overwrite the err field only with the new code and keep the old         \
              * sub-level error code and error message.                                             \
              */                                                                                    \
-            if (F_ISSET(s, WT_SESSION_SAVE_ERRORS) && (s)->err_info.err != (ret)) {                \
+            if ((s)->err_info.err != (ret)) {                                                      \
                 if ((ret) == 0)                                                                    \
                     __wt_session_reset_last_error(s);                                              \
                 else if ((s)->err_info.err == 0)                                                   \
