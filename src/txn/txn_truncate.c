@@ -71,7 +71,6 @@ __wt_insert_truncate_entry(
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *t = NULL;
-    int truncate_ret;
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
@@ -101,33 +100,27 @@ __wt_insert_truncate_entry(
      * max_upd_txn.
      */
     WT_ERR(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
-    truncate_ret = __wt_txn_truncate(session, t);
+    ret = __wt_txn_truncate(session, t);
+
+    if (ret == 0) {
+        __wt_writelock(session, &layered_table->truncate_lock);
+        TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
+        __wt_writeunlock(session, &layered_table->truncate_lock);
+
+        /* Ownership transferred to the txn op list and truncate list. */
+        t = NULL;
+    }
+
     WT_TRET(__wt_session_release_dhandle(session));
-
-    /*
-     * A release failure alone must not skip the insert below: once __wt_txn_truncate succeeds, t is
-     * owned by the txn op list and freeing it via err would leave a dangling pointer.
-     */
-    if (truncate_ret != 0)
-        WT_ERR(truncate_ret);
-
     session->dhandle = (WT_DATA_HANDLE *)layered_table;
-    __wt_writelock(session, &layered_table->truncate_lock);
-    TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
-    __wt_writeunlock(session, &layered_table->truncate_lock);
+    WT_ERR(ret);
 
     if (0) {
 err:
         __disagg_truncate_free(session, &t);
-
-        /*
-         * We only reach the err path with the ingest dhandle already released; reset so the release
-         * below targets the layered dhandle.
-         */
-        session->dhandle = (WT_DATA_HANDLE *)layered_table;
     }
-    WT_TRET(__wt_session_release_dhandle(session));
 
+    WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
 
