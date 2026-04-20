@@ -30,7 +30,7 @@ import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered88.py
+# test_layered94.py
 #
 # Regression tests: when two transactions share an open layered cursor, the "alternate"
 # constituent cursor (the one not selected as current on the previous call, left parked at the
@@ -42,10 +42,10 @@ from wtscenario import make_scenarios
 #  - a new write commits to the ingest table between transactions
 
 @disagg_test_class
-class test_layered88(wttest.WiredTigerTestCase):
-    uri = 'layered:test_layered88'
+class test_layered94(wttest.WiredTigerTestCase):
+    uri = 'layered:test_layered94'
 
-    disagg_storages = gen_disagg_storages('test_layered88', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered94', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):
