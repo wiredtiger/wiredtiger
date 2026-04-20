@@ -32,7 +32,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered_fast_truncate02.py
-#   Validate cursor read-path behaviour over fast-truncated ranges on a
+#   Validate cursor read-path behavior over fast-truncated ranges on a
 #   standby (follower) node: next/prev scans, search_near positioning,
 #   open-ended truncation, multiple truncated ranges, and mixed
 #   update-then-truncate workloads.

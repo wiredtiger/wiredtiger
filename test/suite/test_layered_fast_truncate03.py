@@ -32,7 +32,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered_fast_truncate03.py
-#   Validate cursor::next_random behaviour over fast-truncated ranges on a
+#   Validate cursor::next_random behavior over fast-truncated ranges on a
 #   standby (follower) node.
 @disagg_test_class
 class test_layered_fast_truncate03(wttest.WiredTigerTestCase):

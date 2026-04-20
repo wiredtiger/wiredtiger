@@ -790,9 +790,8 @@ __clayered_leader_reposition_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *sta
             break;
 
         /*
-         * An open-ended truncation (stop_key.size == 0) extends to the end of the table. When
-         * iterating forward there are no more visible stable keys; reset the cursor to clear
-         * WT_CURSTD_KEY_INT and tell the caller nothing is left.
+         * An open-ended truncation means a truncate to the end of the table. When iterating forward
+         * there are no more visible stable keys; reset the cursor to clear WT_CURSTD_KEY_INT.
          */
         if (forward && t->stop_key.size == 0) {
             WT_RET(stable->reset(stable));
@@ -803,9 +802,9 @@ __clayered_leader_reposition_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *sta
         WT_RET(stable->search_near(stable, &cmp));
 
         /*
-         * Advance until the stable cursor is strictly past the truncated boundary. The
-         * boundary keys themselves are inside the range (inclusive), so cmp==0 means we
-         * are still on a deleted key and must step one further.
+         * Advance until the stable cursor is strictly past the truncated boundary. The boundary
+         * keys themselves are inside the range (inclusive), when cmp equals to 0 we are still on a
+         * deleted key, step one position further.
          */
         while (forward ? cmp <= 0 : cmp >= 0) {
             /*
@@ -846,7 +845,7 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
      * list.
      */
     if (S2C(session)->layered_table_manager.leader) {
-        /* 
+        /*
          * On leader mode, the stable cursors will always be positioned on the table. So we can
          * directly reference it here.
          */
@@ -1530,10 +1529,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
                 ret = WT_NOTFOUND;
         }
 
-        /*
-         * Ingest is the source of truth for reads on the follower. Only consult the
-         * truncate list when ingest has no entry for this key.
-         */
+        /* Only consult the truncate list when ingest has no entry for this key. */
         if (!found) {
             WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session,
                                  (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL),
@@ -1703,6 +1699,26 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
         clayered->stable_cursor->set_key(clayered->stable_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
           clayered->stable_cursor->search_near(clayered->stable_cursor, &stable_cmp), true);
+
+        /*
+         * A key that exists in the stable table can be logically deleted by a committed
+         * fast-truncate range. Detect this and advance to the nearest visible key.
+         */
+        if (stable_found &&
+          __wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle,
+            &clayered->stable_cursor->key, NULL) == 0) {
+            WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+            WT_ERR_NOTFOUND_OK(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT), true);
+
+            if (ret == 0)
+                stable_cmp = 1;
+            else {
+                /* Nothing visible forward the truncated range; step backward instead. */
+                WT_ERR_NOTFOUND_OK(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
+                if (ret == 0)
+                    stable_cmp = -1;
+            }
+        }
         stable_found = ret != WT_NOTFOUND;
     }
 
@@ -1778,28 +1794,6 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     /* Get prepared for finalizing the result before fixing up for tombstones. */
     if (closest == clayered->stable_cursor) {
         cmp = stable_cmp;
-        /*
-         * The stable B-tree stores no tombstones, but a key that exists in the stable checkpoint
-         * can be logically deleted by a committed fast-truncate range. Detect this and advance to
-         * the nearest visible key, the same way tombstoned ingest keys are handled below.
-         */
-        if (__wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle, &clayered->stable_cursor->key, NULL) == 0) {
-            WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-            /*
-             * Treat stable as the current cursor so __clayered_iterate advances from stable's
-             * current (truncated) position via the regular path — no NULL overload needed.
-             */
-            clayered->current_cursor = clayered->stable_cursor;
-            if ((ret = __clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT)) == 0) {
-                cmp = 1;
-                goto done;
-            }
-            WT_ERR_NOTFOUND_OK(ret, false);
-            /* Nothing visible above the truncated range; step backward instead. */
-            WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
-            cmp = -1;
-            goto done;
-        }
         goto done;
     }
 
