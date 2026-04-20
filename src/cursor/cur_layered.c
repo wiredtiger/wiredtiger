@@ -759,12 +759,12 @@ err:
 }
 
 /*
- * __clayered_leader_reposition_iterate --
+ * __clayered_reposition_truncate_iterate --
  *     Detect if the stable cursor position has been truncated. If so, position the cursor to
  *     next/prev visible position.
  */
 static int
-__clayered_leader_reposition_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, bool forward)
+__clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, bool forward)
 {
     WT_COLLATOR *collator;
     WT_DECL_RET;
@@ -1009,7 +1009,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward), false);
         /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
         WT_ERR_NOTFOUND_OK(
-          __clayered_leader_reposition_iterate(clayered, c_stable, forward), false);
+          __clayered_reposition_truncate_iterate(clayered, c_stable, forward), false);
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward), false);
         goto done;
     }
@@ -1065,7 +1065,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
             /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
             if (c_alternate == c_stable)
                 WT_ERR_NOTFOUND_OK(
-                  __clayered_leader_reposition_iterate(clayered, c_stable, forward), false);
+                  __clayered_reposition_truncate_iterate(clayered, c_stable, forward), false);
         }
     }
 
@@ -1075,7 +1075,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
         /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
         if (c_current == c_stable)
             WT_ERR_NOTFOUND_OK(
-              __clayered_leader_reposition_iterate(clayered, c_stable, forward), false);
+              __clayered_reposition_truncate_iterate(clayered, c_stable, forward), false);
     }
 
 done:
@@ -1702,19 +1702,27 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
 
         /*
          * A key that exists in the stable table can be logically deleted by a committed
-         * fast-truncate range. Detect this and advance to the nearest visible key.
+         * fast-truncate range. Advance stable forward past any truncated ranges. If forward
+         * exhausts and ingest has no forward match, step backward instead.
          */
-        if (stable_found &&
+        if (ret == 0 &&
           __wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle,
             &clayered->stable_cursor->key, NULL) == 0) {
             WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-            WT_ERR_NOTFOUND_OK(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT), true);
+
+            WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(clayered->stable_cursor, true), true);
+            WT_ERR_NOTFOUND_OK(
+              __clayered_reposition_truncate_iterate(clayered, clayered->stable_cursor, true),
+              true);
 
             if (ret == 0)
                 stable_cmp = 1;
             else {
-                /* Nothing visible forward the truncated range; step backward instead. */
-                WT_ERR_NOTFOUND_OK(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
+                WT_ERR_NOTFOUND_OK(
+                  __clayered_constituent_iter(clayered->stable_cursor, false), true);
+                WT_ERR_NOTFOUND_OK(
+                  __clayered_reposition_truncate_iterate(clayered, clayered->stable_cursor, false),
+                  true);
                 if (ret == 0)
                     stable_cmp = -1;
             }
@@ -1793,6 +1801,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
 
     /* Get prepared for finalizing the result before fixing up for tombstones. */
     if (closest == clayered->stable_cursor) {
+        /* Short cut for stable cursor as it doesn't have any deleted value. */
         cmp = stable_cmp;
         goto done;
     }

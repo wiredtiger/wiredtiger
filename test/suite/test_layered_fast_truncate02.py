@@ -158,6 +158,53 @@ class test_layered_fast_truncate02(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
+    def test_search_near_with_live_ingest_inside_truncate(self):
+        if wiredtiger.disagg_fast_truncate_build() == 0:
+            self.skipTest('fast truncate support is not enabled.')
+
+        # The entire stable table is truncated, leaving only live ingest keys
+        # as candidates for search_near. Test both directions by placing the
+        # single visible ingest key above or below the search key.
+        self.setup_follower()
+        self.truncate_range(0, self.nitems - 1)
+
+        # Scenario 1: ingest 0600 is above search key 0500  forward (exact=1).
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[self.key(600)] = 'ingest-live'
+        self.session.commit_transaction()
+        cursor.close()
+
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor.set_key(self.key(500))
+        exact = cursor.search_near()
+        self.assertEqual(cursor.get_key(), self.key(600),
+            f'forward: expected 0600, got {cursor.get_key()}')
+        self.assertEqual(exact, 1, f'forward: expected exact=1, got {exact}')
+        self.session.rollback_transaction()
+        cursor.close()
+
+        # Scenario 2: remove 0600 and write 0400. Now the only live ingest key
+        # is below 0500  backward (exact=-1).
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor.set_key(self.key(600))
+        cursor.remove()
+        cursor[self.key(400)] = 'ingest-live'
+        self.session.commit_transaction()
+        cursor.close()
+
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor.set_key(self.key(500))
+        exact = cursor.search_near()
+        self.assertEqual(cursor.get_key(), self.key(400),
+            f'backward: expected 0400, got {cursor.get_key()}')
+        self.assertEqual(exact, -1, f'backward: expected exact=-1, got {exact}')
+        self.session.rollback_transaction()
+        cursor.close()
+
     def test_search_near_at_truncate_boundary(self):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest('fast truncate support is not enabled.')
