@@ -1753,6 +1753,20 @@ variables:
           format_args: disagg.mode=leader ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
+  - &format-stress-test-disagg-leader-pull-request
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes.
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader runs.timer=5:10
+          times: 1
+
   - &format-stress-test-disagg-follower
     depends_on:
       - name: compile
@@ -5093,6 +5107,12 @@ tasks:
   - <<: *format-stress-test-disagg-leader-data-validation
     name: format-stress-test-disagg-leader-data-validation-2
     tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-1
+    tags: ["pull_request"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-2
+    tags: ["pull_request"]
 
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-1
@@ -5100,17 +5120,6 @@ tasks:
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-2
     tags: ["stress-test-disagg"]
-
-  - name: format-stress-test-disagg-leader-pull-request
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          # run for 10 minutes.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
