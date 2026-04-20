@@ -1512,7 +1512,6 @@ done:
 err:
     __wt_scr_free(session, &t1);
     __wt_scr_free(session, &t2);
-    __wt_scr_free(session, &t3);
     return (ret);
 }
 
