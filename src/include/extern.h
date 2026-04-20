@@ -1050,7 +1050,7 @@ extern int __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffer
 extern int __wt_set_return_func(WT_SESSION_IMPL *session, const char *func, int line, int err,
   const char *strerr) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size,
-  const uint8_t *addr, size_t addr_size, uint32_t dsk_flags, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size, WT_PAGE_BLOCK_META *block_meta,
   WT_SHARED_DSK_ITEM **shared_dsk_retp, bool *insertedp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_slvg_reconcile_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
@@ -1554,7 +1554,7 @@ extern int __wti_meta_track_insert(WT_SESSION_IMPL *session, const char *key)
 extern int __wti_meta_track_update(WT_SESSION_IMPL *session, const char *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image,
-  uint32_t flags, WT_PAGE **pagep, bool *instantiate_updp, WT_SHARED_DSK_ITEM *shared_dsk_item)
+  uint32_t flags, WT_SHARED_DSK_ITEM *shared_dsk_item, WT_PAGE **pagep, bool *instantiate_updp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

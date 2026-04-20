@@ -1182,7 +1182,7 @@ err:
  */
 int
 __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
-  WT_PAGE **pagep, bool *instantiate_updp, WT_SHARED_DSK_ITEM *shared_dsk_item)
+  WT_SHARED_DSK_ITEM *shared_dsk_item, WT_PAGE **pagep, bool *instantiate_updp)
 {
     WT_CELL_UNPACK_ADDR unpack_addr;
     WT_DECL_RET;
@@ -1262,7 +1262,9 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
      * FIXME-WT-17056: we should not free page->dsk during page out and handover the destruction to
      * shared dsk hash table release function.
      */
-    page->shared_dsk_item = shared_dsk_item;
+    WT_ASSERT(session, shared_dsk_item == NULL || page->disagg_info != NULL);
+    if (page->disagg_info != NULL)
+        page->disagg_info->shared_dsk_item = shared_dsk_item;
 
     /*
      * Track the memory allocated to build this page so we can update the cache statistics in a

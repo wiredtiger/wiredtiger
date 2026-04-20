@@ -89,7 +89,7 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
  */
 int
 __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size,
-  const uint8_t *addr, size_t addr_size, uint32_t dsk_flags, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size, WT_PAGE_BLOCK_META *block_meta,
   WT_SHARED_DSK_ITEM **shared_dsk_retp, bool *insertedp)
 {
     WT_DECL_RET;
@@ -115,7 +115,6 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
     WT_ERR(__wt_calloc(session, 1, sizeof(*shared_dsk_store) + addr_size, &shared_dsk_store));
     shared_dsk_store->data = data;
     shared_dsk_store->data_size = WT_STORE_SIZE(data_size);
-    shared_dsk_store->dsk_flags = dsk_flags;
     shared_dsk_store->block_meta = *block_meta;
     shared_dsk_store->fid = S2BT(session)->id;
     shared_dsk_store->addr_size = (uint8_t)addr_size;
