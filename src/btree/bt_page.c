@@ -1258,6 +1258,10 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, true, &page, flags));
     __wt_tsan_suppress_store_wt_page_header_ptr(&page->dsk, dsk);
     F_SET_ATOMIC_16(page, flags);
+    /*
+     * FIXME-WT-17056: we should not free page->dsk during page out and handover the destruction to
+     * shared dsk hash table release function.
+     */
     page->shared_dsk_item = shared_dsk_item;
 
     /*

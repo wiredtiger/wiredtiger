@@ -223,16 +223,14 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_SHARED_DSK_ITEM *shared_dsk_item;
     size_t count, i;
     uint32_t page_flags;
-    bool instantiate_upd, disk_image_freed, page_change, shared_dsk_inserted,
-      build_full_disk_image_from_deltas;
+    bool instantiate_upd, disk_image_set, page_change, build_full_disk_image_from_deltas;
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
     btree = S2BT(session);
     WT_CLEAR(block_meta);
     tmp = NULL;
     count = 0;
-    disk_image_freed = page_change = shared_dsk_inserted = build_full_disk_image_from_deltas =
-      false;
+    disk_image_set = page_change = build_full_disk_image_from_deltas = false;
     shared_dsk_item = NULL;
     page = NULL;
     WT_CLEAR(new_image);
@@ -329,7 +327,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (shared_dsk_cache->enabled) {
         __wt_shared_dsk_cache_get(session, addr.addr, addr.size, &shared_dsk_item);
         if (shared_dsk_item != NULL) {
-            FLD_SET(page_flags, shared_dsk_item->page_flags);
+            FLD_SET(page_flags, shared_dsk_item->dsk_flags);
             WT_ERR(__wti_page_inmem(session, ref, shared_dsk_item->data, page_flags, &page,
               &instantiate_upd, shared_dsk_item));
             goto skip_disk_read;
@@ -408,6 +406,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     disk_image_buf = build_full_disk_image_from_deltas ? &new_image_copy : &tmp[0];
 
     if (shared_dsk_cache->enabled) {
+        bool shared_dsk_inserted = false;
+
         /* A cache hit takes the skip_disk_read path, so we can't already have an item here. */
         WT_ASSERT(session, shared_dsk_item == NULL);
         /* Disagg should never use mmap, so the image must be an owned allocation. */
@@ -424,14 +424,23 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             disk_image_buf->mem = NULL;
         } else {
             /*
-             * Another thread cached this image concurrently. Drop our redundant local copy and
-             * use the shared image instead, matching the cache-hit path.
+             * Another thread cached this image concurrently. Drop our redundant local copy and use
+             * the shared dsk instead.
              */
             __wt_buf_free(session, disk_image_buf);
-            FLD_SET(page_flags, shared_dsk_item->page_flags);
+            FLD_SET(page_flags, shared_dsk_item->dsk_flags);
+            /*
+             * The collided entry was populated from the same on-disk address, so the stored
+             * block_meta must match our own.
+             */
+            WT_ASSERT(
+              session, memcmp(&shared_dsk_item->block_meta, &block_meta, sizeof(block_meta)) == 0);
         }
         WT_ASSERT(session, shared_dsk_item != NULL);
     }
+
+    WT_ASSERT(
+      session, shared_dsk_cache->enabled ? shared_dsk_item != NULL : shared_dsk_item == NULL);
     WT_ERR(__wti_page_inmem(session, ref,
       shared_dsk_item != NULL ? shared_dsk_item->data : disk_image_buf->data, page_flags, &page,
       &instantiate_upd, shared_dsk_item));
@@ -496,11 +505,11 @@ err:
      * page took ownership of the disk image so we avoid double-freeing it below.
      */
     if (page != NULL) {
-        disk_image_freed = page->dsk != NULL;
+        disk_image_set = page->dsk != NULL;
         __wt_page_modify_clear(session, page);
         __wt_ref_out(session, ref);
     } else if (shared_dsk_item != NULL) {
-        /* The page build failed; release the shared dsk ref we acquired. */
+        /* If the page build failed, then we need release the shared dsk item. */
         __wt_shared_dsk_cache_release(session, shared_dsk_item);
     }
 
@@ -512,7 +521,7 @@ err:
     }
 
     __wt_buf_free(session, &new_image);
-    if (!disk_image_freed)
+    if (!disk_image_set)
         __wt_buf_free(session, &new_image_copy);
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
