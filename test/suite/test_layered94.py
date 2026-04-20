@@ -97,8 +97,8 @@ class test_layered94(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.switch_to_follower()
 
         # Re-insert the same keys that exist in stable, using overwrite=false.  Before
-        # this optimisation the layered cursor would search stable, find the key, and
-        # return WT_DUPLICATE_KEY.  After the optimisation the search is skipped on
+        # this optimization the layered cursor would search stable, find the key, and
+        # return WT_DUPLICATE_KEY.  After the optimization the search is skipped on
         # the follower so the insert succeeds and writes the new value to ingest.
         c = self.session.open_cursor(self.uri, None, 'overwrite=false')
         for i in range(self.nkeys):
@@ -149,8 +149,8 @@ class test_layered94(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.switch_to_follower()
 
         # Update keys that live in stable using a non-overwrite cursor.  Before this
-        # optimisation the layered cursor would search stable to confirm the key exists.
-        # After the optimisation that search is skipped on the follower.
+        # optimization the layered cursor would search stable to confirm the key exists.
+        # After the optimization that search is skipped on the follower.
         c = self.session.open_cursor(self.uri, None, 'overwrite=false')
         for i in range(self.nkeys):
             self.session.begin_transaction()
