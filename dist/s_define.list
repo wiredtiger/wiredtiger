@@ -9,6 +9,7 @@ API_SESSION_INIT
 API_SESSION_POP
 API_SESSION_PUSH
 ATOMIC_CAS
+ATOMIC_CAS_RELAXED
 BUILD_ASSERTION_STRING
 BTREE_ID_SPECIAL_NAMESPACED
 CURSOR_UPDATE_API_END_RETRY
@@ -144,6 +145,7 @@ pg_del_saved_txnid
 __WIREDTIGER_EXT_H_
 __WIREDTIGER_H_
 __WT_INTERNAL_H
+__WT_TRET_WINS
 __wt_atomic_and_generic_relaxed
 __wt_atomic_load_enum_acquire
 __wt_atomic_load_generic_relaxed
