@@ -228,8 +228,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_txn_get_snapshot(session);
                 leaf_bytes += __wt_atomic_load_size_relaxed(&page->memory_footprint);
                 ++leaf_pages;
+                rec_flags = WT_REC_CHECKPOINT;
+                if (F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES))
+                    rec_flags |= WT_REC_CLEAN_SCRUB;
                 reconcile_start = __wt_clock(session);
-                WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
+                WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
                 reconcile_time += __wt_clock(session) - reconcile_start;
             }
         }
@@ -284,6 +287,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         rec_flags = WT_REC_CHECKPOINT;
         if (!is_hs && !WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle))
             rec_flags |= WT_REC_HS;
+        if (F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES))
+            rec_flags |= WT_REC_CLEAN_SCRUB;
 
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
