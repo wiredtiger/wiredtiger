@@ -163,14 +163,15 @@ __wt_layered_table_truncate_detect_write_conflict(
         if (__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
             continue;
 
-        ret = __key_within_truncate_range(
-          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range);
+        WT_ERR(__key_within_truncate_range(
+          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range));
 
-        if ((ret != 0) || is_within_range)
+        if (is_within_range)
             break;
     }
-    __wt_readunlock(session, &layered_table->truncate_lock);
 
+err:
+    __wt_readunlock(session, &layered_table->truncate_lock);
     WT_RET(ret);
 
     if (is_within_range) {
