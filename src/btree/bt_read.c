@@ -436,7 +436,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             WT_ASSERT(
               session, memcmp(&shared_dsk_item->block_meta, &block_meta, sizeof(block_meta)) == 0);
         }
-        WT_ASSERT(session, shared_dsk_item != NULL);
     }
 
     WT_ASSERT(
