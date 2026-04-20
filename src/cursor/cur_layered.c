@@ -832,6 +832,9 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
 
+    /* The start cursor should not be NULL at this point. */
+    WT_ASSERT(session, clayered_start != NULL);
+
     /*
      * On leader mode, we can directly perform truncate operation on the stable table. On follower
      * mode, we need to perform truncate on the ingest table and add an entry inside the truncate
@@ -850,12 +853,16 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
          * if the layered cursor was positioned via next/prev, or if search_near on an empty ingest
          * table reset the cursor position.
          */
-        clayered_start->ingest_cursor->set_key(
-          clayered_start->ingest_cursor, trunc_info->orig_start_key);
-        trunc_info->start = clayered_start->ingest_cursor;
+
+        trunc_info->start = NULL;
+        if (trunc_info->orig_start_key != NULL) {
+            clayered_start->ingest_cursor->set_key(
+              clayered_start->ingest_cursor, trunc_info->orig_start_key);
+            trunc_info->start = clayered_start->ingest_cursor;
+        }
 
         trunc_info->stop = NULL;
-        if (clayered_stop != NULL) {
+        if ((clayered_stop != NULL) && (trunc_info->orig_stop_key != NULL)) {
             clayered_stop->ingest_cursor->set_key(
               clayered_stop->ingest_cursor, trunc_info->orig_stop_key);
             trunc_info->stop = clayered_stop->ingest_cursor;
