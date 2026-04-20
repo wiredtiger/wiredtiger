@@ -50,6 +50,11 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(disagg_storages, uris)
 
+    def setUp(self):
+        if wiredtiger.disagg_fast_truncate_build() == 0:
+            self.skipTest("fast truncate support is not enabled")
+        super().setUp()
+
     # Total number of keys inserted. String keys are zero-padded to four
     # digits so that lexicographic order matches numeric order.
     nitems = 1000
@@ -153,18 +158,12 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_cursor_scan_skips_truncated_range(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Forward and backward scans must skip every key in the truncated range.
         self.setup_follower()
         self.truncate_range(100, 700)
         self.assert_scan([self.key(i) for i in range(self.nitems) if i < 100 or i > 700])
 
     def test_search_near_inside_truncated_range(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # search_near for a key deep inside a truncated range must land outside
         # the range and must not report an exact match.
         self.setup_follower()
@@ -176,9 +175,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         self.assertNotEqual(exact, 0, 'exact=0 reported for a key in the truncated range')
 
     def test_search_near_with_live_ingest_inside_truncate(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # The entire stable table is truncated, leaving only live ingest keys
         # as candidates for search_near. Test both directions by placing the
         # single visible ingest key above or below the search key.
@@ -202,9 +198,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         self.assertEqual(self.search_near(500), (-1, self.key(400)), 'backward scenario')
 
     def test_search_near_at_truncate_boundary(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # The start and stop keys of the range are inclusive, so search_near at
         # either boundary must land strictly outside the range.
         self.setup_follower()
@@ -216,18 +209,12 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
                 f'boundary {self.key(boundary)} landed inside range at {landed}')
 
     def test_truncate_to_end_of_table(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Open-ended truncate from key 500; only 0-499 remain visible.
         self.setup_follower()
         self.truncate_range(500, None)
         self.assert_scan([self.key(i) for i in range(500)])
 
     def test_multiple_truncate_ranges(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Two disjoint bounded ranges; scans must skip both.
         self.setup_follower()
         self.truncate_range(100, 300)
@@ -236,9 +223,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
                           if not (100 <= i <= 300) and not (600 <= i <= 800)])
 
     def test_mixed_bounded_and_open_ended_truncates(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Bounded [100, 300] combined with open-ended [600, end]; 0-99 and 301-599 visible.
         self.setup_follower()
         self.truncate_range(100, 300)
@@ -247,9 +231,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
                           if i < 100 or (301 <= i <= 599)])
 
     def test_open_ended_truncate_then_append_then_bounded_to_new_end(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Open-ended truncate captures a snapshot of "end" at commit time. Keys
         # appended afterwards are new data and must remain visible.
         self.setup_follower()
@@ -265,9 +246,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
     # start key is absent from ingest.
     @unittest.skip("FIXME-WT-17133")
     def test_mixed_truncate_and_update(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Update 200-400 on follower (lands as live committed values in ingest),
         # then truncate a range that covers them. Scans and search must hide them.
         self.setup_follower()
@@ -280,9 +258,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
             'search must hide an updated-then-truncated key')
 
     def test_search_returns_not_found_in_truncated_range(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # search() goes through a different read path than scans and search_near;
         # both boundaries and interior keys must return WT_NOTFOUND.
         self.setup_follower()
@@ -296,9 +271,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
                 f'search({self.key(k)}) outside range must succeed')
 
     def test_search_near_direction_in_truncated_range(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # search_near for a key inside a truncated range tries forward first and
         # falls back to backward if forward exhausts.
         self.setup_follower()
@@ -312,9 +284,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         self.assertEqual(self.search_near(900), (-1, self.key(799)), 'backward scenario')
 
     def test_overlapping_truncated_ranges_scan(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Two overlapping ranges [100, 400] and [300, 700]: scans must skip the
         # full union [100, 700], not just one range at a time.
         self.setup_follower()
@@ -324,9 +293,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
                           if i < 100 or i > 700])
 
     def test_entire_table_truncated(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Truncate every key; both scans must be empty.
         self.setup_follower()
         self.truncate_range(0, self.nitems - 1)

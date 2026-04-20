@@ -48,6 +48,11 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(disagg_storages, uris)
 
+    def setUp(self):
+        if wiredtiger.disagg_fast_truncate_build() == 0:
+            self.skipTest("fast truncate support is not enabled")
+        super().setUp()
+
     # Total number of keys inserted. String keys are zero-padded to four
     # digits so that lexicographic order matches numeric order.
     nitems = 1000
@@ -115,9 +120,6 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_random_cursor_skips_truncated_range(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # 200 random samples must all land outside the truncated range.
         self.setup_follower()
         self.truncate_range(100, 700)
@@ -126,9 +128,6 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
     # FIXME-WT-17133: random cursor inherits the same ingest-truncate gap.
     @unittest.skip("FIXME-WT-17133")
     def test_random_cursor_skips_truncated_range_with_live_ingest(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest('fast truncate support is not enabled.')
-
         # Update 200-400 on follower so those keys are live in ingest, then
         # truncate a range covering them. No random sample should leak.
         self.setup_follower()
