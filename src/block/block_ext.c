@@ -1459,7 +1459,6 @@ __block_extlist_dump_buckets(
 {
     WT_DECL_ITEM(t1);
     WT_DECL_ITEM(t2);
-    WT_DECL_ITEM(t3);
     WT_DECL_RET;
     WT_EXT *ext;
     WT_VERBOSE_LEVEL level;
@@ -1504,14 +1503,10 @@ __block_extlist_dump_buckets(
     __wt_verbose_level(session, WT_VERB_BLOCK, level, "%s", (char *)t1->data);
 
     /* Print each extent with its offset and size. */
-    WT_ERR(__wt_scr_alloc(session, 0, &t3));
     i = 0;
-    WT_EXT_FOREACH (ext, el->off) {
-        ++i;
-        WT_ERR(__wt_buf_catfmt(session, t3, "%s%" PRIu32 ":   %" PRIdMAX ", %" PRIdMAX,
-          i == 1 ? "extent lists:\n" : "\n", i, (intmax_t)ext->off, (intmax_t)ext->size));
-    }
-    __wt_verbose_level(session, WT_VERB_BLOCK, level, "%s", (char *)t3->data);
+    WT_EXT_FOREACH (ext, el->off)
+        __wt_verbose_level(session, WT_VERB_BLOCK, level, "%" PRIu32 ":   %" PRIdMAX ", %" PRIdMAX,
+          ++i, (intmax_t)ext->off, (intmax_t)ext->size);
 
 done:
 err:
