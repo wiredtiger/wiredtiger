@@ -588,8 +588,10 @@ struct __wt_connection_stats {
     int64_t eviction_bucket_wont_need_clean_leaf_items;
     int64_t eviction_bucket_wont_need_dirty_leaf_items;
     int64_t eviction_bucket_wont_need_internal_items;
-    int64_t eviction_get_ref_empty;
+    int64_t eviction_get_ref_empty_app;
+    int64_t eviction_get_ref_empty_worker;
     int64_t eviction_get_ref_success;
+    int64_t eviction_get_ref_iterations;
     int64_t eviction_aggressive_set;
     int64_t cache_eviction_blocked_no_progress;
     int64_t eviction_reconcile_cannot_evict;
@@ -652,7 +654,6 @@ struct __wt_connection_stats {
     int64_t eviction_threshold_dirty_trigger;
     int64_t eviction_threshold_updates_target;
     int64_t eviction_threshold_updates_trigger;
-    int64_t eviction_get_ref_iterations;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
     int64_t cache_eviction_pages_queued_dirty;

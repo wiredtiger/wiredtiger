@@ -916,8 +916,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
                 /*
                  * Back off if we aren't making progress.
                  */
-                WT_STAT_CONN_INCR(session, eviction_server_slept);
-                __wt_cond_wait(session, evict->evict_server_cond, WT_THOUSAND, NULL);
+                //WT_STAT_CONN_INCR(session, eviction_server_slept);
+                //__wt_cond_wait(session, evict->evict_server_cond, WT_THOUSAND, NULL);
                 continue;
             }
             WT_STAT_CONN_INCR(session, eviction_slow);
@@ -1172,8 +1172,11 @@ __evict_get_ref(
     if (min_level == 0 && max_level == 0)
         WT_ASSERT(session, 0);
 
-    if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+    /* Application threads evict only clean pages */
+    if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
+        max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+    }
 #if 0
     /*
      * We iterate over bucket sets in eviction priority order from highest to lowest is:
@@ -1278,9 +1281,9 @@ __evict_get_ref(
             continue;
 
         num_buckets = bucketset->num_buckets;
-        for (j = __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered) % num_buckets,
-            iter = 0;
-             iter++ < num_buckets; j = (j + 1) % num_buckets, total_iter++) {
+        //for (j = __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered) % num_buckets,
+        for (j = __wt_random(&session->rnd_random) % num_buckets,
+                 iter = 0; iter++ < num_buckets; j = (j + 1) % num_buckets, total_iter++) {
 
             if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
                 break;
@@ -1291,8 +1294,8 @@ __evict_get_ref(
                 WT_STAT_CONN_INCR(session, eviction_skip_page_locked_bucket);
                 continue;
             }
-            if (iter > 0)
-                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+//            if (iter > 0)
+//                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 
             if (TAILQ_EMPTY(&bucket->evict_queue))
                 WT_STAT_CONN_INCR(session, eviction_skip_empty_bucket);
@@ -1423,9 +1426,12 @@ done:
               __wt_cache_pages_inuse(cache), __wt_cache_bytes_image(cache));
         }
 #endif
-    } else
-        WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
-
+    } else {
+        if (F_ISSET(session,  WT_SESSION_INTERNAL))
+            WT_STAT_CONN_INCR(session, eviction_get_ref_empty_worker);
+        else
+            WT_STAT_CONN_INCR(session, eviction_get_ref_empty_app);
+    }
     if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_release_snapshot(session);
 
@@ -2001,6 +2007,7 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int level)
     page = ref->page;
     modified = __wt_page_is_modified(page);
 
+#if 0
     if (page->evict_data.evict_skip) {
         /*
          * We are skipping the page, because we recently skipped it and the skip flag was set.
@@ -2010,6 +2017,7 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int level)
         WT_STAT_CONN_INCR(session, eviction_skip_page_again);
         return true;
     }
+#endif
 
     /*
      * Don't attempt eviction of internal pages with children in cache.

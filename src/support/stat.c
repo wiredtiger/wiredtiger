@@ -1967,8 +1967,10 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction bucket items won't need clean leaf",
   "cache: eviction bucket items won't need dirty leaf",
   "cache: eviction bucket items won't need internal",
-  "cache: eviction calls to get a page could not find a page",
+  "cache: eviction calls by application to get a page could not find a page",
+  "cache: eviction calls by worker to get a page could not find a page",
   "cache: eviction calls to get a page found a page",
+  "cache: eviction calls total iterations when looking for a page to evict",
   "cache: eviction currently operating in aggressive mode",
   "cache: eviction did not make progress, because it did not use updates or split/delete page in "
   "reconciliation",
@@ -2041,7 +2043,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction threshold dirty trigger multiplied by 100 for precision",
   "cache: eviction threshold updates target multiplied by 100 for precision",
   "cache: eviction threshold updates trigger multiplied by 100 for precision",
-  "cache: eviction total iterations when looking for a page to evict",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
   "cache: eviction walk pages queued that were dirty",
@@ -3053,8 +3054,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_bucket_wont_need_clean_leaf_items = 0;
     stats->eviction_bucket_wont_need_dirty_leaf_items = 0;
     stats->eviction_bucket_wont_need_internal_items = 0;
-    stats->eviction_get_ref_empty = 0;
+    stats->eviction_get_ref_empty_app = 0;
+    stats->eviction_get_ref_empty_worker = 0;
     stats->eviction_get_ref_success = 0;
+    stats->eviction_get_ref_iterations = 0;
     /* not clearing eviction_aggressive_set */
     stats->cache_eviction_blocked_no_progress = 0;
     stats->eviction_reconcile_cannot_evict = 0;
@@ -3117,7 +3120,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_threshold_dirty_trigger = 0;
     stats->eviction_threshold_updates_target = 0;
     stats->eviction_threshold_updates_trigger = 0;
-    stats->eviction_get_ref_iterations = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
     stats->cache_eviction_pages_queued_dirty = 0;
@@ -4137,8 +4139,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_bucket_wont_need_dirty_leaf_items);
     to->eviction_bucket_wont_need_internal_items +=
       WT_STAT_CONN_READ(from, eviction_bucket_wont_need_internal_items);
-    to->eviction_get_ref_empty += WT_STAT_CONN_READ(from, eviction_get_ref_empty);
+    to->eviction_get_ref_empty_app += WT_STAT_CONN_READ(from, eviction_get_ref_empty_app);
+    to->eviction_get_ref_empty_worker += WT_STAT_CONN_READ(from, eviction_get_ref_empty_worker);
     to->eviction_get_ref_success += WT_STAT_CONN_READ(from, eviction_get_ref_success);
+    to->eviction_get_ref_iterations += WT_STAT_CONN_READ(from, eviction_get_ref_iterations);
     to->eviction_aggressive_set += WT_STAT_CONN_READ(from, eviction_aggressive_set);
     to->cache_eviction_blocked_no_progress +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_no_progress);
@@ -4244,7 +4248,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_threshold_updates_target);
     to->eviction_threshold_updates_trigger +=
       WT_STAT_CONN_READ(from, eviction_threshold_updates_trigger);
-    to->eviction_get_ref_iterations += WT_STAT_CONN_READ(from, eviction_get_ref_iterations);
     to->cache_eviction_pages_queued_updates +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_updates);
     to->cache_eviction_pages_queued_clean +=

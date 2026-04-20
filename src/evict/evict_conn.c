@@ -341,15 +341,23 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_spin_init(session, &conn->evict->evict_housekeeping_lock, "evict-housekeeping"));
 
     /*
-     * Allocate the eviction buckets.
+     * Determine the number of buckets. We want to size them in proportion to the cache size.
+     * If we have too many buckets for a small cache, we end up wasting up looking through
+     * empty buckets. If we have too few buckets for a large cache, we will compete for locks
+     * protecting the buckets.
      *
-     * Lower numbered bucket sets have a higher eviction priority.
+     */
+    
+    /*
+     * Allocate the eviction buckets.
      */
     for (i = 0; i < WT_EVICT_LEVELS; i++) {
         bucketset = &evict->evict_bucketset[i];
         bucketset->level = i;
 
         bucketset->num_buckets = evict->evict_num_buckets;
+
+        bucketset->num_buckets = 23;
 
         printf("allocating %d buckets at level %d \n", (int)bucketset->num_buckets, i);
 
