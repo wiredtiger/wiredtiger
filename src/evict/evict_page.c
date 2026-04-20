@@ -1182,6 +1182,14 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
                 ref->page->read_gen > __evict_read_gen(session))) {
                 LF_SET(WT_REC_SCRUB);
             }
+
+            /*
+             * Signal that disk images should be saved for later clean-scrub eviction when we are
+             * under updates pressure, so that clean pages can be re-instantiated without a disk
+             * read to reclaim their in-memory update content.
+             */
+            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
+                LF_SET(WT_REC_CLEAN_SCRUB);
         }
     }
 

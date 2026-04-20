@@ -2370,6 +2370,10 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     page = r->page;
 
+    /* Only save images when eviction is actively reclaiming updates content. */
+    if (!F_ISSET(r, WT_REC_CLEAN_SCRUB))
+        return (false);
+
     /* Only leaf pages accumulate updates worth scrubbing. */
     if (WT_PAGE_IS_INTERNAL(page))
         return (false);
