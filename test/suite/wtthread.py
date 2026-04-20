@@ -63,7 +63,7 @@ class checkpoint_thread(Thread):
             # Infinite checkpoints: run until signalled.
             self._max_count = 0
 
-        super().__init__(self)
+        super().__init__(**kwargs)
 
     def reached_max_count(self):
         return self._max_count > 0 and self.checkpoint_count >= self._max_count
@@ -85,7 +85,7 @@ class named_checkpoint_thread(Thread):
         self.done = done
         # Get the current test case object via the calling thread of execution.
         self.ckpt_name = ckpt_name
-        super().__init__(self)
+        super().__init__()
 
     def run(self):
         # Save the current test case object in thread local storage.
@@ -103,7 +103,7 @@ class flush_checkpoint_thread(Thread):
         self.done = done
         # Get the current test case object via the calling thread of execution.
         self.flush_probability = prob
-        super().__init__(self)
+        super().__init__()
 
     def run(self):
         # Save the current test case object in thread local storage.
@@ -124,7 +124,7 @@ class backup_thread(Thread):
         self.conn = conn
         self.done = done
         # Get the current test case object via the calling thread of execution.
-        super().__init__(self)
+        super().__init__()
 
     def run(self):
         # Save the current test case object in thread local storage.
@@ -187,7 +187,7 @@ class op_thread(Thread):
         self.work_queue = work_queue
         self.done = done
         # Get the current test case object via the calling thread of execution.
-        super().__init__(self)
+        super().__init__()
 
     def run(self):
         # Save the current test case object in thread local storage.
