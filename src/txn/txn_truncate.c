@@ -61,6 +61,35 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 }
 
 /*
+ * __txn_truncate_on_ingest --
+ *     Register a truncate entry to the latest transaction and store it in the truncate list.
+ */
+static int
+__txn_truncate_on_ingest(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE **tp)
+{
+    WT_DECL_RET;
+    WT_TRUNCATE *t;
+
+    t = *tp;
+
+    WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
+    WT_TRET(__wt_txn_truncate(session, t));
+
+    if (ret == 0) {
+        __wt_writelock(session, &layered_table->truncate_lock);
+        TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
+        __wt_writeunlock(session, &layered_table->truncate_lock);
+
+        /* Ownership transferred to the txn op and truncate queue. */
+        *tp = NULL;
+    }
+
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
  * __wt_insert_truncate_entry --
  *     Insert a truncate entry into the layered dhandle truncate list.
  */
@@ -99,38 +128,22 @@ __wt_insert_truncate_entry(
      * Mark the WT_TRUNCATE object modified by the current transaction. Also required to update the
      * max_upd_txn.
      */
-    WT_ERR(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
-    ret = __wt_txn_truncate(session, t);
-
-    if (ret == 0) {
-        __wt_writelock(session, &layered_table->truncate_lock);
-        TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
-        __wt_writeunlock(session, &layered_table->truncate_lock);
-
-        /* Ownership transferred to the txn op list and truncate list. */
-        t = NULL;
-    }
-
-    WT_TRET(__wt_session_release_dhandle(session));
-    session->dhandle = (WT_DATA_HANDLE *)layered_table;
+    WT_SAVE_DHANDLE(session, ret = __txn_truncate_on_ingest(session, layered_table, &t));
     WT_ERR(ret);
 
-    if (0) {
 err:
-        __disagg_truncate_free(session, &t);
-    }
-
     WT_TRET(__wt_session_release_dhandle(session));
+    __disagg_truncate_free(session, &t);
     return (ret);
 }
 
 /*
  * __wt_layered_table_truncate_detect_write_conflict --
- *     Search if the current key we are modifying conflicts with any uncommitted truncates in the
- *     layered table truncate list.
+ *     Search if the current key we are modifying conflicts with any uncommitted truncates
+ * in the layered table truncate list.
  *
- * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing so
- *     would remove the write cursor operations dependency on the truncate list.
+ * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer.
+ * Doing so would remove the write cursor operations dependency on the truncate list.
  */
 int
 __wt_layered_table_truncate_detect_write_conflict(
@@ -152,8 +165,8 @@ __wt_layered_table_truncate_detect_write_conflict(
     __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         /*
-         * The truncate entry has already been committed if it is visible to this transaction. We
-         * can ignore these entries.
+         * The truncate entry has already been committed if it is visible to this
+         * transaction. We can ignore these entries.
          */
         if (__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
             continue;
@@ -203,8 +216,8 @@ __wt_truncate_delete_visible_check(
     __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         /*
-         * Ignore all truncate entries that haven't been committed. They won't be visible to this
-         * transaction.
+         * Ignore all truncate entries that haven't been committed. They won't be visible to
+         * this transaction.
          */
         if (!__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
             continue;
@@ -229,7 +242,8 @@ err:
 
 /*
  * __wti_mark_committed_truncate_table --
- *     Mark a truncate table entry as committed, updating truncate entries timestamp information.
+ *     Mark a truncate table entry as committed, updating truncate entries timestamp
+ * information.
  */
 int
 __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
@@ -247,8 +261,8 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
      *
-     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
-     * dhandle list, if there are entries in the truncate list.
+     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from
+     * the dhandle list, if there are entries in the truncate list.
      */
     WT_ASSERT(session, __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
@@ -265,8 +279,8 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
 /*
  * __wti_layered_table_truncate_rollback --
- *     Perform transaction rollback for a truncate operation, removing the truncate entry from the
- *     layered table truncate list.
+ *     Perform transaction rollback for a truncate operation, removing the truncate entry
+ * from the layered table truncate list.
  */
 int
 __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
@@ -284,8 +298,8 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
      *
-     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
-     * dhandle list, if there are entries in the truncate list.
+     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from
+     * the dhandle list, if there are entries in the truncate list.
      */
     WT_ASSERT(session, __wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
