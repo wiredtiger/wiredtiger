@@ -77,13 +77,13 @@ __checkpoint_parallel_pop_work(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
     conn = S2C(session);
     ckpt_threads = conn->ckpt_reconcile_threads;
 
-    /* FIXME-WT-16480: Do we need this? If so rename it. */
-    if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->work_qh))
+    /* Optimization: Check if the work queue is empty without acquiring the lock. */
+    if (WT_TAILQ_EMPTY_RELAXED(&ckpt_threads->work_qh))
         return;
 
     __wt_spin_lock(session, &ckpt_threads->work_lock);
 
-    /* Recheck again to confirm whether the queue is empty or not? */
+    /* Recheck again to confirm whether the queue is empty or not. */
     if (TAILQ_EMPTY(&ckpt_threads->work_qh)) {
         __wt_spin_unlock(session, &ckpt_threads->work_lock);
         return;
@@ -170,13 +170,13 @@ __checkpoint_parallel_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
     conn = S2C(session);
     ckpt_threads = conn->ckpt_reconcile_threads;
 
-    /* FIXME-WT-16480: Do we need this? If so rename it. */
-    if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->done_qh))
+    /* Optimization: Check if the done queue is empty without acquiring the lock. */
+    if (WT_TAILQ_EMPTY_RELAXED(&ckpt_threads->done_qh))
         return;
 
     __wt_spin_lock(session, &ckpt_threads->done_lock);
 
-    /* Recheck again to confirm whether the queue is empty or not? */
+    /* Recheck again to confirm whether the queue is empty or not. */
     if (TAILQ_EMPTY(&ckpt_threads->done_qh)) {
         __wt_spin_unlock(session, &ckpt_threads->done_lock);
         return;

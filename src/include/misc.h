@@ -412,11 +412,10 @@ union __wt_rand_state {
 };
 
 /*
- * WT_TAILQ_EMPTY_TSAN_SUPPRESS --
- *	Check if the queue is empty, suppressing TSAN warnings.
+ * WT_TAILQ_EMPTY_RELAXED --
+ *	Check if the queue is empty without synchronization.
  */
-#define WT_TAILQ_EMPTY_TSAN_SUPPRESS(head) \
-    (__wt_tsan_suppress_load_pointer((void **)&(head)->tqh_first) == NULL)
+#define WT_TAILQ_EMPTY_RELAXED(head) (__wt_atomic_load_ptr_relaxed(&(head)->tqh_first) == NULL)
 
 /*
  * WT_TAILQ_SAFE_REMOVE_BEGIN/END --
