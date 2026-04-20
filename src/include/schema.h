@@ -209,58 +209,6 @@ struct __wt_import_list {
     } while (0)
 
 /*
- * WT_WITH_READ_LOCK_WAIT --
- *     Wait for a read lock, perform an operation, drop the lock.
- */
-#define WT_WITH_READ_LOCK_WAIT(session, lock, flag, op) \
-    do {                                                \
-        if (FLD_ISSET(session->lock_flags, (flag))) {   \
-            op;                                         \
-        } else {                                        \
-            __wt_readlock(session, lock);               \
-            FLD_SET(session->lock_flags, (flag));       \
-            op;                                         \
-            FLD_CLR(session->lock_flags, (flag));       \
-            __wt_readunlock(session, lock);             \
-        }                                               \
-    } while (0)
-
-/*
- * WT_WITH_WRITE_LOCK_WAIT --
- *     Wait for a write lock, perform an operation, drop the lock.
- */
-#define WT_WITH_WRITE_LOCK_WAIT(session, lock, flag, op) \
-    do {                                                 \
-        if (FLD_ISSET(session->lock_flags, (flag))) {    \
-            op;                                          \
-        } else {                                         \
-            __wt_writelock(session, lock);               \
-            FLD_SET(session->lock_flags, (flag));        \
-            op;                                          \
-            FLD_CLR(session->lock_flags, (flag));        \
-            __wt_writeunlock(session, lock);             \
-        }                                                \
-    } while (0)
-
-/*
- * WT_WITH_WRITE_LOCK_NOWAIT --
- *     Acquire a lock if available, perform an operation, drop the lock.
- */
-#define WT_WITH_WRITE_LOCK_NOWAIT(session, ret, lock_ret, lock, flag, op)   \
-    do {                                                                    \
-        (ret) = 0;                                                          \
-        (lock_ret) = 0;                                                     \
-        if (FLD_ISSET(session->lock_flags, (flag))) {                       \
-            op;                                                             \
-        } else if (((lock_ret) = __wt_try_writelock(session, lock)) == 0) { \
-            FLD_SET(session->lock_flags, (flag));                           \
-            op;                                                             \
-            FLD_CLR(session->lock_flags, (flag));                           \
-            __wt_writeunlock(session, lock);                                \
-        }                                                                   \
-    } while (0)
-
-/*
  * WT_WITH_CHECKPOINT_LOCK, WT_WITH_CHECKPOINT_LOCK_NOWAIT --
  *	Acquire the checkpoint lock, perform an operation, drop the lock.
  */
@@ -339,66 +287,63 @@ struct __wt_import_list {
  *	Check that we are not already holding some other lock: the schema lock
  *	must be taken first.
  */
-#define WT_WITH_SCHEMA_READ_LOCK(session, op)                                               \
-    do {                                                                                    \
+#define WT_WITH_SCHEMA_READ_LOCK(session, op)                                           \
+    do {                                                                                \
         /* Don't assert we don't hold the write lock. Write lock implies read is OK. */ \
-        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {                    \
-            /*fprintf(stderr, "already have schema read lock\n"); */\
-            op;                                                                             \
-        } else {                                                                            \
-            WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK | WT_SESSION_LOCKED_TABLE)); \
-            /*fprintf(stderr, "taking schema read lock\n");*/ \
-            __wt_readlock(session, &S2C(session)->schema_lock);               \
-            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);       \
-            op;                                         \
-            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);       \
-            __wt_readunlock(session, &S2C(session)->schema_lock);             \
-        }                                                                                   \
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {                 \
+            op;                                                                         \
+        } else {                                                                        \
+            WT_ASSERT(session,                                                          \
+              !FLD_ISSET(session->lock_flags,                                           \
+                WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |             \
+                  WT_SESSION_LOCKED_TABLE));                                            \
+            __wt_readlock(session, &S2C(session)->schema_lock);                         \
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);                \
+            op;                                                                         \
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);                \
+            __wt_readunlock(session, &S2C(session)->schema_lock);                       \
+        }                                                                               \
     } while (0)
-#define WT_WITH_SCHEMA_WRITE_LOCK(session, op)                                              \
-    do {                                                                                    \
-        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE)) {                    \
-            /*fprintf(stderr, "already have schema write lock\n");*/ \
-            op;                                                                             \
-        } else {                                                                            \
+#define WT_WITH_SCHEMA_WRITE_LOCK(session, op)                                                  \
+    do {                                                                                        \
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE)) {                   \
+            op;                                                                                 \
+        } else {                                                                                \
             WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ)); \
-            /*fprintf(stderr, "taking schema write lock\n");*/ \
-            __wt_writelock(session, &S2C(session)->schema_lock);               \
-            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);       \
-            op;                                         \
-            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);       \
-            __wt_writeunlock(session, &S2C(session)->schema_lock);             \
-        }                                                                                   \
+            __wt_writelock(session, &S2C(session)->schema_lock);                                \
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);                       \
+            op;                                                                                 \
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);                       \
+            __wt_writeunlock(session, &S2C(session)->schema_lock);                              \
+        }                                                                                       \
     } while (0)
-#define WT_WITH_SCHEMA_WRITE_LOCK_NOWAIT(session, ret, op)                                     \
-    do {                                                                                       \
-        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ));    \
-        WT_ASSERT(session,                                                                     \
-          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE) ||                    \
-            !FLD_ISSET(session->lock_flags,                                                    \
-              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                      \
-                WT_SESSION_LOCKED_TABLE));                                                     \
-        int __schema_lock_ret = 0;                                                                 \
-        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE)) {                       \
-            /*fprintf(stderr, "already have schema write lock\n");*/ \
-            op;                                                                                    \
-        } else if ((__schema_lock_ret = __wt_try_writelock(session, &S2C(session)->schema_lock)) ==  \
-          0) {                                                                                     \
-            /*fprintf(stderr, "took schema write lock\n");*/ \
-            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);                           \
-            op;                                                                                    \
-            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);                           \
-            __wt_writeunlock(session, &S2C(session)->schema_lock);                                  \
-        }                                                                                          \
-        if (__schema_lock_ret != 0) {                                                          \
-            if (__schema_lock_ret == EBUSY)                                                    \
-                __wt_session_set_last_error(session, EBUSY, WT_CONFLICT_SCHEMA_LOCK,           \
-                  "another thread is currently holding the schema lock");                      \
-            else                                                                               \
-                __wt_session_set_last_error(                                                   \
-                  session, __schema_lock_ret, WT_NONE, "failed to acquire the schema lock");   \
-            ret = __schema_lock_ret;                                                           \
-        }                                                                                      \
+#define WT_WITH_SCHEMA_WRITE_LOCK_NOWAIT(session, ret, op)                                   \
+    do {                                                                                     \
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ));  \
+        WT_ASSERT(session,                                                                   \
+          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE) ||                  \
+            !FLD_ISSET(session->lock_flags,                                                  \
+              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                    \
+                WT_SESSION_LOCKED_TABLE));                                                   \
+        int __schema_lock_ret = 0;                                                           \
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE)) {                \
+            op;                                                                              \
+        } else if ((__schema_lock_ret =                                                      \
+                       __wt_try_writelock(session, &S2C(session)->schema_lock)) == 0) {      \
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);                    \
+            op;                                                                              \
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE);                    \
+            __wt_writeunlock(session, &S2C(session)->schema_lock);                           \
+        }                                                                                    \
+        if (__schema_lock_ret != 0) {                                                        \
+            if (__schema_lock_ret == EBUSY)                                                  \
+                __wt_session_set_last_error(session, EBUSY, WT_CONFLICT_SCHEMA_LOCK,         \
+                  "another thread is currently holding the schema lock");                    \
+            else                                                                             \
+                __wt_session_set_last_error(                                                 \
+                  session, __schema_lock_ret, WT_NONE, "failed to acquire the schema lock"); \
+            ret = __schema_lock_ret;                                                         \
+        }                                                                                    \
     } while (0)
 
 /*

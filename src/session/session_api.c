@@ -1453,8 +1453,8 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
      * Hold the schema lock across both salvage and rollback-to-stable to avoid races where another
      * thread opens the handle before rollback-to-stable completes.
      */
-    WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __session_salvage_worker(session, uri, cfg)));
+    WT_WITH_CHECKPOINT_LOCK(session,
+      WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __session_salvage_worker(session, uri, cfg)));
 
 err:
     if (ret != 0)
@@ -1747,8 +1747,8 @@ __session_truncate(
         else
             /* Wait for checkpoints to avoid EBUSY errors. */
             /* Is WRITE LOCK correct here? TODO */
-            WT_WITH_CHECKPOINT_LOCK(
-              session, WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
+            WT_WITH_CHECKPOINT_LOCK(session,
+              WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
     } else
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 

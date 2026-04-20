@@ -135,7 +135,8 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
-    WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __layered_create_missing_stable_tables_helper(session));
+    WT_WITH_SCHEMA_WRITE_LOCK(
+      session, ret = __layered_create_missing_stable_tables_helper(session));
     return (ret);
 }
 
@@ -1013,7 +1014,8 @@ __wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *
     conn = S2C(session);
     *drop_sizep = 0;
 
-    __wt_assert_schema_read_lock_owned(session); /* TODO probably doesn't care about read v write. */
+    __wt_assert_schema_read_lock_owned(
+      session); /* TODO probably doesn't care about read v write. */
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
