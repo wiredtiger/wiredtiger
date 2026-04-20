@@ -1746,9 +1746,8 @@ __session_truncate(
             WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
         else
             /* Wait for checkpoints to avoid EBUSY errors. */
-            /* Is WRITE LOCK correct here? TODO */
             WT_WITH_CHECKPOINT_LOCK(session,
-              WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
+              WT_WITH_SCHEMA_READ_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
     } else
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 

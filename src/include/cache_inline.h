@@ -310,7 +310,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 
     /*
      * Don't block to perform slow operations for sessions that set the "ignore cache size" flag, or
-     * when holding the schema write lock. SCHEMA 2 is the placeholder for combined read or write.
+     * when holding the schema write lock.
      */
     return (!(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ||
       FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)));

@@ -332,7 +332,7 @@ __wt_session_release_dhandle_v2(WT_SESSION_IMPL *session, bool check_visibility)
           session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !F_ISSET(dhandle, WT_DHANDLE_DISCARD));
         /*
          * Acquire the schema lock while closing out the handles. This avoids racing with a
-         * checkpoint while it gathers a set of handles. TODO read lock ok here??
+         * checkpoint while it gathers a set of handles.
          */
         WT_WITH_SCHEMA_READ_LOCK(
           session, ret = __wt_conn_dhandle_close(session, false, false, check_visibility));

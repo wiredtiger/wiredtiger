@@ -127,7 +127,7 @@ __wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[
     const char *tablename;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    __wt_assert_schema_write_lock_owned(session);
+    __wt_assert_schema_read_lock_owned(session);
 
     tablename = uri;
 

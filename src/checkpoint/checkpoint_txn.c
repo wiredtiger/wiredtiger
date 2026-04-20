@@ -98,7 +98,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     cursor = NULL;
     release = false;
 
-    __wt_assert_schema_read_lock_owned(session);
+    __wt_assert_schema_write_lock_owned(session);
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
 
     /*
@@ -3123,7 +3123,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     WT_ASSERT(session,
       final ||
         (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT) ||
-          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ)));
+          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)));
     /*
      * Turn on metadata tracking if:
      * - The session is not already doing metadata tracking.

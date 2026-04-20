@@ -481,7 +481,6 @@ struct __wt_import_list {
 /*
  * WT_WITH_HOTBACKUP_WRITE_LOCK --
  *	Acquire the hot backup write lock and perform an operation.
- * TODO port to WT_WITH_WRITE_LOCK_WAIT.
  */
 #define WT_WITH_HOTBACKUP_WRITE_LOCK(session, op)                                                  \
     do {                                                                                           \

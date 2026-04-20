@@ -831,11 +831,6 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     cursor = NULL;
     entry = NULL;
 
-    /*
-     * Ensure that the schema lock is held. We cannot check this via spinlock ownership, because
-     * this function might be called from an internal session, while the lock was acquired by its
-     * parent session. TODO still true? revise comment?
-     */
     __wt_assert_schema_write_lock_owned(session);
 
     /* Allocate the entry structure. */
@@ -1014,8 +1009,7 @@ __wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *
     conn = S2C(session);
     *drop_sizep = 0;
 
-    __wt_assert_schema_read_lock_owned(
-      session); /* TODO probably doesn't care about read v write. */
+    __wt_assert_schema_read_lock_owned(session);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 

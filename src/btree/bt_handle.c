@@ -211,7 +211,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
          * checkpoint lock here.
          */
         WT_ASSERT_ALWAYS(session,
-          !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ) ||
+          !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||
             FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT),
           "deadlock");
         WT_WITH_CHECKPOINT_LOCK(session,
