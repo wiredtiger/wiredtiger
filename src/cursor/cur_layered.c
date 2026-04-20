@@ -555,9 +555,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
      * follower. And again, we'd like to reopen the stable cursor if we can.
      */
-    if ((change_stable = __clayered_can_advance_stable(clayered, iteration, read_timestamp))) {
+    if ((change_stable = __clayered_can_advance_stable(clayered, iteration, read_timestamp)))
         WT_RET(__clayered_advance_stable(session, clayered, current_leader));
-    }
 
     /* Update the state of the layered cursor. */
     clayered->leader = current_leader;
@@ -948,11 +947,11 @@ err:
 }
 
 /*
- * __clayered_iterate --
+ * __clayered_iterate_int --
  *     Common function for moving a layered cursor to the next or previous position.
  */
 static int
-__clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
+__clayered_iterate_int(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 {
     WT_DECL_RET;
     bool deleted;
@@ -976,14 +975,14 @@ err:
 }
 
 /*
- * __clayered_step --
+ * __clayered_iterate --
  *     Transaction-aware single step for a layered cursor: enter, detect isolation changes, iterate,
  *     propagate results to the interface cursor, then leave.
  *
  * Called only from __clayered_next and __clayered_prev.
  */
 static int
-__clayered_step(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
+__clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 {
     WT_DECL_RET;
 
@@ -998,7 +997,7 @@ __clayered_step(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
         F_CLR(clayered, iter_flag);
 
     /* Advance the cursor by one position. */
-    WT_ERR(__clayered_iterate(clayered, iter_flag));
+    WT_ERR(__clayered_iterate_int(clayered, iter_flag));
 
     /* Propagate a key/value pair to the iface cursor. */
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
@@ -1032,7 +1031,7 @@ __clayered_next(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
-    WT_ERR(__clayered_step(clayered, WT_CLAYERED_ITERATE_NEXT));
+    WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT));
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
@@ -1063,7 +1062,7 @@ __clayered_prev(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
-    WT_ERR(__clayered_step(clayered, WT_CLAYERED_ITERATE_PREV));
+    WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
 
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
@@ -1658,7 +1657,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     if (deleted) {
         /* Advance past the deleted record using normal cursor traversal interface */
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-        if ((ret = __clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT)) == 0) {
+        if ((ret = __clayered_iterate_int(clayered, WT_CLAYERED_ITERATE_NEXT)) == 0) {
             cmp = 1;
             deleted = false;
         }
@@ -1669,7 +1668,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     if (deleted) {
         WT_ASSERT(session, clayered->current_cursor == NULL);
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-        WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
+        WT_ERR(__clayered_iterate_int(clayered, WT_CLAYERED_ITERATE_PREV));
         cmp = -1;
     }
 
