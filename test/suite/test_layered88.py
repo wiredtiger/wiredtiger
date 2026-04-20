@@ -166,7 +166,7 @@ class test_layered88(wttest.WiredTigerTestCase):
         cursor.close()
 
     # --------------------------------------------------------------------------
-    # Scenario 3: next(), ingest is alternate, read_timestamp rises.
+    # Scenario 3: next(), ingest is alternate, read_timestamp increases.
     #
     #   Stable (checkpoint)       Ingest (follower)
     #   +-----+----+-------+      +-----+----+-------+
@@ -211,7 +211,7 @@ class test_layered88(wttest.WiredTigerTestCase):
         cursor.close()
 
     # --------------------------------------------------------------------------
-    # Scenario 4: prev(), ingest is alternate, read_timestamp rises.
+    # Scenario 4: prev(), ingest is alternate, read_timestamp increases.
     #
     #   Stable (checkpoint)       Ingest (follower)
     #   +-----+----+-------+      +-----+----+-------+
