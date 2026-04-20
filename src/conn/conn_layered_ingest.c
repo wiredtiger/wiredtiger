@@ -195,9 +195,8 @@ __layered_fix_prepared_transaction_callback(
         if (op->type == WT_TXN_OP_NONE)
             continue;
 
-        if (op->btree != cookie->ingest_btree) {
+        if (op->btree != cookie->ingest_btree)
             continue;
-        }
 
         int cmp;
         WT_RET(__wt_compare(session, op->btree->collator, &op->u.op_row.key, cookie->key, &cmp));
@@ -236,9 +235,18 @@ __layered_fix_prepared_transaction_callback(
 
 /*
  * __layered_fix_prepared_transaction --
- *     Temporary solution to fix a prepared transaction to point its operations to the stable btree.
- *     It relies on the assumption that there is no concurrent commit/rollback and there is no
- *     prepared fast truncate operation.
+ *     During ingest drain, a key that was prepared on the ingest btree is being moved to the stable
+ *     btree. If the owning transaction is still in-flight (not yet committed or rolled back), its
+ *     WT_TXN_OP entries still reference the ingest btree and the in-memory update on it. This
+ *     function patches those entries so that commit/rollback will operate on the stable btree
+ *     instead. For each matching operation it: (1) aborts the original in-memory update on the
+ *     ingest btree so that a subsequent truncate of the ingest table does not trip over a live
+ *     prepared update, (2) redirects op->btree to the stable btree, and (3) transfers the
+ *     session_inuse reference from the ingest dhandle to the stable dhandle to keep reference
+ *     counts balanced.
+ *
+ * This is a temporary solution. It assumes no concurrent commit/rollback of the prepared
+ *     transaction and no prepared fast-truncate operations.
  */
 static int
 __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BTREE *ingest_btree,

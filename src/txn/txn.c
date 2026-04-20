@@ -1957,7 +1957,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             ++prepared_updates;
 
             __txn_apply_prepare_state_update(session, upd, &session->txn->time_point, false);
-            /* The update is needed to drain the prepared update during step-up. */
+            /*
+             * After prepare, commit and rollback resolve prepared updates by walking the btree
+             * rather than following op->u.op_upd, so we clear the pointer to avoid a stale
+             * reference. Exception: on an ingest btree, the drain path during step-up walks the op
+             * list and uses op->u.op_upd to locate the update that must be redirected to the stable
+             * btree, so the pointer must remain set.
+             */
             if (!F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT))
                 op->u.op_upd = NULL;
 
