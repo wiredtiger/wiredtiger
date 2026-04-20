@@ -320,14 +320,11 @@ static int
 __checkpoint_apply_operation(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cfg,
   int (*op)(WT_SESSION_IMPL *, const char *[]))
 {
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-
     /* Flag if this is a named checkpoint, and check if the name is OK. */
     if (ckpt_cfg->named) {
         WT_RET(__checkpoint_name_ok(session, ckpt_cfg->name, ckpt_cfg->name_len, false));
         /* Some objects don't support named checkpoints. */
-        WT_ERR(__checkpoint_name_check(session));
+        WT_RET(__checkpoint_name_check(session));
     }
 
     if (op != NULL) {
@@ -337,16 +334,14 @@ __checkpoint_apply_operation(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *
          */
         if (ckpt_cfg->named || ckpt_cfg->drop) {
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_APPLY_META);
-            WT_ERR(__wt_meta_apply_all(session, op, NULL, ckpt_cfg->cfg));
+            WT_RET(__wt_meta_apply_all(session, op, NULL, ckpt_cfg->cfg));
         } else {
             WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_APPLY_BTREE);
-            WT_ERR(__wt_conn_btree_apply(session, NULL, op, NULL, ckpt_cfg->cfg));
+            WT_RET(__wt_conn_btree_apply(session, NULL, op, NULL, ckpt_cfg->cfg));
         }
     }
 
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
+    return (0);
 }
 
 /*
