@@ -307,6 +307,7 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
     __wt_writeunlock(session, &layered_table->truncate_lock);
     __disagg_truncate_free(session, &entry);
+    op->u.follower_truncate.t = NULL;
 
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
