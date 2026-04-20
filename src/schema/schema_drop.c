@@ -566,7 +566,7 @@ __wt_schema_drop(
      * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
      * acquired by us.
      */
-    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+    __wt_assert_schema_write_lock_owned(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);

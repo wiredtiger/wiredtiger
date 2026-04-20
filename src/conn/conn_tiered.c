@@ -114,7 +114,7 @@ __tier_flush_meta(
     dhandle = &tiered->iface;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
     WT_UNUSED(conn); /* Avoid "unused variable" warnings in non-debug builds. */
 
     newconfig = obj_value = NULL;
@@ -243,7 +243,7 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
           storage_source, &session->iface, bucket_fs, local_name, tmp, NULL);
         if (ret == 0)
             WT_WITH_CHECKPOINT_LOCK(session,
-              WT_WITH_SCHEMA_LOCK(
+              WT_WITH_SCHEMA_WRITE_LOCK(
                 session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
         /*
          * If a user did a flush_tier with sync off, it is possible that a drop happened before the

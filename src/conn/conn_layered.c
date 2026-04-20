@@ -31,7 +31,7 @@ __layered_create_missing_ingest_table(
       "disaggregated=(page_log=none,storage_source=none)",
       (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
 
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ingest_config->data));
+    WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_create(session, uri, ingest_config->data));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Created missing ingest table \"%s\" from \"%s\"", uri, layered_cfg);
@@ -59,7 +59,7 @@ __layered_create_missing_stable_table(
     stable_cfg[2] = "log=(enabled=false)";
 
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, constituent_cfg));
+    WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_create(session, uri, constituent_cfg));
 
 err:
     __wt_free(session, constituent_cfg);
@@ -82,7 +82,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     cursor_check = cursor_scan = NULL;
     stable_uri = NULL;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     WT_ERR(__wt_metadata_cursor(session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
@@ -135,7 +135,7 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
-    WT_WITH_SCHEMA_LOCK(session, ret = __layered_create_missing_stable_tables_helper(session));
+    WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __layered_create_missing_stable_tables_helper(session));
     return (ret);
 }
 
@@ -295,7 +295,7 @@ __disagg_apply_checkpoint_meta(
     current_value_copy = layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
@@ -459,7 +459,7 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     if (conn->next_file_id < metadata->largest_file_id)
         conn->next_file_id = metadata->largest_file_id;
@@ -504,7 +504,7 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
       __wti_layered_iterate_ingest_tables_for_gc_pruning(session, metadata->checkpoint_timestamp),
       "Updating prune timestamp failed");
 
-    WT_WITH_SCHEMA_LOCK(session, __raise_next_file_id(session, metadata));
+    WT_WITH_SCHEMA_WRITE_LOCK(session, __raise_next_file_id(session, metadata));
 
 err:
     return (ret);
@@ -589,7 +589,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_save_checkpoint_meta_local(session, md_cursor, &metadata));
 
     /* Part 2: Apply the metadata for other tables from the shared metadata table. */
-    WT_WITH_SCHEMA_LOCK(
+    WT_WITH_SCHEMA_WRITE_LOCK(
       session, ret = __disagg_apply_checkpoint_meta(session, md_cursor, ckpt_meta));
     WT_ERR(ret);
 
@@ -833,9 +833,9 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     /*
      * Ensure that the schema lock is held. We cannot check this via spinlock ownership, because
      * this function might be called from an internal session, while the lock was acquired by its
-     * parent session.
+     * parent session. TODO still true? revise comment?
      */
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    __wt_assert_schema_write_lock_owned(session);
 
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));
@@ -1013,7 +1013,7 @@ __wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *
     conn = S2C(session);
     *drop_sizep = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    __wt_assert_schema_read_lock_owned(session); /* TODO probably doesn't care about read v write. */
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1054,7 +1054,7 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
      * related to the given shared table, e.g., the various file, colgroup, table, and layered
      * entries.
      */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 

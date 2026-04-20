@@ -163,7 +163,7 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_UNUSED(cfg);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    __wt_assert_schema_read_lock_owned(session);
 
     WT_RET(__wt_session_get_dhandle(session, session->dhandle->name, NULL, NULL, 0));
 
@@ -508,7 +508,7 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
      * Find the types of data sources being compacted. This could involve opening indexes for a
      * table, so acquire the table lock in write mode.
      */
-    WT_WITH_SCHEMA_LOCK(session,
+    WT_WITH_SCHEMA_READ_LOCK(session,
       WT_WITH_TABLE_WRITE_LOCK(session,
         ret = __wt_schema_worker(
           session, uri, __compact_handle_append, __compact_uri_analyze, cfg, 0)));

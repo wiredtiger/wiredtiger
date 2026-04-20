@@ -116,7 +116,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     threads = conn->rts->threads_num;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     /*
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
@@ -311,7 +311,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
+      session, WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
 
     /* Time since the RTS started. */
     __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);

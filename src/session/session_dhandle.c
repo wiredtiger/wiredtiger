@@ -332,9 +332,9 @@ __wt_session_release_dhandle_v2(WT_SESSION_IMPL *session, bool check_visibility)
           session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !F_ISSET(dhandle, WT_DHANDLE_DISCARD));
         /*
          * Acquire the schema lock while closing out the handles. This avoids racing with a
-         * checkpoint while it gathers a set of handles.
+         * checkpoint while it gathers a set of handles. TODO read lock ok here??
          */
-        WT_WITH_SCHEMA_LOCK(
+        WT_WITH_SCHEMA_READ_LOCK(
           session, ret = __wt_conn_dhandle_close(session, false, false, check_visibility));
     } else if ((btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) ||
       F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL)) {
@@ -955,7 +955,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
          * handles in the meantime. A combination of the schema and handle list locks are used to
          * enforce this.
          */
-        if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {
+        if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA2)) {
             dhandle->excl_session = NULL;
             dhandle->excl_ref = 0;
             F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
@@ -983,10 +983,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
             if (checkpoint_lock_needed) {
                 WT_WITH_CHECKPOINT_LOCK(session,
-                  WT_WITH_SCHEMA_LOCK(
+                  WT_WITH_SCHEMA_READ_LOCK(
                     session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
             } else
-                WT_WITH_SCHEMA_LOCK(
+                WT_WITH_SCHEMA_READ_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
 
             return (ret);

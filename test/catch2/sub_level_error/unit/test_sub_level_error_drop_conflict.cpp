@@ -161,7 +161,7 @@ TEST_CASE("Test conflicts with checkpoint/schema/table locks", "[sub_level_error
     SECTION("Test CONFLICT_SCHEMA_LOCK")
     {
         /* Attempt to drop the table while the schema lock is taken by another session. */
-        WT_WITH_SCHEMA_LOCK(((WT_SESSION_IMPL *)session_b),
+        WT_WITH_SCHEMA_WRITE_LOCK(((WT_SESSION_IMPL *)session_b),
           REQUIRE(session_a->drop(session_a, URI, "lock_wait=0") == EBUSY));
 
         utils::check_error_info(

@@ -424,7 +424,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      * schema lock we might deadlock with a thread that has the schema lock and wants a handle lock.
      */
     no_schema_lock = false;
-    if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {
+    if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA2)) {
         no_schema_lock = true;
         FLD_SET(session->lock_flags, WT_SESSION_NO_SCHEMA_LOCK);
     }

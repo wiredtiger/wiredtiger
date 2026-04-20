@@ -1715,6 +1715,8 @@ extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base) WT_GCC_F
 extern void *__wt_ext_scr_alloc(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, size_t size);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_assert_schema_read_lock_owned(WT_SESSION_IMPL *session);
+extern void __wt_assert_schema_write_lock_owned(WT_SESSION_IMPL *session);
 extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_release_handle(

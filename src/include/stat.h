@@ -1064,9 +1064,10 @@ struct __wt_connection_stats {
     int64_t lock_metadata_count;
     int64_t lock_metadata_wait_application;
     int64_t lock_metadata_wait_internal;
-    int64_t lock_schema_count;
     int64_t lock_schema_wait_application;
     int64_t lock_schema_wait_internal;
+    int64_t lock_schema_read_count;
+    int64_t lock_schema_write_count;
     int64_t lock_table_wait_application;
     int64_t lock_table_wait_internal;
     int64_t lock_table_read_count;

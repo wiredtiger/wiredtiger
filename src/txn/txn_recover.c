@@ -952,7 +952,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
       "removing incomplete table '%s' (%s, %s)", uri, colgroup_msg, file_msg);
 
-    WT_WITH_SCHEMA_LOCK(r->session,
+    WT_WITH_SCHEMA_WRITE_LOCK(r->session,
       WT_WITH_TABLE_WRITE_LOCK(
         r->session, ret = __wt_schema_drop(r->session, uri, drop_cfg, false)));
     WT_ERR(ret);
@@ -1003,7 +1003,7 @@ __recovery_file_scan(WT_RECOVERY *r)
      * the tracked namespace file IDs for a while.
      */
     uint32_t new_max = WT_BTREE_ID_UNNAMESPACED(r->max_fileid);
-    WT_WITH_SCHEMA_LOCK(r->session, S2C(r->session)->next_file_id = new_max);
+    WT_WITH_SCHEMA_WRITE_LOCK(r->session, S2C(r->session)->next_file_id = new_max);
 
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "largest file ID found in the metadata %u", r->max_fileid);

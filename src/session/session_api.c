@@ -963,7 +963,7 @@ __session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_ERR(__wt_str_name_check(session, uri));
 
     WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_alter(session, uri, cfg)));
+      session, WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_alter(session, uri, cfg)));
 
 err:
     if (ret != 0)
@@ -1097,7 +1097,7 @@ __wt_session_create(WT_SESSION_IMPL *session, const char *uri, const char *confi
 {
     WT_DECL_RET;
 
-    WT_WITH_SCHEMA_LOCK(
+    WT_WITH_SCHEMA_WRITE_LOCK(
       session, WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_create(session, uri, config)));
     return (ret);
 }
@@ -1361,20 +1361,20 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     if (checkpoint_wait) {
         if (lock_wait)
             WT_WITH_CHECKPOINT_LOCK(session,
-              WT_WITH_SCHEMA_LOCK(session,
+              WT_WITH_SCHEMA_WRITE_LOCK(session,
                 WT_WITH_TABLE_WRITE_LOCK(
                   session, ret = __wt_schema_drop(session, uri, cfg, true))));
         else
             WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
-              WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
+              WT_WITH_SCHEMA_WRITE_LOCK_NOWAIT(session, ret,
                 WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
                   session, ret, ret = __wt_schema_drop(session, uri, cfg, true))));
     } else {
         if (lock_wait)
-            WT_WITH_SCHEMA_LOCK(session,
+            WT_WITH_SCHEMA_WRITE_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, uri, cfg, true)));
         else
-            WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
+            WT_WITH_SCHEMA_WRITE_LOCK_NOWAIT(session, ret,
               WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
                 session, ret, ret = __wt_schema_drop(session, uri, cfg, true)));
     }
@@ -1419,7 +1419,7 @@ static int
 __session_salvage_worker(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     WT_RET(__wt_schema_worker(
       session, uri, __wt_salvage, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE));
@@ -1454,7 +1454,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
      * thread opens the handle before rollback-to-stable completes.
      */
     WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __session_salvage_worker(session, uri, cfg)));
+      session, WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __session_salvage_worker(session, uri, cfg)));
 
 err:
     if (ret != 0)
@@ -1746,8 +1746,9 @@ __session_truncate(
             WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
         else
             /* Wait for checkpoints to avoid EBUSY errors. */
+            /* Is WRITE LOCK correct here? TODO */
             WT_WITH_CHECKPOINT_LOCK(
-              session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
+              session, WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
     } else
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
@@ -1810,7 +1811,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_LOCK(session,
+      WT_WITH_SCHEMA_READ_LOCK(session,
         ret = __wt_schema_worker(
           session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
     WT_ERR(ret);
@@ -2734,7 +2735,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
      * caller decline this work.
      */
     if (open_metadata) {
-        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA2));
         if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
             WT_TRET(__wt_session_close_internal(session));
             return (ret);
