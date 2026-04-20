@@ -2355,6 +2355,42 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 }
 
 /*
+ * __rec_should_save_disk_image --
+ *     Return true if we should save a disk image for later clean-scrub eviction. We save when the
+ *     page has been recently accessed (read generation ahead of the eviction cursor) and its
+ *     accumulated update volume is at least 10% of the total in-memory page footprint, indicating
+ *     that re-instantiating from the disk image would reclaim meaningful memory.
+ */
+static bool
+__rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_PAGE *page;
+    size_t footprint;
+    uint64_t bytes_updates;
+
+    page = r->page;
+
+    /* Only leaf pages accumulate updates worth scrubbing. */
+    if (WT_PAGE_IS_INTERNAL(page))
+        return (false);
+
+    if (page->modify == NULL)
+        return (false);
+
+    /* Only retain images for recently-accessed pages. */
+    if (__wt_atomic_load_uint64_relaxed(&page->read_gen) <= __evict_read_gen(session))
+        return (false);
+
+    /* Require update volume >= 10% of total in-memory page size. */
+    bytes_updates = __wt_atomic_load_uint64_relaxed(&page->modify->bytes_updates);
+    footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    if (bytes_updates == 0 || footprint == 0)
+        return (false);
+
+    return (bytes_updates * 10 >= footprint);
+}
+
+/*
  * __rec_split_write --
  *     Write a disk block out for the split helper functions.
  */
@@ -2620,6 +2656,14 @@ copy_image:
      */
     if (F_ISSET(r, WT_REC_SCRUB) || F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
+    else if (__rec_should_save_disk_image(session, r)) {
+        WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
+        WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_image_saved);
+        WT_STAT_CONN_DSRC_INCRV(session, cache_clean_scrub_image_saved_bytes, chunk->image.size);
+        (void)__wt_atomic_add_uint64_relaxed(&S2BT(session)->clean_scrub_image_count, 1);
+        (void)__wt_atomic_add_uint64_relaxed(&S2BT(session)->clean_scrub_image_bytes,
+          chunk->image.size);
+    }
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
     __rec_page_time_stats_clear(r);

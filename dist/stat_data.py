@@ -1185,6 +1185,8 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_cas_btree_max_lsn_race', 'number of times when cas update the btree max_lsn failed'),
+    CacheStat('cache_clean_scrub_image_saved', 'pages with disk image saved for clean-scrub eviction'),
+    CacheStat('cache_clean_scrub_image_saved_bytes', 'bytes of disk images saved for clean-scrub eviction', 'size'),
     CacheStat('cache_evict_split_failed_lock', 'realizing in-memory split after reconciliation failed due to internal lock busy'),
     CacheStat('cache_eviction_ahead_of_last_materialized_lsn', 'pages evicted ahead of the page materialization frontier'),
     CacheStat('cache_eviction_app_threads_fill_ratio_25_50', 'application threads eviction requested with cache fill ratio >= 25% and < 50%'),
