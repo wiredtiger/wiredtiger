@@ -1010,7 +1010,8 @@ __evict_list_clear(WT_SESSION_IMPL *session, WTI_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
         WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
-        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
+        F_CLR_ATOMIC_16(e->ref->page,
+          WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT | WT_PAGE_EVICT_CLEAN_SCRUB);
     }
     e->ref = NULL;
     e->btree = (WT_BTREE *)WT_DEBUG_POINT;
