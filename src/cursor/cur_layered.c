@@ -1710,7 +1710,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
         /*
          * A key that exists in the stable table can be logically deleted by a committed
          * fast-truncate range. Advance stable forward past any truncated ranges. If forward
-         * exhausts and ingest has no forward match, step backward instead.
+         * exhausts, step backward instead.
          */
         if (ret == 0 &&
           __wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle,

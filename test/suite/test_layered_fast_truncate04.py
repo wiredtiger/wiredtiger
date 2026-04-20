@@ -181,12 +181,12 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         self.setup_follower()
         self.truncate_range(0, self.nitems - 1)
 
-        # Scenario 1: ingest 0600 above search key 0500 → forward (exact=1).
+        # Scenario 1: ingest 0600 above search key 0500 forward (exact=1).
         self.put(600, 'ingest-live')
         self.assertEqual(self.search_near(500), (1, self.key(600)), 'forward scenario')
 
         # Scenario 2: remove 0600 and write 0400. Only live ingest key below
-        # 0500 → backward (exact=-1).
+        # 0500 backward (exact=-1).
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cursor.set_key(self.key(600))
