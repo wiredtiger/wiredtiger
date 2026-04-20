@@ -153,7 +153,7 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
      * related to the given shared table, e.g., the various file, colgroup, table, and layered
      * entries.
      */
-    __wt_assert_schema_read_lock_owned(session);
+    __wt_assert_schema_write_lock_owned(session);
 
     if (failed)
         return (0);

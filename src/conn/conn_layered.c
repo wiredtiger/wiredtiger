@@ -831,7 +831,7 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     cursor = NULL;
     entry = NULL;
 
-    __wt_assert_schema_write_lock_owned(session);
+    __wt_assert_schema_read_lock_owned(session);
 
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));

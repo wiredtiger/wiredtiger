@@ -1724,14 +1724,7 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
 
-    /*
-     * We should be calling this function with the schema lock, but we cannot verify it here because
-     * we can re-enter this function with the internal session. If we get here using the internal
-     * session, we cannot check whether we own the lock, as it would be locked by the outer session.
-     * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
-     * acquired by us.
-     */
-    WT_ASSERT(session, __wt_rwlock_islocked(session, &S2C(session)->schema_lock));
+    __wt_assert_schema_write_lock_owned(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config);
