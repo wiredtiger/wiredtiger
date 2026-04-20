@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 #
 # Regression tests: when two transactions share an open layered cursor, the "alternate"
 # constituent cursor (the one not selected as current on the previous call, left parked at the
-# next position, according to the current implemetation) must be re-searched under the new
+# next position, according to the current implementation) must be re-searched under the new
 # transaction's snapshot before its cached value is used; otherwise it silently returns a stale result.
 #
 # Two triggering conditions are tested:
