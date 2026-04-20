@@ -334,10 +334,6 @@ struct __wt_import_list {
     WT_WITH_LOCK_WAIT(session, &S2C(session)->metadata_lock, WT_SESSION_LOCKED_METADATA, op)
 
 /*
- * TODO: assert that we don't hold the read lock? no upgrades. yeah hot back does that.
- */
-
-/*
  * WT_WITH_SCHEMA_READ_LOCK, WT_WITH_SCHEMA_WRITE_LOCK, WT_WITH_SCHEMA_WRITE_LOCK_NOWAIT --
  *	Acquire the schema lock, perform an operation, drop the lock.
  *	Check that we are not already holding some other lock: the schema lock
@@ -346,7 +342,7 @@ struct __wt_import_list {
 #define WT_WITH_SCHEMA_READ_LOCK(session, op)                                               \
     do {                                                                                    \
         /* Don't assert we don't hold the write lock. Write lock implies read is OK. */ \
-        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA2)) {                    \
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {                    \
             /*fprintf(stderr, "already have schema read lock\n"); */\
             op;                                                                             \
         } else {                                                                            \

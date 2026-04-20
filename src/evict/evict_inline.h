@@ -894,7 +894,7 @@ __wt_evict_app_assist_worker_check(
      */
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ||
       FLD_ISSET(session->lock_flags,
-        WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_LOCKED_SCHEMA2 | WT_SESSION_LOCKED_TABLE))
+        WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_LOCKED_SCHEMA | WT_SESSION_LOCKED_TABLE))
         return (0);
 
     /* In memory configurations don't block when the cache is full. */

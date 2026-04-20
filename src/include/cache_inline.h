@@ -313,7 +313,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
      * when holding the schema write lock. SCHEMA 2 is the placeholder for combined read or write.
      */
     return (!(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ||
-      FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA2)));
+      FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)));
 }
 
 /*

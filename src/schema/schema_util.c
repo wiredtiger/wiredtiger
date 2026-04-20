@@ -235,7 +235,7 @@ void
 __wt_assert_schema_read_lock_owned(WT_SESSION_IMPL *session)
 {
     /* Write implies read, so both are fine. */
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA2));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
 }
 
 /*

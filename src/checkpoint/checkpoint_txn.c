@@ -47,7 +47,7 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
      * acquires the schema lock. We cannot be waiting in this function while holding that lock or no
      * work will get done.
      */
-    WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA2));
+    WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
     WT_RET(__wt_config_gets(session, cfg, "flush_tier.timeout", &cval));
     timeout = (uint64_t)cval.val;
     if (timeout != 0)
