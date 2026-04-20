@@ -302,6 +302,25 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
 }
 
+/*
+ * __evict_clean_scrub --
+ *     Re-instantiate a clean page from its saved disk image, reclaiming in-memory update content
+ *     without a disk read. This is the clean-scrub eviction path, triggered when a page is found
+ *     with a saved disk image during updates-pressure eviction.
+ *
+ *     Stub: full re-instantiation via __wt_split_rewrite to be implemented.
+ */
+static int
+__evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+{
+    WT_UNUSED(flags);
+    WT_UNUSED(ref);
+
+    WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_eviction);
+
+    return (0);
+}
+
 /* !!!
  * __wt_evict --
  *     Evict a page from memory by taking exclusive access to the page.
@@ -433,6 +452,19 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     if (page->modify != NULL)
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_updates_page_size_per_checkpoint, page_size);
+
+    /*
+     * If the page was queued for clean-scrub, attempt to re-instantiate it from its saved disk
+     * image. If the page was re-dirtied since it was queued, clear the flag and fall through to
+     * normal eviction.
+     */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB)) {
+        F_CLR_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB);
+        if (!is_dirty && page->modify != NULL && page->modify->mod_disk_image != NULL) {
+            WT_ERR(__evict_clean_scrub(session, ref, flags));
+            goto done;
+        }
+    }
 
     /*
      * No need to reconcile the page if it is from a dead tree or it is clean. Stable tables on the

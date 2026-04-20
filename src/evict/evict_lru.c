@@ -150,7 +150,8 @@ __evict_list_clear(WT_SESSION_IMPL *session, WTI_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
         WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
-        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
+        F_CLR_ATOMIC_16(e->ref->page,
+          WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT | WT_PAGE_EVICT_CLEAN_SCRUB);
     }
     e->ref = NULL;
     e->btree = WT_DEBUG_POINT;
@@ -2492,7 +2493,8 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     WT_PAGE *page;
-    bool evict_clean, evict_dirty, evict_updates, modified, should_evict_page;
+    bool evict_clean, evict_clean_scrub, evict_dirty, evict_updates, modified, should_evict_page;
+    evict_clean_scrub = false;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -2560,7 +2562,18 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
       F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL;
-    should_evict_page = evict_clean || evict_dirty || evict_updates;
+
+    /*
+     * A clean page with a saved disk image is a candidate for clean-scrub re-instantiation: we can
+     * swap out the in-memory content without a disk read, reclaiming update memory. Only consider
+     * this when under updates pressure and the btree has saved images available.
+     */
+    evict_clean_scrub = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && !modified &&
+      !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+      __wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) > 0 &&
+      page->modify != NULL && page->modify->mod_disk_image != NULL;
+
+    should_evict_page = evict_clean || evict_dirty || evict_updates || evict_clean_scrub;
     /* Skip pages we don't want. */
     if (!should_evict_page) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_pages);
@@ -2612,6 +2625,9 @@ fast:
     WT_ASSERT(session, evict_entry->ref == NULL);
     if (!__evict_push_candidate(session, queue, evict_entry, ref))
         return;
+
+    if (evict_clean_scrub)
+        F_SET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB);
 
     *queuedp = true;
     __wt_verbose_debug2(session, WT_VERB_EVICTION, "walk select: %p, size %" WT_SIZET_FMT,
