@@ -343,17 +343,56 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 /*
  * __evict_clean_scrub --
  *     Re-instantiate a clean page from its saved disk image, reclaiming in-memory update content
- *     without a disk read. This is the clean-scrub eviction path, triggered when a page is found
- *     with a saved disk image during updates-pressure eviction.
- *
- *     Stub: full re-instantiation via __wt_split_rewrite to be implemented.
+ *     without a disk read. The saved image is from a prior reconciliation (typically checkpoint).
+ *     If the parent update fails (e.g. split generation conflict), the disk image is restored on
+ *     the modify structure so the page can be retried later.
  */
 static int
 __evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
-    WT_UNUSED(flags);
-    WT_UNUSED(ref);
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_MULTI multi;
+    WT_PAGE_MODIFY *mod;
+    uint32_t image_size;
+    void *tmp;
 
+    WT_UNUSED(flags);
+
+    btree = S2BT(session);
+    mod = ref->page->modify;
+
+    WT_ASSERT(session, mod != NULL && mod->rec_result == WT_PM_REC_REPLACE);
+    WT_ASSERT(session, mod->mod_disk_image != NULL);
+
+    image_size = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
+
+    /* The split code works with WT_MULTI structures, build one for the disk image. */
+    memset(&multi, 0, sizeof(multi));
+    multi.disk_image = mod->mod_disk_image;
+    multi.addr = mod->mod_replace;
+    if (ref->page->disagg_info != NULL) {
+        WT_RET(__wt_calloc_one(session, &multi.block_meta));
+        *multi.block_meta = ref->page->disagg_info->block_meta;
+    }
+
+    /*
+     * Transfer ownership of the disk image to the multi struct so it isn't freed twice if the
+     * rewrite fails and the page is discarded. Restore it on failure so the page can be retried.
+     */
+    tmp = mod->mod_disk_image;
+    mod->mod_disk_image = NULL;
+    ret = __wt_split_rewrite(session, ref, &multi, true);
+    __wt_free(session, multi.block_meta);
+    if (ret != 0) {
+        mod->mod_disk_image = tmp;
+        WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_fail_rewrite);
+        return (ret);
+    }
+
+    /* On success the old page and mod are gone; update the per-btree image counters. */
+    (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_count, 1);
+    (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_bytes, image_size);
     WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_eviction);
 
     return (0);
@@ -502,6 +541,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
             WT_ERR(__evict_clean_scrub(session, ref, flags));
             goto done;
         }
+        if (is_dirty)
+            WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_page_dirtied);
     }
 
     /*
