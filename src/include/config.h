@@ -100,11 +100,16 @@ struct __wt_config_parser_impl {
         }                                               \
     } while (0)
 
-/* Return true iff the string lies within another. */
+/* Return true if and only if the string lies within another. */
 #define WT_CONFIG_STRING_WITHIN_DEFAULT(str, ref_str) \
     ((str) >= (ref_str) && (str) <= &(ref_str)[strlen(ref_str)])
 
-/* Return true iff the configuration value lies within the default configuration for a function. */
+/*
+ * To check if string values deviate from the default, we see if the value is within the default
+ * string. If so, that indicates that no later configuration overrode it. This is perhaps
+ * slightly more conservative that it needs to be; the caller's configuration can explicitly
+ * set the default value. But this check is quite fast and works for the cases we care about.
+ */
 #define WT_CONFIG_MATCHES_DEFAULT(session, func, cval) \
     WT_CONFIG_STRING_WITHIN_DEFAULT((cval).str, WT_CONFIG_BASE(session, func))
 
@@ -116,10 +121,7 @@ static WT_INLINE bool
 __wt_config_empty(const char *cfg[])
 {
     /* If the caller's config string is NULL or "", it is empty */
-    if (cfg == NULL || cfg[0] == NULL || cfg[1] == NULL || (cfg[2] == NULL && cfg[1][0] == '\0'))
-        return (true);
-    else
-        return (false);
+    return (cfg == NULL || cfg[0] == NULL || cfg[1] == NULL || (cfg[2] == NULL && cfg[1][0] == '\0'));
 }
 
 #define WT_CONFIG_UNSET (-1)

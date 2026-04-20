@@ -917,13 +917,6 @@ __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *c
     if (cval.val)
         goto return_false;
 
-    /*
-     * To check if string values deviate from the default, we see if the value is within the default
-     * string. If so, that indicates that no later configuration overrode it. This is perhaps
-     * slightly more conservative that it needs to be; for example, we would not cache cursors
-     * opened with configuration explicitly set to "debug=()". But this check is quite fast and
-     * works for the cases we care about.
-     */
     WT_RET(__wt_config_gets(session, cfg, "debug", &cval));
     if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
         goto return_false;
