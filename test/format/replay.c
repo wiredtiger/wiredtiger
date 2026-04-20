@@ -457,7 +457,6 @@ replay_committed(TINFO *tinfo)
      * timestamps to advance.
      */
     WT_RELEASE_WRITE_WITH_BARRIER(g.lanes[lane].last_commit_ts, tinfo->replay_ts);
-
     if (g.timestamp <= tinfo->replay_ts + LANE_COUNT) {
         WT_RELEASE_WRITE_WITH_BARRIER(g.lanes[lane].in_use, false);
         tinfo->lane = LANE_NONE;
@@ -467,43 +466,6 @@ replay_committed(TINFO *tinfo)
         tinfo->replay_again = true;
     }
     testutil_check(pthread_rwlock_unlock(&g.lane_lock));
-}
-
-/*
- * replay_pick_bulk_key --
- *     Pick a deterministic target key from the bulk-loaded key space. Bulk-loaded keys use the "00"
- *     suffix and are always present at any read_ts > 0, making them safe targets for both removes
- *     and modifies without any history or visibility checks.
- */
-void
-replay_pick_bulk_key(TINFO *tinfo, TABLE **tablep, uint64_t *keynop)
-{
-    TABLE *target_table;
-    uint64_t keyno;
-    uint32_t max_rows;
-
-    if (ntables == 0)
-        target_table = tables[0];
-    else
-        target_table = tables[mmrand(&tinfo->data_rnd, 1, ntables)];
-
-    max_rows = target_table->v[V_TABLE_RUNS_ROWS].v;
-    keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
-    if (target_table->v[V_TABLE_OPS_PARETO].v) {
-        keyno = testutil_pareto(keyno, (u_int)max_rows, target_table->v[V_TABLE_OPS_PARETO_SKEW].v);
-        if (keyno == 0)
-            keyno++;
-    }
-
-    /* Set the bottom lane bits so only this lane can own the key. */
-    keyno = (keyno & ~(uint64_t)(LANE_COUNT - 1)) | tinfo->lane;
-    if (keyno == 0)
-        keyno = LANE_COUNT;
-    else if (keyno >= max_rows)
-        keyno -= LANE_COUNT;
-
-    *tablep = target_table;
-    *keynop = keyno;
 }
 
 /*

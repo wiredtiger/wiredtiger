@@ -1256,20 +1256,9 @@ rollback_retry:
         }
         replay_adjust_key(tinfo, max_rows);
 
-        /* For predictable replay removes, target a bulk-loaded key (suffix "00"). */
         if (GV(RUNS_PREDICTABLE_REPLAY)) {
-            if (op == REMOVE) {
-                TABLE *target_table;
-                uint64_t target_keyno;
-
-                replay_pick_bulk_key(tinfo, &target_table, &target_keyno);
-                if (tinfo->lane == 1)
-                    rlog_remove = true;
-                tinfo->keyno = target_keyno;
-                table = tinfo->table = target_table;
-                if (target_table->type == ROW)
-                    key_gen_common(target_table, tinfo->key, target_keyno, "00");
-            }
+            if (op == REMOVE && tinfo->lane == 1)
+                rlog_remove = true;
             if (tinfo->lane == 1) {
                 rlog_ts = tinfo->replay_ts;
                 rlog_read_ts = tinfo->read_ts;
@@ -2238,9 +2227,7 @@ row_remove(TINFO *tinfo, bool positioned)
     cursor = tinfo->cursor;
 
     if (!positioned) {
-        /* For predictable replay, the key was pre-generated in ops() with the correct suffix. */
-        if (!GV(RUNS_PREDICTABLE_REPLAY))
-            key_gen(tinfo->table, tinfo->key, tinfo->keyno);
+        key_gen(tinfo->table, tinfo->key, tinfo->keyno);
         cursor->set_key(cursor, tinfo->key);
     }
 
