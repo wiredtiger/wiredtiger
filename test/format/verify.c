@@ -451,5 +451,7 @@ wts_verify_mirrors(WT_CONNECTION *conn, const char *checkpoint, TINFO *tinfo)
 
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->mirror && tables[i] != g.base_mirror)
-            table_verify_mirror(conn, g.base_mirror, tables[i], checkpoint, tinfo);
+            /* Layered cursor doesn't support checkpoint cursor yet. */
+            table_verify_mirror(
+              conn, g.base_mirror, tables[i], g.disagg_storage_config ? NULL : checkpoint, tinfo);
 }
