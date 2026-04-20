@@ -1160,6 +1160,7 @@ __evict_get_ref(
         if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
             min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
     }
+    /* XXX Fix max level */
 
     /* Only evict from all levels, including clean internal pages, if this is urgent */
     /* XXX FIx this */
@@ -1173,7 +1174,8 @@ __evict_get_ref(
         WT_ASSERT(session, 0);
 
     /* Application threads evict only clean pages */
-    if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+    if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN)
+        && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD)) {
         min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
         max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
     }
@@ -1207,26 +1209,6 @@ __evict_get_ref(
         min_level = 0;
         max_level = WT_EVICT_LEVELS - 1;
         printf("URGENT EVICTION!!!!!!!!!!!!\n");
-    }
-#endif
-#if 0
-    /* Sum items across all eligible bucketsets. */
-    for (i = min_level; i <= max_level; i++)
-        total_items += evict->evict_bucketset[i].bucketset_num_items;
-
-    /* If no items in any eligible bucket, nothing to evict. */
-    if (total_items == 0)
-        goto done;
-
-    /* Pick a random point in [0, total_items) and find the corresponding level. */
-    rand_val = __wt_random(&session->rnd_random) % total_items;
-
-    for (i = min_level; i <= max_level; i++) {
-        cumulative += evict->evict_bucketset[i].bucketset_num_items;
-        if (rand_val < cumulative) {
-            min_level = i;
-            break;
-        }
     }
 #endif
 
@@ -1281,9 +1263,19 @@ __evict_get_ref(
             continue;
 
         num_buckets = bucketset->num_buckets;
-        //for (j = __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered) % num_buckets,
-        for (j = __wt_random(&session->rnd_random) % num_buckets,
-                 iter = 0; iter++ < num_buckets; j = (j + 1) % num_buckets, total_iter++) {
+
+#if 0
+        /*
+         * We only care about LRU for clean leaf pages. For other level choose a random starting
+         * bucket to reduce contention.
+         */
+        if (i == WT_EVICT_LEVEL_CLEAN_LEAF) /* XXX. Revisit for YCSB. Does this really matter? */
+            j = __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered) % num_buckets;
+        else
+#endif
+            j = __wt_random(&session->rnd_random) % num_buckets;
+
+        for (iter = 0; iter++ < num_buckets; j = (j + 1) % num_buckets, total_iter++) {
 
             if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
                 break;
@@ -1294,9 +1286,10 @@ __evict_get_ref(
                 WT_STAT_CONN_INCR(session, eviction_skip_page_locked_bucket);
                 continue;
             }
-//            if (iter > 0)
-//                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
-
+#if 0 /* Revisit if LRU is needed for YCSB */
+            if (iter > 0 && i == WT_EVICT_LEVEL_CLEAN_LEAF)
+                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+#endif
             if (TAILQ_EMPTY(&bucket->evict_queue))
                 WT_STAT_CONN_INCR(session, eviction_skip_empty_bucket);
 

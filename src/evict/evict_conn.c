@@ -357,7 +357,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 
         bucketset->num_buckets = evict->evict_num_buckets;
 
-        bucketset->num_buckets = 23;
+        bucketset->num_buckets = 100;
 
         printf("allocating %d buckets at level %d \n", (int)bucketset->num_buckets, i);
 
