@@ -26,7 +26,6 @@ test_hs01.py  # FIXME: WT-15371
 test_log03.py
 test_metadata_cursor01.py
 test_metadata_cursor04.py
-test_prepare11.py   # FIXME: WT-16483 cursor.reserve() is not supported for layered tables
 test_readonly01.py
 test_readonly03.py  # FIXME: WT-14582
 test_shared_cache01.py
