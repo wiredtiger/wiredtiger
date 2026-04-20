@@ -470,143 +470,40 @@ replay_committed(TINFO *tinfo)
 }
 
 /*
- * replay_adjust_key_for_lane --
- *     Force the bottom lane bits of keyno to match the given lane, with boundary clamping.
+ * replay_pick_bulk_key --
+ *     Pick a deterministic target key from the bulk-loaded key space. Bulk-loaded keys use the "00"
+ *     suffix and are always present at any read_ts > 0, making them safe targets for both removes
+ *     and modifies without any history or visibility checks.
  */
-static void
-replay_adjust_key_for_lane(uint64_t *keynop, uint32_t lane, uint64_t max_rows)
+void
+replay_pick_bulk_key(TINFO *tinfo, TABLE **tablep, uint64_t *keynop)
 {
-    uint64_t keyno;
-
-    keyno = (*keynop & ~(uint64_t)(LANE_COUNT - 1)) | lane;
-    if (keyno == 0)
-        keyno = LANE_COUNT;
-    else if (keyno >= max_rows)
-        keyno -= LANE_COUNT;
-    *keynop = keyno;
-}
-
-/*
- * replay_target_remove --
- *     Derive a deterministic remove target from one of four equally likely buckets: key from the
- *     initial bulk load; key from ops history, 1 to 10 cycles back; key from ops history, 1 to 100
- *     cycles back; key from ops history, 1 to 1000 cycles back. Sets target_ts to the source
- *     timestamp (0 for bulk-load targets). Sets *suffixp to the key suffix that was used at
- *     target_ts ("00" for non-INSERT ops and bulk-load targets; "01"-"15" for row-store INSERTs).
- *     Returns a skip result if no suitable target exists.
- */
-replay_remove_result
-replay_target_remove(
-  TINFO *tinfo, TABLE **tablep, uint64_t *keynop, uint64_t *target_tsp, const char **suffixp)
-{
-    static const char *const insert_suffixes[15] = {
-      "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"};
-    WT_RAND_STATE temp_rnd;
     TABLE *target_table;
-    uint64_t cycles, keyno, max_cycles, range_max, target_ts;
-    uint32_t bucket, lane, max_rows, target_op_pct;
+    uint64_t keyno;
+    uint32_t max_rows;
 
-    *suffixp = "00"; /* default: bulk-loaded key variant */
-
-    max_cycles = tinfo->replay_ts / LANE_COUNT;
-    bucket = mmrand(&tinfo->data_rnd, 0, 3);
-
-    if (bucket == 3) {
-        /* Bucket 3: remove a bulk-loaded key. */
-        if (ntables == 0)
-            target_table = tables[0];
-        else
-            target_table = tables[mmrand(&tinfo->data_rnd, 1, ntables)];
-
-        max_rows = target_table->v[V_TABLE_RUNS_ROWS].v;
-        keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
-        if (target_table->v[V_TABLE_OPS_PARETO].v) {
-            keyno =
-              testutil_pareto(keyno, (u_int)max_rows, target_table->v[V_TABLE_OPS_PARETO_SKEW].v);
-            if (keyno == 0)
-                keyno++;
-        }
-        replay_adjust_key_for_lane(&keyno, tinfo->lane, max_rows);
-
-        *tablep = target_table;
-        *keynop = keyno;
-        *target_tsp = 0; /* bulk-loaded, no source timestamp */
-        return (REPLAY_REMOVE_OK);
-    }
-
-    /*
-     * Buckets 0-2: look back a random number of lane cycles and target the key that was written (if
-     * it was a write) at that earlier timestamp. Need at least one cycle of history.
-     */
-    if (max_cycles == 0)
-        return (REPLAY_REMOVE_SKIP_HISTORY);
-
-    range_max = 10;
-    for (uint32_t b = 0; b < bucket; ++b)
-        range_max *= 10;
-    range_max = WT_MIN(range_max, max_cycles);
-    cycles = mmrand(&tinfo->data_rnd, 1, (u_int)range_max);
-    target_ts = tinfo->replay_ts - cycles * LANE_COUNT;
-
-    /*
-     * Seed a temporary data RNG and replay the exact call sequence from ops_worker at target_ts:
-     * table_select, prepare check, op selection, key selection.
-     */
-    testutil_random_from_seed(&temp_rnd, target_ts ^ GV(RANDOM_DATA_SEED));
-
-    /* Table selection: matches table_select(tinfo, true). */
     if (ntables == 0)
         target_table = tables[0];
     else
-        target_table = tables[mmrand(&temp_rnd, 1, ntables)];
+        target_table = tables[mmrand(&tinfo->data_rnd, 1, ntables)];
 
-    /* Prepare check: only consumes an RNG call if OPS_PREPARE is configured. */
-    if (GV(OPS_PREPARE))
-        (void)mmrand(&temp_rnd, 1, 10);
-
-    /*
-     * Op selection: if the operation at target_ts was not a write, no key was written there.
-     * Removing it would create a redundant tombstone, so skip to avoid history store bloat.
-     */
-    target_op_pct = mmrand(&temp_rnd, 1, 100);
-    if (target_op_pct < target_table->v[V_TABLE_OPS_PCT_DELETE].v)
-        return (REPLAY_REMOVE_SKIP_PRIOR);
-    if (target_op_pct >= target_table->v[V_TABLE_OPS_PCT_DELETE].v +
-        target_table->v[V_TABLE_OPS_PCT_INSERT].v + target_table->v[V_TABLE_OPS_PCT_MODIFY].v +
-        target_table->v[V_TABLE_OPS_PCT_WRITE].v)
-        return (REPLAY_REMOVE_SKIP_READ);
-
-    /* Key selection: use configured RUNS_ROWS (not rows_current) for cross-run consistency. */
     max_rows = target_table->v[V_TABLE_RUNS_ROWS].v;
-    keyno = mmrand(&temp_rnd, 1, (u_int)max_rows);
+    keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
     if (target_table->v[V_TABLE_OPS_PARETO].v) {
         keyno = testutil_pareto(keyno, (u_int)max_rows, target_table->v[V_TABLE_OPS_PARETO_SKEW].v);
         if (keyno == 0)
             keyno++;
     }
 
-    /* Adjust key for lane; target_ts is always in the same lane as replay_ts. */
-    lane = LANE_NUMBER(target_ts);
-    testutil_assert(lane == tinfo->lane);
-    replay_adjust_key_for_lane(&keyno, lane, max_rows);
-
-    /*
-     * For row-store INSERT, recover the key suffix ("01"-"15") by simulating the remaining data_rnd
-     * calls: val_gen (0 or 1 call depending on keyno%63), then key_gen_insert's mmrand(0,14).
-     * INSERT in predictable replay has no pre-positioning mmrand call.
-     */
-    if (target_table->type == ROW &&
-      target_op_pct <
-        target_table->v[V_TABLE_OPS_PCT_DELETE].v + target_table->v[V_TABLE_OPS_PCT_INSERT].v) {
-        if (keyno % 63 != 0)
-            (void)mmrand(&temp_rnd, 0, 1); /* val_gen: one call for val_len */
-        *suffixp = insert_suffixes[mmrand(&temp_rnd, 0, 14)];
-    }
+    /* Set the bottom lane bits so only this lane can own the key. */
+    keyno = (keyno & ~(uint64_t)(LANE_COUNT - 1)) | tinfo->lane;
+    if (keyno == 0)
+        keyno = LANE_COUNT;
+    else if (keyno >= max_rows)
+        keyno -= LANE_COUNT;
 
     *tablep = target_table;
     *keynop = keyno;
-    *target_tsp = target_ts;
-    return (REPLAY_REMOVE_OK);
 }
 
 /*

@@ -235,7 +235,6 @@ INCR
 INIT
 INMEM
 INPROGRESS
-INSERTs
 INSN
 INTL
 INTRINSICS
@@ -522,7 +521,6 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
-Upd
 Uryyb
 VARCHAR
 VLCS
@@ -632,7 +630,6 @@ asan
 ascii
 assertEqual
 assertGreater
-assertGreaterEqual
 assertTrue
 assertfmt
 asymptote
@@ -887,7 +884,6 @@ designator
 dest
 destSize
 destructor
-deterministically
 dev
 dh
 dhandle
@@ -1369,6 +1365,7 @@ nop
 nopos
 nops
 noraw
+notfound
 nothex
 notransaction
 notsup
@@ -1694,7 +1691,6 @@ subtest
 subtests
 subtree
 subtrees
-suffixp
 sumv
 sunique
 sunused

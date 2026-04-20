@@ -341,12 +341,6 @@ extern GLOBAL g;
 
 /* Worker thread operations. */
 typedef enum { INSERT = 1, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
-typedef enum {
-    REPLAY_REMOVE_OK = 0,       /* remove fired */
-    REPLAY_REMOVE_SKIP_HISTORY, /* replay_ts too early */
-    REPLAY_REMOVE_SKIP_READ,    /* target_ts was a read */
-    REPLAY_REMOVE_SKIP_PRIOR,   /* target_ts was a remove */
-} replay_remove_result;
 
 /* Worker read operations. */
 typedef enum { NEXT, PREV, SEARCH, SEARCH_NEAR } read_operation;
@@ -402,12 +396,9 @@ typedef struct {
     uint64_t update;
 
     /* Predictable replay remove outcome counters. */
-    uint64_t replay_remove_ok;           /* target was a write; cursor->remove() fired */
-    uint64_t replay_remove_skip_history; /* skipped: not enough history yet */
-    uint64_t replay_remove_skip_read;    /* skipped: target_ts was a read */
-    uint64_t replay_remove_skip_prior;   /* skipped: target_ts was itself a remove */
-    uint64_t replay_remove_actual;       /* key existed at read_ts; tombstone meaningful */
-    uint64_t replay_remove_dup;          /* key already absent at read_ts; redundant tombstone */
+    uint64_t replay_remove_ok;       /* cursor->remove succeeded */
+    uint64_t replay_remove_notfound; /* cursor->remove returned WT_NOTFOUND */
+    uint64_t replay_remove_rollback; /* cursor->remove returned WT_ROLLBACK */
 
     WT_SESSION *session; /* WiredTiger session */
     WT_CURSOR **cursors; /* WiredTiger cursors, maps one-to-one to tables */
@@ -513,7 +504,7 @@ void timestamp_init(void);
 uint64_t timestamp_minimum_committed(void);
 void timestamp_once(WT_SESSION *, bool, bool);
 void replay_adjust_key(TINFO *, uint64_t);
-replay_remove_result replay_target_remove(TINFO *, TABLE **, uint64_t *, uint64_t *, const char **);
+void replay_pick_bulk_key(TINFO *, TABLE **, uint64_t *);
 uint64_t replay_commit_ts(TINFO *);
 uint64_t replay_rollback_ts(TINFO *);
 void replay_committed(TINFO *);

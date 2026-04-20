@@ -510,31 +510,27 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     disagg_sync_multi_node(session);
 
     if (g.replay_op_log != NULL) {
-        uint64_t ok = 0, skip_history = 0, skip_read = 0, skip_prior = 0, skipped;
-        uint64_t actual = 0, dup = 0;
+        uint64_t ok = 0, notfound = 0, rollback = 0, remove_total;
         TINFO **tlp;
         for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
             ok += (*tlp)->replay_remove_ok;
-            skip_history += (*tlp)->replay_remove_skip_history;
-            skip_read += (*tlp)->replay_remove_skip_read;
-            skip_prior += (*tlp)->replay_remove_skip_prior;
-            actual += (*tlp)->replay_remove_actual;
-            dup += (*tlp)->replay_remove_dup;
+            notfound += (*tlp)->replay_remove_notfound;
+            rollback += (*tlp)->replay_remove_rollback;
         }
-        skipped = skip_history + skip_read + skip_prior;
+        remove_total = ok + notfound + rollback;
 #define summary_print(fmt, ...)                     \
     do {                                            \
         fprintf(stderr, fmt, __VA_ARGS__);          \
         fprintf(g.replay_op_log, fmt, __VA_ARGS__); \
     } while (0)
-        summary_print("REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64
-                      " (%.1f%% skipped)"
-                      " (no-history=%" PRIu64 " target-read=%" PRIu64 " target-remove=%" PRIu64
-                      ")\n",
-          ok, skipped, (ok + skipped) > 0 ? 100.0 * skipped / (ok + skipped) : 0.0, skip_history,
-          skip_read, skip_prior);
-        summary_print("REMOVE tombstones: actual=%" PRIu64 " dup=%" PRIu64 " (%.1f%% redundant)\n",
-          actual, dup, (actual + dup) > 0 ? 100.0 * dup / (actual + dup) : 0.0);
+        summary_print("REMOVE results: ok=%" PRIu64
+                      " (%.1f%%)"
+                      " notfound=%" PRIu64
+                      " (%.1f%%)"
+                      " rollback=%" PRIu64 " (%.1f%%)\n",
+          ok, remove_total > 0 ? 100.0 * ok / remove_total : 0.0, notfound,
+          remove_total > 0 ? 100.0 * notfound / remove_total : 0.0, rollback,
+          remove_total > 0 ? 100.0 * rollback / remove_total : 0.0);
 #undef summary_print
         fclose(g.replay_op_log);
         g.replay_op_log = NULL;
@@ -1048,12 +1044,13 @@ ops(void *arg)
     iso_level_t iso_level;
     thread_op op;
     uint64_t reset_op, session_op, throttle_delay, truncate_op;
-    uint64_t rlog_keyno, rlog_lane, rlog_read_ts, rlog_ts, rlog_write_ts;
+    uint64_t rlog_keyno, rlog_read_ts, rlog_ts;
     uint32_t max_rows, ntries, range, rnd;
     u_int i, rlog_table_id, throttle_delay_max;
-    const char *iso_config, *rlog_skip_reason, *rlog_op_name, *rlog_suffix;
+    int rlog_ret;
+    const char *iso_config, *rlog_op_name;
     bool greater_than, intxn, prepared, mirrored_truncate;
-    bool rlog_remove, rlog_to_update, rlog_write;
+    bool rlog_remove, rlog_write;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1075,11 +1072,11 @@ ops(void *arg)
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
-    rlog_remove = rlog_to_update = rlog_write = false;
-    rlog_keyno = rlog_lane = rlog_read_ts = rlog_ts = rlog_write_ts = 0;
+    rlog_remove = rlog_write = false;
+    rlog_keyno = rlog_read_ts = rlog_ts = 0;
     rlog_table_id = 0;
-    rlog_skip_reason = rlog_op_name = NULL;
-    rlog_suffix = "00";
+    rlog_ret = 0;
+    rlog_op_name = NULL;
 
     /*
      * Calculate max delay so that per-table ops/sec is as set. We use 2* here as our random
@@ -1259,69 +1256,29 @@ rollback_retry:
         }
         replay_adjust_key(tinfo, max_rows);
 
-        /*
-         * For predictable replay removes: derive the target key deterministically from replay_ts by
-         * re-simulating the data_rnd state at a randomly chosen earlier timestamp in the same lane.
-         * The cursor uses overwrite mode so remove() writes a tombstone at commit_ts regardless of
-         * key visibility at read_ts.
-         */
+        /* For predictable replay removes, target a bulk-loaded key (suffix "00"). */
         if (GV(RUNS_PREDICTABLE_REPLAY)) {
             if (op == REMOVE) {
                 TABLE *target_table;
-                uint64_t target_keyno, target_ts;
-                const char *target_suffix;
-                replay_remove_result remove_result;
+                uint64_t target_keyno;
 
-                remove_result = replay_target_remove(
-                  tinfo, &target_table, &target_keyno, &target_ts, &target_suffix);
-                if (remove_result == REPLAY_REMOVE_OK) {
-                    ++tinfo->replay_remove_ok;
-                    if (tinfo->lane == 1) {
-                        rlog_remove = true;
-                        rlog_lane = tinfo->lane;
-                        rlog_ts = tinfo->replay_ts;
-                        rlog_read_ts = tinfo->read_ts;
-                        rlog_keyno = target_keyno;
-                        rlog_write_ts = target_ts;
-                        rlog_table_id = target_table->id;
-                        rlog_suffix = target_suffix;
-                    }
-                    tinfo->keyno = target_keyno;
-                    table = tinfo->table = target_table;
-                    if (target_table->type == ROW)
-                        key_gen_common(target_table, tinfo->key, target_keyno, target_suffix);
-                } else {
-                    if (remove_result == REPLAY_REMOVE_SKIP_HISTORY)
-                        ++tinfo->replay_remove_skip_history;
-                    else if (remove_result == REPLAY_REMOVE_SKIP_READ)
-                        ++tinfo->replay_remove_skip_read;
-                    else
-                        ++tinfo->replay_remove_skip_prior;
-                    if (tinfo->lane == 1) {
-                        static const char *const skip_names[] = {
-                          [REPLAY_REMOVE_SKIP_HISTORY] = "not enough history",
-                          [REPLAY_REMOVE_SKIP_READ] = "target was a read",
-                          [REPLAY_REMOVE_SKIP_PRIOR] = "target was a remove",
-                        };
-                        rlog_to_update = true;
-                        rlog_skip_reason = skip_names[remove_result];
-                        rlog_lane = tinfo->lane;
-                        rlog_ts = tinfo->replay_ts;
-                    }
-                    op = UPDATE;
-                }
+                replay_pick_bulk_key(tinfo, &target_table, &target_keyno);
+                if (tinfo->lane == 1)
+                    rlog_remove = true;
+                tinfo->keyno = target_keyno;
+                table = tinfo->table = target_table;
+                if (target_table->type == ROW)
+                    key_gen_common(target_table, tinfo->key, target_keyno, "00");
             }
-            /* Log all non-remove operations for lane 1. */
-            if (tinfo->lane == 1 && (op == INSERT || op == READ || op == UPDATE)) {
-                rlog_write = true;
-                rlog_op_name = op == INSERT ? "INSERT" : (op == READ ? "READ" : "UPDATE");
-                /* INSERT suffix is determined inside row_insert; unknown here. */
-                rlog_suffix = (op == INSERT && table->type == ROW) ? "??" : "00";
-                rlog_lane = tinfo->lane;
+            if (tinfo->lane == 1) {
                 rlog_ts = tinfo->replay_ts;
                 rlog_read_ts = tinfo->read_ts;
                 rlog_keyno = tinfo->keyno;
                 rlog_table_id = table->id;
+                if (op == INSERT || op == READ || op == UPDATE) {
+                    rlog_write = true;
+                    rlog_op_name = op == INSERT ? "INSERT" : (op == READ ? "READ" : "UPDATE");
+                }
             }
         }
 
@@ -1426,8 +1383,12 @@ rollback_retry:
             tinfo->table = table;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-            if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
-                goto rollback;
+            if (GV(RUNS_PREDICTABLE_REPLAY)) {
+                if (ret == WT_ROLLBACK)
+                    goto rollback;
+                if (rlog_remove)
+                    rlog_ret = tinfo->op_ret;
+            }
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
@@ -1536,22 +1497,14 @@ skip_operation:
             commit_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, true);
             if (rlog_remove) {
-                rlog_emit("REMOVE lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64
-                          " -> remove keyno=%" PRIu64 ".%s target_ts=%" PRIu64 " tbl=%u\n",
-                  rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_suffix, rlog_write_ts,
-                  rlog_table_id);
+                rlog_emit("REMOVE lane=1 ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
+                          " tbl=%u ret=%d\n",
+                  rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id, rlog_ret);
                 rlog_remove = false;
             }
-            if (rlog_to_update) {
-                rlog_emit("REMOVE lane=%" PRIu64 " ts=%" PRIu64 " -> UPDATE (%s)\n", rlog_lane,
-                  rlog_ts, rlog_skip_reason);
-                rlog_to_update = false;
-            }
             if (rlog_write) {
-                rlog_emit("%s lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
-                          ".%s tbl=%u\n",
-                  rlog_op_name, rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_suffix,
-                  rlog_table_id);
+                rlog_emit("%s lane=1 ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64 " tbl=%u\n",
+                  rlog_op_name, rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id);
                 rlog_write = false;
             }
             break;
@@ -2292,18 +2245,17 @@ row_remove(TINFO *tinfo, bool positioned)
     }
 
     /*
-     * We use the cursor in overwrite mode, check for existence. For predictable replay, skip the
-     * search and call remove directly. Overwrite mode writes a tombstone at commit_ts regardless of
-     * key visibility at read_ts, making the outcome deterministic across runs.
-     *
-     * Do a probe search first to count actual vs redundant tombstones.
+     * For predictable replay, call remove directly and track the result. Otherwise check for
+     * existence first.
      */
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        if (read_op(cursor, SEARCH, NULL) == 0)
-            ++tinfo->replay_remove_actual;
-        else
-            ++tinfo->replay_remove_dup;
         ret = cursor->remove(cursor);
+        if (ret == 0)
+            ++tinfo->replay_remove_ok;
+        else if (ret == WT_NOTFOUND)
+            ++tinfo->replay_remove_notfound;
+        else if (ret == WT_ROLLBACK)
+            ++tinfo->replay_remove_rollback;
     } else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
         ret = cursor->remove(cursor);
 
@@ -2331,13 +2283,15 @@ col_remove(TINFO *tinfo, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
-    /* See row_remove for the predictable replay rationale and probe-search counting. */
+    /* See row_remove for the predictable replay rationale. */
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        if (read_op(cursor, SEARCH, NULL) == 0)
-            ++tinfo->replay_remove_actual;
-        else
-            ++tinfo->replay_remove_dup;
         ret = cursor->remove(cursor);
+        if (ret == 0)
+            ++tinfo->replay_remove_ok;
+        else if (ret == WT_NOTFOUND)
+            ++tinfo->replay_remove_notfound;
+        else if (ret == WT_ROLLBACK)
+            ++tinfo->replay_remove_rollback;
     } else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
         ret = cursor->remove(cursor);
 
