@@ -510,7 +510,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     disagg_sync_multi_node(session);
 
     if (g.replay_op_log != NULL) {
-        uint64_t ok = 0, skip_history = 0, skip_read = 0, skip_prior = 0;
+        uint64_t ok = 0, skip_history = 0, skip_read = 0, skip_prior = 0, skipped;
         uint64_t actual = 0, dup = 0;
         TINFO **tlp;
         for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
@@ -521,14 +521,18 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
             actual += (*tlp)->replay_remove_actual;
             dup += (*tlp)->replay_remove_dup;
         }
+        skipped = skip_history + skip_read + skip_prior;
 #define summary_print(fmt, ...)                     \
     do {                                            \
         fprintf(stderr, fmt, __VA_ARGS__);          \
         fprintf(g.replay_op_log, fmt, __VA_ARGS__); \
     } while (0)
-        summary_print("REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64 " (no-history=%" PRIu64
-                      " target-read=%" PRIu64 " target-remove=%" PRIu64 ")\n",
-          ok, skip_history + skip_read + skip_prior, skip_history, skip_read, skip_prior);
+        summary_print("REMOVE summary: fired=%" PRIu64 " skipped=%" PRIu64
+                      " (%.1f%% skipped)"
+                      " (no-history=%" PRIu64 " target-read=%" PRIu64 " target-remove=%" PRIu64
+                      ")\n",
+          ok, skipped, (ok + skipped) > 0 ? 100.0 * skipped / (ok + skipped) : 0.0, skip_history,
+          skip_read, skip_prior);
         summary_print("REMOVE tombstones: actual=%" PRIu64 " dup=%" PRIu64 " (%.1f%% redundant)\n",
           actual, dup, (actual + dup) > 0 ? 100.0 * dup / (actual + dup) : 0.0);
 #undef summary_print
@@ -931,8 +935,12 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             /*
              * Don't set positioned: it's unchanged from the previous state, but not necessarily
              * set.
+             *
+             * Skip snap tracking for predictable replay removes: the tombstone is at commit_ts
+             * (replay_ts) which is above read_ts, so the key is not visibly deleted at read_ts.
              */
-            SNAP_TRACK(tinfo, REMOVE);
+            if (!GV(RUNS_PREDICTABLE_REPLAY))
+                SNAP_TRACK(tinfo, REMOVE);
         } else
             OP_FAILED(true);
         break;
@@ -1043,7 +1051,7 @@ ops(void *arg)
     uint64_t rlog_keyno, rlog_lane, rlog_read_ts, rlog_ts, rlog_write_ts;
     uint32_t max_rows, ntries, range, rnd;
     u_int i, rlog_table_id, throttle_delay_max;
-    const char *iso_config, *rlog_skip_reason, *rlog_op_name;
+    const char *iso_config, *rlog_skip_reason, *rlog_op_name, *rlog_suffix;
     bool greater_than, intxn, prepared, mirrored_truncate;
     bool rlog_remove, rlog_to_update, rlog_write;
 
@@ -1071,6 +1079,7 @@ ops(void *arg)
     rlog_keyno = rlog_lane = rlog_read_ts = rlog_ts = rlog_write_ts = 0;
     rlog_table_id = 0;
     rlog_skip_reason = rlog_op_name = NULL;
+    rlog_suffix = "00";
 
     /*
      * Calculate max delay so that per-table ops/sec is as set. We use 2* here as our random
@@ -1260,10 +1269,11 @@ rollback_retry:
             if (op == REMOVE) {
                 TABLE *target_table;
                 uint64_t target_keyno, target_ts;
+                const char *target_suffix;
                 replay_remove_result remove_result;
 
-                remove_result =
-                  replay_target_remove(tinfo, &target_table, &target_keyno, &target_ts);
+                remove_result = replay_target_remove(
+                  tinfo, &target_table, &target_keyno, &target_ts, &target_suffix);
                 if (remove_result == REPLAY_REMOVE_OK) {
                     ++tinfo->replay_remove_ok;
                     if (tinfo->lane == 1) {
@@ -1274,9 +1284,12 @@ rollback_retry:
                         rlog_keyno = target_keyno;
                         rlog_write_ts = target_ts;
                         rlog_table_id = target_table->id;
+                        rlog_suffix = target_suffix;
                     }
                     tinfo->keyno = target_keyno;
                     table = tinfo->table = target_table;
+                    if (target_table->type == ROW)
+                        key_gen_common(target_table, tinfo->key, target_keyno, target_suffix);
                 } else {
                     if (remove_result == REPLAY_REMOVE_SKIP_HISTORY)
                         ++tinfo->replay_remove_skip_history;
@@ -1302,6 +1315,8 @@ rollback_retry:
             if (tinfo->lane == 1 && (op == INSERT || op == READ || op == UPDATE)) {
                 rlog_write = true;
                 rlog_op_name = op == INSERT ? "INSERT" : (op == READ ? "READ" : "UPDATE");
+                /* INSERT suffix is determined inside row_insert; unknown here. */
+                rlog_suffix = (op == INSERT && table->type == ROW) ? "??" : "00";
                 rlog_lane = tinfo->lane;
                 rlog_ts = tinfo->replay_ts;
                 rlog_read_ts = tinfo->read_ts;
@@ -1522,8 +1537,9 @@ skip_operation:
             snap_repeat_update(tinfo, true);
             if (rlog_remove) {
                 rlog_emit("REMOVE lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64
-                          " -> remove keyno=%" PRIu64 " target_ts=%" PRIu64 " tbl=%u\n",
-                  rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_write_ts, rlog_table_id);
+                          " -> remove keyno=%" PRIu64 ".%s target_ts=%" PRIu64 " tbl=%u\n",
+                  rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_suffix, rlog_write_ts,
+                  rlog_table_id);
                 rlog_remove = false;
             }
             if (rlog_to_update) {
@@ -1533,8 +1549,9 @@ skip_operation:
             }
             if (rlog_write) {
                 rlog_emit("%s lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
-                          " tbl=%u\n",
-                  rlog_op_name, rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id);
+                          ".%s tbl=%u\n",
+                  rlog_op_name, rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_suffix,
+                  rlog_table_id);
                 rlog_write = false;
             }
             break;
@@ -2268,7 +2285,9 @@ row_remove(TINFO *tinfo, bool positioned)
     cursor = tinfo->cursor;
 
     if (!positioned) {
-        key_gen(tinfo->table, tinfo->key, tinfo->keyno);
+        /* For predictable replay, the key was pre-generated in ops() with the correct suffix. */
+        if (!GV(RUNS_PREDICTABLE_REPLAY))
+            key_gen(tinfo->table, tinfo->key, tinfo->keyno);
         cursor->set_key(cursor, tinfo->key);
     }
 

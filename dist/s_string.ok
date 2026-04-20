@@ -235,6 +235,7 @@ INCR
 INIT
 INMEM
 INPROGRESS
+INSERTs
 INSN
 INTL
 INTRINSICS
@@ -1693,6 +1694,7 @@ subtest
 subtests
 subtree
 subtrees
+suffixp
 sumv
 sunique
 sunused

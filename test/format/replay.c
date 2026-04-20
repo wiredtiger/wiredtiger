@@ -491,15 +491,22 @@ replay_adjust_key_for_lane(uint64_t *keynop, uint32_t lane, uint64_t max_rows)
  *     Derive a deterministic remove target from one of four equally likely buckets: key from the
  *     initial bulk load; key from ops history, 1 to 10 cycles back; key from ops history, 1 to 100
  *     cycles back; key from ops history, 1 to 1000 cycles back. Sets target_ts to the source
- *     timestamp (0 for bulk-load targets). Returns a skip result if no suitable target exists.
+ *     timestamp (0 for bulk-load targets). Sets *suffixp to the key suffix that was used at
+ *     target_ts ("00" for non-INSERT ops and bulk-load targets; "01"-"15" for row-store INSERTs).
+ *     Returns a skip result if no suitable target exists.
  */
 replay_remove_result
-replay_target_remove(TINFO *tinfo, TABLE **tablep, uint64_t *keynop, uint64_t *target_tsp)
+replay_target_remove(
+  TINFO *tinfo, TABLE **tablep, uint64_t *keynop, uint64_t *target_tsp, const char **suffixp)
 {
+    static const char *const insert_suffixes[15] = {
+      "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"};
     WT_RAND_STATE temp_rnd;
     TABLE *target_table;
     uint64_t cycles, keyno, max_cycles, range_max, target_ts;
     uint32_t bucket, lane, max_rows, target_op_pct;
+
+    *suffixp = "00"; /* default: bulk-loaded key variant */
 
     max_cycles = tinfo->replay_ts / LANE_COUNT;
     bucket = mmrand(&tinfo->data_rnd, 0, 3);
@@ -578,10 +585,23 @@ replay_target_remove(TINFO *tinfo, TABLE **tablep, uint64_t *keynop, uint64_t *t
             keyno++;
     }
 
-    /* Adjust key for lane target_ts is always in the same lane as replay_ts. */
+    /* Adjust key for lane; target_ts is always in the same lane as replay_ts. */
     lane = LANE_NUMBER(target_ts);
     testutil_assert(lane == tinfo->lane);
     replay_adjust_key_for_lane(&keyno, lane, max_rows);
+
+    /*
+     * For row-store INSERT, recover the key suffix ("01"-"15") by simulating the remaining data_rnd
+     * calls: val_gen (0 or 1 call depending on keyno%63), then key_gen_insert's mmrand(0,14).
+     * INSERT in predictable replay has no pre-positioning mmrand call.
+     */
+    if (target_table->type == ROW &&
+      target_op_pct <
+        target_table->v[V_TABLE_OPS_PCT_DELETE].v + target_table->v[V_TABLE_OPS_PCT_INSERT].v) {
+        if (keyno % 63 != 0)
+            (void)mmrand(&temp_rnd, 0, 1); /* val_gen: one call for val_len */
+        *suffixp = insert_suffixes[mmrand(&temp_rnd, 0, 14)];
+    }
 
     *tablep = target_table;
     *keynop = keyno;
