@@ -131,9 +131,12 @@ __wt_insert_truncate_entry(
     WT_SAVE_DHANDLE(session, ret = __txn_truncate_on_ingest(session, layered_table, &t));
     WT_ERR(ret);
 
+    if (0) {
 err:
+        __disagg_truncate_free(session, &t);
+    }
+
     WT_TRET(__wt_session_release_dhandle(session));
-    __disagg_truncate_free(session, &t);
     return (ret);
 }
 
