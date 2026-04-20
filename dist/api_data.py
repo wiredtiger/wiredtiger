@@ -678,6 +678,11 @@ connection_runtime_config = [
             adjust log removal to retain the log records of this number of checkpoints. Zero
             or one means perform normal removal.''',
             min='0', max='1024'),
+        Config('clean_scrub', 'false', r'''
+            if true, control all clean page evictions through forcing clean-scrub eviction,
+            reclaiming in-memory update content by re-instantiating pages from their saved
+            disk image. This is intended for testing purposes only.''',
+            type='boolean'),
         Config('configuration', 'false', r'''
                if true, display invalid cache configuration warnings.''',
                type='boolean'),

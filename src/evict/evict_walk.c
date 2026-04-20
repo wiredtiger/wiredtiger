@@ -1170,8 +1170,10 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      * swap out the in-memory content without a disk read, reclaiming update memory. Only consider
      * this when under updates pressure and the btree has saved images available.
      */
-    evict_clean_scrub = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && !modified &&
-      !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+    evict_clean_scrub =
+      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ||
+        FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_CLEAN_SCRUB)) &&
+      !modified && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
       __wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) > 0 &&
       page->modify != NULL && page->modify->mod_disk_image != NULL;
 

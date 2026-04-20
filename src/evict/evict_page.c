@@ -1309,7 +1309,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
              * under updates pressure, so that clean pages can be re-instantiated without a disk
              * read to reclaim their in-memory update content.
              */
-            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
+            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ||
+              FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB))
                 LF_SET(WT_REC_CLEAN_SCRUB);
         }
     }

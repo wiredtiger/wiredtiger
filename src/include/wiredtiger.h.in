@@ -2207,17 +2207,19 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust log removal
      * to retain the log records of this number of checkpoints.  Zero or one means perform normal
      * removal., an integer between \c 0 and \c 1024; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;configuration, if true\, display invalid cache configuration
-     * warnings., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * corruption_abort, if true and built in diagnostic mode\, dump core in the case of data
-     * corruption., a boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;crash_point =
-     * (, control the settings of crash points used for debugging., a set of related configuration
-     * options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-     * after_drop_colgroup, if true\, force crash in table drop after dropping the table metadata
-     * entry.  This is intended for testing purposes only., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;clean_scrub, if true\, control all clean page evictions
+     * through forcing clean-scrub eviction\, reclaiming in-memory update content by
+     * re-instantiating pages from their saved disk image.  This is intended for testing purposes
+     * only., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;configuration, if
+     * true\, display invalid cache configuration warnings., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
+     * core in the case of data corruption., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;crash_point = (, control the settings of crash points used
+     * for debugging., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;after_drop_colgroup, if true\, force
+     * crash in table drop after dropping the table metadata entry.  This is intended for testing
+     * purposes only., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;after_drop_file, if true\, force
      * crash in table drop after dropping the colgroup metadata entry.  This is intended for testing
      * purposes only., a boolean flag; default \c false.}
@@ -3146,10 +3148,15 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust log removal to retain the
  * log records of this number of checkpoints.  Zero or one means perform normal removal., an integer
  * between \c 0 and \c 1024; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;configuration, if true\,
- * display invalid cache configuration warnings., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic mode\, dump
- * core in the case of data corruption., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;clean_scrub, if true\,
+ * control all clean page evictions through forcing clean-scrub eviction\, reclaiming in-memory
+ * update content by re-instantiating pages from their saved disk image.  This is intended for
+ * testing purposes only., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * configuration, if true\, display invalid cache configuration warnings., a boolean flag; default
+ * \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;corruption_abort, if true and built in diagnostic
+ * mode\, dump core in the case of data corruption., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;crash_point = (, control the settings of crash points used for
  * debugging., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;after_drop_colgroup, if true\, force
