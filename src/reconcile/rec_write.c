@@ -3268,12 +3268,41 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * is a replacement page in disaggregated storage. This ensures that a new page ID is assigned
      * during the next reconciliation for the replaced page. In other cases, the old page ID will be
      * released upon successful reconciliation.
+     *
+     * For a failed disaggregated delta write, __wt_btree_block_free above invoked plh_discard,
+     * which deletes the entire delta chain (base_lsn to current LSN) from storage -- not just the
+     * delta entry we were attempting to write. This destroys every block that the previous
+     * successful reconciliation's preserved state still references. If we leave that stale state
+     * in place, a later wrapup will trust it and operate on data that no longer exists. Two
+     * downstream failures have been observed:
+     *
+     *   - mod->mod_replace.block_cookie still non-NULL and page->disagg_info->block_meta
+     *     .cumulative_size still set: wrapup enters the WT_PM_REC_REPLACE path and calls
+     *     __wt_block_disagg_obsolete_delta_chain a second time for the same chain, under-flowing
+     *     block_disagg->size and tripping the decrease-size assertion (WT-16864).
+     *   - ref->addr still holds a cookie for the now-dead page id: wrapup calls
+     *     __wt_ref_block_free(ref, true) which issues a second plh_discard on an already-
+     *     terminated chain, producing EINVAL and a panic (WT-16518).
+     *
+     * Clear the preserved state the same way a successful wrapup would, so the next reconciliation
+     * starts from a known-good "never reconciled" state.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
+
+        if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count > 0 &&
+          page->modify != NULL) {
+            if (page->modify->mod_replace.block_cookie != NULL) {
+                __wt_free(session, page->modify->mod_replace.block_cookie);
+                page->modify->mod_replace.block_cookie_size = 0;
+            }
+            __wt_free(session, page->modify->mod_disk_image);
+            page->modify->rec_result = 0;
+            __wt_ref_addr_free(session, r->ref);
+        }
     }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
