@@ -1485,13 +1485,11 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
         break;
     case WT_TXN_LOG_CKPT_STOP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_RET_MSG(session, __wt_checkpoint_log(session, true, log_flags, NULL), "%s",
-          "Checkpoint log operation failed");
+        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     case WT_TXN_LOG_CKPT_CLEANUP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_RET_MSG(session, __wt_checkpoint_log(session, true, log_flags, NULL), "%s",
-          "Checkpoint log operation failed");
+        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
         break;
     default:
         WT_RET(__wt_illegal_value(session, log_flags));
@@ -1855,8 +1853,10 @@ err:
      * database was idle.
      */
     bool idle = ret == 0 && F_ISSET(CUR2BT(session->meta_cursor), WT_BTREE_SKIP_CKPT);
-    WT_TRET(__checkpoint_log_stage(
-      session, (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP));
+    WT_TRET_MSG(session,
+      __checkpoint_log_stage(
+        session, (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP),
+      "%s", "Checkpoint log stage operation failed");
 
     if (!failed)
         WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts));
