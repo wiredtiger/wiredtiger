@@ -178,7 +178,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         elif "cache_size_mb=" not in page_log_config: # don't override user-specified size
             page_log_config = f"cache_size_mb=2048,{page_log_config}"
 
-    if should_minimize_fds(testcase): # minimize fds for specific tests
+    if should_minimize_fds(testcase): # minimize file descriptors for specific tests
         if not page_log_config:
             page_log_config = "per_thread_connections=false"
         elif "per_thread_connections=" not in page_log_config: # don't override user-specified field
