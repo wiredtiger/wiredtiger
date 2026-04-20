@@ -29,9 +29,8 @@
 import os
 import random
 import sys
-import threading
 import time
-import wiredtiger, wttest
+import wiredtiger, wttest, wtthread
 
 from test_chunkcache01 import stat_assert_greater
 from wtdataset import SimpleDataSet
@@ -117,7 +116,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         '''
         threads = []
         for _ in range(self.num_threads):
-            thread = threading.Thread(target=self.read_and_verify, args=(self.rows, ds,))
+            thread = wtthread.Thread(target=self.read_and_verify, args=(self.rows, ds,))
             threads.append(thread)
             thread.start()
 

@@ -30,7 +30,18 @@ import os, queue, random, shutil, threading, time, wiredtiger, wttest
 from helper import compare_tables
 from wttest import WiredTigerTestCase
 
-class checkpoint_thread(threading.Thread):
+# A base class for all WiredTiger thread classes.  This sets the current test case object
+# in thread local storage, where it is sometimes needed by utility functions.
+class Thread(threading.Thread):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.testcase = WiredTigerTestCase.getCurrentTestCase()
+
+    def run(self):
+        WiredTigerTestCase.setCurrentTestCase(self.testcase)
+        super().run()
+
+class checkpoint_thread(Thread):
     def __init__(self, conn, done, **kwargs):
         """
         Keyword Args:
@@ -41,7 +52,6 @@ class checkpoint_thread(threading.Thread):
         self.conn = conn
         self.done = done
         # Get the current test case object via the calling thread of execution.
-        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         self.checkpoint_count = 0
 
         if "checkpoint_count_max" in kwargs:
@@ -53,7 +63,7 @@ class checkpoint_thread(threading.Thread):
             # Infinite checkpoints: run until signalled.
             self._max_count = 0
 
-        threading.Thread.__init__(self)
+        super().__init__(self)
 
     def reached_max_count(self):
         return self._max_count > 0 and self.checkpoint_count >= self._max_count
@@ -61,7 +71,6 @@ class checkpoint_thread(threading.Thread):
     def run(self):
         # Save the current test case object in thread local storage.
         # We need to set in run() as it's in the new thread of execution.
-        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set() and not self.reached_max_count():
             # Sleep for 10 milliseconds.
@@ -70,19 +79,17 @@ class checkpoint_thread(threading.Thread):
             self.checkpoint_count += 1
         sess.close()
 
-class named_checkpoint_thread(threading.Thread):
+class named_checkpoint_thread(Thread):
     def __init__(self, conn, done, ckpt_name):
         self.conn = conn
         self.done = done
         # Get the current test case object via the calling thread of execution.
-        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         self.ckpt_name = ckpt_name
-        threading.Thread.__init__(self)
+        super().__init__(self)
 
     def run(self):
         # Save the current test case object in thread local storage.
         # We need to set in run() as it's in the new thread of execution.
-        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
             # Sleep for 10 milliseconds.
@@ -90,19 +97,17 @@ class named_checkpoint_thread(threading.Thread):
             sess.checkpoint('name=' + self.ckpt_name)
         sess.close()
 
-class flush_checkpoint_thread(threading.Thread):
+class flush_checkpoint_thread(Thread):
     def __init__(self, conn, done, prob):
         self.conn = conn
         self.done = done
         # Get the current test case object via the calling thread of execution.
-        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         self.flush_probability = prob
-        threading.Thread.__init__(self)
+        super().__init__(self)
 
     def run(self):
         # Save the current test case object in thread local storage.
         # We need to set in run() as it's in the new thread of execution.
-        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
             # Sleep for 10 milliseconds.
@@ -113,19 +118,17 @@ class flush_checkpoint_thread(threading.Thread):
                 sess.checkpoint()
         sess.close()
 
-class backup_thread(threading.Thread):
+class backup_thread(Thread):
     def __init__(self, conn, backup_dir, done):
         self.backup_dir = backup_dir
         self.conn = conn
         self.done = done
         # Get the current test case object via the calling thread of execution.
-        self.testcase = WiredTigerTestCase.getCurrentTestCase()
-        threading.Thread.__init__(self)
+        super().__init__(self)
 
     def run(self):
         # Save the current test case object in thread local storage.
         # We need to set in run() as it's in the new thread of execution.
-        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
             # Sleep for 2 seconds.
@@ -176,7 +179,7 @@ class backup_thread(threading.Thread):
 # 'b' for bounce (close and open) a session handle
 # 'd' for drop a table
 # 't' for create a table and insert a single item into it
-class op_thread(threading.Thread):
+class op_thread(Thread):
     def __init__(self, conn, uris, key_fmt, work_queue, done):
         self.conn = conn
         self.uris = uris
@@ -184,13 +187,11 @@ class op_thread(threading.Thread):
         self.work_queue = work_queue
         self.done = done
         # Get the current test case object via the calling thread of execution.
-        self.testcase = WiredTigerTestCase.getCurrentTestCase()
-        threading.Thread.__init__(self)
+        super().__init__(self)
 
     def run(self):
         # Save the current test case object in thread local storage.
         # We need to set in run() as it's in the new thread of execution.
-        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         if (len(self.uris) == 1):
             c = sess.open_cursor(self.uris[0], None, None)
