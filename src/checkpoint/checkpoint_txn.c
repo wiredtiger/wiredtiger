@@ -1465,8 +1465,6 @@ err:
 static int
 __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 {
-    WT_DECL_RET;
-
     if (!F_ISSET(&S2C(session)->log_mgr, WT_LOG_ENABLED))
         return (0);
 
@@ -1492,11 +1490,12 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
         break;
     case WT_TXN_LOG_CKPT_STOP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_RET(__wt_checkpoint_log(session, true, log_flags, NULL));
+        WT_RET_MSG(session, __wt_checkpoint_log(session, true, log_flags, NULL), "%s",
+          "Checkpoint log operation failed");
         break;
     case WT_TXN_LOG_CKPT_CLEANUP:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
-        WT_TRET_MSG(session, __wt_checkpoint_log(session, true, log_flags, NULL), "%s",
+        WT_RET_MSG(session, __wt_checkpoint_log(session, true, log_flags, NULL), "%s",
           "Checkpoint log operation failed");
         break;
     default:
