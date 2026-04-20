@@ -413,7 +413,7 @@ union __wt_rand_state {
 
 /*
  * WT_TAILQ_EMPTY_RELAXED --
- *	Check if the queue is empty without acquiring the lock.
+ *	Check if the queue is empty, if the caller doesn't need a consistent view.
  */
 #define WT_TAILQ_EMPTY_RELAXED(head) (__wt_atomic_load_ptr_relaxed(&(head)->tqh_first) == NULL)
 
