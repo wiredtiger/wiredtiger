@@ -43,8 +43,10 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
     /* A zeroed start key indicates a truncate from the beginning of the table. */
     if (start_key->size != 0) {
         WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
-        if (compare_result < 0)
+        if (compare_result < 0) {
+            *is_within_range = false;
             return (0);
+        }
     }
 
     /* A zeroed stop key indicates a truncate to end of table. */
