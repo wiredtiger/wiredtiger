@@ -119,6 +119,44 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 }
 
 /*
+ * __layered_reset_ingest_table_prune_timestamp --
+ *     Reset the prune timestamp for the ingest table.
+ *
+ * This is used when connection steps up from follower to leader. Resetting the prune timestamp to
+ *     WT_TS_NONE will allow immediate eviction of dirty ingest pages. These dirty pages are not
+ *     needed any more since the new leader just drained all the ingest content to the stable table.
+ */
+static int
+__layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const char *ingest_uri)
+{
+    WT_BTREE *btree = NULL;
+    WT_DECL_RET;
+    uint64_t btree_prune_timestamp;
+
+    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), true);
+    if (ret == WT_NOTFOUND) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "Handle not found for ingest table uri: %s", ingest_uri);
+        ret = 0;
+        goto err;
+    }
+
+    btree = (WT_BTREE *)session->dhandle->handle;
+    btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+      "Reset prune timestamp from %" PRIu64 " to WT_TS_NONE(%d)", btree_prune_timestamp,
+      WT_TS_NONE);
+
+    __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, WT_TS_NONE);
+
+    WT_ERR(__wt_session_release_dhandle(session));
+
+err:
+    return (ret);
+}
+
+/*
  * __layered_table_get_constituent_cursor --
  *     Retrieve or open a constituent cursor for a layered tree.
  */
@@ -408,6 +446,10 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_ERR(__layered_assert_ingest_table_empty(session, work_item->entry->ingest_uri));
 #endif
 
+    WT_ERR_MSG_CHK(session,
+      __layered_reset_ingest_table_prune_timestamp(session, work_item->entry->ingest_uri),
+      "Failed to reset ingest table prune timestamp \"%s\"", work_item->entry->ingest_uri);
+
     WT_ASSERT(session, work_item->entry->pinned_dhandle != NULL);
     WT_WITH_DHANDLE(session, work_item->entry->pinned_dhandle, {
         work_item->entry->pinned_dhandle = NULL;
@@ -574,7 +616,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
-    wt_timestamp_t prune_timestamp;
+    wt_timestamp_t btree_prune_timestamp, prune_timestamp;
     int64_t ckpt_inuse, last_ckpt;
     int32_t layered_dhandle_inuse, stable_dhandle_inuse;
 
@@ -585,7 +627,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
      */
-    WT_RET_NOTFOUND_OK(__wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0));
+    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), true);
     if (ret == WT_NOTFOUND) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Layered table was not found.", layered_uri);
@@ -656,6 +698,14 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         goto err;
     }
 
+    if (prune_timestamp == WT_TS_NONE) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: No checkpoint is eligible for pruning. The last checkpoint in use is %" PRId64,
+          layered_table->iface.name, ckpt_inuse);
+        ret = 0;
+        goto err;
+    }
+
     /*
      * Set the prune timestamp in the btree if it is open, typically it is. However, it's possible
      * that it hasn't been opened yet. In that case, we need to skip updating its timestamp for
@@ -673,23 +723,21 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     btree = (WT_BTREE *)session->dhandle->handle;
 
-    if (prune_timestamp != WT_TS_NONE) {
-        uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-        WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
+    btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+    WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
 
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64
-          " and checkpoint in use from %" PRId64 " to %" PRId64,
-          layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
-          layered_table->last_ckpt_inuse, ckpt_inuse);
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+      "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64
+      " and checkpoint in use from %" PRId64 " to %" PRId64,
+      layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
+      layered_table->last_ckpt_inuse, ckpt_inuse);
 
-        /*
-         * The prune timestamp should be monotonically increasing. It is fine for the user to read
-         * the obsolete value. Therefore, no synchronization is required.
-         */
-        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
-        layered_table->last_ckpt_inuse = ckpt_inuse;
-    }
+    /*
+     * The prune timestamp should be monotonically increasing. It is fine for the user to read the
+     * obsolete value. Therefore, no synchronization is required.
+     */
+    __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
+    layered_table->last_ckpt_inuse = ckpt_inuse;
 
     WT_ERR(__wt_session_release_dhandle(session));
 
