@@ -1186,10 +1186,12 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     }
 
     /*
-     * We must do scrub dirty eviction for disaggregated storage btrees as we cannot read back the
-     * evicted page until they are materialized.
+     * Dirty disaggregated pages only need forced scrub while they are still ahead of the
+     * materialization frontier. Once materialized, let ordinary dirty eviction reduce cache
+     * usage.
      */
-    if (!closing && ref->page->disagg_info != NULL) {
+    if (!closing && ref->page->disagg_info != NULL &&
+        !__wt_materialization_check(session, ref->page->disagg_info->rec_lsn_max)) {
         /*
          * We should not evict dirty internal pages for disaggregated storage as they cannot be
          * recreated in-memory and it doesn't effectively reduce cache usage.
