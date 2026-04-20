@@ -2381,6 +2381,10 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     if (page->modify == NULL)
         return (false);
 
+    /* Debug mode bypasses read-gen and update-volume thresholds for testing. */
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB))
+        return (true);
+
     /* Only retain images for recently-accessed pages. */
     if (__wt_atomic_load_uint64_relaxed(&page->read_gen) <= __evict_read_gen(session))
         return (false);
