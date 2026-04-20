@@ -266,6 +266,9 @@ struct __wt_btree {
      */
     wt_shared uint64_t approx_leaf_pages;
 
+    wt_shared uint64_t clean_scrub_image_count; /* Pages with a saved clean-scrub disk image. */
+    wt_shared uint64_t clean_scrub_image_bytes; /* Bytes of saved clean-scrub disk images. */
+
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
     /*

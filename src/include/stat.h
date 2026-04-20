@@ -551,6 +551,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_other;
+    int64_t cache_clean_scrub_image_saved_bytes;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_tolerance_level;
@@ -761,6 +762,7 @@ struct __wt_connection_stats {
     int64_t eviction_walk;
     int64_t cache_eviction_multiblock_checkpoint_flagged;
     int64_t cache_eviction_multiblock_split_re_reconciled;
+    int64_t cache_clean_scrub_image_saved;
     int64_t cache_write;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
@@ -1518,6 +1520,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
+    int64_t cache_clean_scrub_image_saved_bytes;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
@@ -1603,6 +1606,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_pages_seen;
     int64_t cache_eviction_multiblock_checkpoint_flagged;
     int64_t cache_eviction_multiblock_split_re_reconciled;
+    int64_t cache_clean_scrub_image_saved;
     int64_t cache_write;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
