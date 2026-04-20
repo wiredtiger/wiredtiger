@@ -31,20 +31,20 @@ import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_fast_truncate03.py
+# test_layered_fast_truncate05.py
 #   Validate cursor::next_random behavior over fast-truncated ranges on a
 #   standby (follower) node.
 @disagg_test_class
-class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader"),'
 
     uris = [
-        ('layered', dict(uri='layered:test_layered_fast_truncate03')),
-        ('table', dict(uri='table:test_layered_fast_truncate03')),
+        ('layered', dict(uri='layered:test_layered_fast_truncate05')),
+        ('table', dict(uri='table:test_layered_fast_truncate05')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate03', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_fast_truncate05', disagg_only=True)
 
     scenarios = make_scenarios(disagg_storages, uris)
 
@@ -94,6 +94,26 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if c2 is not None:
             c2.close()
 
+    # Write a single key/value pair in its own transaction.
+    def put(self, key, value='v'):
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[self.key(key)] = value
+        self.session.commit_transaction()
+        cursor.close()
+
+    # Draw `samples` random keys and assert none fall inside [low, high].
+    def assert_random_outside(self, low, high, samples=200, msg=''):
+        cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
+        self.session.begin_transaction()
+        for _ in range(samples):
+            self.assertEqual(cursor.next(), 0, 'random cursor found no visible key')
+            k = cursor.get_key()
+            self.assertFalse(self.key(low) <= k <= self.key(high),
+                f'{msg}random cursor returned truncated key {k}')
+        self.session.rollback_transaction()
+        cursor.close()
+
     def test_random_cursor_skips_truncated_range(self):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest('fast truncate support is not enabled.')
@@ -101,16 +121,7 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         # 200 random samples must all land outside the truncated range.
         self.setup_follower()
         self.truncate_range(100, 700)
-
-        cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
-        self.session.begin_transaction()
-        for _ in range(200):
-            self.assertEqual(cursor.next(), 0, 'random cursor failed to find a visible key')
-            key = cursor.get_key()
-            self.assertFalse(self.key(100) <= key <= self.key(700),
-                f'random cursor returned truncated key {key}')
-        self.session.rollback_transaction()
-        cursor.close()
+        self.assert_random_outside(100, 700)
 
     # FIXME-WT-17133: random cursor inherits the same ingest-truncate gap.
     @unittest.skip("FIXME-WT-17133")
@@ -118,39 +129,10 @@ class test_layered_fast_truncate03(wttest.WiredTigerTestCase):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest('fast truncate support is not enabled.')
 
-        # Populate on leader, checkpoint, switch to follower.
-        self.session.create(self.uri, self.session_create_config())
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[self.key(i)] = 'original'
-            self.session.commit_transaction()
-        cursor.close()
-        self.session.checkpoint()
-
-        follower_config = (
-            'disaggregated=(role="follower",'
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        )
-        self.reopen_conn(config=follower_config)
-
         # Update 200-400 on follower so those keys are live in ingest, then
-        # truncate a range covering them.
-        cursor = self.session.open_cursor(self.uri)
+        # truncate a range covering them. No random sample should leak.
+        self.setup_follower()
         for i in range(200, 401):
-            self.session.begin_transaction()
-            cursor[self.key(i)] = 'updated'
-            self.session.commit_transaction()
-        cursor.close()
-
+            self.put(i, 'updated')
         self.truncate_range(100, 700)
-
-        cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
-        self.session.begin_transaction()
-        for _ in range(200):
-            self.assertEqual(cursor.next(), 0, 'random cursor failed to find a visible key')
-            key = cursor.get_key()
-            self.assertFalse(self.key(100) <= key <= self.key(700),
-                f'random cursor returned truncated key {key} (live ingest leaked)')
-        self.session.rollback_transaction()
-        cursor.close()
+        self.assert_random_outside(100, 700, msg='live ingest leaked: ')
