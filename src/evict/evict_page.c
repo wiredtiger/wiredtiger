@@ -343,12 +343,24 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 }
 
 /*
- * Maximum number of two-phase eviction attempts before demoting a page to single-phase. Write-hot
- * pages that repeatedly encounter the dirty-gap (concurrent writers modify the page between phase-1
- * reconcile and phase-2 CAS) waste reconciliation work on every attempt. After this many failures,
- * fall back to single-phase so the next eviction reconciles once under the exclusive lock.
+ * Maximum number of two-phase dirty-gap failures before demoting a page to single-phase. Each
+ * dirty-gap failure means a full phase-1 reconcile was discarded (concurrent writer beat us to
+ * phase-2). After this many wasted reconciles, fall back to single-phase so the next attempt
+ * reconciles exactly once under the exclusive lock.
+ *
+ * Hazard-pointer spin timeouts do NOT count toward this limit. Two-phase is strictly better for
+ * read-hot pages (readers proceed freely during phase-1; single-phase would block them for the
+ * entire reconcile). Only write-hot contention (dirty-gap) warrants the single-phase fallback.
  */
-#define WT_EVICT_TWO_PHASE_RETRY_LIMIT 3
+#define WT_EVICT_TWO_PHASE_RETRY_LIMIT 2
+
+/*
+ * Number of eviction passes to skip a page after it fails phase-2 due to hazard pointer conflicts.
+ * Set page->evict_pass_gen to (current_pass_gen + this value) on HP timeout; the walk skips the
+ * page until the global pass gen catches up, preventing repeated wasted selection cycles on pages
+ * with active readers.
+ */
+#define WT_EVICT_HP_COOLDOWN_PASSES 2
 
 /* !!!
  * __wt_evict --
@@ -402,7 +414,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      */
     two_phase = !closing && !__wt_atomic_load_bool_v_acquire(&conn->rts->active) &&
       F_ISSET_ATOMIC_32(&conn->cache->cache_eviction_controls, WT_CACHE_EVICT_TWO_PHASE) &&
-      page->evict_page_attempts < WT_EVICT_TWO_PHASE_RETRY_LIMIT;
+      page->evict_dirty_gap_count < WT_EVICT_TWO_PHASE_RETRY_LIMIT;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -627,6 +639,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         if (ret == EBUSY) {
             ret = 0;
             two_phase = false;
+            /*
+             * Phase-1 reconcile was partially executed before RTS became active. That work is
+             * discarded; count it against the dirty-gap budget so this page is not indefinitely
+             * retried with a wasted phase-1 on every attempt while RTS remains active.
+             */
+            ++page->evict_dirty_gap_count;
         } else
             WT_ERR(ret);
     }
@@ -670,6 +688,19 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * reconciliation work for transient readers. Cap the spin to avoid burning CPU when a
          * reader is slow (e.g. sleeping inside a cursor operation).
          *
+         * App-thread assist eviction (non-internal, non-urgent): do not spin at all. The app
+         * thread must return to its caller promptly; a multi-microsecond spin per failed page
+         * compounds into large CPU overhead at high eviction rates (FTDC showed 243% of one core
+         * consumed by app-thread eviction on TPCC out-of-cache). Background eviction workers and
+         * urgent eviction spin up to WT_THOUSAND iterations to preserve phase-1 work for transient
+         * readers.
+         *
+         * On any cap-out (app-thread or worker): defer re-selection by advancing
+         * page->evict_pass_gen to a future generation (WT_EVICT_HP_COOLDOWN_PASSES ahead). The
+         * eviction walk skips pages whose evict_pass_gen exceeds the current pass, preventing the
+         * server from repeatedly selecting a page it cannot swap out. Also bump read_gen so the
+         * page sorts to the back of the LRU queue in clean-eviction mode.
+         *
          * For urgent (force-evict) pages: reconciliation has already freed obsolete updates via
          * __rec_save_delete_hs_upd_and_free_obs_updates, reducing the page's memory footprint
          * below the threshold that triggered forced eviction. Re-set WT_READGEN_EVICT_SOON so the
@@ -678,9 +709,21 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          */
         for (uint32_t haz_spin = 0; __wt_hazard_check(session, ref, NULL) != NULL; ++haz_spin) {
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
-            if (haz_spin > WT_THOUSAND) {
+
+            bool app_thread_bail =
+              !F_ISSET(session, WT_SESSION_INTERNAL) && !LF_ISSET(WT_EVICT_CALL_URGENT);
+            bool cap_out = haz_spin > WT_THOUSAND || app_thread_bail;
+            if (cap_out) {
+                if (app_thread_bail)
+                    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard_app_thread);
                 if (LF_ISSET(WT_EVICT_CALL_URGENT) && is_dirty)
                     __wt_evict_page_soon(session, ref);
+                else {
+                    __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
+                      __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
+                        WT_EVICT_HP_COOLDOWN_PASSES);
+                    __wti_evict_read_gen_bump(session, page);
+                }
                 ret = __wt_set_return(session, EBUSY);
                 goto err;
             }
@@ -835,6 +878,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
                 if (dirty_gap) {
                     is_dirty = true;
+                    /*
+                     * Phase-1 reconcile is being discarded: a concurrent writer modified the page
+                     * between the phase-1 lock release and our phase-2 CAS. Count this against the
+                     * dirty-gap budget so write-hot pages fall back to single-phase after
+                     * WT_EVICT_TWO_PHASE_RETRY_LIMIT wasted reconciles.
+                     */
+                    ++page->evict_dirty_gap_count;
+                    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_gap_rereconcile);
                     WT_ERR(__evict_reconcile(session, ref, flags));
                 }
             }

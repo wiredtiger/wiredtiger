@@ -809,10 +809,14 @@ struct __wt_page {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
-    uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
-                                      but fails */
-    uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
-    /* 2 uint16_t hole expected. */
+    uint16_t evict_dirty_gap_count; /* Two-phase dirty-gap failure count: incremented when phase-1
+                                       reconcile is discarded (dirty-gap detected in phase-2, or
+                                       RTS-active EBUSY from phase-1). Controls two-phase fallback
+                                       to single-phase for write-hot pages. */
+    uint16_t evict_page_attempts;   /* Number of times eviction tries to evict a page */
+    uint16_t evict_queue_attempts;  /* Number of times eviction tries to queue a page for eviction
+                                       but fails */
+    /* 1 uint16_t hole expected. */
 
     WT_PAGE_DISAGG_INFO *disagg_info;
 

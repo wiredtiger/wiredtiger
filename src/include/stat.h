@@ -524,6 +524,7 @@ struct __wt_connection_stats {
     int64_t block_remap_file_write;
     int64_t block_first_srch_walk_time;
     int64_t eviction_interupted_by_app;
+    int64_t cache_eviction_blocked_hazard_app_thread;
     int64_t eviction_app_time;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
@@ -614,6 +615,7 @@ struct __wt_connection_stats {
     int64_t npos_evict_walk_max;
     int64_t eviction_restored_pos;
     int64_t eviction_restored_pos_differ;
+    int64_t cache_eviction_hp_cooldown_skipped;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
@@ -789,6 +791,7 @@ struct __wt_connection_stats {
     int64_t cache_pages_dirty;
     int64_t cache_pages_dirty_ingest;
     int64_t cache_pages_dirty_stable;
+    int64_t cache_eviction_dirty_gap_rereconcile;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t cache_bytes_hs_updates;
@@ -1472,6 +1475,7 @@ struct __wt_dsrc_stats {
     int64_t btree_row_internal;
     int64_t btree_row_leaf;
     int64_t btree_checkpoint_reconcile_duration;
+    int64_t cache_eviction_blocked_hazard_app_thread;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
@@ -1499,6 +1503,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_pages_seen_clean;
     int64_t cache_eviction_pages_seen_dirty;
     int64_t eviction_walk_passes;
+    int64_t cache_eviction_hp_cooldown_skipped;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
@@ -1581,6 +1586,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_dirty;
     int64_t cache_bytes_dirty_internal;
     int64_t cache_bytes_dirty_leaf;
+    int64_t cache_eviction_dirty_gap_rereconcile;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t cache_state_gen_avg_gap;

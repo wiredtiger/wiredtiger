@@ -2755,6 +2755,23 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         page = ref->page;
 
         /*
+         * Skip pages that were recently deferred due to phase-2 hazard pointer conflicts. On such
+         * failures, evict_page.c sets page->evict_pass_gen to (current_pass_gen +
+         * WT_EVICT_HP_COOLDOWN_PASSES) so it is "in the future." Re-selecting these pages
+         * immediately wastes a candidate slot: the readers that blocked phase-2 are likely still
+         * active. Skip until the global pass gen catches up, then re-evaluate.
+         *
+         * Must check before the gen_gap stat calculation below: if evict_pass_gen is in the future,
+         * the subtraction (current - page->evict_pass_gen) would underflow.
+         */
+        if (__wt_atomic_load_uint64_relaxed(&page->evict_pass_gen) >
+          __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen)) {
+            ++pages_already_queued;
+            WT_STAT_CONN_INCR(session, cache_eviction_hp_cooldown_skipped);
+            continue;
+        }
+
+        /*
          * Update the maximum evict pass generation gap seen at time of eviction. This helps track
          * how long it's been since a page was last queued for eviction. We need to update the
          * statistic here during the walk and not at __evict_page because the evict_pass_gen is
