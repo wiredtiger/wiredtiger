@@ -355,12 +355,9 @@ __clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *claye
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
 static bool
-__clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
+__clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration, wt_timestamp_t read_ts)
 {
-    WT_SESSION_IMPL *session;
-    WT_TXN_SHARED *txn_shared;
-
-    session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(clayered);
 
     /* A random stable cursor shouldn't be reopened, it may have additional state. */
     if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
@@ -382,26 +379,24 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
      * it's always safe to update cursors, even during iterations. That's because the view at a
      * timestamp is always consistent, the history store covers that.
      */
-    txn_shared = WT_SESSION_TXN_SHARED(session);
-    if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
+    if (read_ts != WT_TS_NONE)
         return (true);
-    else {
-        /* if this is an iteration, we won't reopen the cursor, we're done. */
-        if (iteration)
-            return (false);
 
-        /*
-         * There are other points when it is appropriate to update cursors. If we don't currently
-         * have a transactional snapshot, or if the snapshot has changed, we can update.
-         *
-         * Why shouldn't we update when in a transaction? We may have read some values, and we'd
-         * expect to see the same values if we read them again. Reading from a newer checkpoint can
-         * violate that.
-         */
-        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
-          (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen))
-            return (true);
-    }
+    /* If this is an iteration, we won't reopen the cursor, we're done. */
+    if (iteration)
+        return (false);
+
+    /*
+     * There are other points when it is appropriate to update cursors. If we don't currently have a
+     * transactional snapshot, or if the snapshot has changed, we can update.
+     *
+     * Why shouldn't we update when in a transaction? We may have read some values, and we'd expect
+     * to see the same values if we read them again. Reading from a newer checkpoint can violate
+     * that.
+     */
+    if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+      (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen))
+        return (true);
 
     return (false);
 }
@@ -495,6 +490,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session;
+    wt_timestamp_t read_timestamp;
     uint64_t last_checkpoint_meta_lsn;
     bool change_ingest, change_stable, current_leader;
 
@@ -502,6 +498,9 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     session = CUR2S(clayered);
     conn = S2C(session);
     current_leader = conn->layered_table_manager.leader;
+    read_timestamp = F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) ?
+      WT_SESSION_TXN_SHARED(session)->read_timestamp :
+      WT_TS_NONE;
 
     /* Get the current checkpoint LSN. This only matters if we are a follower. */
     if (!current_leader)
@@ -564,7 +563,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
      * follower. And again, we'd like to reopen the stable cursor if we can.
      */
-    if ((change_stable = __clayered_can_advance_stable(clayered, iteration))) {
+    if ((change_stable = __clayered_can_advance_stable(clayered, iteration, read_timestamp))) {
         WT_RET(__clayered_advance_stable(session, clayered, current_leader));
     }
 
@@ -580,8 +579,7 @@ done:
      * snapshot_gen may still be 0 because no snapshot has been taken yet.
      */
     clayered->snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
-    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
-    clayered->read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
+    clayered->read_timestamp = read_timestamp;
     return (0);
 }
 
