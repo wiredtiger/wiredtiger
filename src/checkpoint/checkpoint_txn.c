@@ -3169,9 +3169,9 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
      * commit as the updates have gone from memory.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
+        WT_RET(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
         if (S2BT(session)->modified)
-            WT_ERR(__wt_checkpoint_file(session, cfg));
+            WT_RET(__wt_checkpoint_file(session, cfg));
     }
 
     /* Disable metadata tracking during the metadata checkpoint. */
@@ -3181,16 +3181,14 @@ __checkpoint_metadata(WT_SESSION_IMPL *session, const char *cfg[], WT_TXN *txn)
     WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
       WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
     session->meta_track_next = saved_meta_next;
-    WT_ERR(ret);
+    WT_RET(ret);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_SYNC);
     WT_WITH_DHANDLE(
       session, WT_SESSION_META_DHANDLE(session), ret = __wt_checkpoint_sync(session, NULL));
-    WT_ERR(ret);
+    WT_RET(ret);
 
     __checkpoint_verbose_track(session, "metadata sync completed");
-
-err:
 
     return (ret);
 }
