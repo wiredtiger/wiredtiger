@@ -173,38 +173,39 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_URI_DESC *entry
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
 
     WT_ASSERT(session, entry->pinned_dhandle != NULL);
-    WT_WITH_DHANDLE(session, entry->pinned_dhandle, do {
-        const char *ingest_uri;
-        const char *stable_uri;
-        const char *stable_cfg[4];
+    WT_WITH_DHANDLE(
+      session, entry->pinned_dhandle, do {
+          const char *ingest_uri;
+          const char *stable_uri;
+          const char *stable_cfg[4];
 
-        layered = (WT_LAYERED_TABLE *)session->dhandle;
-        WT_ASSERT(session, layered->stable_uri != NULL && layered->n_ingest_uris > 0);
-        ingest_uri = WT_LAYERED_PRIMARY_INGEST_URI(layered);
-        stable_uri = layered->stable_uri;
+          layered = (WT_LAYERED_TABLE *)session->dhandle;
+          WT_ASSERT(session, layered->stable_uri != NULL && layered->n_ingest_uris > 0);
+          ingest_uri = WT_LAYERED_PRIMARY_INGEST_URI(layered);
+          stable_uri = layered->stable_uri;
 
-        stable_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-        stable_cfg[1] = "overwrite";
-        stable_cfg[2] = NULL;
-        stable_cfg[3] = NULL;
+          stable_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+          stable_cfg[1] = "overwrite";
+          stable_cfg[2] = NULL;
+          stable_cfg[3] = NULL;
 
-        WT_ERR(__wt_open_cursor(session, stable_uri, NULL, stable_cfg, &stable_cursor));
-        cbt = (WT_CURSOR_BTREE *)stable_cursor;
+          WT_ERR(__wt_open_cursor(session, stable_uri, NULL, stable_cfg, &stable_cursor));
+          cbt = (WT_CURSOR_BTREE *)stable_cursor;
 
-        if (last_checkpoint_timestamp != WT_TS_NONE)
-            WT_ERR(__wt_snprintf(
-              buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
-        else
-            buf2[0] = '\0';
+          if (last_checkpoint_timestamp != WT_TS_NONE)
+              WT_ERR(__wt_snprintf(
+                buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
+          else
+              buf2[0] = '\0';
 
-        WT_ERR(__wt_snprintf(buf, sizeof(buf),
-          "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,"
-          "timestamp_order=true,cross_key=true,%s))",
-          buf2));
-        cfg[1] = buf;
+          WT_ERR(__wt_snprintf(buf, sizeof(buf),
+            "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,"
+            "timestamp_order=true,cross_key=true,%s))",
+            buf2));
+          cfg[1] = buf;
 
-        WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cfg, &version_cursor));
-    } while (0));
+          WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cfg, &version_cursor));
+      } while (0));
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
@@ -450,11 +451,11 @@ int
 __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
-    char **layered_uris;
     size_t i, layered_uris_alloc, layered_uris_count;
+    char **layered_uris;
     bool empty, group_created;
 
     conn = S2C(session);
@@ -495,8 +496,7 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
             if (layered_uris_count == layered_uris_alloc) {
                 size_t new_alloc = layered_uris_alloc == 0 ? 8 : layered_uris_alloc * 2;
-                WT_ERR(__wt_realloc_def(
-                  session, &layered_uris_alloc, new_alloc, &layered_uris));
+                WT_ERR(__wt_realloc_def(session, &layered_uris_alloc, new_alloc, &layered_uris));
                 layered_uris_alloc = new_alloc;
             }
             WT_ERR(__wt_strdup(session, dhandle->name, &layered_uris[layered_uris_count++]));
@@ -523,14 +523,22 @@ __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
           session, work_item->entry.layered_uri, &work_item->entry.pinned_dhandle));
 
         /* Populate URIs from the pinned layered handle. */
-        WT_WITH_DHANDLE(session, work_item->entry.pinned_dhandle, {
-            layered = (WT_LAYERED_TABLE *)session->dhandle;
-            WT_ASSERT(session, layered->n_ingest_uris > 0 && layered->stable_uri != NULL);
-            work_item->entry.ingest_id = WT_LAYERED_PRIMARY_INGEST_BTREE_ID(layered);
-            WT_ERR(__wt_strdup(
-              session, WT_LAYERED_PRIMARY_INGEST_URI(layered), &work_item->ingest_uri_alloc));
-            WT_ERR(__wt_strdup(session, layered->stable_uri, &work_item->stable_uri_alloc));
-        });
+        {
+            const char *ingest_uri;
+            const char *stable_uri;
+            uint32_t ingest_id;
+
+            WT_WITH_DHANDLE(session, work_item->entry.pinned_dhandle, {
+                layered = (WT_LAYERED_TABLE *)session->dhandle;
+                WT_ASSERT(session, layered->n_ingest_uris > 0 && layered->stable_uri != NULL);
+                ingest_id = WT_LAYERED_PRIMARY_INGEST_BTREE_ID(layered);
+                ingest_uri = WT_LAYERED_PRIMARY_INGEST_URI(layered);
+                stable_uri = layered->stable_uri;
+            });
+            WT_ERR(__wt_strdup(session, ingest_uri, &work_item->ingest_uri_alloc));
+            WT_ERR(__wt_strdup(session, stable_uri, &work_item->stable_uri_alloc));
+            work_item->entry.ingest_id = ingest_id;
+        }
         work_item->entry.ingest_uri = work_item->ingest_uri_alloc;
         work_item->entry.stable_uri = work_item->stable_uri_alloc;
 
@@ -600,8 +608,8 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     WT_LAYERED_TABLE *layered_table;
     wt_timestamp_t prune_timestamp;
     int64_t ckpt_inuse, last_ckpt;
-    int32_t layered_dhandle_inuse, stable_dhandle_inuse;
     uint32_t i;
+    int32_t stable_dhandle_inuse;
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
@@ -668,15 +676,23 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         ++ckpt_inuse;
     }
 
-    layered_dhandle_inuse =
-      __wt_atomic_load_int32_acquire(&((WT_DATA_HANDLE *)layered_table)->session_inuse);
-    if (ckpt_inuse == last_ckpt && (last_ckpt != 1 || layered_dhandle_inuse == 0))
+    /*
+     * If we reached the newest stable checkpoint without finding any stable checkpoint currently in
+     * use, we can safely advance the ingest prune timestamp to the current checkpoint timestamp.
+     *
+     * Note: The layered table handle itself may be in use (writes continuing on newer ingest
+     * chunks), but that should not prevent pruning older ingest chunks that are fully covered by
+     * durable stable checkpoints.
+     */
+    if (ckpt_inuse == last_ckpt)
         prune_timestamp = checkpoint_timestamp;
 
     if (ckpt_inuse == layered_table->last_ckpt_inuse) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: Nothing to update - the last checkpoint is still in use %" PRId64,
-          layered_table->iface.name, ckpt_inuse);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+          "ingest GC prune: \"%s\" cannot advance prune_timestamp yet: stable checkpoint %" PRId64
+          " still matches last_ckpt_inuse (a session likely holds that checkpoint open); "
+          "checkpoint_timestamp=%" PRIu64 " last_ckpt=%" PRId64,
+          layered_table->iface.name, ckpt_inuse, checkpoint_timestamp, last_ckpt);
         ret = 0;
         goto err;
     }
@@ -740,12 +756,12 @@ __wti_layered_iterate_ingest_tables_for_gc_pruning(
   WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(layered_table_uri_buf);
     WT_DECL_ITEM(uri_at_checkpoint_buf);
     WT_DECL_RET;
-    WT_DATA_HANDLE *dhandle;
-    char **layered_uris;
     size_t i, layered_uris_alloc, layered_uris_count;
+    char **layered_uris;
 
     conn = S2C(session);
     WT_RET(__wt_scr_alloc(session, 0, &layered_table_uri_buf));
@@ -764,8 +780,7 @@ __wti_layered_iterate_ingest_tables_for_gc_pruning(
 
             if (layered_uris_count == layered_uris_alloc) {
                 size_t new_alloc = layered_uris_alloc == 0 ? 8 : layered_uris_alloc * 2;
-                WT_ERR(__wt_realloc_def(
-                  session, &layered_uris_alloc, new_alloc, &layered_uris));
+                WT_ERR(__wt_realloc_def(session, &layered_uris_alloc, new_alloc, &layered_uris));
                 layered_uris_alloc = new_alloc;
             }
             WT_ERR(__wt_strdup(session, dhandle->name, &layered_uris[layered_uris_count++]));
@@ -801,27 +816,725 @@ static int
 __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order)
 {
-    int scanf_ret;
-
-    const char *checkpoint_name;
+    WT_DECL_RET;
     int64_t order_from_name;
+    int scanf_ret;
+    const char *checkpoint_name;
 
     *ckpt_order = 0;
+    checkpoint_name = NULL;
 
     /* Pull up the last checkpoint for this URI. It could return WT_NOTFOUND. */
     WT_RET(__wt_meta_checkpoint_last_name(session, shared_uri, &checkpoint_name, ckpt_order, NULL));
 
     /* Sanity check: we make sure that the name returned matches the order number. */
     scanf_ret = sscanf(checkpoint_name, WT_CHECKPOINT ".%" PRId64, &order_from_name);
-    __wt_free(session, checkpoint_name);
-
     if (scanf_ret != 1)
-        WT_RET_MSG(session, EINVAL,
+        WT_ERR_MSG(session, EINVAL,
           "shared metadata checkpoint unknown format: %s, scan returns %d", checkpoint_name,
           scanf_ret);
 
     /* These should always be the same. */
     WT_ASSERT(session, *ckpt_order == order_from_name);
 
+err:
+    __wt_free(session, checkpoint_name);
+    return (ret);
+}
+
+/*
+ * __layered_ingest_chunk_server_run_chk --
+ *     Predicate for the layered ingest chunk server condition wait.
+ */
+static bool
+__layered_ingest_chunk_server_run_chk(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    return (__wt_atomic_load_bool_relaxed(&conn->layered_ingest_chunk_server.running));
+}
+
+/*
+ * __layered_ingest_upd_chain_scan --
+ *     Walk an update chain: track the largest start/prepare timestamp and whether every
+ *     non-aborted update is globally visible.
+ */
+static void
+__layered_ingest_upd_chain_scan(
+  WT_SESSION_IMPL *session, WT_UPDATE *upd, wt_timestamp_t *max_tsp, bool *all_visible_allp)
+{
+    wt_timestamp_t max_ts;
+    uint64_t txnid;
+
+    max_ts = *max_tsp;
+    for (; upd != NULL; upd = upd->next) {
+        txnid = __wt_atomic_load_uint64_v_acquire(&upd->txnid);
+        if (txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (!__wt_txn_upd_visible_all(session, upd))
+            *all_visible_allp = false;
+
+        switch (upd->prepare_state) {
+        case WT_PREPARE_INPROGRESS:
+        case WT_PREPARE_LOCKED:
+            if (upd->prepare_ts > max_ts)
+                max_ts = upd->prepare_ts;
+            break;
+        default:
+            if (upd->upd_start_ts != WT_TS_NONE && upd->upd_start_ts > max_ts)
+                max_ts = upd->upd_start_ts;
+            break;
+        }
+    }
+    *max_tsp = max_ts;
+}
+
+/*
+ * __layered_ingest_row_leaf_scan_upd --
+ *     Scan row-store leaf update / insert chains for prune/GC decisions.
+ */
+static void
+__layered_ingest_row_leaf_scan_upd(
+  WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t *max_tsp, bool *all_visible_allp)
+{
+    WT_INSERT *ins;
+    WT_INSERT_HEAD *head;
+    WT_ROW *rip;
+    WT_UPDATE *upd;
+    uint32_t i;
+    wt_timestamp_t m;
+
+    m = *max_tsp;
+    if ((head = WT_ROW_INSERT_SMALLEST(page)) != NULL)
+        WT_SKIP_FOREACH (ins, head)
+            if (ins->upd != NULL)
+                __layered_ingest_upd_chain_scan(session, ins->upd, &m, all_visible_allp);
+    WT_ROW_FOREACH (page, rip, i)
+    {
+        if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
+            __layered_ingest_upd_chain_scan(session, upd, &m, all_visible_allp);
+        if ((head = WT_ROW_INSERT(page, rip)) != NULL)
+            WT_SKIP_FOREACH (ins, head)
+                if (ins->upd != NULL)
+                    __layered_ingest_upd_chain_scan(session, ins->upd, &m, all_visible_allp);
+    }
+    *max_tsp = m;
+}
+
+/*
+ * __layered_ingest_col_var_leaf_scan_upd --
+ *     Scan column-store variable-length leaf update / append chains for prune/GC decisions.
+ */
+static void
+__layered_ingest_col_var_leaf_scan_upd(
+  WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t *max_tsp, bool *all_visible_allp)
+{
+    WT_COL *cip;
+    WT_INSERT *ins;
+    WT_INSERT_HEAD *head;
+    uint32_t i;
+    wt_timestamp_t m;
+
+    m = *max_tsp;
+    WT_COL_FOREACH (page, cip, i)
+    {
+        if ((head = WT_COL_UPDATE(page, cip)) != NULL)
+            WT_SKIP_FOREACH (ins, head)
+                if (ins->upd != NULL)
+                    __layered_ingest_upd_chain_scan(session, ins->upd, &m, all_visible_allp);
+    }
+    if ((head = WT_COL_APPEND(page)) != NULL)
+        WT_SKIP_FOREACH (ins, head)
+            if (ins->upd != NULL)
+                __layered_ingest_upd_chain_scan(session, ins->upd, &m, all_visible_allp);
+    *max_tsp = m;
+}
+
+/*
+ * __layered_ingest_btree_obsolete_for_drop --
+ *     Return whether every modified leaf in the ingest btree has no commit timestamp newer than the
+ *     btree prune timestamp (all content is at or before the prune cutoff).
+ */
+static int
+__layered_ingest_btree_obsolete_for_drop(WT_SESSION_IMPL *session, WT_BTREE *btree, bool *obsolete)
+{
+    WT_DECL_RET;
+    WT_PAGE_MODIFY *mod;
+    WT_REF *ref;
+    wt_timestamp_t prune_ts;
+    WT_CONNECTION_IMPL *conn;
+    bool ingest_gc_block_logged;
+
+    *obsolete = false;
+
+    conn = S2C(session);
+    prune_ts = __wt_atomic_load_uint64_acquire(&btree->prune_timestamp);
+    if (prune_ts != WT_TS_NONE)
+        conn->layered_ingest_chunk_server.ingest_gc_diag_suppress = 0;
+    if (prune_ts == WT_TS_NONE) {
+        uint32_t n;
+
+        /*
+         * This is expected until checkpoint pickup installs prune timestamps on ingest btrees;
+         * throttle to avoid flooding logs when verbose=[layered:2] is enabled.
+         */
+        n = ++conn->layered_ingest_chunk_server.ingest_gc_diag_suppress;
+        if (n == 1 || n % 25 == 0)
+            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+              "ingest GC: \"%s\" cannot mark oldest chunk obsolete: btree prune_timestamp is unset "
+              "(follower ingest prune runs after checkpoint metadata pickup advances stable "
+              "checkpoint handles)",
+              btree->dhandle->name);
+        return (0);
+    }
+
+    /* Root not instantiated yet; do not treat as obsolete. */
+    if (btree->root.page == NULL) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+          "ingest GC: \"%s\" cannot mark oldest chunk obsolete: btree root page not instantiated yet",
+          btree->dhandle->name);
+        return (0);
+    }
+
+    /*
+     * Cheap obsolete check: prepare/commit publish max timestamps per btree and pair them with a
+     * pending op count. If no ops are in flight and the aggregate is at or before the prune cutoff,
+     * the chunk cannot contain newer committed timestamps than prune_ts.
+     */
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+        int32_t pending1, pending2;
+        uint64_t tracked;
+        bool never_modified;
+
+        pending1 = __wt_atomic_load_int32_relaxed(&btree->ingest_gc_pending_ops);
+        tracked = __wt_atomic_load_uint64_acquire((uint64_t *)&btree->ingest_gc_max_timestamp);
+        pending2 = __wt_atomic_load_int32_relaxed(&btree->ingest_gc_pending_ops);
+        never_modified = !btree->modified;
+        if (pending1 == pending2) {
+            if (pending1 == 0 && tracked != WT_TS_NONE && tracked <= prune_ts) {
+                *obsolete = true;
+                return (0);
+            }
+            if (pending1 == 0 && tracked > prune_ts) {
+                *obsolete = false;
+                return (0);
+            }
+            if (pending1 == 0 && tracked == WT_TS_NONE && never_modified) {
+                *obsolete = true;
+                return (0);
+            }
+        }
+    }
+
+    ingest_gc_block_logged = false;
+    ref = NULL;
+    while (
+      (ret = __wt_tree_walk(session, &ref,
+         WT_READ_CACHE | WT_READ_INTERNAL_OP | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
+      ref != NULL) {
+        /*
+         * Shutdown wants this background thread to exit promptly. If we are asked to stop while
+         * walking the tree, bail out early (treat as "not obsolete" so we don't drop).
+         */
+        if (!__wt_atomic_load_bool_relaxed(&conn->layered_ingest_chunk_server.running)) {
+            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+              "ingest GC: \"%s\" obsolete walk interrupted: ingest chunk server shutting down",
+              btree->dhandle->name);
+            WT_ERR(__wt_page_release(session, ref, 0));
+            ref = NULL;
+            return (0);
+        }
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            WT_ERR(__wt_page_release(session, ref, 0));
+            ref = NULL;
+            continue;
+        }
+        if (__wt_page_is_modified(ref->page)) {
+            wt_timestamp_t chain_max, effective;
+            bool all_visible_all;
+
+            mod = __wt_tsan_suppress_load_wt_page_modify_ptr(&ref->page->modify);
+            /*
+             * Do not compare mod->newest_commit_timestamp to the prune timestamp: that field is an
+             * approximate cache for eviction (see __wt_page_modify_update_timestamp) and tracks the
+             * global newest_seen timestamp, not the newest commit timestamp on this page. Using it
+             * here can stall ingest chunk GC indefinitely while still being conservative for
+             * eviction. Use the max timestamp from update chains plus reconciliation bookkeeping.
+             */
+            all_visible_all = true;
+            chain_max = WT_TS_NONE;
+            if (ref->page->type == WT_PAGE_ROW_LEAF)
+                __layered_ingest_row_leaf_scan_upd(session, ref->page, &chain_max, &all_visible_all);
+            else if (ref->page->type == WT_PAGE_COL_VAR)
+                __layered_ingest_col_var_leaf_scan_upd(
+                  session, ref->page, &chain_max, &all_visible_all);
+            else if (mod != NULL) {
+                /*
+                 * Rare page types: keep the timestamp heuristic and approximate liveness from
+                 * eviction (update_txn vs last_running).
+                 */
+                chain_max = mod->newest_commit_timestamp;
+                if (__wt_atomic_load_uint64_relaxed(&mod->update_txn) >=
+                  __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running))
+                    all_visible_all = false;
+            }
+
+            effective = chain_max;
+            if (mod != NULL && mod->rec_max_timestamp > effective)
+                effective = mod->rec_max_timestamp;
+
+            if (!all_visible_all || effective > prune_ts) {
+                if (!ingest_gc_block_logged) {
+                    const char *reason;
+
+                    ingest_gc_block_logged = true;
+                    if (!all_visible_all && effective > prune_ts)
+                        reason = "invisible or uncommitted updates and effective timestamp above prune";
+                    else if (!all_visible_all)
+                        reason = "invisible or uncommitted updates on dirty leaf";
+                    else
+                        reason = "effective timestamp (max of on-page chain and rec_max) above prune";
+                    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+                      "ingest GC: \"%s\" oldest chunk not obsolete: blocking %s dirty leaf "
+                      "(prune_ts=%" PRIu64 " effective_ts=%" PRIu64 " chain_max_ts=%" PRIu64
+                      " rec_max_ts=%" PRIu64 " all_updates_visible_all=%s; reason=%s)",
+                      btree->dhandle->name, __wt_page_type_string(ref->page->type), prune_ts,
+                      effective, chain_max,
+                      mod != NULL ? mod->rec_max_timestamp : WT_TS_NONE,
+                      all_visible_all ? "true" : "false", reason);
+                }
+                WT_ERR(__wt_page_release(session, ref, 0));
+                ref = NULL;
+                return (0);
+            }
+        }
+        WT_ERR(__wt_page_release(session, ref, 0));
+        ref = NULL;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    *obsolete = true;
+
+err:
+    if (ref != NULL)
+        WT_TRET(__wt_page_release(session, ref, 0));
+    return (ret);
+}
+
+/*
+ * __layered_ingest_chunk_drop_oldest --
+ *     Remove the oldest ingest chunk from a layered table (follower only). Caller holds
+ *     ingest_chunk_lock and must ensure at least two ingest URIs exist.
+ */
+static int
+__layered_ingest_chunk_drop_oldest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
+{
+    WT_DECL_ITEM(ingest_list);
+    WT_DECL_ITEM(layered_update);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *int_session;
+    uint32_t *ids_new;
+    uint32_t i, new_n;
+    char *drop_uri, *layered_meta, *merged, **uris_new;
+    const char *cfg[4];
+    const char *drop_cfg[4];
+    const char *layered_uri;
+
+    int_session = NULL;
+    ingest_list = layered_update = NULL;
+    layered_meta = merged = NULL;
+    uris_new = NULL;
+    ids_new = NULL;
+    drop_uri = NULL;
+
+    layered_uri = layered->iface.name;
+    WT_ASSERT(session, layered->n_ingest_uris >= 2);
+    WT_ASSERT(session, WT_PREFIX_MATCH(layered_uri, "layered:"));
+
+    WT_ERR(__wt_strdup(session, layered->ingest_uris[0], &drop_uri));
+
+    /*
+     * Dedicated internal session: the caller holds session->dhandle (the layered table). Reusing
+     * the caller for schema/metadata would replace that handle while it is still logically held.
+     */
+    WT_ERR(__wt_open_internal_session(S2C(session), "ingest-chunk-drop", true,
+      WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE, 0, &int_session));
+
+    WT_ERR(__wt_metadata_search(int_session, layered_uri, &layered_meta));
+    WT_ERR(__wt_scr_alloc(int_session, 0, &ingest_list));
+    WT_ERR(__wt_scr_alloc(int_session, 0, &layered_update));
+
+    new_n = layered->n_ingest_uris - 1;
+    if (new_n == 1)
+        WT_ERR(__wt_buf_fmt(int_session, layered_update, "ingest=\"%s\"", layered->ingest_uris[1]));
+    else {
+        WT_ERR(__wt_buf_fmt(int_session, ingest_list, "("));
+        for (i = 1; i < layered->n_ingest_uris; i++)
+            WT_ERR(__wt_buf_catfmt(
+              int_session, ingest_list, "%s%s", i == 1 ? "" : ",", layered->ingest_uris[i]));
+        WT_ERR(__wt_buf_catfmt(int_session, ingest_list, ")"));
+        WT_ERR(__wt_buf_fmt(int_session, layered_update, "ingest=\"%.*s\"", (int)ingest_list->size,
+          (const char *)ingest_list->data));
+    }
+
+    cfg[0] = layered_meta;
+    cfg[1] = layered_update->data;
+    cfg[2] = NULL;
+    cfg[3] = NULL;
+    WT_ERR(__wt_config_collapse(int_session, cfg, &merged));
+    WT_WITH_SCHEMA_LOCK(int_session, ret = __wt_metadata_insert(int_session, layered_uri, merged));
+    WT_ERR(ret);
+    __wt_free(int_session, merged);
+    merged = NULL;
+
+    WT_WITH_TABLE_WRITE_LOCK(int_session, {
+        ret = __wt_calloc(session, (size_t)new_n, sizeof(char *), &uris_new);
+        if (ret == 0)
+            ret = __wt_calloc(session, (size_t)new_n, sizeof(uint32_t), &ids_new);
+        if (ret == 0) {
+            for (i = 1; i < layered->n_ingest_uris; i++) {
+                uris_new[i - 1] = layered->ingest_uris[i];
+                ids_new[i - 1] = layered->ingest_btree_ids[i];
+            }
+            __wt_free(session, layered->ingest_uris);
+            __wt_free(session, layered->ingest_btree_ids);
+            layered->ingest_uris = uris_new;
+            layered->ingest_btree_ids = ids_new;
+            layered->n_ingest_uris = new_n;
+            uris_new = NULL;
+            ids_new = NULL;
+        }
+    });
+    WT_ERR(ret);
+
+    drop_cfg[0] = WT_CONFIG_BASE(int_session, WT_SESSION_drop);
+    drop_cfg[1] = "force=true";
+    drop_cfg[2] = NULL;
+    drop_cfg[3] = NULL;
+    WT_WITH_SCHEMA_LOCK(int_session,
+      ret = __wt_schema_drop(int_session, drop_uri, drop_cfg, false));
+    WT_ERR(ret);
+
+    WT_WITHOUT_DHANDLE(int_session, ret = __wti_conn_dhandle_outdated(int_session, drop_uri));
+    WT_ERR(ret);
+
+    __wt_verbose_info(session, WT_VERB_LAYERED,
+      "layered follower ingest GC: dropped oldest ingest chunk \"%s\" from \"%s\" (remaining=%u)",
+      drop_uri, layered_uri, new_n);
+
+err:
+    __wt_free(session, drop_uri);
+    if (int_session != NULL) {
+        __wt_free(int_session, layered_meta);
+        __wt_free(int_session, merged);
+        __wt_free(session, uris_new);
+        __wt_free(session, ids_new);
+        __wt_scr_free(int_session, &ingest_list);
+        __wt_scr_free(int_session, &layered_update);
+        WT_TRET(__wt_schema_close_internal_session(session, int_session));
+    } else {
+        __wt_free(session, uris_new);
+        __wt_free(session, ids_new);
+    }
+    return (ret);
+}
+
+/*
+ * __layered_ingest_chunk_try_drop_obsolete_oldest --
+ *     If the oldest ingest chunk for a layered table is obsolete, drop it.
+ */
+static int
+__layered_ingest_chunk_try_drop_obsolete_oldest(WT_SESSION_IMPL *session, const char *layered_uri)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
+    char *oldest;
+    bool obsolete;
+    WT_CONNECTION_IMPL *conn;
+
+    oldest = NULL;
+    conn = S2C(session);
+
+    /* If we are shutting down, don't start new work. */
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_ingest_chunk_server.running))
+        return (0);
+
+    ret = __wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0);
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_ERR(ret);
+    layered = (WT_LAYERED_TABLE *)session->dhandle;
+    __wt_spin_lock(session, &layered->ingest_chunk_lock);
+    if (layered->n_ingest_uris < 2) {
+        __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+          "ingest GC: \"%s\" skip drop: fewer than two ingest URIs (nothing to retire as oldest)",
+          layered_uri);
+        WT_ERR(__wt_session_release_dhandle(session));
+        return (0);
+    }
+    WT_ERR(__wt_strdup(session, layered->ingest_uris[0], &oldest));
+    __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+    WT_ERR(__wt_session_release_dhandle(session));
+
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_ingest_chunk_server.running)) {
+        __wt_free(session, oldest);
+        return (0);
+    }
+
+    ret = __wt_session_get_dhandle(session, oldest, NULL, NULL, 0);
+    if (ret == WT_NOTFOUND) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+          "ingest GC: \"%s\" skip drop: oldest ingest URI \"%s\" not found (metadata/list race?)",
+          layered_uri, oldest);
+        __wt_free(session, oldest);
+        return (0);
+    }
+    WT_ERR(ret);
+    btree = (WT_BTREE *)session->dhandle->handle;
+    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+          "ingest GC: \"%s\" skip drop: oldest ingest btree \"%s\" is not garbage-collect mode "
+          "(expected only on follower ingest chunks)",
+          layered_uri, oldest);
+        WT_ERR(__wt_session_release_dhandle(session));
+        __wt_free(session, oldest);
+        return (0);
+    }
+    obsolete = false;
+    WT_ERR(__layered_ingest_btree_obsolete_for_drop(session, btree, &obsolete));
+    WT_ERR(__wt_session_release_dhandle(session));
+    if (!obsolete) {
+        __wt_free(session, oldest);
+        return (0);
+    }
+
+    ret = __wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0);
+    if (ret == WT_NOTFOUND) {
+        __wt_free(session, oldest);
+        return (0);
+    }
+    WT_ERR(ret);
+    layered = (WT_LAYERED_TABLE *)session->dhandle;
+    __wt_spin_lock(session, &layered->ingest_chunk_lock);
+    if (layered->n_ingest_uris < 2 || strcmp(layered->ingest_uris[0], oldest) != 0) {
+        __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+          "ingest GC: \"%s\" skip drop: ingest list changed under lock (expected \"%s\", "
+          "n_ingest_uris=%u); retry on next server pass",
+          layered_uri, oldest, layered->n_ingest_uris);
+        WT_ERR(__wt_session_release_dhandle(session));
+        __wt_free(session, oldest);
+        return (0);
+    }
+    ret = __layered_ingest_chunk_drop_oldest(session, layered);
+    __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+    WT_ERR(__wt_session_release_dhandle(session));
+    __wt_free(session, oldest);
+    return (ret);
+
+err:
+    __wt_free(session, oldest);
+    if (session->dhandle != NULL)
+        WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
+ * __layered_ingest_chunk_server_pass --
+ *     One pass of the ingest chunk server: try to drop obsolete oldest ingest chunks.
+ */
+static int
+__layered_ingest_chunk_server_pass(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
+    char **layered_uris;
+    size_t alloc, i, layered_uris_count;
+
+    conn = S2C(session);
+    layered_uris = NULL;
+    layered_uris_count = alloc = 0;
+
+    if (conn->disagg_layered_leader)
+        return (0);
+
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        for (dhandle = NULL;;) {
+            WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+            if (dhandle == NULL)
+                break;
+            if (dhandle->type != WT_DHANDLE_TYPE_LAYERED || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+                continue;
+            layered = (WT_LAYERED_TABLE *)dhandle;
+            if (layered->n_ingest_uris < 2)
+                continue;
+            if (layered_uris_count == alloc) {
+                size_t new_alloc = alloc == 0 ? 8 : alloc * 2;
+
+                ret = __wt_realloc_def(session, &alloc, new_alloc, &layered_uris);
+                if (ret != 0)
+                    break;
+                alloc = new_alloc;
+            }
+            ret = __wt_strdup(session, layered->iface.name, &layered_uris[layered_uris_count++]);
+            if (ret != 0)
+                break;
+        }
+    });
+    WT_ERR(ret);
+
+    conn->layered_ingest_chunk_server.ingest_gc_last_layered_count =
+      (uint32_t)WT_MIN(layered_uris_count, (size_t)UINT32_MAX);
+
+    for (i = 0; i < layered_uris_count; i++) {
+        if (!__wt_atomic_load_bool_relaxed(&conn->layered_ingest_chunk_server.running))
+            break;
+        WT_ERR(__layered_ingest_chunk_try_drop_obsolete_oldest(session, layered_uris[i]));
+    }
+
+err:
+    if (layered_uris != NULL) {
+        for (i = 0; i < layered_uris_count; i++)
+            __wt_free(session, layered_uris[i]);
+        __wt_free(session, layered_uris);
+    }
+    return (ret);
+}
+
+/*
+ * __layered_ingest_chunk_server_thread --
+ *     Background thread for dropping obsolete layered ingest chunk files.
+ */
+static WT_THREAD_RET
+__layered_ingest_chunk_server_thread(void *arg)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = arg;
+    conn = S2C(session);
+
+    for (;;) {
+        __wt_cond_wait(session, conn->layered_ingest_chunk_server.cond, 100 * WT_THOUSAND,
+          __layered_ingest_chunk_server_run_chk);
+        if (!__wt_atomic_load_bool_relaxed(&conn->layered_ingest_chunk_server.running))
+            break;
+        if (conn->disagg_layered_leader)
+            continue;
+        {
+            uint64_t hb_now, pass_duration_sec;
+
+            __wt_seconds(session, &conn->layered_ingest_chunk_server.ingest_gc_pass_start_sec);
+            WT_ERR(__layered_ingest_chunk_server_pass(session));
+            ++conn->layered_ingest_chunk_server.ingest_gc_completed_passes;
+            __wt_seconds(session, &hb_now);
+            pass_duration_sec =
+              hb_now - conn->layered_ingest_chunk_server.ingest_gc_pass_start_sec;
+            if (conn->layered_ingest_chunk_server.ingest_gc_last_hb_sec == 0 ||
+              hb_now - conn->layered_ingest_chunk_server.ingest_gc_last_hb_sec >= 5) {
+                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+                  "ingest GC: chunk server heartbeat: completed %" PRIu64 " pass(es); "
+                  "last_pass_layered_tables=%" PRIu32 " last_pass_duration_sec=%" PRIu64 " "
+                  "(expect about every 5s while active; a long silence means a pass is still in "
+                  "progress or the thread exited)",
+                  conn->layered_ingest_chunk_server.ingest_gc_completed_passes,
+                  conn->layered_ingest_chunk_server.ingest_gc_last_layered_count,
+                  pass_duration_sec);
+                conn->layered_ingest_chunk_server.ingest_gc_last_hb_sec = hb_now;
+            }
+        }
+    }
+
+    if (0) {
+err:
+        WT_IGNORE_RET(__wt_panic(session, ret, "layered ingest chunk server error"));
+    }
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * __wti_layered_ingest_chunk_server_create --
+ *     Start the layered ingest chunk server thread (follower disaggregated connections).
+ */
+int
+__wti_layered_ingest_chunk_server_create(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    if (!__wt_conn_is_disagg(session) || F_ISSET(conn, WT_CONN_READONLY))
+        return (0);
+    if (conn->layered_ingest_chunk_server.tid_set)
+        return (0);
+
+    WT_RET(__wt_cond_alloc(session, "layered-ingest-chunk-server", &conn->layered_ingest_chunk_server.cond));
+
+    WT_RET(__wt_open_internal_session(conn, "layered-ingest-chunk-server", true,
+      WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE, 0,
+      &conn->layered_ingest_chunk_server.session));
+    session = conn->layered_ingest_chunk_server.session;
+
+    conn->layered_ingest_chunk_server.ingest_gc_diag_suppress = 0;
+    conn->layered_ingest_chunk_server.ingest_gc_completed_passes = 0;
+    conn->layered_ingest_chunk_server.ingest_gc_last_layered_count = 0;
+    conn->layered_ingest_chunk_server.ingest_gc_last_hb_sec = 0;
+    conn->layered_ingest_chunk_server.ingest_gc_pass_start_sec = 0;
+    __wt_atomic_store_bool_relaxed(&conn->layered_ingest_chunk_server.running, true);
+    WT_ERR(__wt_thread_create(session, &conn->layered_ingest_chunk_server.tid,
+      __layered_ingest_chunk_server_thread, session));
+    conn->layered_ingest_chunk_server.tid_set = true;
+
     return (0);
+
+err:
+    __wt_atomic_store_bool_relaxed(&conn->layered_ingest_chunk_server.running, false);
+    if (conn->layered_ingest_chunk_server.session != NULL) {
+        WT_TRET(__wt_session_close_internal(conn->layered_ingest_chunk_server.session));
+        conn->layered_ingest_chunk_server.session = NULL;
+    }
+    if (conn->layered_ingest_chunk_server.cond != NULL) {
+        __wt_cond_destroy(session, &conn->layered_ingest_chunk_server.cond);
+        conn->layered_ingest_chunk_server.cond = NULL;
+    }
+    return (ret);
+}
+
+/*
+ * __wti_layered_ingest_chunk_server_destroy --
+ *     Shut down the layered ingest chunk server thread.
+ */
+int
+__wti_layered_ingest_chunk_server_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    if (!conn->layered_ingest_chunk_server.tid_set)
+        return (0);
+
+    __wt_atomic_store_bool_relaxed(&conn->layered_ingest_chunk_server.running, false);
+    __wt_cond_signal(session, conn->layered_ingest_chunk_server.cond);
+    WT_TRET(__wt_thread_join(session, &conn->layered_ingest_chunk_server.tid));
+    conn->layered_ingest_chunk_server.tid_set = false;
+
+    __wt_cond_destroy(session, &conn->layered_ingest_chunk_server.cond);
+    conn->layered_ingest_chunk_server.cond = NULL;
+
+    if (conn->layered_ingest_chunk_server.session != NULL) {
+        WT_TRET(__wt_session_close_internal(conn->layered_ingest_chunk_server.session));
+        conn->layered_ingest_chunk_server.session = NULL;
+    }
+
+    return (ret);
 }

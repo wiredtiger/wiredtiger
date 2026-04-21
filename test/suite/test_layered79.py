@@ -30,11 +30,12 @@
 #   Test that when a key is garbage collected during eviction on an ingest
 #   btree, its associated on-disk value is also deleted.
 
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
+@unittest.skip("Disabled temporarily: ingest garbage collection is no longer eviction-driven")
 @disagg_test_class
 class test_layered79(wttest.WiredTigerTestCase):
     base_config = 'statistics=(all),precise_checkpoint=true,'

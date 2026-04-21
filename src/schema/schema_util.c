@@ -112,6 +112,27 @@ __wti_schema_session_release(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_sess
 }
 
 /*
+ * __wt_schema_open_internal_session --
+ *     If the caller is in a transaction, return a separate internal session suitable for schema
+ *     operations; otherwise return the original session.
+ */
+int
+__wt_schema_open_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+{
+    return (__wti_schema_internal_session(session, int_sessionp));
+}
+
+/*
+ * __wt_schema_close_internal_session --
+ *     Close a session returned by __wt_schema_open_internal_session if it differs from the caller.
+ */
+int
+__wt_schema_close_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+{
+    return (__wti_schema_session_release(session, int_session));
+}
+
+/*
  * __str_name_check --
  *     Internal function to disallow any use of the WiredTiger name space. Can be called directly or
  *     after skipping the URI prefix.

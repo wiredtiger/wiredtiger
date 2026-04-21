@@ -623,10 +623,10 @@ __schema_layered_parse_ingest_uris(
   WT_SESSION_IMPL *session, const char *str, size_t len, char ***urisp, uint32_t *np)
 {
     WT_DECL_RET;
-    const char *body, *body_end, *comma, *seg;
-    char **uris;
     size_t alloc, seglen;
     uint32_t n;
+    char **uris;
+    const char *body, *body_end, *comma, *seg;
 
     uris = NULL;
     alloc = 0;
@@ -694,8 +694,8 @@ __schema_open_layered_ingest(
 
     /*
      * Record the ingest btree file id while the ingest handle is open. During connection close,
-     * dhandles are torn down in an order where the layered or ingest handle may no longer be
-     * safely dereferenced when other layered code still needs the id.
+     * dhandles are torn down in an order where the layered or ingest handle may no longer be safely
+     * accessed when other layered code still needs the id.
      */
     ingest_btree = (WT_BTREE *)session->dhandle->handle;
     layered->ingest_btree_ids[ingest_idx] = ingest_btree->id;
@@ -732,8 +732,8 @@ __schema_open_layered(WT_SESSION_IMPL *session)
     WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->value_format));
 
     WT_RET(__wt_config_gets(session, layered_cfg, "ingest", &cval));
-    WT_RET(__schema_layered_parse_ingest_uris(session, cval.str, cval.len, &layered->ingest_uris,
-      &layered->n_ingest_uris));
+    WT_RET(__schema_layered_parse_ingest_uris(
+      session, cval.str, cval.len, &layered->ingest_uris, &layered->n_ingest_uris));
     WT_RET(__wt_calloc_def(session, layered->n_ingest_uris, &layered->ingest_btree_ids));
 
     WT_RET(__wt_config_gets(session, layered_cfg, "stable", &cval));

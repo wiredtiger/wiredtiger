@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, shutil, threading, time, wiredtiger, wttest
+import os, os.path, shutil, threading, time, unittest, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
@@ -35,6 +35,7 @@ from wiredtiger import stat
 #    Test garbage collection ensures that prepared updates and aborted
 #    prepared updates are not removed if the rollback timestamps are newer than
 #    the checkpoint timestamp of the stable table.
+@unittest.skip("Disabled temporarily: ingest garbage collection is no longer eviction-driven")
 @disagg_test_class
 class test_layered65(wttest.WiredTigerTestCase):
     base_config = 'statistics=(all),precise_checkpoint=true,preserve_prepared=true,'

@@ -109,6 +109,12 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     /* The capacity server can only be shut down after all I/O is complete. */
     WT_TRET(__wti_capacity_server_destroy(session));
 
+    /*
+     * The layered ingest chunk server keeps an internal session with a metadata cursor; it must
+     * shut down before discarding btree handles.
+     */
+    WT_TRET(__wti_layered_ingest_chunk_server_destroy(session));
+
     /* There should be no more file opens after this point. */
     F_SET_ATOMIC_32(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
     WT_FULL_BARRIER();

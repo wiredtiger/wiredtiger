@@ -47,8 +47,7 @@ __curhs_file_cursor_open(WT_SESSION_IMPL *session, const char *uri, const char *
         WT_ERR(__wt_snprintf(tmp, len, "checkpoint=%s", session->hs_checkpoint));
         open_cursor_cfg[2] = tmp;
     } else if (checkpoint_name != NULL) {
-        WT_ASSERT(
-          session, __wt_conn_is_disagg(session) && !S2C(session)->disagg_layered_leader);
+        WT_ASSERT(session, __wt_conn_is_disagg(session) && !S2C(session)->disagg_layered_leader);
         WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
         /*
          * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the

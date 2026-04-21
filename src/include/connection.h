@@ -854,9 +854,31 @@ struct __wt_connection_impl {
         uint32_t thread_count;
     } layered_drain_data;
 
+    /*
+     * Follower-only: drops obsolete layered ingest chunk files after prune timestamps advance,
+     * replacing eviction-driven ingest garbage collection reconciliation.
+     */
+    struct {
+        WT_SESSION_IMPL *session;
+        wt_thread_t tid;
+        bool tid_set;
+        WT_CONDVAR *cond;
+        bool running;
+        /*
+         * Throttle repetitive ingest-GC diagnostic lines (e.g. prune_timestamp still unset) when
+         * verbose=[layered:2] is enabled.
+         */
+        uint32_t ingest_gc_diag_suppress;
+        /* Heartbeat for ingest chunk server: proves the thread is still completing passes. */
+        uint64_t ingest_gc_completed_passes;
+        uint32_t ingest_gc_last_layered_count;
+        uint64_t ingest_gc_last_hb_sec;
+        uint64_t ingest_gc_pass_start_sec;
+    } layered_ingest_chunk_server;
+
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
-    bool disagg_layered_leader; /* Disaggregated layered primary (vs follower standby) */
+    bool disagg_layered_leader;      /* Disaggregated layered primary (vs follower standby) */
     WT_PAGE_HISTORY page_history;
 
     bool preserve_prepared; /* Preserve prepared updates */

@@ -208,8 +208,8 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
-    WT_DECL_RET;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_UPDATE *upd;
     char *ingest_uri;
@@ -240,8 +240,8 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
         }
     });
 
-    WT_ASSERT_ALWAYS(session, dhandle != NULL,
-      "Unable to find matching layered table to restore prepared update");
+    WT_ASSERT_ALWAYS(
+      session, dhandle != NULL, "Unable to find matching layered table to restore prepared update");
 
     layered = (WT_LAYERED_TABLE *)dhandle;
     WT_ASSERT(session, layered->n_ingest_uris > 0);

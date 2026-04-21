@@ -72,8 +72,7 @@ __drop_file(
      */
     WT_ERR(ret);
     if (id_found && !F_ISSET(conn, WT_CONN_IN_MEMORY) && F_ISSET_ATOMIC_32(conn, WT_CONN_READY) &&
-      (!__wt_conn_is_disagg(session) || conn->disagg_layered_leader ||
-        !WT_BTREE_ID_SHARED(id)))
+      (!__wt_conn_is_disagg(session) || conn->disagg_layered_leader || !WT_BTREE_ID_SHARED(id)))
         if (__wt_hs_btree_truncate(session, id) != 0)
             __wt_verbose_warning(
               session, WT_VERB_HS, "Failed to truncate history store for the file: %s", uri);

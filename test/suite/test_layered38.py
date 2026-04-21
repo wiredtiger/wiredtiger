@@ -26,13 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import platform, wttest, wiredtiger
+import platform, unittest, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from test_layered23 import Oplog
 from wtscenario import make_scenarios
 
 # test_layered38.py
 # Test garbage collecting redundant content in the ingest table
+@unittest.skip("Disabled temporarily: ingest garbage collection is no longer eviction-driven")
 @disagg_test_class
 class test_layered38(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
