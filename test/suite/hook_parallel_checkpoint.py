@@ -37,6 +37,7 @@
 #
 # Usage examples:
 #   ../test/suite/run.py --hook parallel_checkpoint
+#   ../test/suite/run.py --hook parallel_checkpoint=8
 #   ../test/suite/run.py --hook "parallel_checkpoint=(threads=8)"
 #
 # The hook will not override tests with explicit checkpoint_threads= in the
@@ -45,123 +46,61 @@
 from __future__ import print_function
 
 import re, wthooks
-from wttest import WiredTigerTestCase
 
-def strip_matching_parens(s):
-    if len(s) >= 2 and s[0] == '(' and s[-1] == ')':
-        return s[1:-1]
-    return s
+def _parse_threads(arg):
+    # Default to 4 threads if no argument is provided
+    if not arg:
+        return 4
 
-def config_split(config):
-    pos = config.find('=')
-    if pos >= 0:
-        left = config[:pos]
-        right = config[pos + 1:]
+    s = str(arg).strip()
+    if s.startswith('(') and s.endswith(')'):
+        s = s[1:-1]
+
+    threads = None
+    if re.fullmatch(r'[0-9]+', s):
+        threads = int(s)
     else:
-        left = config
-        right = ''
-    return left, strip_matching_parens(right)
-
-def parse_hook_args(arg):
-    """
-    Parse the hook argument string into a dict of key->value.
-
-    Accepts:
-      --hook parallel_checkpoint
-      --hook parallel_checkpoint=8
-      --hook "parallel_checkpoint=(threads=8)"
-    """
-    params = {}
-
-    if not arg:
-        return params
-
-    arg = strip_matching_parens(str(arg).strip())
-    if not arg:
-        return params
-
-    if re.fullmatch(r'[0-9]+', arg):
-        params['threads'] = arg
-        return params
-
-    config_list = re.split(r",(?=(?:[^(]*[(][^)]*[)])*[^)]*$)", arg)
-    for cfg in config_list:
-        cfg = cfg.strip()
-        if not cfg:
-            continue
-        key, val = config_split(cfg)
-        if not key:
-            continue
-        params[key] = val
-
-    return params
-
-def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config, threads):
-    """
-    HOOK_REPLACE implementation for wiredtiger_open.
-
-    If the config already sets checkpoint_threads=..., leave it alone.
-    Otherwise append ",checkpoint_threads=<threads>".
-    """
-    if conn_config is None:
-        conn_config = ''
-
-    # Don't override tests that explicitly set checkpoint_threads.
-    if 'checkpoint_threads=' in conn_config:
-        WiredTigerTestCase.verbose(
-            None, 3,
-            'parallel_checkpoint hook: existing checkpoint_threads config found, '
-            'leaving configuration unchanged')
-        return orig_wiredtiger_open(homedir, conn_config)
-
-    extra = ',checkpoint_threads={}'.format(threads)
-    new_config = conn_config + extra
-
-    WiredTigerTestCase.verbose(
-        None, 3,
-        'parallel_checkpoint hook: calling wiredtiger_open({}, {})'
-        .format(homedir, new_config))
-
-    return orig_wiredtiger_open(homedir, new_config)
+        m = re.fullmatch(r'threads=([0-9]+)', s)
+        if m:
+            threads = int(m.group(1))
+    if threads is None:
+        raise Exception(
+            'hook_parallel_checkpoint: invalid argument "{}"'.format(arg)
+        )
+    if threads <= 0:
+        raise Exception(
+            'hook_parallel_checkpoint: threads must be > 0, got {}'.format(threads)
+        )
+    return threads
 
 class ParallelCheckpointHookCreator(wthooks.WiredTigerHookCreator):
     def __init__(self, arg=0):
-        # Default to 4 parallel checkpoint threads
-        self.threads = 4
-
-        params = parse_hook_args(arg)
-        if 'threads' in params:
-            try:
-                self.threads = int(params['threads'])
-            except ValueError:
-                raise Exception(
-                    'hook_parallel_checkpoint: invalid threads value "{}"'
-                    .format(params['threads']))
-        # Reject unknown parameters
-        for key in params:
-            if key != 'threads':
-                raise Exception(
-                    'hook_parallel_checkpoint: unknown parameter "{}"'
-                    .format(key))
-
+        self.threads = _parse_threads(arg)
         self.platform_api = wthooks.DefaultPlatformAPI()
 
     def get_platform_api(self):
         return self.platform_api
 
     def register_skipped_tests(self, tests):
-        # No tests skipped; add entries here if needed
         pass
 
     def setup_hooks(self):
-        # Replace wiredtiger_open with a wrapper that appends checkpoint_threads
-        orig_wiredtiger_open = self.wiredtiger['wiredtiger_open']
+        threads = self.threads
 
-        self.wiredtiger['wiredtiger_open'] = (
-            wthooks.HOOK_REPLACE,
-            lambda homedir, config=None:
-                wiredtiger_open_replace(orig_wiredtiger_open, homedir, config, self.threads)
-        )
+        def wiredtiger_open_args(ignored_self, args):
+            args = list(args)
+            config = args[1] if len(args) >= 2 else ''
+            if config is None:
+                config = ''
+            if 'checkpoint_threads=' in config:
+                return args
+            if len(args) >= 2:
+                args[1] = config + ',checkpoint_threads={}'.format(threads)
+            else:
+                args.append(',checkpoint_threads={}'.format(threads))
+            return args
+
+        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_args)
 
 def initialize(arg):
     return [ParallelCheckpointHookCreator(arg)]
