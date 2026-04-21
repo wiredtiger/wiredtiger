@@ -127,8 +127,8 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
 
             one_ret = 0;
             WT_WITHOUT_DHANDLE(session,
-              one_ret = __wt_schema_worker(session, layered->ingest_uris[ingest_idx], file_func,
-                name_func, cfg, open_flags));
+              one_ret = __wt_schema_worker(
+                session, layered->ingest_uris[ingest_idx], file_func, name_func, cfg, open_flags));
             if (one_ret != 0)
                 ingest_ret = one_ret;
 
