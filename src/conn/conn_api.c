@@ -1719,9 +1719,15 @@ __conn_config_file(
     WT_ERR(__conn_config_check_version(session, cbuf->data));
 
     /*
-     * Check for deprecated chunk cache configuration before validating the config string.
+     * Check for deprecated chunk cache configuration before validating the config string. Handle
+     * its error explicitly so the "basecfg EINVAL == corruption" mapping below does not turn a
+     * clean deprecation rejection into a misleading WT_TRY_SALVAGE.
      */
-    WT_ERR(__conn_chunk_cache_check(session, cbuf->data, is_user ? WT_USERCONFIG : WT_BASECONFIG));
+    if ((ret = __conn_chunk_cache_check(
+           session, cbuf->data, is_user ? WT_USERCONFIG : WT_BASECONFIG)) != 0) {
+        WT_TRET(__wt_close(session, &fh));
+        return (ret);
+    }
 
     /* Check the configuration information. */
     WT_ERR(__wt_config_check(session,
