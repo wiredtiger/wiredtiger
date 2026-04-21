@@ -1158,10 +1158,13 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
-    /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
+    /* Check the timestamp usage for in-order compliance. */
     if (commit)
         WT_RET(__wt_txn_timestamp_usage_check(
           session, btree, txn_time_point->commit_timestamp, upd->prev_durable_ts));
+    else
+        WT_RET(__wt_txn_timestamp_usage_check(
+          session, btree, txn_time_point->rollback_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
