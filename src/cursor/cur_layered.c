@@ -862,7 +862,7 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
         }
 
         trunc_info->stop = NULL;
-        if ((clayered_stop != NULL) && (trunc_info->orig_stop_key != NULL)) {
+        if (clayered_stop != NULL && trunc_info->orig_stop_key != NULL) {
             clayered_stop->ingest_cursor->set_key(
               clayered_stop->ingest_cursor, trunc_info->orig_stop_key);
             trunc_info->stop = clayered_stop->ingest_cursor;

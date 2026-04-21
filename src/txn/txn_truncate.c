@@ -61,11 +61,11 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 }
 
 /*
- * __txn_truncate_on_ingest --
+ * __txn_insert_truncate_entry_helper --
  *     Register a truncate entry to the latest transaction and store it in the truncate list.
  */
 static int
-__txn_truncate_on_ingest(
+__txn_insert_truncate_entry_helper(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE **tp)
 {
     WT_DECL_RET;
@@ -74,17 +74,16 @@ __txn_truncate_on_ingest(
     t = *tp;
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
-    WT_TRET(__wt_txn_truncate(session, t));
+    WT_ERR(__wt_txn_truncate(session, t));
 
-    if (ret == 0) {
-        __wt_writelock(session, &layered_table->truncate_lock);
-        TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
-        __wt_writeunlock(session, &layered_table->truncate_lock);
+    __wt_writelock(session, &layered_table->truncate_lock);
+    TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
+    __wt_writeunlock(session, &layered_table->truncate_lock);
 
-        /* Ownership transferred to the txn op and truncate queue. */
-        *tp = NULL;
-    }
+    /* Ownership transferred to the txn op and truncate queue. */
+    *tp = NULL;
 
+err:
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
@@ -128,7 +127,7 @@ __wt_insert_truncate_entry(
      * Mark the WT_TRUNCATE object modified by the current transaction. Also required to update the
      * max_upd_txn.
      */
-    WT_SAVE_DHANDLE(session, ret = __txn_truncate_on_ingest(session, layered_table, &t));
+    WT_SAVE_DHANDLE(session, ret = __txn_insert_truncate_entry_helper(session, layered_table, &t));
     WT_ERR(ret);
 
     if (0) {
