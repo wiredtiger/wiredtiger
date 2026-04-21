@@ -57,7 +57,8 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
     # digits so that lexicographic order matches numeric order.
     nitems = 1000
 
-    def key(self, n):
+    @staticmethod
+    def key(n):
         return f'{n:04d}'
 
     def session_create_config(self):
@@ -99,23 +100,15 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
         if c2 is not None:
             c2.close()
 
-    # Write a single key/value pair in its own transaction.
-    def put(self, key, value='v'):
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        cursor[self.key(key)] = value
-        self.session.commit_transaction()
-        cursor.close()
-
     # Draw `samples` random keys and assert none fall inside [low, high].
-    def assert_random_outside(self, low, high, samples=200, msg=''):
+    def sample_assert_random(self, low, high, samples=200):
         cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
         self.session.begin_transaction()
         for _ in range(samples):
             self.assertEqual(cursor.next(), 0, 'random cursor found no visible key')
             k = cursor.get_key()
             self.assertFalse(self.key(low) <= k <= self.key(high),
-                f'{msg}random cursor returned truncated key {k}')
+                'random cursor returned truncated key {k}')
         self.session.rollback_transaction()
         cursor.close()
 
@@ -123,7 +116,7 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
         # 200 random samples must all land outside the truncated range.
         self.setup_follower()
         self.truncate_range(100, 700)
-        self.assert_random_outside(100, 700)
+        self.sample_assert_random(100, 700)
 
     # FIXME-WT-17133: random cursor inherits the same ingest-truncate gap.
     @unittest.skip("FIXME-WT-17133")
@@ -131,7 +124,13 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
         # Update 200-400 on follower so those keys are live in ingest, then
         # truncate a range covering them. No random sample should leak.
         self.setup_follower()
+        
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
         for i in range(200, 401):
-            self.put(i, 'updated')
+            cursor[self.key(i)] = 'updated'
+        self.session.commit_transaction()
+        cursor.close()
+
         self.truncate_range(100, 700)
-        self.assert_random_outside(100, 700, msg='live ingest leaked: ')
+        self.sample_assert_random(100, 700)
