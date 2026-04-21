@@ -280,7 +280,7 @@ typedef struct {
     uint64_t stop_timestamp;             /* If non-zero, stop when stable reaches this */
     uint64_t timestamp_copy;             /* A copy of the timestamp, for safety checks */
 
-    FILE *replay_op_log; /* Per-run log of INSERT/UPDATE/REMOVE operations (lane 1) */
+    FILE *replay_op_log; /* Per-run log of INSERT/UPDATE/REMOVE operations */
 
     uint32_t operation_timeout_ms; /* Requested limit to complete operations in transaction */
 
@@ -394,11 +394,6 @@ typedef struct {
     uint64_t search;
     uint64_t truncate;
     uint64_t update;
-
-    /* Predictable replay remove outcome counters. */
-    uint64_t replay_remove_ok;       /* cursor->remove succeeded */
-    uint64_t replay_remove_notfound; /* cursor->remove returned WT_NOTFOUND */
-    uint64_t replay_remove_rollback; /* cursor->remove returned WT_ROLLBACK */
 
     WT_SESSION *session; /* WiredTiger session */
     WT_CURSOR **cursors; /* WiredTiger cursors, maps one-to-one to tables */

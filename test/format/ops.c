@@ -510,28 +510,6 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     disagg_sync_multi_node(session);
 
     if (g.replay_op_log != NULL) {
-        uint64_t ok = 0, notfound = 0, rollback = 0, remove_total;
-        TINFO **tlp;
-        for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
-            ok += (*tlp)->replay_remove_ok;
-            notfound += (*tlp)->replay_remove_notfound;
-            rollback += (*tlp)->replay_remove_rollback;
-        }
-        remove_total = ok + notfound + rollback;
-#define summary_print(fmt, ...)                     \
-    do {                                            \
-        fprintf(stderr, fmt, __VA_ARGS__);          \
-        fprintf(g.replay_op_log, fmt, __VA_ARGS__); \
-    } while (0)
-        summary_print("REMOVE results: ok=%" PRIu64
-                      " (%.1f%%)"
-                      " notfound=%" PRIu64
-                      " (%.1f%%)"
-                      " rollback=%" PRIu64 " (%.1f%%)\n",
-          ok, remove_total > 0 ? 100.0 * ok / remove_total : 0.0, notfound,
-          remove_total > 0 ? 100.0 * notfound / remove_total : 0.0, rollback,
-          remove_total > 0 ? 100.0 * rollback / remove_total : 0.0);
-#undef summary_print
         fclose(g.replay_op_log);
         g.replay_op_log = NULL;
     }
@@ -1044,13 +1022,12 @@ ops(void *arg)
     iso_level_t iso_level;
     thread_op op;
     uint64_t reset_op, session_op, throttle_delay, truncate_op;
-    uint64_t rlog_keyno, rlog_read_ts, rlog_ts;
+    uint64_t rlog_keyno, rlog_lane, rlog_read_ts, rlog_ts;
     uint32_t max_rows, ntries, range, rnd;
     u_int i, rlog_table_id, throttle_delay_max;
     int rlog_ret;
     const char *iso_config, *rlog_op_name;
     bool greater_than, intxn, prepared, mirrored_truncate;
-    bool rlog_remove, rlog_write;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1072,8 +1049,7 @@ ops(void *arg)
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
-    rlog_remove = rlog_write = false;
-    rlog_keyno = rlog_read_ts = rlog_ts = 0;
+    rlog_keyno = rlog_lane = rlog_read_ts = rlog_ts = 0;
     rlog_table_id = 0;
     rlog_ret = 0;
     rlog_op_name = NULL;
@@ -1110,13 +1086,15 @@ rollback_retry:
 
         ++tinfo->ops;
 
-        if (!tinfo->replay_again)
+        if (!tinfo->replay_again) {
             /*
              * Number of failures so far for the current operation and key. In predictable replay,
              * unless we have a read operation, we cannot give up on any operation and maintain the
              * integrity of the replay.
              */
             ntries = 0;
+            rlog_op_name = NULL;
+        }
 
         /* Number of tries only gets incremented during predictable replay. */
         testutil_assert(ntries == 0 || (!intxn && tinfo->replay_again));
@@ -1257,17 +1235,31 @@ rollback_retry:
         replay_adjust_key(tinfo, max_rows);
 
         if (GV(RUNS_PREDICTABLE_REPLAY)) {
-            if (op == REMOVE && tinfo->lane == 1)
-                rlog_remove = true;
-            if (tinfo->lane == 1) {
-                rlog_ts = tinfo->replay_ts;
-                rlog_read_ts = tinfo->read_ts;
-                rlog_keyno = tinfo->keyno;
-                rlog_table_id = table->id;
-                if (op == INSERT || op == READ || op == UPDATE) {
-                    rlog_write = true;
-                    rlog_op_name = op == INSERT ? "INSERT" : (op == READ ? "READ" : "UPDATE");
-                }
+            rlog_lane = tinfo->lane;
+            rlog_ts = tinfo->replay_ts;
+            rlog_read_ts = tinfo->read_ts;
+            rlog_keyno = tinfo->keyno;
+            rlog_table_id = table->id;
+            rlog_ret = 0;
+            switch (op) {
+            case REMOVE:
+                rlog_op_name = "REMOVE";
+                break;
+            case INSERT:
+                rlog_op_name = "INSERT";
+                break;
+            case READ:
+                rlog_op_name = "READ";
+                break;
+            case UPDATE:
+                rlog_op_name = "UPDATE";
+                break;
+            case MODIFY:
+                rlog_op_name = "MODIFY";
+                break;
+            case TRUNCATE:
+                rlog_op_name = "TRUNCATE";
+                break;
             }
         }
 
@@ -1375,7 +1367,27 @@ rollback_retry:
             if (GV(RUNS_PREDICTABLE_REPLAY)) {
                 if (ret == WT_ROLLBACK)
                     goto rollback;
-                if (rlog_remove)
+                /*
+                 * The key exists but its write_ts exceeds the current read_ts so it isn't visible
+                 * yet. Each keyno is exclusively owned by one lane, so last_commit_ts is the
+                 * write_ts of our key's latest write. Once read_ts reaches that value the key is
+                 * visible; if we still get WT_NOTFOUND the key is genuinely absent.
+                 *
+                 * Spin-yield until replay_maximum_committed reaches last_commit_ts before retrying,
+                 * ensuring the next read_ts will be >= last_commit_ts. That makes the condition
+                 * false on the retry, so at most one retry per WT_NOTFOUND event is needed.
+                 *
+                 * The acquire-release pair on in_use (release in replay_committed, acquire in
+                 * replay_pick_timestamp) orders the write to last_commit_ts before this read,
+                 * regardless of which thread previously occupied this lane.
+                 */
+                if (op == REMOVE && tinfo->op_ret == WT_NOTFOUND &&
+                  tinfo->read_ts < g.lanes[tinfo->lane].last_commit_ts) {
+                    while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
+                        __wt_yield();
+                    goto rollback;
+                }
+                if (op == REMOVE)
                     rlog_ret = tinfo->op_ret;
             }
             skip2 = table;
@@ -1463,12 +1475,11 @@ skip_operation:
         }
 
 /*
- * Emit a replay log line to stderr and to the per-run log file. Defined here so it can be used in
- * the commit case below.
+ * Emit a replay log line to the per-run log file. Defined here so it can be used in the commit case
+ * below.
  */
 #define rlog_emit(fmt, ...)                             \
     do {                                                \
-        fprintf(stderr, fmt, __VA_ARGS__);              \
         if (g.replay_op_log != NULL)                    \
             fprintf(g.replay_op_log, fmt, __VA_ARGS__); \
     } while (0)
@@ -1485,16 +1496,12 @@ skip_operation:
             __wt_yield(); /* Encourage races */
             commit_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, true);
-            if (rlog_remove) {
-                rlog_emit("REMOVE lane=1 ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
+            if (rlog_op_name != NULL) {
+                rlog_emit("%s lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
                           " tbl=%u ret=%d\n",
-                  rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id, rlog_ret);
-                rlog_remove = false;
-            }
-            if (rlog_write) {
-                rlog_emit("%s lane=1 ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64 " tbl=%u\n",
-                  rlog_op_name, rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id);
-                rlog_write = false;
+                  rlog_op_name, rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id,
+                  rlog_ret);
+                rlog_op_name = NULL;
             }
             break;
         case 5: /* 10% */
@@ -2231,20 +2238,7 @@ row_remove(TINFO *tinfo, bool positioned)
         cursor->set_key(cursor, tinfo->key);
     }
 
-    /*
-     * For predictable replay, call remove directly and track the result. Otherwise check for
-     * existence first.
-     */
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        ret = cursor->remove(cursor);
-        if (ret == 0)
-            ++tinfo->replay_remove_ok;
-        else if (ret == WT_NOTFOUND)
-            ++tinfo->replay_remove_notfound;
-        else if (ret == WT_ROLLBACK)
-            ++tinfo->replay_remove_rollback;
-    } else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
-        ret = cursor->remove(cursor);
+    ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
@@ -2270,17 +2264,7 @@ col_remove(TINFO *tinfo, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
-    /* See row_remove for the predictable replay rationale. */
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        ret = cursor->remove(cursor);
-        if (ret == 0)
-            ++tinfo->replay_remove_ok;
-        else if (ret == WT_NOTFOUND)
-            ++tinfo->replay_remove_notfound;
-        else if (ret == WT_ROLLBACK)
-            ++tinfo->replay_remove_rollback;
-    } else if ((ret = read_op(cursor, SEARCH, NULL)) == 0)
-        ret = cursor->remove(cursor);
+    ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
