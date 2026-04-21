@@ -59,7 +59,8 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
     # digits so that lexicographic order matches numeric order.
     nitems = 1000
 
-    def key(self, n):
+    @staticmethod
+    def key(n):
         return f'{n:04d}'
 
     def session_create_config(self):
@@ -121,7 +122,7 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
             keys.append(cursor.get_key())
         self.session.rollback_transaction()
         cursor.close()
-        return [k for k in reversed(keys)]  # reverse so order matches forward scan
+        return list(reversed(keys))  # reverse so order matches forward scan
 
     # Run search_near in its own transaction; return (exact, landed_key).
     def search_near(self, key):
@@ -145,9 +146,9 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         return ret
 
     # Assert forward and backward scans both return the expected key list.
-    def assert_scan(self, expected, msg=''):
-        self.assertEqual(self.scan_forward(), expected, f'forward scan mismatch {msg}')
-        self.assertEqual(self.scan_backward(), expected, f'backward scan mismatch {msg}')
+    def assert_scan(self, expected):
+        self.assertEqual(self.scan_forward(), expected, f'forward scan mismatch')
+        self.assertEqual(self.scan_backward(), expected, f'backward scan mismatch')
 
     # Write a single key/value pair in its own transaction.
     def put(self, key, value='v'):

@@ -791,14 +791,16 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        ret = __wt_truncate_delete_visible_check(
-          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
+        WT_RET_NOTFOUND_OK(__wt_truncate_delete_visible_check(
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t));
         if (ret == WT_NOTFOUND)
             break;
 
         /*
          * An open-ended truncation means a truncate to the end of the table. When iterating forward
          * there are no more visible stable keys; reset the cursor to clear WT_CURSTD_KEY_INT.
+         *
+         * FIXME-WT-17237: Deprecate open ended truncates.
          */
         if (forward && t->stop_key.size == 0) {
             WT_RET(stable->reset(stable));
