@@ -307,6 +307,9 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
         btree_txn_id_prev = op->btree->max_upd_txn;
     }
 
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+        (void)__wt_atomic_add_int32(&btree->ingest_gc_pending_ops, 1);
+
     (void)__wt_atomic_add_int32(&session->dhandle->session_inuse, 1);
     *opp = op;
     return (0);
@@ -332,6 +335,9 @@ __wt_pending_prepared_next_op(
     WT_CLEAR(*op);
     btree = S2BT(session);
     op->btree = btree;
+
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+        (void)__wt_atomic_add_int32(&btree->ingest_gc_pending_ops, 1);
 
     /*
      * Increment the session use count for the data handle. This counter always increases in

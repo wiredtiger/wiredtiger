@@ -1463,6 +1463,144 @@ __txn_mod_compare(const void *a, const void *b)
 }
 
 /*
+ * __txn_ingest_gc_ts_from_timepoint --
+ *     Max timestamp from the transaction time point flags relevant to ingest GC tracking.
+ */
+static wt_timestamp_t
+__txn_ingest_gc_ts_from_timepoint(WT_TXN *txn)
+{
+    wt_timestamp_t ts;
+
+    ts = WT_TS_NONE;
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_PREPARE))
+        ts = WT_MAX(ts, txn->time_point.prepare_timestamp);
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+        ts = WT_MAX(ts, txn->time_point.commit_timestamp);
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE))
+        ts = WT_MAX(ts, txn->time_point.durable_timestamp);
+    return (ts);
+}
+
+/*
+ * __txn_ingest_gc_ts_from_op --
+ *     Best timestamp associated with a single modification (post-resolution), for GC tracking.
+ */
+static wt_timestamp_t
+__txn_ingest_gc_ts_from_op(WT_TXN_OP *op)
+{
+    WT_PAGE_DELETED *page_del;
+    WT_REF *ref;
+    WT_UPDATE *upd;
+    wt_timestamp_t m;
+
+    switch (op->type) {
+    case WT_TXN_OP_NONE:
+    case WT_TXN_OP_TRUNCATE_COL:
+    case WT_TXN_OP_TRUNCATE_ROW:
+        return (WT_TS_NONE);
+    case WT_TXN_OP_BASIC_COL:
+    case WT_TXN_OP_BASIC_ROW:
+    case WT_TXN_OP_INMEM_COL:
+    case WT_TXN_OP_INMEM_ROW:
+        upd = op->u.op_upd;
+        if (upd == NULL)
+            return (WT_TS_NONE);
+        m = WT_TS_NONE;
+        if (upd->upd_start_ts != WT_TS_NONE)
+            m = WT_MAX(m, upd->upd_start_ts);
+        if (upd->upd_durable_ts != WT_TS_NONE)
+            m = WT_MAX(m, upd->upd_durable_ts);
+        return (m);
+    case WT_TXN_OP_REF_DELETE:
+        ref = op->u.ref;
+        if ((page_del = ref->page_del) == NULL)
+            return (WT_TS_NONE);
+        m = WT_TS_NONE;
+        if (page_del->pg_del_start_ts != WT_TS_NONE)
+            m = WT_MAX(m, page_del->pg_del_start_ts);
+        if (page_del->pg_del_durable_ts != WT_TS_NONE)
+            m = WT_MAX(m, page_del->pg_del_durable_ts);
+        if (page_del->prepare_ts != WT_TS_NONE)
+            m = WT_MAX(m, page_del->prepare_ts);
+        return (m);
+    }
+    return (WT_TS_NONE);
+}
+
+/*
+ * __txn_ingest_gc_publish_prepare --
+ *     Publish prepare timestamps to ingest garbage-collect btrees.
+ */
+static void
+__txn_ingest_gc_publish_prepare(WT_SESSION_IMPL *session, WT_TXN *txn)
+{
+    WT_BTREE *btree;
+    WT_TXN_OP *op;
+    u_int i, j;
+    wt_timestamp_t ts;
+
+    WT_UNUSED(session);
+
+    if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_PREPARE))
+        return;
+    ts = txn->time_point.prepare_timestamp;
+
+    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        btree = op->btree;
+        if (btree == NULL || !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            continue;
+        for (j = 0; j < i; j++)
+            if (txn->mod[j].btree == btree)
+                break;
+        if (j < i)
+            continue;
+        __wt_btree_ingest_gc_publish_max(btree, ts);
+    }
+}
+
+/*
+ * __txn_ingest_gc_publish_commit --
+ *     Publish commit/prepare timestamps to ingest garbage-collect btrees before freeing ops.
+ */
+static void
+__txn_ingest_gc_publish_commit(WT_SESSION_IMPL *session, WT_TXN *txn)
+{
+    WT_BTREE *btree;
+    WT_TXN_OP *op;
+    u_int i;
+    wt_timestamp_t merge_ts, op_ts, tp_ts;
+
+    WT_UNUSED(session);
+
+    tp_ts = __txn_ingest_gc_ts_from_timepoint(txn);
+
+    /*
+     * Publish every op's timestamp on its GC-tracked btree. Do not dedupe by btree here: different
+     * ops on the same btree may carry different timestamps (e.g. the commit timestamp was advanced
+     * with WT_SESSION::set_commit_timestamp partway through the transaction, or different update
+     * types derive different timestamps in __txn_ingest_gc_ts_from_op). Publishing only the first
+     * op's timestamp could leave ingest_gc_max_timestamp stale and let the fast obsolete path drop
+     * a chunk that still holds later uncommitted-to-GC content. The publish helper is a CAS-on-max,
+     * so redundant publishes are cheap.
+     */
+    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        btree = op->btree;
+        if (btree == NULL || !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            continue;
+        op_ts = __txn_ingest_gc_ts_from_op(op);
+        merge_ts = WT_TS_NONE;
+        if (op_ts != WT_TS_NONE && tp_ts != WT_TS_NONE)
+            merge_ts = WT_MAX(op_ts, tp_ts);
+        else if (op_ts != WT_TS_NONE)
+            merge_ts = op_ts;
+        else if (tp_ts != WT_TS_NONE)
+            merge_ts = tp_ts;
+        if (merge_ts != WT_TS_NONE)
+            __wt_btree_ingest_gc_publish_max(btree, merge_ts);
+    }
+}
+
+/*
  * __txn_check_if_stable_has_moved_ahead_commit_ts --
  *     Check if the stable timestamp has moved ahead of the commit timestamp.
  */
@@ -1744,6 +1882,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * call an error handling macro between here and the end of the function.
      */
     cannot_fail = true;
+
+    /* Publish commit/prepare timestamps for ingest garbage-collect btrees before freeing ops. */
+    __txn_ingest_gc_publish_commit(session, txn);
 
     /*
      * Free updates.
@@ -2033,6 +2174,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         __txn_remove_from_global_table(session);
+
+    /* Publish prepare timestamps for ingest garbage-collect btrees. */
+    __txn_ingest_gc_publish_prepare(session, txn);
 
     return (0);
 }
