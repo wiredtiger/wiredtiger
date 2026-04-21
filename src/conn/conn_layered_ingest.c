@@ -131,7 +131,7 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
 {
     WT_BTREE *btree = NULL;
     WT_DECL_RET;
-    uint64_t btree_prune_timestamp;
+    wt_timestamp_t btree_prune_timestamp;
 
     WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), true);
     if (ret == WT_NOTFOUND) {
