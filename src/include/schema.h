@@ -83,6 +83,12 @@ struct __wt_layered_table {
     uint32_t *ingest_btree_ids;
     uint32_t n_ingest_uris;
 
+    /*
+     * Serialize follower ingest chunk rollover for this layered table (see
+     * __clayered_rollover_ingest in cur_layered.c).
+     */
+    WT_SPINLOCK ingest_chunk_lock;
+
     WT_COLLATOR *collator; /* Custom collator */
     int collator_owned;
 
@@ -104,6 +110,12 @@ struct __wt_layered_table {
 
 #define WT_LAYERED_PRIMARY_INGEST_BTREE_ID(l) \
     ((l)->n_ingest_uris > 0 ? (l)->ingest_btree_ids[(l)->n_ingest_uris - 1] : 0)
+
+/*
+ * Upper bound on ingest chunk URIs per layered table (follower rollover). Prevents unbounded growth
+ * if configuration is wrong or workload is extreme.
+ */
+#define WT_LAYERED_INGEST_CHUNKS_MAX 64
 
 /* Holds metadata entry name and the associated config string. */
 struct __wt_import_entry {

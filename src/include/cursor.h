@@ -525,8 +525,8 @@ struct __wt_cursor_layered {
 
     WT_DATA_HANDLE *dhandle;
 
-    WT_CURSOR *current_cursor; /* The current cursor for iteration */
-    WT_CURSOR **ingest_cursors;  /* Ingest tables, same order as layered handle */
+    WT_CURSOR *current_cursor;  /* The current cursor for iteration */
+    WT_CURSOR **ingest_cursors; /* Ingest tables, same order as layered handle */
     u_int n_ingest_cursors;
     WT_CURSOR *stable_cursor; /* The stable table */
 

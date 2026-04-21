@@ -90,6 +90,8 @@ __clayered_primary_ingest(WT_CURSOR_LAYERED *clayered)
     return (clayered->ingest_cursors[clayered->n_ingest_cursors - 1]);
 }
 
+static int __clayered_rollover_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered);
+
 /*
  * __clayered_cursor_is_ingest --
  *     Return if a constituent cursor is one of the ingest tables.
@@ -587,8 +589,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 
     if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
         /*
-         * To reopen the ingest tables, all we need to do here is close them. They will be
-         * reopened when needed. There's never a situation where we need to save their position.
+         * To reopen the ingest tables, all we need to do here is close them. They will be reopened
+         * when needed. There's never a situation where we need to save their position.
          */
         u_int i;
 
@@ -669,51 +671,73 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LAYERED_TABLE *layered;
-    bool leader;
+    const char **ingest_uris_snapshot;
+    WT_DECL_RET;
     u_int i;
+    u_int n_ingest_snapshot;
+    bool leader;
+    bool chunk_lock_held;
 
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     WT_ASSERT(session, layered->n_ingest_uris > 0);
 
-    if (clayered->ingest_cursors != NULL && clayered->n_ingest_cursors == layered->n_ingest_uris) {
+    /*
+     * The ingest list can be rotated/garbage-collected by other threads under the layered ingest
+     * chunk lock. Snapshot the current ingest URIs (strings live for the handle lifetime) so we
+     * don't race with the pointer array being replaced/freed while we open cursors.
+     */
+    ingest_uris_snapshot = NULL;
+    n_ingest_snapshot = 0;
+    chunk_lock_held = false;
+    __wt_spin_lock(session, &layered->ingest_chunk_lock);
+    chunk_lock_held = true;
+    n_ingest_snapshot = layered->n_ingest_uris;
+    WT_ASSERT(session, n_ingest_snapshot > 0);
+    WT_ERR(__wt_calloc(
+      session, (size_t)n_ingest_snapshot, sizeof(const char *), &ingest_uris_snapshot));
+    for (i = 0; i < n_ingest_snapshot; i++)
+        ingest_uris_snapshot[i] = layered->ingest_uris[i];
+    __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+    chunk_lock_held = false;
+
+    if (clayered->ingest_cursors != NULL && clayered->n_ingest_cursors == n_ingest_snapshot) {
         for (i = 0; i < clayered->n_ingest_cursors; i++)
             if (clayered->ingest_cursors[i] == NULL)
                 break;
         if (i == clayered->n_ingest_cursors) {
             if (!F_ISSET(clayered, WT_CLAYERED_READ_STABLE))
-                return (0);
+                goto done;
             if (clayered->stable_cursor != NULL)
-                return (0);
+                goto done;
         }
     }
 
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
-    if (clayered->ingest_cursors != NULL &&
-      clayered->n_ingest_cursors != layered->n_ingest_uris) {
+    if (clayered->ingest_cursors != NULL && clayered->n_ingest_cursors != n_ingest_snapshot) {
         for (i = 0; i < clayered->n_ingest_cursors; i++)
             if (clayered->ingest_cursors[i] != NULL)
-                WT_RET(clayered->ingest_cursors[i]->close(clayered->ingest_cursors[i]));
+                WT_ERR(clayered->ingest_cursors[i]->close(clayered->ingest_cursors[i]));
         __wt_free(session, clayered->ingest_cursors);
         clayered->ingest_cursors = NULL;
         clayered->n_ingest_cursors = 0;
     }
 
     if (clayered->ingest_cursors == NULL)
-        WT_RET(__wt_calloc(session, layered->n_ingest_uris, sizeof(WT_CURSOR *),
-          &clayered->ingest_cursors));
-    clayered->n_ingest_cursors = layered->n_ingest_uris;
+        WT_ERR(__wt_calloc(
+          session, n_ingest_snapshot, sizeof(WT_CURSOR *), &clayered->ingest_cursors));
+    clayered->n_ingest_cursors = n_ingest_snapshot;
 
-    for (i = 0; i < layered->n_ingest_uris; i++)
+    for (i = 0; i < n_ingest_snapshot; i++)
         if (clayered->ingest_cursors[i] == NULL)
-            WT_RET(__clayered_open_one_ingest(
-              session, clayered, layered->ingest_uris[i], &clayered->ingest_cursors[i]));
+            WT_ERR(__clayered_open_one_ingest(
+              session, clayered, ingest_uris_snapshot[i], &clayered->ingest_cursors[i]));
 
     if (F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor == NULL) {
         leader = conn->disagg_layered_leader;
-        WT_RET(__clayered_open_stable(clayered, leader));
+        WT_ERR(__clayered_open_stable(clayered, leader));
     }
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
@@ -740,9 +764,17 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
     /*
      * Set any boundaries for any newly opened cursors.
      */
-    WT_RET(__clayered_copy_bounds(clayered));
+    WT_ERR(__clayered_copy_bounds(clayered));
 
+done:
+    __wt_free(session, ingest_uris_snapshot);
     return (0);
+
+err:
+    if (chunk_lock_held)
+        __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+    __wt_free(session, ingest_uris_snapshot);
+    return (ret);
 }
 
 /*
@@ -754,8 +786,8 @@ __clayered_get_current(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bo
 {
     WT_COLLATOR *collator;
     WT_CURSOR *c, *current;
-    int cmp, pri, best_pri;
     u_int i;
+    int cmp, pri, best_pri;
 
     current = NULL;
     best_pri = -2;
@@ -901,18 +933,18 @@ __clayered_constituent_iter(WT_CURSOR *constituent, bool forward)
 /*
  * __clayered_iterate_constituents --
  *     Move the constituents to the next (or prev) position. If the cursor is unpositioned, position
- *     the constituents. Ingest tables are merged oldest to newest over stable; iteration keeps every
- *     constituent aligned so __clayered_get_current can pick the visible row.
+ *     the constituents. Ingest tables are merged oldest to newest over stable; iteration keeps
+ *     every constituent aligned so __clayered_get_current can pick the visible row.
  */
 static int
 __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 {
     WT_CURSOR *c, *c_current, *c_stable;
     WT_DECL_RET;
-    int cmp;
-    bool any_ingest_ref, current_moved, forward;
     WT_SESSION_IMPL *session;
     u_int i;
+    int cmp;
+    bool any_ingest_ref, current_moved, forward;
 
     session = CUR2S(clayered);
     current_moved = false;
@@ -953,14 +985,14 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     }
 
     /*
-     * Start of walk: no ingest refs and stable not positioned — advance stable first, then each
+     * Start of walk: no ingest refs and stable not positioned advance stable first, then each
      * ingest (stable first avoids pinning the wrong page on prepared conflicts).
      */
     if (!any_ingest_ref && !F_ISSET(c_stable, WT_CURSTD_KEY_INT)) {
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward), false);
         for (i = 0; i < clayered->n_ingest_cursors; i++)
             WT_ERR_NOTFOUND_OK(
-            __clayered_constituent_iter(clayered->ingest_cursors[i], forward), false);
+              __clayered_constituent_iter(clayered->ingest_cursors[i], forward), false);
         goto done;
     }
 
@@ -1719,8 +1751,8 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     __clayered_get_collator(clayered, &collator);
 
     /*
-     * Align ingests on the opposite side of the search key from stable. Never adjust an ingest
-     * that already has an exact match (cmp == 0): the old two-cursor code only ran this branch when
+     * Align ingests on the opposite side of the search key from stable. Never adjust an ingest that
+     * already has an exact match (cmp == 0): the old two-cursor code only ran this branch when
      * neither constituent had an exact match.
      */
     if (stable_found) {
@@ -1745,7 +1777,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
     }
 
     /*
-     * 1) Any ingest with an exact key match — prefer the newest (highest index). This includes
+     * 1) Any ingest with an exact key match  prefer the newest (highest index). This includes
      * tombstones so delete masking and iterate-forward/prev behavior match the pre-merge code.
      */
     for (i = n; i > 0;) {
@@ -1931,12 +1963,43 @@ static WT_INLINE int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
   const WT_ITEM *value, bool position, bool reserve)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
     int (*func)(WT_CURSOR *);
 
-    if (S2C(session)->disagg_layered_leader)
+    conn = S2C(session);
+
+    if (conn->disagg_layered_leader)
         c = clayered->stable_cursor;
     else {
+        /*
+         * Followers write into ingest tables. Optionally rotate the active ingest chunk based on a
+         * simple operation count threshold.
+         */
+        if (conn->disaggregated_storage.layered_ingest_chunk_max_ops != 0) {
+            uint64_t max_ops = conn->disaggregated_storage.layered_ingest_chunk_max_ops;
+            uint64_t ops = __wt_atomic_add_uint64_relaxed(
+              &conn->disaggregated_storage.layered_ingest_chunk_ops, 1);
+            if (ops >= max_ops &&
+              __wt_atomic_cas_uint64(
+                &conn->disaggregated_storage.layered_ingest_chunk_ops, ops, 0)) {
+                int rr;
+
+                rr = __clayered_rollover_ingest(session, clayered);
+                if (rr != 0) {
+                    /*
+                     * Rollover lost the threshold counter when the CAS won; restore roughly one
+                     * below the threshold so a transient failure does not permanently suppress
+                     * rotation.
+                     */
+                    if (ops > 0)
+                        (void)__wt_atomic_add_uint64_relaxed(
+                          &conn->disaggregated_storage.layered_ingest_chunk_ops, ops - 1);
+                    WT_RET(rr);
+                }
+            }
+        }
+
         c = __clayered_primary_ingest(clayered);
 
         /*
@@ -1960,6 +2023,263 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
         clayered->current_cursor = c;
 
     return (0);
+}
+
+/*
+ * __clayered_rollover_ingest --
+ *     Follower-only: create a new ingest chunk for a layered table and switch subsequent writes to
+ *     the newest ingest.
+ */
+static int
+__clayered_rollover_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
+{
+    WT_CONFIG_ITEM key_format, value_format;
+    WT_DECL_ITEM(ingest_cfg);
+    WT_DECL_ITEM(ingest_list);
+    WT_DECL_ITEM(layered_update);
+    WT_DECL_ITEM(new_uri_buf);
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
+    WT_SESSION_IMPL *int_session;
+    uint32_t *ids_new;
+    uint32_t new_id;
+    uint32_t new_n;
+    char *dup_meta, *layered_meta, *merged, *new_uri;
+    char **uris_new;
+    const char *drop_cfg[4];
+    const char *layered_uri;
+    bool file_created, hold_chunk_lock, meta_updated;
+
+    int_session = NULL;
+    uris_new = NULL;
+    ids_new = NULL;
+    new_id = 0;
+    dup_meta = layered_meta = merged = new_uri = NULL;
+    layered_uri = clayered->dhandle->name;
+    layered = (WT_LAYERED_TABLE *)clayered->dhandle;
+    file_created = hold_chunk_lock = meta_updated = false;
+    new_n = 0;
+
+    /* Leaders do not use ingest tables for writes. */
+    WT_ASSERT(session, !S2C(session)->disagg_layered_leader);
+    WT_ASSERT(session, layered->n_ingest_uris > 0);
+
+    if (!WT_PREFIX_MATCH(layered_uri, "layered:"))
+        WT_RET_MSG(session, EINVAL, "layered ingest rollover requires a layered: metadata URI");
+
+    if (layered->n_ingest_uris >= WT_LAYERED_INGEST_CHUNKS_MAX)
+        WT_RET_MSG(session, ENOSPC, "layered table \"%s\" already has maximum ingest chunks (%u)",
+          layered_uri, (unsigned int)WT_LAYERED_INGEST_CHUNKS_MAX);
+
+    __wt_spin_lock(session, &layered->ingest_chunk_lock);
+    hold_chunk_lock = true;
+
+    /*
+     * Under the chunk lock, another thread may have already rotated; re-check the cap and bail out
+     * quietly so the caller can continue with the current primary ingest.
+     */
+    if (layered->n_ingest_uris >= WT_LAYERED_INGEST_CHUNKS_MAX) {
+        ret = 0;
+        goto err;
+    }
+
+    WT_ERR(__wt_schema_open_internal_session(session, &int_session));
+
+    /*
+     * Derive a new ingest URI: file:<base>.<next_suffix>.wt_ingest (see layered create naming).
+     *
+     * The next suffix must be monotonically greater than any suffix currently or previously in use
+     * for this layered table. The primary (newest) ingest chunk always holds the highest-known
+     * suffix, even after the ingest GC retires older chunks from the front of the list, so
+     * parsing the primary's suffix and incrementing it is a safe, collision-free generator. Using
+     * n_ingest_uris directly would collide after GC shortens the list (e.g. list is [foo.2,
+     * foo.3], n=2, but foo.2.wt_ingest is still in metadata).
+     */
+    {
+        const char *pfx;
+        const char *primary = WT_LAYERED_PRIMARY_INGEST_URI(layered);
+        size_t plen, base_len, digits_end, digits_start, j;
+        uint32_t cur_suffix, next_suffix;
+
+        WT_ASSERT(session, WT_PREFIX_MATCH(primary, "file:"));
+        pfx = primary + strlen("file:");
+        plen = strlen(pfx);
+        WT_ASSERT(session, plen > strlen(".wt_ingest") && WT_SUFFIX_MATCH(pfx, ".wt_ingest"));
+        base_len = plen - strlen(".wt_ingest");
+
+        /* Parse the trailing ".<digits>" suffix of the primary, if any. */
+        cur_suffix = 0;
+        digits_end = base_len;
+        digits_start = digits_end;
+        while (digits_start > 0 && pfx[digits_start - 1] >= '0' && pfx[digits_start - 1] <= '9')
+            --digits_start;
+        if (digits_start < digits_end && digits_start > 0 && pfx[digits_start - 1] == '.') {
+            for (j = digits_start; j < digits_end; j++)
+                cur_suffix = cur_suffix * 10u + (uint32_t)(pfx[j] - '0');
+            base_len = digits_start - 1;
+        }
+        next_suffix = cur_suffix + 1;
+
+        new_n = layered->n_ingest_uris + 1;
+        WT_ERR(__wt_scr_alloc(int_session, 0, &new_uri_buf));
+        WT_ERR(__wt_buf_fmt(
+          int_session, new_uri_buf, "file:%.*s.%u.wt_ingest", (int)base_len, pfx, next_suffix));
+        /*
+         * Persist the new URI using the application session: ingest URI strings live on the layered
+         * dhandle for the handle lifetime and must not be allocated on a short-lived internal
+         * schema session.
+         */
+        WT_ERR(__wt_strndup(session, new_uri_buf->data, new_uri_buf->size, &new_uri));
+    }
+
+    /* Fail fast if metadata already knows about this ingest file. */
+    dup_meta = NULL;
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(int_session, new_uri, &dup_meta), false);
+    if (dup_meta != NULL) {
+        __wt_free(int_session, dup_meta);
+        dup_meta = NULL;
+        WT_ERR_MSG(session, EEXIST, "ingest chunk URI already exists in metadata: %s", new_uri);
+    }
+
+    /* Create the new ingest table using the layered table's key/value formats. */
+    WT_ERR(__wt_config_gets(int_session, clayered->dhandle->cfg, "key_format", &key_format));
+    WT_ERR(__wt_config_gets(int_session, clayered->dhandle->cfg, "value_format", &value_format));
+    WT_ERR(__wt_scr_alloc(int_session, 0, &ingest_cfg));
+    WT_ERR(__wt_buf_fmt(int_session, ingest_cfg,
+      "key_format=\"%.*s\",value_format=\"%.*s\","
+      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none),"
+      "memory_page_max=10TB,cache_resident=true",
+      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
+    WT_WITH_SCHEMA_LOCK(
+      int_session, ret = __wt_schema_create(int_session, new_uri, ingest_cfg->data));
+    WT_ERR(ret);
+    file_created = true;
+
+    /*
+     * Persist the expanded ingest list before mutating the in-memory handle so a failure after
+     * updating metadata does not strand a new btree without a metadata entry, and a failure before
+     * updating in-memory state can roll back metadata to the previous value.
+     */
+    WT_ERR(__wt_metadata_search(int_session, layered_uri, &layered_meta));
+    WT_ERR(__wt_scr_alloc(int_session, 0, &ingest_list));
+    WT_ERR(__wt_scr_alloc(int_session, 0, &layered_update));
+    {
+        uint32_t i;
+
+        WT_ERR(__wt_buf_fmt(int_session, ingest_list, "("));
+        for (i = 0; i < layered->n_ingest_uris; i++)
+            WT_ERR(__wt_buf_catfmt(
+              int_session, ingest_list, "%s%s", i == 0 ? "" : ",", layered->ingest_uris[i]));
+        WT_ERR(__wt_buf_catfmt(int_session, ingest_list, ",%s", new_uri));
+        WT_ERR(__wt_buf_catfmt(int_session, ingest_list, ")"));
+        WT_ERR(__wt_buf_fmt(int_session, layered_update, "ingest=\"%.*s\"", (int)ingest_list->size,
+          (const char *)ingest_list->data));
+    }
+    {
+        const char *cfg[4];
+
+        cfg[0] = layered_meta;
+        cfg[1] = layered_update->data;
+        cfg[2] = NULL;
+        cfg[3] = NULL;
+        WT_ERR(__wt_config_collapse(int_session, cfg, &merged));
+        WT_ERR(__wt_metadata_insert(int_session, layered_uri, merged));
+        meta_updated = true;
+        __wt_free(int_session, merged);
+        merged = NULL;
+    }
+
+    /*
+     * Update the in-memory layered handle ingest list (and record the btree id for the new ingest).
+     * All allocations tied to the layered dhandle use the application session.
+     */
+    WT_WITH_TABLE_WRITE_LOCK(int_session, {
+        uint32_t i;
+        WT_BTREE *btree;
+
+        ret = __wt_calloc(session, (size_t)new_n, sizeof(char *), &uris_new);
+        if (ret == 0)
+            ret = __wt_calloc(session, (size_t)new_n, sizeof(uint32_t), &ids_new);
+        if (ret == 0) {
+            for (i = 0; i < layered->n_ingest_uris; i++) {
+                uris_new[i] = layered->ingest_uris[i];
+                ids_new[i] = layered->ingest_btree_ids[i];
+            }
+            uris_new[new_n - 1] = new_uri;
+            new_uri = NULL;
+        }
+        if (ret == 0)
+            ret = __wt_session_get_dhandle(int_session, uris_new[new_n - 1], NULL, NULL, 0);
+        if (ret == 0) {
+            btree = (WT_BTREE *)int_session->dhandle->handle;
+            new_id = btree->id;
+            ret = __wt_session_release_dhandle(int_session);
+        }
+        if (ret == 0) {
+            ids_new[new_n - 1] = new_id;
+
+            __wt_free(session, layered->ingest_uris);
+            __wt_free(session, layered->ingest_btree_ids);
+            layered->ingest_uris = uris_new;
+            layered->ingest_btree_ids = ids_new;
+            layered->n_ingest_uris = new_n;
+            uris_new = NULL;
+            ids_new = NULL;
+        }
+    });
+    WT_ERR(ret);
+
+    /*
+     * Ensure this cursor starts using the updated ingest list. Do not hold the chunk lock across
+     * cursor open/close (may recurse into __clayered_open_cursors).
+     */
+    __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+    hold_chunk_lock = false;
+    WT_ERR(__clayered_close_cursors(clayered));
+    WT_ERR(__clayered_open_cursors(session, clayered));
+
+err:
+    if (ret != 0 && int_session != NULL && meta_updated && layered_meta != NULL)
+        WT_WITH_SCHEMA_LOCK(
+          int_session, WT_TRET(__wt_metadata_insert(int_session, layered_uri, layered_meta)));
+    if (ret != 0 && int_session != NULL && file_created && new_uri != NULL) {
+        drop_cfg[0] = WT_CONFIG_BASE(int_session, WT_SESSION_drop);
+        drop_cfg[1] = "force=true";
+        drop_cfg[2] = NULL;
+        drop_cfg[3] = NULL;
+        WT_WITH_SCHEMA_LOCK(
+          int_session, WT_TRET(__wt_schema_drop(int_session, new_uri, drop_cfg, false)));
+    }
+
+    __wt_free(int_session, layered_meta);
+    __wt_free(session, new_uri);
+    if (ret != 0 && uris_new != NULL && uris_new != layered->ingest_uris) {
+        uint32_t i;
+        bool owned;
+
+        if (new_n > 0 && uris_new[new_n - 1] != NULL) {
+            owned = true;
+            for (i = 0; i < layered->n_ingest_uris; i++)
+                if (uris_new[new_n - 1] == layered->ingest_uris[i]) {
+                    owned = false;
+                    break;
+                }
+            if (owned)
+                __wt_free(session, uris_new[new_n - 1]);
+        }
+        __wt_free(session, uris_new);
+        __wt_free(session, ids_new);
+    }
+
+    __wt_scr_free(int_session, &ingest_cfg);
+    __wt_scr_free(int_session, &ingest_list);
+    __wt_scr_free(int_session, &layered_update);
+    __wt_scr_free(int_session, &new_uri_buf);
+    WT_TRET(__wt_schema_close_internal_session(session, int_session));
+
+    if (hold_chunk_lock)
+        __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+    return (ret);
 }
 
 /*
@@ -2099,8 +2419,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->disagg_layered_leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+      S2C(session)->disagg_layered_leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -2162,8 +2481,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->disagg_layered_leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+      S2C(session)->disagg_layered_leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE), false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
@@ -2318,9 +2636,9 @@ __clayered_largest_key(WT_CURSOR *cursor)
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i;
     int cmp, larger_pri;
     bool any_found;
-    u_int i;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
     any_found = false;

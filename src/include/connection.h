@@ -264,6 +264,15 @@ struct __wt_disaggregated_storage {
                                          /* Updates are protected by the checkpoint lock. */
 
     /*
+     * Layered ingest chunk rotation (follower-only).
+     *
+     * Followers write into ingest tables via the layered cursor. Optionally rotate the active
+     * ingest table periodically to keep ingest btrees bounded.
+     */
+    uint64_t layered_ingest_chunk_max_ops;       /* 0 disables ingest chunk rotation. */
+    wt_shared uint64_t layered_ingest_chunk_ops; /* Count ops since last rotation. */
+
+    /*
      * Total size of all stable tables in the database, along with other components such as the KEK
      * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
      */
