@@ -65,7 +65,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
     # run on the test output.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS|WT_VERB_READ|WT_VERB_LOG')
+        self.ignoreStdoutPattern('WT_VERB_RTS|WT_VERB_READ')
         self.addTearDownAction(verify_rts_logs)
 
     def retry_rollback(self, name, txn_session, code):
