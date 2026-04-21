@@ -281,6 +281,12 @@ struct __wt_page_disagg_info {
     uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
 
     WT_PAGE_BLOCK_META block_meta;
+
+    /*
+     * When the shared disk cache is enabled, points at the cache entry that owns page->dsk. NULL on
+     * cache miss before insertion, or when the shared disk cache is disabled.
+     */
+    WT_SHARED_DSK_ITEM *shared_dsk_item;
 };
 
 /*

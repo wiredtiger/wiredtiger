@@ -51,8 +51,9 @@ struct __wt_shared_dsk_item {
      */
     int32_t ref_count;
 
-    uint32_t fid;      /* File ID */
-    uint8_t addr_size; /* Address cookie */
+    WT_PAGE_BLOCK_META block_meta; /* Block metadata, used for page disagg_info. */
+    uint32_t fid;                  /* File ID */
+    uint8_t addr_size;             /* Address cookie */
     uint8_t addr[];
 };
 
