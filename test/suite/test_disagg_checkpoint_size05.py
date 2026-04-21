@@ -42,7 +42,7 @@ from helper_disagg import disagg_test_class
 #     Fast path  -- statistics=(size) avoids opening the dhandle and reads the size directly
 #                   from the checkpoint entry in the file's metadata.
 #
-#   At startup, the block manager handle is initialised from the checkpoint metadata so the
+#   At startup, the block manager handle is initialized from the checkpoint metadata so the
 #   slow-path stat is also correct before the first new checkpoint is taken after a restart.
 @disagg_test_class
 class test_disagg_checkpoint_size05(wttest.WiredTigerTestCase):
