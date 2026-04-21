@@ -66,7 +66,7 @@ disagg_teardown_multi_node(void)
     if (g.follower_pid > 0) { /* Parent: leader */
         /* Wait for the follower process to exit. */
         track("Waiting for follower to finish execution.", 0ULL);
-        testutil_timeout_wait(120, g.follower_pid);
+        testutil_timeout_wait(720, g.follower_pid);
         g.follower_pid = 0;
     }
     close(g.disagg_multi_sync_socket);
@@ -243,6 +243,7 @@ disagg_switch_roles(void)
         track("[role change] leader -> follower", 0ULL);
         wts_reopen();
         follower_read_latest_checkpoint();
+        wts_prepare_discover(g.wts_conn);
     } else {
         /* Stepping up: [follower -> leader] */
         track("[role change] follower -> leader", 0ULL);

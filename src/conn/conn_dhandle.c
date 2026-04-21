@@ -649,6 +649,10 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_btree_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
+        /* Layered cursor operations maintain data-source statistics on the layered handle. */
+        if (dhandle->stat_array == NULL)
+            WT_ERR(__wt_stat_dsrc_init(session, dhandle));
+
         WT_ERR(__wt_schema_open_layered(session));
         break;
     case WT_DHANDLE_TYPE_TABLE:
