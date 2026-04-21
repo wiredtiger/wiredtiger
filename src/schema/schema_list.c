@@ -234,6 +234,8 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
 void
 __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
 {
+    __wt_spin_destroy(session, &layered->ingest_chunk_lock);
+
     /* Free copies of copied configuration items. */
     __wt_free(session, layered->key_format);
     __wt_free(session, layered->value_format);

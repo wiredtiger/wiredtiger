@@ -212,17 +212,23 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_UPDATE *upd;
+    size_t size;
     char *ingest_uri;
+    bool dhandle_acquired, hold_chunk_lock;
 
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
     cursor = NULL;
     ingest_uri = NULL;
+    dhandle_acquired = false;
+    hold_chunk_lock = false;
     conn = S2C(session);
+    layered = NULL;
 
     /*
      * Find the matching layered table by walking the connection handle list and comparing the
-     * stable URI from the layered handle.
+     * stable URI from the layered handle. Acquire a reference to the layered dhandle so that its
+     * ingest_uris/ingest_chunk_lock remain valid once we drop the handle list lock.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(session, {
         for (dhandle = NULL;;) {
@@ -235,34 +241,76 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
             layered = (WT_LAYERED_TABLE *)dhandle;
             if (layered->stable_uri != NULL && WT_STREQ(layered->stable_uri, stable_uri)) {
                 WT_DHANDLE_ACQUIRE(dhandle);
+                dhandle_acquired = true;
                 break;
             }
         }
     });
 
-    WT_ASSERT_ALWAYS(
-      session, dhandle != NULL, "Unable to find matching layered table to restore prepared update");
+    if (!dhandle_acquired)
+        WT_RET_MSG(session, WT_NOTFOUND,
+          "unable to find matching layered table for stable URI \"%s\" while restoring a "
+          "prepared update",
+          stable_uri);
 
     layered = (WT_LAYERED_TABLE *)dhandle;
-    WT_ASSERT(session, layered->n_ingest_uris > 0);
-    WT_ERR(__wt_strdup(session, WT_LAYERED_PRIMARY_INGEST_URI(layered), &ingest_uri));
-    WT_DHANDLE_RELEASE(dhandle);
 
-    /* Open cursor on the ingest table */
+    /*
+     * Target the newest (primary) ingest chunk for the restored update.
+     *
+     * This function runs on the follower during prepared-update discovery, which scans the stable
+     * table's checkpoint image for prepared artifacts and reinstates them on the ingest side so
+     * the follower can later resolve them. In that window the follower has not started handling
+     * writes, so rollover has not yet produced secondary ingest chunks and the primary is the
+     * only ingest chunk. Still, the code below is written to be correct if that ever changes:
+     *
+     *   - Layered readers iterate every ingest chunk, so the restored update is visible regardless
+     *     of which chunk physically holds it.
+     *   - __wt_row_modify below runs under the btree opened via __wt_open_cursor(ingest_uri),
+     *     which registers the resulting WT_TXN_OP against that specific ingest btree and
+     *     increments its ingest_gc_pending_ops. The counter stays non-zero until the prepared
+     *     transaction resolves, so the ingest chunk server's fast obsolete-for-drop path cannot
+     *     retire the chunk while the prepared update is outstanding.
+     *
+     * Rollover (__clayered_rollover_ingest) and drop-oldest (__layered_ingest_chunk_drop_oldest)
+     * both replace layered->ingest_uris[] under ingest_chunk_lock. Read the URI while holding
+     * that lock so that n_ingest_uris and ingest_uris[] stay consistent; the strdup'd copy then
+     * outlives the lock.
+     */
+    __wt_spin_lock(session, &layered->ingest_chunk_lock);
+    hold_chunk_lock = true;
+    WT_ASSERT_ALWAYS(session, layered->n_ingest_uris > 0,
+      "layered table \"%s\" has no ingest URIs when restoring a prepared update",
+      layered->iface.name);
+    WT_ERR(__wt_strdup(session, WT_LAYERED_PRIMARY_INGEST_URI(layered), &ingest_uri));
+    __wt_spin_unlock(session, &layered->ingest_chunk_lock);
+    hold_chunk_lock = false;
+
+    /*
+     * Release the layered dhandle: we have a standalone copy of the URI and __wt_open_cursor will
+     * acquire its own references on the ingest btree below.
+     */
+    WT_DHANDLE_RELEASE(dhandle);
+    dhandle_acquired = false;
+    layered = NULL;
+
     WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cfg, &cursor));
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    size_t size;
     WT_ERR(__prepare_discover_alloc_upd(session, value, unpack, &upd, &size));
 
-    /* Search the page and apply the modification. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
     WT_ERR(__wti_prepared_discover_add_artifact_upd(session, upd, key));
+
 err:
+    if (hold_chunk_lock)
+        __wt_spin_unlock(session, &layered->ingest_chunk_lock);
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
+    if (dhandle_acquired)
+        WT_DHANDLE_RELEASE(dhandle);
     __wt_free(session, ingest_uri);
     return (ret);
 }

@@ -136,6 +136,10 @@ connection_disaggregated_config_common = [
         undoc=True),
     Config('drain_threads', '8', r'''The number of threads used to drain the ingest tables on
         step up.''', min='1', max='256', type='int', undoc=True),
+    Config('layered_ingest_chunk_max_ops', '0', r'''
+        rotate follower ingest chunks after this many write operations; 0 disables chunk
+        rotation''',
+        min='0', max='1000000000', type='int', undoc=True),
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
