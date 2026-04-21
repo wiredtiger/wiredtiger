@@ -940,6 +940,24 @@ __clayered_constituent_iter(WT_CURSOR *constituent, bool forward)
 }
 
 /*
+ * __clayered_constituent_iter_helper --
+ *     Advance a constituent cursor forward or backward, skipping truncated
+ *     ranges on the stable cursor.
+ */
+static int
+__clayered_constituent_iter_helper(
+  WT_CURSOR_LAYERED *clayered, WT_CURSOR *constituent, bool forward)
+{
+    WT_DECL_RET;
+
+    WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(constituent, forward), true);
+    if (constituent == clayered->stable_cursor && ret == 0)
+        WT_ERR_NOTFOUND_OK(__clayered_reposition_truncate_iterate(clayered, constituent, forward), true);
+
+err:
+    return (ret);
+}
+/*
  * __clayered_iterate_constituents --
  *     Move the constituents to the next (or prev) position. If the cursor is unpositioned, position
  *     the constituents.
@@ -997,7 +1015,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     if (c_ingest == NULL || c_stable == NULL) {
         c_current = (c_ingest == NULL) ? c_stable : c_ingest;
         /* Return without setting iter_flag because the alternate cursor does not exist. */
-        return (__clayered_constituent_iter(c_current, forward));
+        return (__clayered_constituent_iter_helper(clayered, c_current, forward));
     }
 
     WT_ASSERT(session, c_stable != NULL && c_ingest != NULL);
@@ -1013,11 +1031,8 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
          * Move the stable cursor first to ensure it is advanced, even if a prepared conflict occurs
          * on the ingest cursor.
          */
-        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward), false);
-        /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
-        WT_ERR_NOTFOUND_OK(
-          __clayered_reposition_truncate_iterate(clayered, c_stable, forward), false);
-        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward), false);
+        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_stable, forward), false);
+        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_ingest, forward), false);
         goto done;
     }
 
@@ -1051,7 +1066,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
         WT_ASSERT(session,
           c_current == c_ingest &&
             F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV));
-        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward), false);
+        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_current, forward), false);
         current_moved = true;
     } else if (!F_ISSET(clayered, iter_flag))
         /*
@@ -1067,23 +1082,13 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && c_current == c_ingest) {
         WT_ERR(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
-        if (cmp == 0) {
-            WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward), false);
-            /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
-            if (c_alternate == c_stable)
-                WT_ERR_NOTFOUND_OK(
-                  __clayered_reposition_truncate_iterate(clayered, c_stable, forward), false);
-        }
+        if (cmp == 0) 
+            WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_alternate, forward), false);
     }
 
     /* Move the current cursor if we haven't done so. */
-    if (!current_moved) {
-        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward), false);
-        /* FIXME-WT-16811: Refactor into a common cursor iteration function. */
-        if (c_current == c_stable)
-            WT_ERR_NOTFOUND_OK(
-              __clayered_reposition_truncate_iterate(clayered, c_stable, forward), false);
-    }
+    if (!current_moved)
+        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_current, forward), false);
 
 done:
 err:
@@ -1716,20 +1721,13 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
           __wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle,
             &clayered->stable_cursor->key, NULL) == 0) {
             WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-
-            WT_ERR_NOTFOUND_OK(__clayered_constituent_iter(clayered->stable_cursor, true), true);
-            WT_ERR_NOTFOUND_OK(
-              __clayered_reposition_truncate_iterate(clayered, clayered->stable_cursor, true),
-              true);
-
+            
+            WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, clayered->stable_cursor, true), true);
             if (ret == 0)
                 stable_cmp = 1;
             else {
                 WT_ERR_NOTFOUND_OK(
-                  __clayered_constituent_iter(clayered->stable_cursor, false), true);
-                WT_ERR_NOTFOUND_OK(
-                  __clayered_reposition_truncate_iterate(clayered, clayered->stable_cursor, false),
-                  true);
+                  __clayered_constituent_iter_helper(clayered, clayered->stable_cursor, false), true);
                 if (ret == 0)
                     stable_cmp = -1;
             }
