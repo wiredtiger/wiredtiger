@@ -165,13 +165,22 @@ __txn_oplist_printlog(
 void
 __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    switch (op->type) {
-    case WT_TXN_OP_NONE:
+    WT_BTREE *btree;
+
+    if (op->type == WT_TXN_OP_NONE)
         /*
          * The free function can be called more than once: when there's no operation, a free is
          * unnecessary or has already been done.
          */
         return;
+
+    btree = op->btree;
+    if (btree != NULL && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+        (void)__wt_atomic_sub_int32(&btree->ingest_gc_pending_ops, 1);
+
+    switch (op->type) {
+    case WT_TXN_OP_NONE:
+        break;
     case WT_TXN_OP_BASIC_COL:
     case WT_TXN_OP_INMEM_COL:
     case WT_TXN_OP_REF_DELETE:

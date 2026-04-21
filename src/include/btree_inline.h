@@ -936,8 +936,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
+    WT_ASSERT(
+      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
@@ -1048,8 +1048,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->disagg_layered_leader);
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->disagg_layered_leader);
 
     /*
      * Test before setting the dirty flag, it's a hot cache line.
@@ -1149,8 +1148,8 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
+    WT_ASSERT(
+      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
 
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
@@ -1189,8 +1188,8 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return (0);
 
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
+    WT_ASSERT(
+      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->disagg_layered_leader);
 
     /*
      * This function exists as a place to stash this comment. There are a few places where we need
@@ -2951,4 +2950,26 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
     }
 
     *refp = parent_ref;
+}
+
+/*
+ * __wt_btree_ingest_gc_publish_max --
+ *     Publish a prepare/commit timestamp into the btree aggregate for ingest chunk GC.
+ */
+static WT_INLINE void
+__wt_btree_ingest_gc_publish_max(WT_BTREE *btree, wt_timestamp_t ts)
+{
+    uint64_t old, newv;
+
+    if (btree == NULL || !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || ts == WT_TS_NONE)
+        return;
+
+    for (;;) {
+        old = __wt_atomic_load_uint64_relaxed((uint64_t *)&btree->ingest_gc_max_timestamp);
+        newv = WT_MAX(old, (uint64_t)ts);
+        if (newv == old)
+            break;
+        if (__wt_atomic_cas_uint64((uint64_t *)&btree->ingest_gc_max_timestamp, old, newv))
+            break;
+    }
 }
