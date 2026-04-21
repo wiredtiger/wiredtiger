@@ -280,8 +280,6 @@ typedef struct {
     uint64_t stop_timestamp;             /* If non-zero, stop when stable reaches this */
     uint64_t timestamp_copy;             /* A copy of the timestamp, for safety checks */
 
-    FILE *replay_op_log; /* Per-run log of INSERT/UPDATE/REMOVE operations */
-
     uint32_t operation_timeout_ms; /* Requested limit to complete operations in transaction */
 
     /*
