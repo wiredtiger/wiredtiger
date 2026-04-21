@@ -3228,6 +3228,31 @@ split:
 }
 
 /*
+ * __rec_disagg_clear_stale_mod_state --
+ *     Clear the preserved page->modify state left by the previous successful reconciliation. After
+ *     a failed delta write, __wt_btree_block_free invokes plh_discard which terminates the entire
+ *     delta chain in storage, invalidating the cookie and disk image the previous wrapup saved.
+ *     Reset the fields the same way a successful wrapup would so the next reconciliation starts
+ *     from a "never reconciled" state.
+ */
+static void
+__rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_PAGE_MODIFY *mod;
+
+    mod = page->modify;
+    if (mod == NULL)
+        return;
+
+    if (mod->mod_replace.block_cookie != NULL) {
+        __wt_free(session, mod->mod_replace.block_cookie);
+        mod->mod_replace.block_cookie_size = 0;
+    }
+    __wt_free(session, mod->mod_disk_image);
+    mod->rec_result = 0;
+}
+
+/*
  * __rec_write_err --
  *     Finish the reconciliation on error.
  */
@@ -3279,10 +3304,10 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      *   - mod->mod_replace.block_cookie still non-NULL and page->disagg_info->block_meta
      *     .cumulative_size still set: wrapup enters the WT_PM_REC_REPLACE path and calls
      *     __wt_block_disagg_obsolete_delta_chain a second time for the same chain, under-flowing
-     *     block_disagg->size and tripping the decrease-size assertion (WT-16864).
+     *     block_disagg->size and tripping the decrease-size assertion.
      *   - ref->addr still holds a cookie for the now-dead page id: wrapup calls
      *     __wt_ref_block_free(ref, true) which issues a second plh_discard on an already-
-     *     terminated chain, producing EINVAL and a panic (WT-16518).
+     *     terminated chain, producing EINVAL and a panic.
      *
      * Clear the preserved state the same way a successful wrapup would, so the next reconciliation
      * starts from a known-good "never reconciled" state.
@@ -3293,14 +3318,14 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
 
-        if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count > 0 &&
-          page->modify != NULL) {
-            if (page->modify->mod_replace.block_cookie != NULL) {
-                __wt_free(session, page->modify->mod_replace.block_cookie);
-                page->modify->mod_replace.block_cookie_size = 0;
-            }
-            __wt_free(session, page->modify->mod_disk_image);
-            page->modify->rec_result = 0;
+        if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count > 0) {
+            __rec_disagg_clear_stale_mod_state(session, page);
+            /*
+             * The discard above terminated the delta chain for this page id. ref->addr still
+             * carries a cookie with that now-dead page id; a later wrapup that tries to free it
+             * would produce a second discard in the chain and fail. Clear the stale reference so
+             * the next reconciliation's wrapup sees no address to free.
+             */
             __wt_ref_addr_free(session, r->ref);
         }
     }
