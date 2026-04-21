@@ -159,7 +159,7 @@ class ParallelCheckpointHookCreator(wthooks.WiredTigerHookCreator):
 
         self.wiredtiger['wiredtiger_open'] = (
             wthooks.HOOK_REPLACE,
-            lambda homedir, config:
+            lambda homedir, config=None:
                 wiredtiger_open_replace(orig_wiredtiger_open, homedir, config, self.threads)
         )
 
