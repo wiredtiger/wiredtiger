@@ -1198,7 +1198,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * block_manager=default so that the ingest btree is never mistakenly treated as shared.
      */
     ingest_cfg[2] =
-      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
+      "block_manager=default,in_memory=true,log=(enabled=false),disaggregated=(page_log=none),"
+      "memory_page_max=10TB,cache_resident=true";
 
     /*
      * Pass the full merged configuration string through. Otherwise file-specific metadata will be

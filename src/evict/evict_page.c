@@ -1048,6 +1048,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (0);
 
     /*
+     * Ingest tables are in-memory and are expected to remain resident (single large page). Avoid
+     * driving eviction or reconciliation of these btrees.
+     */
+    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_ingest"))
+        return (__wt_set_return(session, EBUSY));
+
+    /*
      * If we are trying to evict a dirty page that does not belong to history store(HS) and
      * checkpoint is processing the HS file, avoid evicting the dirty non-HS page for now if the
      * cache is already dominated by dirty HS content.
@@ -1065,17 +1072,11 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (!F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT) && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
             /*
-             * If garbage collection is enabled and this page was already reconciled at the current
-             * prune timestamp, do not attempt reconciliation again. Repeating the reconciliation
-             * without the prune timestamp advancing will yield no progress in garbage collection.
+             * Layered follower ingest garbage collection is handled by the ingest chunk server
+             * (dropping whole obsolete chunk files), not eviction reconciliation.
              */
-            wt_timestamp_t prune_timestamp =
-              __wt_atomic_load_uint64_acquire(&btree->prune_timestamp);
-            if (prune_timestamp != WT_TS_NONE &&
-              page->modify->rec_prune_timestamp >= prune_timestamp) {
-                WT_STAT_CONN_INCR(session, cache_eviction_blocked_prune_timestamp);
-                return (__wt_set_return(session, EBUSY));
-            }
+            WT_STAT_CONN_INCR(session, cache_eviction_blocked_prune_timestamp);
+            return (__wt_set_return(session, EBUSY));
         } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
             /*
              * If precise checkpoints are enabled, and this page was already reconciled at a time
