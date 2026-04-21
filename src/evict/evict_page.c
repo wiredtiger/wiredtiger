@@ -707,11 +707,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         WT_ERR(__evict_acquire_exclusive(session, ref, previous_state, &acquired));
 
         /*
-         * Mark the page as being in Phase-2. This is a guard for __evict_push_candidate: after this
-         * flag is set, any racing walk thread that reads flags_atomic will either see
-         * WT_PAGE_EVICT_PHASE2 directly and bail out, or will have read flags_atomic before we set
-         * it and their subsequent CAS to set WT_PAGE_EVICT_LRU will fail atomically (because
-         * flags_atomic changed). This closes the race window completely.
+         * Mark the page as being in Phase-2. This guards __evict_push_candidate: a walk thread
+         * that reads flags_atomic after this point will see PHASE2 and bail out. However, a walk
+         * thread that read orig_flags = {0} BEFORE we set PHASE2 may have already CAS'd
+         * WT_PAGE_EVICT_LRU onto the page — the CAS succeeds because PHASE2 was not yet set. That
+         * walk thread will clear LRU in its post-CAS PHASE2 guard before writing evict_entry->ref.
          */
         F_SET_ATOMIC_16(ref->page, WT_PAGE_EVICT_PHASE2);
 
@@ -719,10 +719,20 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * Now that the ref is LOCKED and PHASE2 is set, remove it from the LRU eviction queue. We
          * have to do this before freeing the page memory or otherwise touching the reference
          * because eviction paths assume a non-NULL reference on the queue is pointing at valid
-         * memory. After __wti_evict_list_clear_page returns, no new caller can set
-         * WT_PAGE_EVICT_LRU (PHASE2 prevents it), so __wt_page_out's assertion is safe.
+         * memory.
          */
         __wti_evict_list_clear_page(session, ref);
+
+        /*
+         * A walk thread may have set WT_PAGE_EVICT_LRU in the window between
+         * __evict_acquire_exclusive and F_SET_ATOMIC_16(PHASE2) above. The scan in
+         * __wti_evict_list_clear_page may have missed the queue entry if evict_entry->ref was not
+         * yet written at the time of the scan. With PHASE2 now set, __evict_push_candidate will
+         * clear LRU atomically once the walk thread resumes. Spin until it does so that
+         * __wt_page_out's assertion is satisfied.
+         */
+        while (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
+            WT_PAUSE();
 
         /*
          * Check for hazard pointers from other sessions. Readers that published their hazard

@@ -2015,6 +2015,18 @@ __evict_push_candidate(
         return (false);
     }
 
+    /*
+     * Post-CAS guard: the LRU CAS succeeded, but a Phase-2 eviction thread may have called
+     * F_SET_ATOMIC_16(PHASE2) and __wti_evict_list_clear_page between our read of orig_flags
+     * and the CAS. The scan missed the queue entry because evict_entry->ref was not yet written.
+     * Clear LRU atomically so __wt_page_out's assertion holds. Do NOT write evict_entry->ref.
+     */
+    if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_PHASE2)) {
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU);
+        WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flagging);
+        return (false);
+    }
+
     /* Keep track of the maximum slot we are using. */
     slot = (u_int)(evict_entry - queue->evict_queue);
     if (slot >= queue->evict_max)
