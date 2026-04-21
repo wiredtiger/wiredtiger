@@ -181,3 +181,30 @@ class test_layered97(wttest.WiredTigerTestCase):
             "expected at least 2 (ingest + stable)".format(delta))
 
         cursor.close()
+
+    # --------------------------------------------------------------------------
+    # Sanity check mirror of the update case: an update on a follower with
+    # overwrite=false must look the key up across both constituents before
+    # applying the update, so the stable cursor is expected to be opened.
+    # The target key lives in the stable constituent (from the ingested
+    # checkpoint), so the lookup genuinely has to consult stable.
+    # --------------------------------------------------------------------------
+    def test_follower_update_no_overwrite_opens_stable(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false')
+
+        def do_update():
+            self.session_follow.begin_transaction()
+            cursor.set_key('seed')
+            cursor.set_value('seed-val-2')
+            self.assertEqual(cursor.update(), 0)
+            self.session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(2))
+
+        delta = self.measure_cursor_opens(do_update)
+        self.assertGreaterEqual(delta, 2,
+            "overwrite=false update on a follower opened {} cursors, "
+            "expected at least 2 (ingest + stable)".format(delta))
+
+        cursor.close()
