@@ -32,7 +32,7 @@
 #   A pre-allocated log file can end up with a 128-byte-aligned block where
 #   len==0 but other bytes are non-zero, because a log write was still being
 #   flushed when the crash happened. __log_has_hole + __log_record_verify
-#   detect it, emit a [WT_VERB_LOG][NOTICE], truncate the log, and recovery
+#   detect it, emit a message, truncate the log, and recovery
 #   continues. Committed data before the block must survive intact.
 #
 #   Two scenarios, per which header byte is non-zero:
