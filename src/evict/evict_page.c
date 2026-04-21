@@ -396,6 +396,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_SESSION_IMPL *hp_session;
     uint64_t page_size;
     uint8_t stats_flags;
     bool acquired, app_thread_assist, closing, ebusy_only, evict_clean, inmem_split;
@@ -554,6 +555,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * phase-2 may fail after the expensive phase-1 reconcile completes. Avoid wasted work where
      * possible.
      *
+     * All non-closing callers arrive with a hazard pointer already set on the ref (it is the
+     * phase-1 pin). We must not trigger the gate for our own hazard pointer — that HP will be
+     * cleared by __evict_acquire_exclusive before phase-2 runs and poses no conflict. We pass
+     * &hp_session to __wt_hazard_check and only fire the gate when the first HP found belongs to
+     * a different session. This is a "best-effort" check: if our own HP happens to be scanned
+     * before a concurrent reader's HP, the gate is a false negative and we proceed to phase-1,
+     * which may then fail at phase-2 (EBUSY). That is acceptable — the gate is an optimisation to
+     * avoid wasted reconcile work, not a correctness mechanism.
+     *
      * Run this check on every attempt, including the first. Under high-concurrency write workloads
      * (bulk insert, find-one-and-update) app threads hold hazard pointers during B-tree traversal
      * and update for tens to hundreds of microseconds -- far longer than the phase-2 spin-wait cap
@@ -582,7 +592,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      *
      * Urgent eviction bypasses the cooldown to avoid cache-pressure livelock.
      */
-    if (two_phase && __wt_hazard_check(session, ref, NULL) != NULL) {
+    if (two_phase && __wt_hazard_check(session, ref, &hp_session) != NULL &&
+      hp_session != session) {
         if (app_thread_assist) {
             /*
              * App-thread assist: proceed with two-phase unless the gate has fired
@@ -593,12 +604,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                 two_phase = false;
         } else if (page->evict_hp_gate_count < WT_EVICT_HP_GATE_RETRY_LIMIT) {
             ++page->evict_hp_gate_count;
-            /*
-             * Clear WT_PAGE_EVICT_LRU so the walk can re-queue this page once the cooldown
-             * expires. The queue slot was consumed when the worker called __evict_get_ref; the
-             * flag is the only remaining marker that keeps the walk from re-queuing.
-             */
-            F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU);
             __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
               __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
                 WT_EVICT_HP_COOLDOWN_PASSES);
