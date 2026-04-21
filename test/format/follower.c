@@ -123,7 +123,7 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
     testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
       (int)checkpoint_metadata->size, (const char *)checkpoint_metadata->data);
     testutil_check(conn->reconfigure(conn, config));
-    printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIx64 ") ---\n",
+    printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp=%#" PRIx64 ") ---\n",
       (int)checkpoint_metadata->size, (const char *)checkpoint_metadata->data, checkpoint_ts);
     picked_up = true;
 

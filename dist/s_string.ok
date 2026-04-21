@@ -57,6 +57,7 @@ BqRv
 Brueckner
 Bsearch
 Btree
+Btrees
 Buf
 Buildvariants
 Bxxx
@@ -520,6 +521,7 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
+Upd
 Uryyb
 VARCHAR
 VLCS
