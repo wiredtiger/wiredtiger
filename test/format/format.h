@@ -126,7 +126,6 @@ typedef struct {
     uint64_t last_commit_ts;
     bool in_use;
 } LANE;
-
 #define LANE_NONE UINT32_MAX /* A lane number guaranteed to be illegal */
 #define LANE_COUNT 1024u
 
