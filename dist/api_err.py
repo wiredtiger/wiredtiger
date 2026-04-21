@@ -158,7 +158,7 @@ _sub_error_numbers = {
 # package or the error returns, we use the range -32,000 to -32,199.
 #
 # To add a new sub-level error, append a new entry to this list.
-# Only name, description, and long description are needed — the number is
+# Only name, description, and long description are needed - the number is
 # assigned automatically via _sub_error_numbers above.
 sub_errors_def = [
     ('WT_NONE',
