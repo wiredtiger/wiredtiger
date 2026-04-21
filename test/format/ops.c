@@ -1283,6 +1283,20 @@ rollback_retry:
         if (op == MODIFY)
             modify_build(tinfo);
 
+        /*
+         * For REMOVE in predictable replay, the key's latest possible write_ts is last_commit_ts
+         * for this lane (each keyno is exclusively owned by its lane). Spin-yield before the first
+         * attempt so that read_ts >= last_commit_ts, ensuring the key's latest value is definitely
+         * visible. Without this, one run may see a write that the other cannot, causing a REMOVE op
+         * to succeed in one but fail in the other leading to a data mismatch.
+         */
+        if (GV(RUNS_PREDICTABLE_REPLAY) && op == REMOVE &&
+          tinfo->read_ts < g.lanes[tinfo->lane].last_commit_ts) {
+            while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
+                __wt_yield();
+            goto rollback;
+        }
+
         ret = 0;
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
@@ -1310,30 +1324,8 @@ rollback_retry:
             tinfo->table = table;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-            if (GV(RUNS_PREDICTABLE_REPLAY)) {
-                if (ret == WT_ROLLBACK)
-                    goto rollback;
-                /*
-                 * The key exists but its write_ts exceeds the current read_ts so it isn't visible
-                 * yet. Each keyno is exclusively owned by one lane, so last_commit_ts is the
-                 * write_ts of our key's latest write. Once read_ts reaches that value the key is
-                 * visible; if we still get WT_NOTFOUND the key is genuinely absent.
-                 *
-                 * Spin-yield until replay_maximum_committed reaches last_commit_ts before retrying,
-                 * ensuring the next read_ts will be >= last_commit_ts. That makes the condition
-                 * false on the retry, so at most one retry per WT_NOTFOUND event is needed.
-                 *
-                 * The acquire-release pair on in_use (release in replay_committed, acquire in
-                 * replay_pick_timestamp) orders the write to last_commit_ts before this read,
-                 * regardless of which thread previously occupied this lane.
-                 */
-                if (op == REMOVE && tinfo->op_ret == WT_NOTFOUND &&
-                  tinfo->read_ts < g.lanes[tinfo->lane].last_commit_ts) {
-                    while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
-                        __wt_yield();
-                    goto rollback;
-                }
-            }
+            if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
+                goto rollback;
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
