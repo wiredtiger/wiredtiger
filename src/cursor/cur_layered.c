@@ -799,7 +799,12 @@ __clayered_leader_reposition_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *sta
         stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
         WT_RET(stable->search_near(stable, &cmp));
 
-        while (forward ? cmp < 0 : cmp > 0) {
+        /*
+         * Advance until the stable cursor is strictly past the truncated boundary. Boundary
+         * keys are inclusive, so cmp == 0 means we are still on a deleted key and must step
+         * one further.
+         */
+        while (forward ? cmp <= 0 : cmp >= 0) {
             /*
              * The cursor next()/prev() could return back WT_NOTFOUND, meaning we have reached the
              * end of the table.
@@ -854,12 +859,9 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
           clayered_start->ingest_cursor, trunc_info->orig_start_key);
         trunc_info->start = clayered_start->ingest_cursor;
 
-        trunc_info->stop = NULL;
-        if (clayered_stop != NULL) {
-            clayered_stop->ingest_cursor->set_key(
-              clayered_stop->ingest_cursor, trunc_info->orig_stop_key);
-            trunc_info->stop = clayered_stop->ingest_cursor;
-        }
+        clayered_stop->ingest_cursor->set_key(
+          clayered_stop->ingest_cursor, trunc_info->orig_stop_key);
+        trunc_info->stop = clayered_stop->ingest_cursor;
 
         /* Perform truncate on ingest table. */
         WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));

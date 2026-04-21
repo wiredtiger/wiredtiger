@@ -41,10 +41,6 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
     if (start_cmp < 0)
         return (false);
 
-    /* A zeroed stop key indicates a truncate to end of table. */
-    if (stop_key->size == 0)
-        return (true);
-
     WT_RET(__wt_compare(session, collator, key, stop_key, &stop_cmp));
     if (stop_cmp > 0)
         return (false);
@@ -76,12 +72,14 @@ __wt_insert_truncate_entry(
     WT_ASSERT(session, __wt_session_get_dhandle(session, uri, NULL, NULL, 0) == 0);
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
+    /* Caller resolves open-ended ranges to concrete keys before reaching us. */
+    WT_ASSERT(session, start_key != NULL && stop_key != NULL);
+    WT_ASSERT(session, start_key->size != 0 && stop_key->size != 0);
+
     WT_RET(__wt_calloc_def(session, sizeof(WT_TRUNCATE), &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
     WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
-    /* A NULL stop key indicates a truncate to end of table. */
-    if (stop_key != NULL)
-        WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
+    WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
 
     /*
      * Mark the WT_TRUNCATE object modified by the current transaction. Also required to update the

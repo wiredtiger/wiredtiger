@@ -59,15 +59,16 @@ err:
 
 /*
  * __truncate_layered --
- *     Truncate for a layered data source.
+ *     Truncate for a layered data source. Opens both start and stop cursors so the
+ *     downstream truncate list entry can be stored with concrete keys on both ends.
  */
 static int
 __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
 {
-    WT_CURSOR *start;
+    WT_CURSOR *start, *stop;
     WT_DECL_RET;
 
-    start = NULL;
+    start = stop = NULL;
 
     WT_STAT_DSRC_INCR(session, cursor_truncate);
 
@@ -78,12 +79,20 @@ __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
         ret = 0;
         goto done;
     }
-    WT_ERR(__wt_session_range_truncate(session, NULL, start, NULL));
+    WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &stop));
+    WT_ERR_NOTFOUND_OK(stop->prev(stop), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto done;
+    }
+    WT_ERR(__wt_session_range_truncate(session, NULL, start, stop));
 
 done:
 err:
     if (start != NULL)
         WT_TRET(start->close(start));
+    if (stop != NULL)
+        WT_TRET(stop->close(stop));
     return (ret);
 }
 
@@ -181,6 +190,70 @@ __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 }
 
 /*
+ * __layered_range_truncate --
+ *     Resolve any NULL start/stop keys to concrete keys, then dispatch to the layered
+ *     truncate. Every read-path consumer expects the truncate-list entry to
+ *     be bounded on both sides.
+ */
+static int
+__layered_range_truncate(WT_TRUNCATE_INFO *trunc_info)
+{
+    WT_CURSOR *local_stop;
+    WT_DECL_RET;
+    WT_ITEM local_start_key, local_stop_key;
+    WT_ITEM *saved_orig_start_key, *saved_orig_stop_key;
+    WT_SESSION_IMPL *session;
+    uint32_t saved_flags;
+
+    session = trunc_info->session;
+    local_stop = NULL;
+    WT_CLEAR(local_start_key);
+    WT_CLEAR(local_stop_key);
+    saved_orig_start_key = trunc_info->orig_start_key;
+    saved_orig_stop_key = trunc_info->orig_stop_key;
+    saved_flags = trunc_info->flags;
+
+    WT_ERR(__cursor_needkey(trunc_info->start));
+
+    /*
+     * The session layer already positioned a local start cursor at the first visible key
+     * when the caller passed a NULL start; copy that key. For a NULL stop we open a cursor
+     * here and prev from unpositioned to find the last visible key.
+     *
+     * local_start_key / local_stop_key borrow their data pointers from their cursors'
+     * internal buffers (via __wt_cursor_get_raw_key). __wt_insert_truncate_entry copies
+     * the bytes out before we close the cursors in the err block, so the borrowed pointers
+     * do not outlive their backing buffers.
+     */
+    if (trunc_info->orig_start_key == NULL) {
+        WT_ERR(__wt_cursor_get_raw_key(trunc_info->start, &local_start_key));
+        trunc_info->orig_start_key = &local_start_key;
+    }
+
+    if (trunc_info->stop == NULL) {
+        WT_ERR(__wt_open_cursor(session, trunc_info->uri, NULL, NULL, &local_stop));
+        WT_ERR(local_stop->prev(local_stop));
+        WT_ERR(__wt_cursor_get_raw_key(local_stop, &local_stop_key));
+        trunc_info->stop = local_stop;
+        trunc_info->orig_stop_key = &local_stop_key;
+        F_SET(trunc_info, WT_TRUNC_EXPLICIT_STOP);
+    } else
+        WT_ERR(__cursor_needkey(trunc_info->stop));
+
+    ret = __wt_layered_truncate(trunc_info);
+
+err:
+    trunc_info->orig_start_key = saved_orig_start_key;
+    trunc_info->orig_stop_key = saved_orig_stop_key;
+    trunc_info->flags = saved_flags;
+    if (local_stop != NULL) {
+        trunc_info->stop = NULL;
+        WT_TRET(local_stop->close(local_stop));
+    }
+    return (ret);
+}
+
+/*
  * __wt_schema_range_truncate --
  *     WT_SESSION::truncate with a range.
  */
@@ -205,13 +278,9 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
           session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
     } else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __wt_table_range_truncate(trunc_info);
-    else if (__wt_process.disagg_fast_truncate_2026 && WT_PREFIX_MATCH(uri, "layered:")) {
-        WT_ERR(__cursor_needkey(trunc_info->start));
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
-            WT_ERR(__cursor_needkey(trunc_info->stop));
-
-        ret = __wt_layered_truncate(trunc_info);
-    } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL &&
+    else if (__wt_process.disagg_fast_truncate_2026 && WT_PREFIX_MATCH(uri, "layered:"))
+        ret = __layered_range_truncate(trunc_info);
+    else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL &&
       dsrc->range_truncate != NULL)
         ret = dsrc->range_truncate(dsrc, &session->iface, trunc_info->start, trunc_info->stop);
     else
