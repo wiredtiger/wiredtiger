@@ -1045,6 +1045,8 @@ config_in_memory_reset(void)
         config_off(NULL, "precise_checkpoint");
     if (!config_explicit(NULL, "prefetch"))
         config_off(NULL, "prefetch");
+    if (!config_explicit(NULL, "prefetch.default"))
+        config_off(NULL, "prefetch.default");
 }
 
 /*

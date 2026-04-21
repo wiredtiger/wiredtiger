@@ -400,7 +400,8 @@ static void
 configure_prefetch(char **p, size_t max)
 {
     if (GV(PREFETCH))
-        CONFIG_APPEND(*p, ",prefetch=(available=true,default=false)");
+        CONFIG_APPEND(
+          *p, ",prefetch=(available=true,default=%s)", GV(PREFETCH_DEFAULT) ? "true" : "false");
 }
 
 /*

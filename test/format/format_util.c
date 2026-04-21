@@ -417,6 +417,6 @@ wt_wrap_close_session(WT_SESSION *session)
 bool
 enable_session_prefetch(void)
 {
-    /* Enable prefetch 20% of the time. */
-    return (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1);
+    /* Enable prefetch 20% of the time unless it's enabled by default. */
+    return (GV(PREFETCH) && (GV(PREFETCH_DEFAULT) || mmrand(&g.data_rnd, 1, 5) == 1));
 }
