@@ -410,13 +410,22 @@ wt_wrap_close_session(WT_SESSION *session)
 }
 
 /*
- * enable_session_prefetch --
- *     Return true if prefetch should be enabled for a session. Note that prefetch needs to be
- *     enabled at the connection level before being available for a session.
+ * session_prefetch_cfg --
+ *     Return a session-level prefetch config string. When prefetch is available at the connection
+ *     level, randomly return enabled=true, enabled=false, or NULL (inherit the connection default)
+ *     with equal probability to exercise all three session-level configurations.
  */
-bool
-enable_session_prefetch(void)
+const char *
+session_prefetch_cfg(void)
 {
-    /* Enable prefetch 20% of the time unless it's enabled by default. */
-    return (GV(PREFETCH) && (GV(PREFETCH_DEFAULT) || mmrand(&g.data_rnd, 1, 5) == 1));
+    if (!GV(PREFETCH))
+        return (NULL);
+    switch (mmrand(&g.data_rnd, 1, 3)) {
+    case 1:
+        return (SESSION_PREFETCH_CFG_ON);
+    case 2:
+        return (SESSION_PREFETCH_CFG_OFF);
+    default:
+        return (NULL);
+    }
 }

@@ -98,8 +98,9 @@
 /* Number of RTS threads to use up to 10 (11 is for NULL config). */
 #define RTS_THREADS_MAX 11
 
-/* Session configuration to enable prefetch. */
+/* Session configuration to enable/disable prefetch. */
 #define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
+#define SESSION_PREFETCH_CFG_OFF "prefetch=(enabled=false)"
 
 #define MIN_TIMESTAMP 2 /* Minimum timestamp */
 
@@ -468,7 +469,7 @@ void disagg_setup_multi_node(void);
 void disagg_switch_roles(void);
 void disagg_teardown_multi_node(void);
 void disagg_sync_multi_node(WT_SESSION *);
-bool enable_session_prefetch(void);
+const char *session_prefetch_cfg(void);
 void fclose_and_clear(FILE **);
 void follower_read_latest_checkpoint(void);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
