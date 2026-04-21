@@ -228,7 +228,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t eviction_time, eviction_time_milliseconds;
-
+    bool ingest = F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT);
     conn = S2C(session);
 
     if (session->evict_timeline.reentry_hs_eviction) {
@@ -248,12 +248,17 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
                 WT_STAT_CONN_INCR(session, eviction_force_clean);
             else
                 WT_STAT_CONN_INCR(session, eviction_force_dirty);
+            if (ingest)
+                WT_STAT_CONN_INCR(session, eviction_force_ingest_success);
         }
 
         if (LF_ISSET(WT_EVICT_STATS_CLEAN))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_clean);
         else
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty);
+
+        if (ingest)
+            WT_STAT_CONN_INCR(session, eviction_ingest_success);
 
         /* Count page evictions in parallel with checkpoint. */
         if (__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running))
@@ -263,9 +268,13 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
             if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
                 WT_STAT_CONN_INCR(session, eviction_force_hs_fail);
             WT_STAT_CONN_INCR(session, eviction_force_fail);
+            if (ingest)
+                WT_STAT_CONN_INCR(session, eviction_force_ingest_fail);
         }
 
         WT_STAT_CONN_DSRC_INCR(session, eviction_fail);
+        if (ingest)
+            WT_STAT_CONN_INCR(session, eviction_fail_ingest);
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
@@ -319,13 +328,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_PAGE *page;
     uint64_t page_size;
     uint8_t stats_flags;
-    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
+    bool evict_clean, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    clean_page = ebusy_only = is_dirty = false;
+    evict_clean = ebusy_only = is_dirty = false;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -453,14 +462,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     /* Figure out whether reconciliation was done on the page */
     if (__wt_page_evict_clean(page)) {
-        clean_page = true;
+        evict_clean = true;
         FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
     }
 
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
-    else if ((clean_page && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) || tree_dead)
+    else if ((evict_clean && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) || tree_dead)
         /*
          * Pages that belong to dead trees never write back to disk and can't support page splits.
          */

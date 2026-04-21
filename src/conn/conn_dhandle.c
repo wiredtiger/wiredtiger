@@ -212,6 +212,8 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     } else if (WT_PREFIX_MATCH(uri, "layered:")) {
         WT_RET(__wt_calloc_one(session, &layered));
         dhandle = (WT_DATA_HANDLE *)layered;
+        TAILQ_INIT(&layered->truncateqh);
+        WT_RET(__wt_rwlock_init(session, &layered->truncate_lock));
         __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_LAYERED);
     } else if (WT_PREFIX_MATCH(uri, "table:")) {
         WT_RET(__wt_calloc_one(session, &table));
@@ -647,6 +649,10 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_btree_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
+        /* Layered cursor operations maintain data-source statistics on the layered handle. */
+        if (dhandle->stat_array == NULL)
+            WT_ERR(__wt_stat_dsrc_init(session, dhandle));
+
         WT_ERR(__wt_schema_open_layered(session));
         break;
     case WT_DHANDLE_TYPE_TABLE:

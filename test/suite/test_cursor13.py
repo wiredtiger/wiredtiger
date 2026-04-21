@@ -78,7 +78,14 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
                 hs_after[0] += hs_disagg_stat_after[stat.dsrc.cursor_cache][2]
                 hs_after[1] += hs_disagg_stat_after[stat.dsrc.cursor_reopen][2]
 
-                self.pr(str(totals[0]) + " " + str(hs_before[0]) + " " + str(hs_disagg_stat_before[stat.dsrc.cursor_cache][2]) + " " + str(hs_stats_before[stat.dsrc.cursor_cache][2]))
+                report = [totals[0],
+                          hs_before[0],
+                          hs_disagg_stat_before[stat.dsrc.cursor_cache][2],
+                          hs_stats_before[stat.dsrc.cursor_cache][2]]
+                self.pr(' '.join(map(str, report)))
+
+                hs_disagg_stat_before.close()
+                hs_disagg_stat_after.close()
 
             hs_stats_before.close()
             hs_stats_after.close()
@@ -366,8 +373,6 @@ class test_cursor13_drops(test_cursor13_base):
         confirm_does_not_exist(self, uri)
 
         # Same test for indices, but with cursor held by another session.
-        # TODO: try with session that DOES have cache_cursors and another
-        # that does not.
         session2 = self.conn.open_session(None)
         ds = ComplexDataSet(self, uri, 100)
         ds.create()
@@ -513,6 +518,7 @@ class test_cursor13_big(test_cursor13_big_base):
         self.assertEqual(end_stats[0] - begin_stats[0], self.closecount)
         self.assertEqual(end_stats[1] - begin_stats[1], self.opencount)
 
+@wttest.skip_for_hook("disagg", "layered dhandles are never swept: FIXME-WT-16982")
 class test_cursor13_sweep(test_cursor13_big_base):
     # Set dhandle sweep configuration so that dhandles should be closed within
     # two seconds of all the cursors for the dhandle being closed (cached).

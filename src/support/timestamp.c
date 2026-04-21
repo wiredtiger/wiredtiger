@@ -90,7 +90,7 @@ __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp)
 {
     char *p, v;
 
-    if (ts == 0) {
+    if (ts == WT_TS_NONE) {
         hex_timestamp[0] = '0';
         hex_timestamp[1] = '\0';
         return;
@@ -314,14 +314,7 @@ __wt_time_aggregate_validate(
           "aggregate time window has the oldest start time after its newest start durable time; "
           "time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
-    /*
-     * FIXME-WT-13076: The checks below are only valid for aggregates built with the new field
-     * semantics (newest_durable_ts tracks both start and stop, newest_page_stop_durable_ts is
-     * non-zero only when all keys are deleted). Old-format checkpoints written before this change
-     * may violate these invariants. Enable these checks once the compatibility window for reading
-     * old-format checkpoints has passed and a version barrier can be enforced.
-     */
-#if 0
+
     if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_page_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest stop time after its newest page stop durable time; "
@@ -352,7 +345,6 @@ __wt_time_aggregate_validate(
           "time; "
           "time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
-#endif
 
     if (ta->newest_page_stop_durable_ts != WT_TS_NONE &&
       ta->newest_page_stop_durable_ts < ta->oldest_start_ts)

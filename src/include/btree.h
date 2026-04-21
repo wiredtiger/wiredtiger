@@ -174,6 +174,11 @@ struct __wt_btree {
     /* Total size of all blocks in this btree. Tracked for disaggregated storage. */
     wt_shared uint64_t bytes_total;
 
+    /* Root page size tracking for checkpoint size accounting. */
+    uint64_t current_root_size;  /* Size of current root page */
+    uint64_t previous_root_size; /* Size of previous root page */
+    uint64_t root_size_gen;      /* Checkpoint generation of the last root size update */
+
     /*
      * Reconciliation...
      */
@@ -296,9 +301,9 @@ struct __wt_btree {
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
      */
-    WT_SPINLOCK flush_lock;          /* Lock to flush the tree's pages */
-    uint64_t flush_most_recent_secs; /* Wall clock time for the most recent flush */
-    uint64_t flush_most_recent_ts;   /* Timestamp of the most recent flush */
+    WT_SPINLOCK flush_lock;              /* Lock to flush the tree's pages */
+    uint64_t flush_most_recent_secs;     /* Wall clock time for the most recent flush */
+    wt_timestamp_t flush_most_recent_ts; /* Timestamp of the most recent flush */
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything

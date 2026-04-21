@@ -154,8 +154,8 @@ struct __wt_ckpt {
  */
 struct __wt_ckpt_snapshot {
     uint64_t ckpt_id;
-    uint64_t oldest_ts;
-    uint64_t stable_ts;
+    wt_timestamp_t oldest_ts;
+    wt_timestamp_t stable_ts;
     uint64_t snapshot_write_gen;
     uint64_t snapshot_min;
     uint64_t snapshot_max;
@@ -196,6 +196,7 @@ extern void __wt_checkpoint_handle_stats(
   WT_SESSION_IMPL *session, uint64_t gathering_handles_time_us);
 extern void __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes);
+extern void __wt_checkpoint_reset_stats(WT_CONNECTION_IMPL *conn);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern void __wt_checkpoint_snapshot_clear(WT_CKPT_SNAPSHOT *snapshot);
 extern void __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session);

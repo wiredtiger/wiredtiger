@@ -654,19 +654,19 @@ connection_runtime_config = [
             type='category', subconfig=[
             Config('before_insert_colgroup', 'false', r'''
                 if true, force crash in table creation before inserting the colgroup metadata entry.
-                This is intended for testing purposes only.''', 
+                This is intended for testing purposes only.''',
                 type='boolean'),
             Config('before_insert_file', 'false', r'''
-                if true, force crash in table creation before inserting the file metadata entry. 
+                if true, force crash in table creation before inserting the file metadata entry.
                 This is intended for testing purposes only.''',
                 type='boolean'),
             Config('after_drop_colgroup', 'false', r'''
                 if true, force crash in table drop after dropping the table metadata entry. This is
-                intended for testing purposes only.''', 
+                intended for testing purposes only.''',
                 type='boolean'),
             Config('after_drop_file', 'false', r'''
-                if true, force crash in table drop after dropping the colgroup metadata entry. This 
-                is intended for testing purposes only.''', 
+                if true, force crash in table drop after dropping the colgroup metadata entry. This
+                is intended for testing purposes only.''',
                 type='boolean')
             ]),
         Config('corruption_abort', 'true', r'''
@@ -689,7 +689,8 @@ connection_runtime_config = [
             if true, for operations with snapshot isolation the cursor temporarily releases any page
             that requires force eviction, then repositions back to the page for further operations.
             A page release encourages eviction of hot or large pages, which is more likely to
-            succeed without a cursor keeping the page pinned.''',
+            succeed without a cursor keeping the page pinned. Note: This setting is not compatible
+            with disaggregated storage.''',
             type='boolean'),
         Config('disagg_address_cookie_upgrade', 'none', r'''
             modify the disaggregated block manager to pretend that it is a newer version to test
@@ -759,7 +760,8 @@ connection_runtime_config = [
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
-                eviction worker thread uses a session from the configured session_max''',
+                eviction worker thread uses a session from a reserved pool of WT_EVICT_MAX_WORKERS
+                (64) sessions''',
                 min=1, max=64), # !!! Must match WT_EVICT_MAX_WORKERS
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help evict pages from
@@ -929,9 +931,8 @@ connection_runtime_config = [
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
         Config('chunk_cache', '0', r'''
-            number of bytes per second available to the chunk cache. The minimum non-zero setting
-            is 1MB.''',
-            min='0', max='1TB'),
+            deprecated option, retained for backward compatibility''',
+            min='0', max='1TB', undoc=True),
         ]),
     Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a
@@ -1032,7 +1033,6 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
-            'chunkcache',
             'compact',
             'compact_progress',
             'configuration',
@@ -1267,48 +1267,39 @@ wiredtiger_open_live_restore_configuration = [
     ])
 ]
 
-chunk_cache_configuration_common = [
-    Config('pinned', '', r'''
-        List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
-        tables exceeding capacity will not be fully retained. Table names can appear
-        in both this and the preload list, but not in both this and the exclude list.
-        Duplicate names are allowed.''',
-        type='list'),
-]
-connection_reconfigure_chunk_cache_configuration = [
-    Config('chunk_cache', '', r'''
-        chunk cache reconfiguration options''',
-        type='category', subconfig=chunk_cache_configuration_common)
-]
+# Chunk cache has been deprecated and removed. We need to keep the sub-configs because
+# they get persisted to WiredTiger.basecfg. WiredTiger will throw an error if the config contains
+# enabled=true but only log warnings for any other chunk cache config.
 wiredtiger_open_chunk_cache_configuration = [
     Config('chunk_cache', '', r'''
-        chunk cache configuration options''',
-        type='category', subconfig=
-        chunk_cache_configuration_common + [
+        deprecated option, retained for backward compatibility''',
+        type='category', undoc=True, subconfig=[
+        Config('pinned', '', r'''
+            deprecated option, retained for backward compatibility''',
+            type='list', undoc=True),
         Config('capacity', '10GB', r'''
-            maximum memory or storage to use for the chunk cache''',
-            min='512KB', max='100TB'),
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100TB', undoc=True),
         Config('chunk_cache_evict_trigger', '90', r'''
-            chunk cache percent full that triggers eviction''',
-            min='0', max='100'),
+            deprecated option, retained for backward compatibility''',
+            min='0', max='100', undoc=True),
         Config('chunk_size', '1MB', r'''
-            size of cached chunks''',
-            min='512KB', max='100GB'),
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100GB', undoc=True),
         Config('storage_path', '', r'''
-            the path (absolute or relative) to the file used as cache location. This should be on a
-            filesystem that supports file truncation. All filesystems in common use
-            meet this criteria.'''),
+            deprecated option, retained for backward compatibility''', undoc=True),
         Config('enabled', 'false', r'''
-            enable chunk cache''',
-            type='boolean'),
+            deprecated option, retained for backward compatibility. Setting this to true will
+            result in an error''',
+            type='boolean', undoc=True),
         Config('hashsize', '1024', r'''
-            number of buckets in the hashtable that keeps track of objects''',
-            min='64', max='1048576'),
+            deprecated option, retained for backward compatibility''',
+            min='64', max='1048576', undoc=True),
         Config('flushed_data_cache_insertion', 'true', r'''
-            enable caching of freshly-flushed data, before it is removed locally.''',
+            deprecated option, retained for backward compatibility''',
             type='boolean', undoc=True),
         Config('type', 'FILE', r'''
-            cache location, defaults to the file system.''',
+            deprecated option, retained for backward compatibility''',
             choices=['FILE', 'DRAM'], undoc=True),
     ]),
 ]
@@ -1761,6 +1752,10 @@ methods = {
                     Allow version cursos to walk across keys while calling next().
                     ''',
                     type='boolean', undoc=True),
+                Config('show_prepared_rollback', 'false', r'''
+                    Return prepared-aborted updates. Non-prepared aborted
+                    updates will be skipped.''',
+                    type='boolean', undoc=True),
         ]),
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
@@ -2209,7 +2204,6 @@ methods = {
         print global txn information''', type='boolean'),
 ]),
 'WT_CONNECTION.reconfigure' : Method(
-    connection_reconfigure_chunk_cache_configuration +\
     connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_disaggregated_configuration +\
     connection_reconfigure_page_delta_configuration +\

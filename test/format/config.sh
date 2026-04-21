@@ -4,7 +4,7 @@
 # modify this file and then run it as a script.
 
 fc="format_config_def.c"
-fh="config.h"
+fh="format_config.h"
 
 cat<<END_OF_HEADER_FILE_PREFIX>$fh
 /* DO NOT EDIT: automatically built by format/config.sh. */
@@ -151,16 +151,6 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
-{"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0}
-
-{"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 100, 5120, 100 * 1024}
-
-{"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 5, 100 * 1024}
-
-{"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE, 0, 0, 0}
-
-{"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0}
-
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
 {"debug.background_compact", "background compaction processes files more often", C_BOOL, 5, 0, 0}
@@ -204,6 +194,8 @@ CONFIG configuration_list[] = {
 {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0, WT_VERBOSE_DEBUG_5}
 
 {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 16, 256}
+
+{"disagg.preserve", "preserve layered table constituents after data mismatches", C_IGNORE | C_BOOL, 100, 1, 0}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
@@ -276,6 +268,8 @@ CONFIG configuration_list[] = {
 {"ops.bound_cursor", "configure bound cursor reads", C_BOOL, 5, 0, 0}
 
 {"ops.prepare", "configure transaction prepare", C_BOOL, 5, 0, 0}
+
+{"ops.reserve", "cursor reserve operations (percentage)", 0, 0, 20, 100}
 
 {"ops.random_cursor", "configure random cursor reads", C_BOOL, 10, 0, 0}
 

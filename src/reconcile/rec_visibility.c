@@ -749,27 +749,25 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
             if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
                 continue;
 
-            WT_READ_ONCE(prepare_state, upd->prepare_state);
-
-            if (prepare_state == WT_PREPARE_INPROGRESS) {
-                /* Ignore the prepared update if the rollback timestamp is stable. */
-                if (upd->upd_rollback_ts != WT_TS_NONE &&
-                  upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
-                    /*
-                     * If we have seen a tombstone that rolled back the prepared update, delete the
-                     * key from the disk.
-                     */
-                    if (prepare_rollback_tombstone != NULL)
-                        break;
-                    continue;
-                }
-            } else if (prepare_state != WT_PREPARE_LOCKED)
-                /*
-                 * We set the prepare state back to in progress after we have set the transaction id
-                 * to aborted. Therefore, we may race with prepare rollback and read a locked state
-                 * here. No need to check the rollback timestamp as it cannot be stable anyway.
-                 */
+            if (upd->prepared_id == WT_PREPARED_ID_NONE) {
+                WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INIT);
                 continue;
+            }
+
+            WT_ASSERT(session,
+              upd->prepare_state == WT_PREPARE_LOCKED ||
+                upd->prepare_state == WT_PREPARE_INPROGRESS);
+            /* Ignore the prepared update if the rollback timestamp is stable. */
+            if (upd->upd_rollback_ts != WT_TS_NONE &&
+              upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
+                /*
+                 * If we have seen a tombstone that rolled back the prepared update, delete the key
+                 * from the disk.
+                 */
+                if (prepare_rollback_tombstone != NULL)
+                    break;
+                continue;
+            }
 
             txnid = upd->upd_saved_txnid;
         }
@@ -866,6 +864,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                     continue;
                 }
 
+                WT_ASSERT(session, upd->prepared_id != WT_PREPARED_ID_NONE);
+
                 /*
                  * If we write a prepared update in checkpoint, leave the page dirty. If we race
                  * with prepared commit or rollback and we leave the page clean, we may miss writing
@@ -912,6 +912,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                         *has_newer_updatesp = true;
                         continue;
                     }
+
+                    WT_ASSERT(session, upd->prepared_id != WT_PREPARED_ID_NONE);
 
                     WT_ASSERT(session, !is_hs_page);
                     *has_newer_updatesp = true;
@@ -1045,6 +1047,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
   WT_UPDATE *first_upd, WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp,
   bool *has_newer_updatesp, size_t *upd_memsizep)
 {
+    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     WT_BTREE *btree;
     WT_UPDATE *upd, *first_pruned_update;
     wt_timestamp_t max_ts;
@@ -1191,6 +1194,12 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         } else if (first_pruned_update != NULL) {
             if (*first_txn_updp != first_pruned_update)
                 *has_newer_updatesp = true;
+            else if (WT_REC_HAS_ON_DISK(vpack))
+                /*
+                 * If we choose to garbage collect the key and it has an associated on-page value,
+                 * ensure that the on-page value is forcefully deleted as well.
+                 */
+                upd_select->upd = &upd_tombstone;
         } else
             *has_newer_updatesp = true;
     }
@@ -1199,8 +1208,10 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      * If there's an on-page value, we only want to write upd_select if the oldest update is
      * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
      * update and reset upd_select if the update is not visible.
+     *
+     * If the goal is to prune the entire key, avoid resetting upd_select.
      */
-    if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep) {
+    if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
         *has_newer_updatesp |= (upd_select->upd != NULL);
         upd_select->upd = NULL;
     }
@@ -1217,7 +1228,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
-    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && !*has_newer_updatesp && upd_select->upd == NULL)
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+      (upd_select->upd == &upd_tombstone || (!*has_newer_updatesp && upd_select->upd == NULL)))
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_update_chain);
 
     return (0);
@@ -1235,7 +1247,6 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
     uint64_t tombstone_txnid;
-    uint8_t prepare_state;
     bool tombstone_globally_visible;
 
     upd = upd_select->upd;
@@ -1293,16 +1304,18 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 if (!F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
                     continue;
 
-                /* We may see aborted reserve updates in between the prepared updates. */
-                if (upd->next->type == WT_UPDATE_RESERVE)
-                    continue;
-
-                /* We may see a locked prepare state if we race with prepare rollback. */
-                prepare_state = __wt_atomic_load_uint8_v_acquire(&upd->next->prepare_state);
-                if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED) {
+                if (upd->next->prepared_id == WT_PREPARED_ID_NONE) {
                     write_start_prepare = false;
                     continue;
                 }
+
+                WT_ASSERT(session,
+                  upd->next->prepare_state == WT_PREPARE_LOCKED ||
+                    upd->next->prepare_state == WT_PREPARE_INPROGRESS);
+
+                /* We may see aborted reserve updates in between the prepared updates. */
+                if (upd->next->type == WT_UPDATE_RESERVE)
+                    continue;
 
                 /*
                  * Since we resolve prepared update from the oldest to newest, we may see a

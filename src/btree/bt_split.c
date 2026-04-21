@@ -268,7 +268,11 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         default:
             WT_ERR(__wt_illegal_value(session, unpack.raw));
         }
-        /* If the compare-and-swap is successful, clear addr to skip the free at the end. */
+        /*
+         * Use a sequentially consistent CAS to swap the on-page cell pointer to the off-page addr.
+         * This ensures the addr conversion is visible to readers before ref->home is later updated
+         * to the new child page during split. Pairs with the acquire barrier on the read side.
+         */
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }
@@ -660,7 +664,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     size_t parent_decr, size;
     uint64_t split_gen;
     uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
-    uint8_t rec_state;
+    uint8_t dirty_state;
     bool empty_parent;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -711,10 +715,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * the prefetch thread would crash if it sees a freed ref.
              */
             if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-                rec_state = __wt_atomic_load_uint8_v_acquire(&next_ref->rec_state);
+                dirty_state = __wt_atomic_load_uint8_v_acquire(&next_ref->dirty_state);
             else
-                rec_state = WT_REF_REC_CLEAN;
-            if (rec_state == WT_REF_REC_CLEAN && next_ref != ref &&
+                dirty_state = WT_REF_CLEAN;
+            if (dirty_state == WT_REF_CLEAN && next_ref != ref &&
               WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
@@ -815,11 +819,11 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     parent->pg_intl_split_gen = split_gen;
 
     /*
-     * Mark the page ref's rec_state as dirty. We cannot race with checkpoint as internal page
+     * Mark the page ref's dirty_state as dirty. We cannot race with checkpoint as internal page
      * cannot split during checkpoint.
      */
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
     /* Disable building delta for the parent page if we split. */
     F_SET_ATOMIC_16(parent, WT_PAGE_INTL_PINDEX_UPDATE);
@@ -1037,7 +1041,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         F_SET(ref, WT_REF_FLAG_INTERNAL);
 
         if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-            __wt_atomic_store_uint8_v_relaxed(&ref->rec_state, WT_REF_REC_DIRTY);
+            __wt_atomic_store_uint8_v_relaxed(&ref->dirty_state, WT_REF_DIRTY);
 
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
@@ -1897,7 +1901,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     }
 
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
     switch (page->type) {
     case WT_PAGE_COL_INT:
@@ -1945,7 +1949,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     }
 
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_store_uint8_v_relaxed(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_relaxed(&ref->dirty_state, WT_REF_DIRTY);
 
     /*
      * If we have a disk image and we're not closing the file, re-instantiate the page.
@@ -2055,7 +2059,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     F_SET(child, WT_REF_FLAG_LEAF);
 
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_store_uint8_v_relaxed(&child->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_relaxed(&child->dirty_state, WT_REF_DIRTY);
 
     WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     if (type == WT_PAGE_ROW_LEAF) {
@@ -2186,6 +2190,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if ((ret = __split_parent(session, ref, split_ref, 2, parent_incr, false, true)) == 0) {
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
+        if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
+            WT_STAT_CONN_INCR(session, cache_inmem_split_ingest);
         return (0);
     }
 
@@ -2508,7 +2514,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
 
     /* Swap the new page into place. */
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
     ref->page = new->page;
 
     if (change_ref_state)

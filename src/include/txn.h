@@ -242,7 +242,8 @@ typedef enum __wt_txn_type {
     WT_TXN_OP_INMEM_ROW,
     WT_TXN_OP_REF_DELETE,
     WT_TXN_OP_TRUNCATE_COL,
-    WT_TXN_OP_TRUNCATE_ROW
+    WT_TXN_OP_TRUNCATE_ROW,
+    WT_TXN_OP_FOLLOWER_TRUNCATE
 } WT_TXN_TYPE;
 
 typedef enum {
@@ -290,6 +291,11 @@ struct __wt_txn_op {
             WT_ITEM start, stop;
             WT_TXN_TRUNC_MODE mode;
         } truncate_row;
+
+        /* WT_TXN_FOLLOWER_TRUNCATE */
+        struct {
+            WT_TRUNCATE *t;
+        } follower_truncate;
     } u;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -459,4 +465,15 @@ struct __wt_txn {
      * C99 flexible array member which has the semantics we want.
      */
     uint64_t __snapshot[];
+};
+
+/*
+ * WT_FIX_PREPARED_COOKIE --
+ *   State passed to find the prepared transaction to fix when draining the ingest btree.
+ */
+struct __wt_fix_prepared_cookie {
+    WT_BTREE *ingest_btree;
+    WT_BTREE *stable_btree;
+    WT_ITEM *key;
+    uint64_t txnid;
 };

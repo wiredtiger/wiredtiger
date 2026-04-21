@@ -68,7 +68,6 @@ __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
     WT_DECL_RET;
 
     start = NULL;
-    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
 
     WT_STAT_DSRC_INCR(session, cursor_truncate);
 
@@ -79,14 +78,12 @@ __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
         ret = 0;
         goto done;
     }
-    WT_WITHOUT_DHANDLE(session, ret = __wt_session_range_truncate(session, NULL, start, NULL));
-    WT_ERR(ret);
+    WT_ERR(__wt_session_range_truncate(session, NULL, start, NULL));
 
 done:
 err:
     if (start != NULL)
         WT_TRET(start->close(start));
-    WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
 
@@ -208,7 +205,14 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
           session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
     } else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __wt_table_range_truncate(trunc_info);
-    else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL && dsrc->range_truncate != NULL)
+    else if (__wt_process.disagg_fast_truncate_2026 && WT_PREFIX_MATCH(uri, "layered:")) {
+        WT_ERR(__cursor_needkey(trunc_info->start));
+        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
+            WT_ERR(__cursor_needkey(trunc_info->stop));
+
+        ret = __wt_layered_truncate(trunc_info);
+    } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL &&
+      dsrc->range_truncate != NULL)
         ret = dsrc->range_truncate(dsrc, &session->iface, trunc_info->start, trunc_info->stop);
     else
         ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);
