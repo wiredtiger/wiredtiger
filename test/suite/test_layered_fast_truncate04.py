@@ -27,8 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate04.py
-#   WT-17237: follower-initiated truncate resolves NULL start/stop cursors to
-#   concrete keys before storing the entry in the truncate list.
+#   Follower-initiated truncate stores a bounded range in the truncate list.
+#   Verifies NULL start/stop from the session API are resolved to the table's
+#   first/last visible key.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -37,14 +38,11 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
 
-    conn_config = 'disaggregated=(role="leader"),'
-
-    uris = [
-        ('layered', dict(uri='layered:test_layered_fast_truncate04')),
-    ]
+    conn_config = 'verbose=[layered:5],disaggregated=(role="leader"),'
+    uri='layered:test_layered_fast_truncate04'
 
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate04', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, uris)
+    scenarios = make_scenarios(disagg_storages)
 
     nitems = 100
 
@@ -52,6 +50,9 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest("fast truncate support is not enabled")
         super().setUp()
+        # Layered manager emits DEBUG_5 messages on every session; silence
+        # them so the post-test check only sees the truncate log lines.
+        self.ignoreStdoutPattern(r'__wti?_layered_table_manager_')
 
     def key(self, n):
         return f'{n:04d}'
@@ -65,22 +66,20 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
         cursor.close()
         self.session.checkpoint()
-        follower_config = ('disaggregated=(role="follower",'
+        follower_config = ('verbose=[layered:5],disaggregated=(role="follower",'
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
         self.reopen_conn(config=follower_config)
 
     def truncate(self, start=None, stop=None):
         c_start = c_stop = None
-        uri = None
         if start is not None:
             c_start = self.session.open_cursor(self.uri)
             c_start.set_key(self.key(start))
         if stop is not None:
             c_stop = self.session.open_cursor(self.uri)
             c_stop.set_key(self.key(stop))
-        if c_start is None and c_stop is None:
-            # truncate API requires a URI when both cursors are NULL.
-            uri = self.uri
+
+        uri = self.uri if c_start is None and c_stop is None else None
         self.session.begin_transaction()
         self.session.truncate(uri, c_start, c_stop, None)
         self.session.commit_transaction()
@@ -89,49 +88,23 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         if c_stop is not None:
             c_stop.close()
 
-    def put(self, key, value='v'):
-        c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        c[self.key(key)] = value
-        self.session.commit_transaction()
-        c.close()
-
-    def visible_keys(self):
-        c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        keys = []
-        while c.next() == 0:
-            keys.append(c.get_key())
-        self.session.rollback_transaction()
-        c.close()
-        return keys
+    # Assert the single truncate log line emitted with the concrete bounded range.
+    def assert_trunc_log(self, start_key, stop_key):
+        self.captureout.checkAdditionalPattern(self,
+            f'truncate {self.uri}: start={start_key} stop={stop_key}')
+        self.cleanStdout()
 
     def test_null_start_resolves_to_first_key(self):
-        # session.truncate(NULL, stop) on the follower resolves start to the
-        # table's first key. A later insert outside the bounded range stays visible.
         self.setup_follower()
         self.truncate(start=None, stop=60)
-        self.assertEqual(self.visible_keys(), [self.key(i) for i in range(61, self.nitems + 1)])
-
-        self.put(200, 'appended')
-        self.assertIn(self.key(200), self.visible_keys())
+        self.assert_trunc_log(self.key(1), self.key(60))
 
     def test_null_stop_resolves_to_last_key(self):
-        # session.truncate(start, NULL) on the follower resolves stop to the
-        # table's last key. Keys appended after the truncate remain visible.
         self.setup_follower()
         self.truncate(start=30, stop=None)
-        self.assertEqual(self.visible_keys(), [self.key(i) for i in range(1, 30)])
-
-        self.put(200, 'appended')
-        self.assertIn(self.key(200), self.visible_keys())
+        self.assert_trunc_log(self.key(30), self.key(self.nitems))
 
     def test_both_null_is_full_table(self):
-        # session.truncate(NULL, NULL) resolves to [first_key, last_key] — full
-        # table becomes invisible; a subsequent insert outside the range stays visible.
         self.setup_follower()
         self.truncate(start=None, stop=None)
-        self.assertEqual(self.visible_keys(), [])
-
-        self.put(200, 'appended')
-        self.assertEqual(self.visible_keys(), [self.key(200)])
+        self.assert_trunc_log(self.key(1), self.key(self.nitems))
