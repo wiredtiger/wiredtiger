@@ -49,8 +49,8 @@ find_program(
     DOC "Ccache is a compiler cache that speeds up recompilation."
 )
 if(CCACHE)
-    set(CMAKE_C_COMPILER_LAUNCHER, ${CCACHE})
-    set(CMAKE_CXX_COMPILER_LAUNCHER, ${CCACHE})
+    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
     message(STATUS "Using ccache: ${CCACHE}")
 endif()
 
