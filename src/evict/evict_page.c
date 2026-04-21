@@ -1049,6 +1049,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (0);
 
     /*
+     * Ingest tables are in-memory and are expected to remain resident (single large page). Avoid
+     * driving eviction or reconciliation of these btrees.
+     */
+    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_ingest"))
+        return (__wt_set_return(session, EBUSY));
+
+    /*
      * If we are trying to evict a dirty page that does not belong to history store(HS) and
      * checkpoint is processing the HS file, avoid evicting the dirty non-HS page for now if the
      * cache is already dominated by dirty HS content.
@@ -1063,16 +1070,28 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (__wt_set_return(session, EBUSY));
     }
 
-    /*
-     * If precise checkpoints are enabled, and this page was already reconciled at a time that
-     * services the checkpoint, don't try again. Reconciling the page again without the timestamp
-     * moving would result in the same page being written out as last time.
-     */
-    checkpoint_timestamp = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_timestamp);
-    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
-      page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
-        WT_STAT_CONN_INCR(session, cache_eviction_blocked_precise_checkpoint);
-        return (__wt_set_return(session, EBUSY));
+    if (!F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT) && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+            /*
+             * Layered follower ingest garbage collection is handled by the ingest chunk server
+             * (dropping whole obsolete chunk files), not eviction reconciliation.
+             */
+            WT_STAT_CONN_INCR(session, cache_eviction_blocked_prune_timestamp);
+            return (__wt_set_return(session, EBUSY));
+        } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            /*
+             * If precise checkpoints are enabled, and this page was already reconciled at a time
+             * that services the checkpoint, don't try again. Reconciling the page again without the
+             * timestamp moving would result in the same page being written out as last time.
+             */
+            wt_timestamp_t checkpoint_timestamp =
+              __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_timestamp);
+            if (checkpoint_timestamp != WT_TS_NONE &&
+              page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
+                WT_STAT_CONN_INCR(session, cache_eviction_blocked_precise_checkpoint);
+                return (__wt_set_return(session, EBUSY));
+            }
+        }
     }
 
     /*
