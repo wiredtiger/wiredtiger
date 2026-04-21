@@ -1015,6 +1015,9 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
+    int64_t layered_ingest_chunks_rolled;
+    int64_t layered_ingest_chunk_server_passes;
+    int64_t layered_ingest_chunks_dropped;
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
@@ -1735,6 +1738,8 @@ struct __wt_dsrc_stats {
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
+    int64_t layered_ingest_chunks_rolled;
+    int64_t layered_ingest_chunks_dropped;
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;

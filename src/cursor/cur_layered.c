@@ -2271,6 +2271,8 @@ __clayered_rollover_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered
     WT_ERR(__clayered_close_cursors(clayered));
     WT_ERR(__clayered_open_cursors(session, clayered));
 
+    WT_STAT_CONN_DSRC_INCR(session, layered_ingest_chunks_rolled);
+
 err:
     if (ret != 0 && int_session != NULL && meta_updated && layered_meta != NULL)
         WT_WITH_SCHEMA_LOCK(

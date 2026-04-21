@@ -1151,6 +1151,8 @@ __layered_ingest_chunk_drop_oldest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
       "layered follower ingest GC: dropped oldest ingest chunk \"%s\" from \"%s\" (remaining=%u)",
       drop_uri, layered_uri, new_n);
 
+    WT_STAT_CONN_DSRC_INCR(session, layered_ingest_chunks_dropped);
+
 err:
     __wt_free(session, drop_uri);
     if (int_session != NULL) {
@@ -1324,6 +1326,8 @@ __layered_ingest_chunk_server_pass(WT_SESSION_IMPL *session)
             break;
         WT_ERR(__layered_ingest_chunk_try_drop_obsolete_oldest(session, layered_uris[i]));
     }
+
+    WT_STAT_CONN_INCR(session, layered_ingest_chunk_server_passes);
 
 err:
     if (layered_uris != NULL) {
