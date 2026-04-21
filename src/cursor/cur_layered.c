@@ -283,7 +283,6 @@ retry:
               __wt_buf_fmt(session, stable_uri_buf, "%s/%s", layered->stable_uri, checkpoint_name));
             stable_uri = stable_uri_buf->data;
         }
-        cfg[2] = "read_only=true";
     }
 
     ret = __wt_open_cursor(session, stable_uri, c, cfg, &clayered->stable_cursor);
