@@ -645,6 +645,7 @@ conn_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
+    LayeredStat('layered_ingest_chunk_server_passes', 'follower ingest chunk server: completed GC passes'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
 
     ##########################################
@@ -1383,6 +1384,9 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_search_near_stable', 'Layered table cursor search near operations from the stable btrees'),
     LayeredStat('layered_curs_search_stable', 'Layered table cursor search operations from the stable btrees'),
     LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
+
+    LayeredStat('layered_ingest_chunks_dropped', 'follower ingest chunk server: obsolete ingest chunks dropped'),
+    LayeredStat('layered_ingest_chunks_rolled', 'follower ingest chunk rollover events (new ingest chunk created)'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_failed', 'disagg pick up checkpoints failed'),
