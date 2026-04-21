@@ -470,8 +470,10 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&cbt->upd_value->tw))
                         goto skip_on_page;
 
-                    /* See the no-stop branch above: skip the comparison when the previous
-                     * emission was a rolled-back prepared update. */
+                    /*
+                     * See the no-stop branch above: skip the comparison when the previous emission
+                     * was a rolled-back prepared update.
+                     */
                     if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED) {
                         if (__curversion_stop_uses_prepare_ts(version_cursor)) {
                             if (cbt->upd_value->tw.stop_txn > version_cursor->upd_stop_txnid ||
