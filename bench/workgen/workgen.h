@@ -447,6 +447,11 @@ struct WorkloadOptions {
     int create_count;
     /* Dynamic create/drop options */
     int create_interval;
+    /*
+     * URI prefix used for dynamically created objects (e.g. "table:" or "layered:").
+     * Defaults to "table:".
+     */
+    std::string create_uri_prefix;
     std::string create_prefix;
     int create_target;
     int create_trigger;
@@ -472,6 +477,32 @@ struct WorkloadOptions {
     double stable_timestamp_lag;
     double timestamp_advance;
     int warmup;
+
+    /*
+     * Optional reporting helpers.
+     *
+     * When non-zero, workgen will compute approximate payload bytes written per report interval as:
+     *   bytes = inserts * approx_payload_bytes_per_insert + updates * approx_payload_bytes_per_update
+     * This is intended for higher-level tests (e.g. leader/follower) that want explicit human-readable
+     * output about write volume without parsing WiredTiger internal stats.
+     */
+    int approx_payload_bytes_per_insert;
+    int approx_payload_bytes_per_update;
+
+    /*
+     * Optional mirror connection support.
+     *
+     * When enabled, write operations are applied to both the primary connection passed to
+     * Workload::run and a second "mirror" connection opened by workgen using mirror_home and
+     * mirror_conn_config. This is intended for testing leader/follower workflows (e.g. disagg +
+     * layered) where the same updates must be applied to both nodes.
+     */
+    bool mirror_connection;
+    std::string mirror_home;
+    std::string mirror_conn_config;
+    std::string mirror_page_log;
+    int mirror_checkpoint_acquire_interval;
+    std::string mirror_table_create_config;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);

@@ -29,6 +29,7 @@
 #pragma once
 
 #include <map>
+#include <atomic>
 #include <memory>
 #include <ostream>
 #include <set>
@@ -149,6 +150,7 @@ struct ThreadRunner {
     WT_CURSOR **_cursors;                          // indexed by tint_t
     volatile bool _stop;
     WT_SESSION *_session;
+    WT_SESSION *_mirror_session;
     char *_keybuf;
     char *_valuebuf;
     bool _repeat;
@@ -344,11 +346,17 @@ struct WorkloadRunner {
     std::string _wt_home;
     timespec _start;
     bool stopping;
+    WT_CONNECTION *_mirror_conn;
+    std::shared_mutex _mirror_reconfig_lock;
+    std::atomic<uint64_t> _mirror_inserts;
+    std::atomic<uint64_t> _mirror_updates;
+    std::atomic<uint64_t> _mirror_removes;
 
     WorkloadRunner(Workload *);
     ~WorkloadRunner();
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
+    int checkpoint_acquire(WT_CONNECTION *conn);
     int start_table_idle_cycle(WT_CONNECTION *conn);
     int start_tables_create(WT_CONNECTION *conn);
     int start_tables_drop(WT_CONNECTION *conn);

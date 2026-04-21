@@ -37,11 +37,13 @@
 #endif
 
 #include <algorithm>
+#include <chrono>
 #include <csignal>
 #include <iomanip>
 #include <iostream>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 #include "wiredtiger.h"
 #include "workgen.h"
@@ -116,6 +118,22 @@ struct WorkloadRunnerConnection {
     WorkloadRunner *runner;
     WT_CONNECTION *connection;
 };
+
+static void *
+thread_checkpoint_acquire_workload(void *arg)
+{
+    WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
+    WT_CONNECTION *connection = runnerConnection->connection;
+    WorkloadRunner *runner = runnerConnection->runner;
+
+    try {
+        runner->checkpoint_acquire(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while acquiring checkpoints: " << wge._str << std::endl;
+        ASSERT(false);
+    }
+    return (nullptr);
+}
 
 /*
  * The number of contexts. Normally there is one context created, but it will be possible to use
@@ -566,7 +584,8 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             // sequence.
             char rand_chars[DYNAMIC_TABLE_LEN];
             gen_random_table_name(rand_chars, _rand_state);
-            const std::string uri("table:" + _workload->options.create_prefix + rand_chars);
+            const std::string uri(_workload->options.create_uri_prefix + _workload->options.create_prefix +
+              rand_chars);
 
             // Create the table and its mirror if enabled.
             int ret = create_table(session, config, uri, _workload->options.mirror_tables);
@@ -777,6 +796,11 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
             snprintf(buf, BUF_SIZE, "oldest_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
+            if (_mirror_conn != nullptr) {
+                /* Serialize with checkpoint_acquire(), which reconfigures the follower. */
+                const std::shared_lock<std::shared_mutex> lock(_mirror_reconfig_lock);
+                _mirror_conn->set_timestamp(_mirror_conn, buf);
+            }
         }
 
         if (_workload->options.stable_timestamp_lag > 0) {
@@ -784,6 +808,10 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
             time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
             snprintf(buf, BUF_SIZE, "stable_timestamp=%" PRIx64, time_us);
             conn->set_timestamp(conn, buf);
+            if (_mirror_conn != nullptr) {
+                const std::shared_lock<std::shared_mutex> lock(_mirror_reconfig_lock);
+                _mirror_conn->set_timestamp(_mirror_conn, buf);
+            }
         }
 
         WorkgenTimeStamp::sleep(_workload->options.timestamp_advance);
@@ -791,6 +819,256 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     return 0;
 }
 
+namespace {
+/*
+ * Elapsed-time prefix for stderr / report lines: milliseconds since the timed workload section
+ * started (see workgen_elapsed_reset in run_all). If something logs before reset, the clock starts
+ * on first prefix use and is re-anchored at reset.
+ */
+std::mutex workgen_elapsed_mtx;
+std::chrono::steady_clock::time_point workgen_elapsed_t0;
+bool workgen_elapsed_inited = false;
+
+void
+workgen_elapsed_reset(void)
+{
+    const std::lock_guard<std::mutex> lock(workgen_elapsed_mtx);
+    workgen_elapsed_t0 = std::chrono::steady_clock::now();
+    workgen_elapsed_inited = true;
+}
+
+std::string
+workgen_elapsed_prefix(void)
+{
+    using clock = std::chrono::steady_clock;
+    const std::lock_guard<std::mutex> lock(workgen_elapsed_mtx);
+    if (!workgen_elapsed_inited) {
+        workgen_elapsed_t0 = clock::now();
+        workgen_elapsed_inited = true;
+    }
+    const auto ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - workgen_elapsed_t0)
+        .count();
+    const int64_t whole_sec = ms / 1000;
+    const int64_t frac = ms % 1000;
+    std::ostringstream oss;
+    oss << "[" << whole_sec << "." << std::setfill('0') << std::setw(3) << frac << "s] ";
+    return oss.str();
+}
+} /* namespace */
+
+/*
+ * Periodically checkpoint the leader and have the mirror (follower) acquire the latest checkpoint
+ * via checkpoint metadata from the page_log implementation.
+ */
+int
+WorkloadRunner::checkpoint_acquire(WT_CONNECTION *conn)
+{
+    WT_DECL_RET;
+    WT_ITEM checkpoint_metadata;
+    WT_PAGE_LOG *page_log;
+    WT_SESSION *session;
+    WT_SESSION *mirror_session;
+    WT_CURSOR *mirror_stats;
+    char cfg[4096];
+    uint64_t checkpoint_ts;
+    bool first = true;
+    uint64_t last_logops_applied = 0, last_logops_skipped = 0;
+    uint64_t last_pickups = 0;
+    int last_ingest_chunks = -1;
+
+    if (_mirror_conn == nullptr)
+        return (0);
+
+    memset(&checkpoint_metadata, 0, sizeof(checkpoint_metadata));
+    page_log = nullptr;
+    session = nullptr;
+    mirror_session = nullptr;
+    mirror_stats = nullptr;
+
+    while (!stopping) {
+        WorkgenTimeStamp::sleep(_workload->options.mirror_checkpoint_acquire_interval);
+        if (stopping)
+            break;
+
+        /* Create a checkpoint on the leader and ensure objects are flushed to shared storage. */
+        WT_RET(conn->open_session(conn, nullptr, nullptr, &session));
+        std::cerr << workgen_elapsed_prefix() << "leader_checkpoint: begin" << std::endl;
+        WT_ERR(session->checkpoint(session, "flush_tier=(enabled=true,force=true,timeout=60)"));
+        std::cerr << workgen_elapsed_prefix() << "leader_checkpoint: done" << std::endl;
+
+        /* Get latest completed checkpoint metadata from the page log. */
+        WT_ERR(conn->get_page_log(conn, _workload->options.mirror_page_log.c_str(), &page_log));
+        ret = page_log->pl_get_complete_checkpoint_ext(
+          page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            goto loop_end;
+        }
+        WT_ERR(ret);
+
+        /* Apply checkpoint metadata to the follower connection. */
+        if (checkpoint_metadata.data != NULL && checkpoint_metadata.size != 0) {
+            /*
+             * Keep checkpoint acquire output concise: the runner already shows write volume and
+             * follower progress each interval. Only print a one-line summary of the checkpoint meta.
+             */
+            first = false;
+            std::cerr << workgen_elapsed_prefix() << "checkpoint_acquire: meta.size="
+                      << checkpoint_metadata.size << " ts=" << checkpoint_ts << std::endl;
+
+            int n = snprintf(cfg, sizeof(cfg), "disaggregated=(checkpoint_meta=\"%.*s\")",
+              (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
+            if (n < 0 || (size_t)n >= sizeof(cfg))
+                WT_ERR(ENOMEM);
+            {
+                const std::unique_lock<std::shared_mutex> lock(_mirror_reconfig_lock);
+                ret = _mirror_conn->reconfigure(_mirror_conn, cfg);
+            }
+            if (ret != 0) {
+                std::cerr << workgen_elapsed_prefix()
+                          << "checkpoint_acquire: reconfigure failed ret=" << ret << std::endl;
+                WT_ERR(ret);
+            }
+
+            /*
+             * Emit follower-side progress stats so the output answers: "is the follower applying
+             * changes?".
+             */
+            WT_ERR(_mirror_conn->open_session(_mirror_conn, nullptr, nullptr, &mirror_session));
+            WT_ERR(mirror_session->open_cursor(
+              mirror_session, "statistics:", nullptr, nullptr, &mirror_stats));
+
+            auto read_stat_u64 = [&](int stat_key, uint64_t *outv) -> int {
+                mirror_stats->set_key(mirror_stats, stat_key);
+                int sret = mirror_stats->search(mirror_stats);
+                if (sret != 0)
+                    return sret;
+                const char *desc;
+                const char *pvalue;
+                int64_t v;
+                /* statistics cursors return (description, pvalue, value) */
+                sret = mirror_stats->get_value(mirror_stats, &desc, &pvalue, &v);
+                if (sret != 0)
+                    return sret;
+                *outv = (uint64_t)v;
+                return 0;
+            };
+
+            uint64_t logops_applied = 0, logops_skipped = 0, pickups = 0, pickups_follower = 0;
+            uint64_t evict_skip_prune = 0, evict_skip_prune_not_move = 0;
+            uint64_t blocked_prune = 0;
+            uint64_t rec_gc_disk = 0, rec_gc_chain = 0;
+            /*
+             * layered_table_manager_logops_{applied,skipped}: schema stats are not incremented
+             * anywhere in the engine today, so these stay 0. Follower write volume for this runner
+             * is mirrored at the API (see follower_mirror_ops in periodic reports), not via internal
+             * layered log replay. Disagg checkpoint pickup is reflected in checkpoint_pickups_*.
+             */
+            WT_ERR(read_stat_u64(WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED, &logops_applied));
+            WT_ERR(read_stat_u64(WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED, &logops_skipped));
+            WT_ERR(read_stat_u64(
+              WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED, &pickups));
+            WT_ERR(read_stat_u64(
+              WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FOLLOWER,
+              &pickups_follower));
+            /* Ingest garbage-collection / prune progress signals. */
+            WT_ERR(read_stat_u64(WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP, &evict_skip_prune));
+            WT_ERR(read_stat_u64(
+              WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP_NOT_MOVE, &evict_skip_prune_not_move));
+            WT_ERR(read_stat_u64(WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP, &blocked_prune));
+            WT_ERR(read_stat_u64(
+              WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE, &rec_gc_disk));
+            WT_ERR(read_stat_u64(
+              WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN, &rec_gc_chain));
+
+            std::cerr << workgen_elapsed_prefix() << "checkpoint_acquire: follower_stats"
+                      << " logops_applied=" << logops_applied
+                      << " (+" << (logops_applied - last_logops_applied) << ")"
+                      << " logops_skipped=" << logops_skipped
+                      << " (+" << (logops_skipped - last_logops_skipped) << ")"
+                      << " checkpoint_pickups_succeed=" << pickups
+                      << " (+" << (pickups - last_pickups) << ")"
+                      << " standby_pickups_follower=" << pickups_follower
+                      << " ingest_prune_blocked=" << blocked_prune
+                      << " evict_skip_prune_ts=" << evict_skip_prune
+                      << " evict_skip_prune_not_move=" << evict_skip_prune_not_move
+                      << " rec_ingest_gc_disk_keys=" << rec_gc_disk
+                      << " rec_ingest_gc_chain_keys=" << rec_gc_chain
+                      << std::endl;
+            last_logops_applied = logops_applied;
+            last_logops_skipped = logops_skipped;
+            last_pickups = pickups;
+
+            /*
+             * Also report ingest-chunk state on the follower to answer: "is content being discarded
+             * via ingest garbage collection?". For the workgen runner, the target table is
+             * typically "layered:foo".
+             */
+            WT_CURSOR *md = nullptr;
+            int mret = mirror_session->open_cursor(mirror_session, "metadata:", nullptr, nullptr, &md);
+            if (mret == 0) {
+                md->set_key(md, "layered:foo");
+                mret = md->search(md);
+                if (mret == 0) {
+                    const char *meta;
+                    mret = md->get_value(md, &meta);
+                    if (mret == 0 && meta != nullptr) {
+                        int chunks = 0;
+                        const char *p = meta;
+                        while ((p = strstr(p, ".wt_ingest")) != nullptr) {
+                            ++chunks;
+                            p += strlen(".wt_ingest");
+                        }
+                        if (last_ingest_chunks == -1)
+                            last_ingest_chunks = chunks;
+                        int delta = chunks - last_ingest_chunks;
+                        std::cerr << workgen_elapsed_prefix()
+                                  << "checkpoint_acquire: follower_layered_ingest_chunks=" << chunks
+                                  << " (delta=" << delta << ")";
+                        if (delta < 0)
+                            std::cerr << " [discarded_via_ingest_gc]";
+                        std::cerr << std::endl;
+                        last_ingest_chunks = chunks;
+                    }
+                }
+                WT_TRET(md->close(md));
+            }
+        }
+
+loop_end:
+        if (page_log != nullptr) {
+            WT_TRET(page_log->terminate(page_log, session));
+            page_log = nullptr;
+        }
+        free(checkpoint_metadata.mem);
+        memset(&checkpoint_metadata, 0, sizeof(checkpoint_metadata));
+        if (session != nullptr) {
+            WT_TRET(session->close(session, nullptr));
+            session = nullptr;
+        }
+        if (mirror_stats != nullptr) {
+            WT_TRET(mirror_stats->close(mirror_stats));
+            mirror_stats = nullptr;
+        }
+        if (mirror_session != nullptr) {
+            WT_TRET(mirror_session->close(mirror_session, nullptr));
+            mirror_session = nullptr;
+        }
+    }
+
+err:
+    if (page_log != nullptr)
+        WT_TRET(page_log->terminate(page_log, session));
+    free(checkpoint_metadata.mem);
+    if (session != nullptr)
+        WT_TRET(session->close(session, nullptr));
+    if (mirror_stats != nullptr)
+        WT_TRET(mirror_stats->close(mirror_stats));
+    if (mirror_session != nullptr)
+        WT_TRET(mirror_session->close(mirror_session, nullptr));
+    return (ret);
+}
 static void *
 monitor_main(void *arg)
 {
@@ -996,7 +1274,8 @@ ContextInternal::create_all(WT_CONNECTION *conn)
 
         std::string value = std::string(v);
         size_t pos = value.find(DYN_TABLE_APP_METADATA);
-        if (pos != std::string::npos && WT_PREFIX_MATCH(key, "table:")) {
+        if (pos != std::string::npos &&
+          (WT_PREFIX_MATCH(key, "table:") || WT_PREFIX_MATCH(key, "layered:"))) {
             // Add the table into the list of dynamic set. We are single threaded here and hence
             // do not yet need to protect the dynamic table structures with a lock.
             _dyn_tint[key] = _dyn_tint_last;
@@ -1300,8 +1579,9 @@ ThreadRunner::ThreadRunner()
     : _errno(0), _exception(), _thread(nullptr), _context(nullptr), _icontext(nullptr),
       _workload(nullptr), _wrunner(nullptr), _rand_state(nullptr), _throttle(nullptr),
       _throttle_ops(0), _throttle_limit(0), _in_transaction(false), _start_time_us(0),
-      _op_time_us(0), _number(0), _stats(false), _table_usage(), _cursors(nullptr), _stop(false),
-      _session(nullptr), _keybuf(nullptr), _valuebuf(nullptr), _repeat(false)
+      _op_time_us(0), _number(0), _stats(false), _table_usage(), _cursors(nullptr),
+      _stop(false), _session(nullptr), _mirror_session(nullptr),
+      _keybuf(nullptr), _valuebuf(nullptr), _repeat(false)
 {
 }
 
@@ -1318,6 +1598,9 @@ ThreadRunner::create_all(WT_CONNECTION *conn)
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
     WT_RET(conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
+    if (_wrunner->_mirror_conn != nullptr)
+        WT_RET(_wrunner->_mirror_conn->open_session(
+          _wrunner->_mirror_conn, nullptr, _thread->options.session_config.c_str(), &_mirror_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
     WT_RET(workgen_random_alloc(_session, &_rand_state));
@@ -1362,6 +1645,10 @@ ThreadRunner::close_all()
     if (_session != nullptr) {
         WT_RET(_session->close(_session, nullptr));
         _session = nullptr;
+    }
+    if (_mirror_session != nullptr) {
+        WT_RET(_mirror_session->close(_mirror_session, nullptr));
+        _mirror_session = nullptr;
     }
     free_all();
     return (0);
@@ -1769,9 +2056,10 @@ ThreadRunner::op_run(Operation *op)
 {
     Track *track;
     WT_CURSOR *cursor;
+    WT_CURSOR *mirror_cursor;
     WT_ITEM item;
     int ret;
-    bool measure_latency, own_cursor, retry_op;
+    bool measure_latency, own_cursor, own_mirror_cursor, retry_op;
     timespec start_time;
     uint64_t time_us;
     char buf[BUF_SIZE];
@@ -1780,7 +2068,9 @@ ThreadRunner::op_run(Operation *op)
     WT_CLEAR(item);
     track = nullptr;
     cursor = nullptr;
+    mirror_cursor = nullptr;
     own_cursor = false;
+    own_mirror_cursor = false;
     ret = 0;
     retry_op = true;
 
@@ -1821,6 +2111,19 @@ ThreadRunner::op_run(Operation *op)
         cursor = _cursors[tint];
     }
 
+    /*
+     * For mirrored leader/follower testing, avoid keeping long-lived cursors open on the mirror
+     * connection: checkpoint acquisition may need to close/reopen handles. Open a mirror cursor for
+     * each write operation and close it before the next acquire.
+     */
+    if (_mirror_session != nullptr && op->is_table_op() &&
+      (op->_optype == Operation::OP_INSERT || op->_optype == Operation::OP_UPDATE ||
+        op->_optype == Operation::OP_REMOVE)) {
+        WT_ERR(_mirror_session->open_cursor(
+          _mirror_session, table_uri.c_str(), nullptr, nullptr, &mirror_cursor));
+        own_mirror_cursor = true;
+    }
+
     // Don't skip measuring the first checkpoint or RTS.
     measure_latency = track != nullptr && track->track_latency() &&
       (track->ops % _workload->options.sample_rate == 0) &&
@@ -1836,37 +2139,48 @@ ThreadRunner::op_run(Operation *op)
     if (track != nullptr)
         track->begin();
 
-    // Set the cursor for the key and value first, outside the transaction which may
-    // be retried. The key and value are generated in op_run_setup.
-    if (op->is_table_op()) {
-
-        const std::string key_format(cursor->key_format);
-        if (key_format == "S") {
-            cursor->set_key(cursor, _keybuf);
-        } else if (key_format == "u") {
-            item.data = _keybuf;
-            item.size = strlen(_keybuf);
-            cursor->set_key(cursor, &item);
-        } else {
-            THROW("The key format ('" << key_format << "') must be 'u' or 'S'.");
-        }
-        if (OP_HAS_VALUE(op)) {
-
-            const std::string value_format(cursor->value_format);
-            if (value_format == "S") {
-                cursor->set_value(cursor, _valuebuf);
-            } else if (value_format == "u") {
-                item.data = _valuebuf;
-                item.size = strlen(_valuebuf);
-                cursor->set_value(cursor, &item);
-            } else {
-                THROW("The value format ('" << value_format << "') must be 'u' or 'S'.");
-            }
-        }
-    }
-
     // We may retry on rollback errors.
     while (retry_op) {
+        std::shared_lock<std::shared_mutex> mirror_lock;
+        if (_mirror_session != nullptr)
+            mirror_lock = std::shared_lock<std::shared_mutex>(_wrunner->_mirror_reconfig_lock);
+
+        /*
+         * Set the cursor key/value before each attempt. Some retry paths (e.g. rollback handling)
+         * can clear cursor state.
+         */
+        if (op->is_table_op()) {
+            const std::string key_format(cursor->key_format);
+            if (key_format == "S") {
+                cursor->set_key(cursor, _keybuf);
+                if (mirror_cursor != nullptr)
+                    mirror_cursor->set_key(mirror_cursor, _keybuf);
+            } else if (key_format == "u") {
+                item.data = _keybuf;
+                item.size = strlen(_keybuf);
+                cursor->set_key(cursor, &item);
+                if (mirror_cursor != nullptr)
+                    mirror_cursor->set_key(mirror_cursor, &item);
+            } else
+                THROW("The key format ('" << key_format << "') must be 'u' or 'S'.");
+
+            if (OP_HAS_VALUE(op)) {
+                const std::string value_format(cursor->value_format);
+                if (value_format == "S") {
+                    cursor->set_value(cursor, _valuebuf);
+                    if (mirror_cursor != nullptr)
+                        mirror_cursor->set_value(mirror_cursor, _valuebuf);
+                } else if (value_format == "u") {
+                    item.data = _valuebuf;
+                    item.size = strlen(_valuebuf);
+                    cursor->set_value(cursor, &item);
+                    if (mirror_cursor != nullptr)
+                        mirror_cursor->set_value(mirror_cursor, &item);
+                } else
+                    THROW("The value format ('" << value_format << "') must be 'u' or 'S'.");
+            }
+        }
+
         if (op->transaction != nullptr) {
             if (_in_transaction)
                 THROW("nested transactions not supported");
@@ -1882,6 +2196,8 @@ ThreadRunner::op_run(Operation *op)
                 snprintf(buf, BUF_SIZE, "%s", op->transaction->_begin_config.c_str());
             }
             WT_ERR(_session->begin_transaction(_session, buf));
+            if (_mirror_session != nullptr)
+                WT_ERR(_mirror_session->begin_transaction(_mirror_session, buf));
 
             _in_transaction = true;
         }
@@ -1891,9 +2207,20 @@ ThreadRunner::op_run(Operation *op)
             ASSERT(!has_mirror || _in_transaction);
             switch (op->_optype) {
             case Operation::OP_INSERT:
+                if (mirror_cursor != nullptr)
+                    WT_ERR(mirror_cursor->insert(mirror_cursor));
                 ret = cursor->insert(cursor);
+                if (mirror_cursor != nullptr)
+                    _wrunner->_mirror_inserts.fetch_add(1, std::memory_order_relaxed);
                 break;
             case Operation::OP_REMOVE:
+                if (mirror_cursor != nullptr) {
+                    int mret = mirror_cursor->remove(mirror_cursor);
+                    if (mret != 0 && mret != WT_NOTFOUND)
+                        WT_ERR(mret);
+                    if (mret == 0)
+                        _wrunner->_mirror_removes.fetch_add(1, std::memory_order_relaxed);
+                }
                 ret = cursor->remove(cursor);
                 if (ret == WT_NOTFOUND)
                     ret = 0;
@@ -1906,6 +2233,13 @@ ThreadRunner::op_run(Operation *op)
                 }
                 break;
             case Operation::OP_UPDATE:
+                if (mirror_cursor != nullptr) {
+                    int mret = mirror_cursor->update(mirror_cursor);
+                    if (mret != 0 && mret != WT_NOTFOUND)
+                        WT_ERR(mret);
+                    if (mret == 0)
+                        _wrunner->_mirror_updates.fetch_add(1, std::memory_order_relaxed);
+                }
                 ret = cursor->update(cursor);
                 if (ret == WT_NOTFOUND)
                     ret = 0;
@@ -1920,6 +2254,8 @@ ThreadRunner::op_run(Operation *op)
                 WT_ERR(ret);
             if (ret == 0)
                 cursor->reset(cursor);
+            if (ret == 0 && mirror_cursor != nullptr)
+                mirror_cursor->reset(mirror_cursor);
             else {
                 /*
                  * We don't retry on a WT_ROLLBACK error when it is a mirrored operation as Workgen
@@ -1936,6 +2272,8 @@ ThreadRunner::op_run(Operation *op)
                 if (_in_transaction) {
                     _in_transaction = false;
                     WT_ERR(_session->rollback_transaction(_session, nullptr));
+                    if (_mirror_session != nullptr)
+                        WT_ERR(_mirror_session->rollback_transaction(_mirror_session, nullptr));
                 }
             }
         } else {
@@ -1991,9 +2329,13 @@ ThreadRunner::op_run(Operation *op)
 err:
     if (own_cursor)
         WT_TRET(cursor->close(cursor));
+    if (own_mirror_cursor)
+        WT_TRET(mirror_cursor->close(mirror_cursor));
     if (op->transaction != nullptr) {
         if (ret != 0 || op->transaction->_rollback) {
             WT_TRET(_session->rollback_transaction(_session, nullptr));
+            if (_mirror_session != nullptr)
+                WT_TRET(_mirror_session->rollback_transaction(_mirror_session, nullptr));
         } else if (_in_transaction) {
             ContextInternal *icontext = _workload->_context->_internal;
             // Set prepare, commit and durable timestamp if prepare is set.
@@ -2010,14 +2352,28 @@ err:
                       "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, time_us, time_us);
                     ret = _session->commit_transaction(_session, buf);
                 }
+                snprintf(buf, BUF_SIZE, "prepare_timestamp=%" PRIx64, prepare_ts);
+                if (_mirror_session != nullptr)
+                    WT_TRET(_mirror_session->prepare_transaction(_mirror_session, buf));
+                ret = _session->prepare_transaction(_session, buf);
+
+                snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64,
+                  prepare_ts, prepare_ts);
+                if (_mirror_session != nullptr)
+                    WT_TRET(_mirror_session->commit_transaction(_mirror_session, buf));
+                ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
                 const std::shared_lock lock(*icontext->_ts_mutex);
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIx64, commit_time_us);
+                if (_mirror_session != nullptr)
+                    WT_TRET(_mirror_session->commit_transaction(_mirror_session, buf));
                 ret = _session->commit_transaction(_session, buf);
             } else {
-                ret =
-                  _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
+                if (_mirror_session != nullptr)
+                    WT_TRET(_mirror_session->commit_transaction(
+                      _mirror_session, op->transaction->_commit_config.c_str()));
+                ret = _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
             }
         }
         if (ret != 0) {
@@ -3174,10 +3530,14 @@ WorkloadOptions::WorkloadOptions()
       run_time(0), sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0),
       sample_rate(1), warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0),
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
-      create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
+      create_interval(0), create_uri_prefix("table:"), create_prefix(""), create_target(0),
+      create_trigger(0), drop_count(0),
       drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
       mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), max_num_files(INT_MAX),
-      _options()
+      approx_payload_bytes_per_insert(0), approx_payload_bytes_per_update(0),
+      mirror_connection(false), mirror_home("follower"), mirror_conn_config("create"),
+      mirror_page_log("palite"), mirror_checkpoint_acquire_interval(0),
+      mirror_table_create_config("key_format=S,value_format=S"), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -3219,6 +3579,8 @@ WorkloadOptions::WorkloadOptions()
       "table creation frequency in seconds. The number of tables created is specified by"
       " the create_count setting");
     _options.add_int("create_count", create_count, "number of tables to create each time interval");
+    _options.add_string("create_uri_prefix", create_uri_prefix,
+      "URI prefix used for dynamically created objects (e.g. \"table:\" or \"layered:\")");
     _options.add_string(
       "create_prefix", create_prefix, "the prefix to prepend to the auto generated table names");
     _options.add_int("create_trigger", create_trigger,
@@ -3242,12 +3604,47 @@ WorkloadOptions::WorkloadOptions()
       "minimum amount of space recoverable for compaction to proceed in MB, 0 to disable.");
     _options.add_int("max_num_files", max_num_files,
       "if specified, maximum number of files that can be present in the database.");
+
+    _options.add_int("approx_payload_bytes_per_insert", approx_payload_bytes_per_insert,
+      "Approximate payload bytes per insert for reporting (0 disables)");
+    _options.add_int("approx_payload_bytes_per_update", approx_payload_bytes_per_update,
+      "Approximate payload bytes per update for reporting (0 disables)");
+
+    _options.add_bool(
+      "mirror_connection", mirror_connection, "mirror write operations to a second connection");
+    _options.add_string("mirror_home", mirror_home, "home directory for the mirror connection");
+    _options.add_string(
+      "mirror_conn_config", mirror_conn_config, "configuration string for the mirror connection");
+    _options.add_string(
+      "mirror_page_log", mirror_page_log, "page_log name used for checkpoint acquisition");
+    _options.add_int("mirror_checkpoint_acquire_interval", mirror_checkpoint_acquire_interval,
+      "seconds between leader checkpoint + follower acquire (0 disables)");
+    _options.add_string("mirror_table_create_config", mirror_table_create_config,
+      "create config used to create tables on the mirror connection");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
-    : max_latency(other.max_latency), report_interval(other.report_interval),
+    : background_compact(other.background_compact), create_count(other.create_count),
+      create_interval(other.create_interval), create_uri_prefix(other.create_uri_prefix),
+      create_prefix(other.create_prefix), create_target(other.create_target),
+      create_trigger(other.create_trigger), drop_count(other.drop_count),
+      drop_interval(other.drop_interval), drop_target(other.drop_target),
+      drop_trigger(other.drop_trigger), max_idle_table_cycle(other.max_idle_table_cycle),
+      max_idle_table_cycle_fatal(other.max_idle_table_cycle_fatal), max_latency(other.max_latency),
+      max_num_files(other.max_num_files), mirror_suffix(other.mirror_suffix),
+      mirror_tables(other.mirror_tables), oldest_timestamp_lag(other.oldest_timestamp_lag),
+      random_table_values(other.random_table_values), report_enabled(other.report_enabled),
+      report_file(other.report_file), report_interval(other.report_interval),
       run_time(other.run_time), sample_interval_ms(other.sample_interval_ms),
-      sample_rate(other.sample_rate), _options(other._options)
+      sample_file(other.sample_file), sample_rate(other.sample_rate),
+      stable_timestamp_lag(other.stable_timestamp_lag), timestamp_advance(other.timestamp_advance),
+      warmup(other.warmup),
+      approx_payload_bytes_per_insert(other.approx_payload_bytes_per_insert),
+      approx_payload_bytes_per_update(other.approx_payload_bytes_per_update),
+      mirror_connection(other.mirror_connection), mirror_home(other.mirror_home),
+      mirror_conn_config(other.mirror_conn_config), mirror_page_log(other.mirror_page_log),
+      mirror_checkpoint_acquire_interval(other.mirror_checkpoint_acquire_interval),
+      mirror_table_create_config(other.mirror_table_create_config), _options(other._options)
 {
 }
 
@@ -3290,7 +3687,8 @@ Workload::run(WT_CONNECTION *conn)
 
 WorkloadRunner::WorkloadRunner(Workload *workload)
     : _workload(workload), _rand_state(nullptr), _trunners(workload->_threads.size()),
-      _report_out(&std::cout), _start(), stopping(false)
+      _report_out(&std::cout), _start(), stopping(false), _mirror_conn(nullptr), _mirror_inserts(0),
+      _mirror_updates(0), _mirror_removes(0)
 {
     ts_clear(_start);
 }
@@ -3327,6 +3725,18 @@ WorkloadRunner::run(WT_CONNECTION *conn)
         _report_out = &report_out;
     }
 
+    if (options->mirror_connection) {
+        const std::string mirror_home =
+          options->mirror_home.empty() ? "follower" : options->mirror_home;
+        std::string mirror_cfg = options->mirror_conn_config;
+        if (mirror_cfg.empty())
+            mirror_cfg = "create";
+        /* Ensure both connections are created/opened equivalently. */
+        if (mirror_cfg.find("create") == std::string::npos)
+            mirror_cfg = "create," + mirror_cfg;
+        WT_ERR(wiredtiger_open(mirror_home.c_str(), nullptr, mirror_cfg.c_str(), &_mirror_conn));
+    }
+
     /* Create a randomizer for the workload before we do anything else. */
     WT_SESSION *session;
     WT_ERR(conn->open_session(conn, nullptr, nullptr, &session));
@@ -3335,10 +3745,33 @@ WorkloadRunner::run(WT_CONNECTION *conn)
 
     /* Initiate everything else, and start the workload. */
     WT_ERR(create_all(conn, _workload->_context));
+
+    /*
+     * If mirroring to a second connection, create all referenced tables on the mirror after we have
+     * discovered the URIs used by this workload. (The mirror connection may have been created with
+     * lose_all_my_data=true, so prior Python-side initialization is not sufficient.)
+     */
+    if (_mirror_conn != nullptr) {
+        WT_SESSION *msession;
+        WT_ERR(_mirror_conn->open_session(_mirror_conn, nullptr, nullptr, &msession));
+        for (const auto &kv : _workload->_context->_internal->_tint) {
+            const std::string &uri = kv.first;
+            int cr = msession->create(msession, uri.c_str(),
+              _workload->options.mirror_table_create_config.c_str());
+            if (cr != 0 && cr != EEXIST)
+                WT_ERR(cr);
+        }
+        WT_ERR(msession->close(msession, nullptr));
+    }
+
     WT_ERR(open_all());
     WT_ERR(ThreadRunner::cross_check(_trunners));
     WT_ERR(run_all(conn));
 err:
+    if (_mirror_conn != nullptr) {
+        WT_TRET(_mirror_conn->close(_mirror_conn, nullptr));
+        _mirror_conn = nullptr;
+    }
     // TODO: (void)close_all();
     _report_out = &std::cout;
     return (ret);
@@ -3418,7 +3851,28 @@ WorkloadRunner::report(time_t interval, time_t totalsecs, Stats *prev_totals)
     Stats diff(new_totals);
     diff.subtract(*prev_totals);
     prev_totals->assign(new_totals);
+    out << workgen_elapsed_prefix();
     diff.report(out);
+    if (_workload->options.approx_payload_bytes_per_insert > 0 ||
+      _workload->options.approx_payload_bytes_per_update > 0) {
+        uint64_t bytes = 0;
+        bytes += diff.insert.ops * (uint64_t)_workload->options.approx_payload_bytes_per_insert;
+        bytes += diff.update.ops * (uint64_t)_workload->options.approx_payload_bytes_per_update;
+        out << ", approx_payload_bytes_written=" << bytes;
+        if (interval > 0)
+            out << " (" << (bytes / (uint64_t)interval) << " B/s)";
+    }
+    if (_workload->options.mirror_connection) {
+        static uint64_t last_mi = 0, last_mu = 0, last_mr = 0;
+        uint64_t mi = _mirror_inserts.load(std::memory_order_relaxed);
+        uint64_t mu = _mirror_updates.load(std::memory_order_relaxed);
+        uint64_t mr = _mirror_removes.load(std::memory_order_relaxed);
+        out << ", follower_mirror_ops=" << "ins " << (mi - last_mi) << " upd " << (mu - last_mu)
+            << " rem " << (mr - last_mr);
+        last_mi = mi;
+        last_mu = mu;
+        last_mr = mr;
+    }
     out << " in " << interval << " secs (" << totalsecs << " total secs)" << std::endl;
 }
 
@@ -3509,6 +3963,22 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
             std::cerr << "pthread_create failed err=" << ret << std::endl;
             delete runnerConnection;
             runnerConnection = nullptr;
+            stopping = true;
+        }
+    }
+
+    // Start leader checkpoint + follower acquire thread (mirror_connection only).
+    pthread_t ckpt_thandle;
+    WorkloadRunnerConnection *ckptConnection = nullptr;
+    if (!stopping && _mirror_conn != nullptr && options->mirror_checkpoint_acquire_interval > 0) {
+        ckptConnection = new WorkloadRunnerConnection();
+        ckptConnection->runner = this;
+        ckptConnection->connection = conn;
+        if ((ret = pthread_create(
+               &ckpt_thandle, nullptr, thread_checkpoint_acquire_workload, ckptConnection)) != 0) {
+            std::cerr << "pthread_create failed err=" << ret << std::endl;
+            delete ckptConnection;
+            ckptConnection = nullptr;
             stopping = true;
         }
     }
@@ -3615,6 +4085,7 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     }
 
     timespec end, now;
+    bool ran_main_timed_section = false;
 
     /* Don't run the test if any of the above pthread_create fails. */
     if (!stopping && ret == 0) {
@@ -3630,6 +4101,14 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         }
 
         workgen_epoch(&_start);
+        workgen_elapsed_reset();
+        /*
+         * Emit a single anchor line so downstream trace parsers can align WiredTiger verbose
+         * lines (wall-clock timestamps) with workgen's elapsed-time prefix on one time axis.
+         */
+        std::cerr << workgen_elapsed_prefix()
+                  << "trace_epoch: wall_sec=" << _start.tv_sec
+                  << " wall_nsec=" << _start.tv_nsec << std::endl;
         end = _start + options->run_time;
         timespec next_report = _start + options->report_interval;
 
@@ -3637,6 +4116,7 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         // when a registered signal is received.
         Stats curstats(false);
         now = _start;
+        ran_main_timed_section = true;
         while (now < end && !signal_raised) {
             timespec sleep_amt;
 
@@ -3682,10 +4162,17 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
             exception = &_trunners[i]._exception;
     }
 
-    // Wait for the time increment thread
+    // Wait for the time increment thread.
     if (runnerConnection != nullptr) {
+        stop_timestamp_thread = true;
         WT_TRET(pthread_join(time_thandle, &status));
         delete runnerConnection;
+    }
+
+    // Wait for the checkpoint acquire thread.
+    if (ckptConnection != nullptr) {
+        WT_TRET(pthread_join(ckpt_thandle, &status));
+        delete ckptConnection;
     }
 
     // Wait for the idle table cycle thread.
@@ -3722,7 +4209,11 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     // Issue the final report.
     std::ostream &out = *_report_out;
     if (options->report_enabled) {
-        timespec runsecs = end - _start;
+        timespec runsecs;
+        if (ran_main_timed_section)
+            runsecs = end - _start;
+        else
+            ts_clear(runsecs);
         timespec totalsecs = now - _start;
         final_report(runsecs, totalsecs);
     }

@@ -119,6 +119,7 @@ InterruptableFunction(workgen::Workload::run)
 %module workgen
 /* Parse the header to generate wrappers. */
 %include "workgen.h"
+/* Keep this file in sync with workgen.h changes. */
 
 %template(OpList) std::vector<workgen::Operation>;
 %template(ThreadList) std::vector<workgen::Thread>;
