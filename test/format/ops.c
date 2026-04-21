@@ -896,12 +896,8 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             /*
              * Don't set positioned: it's unchanged from the previous state, but not necessarily
              * set.
-             *
-             * Skip snap tracking for predictable replay removes: the tombstone is at commit_ts
-             * (replay_ts) which is above read_ts, so the key is not visibly deleted at read_ts.
              */
-            if (!GV(RUNS_PREDICTABLE_REPLAY))
-                SNAP_TRACK(tinfo, REMOVE);
+            SNAP_TRACK(tinfo, REMOVE);
         } else
             OP_FAILED(true);
         break;

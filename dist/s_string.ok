@@ -1365,7 +1365,6 @@ nop
 nopos
 nops
 noraw
-notfound
 nothex
 notransaction
 notsup
@@ -1714,7 +1713,6 @@ tIf
 tV
 tabconfig
 tablename
-tbl
 tc
 tcmalloc
 td
