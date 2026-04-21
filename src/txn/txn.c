@@ -95,8 +95,11 @@ __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapsh
 
     txn = session->txn;
 
-    WT_ASSERT_ALWAYS(session, txn->snapshot_data.snapshot != NULL, "Snapshot data must be allocated before importing a snapshot");
-    WT_ASSERT_ALWAYS(session, snapshot->snapshot_count <= (uint32_t)S2C(session)->session_array.size, "Snapshot count exceeds session array size");
+    WT_ASSERT_ALWAYS(session, txn->snapshot_data.snapshot != NULL,
+      "Snapshot data must be allocated before importing a snapshot");
+    WT_ASSERT_ALWAYS(session,
+      snapshot->snapshot_count <= (uint32_t)S2C(session)->session_array.size,
+      "Snapshot count exceeds session array size");
 
     txn->snapshot_data.snapshot_count = snapshot->snapshot_count;
     txn->snapshot_data.snap_max = snapshot->snap_max;
