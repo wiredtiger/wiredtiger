@@ -1198,10 +1198,10 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
          *   newest_stop_durable_ts  <- newest_durable_ts  (over-estimate; safe for RTS)
          *
          * We must NOT write newest_page_stop_durable_ts as newest_stop_durable_ts because the old
-         * field tracked the max durable timestamp of any delete, whereas the new field is WT_TS_NONE
-         * for pages with partial deletes. An older WT using WT_MAX(newest_start_durable_ts,
-         * newest_stop_durable_ts) for RTS would incorrectly skip rollback on partially-deleted
-         * tables if we wrote WT_TS_NONE there.
+         * field tracked the max durable timestamp of any delete, whereas the new field is
+         * WT_TS_NONE for pages with partial deletes. An older WT using
+         * WT_MAX(newest_start_durable_ts, newest_stop_durable_ts) for RTS would incorrectly skip
+         * rollback on partially-deleted tables if we wrote WT_TS_NONE there.
          */
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
