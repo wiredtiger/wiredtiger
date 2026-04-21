@@ -32,17 +32,10 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_layered97.py
-#
-# Regression test for a follower's write path on a layered cursor. An
-# insert or update on a cursor configured with overwrite=true (the default)
-# does not need to consult the stable constituent, so it should only open
-# the ingest cursor. With overwrite=false, the write path does need to look
-# the key up in both constituents and must therefore open the stable cursor.
-#
-# The test observes this through the connection-level open-cursor count:
-# an overwrite=true insert or update opens exactly one new cursor (ingest),
-# while an overwrite=false insert opens at least two (ingest and stable).
-
+#   On a follower, insert/update on a layered cursor should only open the
+#   stable constituent when overwrite=false: with overwrite=true (the
+#   default) the write path skips the layered lookup and should open the
+#   ingest cursor only.
 @disagg_test_class
 class test_layered97(wttest.WiredTigerTestCase):
 
@@ -70,18 +63,17 @@ class test_layered97(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    # Perform an operation while measuring how many cursor opens it triggered
-    # on the follower connection. The statistics cursor itself is opened and
-    # closed around the operation, so its own lifetime does not contribute to
-    # the delta.
+    # Return the number of cursor opens triggered on the follower connection
+    # by running op. The stats cursor is opened and closed outside op, so
+    # its lifetime does not contribute to the delta.
     def measure_cursor_opens(self, op):
         before = self.get_conn_stat(self.session_follow, stat.conn.cursor_open_count)
         op()
         after = self.get_conn_stat(self.session_follow, stat.conn.cursor_open_count)
         return after - before
 
-    # Seed the leader with a key, checkpoint, and let the follower ingest the
-    # checkpoint so that the stable btree exists on the follower.
+    # Write a key on the leader, checkpoint, and have the follower pick it
+    # up so that the stable btree exists on the follower.
     def seed_leader_and_advance_follower(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
@@ -96,10 +88,8 @@ class test_layered97(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-    # --------------------------------------------------------------------------
     # An insert on a follower with overwrite=true (the default) should open
     # the ingest cursor only, leaving the stable constituent untouched.
-    # --------------------------------------------------------------------------
     def test_follower_insert_overwrite_does_not_open_stable(self):
         self.seed_leader_and_advance_follower()
 
@@ -119,18 +109,13 @@ class test_layered97(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # --------------------------------------------------------------------------
     # An update on a follower with overwrite=true (the default) should open
     # the ingest cursor only, leaving the stable constituent untouched.
-    # --------------------------------------------------------------------------
     def test_follower_update_overwrite_does_not_open_stable(self):
         self.seed_leader_and_advance_follower()
 
-        # Prime the ingest table with the key we intend to update. This uses
-        # a dedicated cursor that we close before measuring the update. The
-        # priming insert also goes through the overwrite=true path, so it
-        # does not open stable either -- but we still close the cursor to
-        # ensure the measured update() stands alone.
+        # Prime the ingest table with the key we intend to update, using a
+        # dedicated cursor that is closed before the measurement.
         primer = self.session_follow.open_cursor(self.uri)
         self.session_follow.begin_transaction()
         primer['k1'] = 'v1'
@@ -156,12 +141,9 @@ class test_layered97(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # --------------------------------------------------------------------------
-    # Sanity check for the opposite case: an insert on a follower with
-    # overwrite=false must look the key up across both constituents, so the
-    # stable cursor is expected to be opened. This guards against a
-    # regression that silently drops the stable-side lookup.
-    # --------------------------------------------------------------------------
+    # Sanity check: an insert of a non-existent key with overwrite=false
+    # runs a layered lookup and must open the stable cursor. Guards against
+    # a regression that silently drops the stable-side lookup.
     def test_follower_insert_no_overwrite_opens_stable(self):
         self.seed_leader_and_advance_follower()
 
@@ -182,13 +164,10 @@ class test_layered97(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # --------------------------------------------------------------------------
-    # Sanity check mirror of the update case: an update on a follower with
-    # overwrite=false must look the key up across both constituents before
-    # applying the update, so the stable cursor is expected to be opened.
-    # The target key lives in the stable constituent (from the ingested
-    # checkpoint), so the lookup genuinely has to consult stable.
-    # --------------------------------------------------------------------------
+    # Sanity check mirror for update: an update with overwrite=false runs a
+    # layered lookup and must open the stable cursor. The target key here
+    # lives only in stable (ingested via checkpoint from the leader), so
+    # the lookup has to fall through to stable rather than short-circuit.
     def test_follower_update_no_overwrite_opens_stable(self):
         self.seed_leader_and_advance_follower()
 
