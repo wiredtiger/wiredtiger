@@ -74,7 +74,7 @@ def _parse_threads(arg):
     return threads
 
 class ParallelCheckpointHookCreator(wthooks.WiredTigerHookCreator):
-    def __init__(self, arg=0):
+    def __init__(self, arg=None):
         self.threads = _parse_threads(arg)
         self.platform_api = wthooks.DefaultPlatformAPI()
 
