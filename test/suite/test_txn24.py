@@ -162,4 +162,5 @@ class test_txn24(wttest.WiredTigerTestCase):
         # we should see a log message about the oldest id being pinned.
         self.session.commit_transaction()
         session3.checkpoint()
+        self.captureout.checkAdditionalPattern(self, r"oldest id .* pinned in session")
         session2.commit_transaction()
