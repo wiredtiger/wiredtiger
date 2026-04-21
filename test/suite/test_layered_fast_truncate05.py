@@ -124,7 +124,7 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
         # Update 200-400 on follower so those keys are live in ingest, then
         # truncate a range covering them. No random sample should leak.
         self.setup_follower()
-        
+
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(200, 401):
