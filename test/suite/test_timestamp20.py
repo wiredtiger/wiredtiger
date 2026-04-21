@@ -34,6 +34,10 @@ from wtscenario import make_scenarios
 class test_timestamp20(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
+
     format_values = [
         ('string-row', dict(key_format='S', value_format='S')),
         ('column', dict(key_format='r', value_format='S')),
