@@ -2895,6 +2895,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           unit_test_parallel_ignore: test/suite/tsan.fail
           unit_test_parallel_args: -v 2 --timeout 300 --hook "parallel_checkpoint"
