@@ -3086,7 +3086,7 @@ struct __wt_connection {
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
  * @config{checkpoint_threads, the number of checkpoint threads for syncing tables in parallel
- * during checkpoints., an integer greater than or equal to \c 1; default \c 4.}
+ * during checkpoints., an integer greater than or equal to \c 1; default \c 1.}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of
  * related configuration options defined as follows.}
