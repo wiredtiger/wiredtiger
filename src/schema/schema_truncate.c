@@ -201,30 +201,17 @@ __layered_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR *local_stop;
     WT_DECL_RET;
     WT_ITEM local_start_key, local_stop_key;
-    WT_ITEM *saved_orig_start_key, *saved_orig_stop_key;
     WT_SESSION_IMPL *session;
-    uint32_t saved_flags;
 
     session = trunc_info->session;
     local_stop = NULL;
     WT_CLEAR(local_start_key);
     WT_CLEAR(local_stop_key);
-    saved_orig_start_key = trunc_info->orig_start_key;
-    saved_orig_stop_key = trunc_info->orig_stop_key;
-    saved_flags = trunc_info->flags;
 
     WT_ERR(__cursor_needkey(trunc_info->start));
 
-    /*
-     * The session layer already positioned a local start cursor at the first visible key
-     * when the caller passed a NULL start; copy that key. For a NULL stop we open a cursor
-     * here and prev from unpositioned to find the last visible key.
-     *
-     * local_start_key / local_stop_key borrow their data pointers from their cursors'
-     * internal buffers (via __wt_cursor_get_raw_key). __wt_insert_truncate_entry copies
-     * the bytes out before we close the cursors in the err block, so the borrowed pointers
-     * do not outlive their backing buffers.
-     */
+    /* Truncate-list entries are bounded on both sides. Resolve any NULL start/stop
+     * to the table's first/last visible key. */
     if (trunc_info->orig_start_key == NULL) {
         WT_ERR(__wt_cursor_get_raw_key(trunc_info->start, &local_start_key));
         trunc_info->orig_start_key = &local_start_key;
@@ -236,18 +223,20 @@ __layered_range_truncate(WT_TRUNCATE_INFO *trunc_info)
         WT_ERR(__wt_cursor_get_raw_key(local_stop, &local_stop_key));
         trunc_info->stop = local_stop;
         trunc_info->orig_stop_key = &local_stop_key;
-        F_SET(trunc_info, WT_TRUNC_EXPLICIT_STOP);
     } else
         WT_ERR(__cursor_needkey(trunc_info->stop));
 
+    /* The resolved keys share memory with their backing cursors; the list entry
+     * takes its own copy before the cursors close below. */
     ret = __wt_layered_truncate(trunc_info);
 
 err:
-    trunc_info->orig_start_key = saved_orig_start_key;
-    trunc_info->orig_stop_key = saved_orig_stop_key;
-    trunc_info->flags = saved_flags;
+    /* trunc_info is shared with the caller — clear local pointers we added. */
+    if (trunc_info->orig_start_key == &local_start_key)
+        trunc_info->orig_start_key = NULL;
     if (local_stop != NULL) {
         trunc_info->stop = NULL;
+        trunc_info->orig_stop_key = NULL;
         WT_TRET(local_stop->close(local_stop));
     }
     return (ret);

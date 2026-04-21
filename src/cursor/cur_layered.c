@@ -844,8 +844,7 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
      */
     if (S2C(session)->layered_table_manager.leader) {
         trunc_info->start = clayered_start->stable_cursor;
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
-            trunc_info->stop = clayered_stop->stable_cursor;
+        trunc_info->stop = clayered_stop->stable_cursor;
         WT_WITH_BTREE(
           session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
         WT_RET(ret);
