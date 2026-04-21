@@ -53,8 +53,8 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
  *     calling session's own hazard pointer. Called after reconciliation completes under
  *     hazard-pointer-only protection.
  *
- * On success, the ref is LOCKED, the caller's hazard pointer is cleared, and hazard_clearedp is set
- *     to true. The caller must then check other sessions' hazard pointers and perform the dirty-gap
+ * On success, the ref is LOCKED, the caller's hazard pointer is cleared, and *acquiredp is set to
+ *     true. The caller must then check other sessions' hazard pointers and perform the dirty-gap
  *     check before proceeding with swap-out.
  *
  * On CAS failure (EBUSY), the ref state is unchanged and the caller's hazard pointer is still set;
@@ -62,9 +62,9 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
  */
 static int
 __evict_acquire_exclusive(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, bool *hazard_clearedp)
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, bool *acquiredp)
 {
-    *hazard_clearedp = false;
+    *acquiredp = false;
 
     /*
      * Atomically claim exclusive ownership of the ref. If this fails, another thread changed the
@@ -80,7 +80,7 @@ __evict_acquire_exclusive(
      * hazard pointer — we are now protected by the exclusive state and no longer need it.
      */
     WT_RET(__wt_hazard_clear(session, ref));
-    *hazard_clearedp = true;
+    *acquiredp = true;
 
     return (0);
 }
@@ -362,6 +362,16 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
  */
 #define WT_EVICT_HP_COOLDOWN_PASSES 2
 
+/*
+ * Maximum number of times the pre-phase-1 hazard gate defers eviction (cooldown) before falling
+ * back to single-phase. For the first WT_EVICT_HP_GATE_RETRY_LIMIT attempts where the gate finds
+ * an HP, we apply a cooldown and return EBUSY rather than falling to single-phase. Single-phase
+ * reconciles under WT_REF_LOCKED, blocking active readers for the entire reconcile duration; a
+ * short cooldown is cheaper when the HP is from a transient reader. After this many deferrals the
+ * HP is considered persistent and single-phase is used to guarantee eventual eviction.
+ */
+#define WT_EVICT_HP_GATE_RETRY_LIMIT 3
+
 /* !!!
  * __wt_evict --
  *     Evict a page from memory by taking exclusive access to the page.
@@ -387,18 +397,16 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t page_size;
-    uint32_t pg_state;
     uint8_t stats_flags;
-    bool evict_clean, closing, dirty_gap, ebusy_only, hazard_cleared_by_acquire, hazard_set;
-    bool inmem_split, is_dirty, tree_dead, two_phase;
+    bool acquired, app_thread_assist, closing, ebusy_only, evict_clean, inmem_split;
+    bool is_dirty, tree_dead, two_phase;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    evict_clean = dirty_gap = ebusy_only = hazard_cleared_by_acquire = hazard_set = is_dirty =
-      false;
-    pg_state = WT_PAGE_CLEAN;
+    acquired = ebusy_only = evict_clean = is_dirty = false;
+    app_thread_assist = !F_ISSET(session, WT_SESSION_INTERNAL) && !LF_ISSET(WT_EVICT_CALL_URGENT);
 
     /*
      * When RTS is active, skip phase-1 reconciliation entirely and defer all reconciliation to
@@ -468,8 +476,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      *
      */
     if (!closing) {
-        hazard_set = true;
-
         /*
          * Confirm the ref state hasn't changed since the caller sampled it. A concurrent split or
          * another eviction thread could have changed it.
@@ -517,10 +523,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * matching what the normal eviction path does after phase-2 CAS.
          */
         if (!closing) {
-            WT_ERR(
-              __evict_acquire_exclusive(session, ref, previous_state, &hazard_cleared_by_acquire));
-            if (hazard_cleared_by_acquire)
-                hazard_set = false;
+            WT_ERR(__evict_acquire_exclusive(session, ref, previous_state, &acquired));
 
             /*
              * Check for hazard pointers from other sessions before calling __wt_split_insert.
@@ -548,10 +551,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     /*
      * Pre-phase-1 hazard gate: if another session already holds a hazard pointer on this page,
-     * phase-2 will fail immediately after the expensive phase-1 reconcile completes. Avoid that
-     * wasted work by falling back to single-phase now. Under single-phase the CAS to LOCKED happens
-     * first, which blocks new hazard-pointer acquisitions; the phase-2 hazard check then races only
-     * against pointers published before the CAS, which drain quickly.
+     * phase-2 may fail after the expensive phase-1 reconcile completes. Avoid wasted work where
+     * possible.
      *
      * Run this check on every attempt, including the first. Under high-concurrency write workloads
      * (bulk insert, find-one-and-update) app threads hold hazard pointers during B-tree traversal
@@ -562,9 +563,52 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * write-ticket exhaustion in 78% of samples for insert workloads. __wt_hazard_check scans all
      * sessions' hazard arrays but is cheap in practice (a few entries per call); the cost of one
      * pre-check is negligible compared to a wasted page reconcile.
+     *
+     * Background eviction workers: on the first WT_EVICT_HP_GATE_RETRY_LIMIT-1 gate firings,
+     * prefer a cooldown over single-phase. Single-phase reconciles under WT_REF_LOCKED, blocking
+     * all readers for the full reconcile duration. A short cooldown is cheaper: the HP is often
+     * from a transient reader that will release within WT_EVICT_HP_COOLDOWN_PASSES passes, after
+     * which the walk re-queues the page for two-phase eviction without reader interference. After
+     * WT_EVICT_HP_GATE_RETRY_LIMIT deferrals the HP is treated as persistent and single-phase is
+     * used to guarantee eventual eviction.
+     *
+     * App-thread assist eviction: do NOT fall back to single-phase here. The HP gate fires at a
+     * point-in-time snapshot; in read-heavy workloads the HP is often from a transient reader that
+     * will release well before phase-1 reconcile completes. Falling to single-phase blocks all
+     * concurrent readers for the full reconcile duration, directly inflating read latency. Instead,
+     * proceed with two-phase; phase-2 will bail immediately (app_thread_assist) if the HP persists
+     * and increment evict_hp_gate_count. Once that counter reaches WT_EVICT_HP_GATE_RETRY_LIMIT
+     * the HP is treated as persistent and single-phase is used to guarantee eventual eviction.
+     *
+     * Urgent eviction bypasses the cooldown to avoid cache-pressure livelock.
      */
-    if (two_phase && __wt_hazard_check(session, ref, NULL) != NULL)
-        two_phase = false;
+    if (two_phase && __wt_hazard_check(session, ref, NULL) != NULL) {
+        if (app_thread_assist) {
+            /*
+             * App-thread assist: proceed with two-phase unless the gate has fired
+             * WT_EVICT_HP_GATE_RETRY_LIMIT times already, in which case fall to single-phase to
+             * guarantee eventual eviction for a persistent hazard pointer.
+             */
+            if (page->evict_hp_gate_count >= WT_EVICT_HP_GATE_RETRY_LIMIT)
+                two_phase = false;
+        } else if (page->evict_hp_gate_count < WT_EVICT_HP_GATE_RETRY_LIMIT) {
+            ++page->evict_hp_gate_count;
+            /*
+             * Clear WT_PAGE_EVICT_LRU so the walk can re-queue this page once the cooldown
+             * expires. The queue slot was consumed when the worker called __evict_get_ref; the
+             * flag is the only remaining marker that keeps the walk from re-queuing.
+             */
+            F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU);
+            __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
+              __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
+                WT_EVICT_HP_COOLDOWN_PASSES);
+            __wti_evict_read_gen_bump(session, page);
+            ret = __wt_set_return(session, EBUSY);
+            goto err;
+        } else {
+            two_phase = false;
+        }
+    }
 
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
@@ -655,9 +699,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * EBUSY.
      */
     if (!closing) {
-        WT_ERR(__evict_acquire_exclusive(session, ref, previous_state, &hazard_cleared_by_acquire));
-        if (hazard_cleared_by_acquire)
-            hazard_set = false;
+        WT_ERR(__evict_acquire_exclusive(session, ref, previous_state, &acquired));
 
         /*
          * Mark the page as being in Phase-2. This is a guard for __evict_push_candidate: after this
@@ -710,12 +752,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         for (uint32_t haz_spin = 0; __wt_hazard_check(session, ref, NULL) != NULL; ++haz_spin) {
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
 
-            bool app_thread_bail =
-              !F_ISSET(session, WT_SESSION_INTERNAL) && !LF_ISSET(WT_EVICT_CALL_URGENT);
-            bool cap_out = haz_spin > WT_THOUSAND || app_thread_bail;
-            if (cap_out) {
-                if (app_thread_bail)
+            if (haz_spin > WT_THOUSAND || app_thread_assist) {
+                if (app_thread_assist) {
+                    /*
+                     * Track phase-2 HP bails so the pre-phase-1 gate switches to single-phase once
+                     * the HP is deemed persistent.
+                     */
+                    ++page->evict_hp_gate_count;
                     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard_app_thread);
+                }
                 if (LF_ISSET(WT_EVICT_CALL_URGENT) && is_dirty)
                     __wt_evict_page_soon(session, ref);
                 else {
@@ -864,16 +909,16 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                  * Internal pages and GC leaf pages are reconciled in the branches above; this
                  * dirty-gap check only runs for regular leaf pages reconciled in phase-1.
                  */
-                pg_state = page->modify != NULL ?
+                uint32_t pg_state = page->modify != NULL ?
                   __wt_atomic_load_uint32_acquire(&page->modify->page_state) :
                   WT_PAGE_CLEAN;
+                bool dirty_gap = false;
                 if (!is_dirty)
                     dirty_gap = (pg_state != WT_PAGE_CLEAN);
                 else if (pg_state > WT_PAGE_DIRTY_FIRST)
                     dirty_gap = true;
                 else if (pg_state == WT_PAGE_DIRTY_FIRST)
-                    /* Use rec_leave_dirty to distinguish leave_dirty from post-CAS single writer.
-                     */
+                    /* Use rec_leave_dirty to distinguish leave_dirty from post-CAS single writer. */
                     dirty_gap = (page->modify != NULL && !page->modify->rec_leave_dirty);
 
                 if (dirty_gap) {
@@ -940,34 +985,28 @@ err:
         /*
          * Restore the ref state. We hold WT_REF_LOCKED in exactly two cases:
          *   (a) closing path: the tree is exclusively locked so the CAS at entry always succeeds.
-         *   (b) non-closing path: __evict_acquire_exclusive succeeded (hazard_cleared_by_acquire).
-         * In all other non-closing failure paths (hazard set failed, state changed, review failed
-         * before phase-2 CAS) the ref is still WT_REF_MEM and must NOT be unlocked here.
+         *   (b) non-closing path: __evict_acquire_exclusive succeeded (acquired == true).
+         * In all other non-closing failure paths (state changed, review failed before phase-2 CAS)
+         * the ref is still WT_REF_MEM and must NOT be unlocked here.
+         *
+         * Clear the Phase-2 guard flag before restoring the ref state. WT_PAGE_EVICT_PHASE2 is set
+         * at the start of the normal phase-2 block. If we fail inside that block (e.g., EBUSY from
+         * the hazard check), the page goes back to WT_REF_MEM and must be eligible for future
+         * eviction. In the inmem_split path, acquired is also true but PHASE2 is never set; the CLR
+         * is a no-op in that case and is safe.
          */
-        if (closing || hazard_cleared_by_acquire) {
-            /*
-             * Clear the Phase-2 guard flag before restoring the ref state. WT_PAGE_EVICT_PHASE2 is
-             * set at the start of the normal phase-2 block below. If we are here because of a
-             * failure in that block (e.g., EBUSY from the hazard check), the page goes back to
-             * WT_REF_MEM and must be eligible for future eviction. Clear PHASE2 first to ensure
-             * walk threads can queue it again.
-             *
-             * In the inmem_split path, __evict_acquire_exclusive also sets
-             * hazard_cleared_by_acquire but WT_PAGE_EVICT_PHASE2 is never set. The CLR below is a
-             * no-op in that case and is safe.
-             */
-            if (hazard_cleared_by_acquire)
-                F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_PHASE2);
+        if (acquired)
+            F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_PHASE2);
+        if (closing || acquired)
             __evict_exclusive_clear(session, ref, previous_state);
-        }
 
         if (ebusy_only && ret != EBUSY)
             WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
     }
 
 done:
-    /* Clear phase-1 hazard pointer if we still hold it (phase-1 failure or CAS failure path). */
-    if (hazard_set)
+    /* On the non-closing path, clear our hazard pointer if phase-2 never claimed exclusive access. */
+    if (!closing && !acquired)
         WT_IGNORE_RET(__wt_hazard_clear(session, ref));
 
     if (ret == 0)

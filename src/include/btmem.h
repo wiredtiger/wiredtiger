@@ -813,10 +813,15 @@ struct __wt_page {
                                        reconcile is discarded (dirty-gap detected in phase-2, or
                                        RTS-active EBUSY from phase-1). Controls two-phase fallback
                                        to single-phase for write-hot pages. */
+    uint16_t evict_hp_gate_count;   /* HP failure count used to gate single-phase fallback. For
+                                       background workers, incremented at the pre-phase-1 gate on
+                                       each cooldown deferral. For app-thread assist, incremented on
+                                       each phase-2 HP bail. Once the count reaches
+                                       WT_EVICT_HP_GATE_RETRY_LIMIT, the HP is treated as persistent
+                                       and single-phase is used to guarantee eventual eviction. */
     uint16_t evict_page_attempts;   /* Number of times eviction tries to evict a page */
     uint16_t evict_queue_attempts;  /* Number of times eviction tries to queue a page for eviction
                                        but fails */
-    /* 1 uint16_t hole expected. */
 
     WT_PAGE_DISAGG_INFO *disagg_info;
 
