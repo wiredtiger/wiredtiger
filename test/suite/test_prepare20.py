@@ -199,10 +199,6 @@ class test_prepare20(wttest.WiredTigerTestCase):
     # Now the test.
 
     def test_prepare20(self):
-        # simulate_crash_restart can capture the log mid-write, producing a
-        # partial record that recovery salvages with a WT_VERB_LOG NOTICE.
-        self.ignoreStdoutPatternIfExists('WT_VERB_LOG')
-
         data_uri = 'file:prepare20data'
         log_uri = 'file:prepare20log'
 
@@ -267,6 +263,8 @@ class test_prepare20(wttest.WiredTigerTestCase):
 
         # Now crash.
         simulate_crash_restart(self, ".", "RESTART")
+        # Recovery may emit a WT_VERB_LOG NOTICE when salvaging a partial log tail.
+        self.ignoreStdoutPatternIfExists('WT_VERB_LOG')
         dcursor = self.session.open_cursor(data_uri)
         self.log_open(log_uri)
 
