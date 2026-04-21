@@ -1747,7 +1747,7 @@ __session_truncate(
         else
             /* Wait for checkpoints to avoid EBUSY errors. */
             WT_WITH_CHECKPOINT_LOCK(session,
-              WT_WITH_SCHEMA_READ_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
+              WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_truncate(session, uri, cfg)));
     } else
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
@@ -1810,7 +1810,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_READ_LOCK(session,
+      WT_WITH_SCHEMA_WRITE_LOCK(session,
         ret = __wt_schema_worker(
           session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
     WT_ERR(ret);

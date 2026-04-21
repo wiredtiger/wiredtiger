@@ -508,7 +508,7 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
      * Find the types of data sources being compacted. This could involve opening indexes for a
      * table, so acquire the table lock in write mode.
      */
-    WT_WITH_SCHEMA_READ_LOCK(session,
+    WT_WITH_SCHEMA_WRITE_LOCK(session,
       WT_WITH_TABLE_WRITE_LOCK(session,
         ret = __wt_schema_worker(
           session, uri, __compact_handle_append, __compact_uri_analyze, cfg, 0)));

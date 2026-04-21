@@ -176,7 +176,7 @@ __wt_cursor_prepared_discover_open(WT_SESSION_IMPL *session, const char *uri, WT
      * schema lock, we need a consistent view of the metadata when scanning for prepared artifacts.
      */
     WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_READ_LOCK(
+      WT_WITH_SCHEMA_WRITE_LOCK(
         session, ret = __cursor_prepared_discover_setup(session, cursor_prepare)));
     WT_ERR(ret);
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
