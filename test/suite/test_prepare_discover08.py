@@ -27,9 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare_discover08.py
-#   After reopening as a follower, "prepared_discover:" must discover and
-#   allow claims of on-disk prepared transactions even when no cursor has
-#   yet been opened on the layered table on the new connection.
+#   After reopening the connection, "prepared_discover:" must discover and
+#   allow claims of the persisted prepared transaction even when no cursor
+#   has yet been opened on the layered table on the new connection. Exercised
+#   for both roles the connection can come back as.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -40,8 +41,12 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
     tablename = 'test_prepare_discover08'
     uri = 'layered:' + tablename
 
+    role_scenarios = [
+        ('standby', dict(reopen_role='follower')),
+        ('primary', dict(reopen_role='leader')),
+    ]
     disagg_storages = gen_disagg_storages('test_prepare_discover08', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, role_scenarios)
 
     conn_base_config = ('cache_size=10MB,statistics=(all),'
                         'precise_checkpoint=true,preserve_prepared=true,')
@@ -82,18 +87,20 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-        # Capture checkpoint metadata while the leader connection is still open,
-        # then reopen as a follower that picks up that checkpoint.
+        # Capture checkpoint metadata while the original leader connection is
+        # still open, then reopen in the role this scenario targets.
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
-        follower_config = (self.conn_base_config +
-                           'disaggregated=(role="follower",'
-                           f'checkpoint_meta="{checkpoint_meta}")')
-        self.reopen_conn(config=follower_config)
+        if self.reopen_role == 'follower':
+            reopen_config = (self.conn_base_config +
+                             'disaggregated=(role="follower",'
+                             f'checkpoint_meta="{checkpoint_meta}")')
+        else:
+            reopen_config = self.conn_base_config + 'disaggregated=(role="leader")'
+        self.reopen_conn(config=reopen_config)
 
         # Opening "prepared_discover:" must work as the first cursor on the
-        # reopened connection — prior to this test, successful discovery on a
-        # follower relied on the caller having already opened a cursor on the
-        # layered table.
+        # reopened connection — successful discovery must not depend on a
+        # prior cursor having been opened on the layered table.
         prepared_discover_cursor = self.session.open_cursor('prepared_discover:')
 
         claim_session = self.conn.open_session()
