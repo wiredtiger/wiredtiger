@@ -9,8 +9,8 @@
 #include "wt_internal.h"
 
 typedef enum {
-    WT_TRUNCATE_SEARCH_COMMITTED,
-    WT_TRUNCATE_SEARCH_UNCOMMITTED
+    WT_TRUNCATE_SEARCH_VISIBLE,
+    WT_TRUNCATE_SEARCH_NOT_VISIBLE
 } WT_TRUNCATE_SEARCH_MODE;
 
 /*
@@ -161,16 +161,16 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
     *is_foundp = false;
 
     WT_ASSERT(
-      session, mode == WT_TRUNCATE_SEARCH_COMMITTED || mode == WT_TRUNCATE_SEARCH_UNCOMMITTED);
+      session, mode == WT_TRUNCATE_SEARCH_VISIBLE || mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE);
 
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
-        const bool is_committed =
+        const bool is_visible =
           __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
 
-        if (mode == WT_TRUNCATE_SEARCH_COMMITTED && !is_committed)
+        if (mode == WT_TRUNCATE_SEARCH_VISIBLE && !is_visible)
             continue;
 
-        if (mode == WT_TRUNCATE_SEARCH_UNCOMMITTED && is_committed)
+        if (mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE && is_visible)
             continue;
 
         WT_RET(__key_within_truncate_range(
@@ -213,7 +213,7 @@ __wt_layered_table_truncate_detect_write_conflict(
      * ignore these entries.
      */
     ret = __truncate_search(
-      session, layered_table, key, WT_TRUNCATE_SEARCH_UNCOMMITTED, NULL, &is_found);
+      session, layered_table, key, WT_TRUNCATE_SEARCH_NOT_VISIBLE, NULL, &is_found);
 
     __wt_readunlock(session, &layered_table->truncate_lock);
     WT_RET(ret);
@@ -251,7 +251,7 @@ __wt_truncate_delete_visible_check(
      * transaction.
      */
     ret =
-      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_COMMITTED, tp, &is_found);
+      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, tp, &is_found);
 
     __wt_readunlock(session, &layered_table->truncate_lock);
     WT_RET(ret);
