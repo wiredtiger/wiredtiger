@@ -3293,11 +3293,12 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * released upon successful reconciliation.
      *
      * ref->addr is cleared unconditionally -- any reference to an invalidated page id is orphaned.
-     * For a failed delta write, the block free above also invoked plh_discard which terminated the
-     * entire chain in storage, so the page->modify state saved by the previous successful
-     * reconciliation now points at destroyed data and must be reset too. Without these cleanups, a
-     * later wrapup trusts the stale state and either double-subtracts the chain's cumulative size
-     * or double-discards the chain.
+     * The page->modify state is only cleared for delta failures: the block free above invoked
+     * plh_discard which terminated the entire chain in storage, so the state saved by the previous
+     * successful reconciliation now points at destroyed data and must be reset. Full-image failures
+     * only discard the new entry (not the chain), so the preserved mod state still describes live
+     * storage and is left intact. Without these cleanups, a later wrapup trusts the stale state and
+     * either double-subtracts the chain's cumulative size or double-discards the chain.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
