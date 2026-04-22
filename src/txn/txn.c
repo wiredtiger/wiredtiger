@@ -1536,8 +1536,8 @@ __txn_ingest_gc_publish_prepare(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
     WT_BTREE *btree;
     WT_TXN_OP *op;
-    u_int i, j;
     wt_timestamp_t ts;
+    u_int i, j;
 
     WT_UNUSED(session);
 
@@ -1567,21 +1567,21 @@ __txn_ingest_gc_publish_commit(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
     WT_BTREE *btree;
     WT_TXN_OP *op;
-    u_int i;
     wt_timestamp_t merge_ts, op_ts, tp_ts;
+    u_int i;
 
     WT_UNUSED(session);
 
     tp_ts = __txn_ingest_gc_ts_from_timepoint(txn);
 
     /*
-     * Publish every op's timestamp on its GC-tracked btree. Do not dedupe by btree here: different
-     * ops on the same btree may carry different timestamps (e.g. the commit timestamp was advanced
-     * with WT_SESSION::set_commit_timestamp partway through the transaction, or different update
-     * types derive different timestamps in __txn_ingest_gc_ts_from_op). Publishing only the first
-     * op's timestamp could leave ingest_gc_max_timestamp stale and let the fast obsolete path drop
-     * a chunk that still holds later uncommitted-to-GC content. The publish helper is a CAS-on-max,
-     * so redundant publishes are cheap.
+     * Publish every op's timestamp on its GC-tracked btree. Do not collapse duplicates by btree here:
+     * different ops on the same btree may carry different timestamps (e.g. the commit timestamp was
+     * advanced with WT_SESSION::set_commit_timestamp partway through the transaction, or different
+     * update types derive different timestamps in __txn_ingest_gc_ts_from_op). Publishing only the
+     * first op's timestamp could leave ingest_gc_max_timestamp stale and let the fast obsolete path
+     * drop a chunk that still holds later uncommitted-to-GC content. The publish helper is a
+     * CAS-on-max, so redundant publishes are cheap.
      */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         btree = op->btree;

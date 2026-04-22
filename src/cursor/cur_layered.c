@@ -670,13 +670,13 @@ static int
 __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_LAYERED_TABLE *layered;
-    const char **ingest_uris_snapshot;
     WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
     u_int i;
     u_int n_ingest_snapshot;
-    bool leader;
+    const char **ingest_uris_snapshot;
     bool chunk_lock_held;
+    bool leader;
 
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
@@ -695,8 +695,8 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
     chunk_lock_held = true;
     n_ingest_snapshot = layered->n_ingest_uris;
     WT_ASSERT(session, n_ingest_snapshot > 0);
-    WT_ERR(__wt_calloc(
-      session, (size_t)n_ingest_snapshot, sizeof(const char *), &ingest_uris_snapshot));
+    WT_ERR(
+      __wt_calloc(session, (size_t)n_ingest_snapshot, sizeof(const char *), &ingest_uris_snapshot));
     for (i = 0; i < n_ingest_snapshot; i++)
         ingest_uris_snapshot[i] = layered->ingest_uris[i];
     __wt_spin_unlock(session, &layered->ingest_chunk_lock);
@@ -726,8 +726,8 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
     }
 
     if (clayered->ingest_cursors == NULL)
-        WT_ERR(__wt_calloc(
-          session, n_ingest_snapshot, sizeof(WT_CURSOR *), &clayered->ingest_cursors));
+        WT_ERR(
+          __wt_calloc(session, n_ingest_snapshot, sizeof(WT_CURSOR *), &clayered->ingest_cursors));
     clayered->n_ingest_cursors = n_ingest_snapshot;
 
     for (i = 0; i < n_ingest_snapshot; i++)
@@ -2090,10 +2090,10 @@ __clayered_rollover_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered
      *
      * The next suffix must be monotonically greater than any suffix currently or previously in use
      * for this layered table. The primary (newest) ingest chunk always holds the highest-known
-     * suffix, even after the ingest GC retires older chunks from the front of the list, so
-     * parsing the primary's suffix and incrementing it is a safe, collision-free generator. Using
-     * n_ingest_uris directly would collide after GC shortens the list (e.g. list is [foo.2,
-     * foo.3], n=2, but foo.2.wt_ingest is still in metadata).
+     * suffix, even after the ingest GC retires older chunks from the front of the list, so parsing
+     * the primary's suffix and incrementing it is a safe, collision-free generator. Using
+     * n_ingest_uris directly would collide after GC shortens the list (e.g. list is [foo.2, foo.3],
+     * n=2, but foo.2.wt_ingest is still in metadata).
      */
     {
         const char *pfx;

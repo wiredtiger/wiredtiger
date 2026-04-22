@@ -1101,6 +1101,7 @@ libsodium
 libwiredtiger
 lifecycle
 linux
+liveness
 llll
 llu
 llvm
@@ -1538,6 +1539,7 @@ testutil
 tgz
 th
 tid
+timepoint
 timeslice
 timespec
 tinfo

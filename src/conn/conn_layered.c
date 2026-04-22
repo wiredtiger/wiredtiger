@@ -217,9 +217,9 @@ __disagg_save_checkpoint_meta_local(
     WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
+    char *cfg_current_copy;
     char *cfg_new;
     const char *cfg[3], *checkpoint_name, *cfg_current, *metadata_key;
-    char *cfg_current_copy;
     bool discard;
 
     cfg_new = NULL;
@@ -348,8 +348,8 @@ __disagg_apply_checkpoint_meta(
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
             /*
-             * The metadata cursor may invalidate its underlying buffers as part of the update below.
-             * Make discard decisions based on the copied pre-update metadata value.
+             * The metadata cursor may invalidate its underlying buffers as part of the update
+             * below. Make discard decisions based on the copied pre-update metadata value.
              */
             WT_ERR(__disagg_discard_old_checkpoint_check(
               session, current_value_copy, cfg_ret, &checkpoint_name, &discard));

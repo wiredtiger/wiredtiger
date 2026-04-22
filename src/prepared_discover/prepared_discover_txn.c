@@ -284,7 +284,7 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
      *
      * Rollover (__clayered_rollover_ingest) and drop-oldest (__layered_ingest_chunk_drop_oldest)
      * both replace layered->ingest_uris[] under ingest_chunk_lock. Read the URI while holding
-     * that lock so that n_ingest_uris and ingest_uris[] stay consistent; the strdup'd copy then
+     * that lock so that n_ingest_uris and ingest_uris[] stay consistent; the duplicated copy then
      * outlives the lock.
      */
     __wt_spin_lock(session, &layered->ingest_chunk_lock);

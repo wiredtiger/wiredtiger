@@ -857,8 +857,8 @@ __layered_ingest_chunk_server_run_chk(WT_SESSION_IMPL *session)
 
 /*
  * __layered_ingest_upd_chain_scan --
- *     Walk an update chain: track the largest start/prepare timestamp and whether every
- *     non-aborted update is globally visible.
+ *     Walk an update chain: track the largest start/prepare timestamp and whether every non-aborted
+ *     update is globally visible.
  */
 static void
 __layered_ingest_upd_chain_scan(
@@ -903,16 +903,15 @@ __layered_ingest_row_leaf_scan_upd(
     WT_INSERT_HEAD *head;
     WT_ROW *rip;
     WT_UPDATE *upd;
-    uint32_t i;
     wt_timestamp_t m;
+    uint32_t i;
 
     m = *max_tsp;
     if ((head = WT_ROW_INSERT_SMALLEST(page)) != NULL)
         WT_SKIP_FOREACH (ins, head)
             if (ins->upd != NULL)
                 __layered_ingest_upd_chain_scan(session, ins->upd, &m, all_visible_allp);
-    WT_ROW_FOREACH (page, rip, i)
-    {
+    WT_ROW_FOREACH (page, rip, i) {
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
             __layered_ingest_upd_chain_scan(session, upd, &m, all_visible_allp);
         if ((head = WT_ROW_INSERT(page, rip)) != NULL)
@@ -934,12 +933,11 @@ __layered_ingest_col_var_leaf_scan_upd(
     WT_COL *cip;
     WT_INSERT *ins;
     WT_INSERT_HEAD *head;
-    uint32_t i;
     wt_timestamp_t m;
+    uint32_t i;
 
     m = *max_tsp;
-    WT_COL_FOREACH (page, cip, i)
-    {
+    WT_COL_FOREACH (page, cip, i) {
         if ((head = WT_COL_UPDATE(page, cip)) != NULL)
             WT_SKIP_FOREACH (ins, head)
                 if (ins->upd != NULL)
@@ -960,11 +958,11 @@ __layered_ingest_col_var_leaf_scan_upd(
 static int
 __layered_ingest_btree_obsolete_for_drop(WT_SESSION_IMPL *session, WT_BTREE *btree, bool *obsolete)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
     wt_timestamp_t prune_ts;
-    WT_CONNECTION_IMPL *conn;
     bool ingest_gc_block_logged;
 
     *obsolete = false;
@@ -993,7 +991,8 @@ __layered_ingest_btree_obsolete_for_drop(WT_SESSION_IMPL *session, WT_BTREE *btr
     /* Root not instantiated yet; do not treat as obsolete. */
     if (btree->root.page == NULL) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
-          "ingest GC: \"%s\" cannot mark oldest chunk obsolete: btree root page not instantiated yet",
+          "ingest GC: \"%s\" cannot mark oldest chunk obsolete: btree root page not instantiated "
+          "yet",
           btree->dhandle->name);
         return (0);
     }
@@ -1066,7 +1065,8 @@ __layered_ingest_btree_obsolete_for_drop(WT_SESSION_IMPL *session, WT_BTREE *btr
             all_visible_all = true;
             chain_max = WT_TS_NONE;
             if (ref->page->type == WT_PAGE_ROW_LEAF)
-                __layered_ingest_row_leaf_scan_upd(session, ref->page, &chain_max, &all_visible_all);
+                __layered_ingest_row_leaf_scan_upd(
+                  session, ref->page, &chain_max, &all_visible_all);
             else if (ref->page->type == WT_PAGE_COL_VAR)
                 __layered_ingest_col_var_leaf_scan_upd(
                   session, ref->page, &chain_max, &all_visible_all);
@@ -1091,18 +1091,19 @@ __layered_ingest_btree_obsolete_for_drop(WT_SESSION_IMPL *session, WT_BTREE *btr
 
                     ingest_gc_block_logged = true;
                     if (!all_visible_all && effective > prune_ts)
-                        reason = "invisible or uncommitted updates and effective timestamp above prune";
+                        reason =
+                          "invisible or uncommitted updates and effective timestamp above prune";
                     else if (!all_visible_all)
                         reason = "invisible or uncommitted updates on dirty leaf";
                     else
-                        reason = "effective timestamp (max of on-page chain and rec_max) above prune";
+                        reason =
+                          "effective timestamp (max of on-page chain and rec_max) above prune";
                     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
                       "ingest GC: \"%s\" oldest chunk not obsolete: blocking %s dirty leaf "
                       "(prune_ts=%" PRIu64 " effective_ts=%" PRIu64 " chain_max_ts=%" PRIu64
                       " rec_max_ts=%" PRIu64 " all_updates_visible_all=%s; reason=%s)",
                       btree->dhandle->name, __wt_page_type_string(ref->page->type), prune_ts,
-                      effective, chain_max,
-                      mod != NULL ? mod->rec_max_timestamp : WT_TS_NONE,
+                      effective, chain_max, mod != NULL ? mod->rec_max_timestamp : WT_TS_NONE,
                       all_visible_all ? "true" : "false", reason);
                 }
                 WT_ERR(__wt_page_release(session, ref, 0));
@@ -1135,8 +1136,8 @@ __layered_ingest_chunk_drop_oldest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
     WT_DECL_ITEM(layered_update);
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
-    uint32_t *ids_new;
     uint32_t i, new_n;
+    uint32_t *ids_new;
     char *drop_uri, *layered_meta, *merged, **uris_new;
     const char *cfg[4];
     const char *drop_cfg[4];
@@ -1213,8 +1214,8 @@ __layered_ingest_chunk_drop_oldest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
     drop_cfg[1] = "force=true";
     drop_cfg[2] = NULL;
     drop_cfg[3] = NULL;
-    WT_WITH_SCHEMA_LOCK(int_session,
-      ret = __wt_schema_drop(int_session, drop_uri, drop_cfg, false));
+    WT_WITH_SCHEMA_LOCK(
+      int_session, ret = __wt_schema_drop(int_session, drop_uri, drop_cfg, false));
     WT_ERR(ret);
 
     WT_WITHOUT_DHANDLE(int_session, ret = __wti_conn_dhandle_outdated(int_session, drop_uri));
@@ -1251,11 +1252,11 @@ static int
 __layered_ingest_chunk_try_drop_obsolete_oldest(WT_SESSION_IMPL *session, const char *layered_uri)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     char *oldest;
     bool obsolete;
-    WT_CONNECTION_IMPL *conn;
 
     oldest = NULL;
     conn = S2C(session);
@@ -1356,8 +1357,8 @@ __layered_ingest_chunk_server_pass(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
-    char **layered_uris;
     size_t alloc, i, layered_uris_count;
+    char **layered_uris;
 
     conn = S2C(session);
     layered_uris = NULL;
@@ -1439,13 +1440,14 @@ __layered_ingest_chunk_server_thread(void *arg)
             WT_ERR(__layered_ingest_chunk_server_pass(session));
             ++conn->layered_ingest_chunk_server.ingest_gc_completed_passes;
             __wt_seconds(session, &hb_now);
-            pass_duration_sec =
-              hb_now - conn->layered_ingest_chunk_server.ingest_gc_pass_start_sec;
+            pass_duration_sec = hb_now - conn->layered_ingest_chunk_server.ingest_gc_pass_start_sec;
             if (conn->layered_ingest_chunk_server.ingest_gc_last_hb_sec == 0 ||
               hb_now - conn->layered_ingest_chunk_server.ingest_gc_last_hb_sec >= 5) {
                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
-                  "ingest GC: chunk server heartbeat: completed %" PRIu64 " pass(es); "
-                  "last_pass_layered_tables=%" PRIu32 " last_pass_duration_sec=%" PRIu64 " "
+                  "ingest GC: chunk server heartbeat: completed %" PRIu64
+                  " pass(es); "
+                  "last_pass_layered_tables=%" PRIu32 " last_pass_duration_sec=%" PRIu64
+                  " "
                   "(expect about every 5s while active; a long silence means a pass is still in "
                   "progress or the thread exited)",
                   conn->layered_ingest_chunk_server.ingest_gc_completed_passes,
@@ -1480,7 +1482,8 @@ __wti_layered_ingest_chunk_server_create(WT_SESSION_IMPL *session)
     if (conn->layered_ingest_chunk_server.tid_set)
         return (0);
 
-    WT_RET(__wt_cond_alloc(session, "layered-ingest-chunk-server", &conn->layered_ingest_chunk_server.cond));
+    WT_RET(__wt_cond_alloc(
+      session, "layered-ingest-chunk-server", &conn->layered_ingest_chunk_server.cond));
 
     WT_RET(__wt_open_internal_session(conn, "layered-ingest-chunk-server", true,
       WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE, 0,
