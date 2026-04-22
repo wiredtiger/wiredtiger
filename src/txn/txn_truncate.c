@@ -9,9 +9,9 @@
 #include "wt_internal.h"
 
 typedef enum {
-    WT_TRUNCATE_SEARCH_COMMITTED = (1 << 0),
-    WT_TRUNCATE_SEARCH_UNCOMMITTED = (1 << 1)
-} WT_TRUNCATE_SEARCH_FLAGS;
+    WT_TRUNCATE_SEARCH_COMMITTED,
+    WT_TRUNCATE_SEARCH_UNCOMMITTED
+} WT_TRUNCATE_SEARCH_MODE;
 
 /*
  * __disagg_truncate_free --
@@ -139,48 +139,28 @@ err:
 }
 
 /*
- * __is_entry_valid_for_search --
- *     Determine if a truncate entry is valid for the given search flags.
- */
-static bool
-__is_entry_valid_for_search(
-  WT_SESSION_IMPL *session, const WT_TRUNCATE *entry, const uint32_t search_flags)
-{
-    WT_ASSERT(session, search_flags != 0U);
-
-    const bool search_committed = FLD_ISSET(search_flags, WT_TRUNCATE_SEARCH_COMMITTED);
-    const bool search_uncommitted = FLD_ISSET(search_flags, WT_TRUNCATE_SEARCH_UNCOMMITTED);
-
-    if (search_committed && search_uncommitted)
-        return (true);
-
-    const bool is_committed =
-      __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
-
-    if (search_committed && is_committed)
-        return (true);
-
-    if (search_uncommitted && !is_committed)
-        return (true);
-
-    return (false);
-}
-
-/*
  * __truncate_search --
  *     Walk the layered table truncate list looking for a committed or uncommitted entry (depending
- *     on the search flags) whose range covers the given key. The matched entry is returned through
+ *     on the search mode) whose range covers the given key. The matched entry is returned through
  *     the output parameter when non-NULL.
  */
 static int
 __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key,
-  const uint32_t search_flags, WT_TRUNCATE **tp)
+  const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp)
 {
     WT_COLLATOR *collator = layered_table->collator;
     WT_TRUNCATE *entry = NULL;
 
+    WT_ASSERT(
+      session, mode == WT_TRUNCATE_SEARCH_COMMITTED || mode == WT_TRUNCATE_SEARCH_UNCOMMITTED);
+
+    const bool want_committed = (mode == WT_TRUNCATE_SEARCH_COMMITTED);
+
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
-        if (!__is_entry_valid_for_search(session, entry, search_flags))
+        const bool is_committed =
+          __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
+
+        if (is_committed != want_committed)
             continue;
 
         const int ret =
