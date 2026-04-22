@@ -398,6 +398,47 @@ err:
 }
 
 /*
+ * __prepared_discover_open_paired_layered --
+ *     If the btree URI is the stable component of a layered table, open (and release) the paired
+ *     layered dhandle. Opening a layered dhandle registers its stable-to-ingest mapping in the
+ *     layered table manager, which the restoration path relies on to locate the ingest table for
+ *     each prepared update pulled from the stable btree. The mapping is populated lazily when a
+ *     layered dhandle is opened; nothing else in this code path opens one.
+ */
+static int
+__prepared_discover_open_paired_layered(WT_SESSION_IMPL *session, const char *stable_uri)
+{
+    WT_DECL_ITEM(layered_uri_buf);
+    WT_DECL_RET;
+    size_t table_name_len;
+    const char *table_name;
+
+    if (!WT_PREFIX_MATCH(stable_uri, "file:") || !WT_SUFFIX_MATCH(stable_uri, ".wt_stable"))
+        return (0);
+
+    table_name = stable_uri + strlen("file:");
+    table_name_len = strlen(table_name) - strlen(".wt_stable");
+
+    WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
+    WT_ERR(
+      __wt_buf_fmt(session, layered_uri_buf, "layered:%.*s", (int)table_name_len, table_name));
+
+    /*
+     * The stable suffix is also used by a handful of non-layered system files (shared metadata,
+     * shared history store). Treat "no matching layered entry" as a normal outcome and move on.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), false);
+    if (ret == 0)
+        WT_ERR(__wt_session_release_dhandle(session));
+    ret = 0;
+
+err:
+    __wt_scr_free(session, &layered_uri_buf);
+    return (ret);
+}
+
+/*
  * __wt_prepared_discover_filter_apply_handles --
  *     Review the metadata and identify btrees that have prepared content that needs to be
  *     discovered
@@ -429,6 +470,13 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
         WT_ERR(__prepared_discover_btree_has_prepare(session, config, &has_prepare));
         if (!has_prepare)
             continue;
+        /*
+         * FIXME-WT-16982: The dhandle is released here but the scan of the stable btree that
+         * follows relies on the layered table manager entry still being present. That holds only
+         * while the dhandle sweeper does not close the layered handle; if it does, the entry is
+         * removed and the restore lookup below fails.
+         */
+        WT_ERR(__prepared_discover_open_paired_layered(session, uri));
         /* If this is a follower node, open the stable table and search for prepared update there */
         if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
             /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
