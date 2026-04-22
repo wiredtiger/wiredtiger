@@ -1589,7 +1589,7 @@ __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const cha
     cc_enabled = cval.val != 0;
 
     if (cc_enabled)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, ENOTSUP,
           "chunk cache has been deprecated and is no longer supported, chunk_cache "
           "configuration should be removed%s%s",
           source != NULL ? " from " : "", source != NULL ? source : "");
@@ -1719,15 +1719,9 @@ __conn_config_file(
     WT_ERR(__conn_config_check_version(session, cbuf->data));
 
     /*
-     * Check for deprecated chunk cache configuration before validating the config string. Handle
-     * its error explicitly so the "basecfg EINVAL == corruption" mapping below does not turn a
-     * clean deprecation rejection into a misleading WT_TRY_SALVAGE.
+     * Check for deprecated chunk cache configuration before validating the config string.
      */
-    if ((ret = __conn_chunk_cache_check(
-           session, cbuf->data, is_user ? WT_USERCONFIG : WT_BASECONFIG)) != 0) {
-        WT_TRET(__wt_close(session, &fh));
-        return (ret);
-    }
+    WT_ERR(__conn_chunk_cache_check(session, cbuf->data, is_user ? WT_USERCONFIG : WT_BASECONFIG));
 
     /* Check the configuration information. */
     WT_ERR(__wt_config_check(session,
