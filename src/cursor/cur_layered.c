@@ -323,6 +323,8 @@ err:
      * later.
      */
     if (F_ISSET(clayered, WT_CLAYERED_STABLE_NO_CKPT)) {
+        WT_ASSERT_ALWAYS(session, !leader, "Leader should never have NO_CKPT flag.");
+
         const char *checkpoint_name_chk = NULL;
         int tmp_ret =
           __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name_chk, NULL, NULL);
