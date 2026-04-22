@@ -208,6 +208,8 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
     def test_alter_inconsistent_update(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('session.alter is not supported for layered tables in disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
