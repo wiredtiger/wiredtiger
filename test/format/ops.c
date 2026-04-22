@@ -1283,20 +1283,6 @@ rollback_retry:
         if (op == MODIFY)
             modify_build(tinfo);
 
-        /*
-         * For REMOVE in predictable replay, the key's latest possible write_ts is last_commit_ts
-         * for this lane (each keyno is exclusively owned by its lane). Spin-yield before the first
-         * attempt so that read_ts >= last_commit_ts, ensuring the key's latest value is definitely
-         * visible. Without this, one run may see a write that the other cannot, causing a REMOVE op
-         * to succeed in one but fail in the other leading to a data mismatch.
-         */
-        if (GV(RUNS_PREDICTABLE_REPLAY) && op == REMOVE &&
-          tinfo->read_ts < g.lanes[tinfo->lane].last_commit_ts) {
-            while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
-                __wt_yield();
-            goto rollback;
-        }
-
         ret = 0;
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
