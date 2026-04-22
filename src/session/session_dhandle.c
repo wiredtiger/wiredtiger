@@ -979,15 +979,18 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
                 const char *suffix = strstr(uri, ".wt_stable/");
                 if (suffix != NULL)
                     checkpoint_lock_needed = true;
-            }
 
-            if (checkpoint_lock_needed) {
-                WT_WITH_CHECKPOINT_LOCK(session,
-                  WT_WITH_SCHEMA_WRITE_LOCK(
-                    session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
-            } else
+                if (checkpoint_lock_needed) {
+                    WT_WITH_CHECKPOINT_LOCK(session,
+                      WT_WITH_SCHEMA_READ_LOCK(session,
+                        ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
+                } else
+                    WT_WITH_SCHEMA_READ_LOCK(session,
+                      ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+            } else {
                 WT_WITH_SCHEMA_WRITE_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+            }
 
             return (ret);
         }

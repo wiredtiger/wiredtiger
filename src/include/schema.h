@@ -287,6 +287,29 @@ struct __wt_import_list {
  *	Check that we are not already holding some other lock: the schema lock
  *	must be taken first.
  */
+/*
+ * WT_WITH_SCHEMA_READ_LOCK, WT_WITH_SCHEMA_WRITE_LOCK, WT_WITH_SCHEMA_WRITE_LOCK_NOWAIT --
+ *     Acquire the schema lock, perform an operation, drop the lock.
+ *     Check that we are not already holding some other lock: the schema lock
+ *     must be taken first.
+ */
+#define WT_WITH_SCHEMA_READ_LOCK(session, op)                                           \
+    do {                                                                                \
+        /* Don't assert we don't hold the write lock. Write lock implies read is OK. */ \
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {                 \
+            op;                                                                         \
+        } else {                                                                        \
+            WT_ASSERT(session,                                                          \
+              !FLD_ISSET(session->lock_flags,                                           \
+                WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |             \
+                  WT_SESSION_LOCKED_TABLE));                                            \
+            __wt_readlock(session, &S2C(session)->schema_lock);                         \
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);                \
+            op;                                                                         \
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);                \
+            __wt_readunlock(session, &S2C(session)->schema_lock);                       \
+        }                                                                               \
+    } while (0)
 #define WT_WITH_SCHEMA_WRITE_LOCK(session, op)                                                  \
     do {                                                                                        \
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE)) {                   \
