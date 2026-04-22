@@ -151,6 +151,28 @@ __wt_evict_page_is_soon(WT_PAGE *page)
     return (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_EVICT_SOON);
 }
 
+/*
+ * __wt_evict_page_has_clean_scrub_image --
+ *     Return true if the page has a saved disk image suitable for clean-scrub re-instantiation.
+ *     Handles both single-block (mod_disk_image) and multi-block (mod_multi[0].disk_image) cases.
+ *     Multi-block images flagged WT_MULTI_SUPD_RESTORE belong to a different mechanism and are
+ *     not eligible.
+ */
+static WT_INLINE bool
+__wt_evict_page_has_clean_scrub_image(WT_PAGE *page)
+{
+    WT_PAGE_MODIFY *mod;
+
+    mod = page->modify;
+    if (mod == NULL)
+        return (false);
+    if (mod->mod_disk_image != NULL)
+        return (true);
+    return (mod->rec_result == WT_PM_REC_MULTIBLOCK && mod->mod_multi != NULL &&
+      mod->mod_multi_entries > 0 && mod->mod_multi[0].disk_image != NULL &&
+      !F_ISSET(&mod->mod_multi[0], WT_MULTI_SUPD_RESTORE));
+}
+
 /* !!!
  * __wt_evict_page_soon --
  *     Mark the page to be evicted as soon as possible by setting the `WT_READGEN_EVICT_SOON`
