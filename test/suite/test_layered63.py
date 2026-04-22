@@ -214,11 +214,15 @@ class test_layered63(wttest.WiredTigerTestCase):
         self.insert(kv, inital_ts)
         self.session.checkpoint()
 
+        # Verify the updated and inserted values in the table.
+        self.verify({}, inital_value)
+
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
 
         kv_modified = {}
         num_deltas = random.randint(5, 10)
+        #num_deltas = 1
 
         # Define a set of keys to insert that are *beyond* the base range.
         # Example: if nrows = 1000, new keys will be 10011010.
@@ -242,6 +246,9 @@ class test_layered63(wttest.WiredTigerTestCase):
             # Merge kv into our cumulative dictionary.
             kv_modified.update(kv)
 
+        # Verify the updated and inserted values in the table.
+        self.verify(kv_modified, inital_value)
+
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
             self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -252,6 +259,14 @@ class test_layered63(wttest.WiredTigerTestCase):
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        #print ("Dumping table contents")
+        #for row in cursor:
+        #    print (row)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor.close()
 
         # Verify the updated and inserted values in the table.
         self.verify(kv_modified, inital_value)

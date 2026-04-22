@@ -58,6 +58,18 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
 }
 
 /*
+ * __wti_rec_save_upd_add --
+ *     Add a saved update entry for the fast path delta. Used when we have a single update (insert
+ *     or on-page) that is not yet durable and should be included in the delta.
+ */
+int
+__wti_rec_save_upd_add(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, WT_TIME_WINDOW *tw, size_t upd_memsize)
+{
+    return (__rec_update_save(session, r, ins, rip, onpage_upd, tombstone, tw, false, upd_memsize));
+}
+
+/*
  * __rec_delete_hs_upd_save --
  *     Save an update into a WTI_DELETE_HS_UPD list to delete it from the history store later.
  */
