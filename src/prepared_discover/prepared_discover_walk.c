@@ -36,12 +36,48 @@ __prepared_discover_btree_has_prepare(WT_SESSION_IMPL *session, const char *conf
 }
 
 /*
+ * __prepared_discover_open_ingest_cursor --
+ *     Open the ingest cursor for the current stable btree. Called lazily the first time a prepared
+ *     on-disk key is found during a follower walk, so the open is skipped entirely when no prepared
+ *     content exists.
+ */
+static int
+__prepared_discover_open_ingest_cursor(WT_SESSION_IMPL *session, WT_CURSOR **ingest_cursorp)
+{
+    WT_DECL_ITEM(ingest_uri_buf);
+    WT_DECL_RET;
+    size_t prefix_len;
+    const char *stable_suffix, *stable_uri;
+
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+
+    stable_uri = session->dhandle->name;
+    stable_suffix = strstr(stable_uri, ".wt_stable");
+    WT_ASSERT_ALWAYS(session, stable_suffix != NULL,
+      "prepared update restoration expected stable btree URI, got %s", stable_uri);
+    prefix_len = (size_t)(stable_suffix - stable_uri);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
+    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
+    /*
+     * Preserve the stable btree as session->dhandle for the ongoing walk by saving and restoring it
+     * around the cursor open.
+     */
+    WT_SAVE_DHANDLE(
+      session, ret = __wt_open_cursor(session, ingest_uri_buf->data, NULL, cfg, ingest_cursorp));
+    WT_ERR(ret);
+err:
+    __wt_scr_free(session, &ingest_uri_buf);
+    return (ret);
+}
+
+/*
  * __prepared_discover_process_ondisk_kv --
  *     Found an on-disk prepared value, process it into a transaction structure.
  */
 static int
 __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack)
+  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, WT_CURSOR **ingest_cursorp)
 {
     WT_DECL_ITEM(value);
     WT_DECL_RET;
@@ -79,12 +115,14 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
           __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader,
           "prepared update restoration should only happen on disaggregated follower nodes");
 
+        /* Open the ingest cursor on first use. */
+        if (*ingest_cursorp == NULL)
+            WT_ERR(__prepared_discover_open_ingest_cursor(session, ingest_cursorp));
+
         WT_ERR(__wt_scr_alloc(session, 0, &value));
         WT_ERR(__wt_page_cell_data_ref_kv(session, page, vpack, value));
-        const char *stable_uri = session->dhandle->name;
-        WT_SAVE_DHANDLE(session,
-          ret = __wti_prepared_discover_restore_and_add_artifact_upd(
-            session, stable_uri, key, value, vpack));
+        WT_ERR(__wti_prepared_discover_restore_and_add_artifact_upd(
+          session, *ingest_cursorp, key, value, vpack));
     } else
         WT_ASSERT_ALWAYS(
           session, false, "Column store prepared transaction discovery not supported");
@@ -101,7 +139,7 @@ err:
  */
 static int
 __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack)
+  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, WT_CURSOR **ingest_cursorp)
 {
     WT_TIME_WINDOW *tw;
 
@@ -119,7 +157,8 @@ __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_RO
     if (!WT_TIME_WINDOW_HAS_PREPARE(tw))
         return (0);
 
-    WT_RET(__prepared_discover_process_ondisk_kv(session, ref, rip, recno, row_key, vpack));
+    WT_RET(__prepared_discover_process_ondisk_kv(
+      session, ref, rip, recno, row_key, vpack, ingest_cursorp));
 
     return (0);
 }
@@ -210,7 +249,8 @@ err:
  *     or have been modified. So handle the full possible page structure, not just a clean image.
  */
 static int
-__prepared_discover_process_row_store_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
+__prepared_discover_process_row_store_leaf_page(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR **ingest_cursorp)
 {
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_ITEM(key);
@@ -246,7 +286,8 @@ __prepared_discover_process_row_store_leaf_page(WT_SESSION_IMPL *session, WT_REF
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
 
-            WT_ERR(__prepared_discover_check_ondisk_kv(session, ref, rip, 0, NULL, vpack));
+            WT_ERR(__prepared_discover_check_ondisk_kv(
+              session, ref, rip, 0, NULL, vpack, ingest_cursorp));
         }
 
         /* Walk through any intermediate insert list. */
@@ -265,7 +306,8 @@ err:
  *     Review the content of a leaf page discovering and processing prepared updates.
  */
 static int
-__prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
+__prepared_discover_process_leaf_page(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR **ingest_cursorp)
 {
     WT_PAGE *page;
 
@@ -273,7 +315,7 @@ __prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__prepared_discover_process_row_store_leaf_page(session, ref));
+        WT_RET(__prepared_discover_process_row_store_leaf_page(session, ref, ingest_cursorp));
         break;
     case WT_PAGE_COL_VAR:
         WT_ASSERT_ALWAYS(session, false, "Prepared discovery does not support column stores");
@@ -369,9 +411,12 @@ static int
 __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_BTREE *btree;
+    WT_CURSOR *ingest_cursor;
     WT_DECL_RET;
     WT_REF *ref;
     uint32_t flags;
+
+    ingest_cursor = NULL;
 
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
@@ -389,10 +434,12 @@ __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
           ref != NULL) {
 
             if (F_ISSET(ref, WT_REF_FLAG_LEAF))
-                WT_ERR(__prepared_discover_process_leaf_page(session, ref));
+                WT_ERR(__prepared_discover_process_leaf_page(session, ref, &ingest_cursor));
         }
     }
 err:
+    if (ingest_cursor != NULL)
+        WT_TRET(ingest_cursor->close(ingest_cursor));
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
