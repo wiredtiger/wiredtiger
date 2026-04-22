@@ -42,7 +42,7 @@ class test_debug_mode12(wttest.WiredTigerTestCase):
     # Use a cache large enough that pages stay dirty in memory until checkpoint,
     # but small enough that a second wave of inserts triggers eviction and
     # gives the eviction walk a chance to find clean-scrub candidates.
-    conn_config = 'cache_size=50MB,statistics=(all),debug_mode=(clean_scrub=true,evict_walk_full=true),checkpoint=(wait=0)'
+    conn_config = 'cache_size=50MB,statistics=(all),eviction=(clean_scrub_eviction=true),debug_mode=(clean_scrub=true,evict_walk_full=true),checkpoint=(wait=0)'
     uri = "table:test_debug_mode12"
     nrows = 10000
     value_size = 500
@@ -108,7 +108,7 @@ class test_debug_mode12(wttest.WiredTigerTestCase):
 
     # Verify that disabling the flag at runtime stops clean-scrub evictions.
     def test_clean_scrub_off(self):
-        self.conn.reconfigure('debug_mode=(clean_scrub=false)')
+        self.conn.reconfigure('eviction=(clean_scrub_eviction=false)')
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.populate(0, self.nrows)
         self.session.checkpoint()

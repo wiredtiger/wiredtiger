@@ -2305,15 +2305,22 @@ struct __wt_connection {
      * eviction_dirty_trigger and \c eviction_update_trigger as hard limit.  The configured
      * percentage will be taken in increments of 10 only\, by applying the floor to the given
      * percentage value., an integer between \c 0 and \c 100; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on the root
-     * page\, attempt to locate a random in-memory page by examining all entries on the root page.,
-     * a boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction,
-     * Only a part of application threads will participate in cache management when a cache
-     * threshold reaches its trigger limit., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;legacy_page_visit_strategy, Use legacy page visit strategy
-     * for eviction.  Using this option is highly discouraged as it will re-introduce a bug where
-     * eviction can fail to find older cache content., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;clean_scrub_eviction, If true\, save disk images during
+     * reconciliation so that clean pages can be re-instantiated from their saved image during
+     * eviction rather than being written to disk or dropped and re-read later.  Reclaims in-memory
+     * update content without a disk read at the cost of retaining the reconciled image in memory.
+     * Automatically enabled when the connection is using disaggregated storage., a boolean flag;
+     * default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is
+     * found on the root page\, attempt to locate a random in-memory page by examining all entries
+     * on the root page., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * incremental_app_eviction, Only a part of application threads will participate in cache
+     * management when a cache threshold reaches its trigger limit., a boolean flag; default \c
+     * false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;legacy_page_visit_strategy, Use legacy page visit
+     * strategy for eviction.  Using this option is highly discouraged as it will re-introduce a bug
+     * where eviction can fail to find older cache content., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;prefer_scrub_eviction, Change the eviction strategy to scrub
      * eviction when the cache usage is under half way between the target limit to the trigger
      * limit., a boolean flag; default \c false.}
@@ -3266,8 +3273,14 @@ struct __wt_connection {
  * eviction_update_trigger as hard limit.  The configured percentage will be taken in increments of
  * 10 only\, by applying the floor to the given percentage value., an integer between \c 0 and \c
  * 100; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is
- * found on the root page\, attempt to locate a random in-memory page by examining all entries on
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;clean_scrub_eviction, If true\, save disk
+ * images during reconciliation so that clean pages can be re-instantiated from their saved image
+ * during eviction rather than being written to disk or dropped and re-read later.  Reclaims
+ * in-memory update content without a disk read at the cost of retaining the reconciled image in
+ * memory.  Automatically enabled when the connection is using disaggregated storage., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref
+ * is found on the root page\, attempt to locate a random in-memory page by examining all entries on
  * the root page., a boolean flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * incremental_app_eviction, Only a part of application threads will participate in cache management

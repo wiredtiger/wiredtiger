@@ -1418,12 +1418,11 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
             }
 
             /*
-             * Signal that disk images should be saved for later clean-scrub eviction when we are
-             * under updates pressure, so that clean pages can be re-instantiated without a disk
-             * read to reclaim their in-memory update content.
+             * Signal that disk images should be saved for later clean-scrub eviction so clean
+             * pages can be re-instantiated from memory to reclaim in-memory update content.
              */
-            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ||
-              FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB))
+            if (F_ISSET_ATOMIC_32(&(S2C(session)->cache->cache_eviction_controls),
+                  WT_CACHE_CLEAN_SCRUB_EVICTION))
                 LF_SET(WT_REC_CLEAN_SCRUB);
         }
     }
