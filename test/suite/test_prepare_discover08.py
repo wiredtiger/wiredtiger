@@ -99,7 +99,7 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
         self.reopen_conn(config=reopen_config)
 
         # Opening "prepared_discover:" must work as the first cursor on the
-        # reopened connection  successful discovery must not depend on a
+        # reopened connection; successful discovery must not depend on a
         # prior cursor having been opened on the layered table.
         prepared_discover_cursor = self.session.open_cursor('prepared_discover:')
 
