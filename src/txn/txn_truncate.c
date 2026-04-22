@@ -198,7 +198,10 @@ __wt_layered_table_truncate_detect_write_conflict(
 
     __wt_readlock(session, &layered_table->truncate_lock);
 
-    /* Only uncommitted truncates can conflict with our write. */
+    /*
+     * The truncate entry has already been committed if it is visible to this transaction. We can
+     * ignore these entries.
+     */
     const int ret =
       __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_UNCOMMITTED, NULL);
 
@@ -229,7 +232,10 @@ __wt_truncate_delete_visible_check(
 
     __wt_readlock(session, &layered_table->truncate_lock);
 
-    /* Only committed truncates are visible to this transaction's snapshot. */
+    /*
+     * Ignore all truncate entries that haven't been committed. They won't be visible to this
+     * transaction.
+     */
     const int ret =
       __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_COMMITTED, tp);
 
