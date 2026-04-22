@@ -154,13 +154,14 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
     WT_ASSERT(
       session, mode == WT_TRUNCATE_SEARCH_COMMITTED || mode == WT_TRUNCATE_SEARCH_UNCOMMITTED);
 
-    const bool want_committed = (mode == WT_TRUNCATE_SEARCH_COMMITTED);
-
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         const bool is_committed =
           __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
 
-        if (is_committed != want_committed)
+        if (mode == WT_TRUNCATE_SEARCH_COMMITTED && !is_committed)
+            continue;
+
+        if (mode == WT_TRUNCATE_SEARCH_UNCOMMITTED && is_committed)
             continue;
 
         const int ret =
