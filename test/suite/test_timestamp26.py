@@ -54,6 +54,8 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
     def test_wtu_never(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -160,6 +162,8 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
     def test_alter(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -512,6 +516,8 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
     def test_in_memory_ts(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg') and not self.always:
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
