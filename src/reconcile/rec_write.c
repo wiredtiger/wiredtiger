@@ -2458,10 +2458,10 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         return (false);
 
     /*
-     * Only save disk images during checkpoint reconciliation. During eviction of dirty pages,
-     * the existing dirty-scrub path (WT_REC_SCRUB) handles immediate re-instantiation.
-     * Saving images during eviction would trigger that path unintentionally and prevent pages
-     * from being evicted to disk.
+     * Only save disk images during checkpoint reconciliation. During eviction of dirty pages, the
+     * existing dirty-scrub path (WT_REC_SCRUB) handles immediate re-instantiation. Saving images
+     * during eviction would trigger that path unintentionally and prevent pages from being evicted
+     * to disk.
      */
     if (F_ISSET(r, WT_REC_EVICT))
         return (false);
@@ -2739,9 +2739,8 @@ copy_image:
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
         WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_image_saved);
         WT_STAT_CONN_DSRC_INCRV(session, cache_clean_scrub_image_saved_bytes, chunk->image.size);
-        (void)__wt_atomic_add_uint64_relaxed(&S2BT(session)->clean_scrub_image_count, 1);
-        (void)__wt_atomic_add_uint64_relaxed(&S2BT(session)->clean_scrub_image_bytes,
-          chunk->image.size);
+        (void)__wt_atomic_add_uint64_relaxed(&btree->clean_scrub_image_count, 1);
+        (void)__wt_atomic_add_uint64_relaxed(&btree->clean_scrub_image_bytes, chunk->image.size);
     }
 
     /* Whether we wrote or not, clear the accumulated time statistics. */

@@ -1177,7 +1177,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_CLEAN_SCRUB)) &&
       !modified && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !WT_BTREE_SYNCING(btree) &&
       __wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) > 0 &&
-      __wt_evict_page_has_clean_scrub_image(page);
+      __wti_evict_page_has_clean_scrub_image(page);
 
     should_evict_page = evict_clean || evict_dirty || evict_updates || evict_clean_scrub;
     /* Skip pages we don't want. */
