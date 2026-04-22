@@ -229,6 +229,12 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
      * Find the matching layered table by walking the connection handle list and comparing the
      * stable URI from the layered handle. Acquire a reference to the layered dhandle so that its
      * ingest_uris/ingest_chunk_lock remain valid once we drop the handle list lock.
+     *
+     * Note: the caller's stable_uri is the dhandle name from the prepared-discover walk, which on
+     * a follower is the stable table's URI with a trailing "/<checkpoint_name>" suffix (see
+     * __wt_prepared_discover_filter_apply_handles). layered->stable_uri stores the bare URI, so
+     * we match by prefix and require the next character (if any) to be a '/' checkpoint
+     * separator.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(session, {
         for (dhandle = NULL;;) {
@@ -239,10 +245,14 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
                 continue;
 
             layered = (WT_LAYERED_TABLE *)dhandle;
-            if (layered->stable_uri != NULL && WT_STREQ(layered->stable_uri, stable_uri)) {
-                WT_DHANDLE_ACQUIRE(dhandle);
-                dhandle_acquired = true;
-                break;
+            if (layered->stable_uri != NULL) {
+                size_t sul = strlen(layered->stable_uri);
+                if (strncmp(stable_uri, layered->stable_uri, sul) == 0 &&
+                  (stable_uri[sul] == '\0' || stable_uri[sul] == '/')) {
+                    WT_DHANDLE_ACQUIRE(dhandle);
+                    dhandle_acquired = true;
+                    break;
+                }
             }
         }
     });
