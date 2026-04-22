@@ -132,6 +132,14 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
     __ref_cas_state(session, ref, old_state, new_state, __PRETTY_FUNCTION__, __LINE__)
 
 /*
+ * Default to spinning 100 times before yielding in __ref_lock. One-tenth of WT_SPIN_COUNT because
+ * __ref_lock protects a single CAS, not a general-purpose spinlock region.
+ */
+#ifndef WT_REF_SPIN_COUNT
+#define WT_REF_SPIN_COUNT WT_HUNDRED
+#endif
+
+/*
  * __ref_lock --
  *     Spin until successfully locking the ref. Return the previous state to the caller.
  */
@@ -139,11 +147,17 @@ static WT_INLINE void
 __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE *previous_statep)
 {
     WT_REF_STATE previous_state;
-    for (;; __wt_yield()) {
+    int i;
+
+    for (;;) {
         previous_state = WT_REF_GET_STATE(ref);
         if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
+        for (i = 0; WT_REF_GET_STATE(ref) == WT_REF_LOCKED && i < WT_REF_SPIN_COUNT; i++)
+            WT_PAUSE();
+        if (WT_REF_GET_STATE(ref) == WT_REF_LOCKED)
+            __wt_yield();
     }
     *(previous_statep) = previous_state;
 }
