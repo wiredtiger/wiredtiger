@@ -63,7 +63,11 @@ def gen_disagg_storages(test_name='', disagg_only = False):
 
 # For disaggregated test cases, we generally want to ignore verbose warnings about RTS at shutdown.
 def disagg_ignore_expected_output(testcase):
-    testcase.ignoreStdoutPattern('WT_VERB_RTS')
+    existing = getattr(testcase, 'ignore_regex', None)
+    if existing is not None:
+        testcase.ignoreStdoutPattern(existing.pattern + '|WT_VERB_RTS')
+    else:
+        testcase.ignoreStdoutPattern('WT_VERB_RTS')
 
 # Several tests access pages data directly by table id.
 # This function computes the shard id for a given table id, which is needed to
