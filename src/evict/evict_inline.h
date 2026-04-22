@@ -152,14 +152,14 @@ __wt_evict_page_is_soon(WT_PAGE *page)
 }
 
 /*
- * __wt_evict_page_has_clean_scrub_image --
+ * __wti_evict_page_has_clean_scrub_image --
  *     Return true if the page has a saved disk image suitable for clean-scrub re-instantiation.
  *     Handles both single-block (mod_disk_image) and multi-block (mod_multi[0].disk_image) cases.
- *     Multi-block images flagged WT_MULTI_SUPD_RESTORE belong to a different mechanism and are
- *     not eligible.
+ *     Multi-block images flagged with the update-restore bit belong to a different mechanism and
+ *     are not eligible.
  */
 static WT_INLINE bool
-__wt_evict_page_has_clean_scrub_image(WT_PAGE *page)
+__wti_evict_page_has_clean_scrub_image(WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
 

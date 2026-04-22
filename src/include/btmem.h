@@ -736,7 +736,7 @@ struct __wt_page {
 #define WT_PAGE_COMPACTION_WRITE 0x0002u  /* Writing the page for compaction */
 #define WT_PAGE_DISK_ALLOC 0x0004u        /* Disk image in allocated memory */
 #define WT_PAGE_DISK_MAPPED 0x0008u       /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_CLEAN_SCRUB 0x0010u    /* Page queued for clean-scrub re-instantiation */
+#define WT_PAGE_EVICT_CLEAN_SCRUB 0x0010u /* Page queued for clean-scrub re-instantiation */
 #define WT_PAGE_EVICT_LRU 0x0020u         /* Page is on the LRU queue */
 #define WT_PAGE_EVICT_LRU_URGENT 0x0040u  /* Page is in the urgent queue */
 #define WT_PAGE_EVICT_NO_PROGRESS 0x0080u /* Eviction doesn't count as progress */

@@ -2563,18 +2563,17 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL;
 
     /*
-     * A clean page with a saved disk image is a candidate for clean-scrub re-instantiation: we
-     * can swap out the in-memory content without a disk read, reclaiming update memory. Skip
-     * while the btree is being checkpointed: __wt_split_multi would return EBUSY (parent locked
-     * by the checkpoint thread), wasting an eviction slot. After checkpoint the walk
-     * re-encounters these pages and queues them successfully.
+     * A clean page with a saved disk image is a candidate for clean-scrub re-instantiation: we can
+     * swap out the in-memory content without a disk read, reclaiming update memory. Skip while the
+     * btree is being checkpointed: __wt_split_multi would return EBUSY (parent locked by the
+     * checkpoint thread), wasting an eviction slot. After checkpoint the walk re-encounters these
+     * pages and queues them successfully.
      */
-    evict_clean_scrub =
-      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ||
-        FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB)) &&
+    evict_clean_scrub = (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ||
+                          FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB)) &&
       !modified && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !WT_BTREE_SYNCING(btree) &&
       __wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) > 0 &&
-      __wt_evict_page_has_clean_scrub_image(page);
+      __wti_evict_page_has_clean_scrub_image(page);
 
     should_evict_page = evict_clean || evict_dirty || evict_updates || evict_clean_scrub;
     /* Skip pages we don't want. */
@@ -2626,9 +2625,9 @@ fast:
         return;
 
     /*
-     * Clean-scrub candidates go directly to the urgent queue so they are processed promptly,
-     * before the eviction walk moves on to many dirty pages. The flag must be set before queuing
-     * because __evict_list_clear only clears the LRU flags, not WT_PAGE_EVICT_CLEAN_SCRUB.
+     * Clean-scrub candidates go directly to the urgent queue so they are processed promptly, before
+     * the eviction walk moves on to many dirty pages. The flag must be set before queuing because
+     * __evict_list_clear only clears the LRU flags, not WT_PAGE_EVICT_CLEAN_SCRUB.
      */
     if (evict_clean_scrub) {
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB);
@@ -2637,8 +2636,8 @@ fast:
             return;
         }
         /*
-         * Urgent queue is full or the page is already queued: fall through to the normal
-         * eviction queue so the page still gets a chance to be scrubbed.
+         * Urgent queue is full or the page is already queued: fall through to the normal eviction
+         * queue so the page still gets a chance to be scrubbed.
          */
     }
 
@@ -2698,10 +2697,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     /*
      * Debug full-walk mode: when clean_scrub is enabled and the btree has pending clean-scrub
      * images, extend the walk end to cover the full queue rather than the per-tree quota. This
-     * makes the walk exhaustive, visiting every page in the tree, so that clean-scrub candidates
-     * at any position are reliably found. Since urgent-queue pages don't consume regular queue
-     * slots (evict_entry doesn't advance for them), the walk naturally continues past the normal
-     * quota until the tree is exhausted.
+     * makes the walk exhaustive, visiting every page in the tree, so that clean-scrub candidates at
+     * any position are reliably found. Since urgent-queue pages don't consume regular queue slots
+     * (evict_entry doesn't advance for them), the walk naturally continues past the normal quota
+     * until the tree is exhausted.
      */
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_WALK_FULL) &&
       __wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) > 0)
