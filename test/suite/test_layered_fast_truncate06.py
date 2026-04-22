@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate04.py
+# test_layered_fast_truncate06.py
 #   Follower-initiated truncate stores a bounded range in the truncate list.
 #   Verifies NULL start/stop from the session API are resolved to the table's
 #   first/last visible key, both via the verbose log line and by the row set
@@ -37,16 +37,16 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate06(wttest.WiredTigerTestCase):
 
     conn_config = 'verbose=[layered:3],disaggregated=(role="leader"),'
-    uri = 'layered:test_layered_fast_truncate04'
+    uri = 'layered:test_layered_fast_truncate06'
 
     key_formats = [
         ('string', dict(key_format='S')),
         ('int', dict(key_format='i')),
     ]
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate04', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_fast_truncate06', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, key_formats)
 
     nitems = 100
@@ -86,6 +86,7 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
             c_stop = self.session.open_cursor(self.uri)
             c_stop.set_key(self.key(stop))
 
+        # Use the table uri if both start and stop cursors are not given.
         uri = self.uri if c_start is None and c_stop is None else None
         self.session.begin_transaction()
         self.session.truncate(uri, c_start, c_stop, None)
@@ -95,18 +96,11 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         if c_stop is not None:
             c_stop.close()
 
-    def visible_keys(self):
+    def visible_keys(self, forward=True):
         c = self.session.open_cursor(self.uri)
+        step = c.next if forward else c.prev
         keys = []
-        while c.next() == 0:
-            keys.append(c.get_key())
-        c.close()
-        return keys
-
-    def visible_keys_reverse(self):
-        c = self.session.open_cursor(self.uri)
-        keys = []
-        while c.prev() == 0:
+        while step() == 0:
             keys.append(c.get_key())
         c.close()
         return keys
@@ -155,7 +149,7 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         self.assertEqual(self.visible_keys(), [])
 
     # An open-ended truncate captures "end" at commit time, not dynamically. Keys appended
-    # after commit sit beyond the snapshotted stop and stay visible.
+    # after stop shouldy visible.
     def test_open_ended_truncate_does_not_hide_later_appends(self):
         self.setup_follower()
         self.truncate(start=80, stop=None)
@@ -165,16 +159,26 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
                    [self.key(i) for i in range(200, 211)]
         self.assertEqual(self.visible_keys(), expected)
 
-    # A bounded truncate followed by an open-ended truncate whose requested start key (50) has
-    # already been deleted by the first truncate. session.truncate's internal search_near advances
-    # the start to the nearest live key (61), producing an adjacent [61, nitems] entry rather than
-    # the requested [50, nitems]. Forward and backward scans must still see only 1-19.
-    def test_bounded_and_open_ended_combined(self):
+    def test_bounded_and_end_open_ended_overlap(self):
         self.setup_follower()
         self.truncate(start=20, stop=60)
         self.assert_trunc_log(20, 60)
         self.truncate(start=50, stop=None)
+        # key 50-60 was deleted by the first truncate; search_near positions it on the
+        # nearest in-bound key, 61.
         self.assert_trunc_log(61, self.nitems)
         expected = [self.key(i) for i in range(1, 20)]
         self.assertEqual(self.visible_keys(), expected)
-        self.assertEqual(self.visible_keys_reverse(), list(reversed(expected)))
+        self.assertEqual(self.visible_keys(forward=False), list(reversed(expected)))
+        
+    def test_bounded_and_start_open_ended_overlap(self):
+        self.setup_follower()
+        self.truncate(start=20, stop=60)
+        self.assert_trunc_log(20, 60)
+        self.truncate(start=0, stop=30)
+        # key 20-30 was deleted by the first truncate; search_near positions it on the
+        # nearest live key, 19.
+        self.assert_trunc_log(1, 19)
+        expected = [self.key(i) for i in range(61, self.nitems + 1)]
+        self.assertEqual(self.visible_keys(), expected)
+        self.assertEqual(self.visible_keys(forward=False), list(reversed(expected)))
