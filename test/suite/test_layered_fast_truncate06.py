@@ -149,7 +149,7 @@ class test_layered_fast_truncate06(wttest.WiredTigerTestCase):
         self.assertEqual(self.visible_keys(), [])
 
     # An open-ended truncate captures "end" at commit time, not dynamically. Keys appended
-    # after stop shouldy visible.
+    # after stop should be visible.
     def test_open_ended_truncate_does_not_hide_later_appends(self):
         self.setup_follower()
         self.truncate(start=80, stop=None)
@@ -170,7 +170,7 @@ class test_layered_fast_truncate06(wttest.WiredTigerTestCase):
         expected = [self.key(i) for i in range(1, 20)]
         self.assertEqual(self.visible_keys(), expected)
         self.assertEqual(self.visible_keys(forward=False), list(reversed(expected)))
-        
+
     def test_bounded_and_start_open_ended_overlap(self):
         self.setup_follower()
         self.truncate(start=20, stop=60)
