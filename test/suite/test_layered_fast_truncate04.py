@@ -147,8 +147,8 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
 
     # Assert forward and backward scans both return the expected key list.
     def assert_scan(self, expected):
-        self.assertEqual(self.scan_forward(), expected, f'forward scan mismatch')
-        self.assertEqual(self.scan_backward(), expected, f'backward scan mismatch')
+        self.assertEqual(self.scan_forward(), expected, 'forward scan mismatch')
+        self.assertEqual(self.scan_backward(), expected, 'backward scan mismatch')
 
     # Write a single key/value pair in its own transaction.
     def put(self, key, value='v'):

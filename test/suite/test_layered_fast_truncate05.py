@@ -108,7 +108,7 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.next(), 0, 'random cursor found no visible key')
             k = cursor.get_key()
             self.assertFalse(self.key(low) <= k <= self.key(high),
-                'random cursor returned truncated key {k}')
+                f'random cursor returned truncated key {k}')
         self.session.rollback_transaction()
         cursor.close()
 
