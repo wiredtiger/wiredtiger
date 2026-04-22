@@ -8,6 +8,11 @@
 
 #include "wt_internal.h"
 
+typedef enum {
+    WT_TRUNCATE_SEARCH_COMMITTED = (1 << 0),
+    WT_TRUNCATE_SEARCH_UNCOMMITTED = (1 << 1)
+} WT_TRUNCATE_SEARCH_FLAGS;
+
 /*
  * __disagg_truncate_free --
  *     Free an entry in the layered dhandle truncate list.
@@ -29,35 +34,29 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 
 /*
  * __key_within_truncate_range --
- *     Search if the key is within a truncate range.
+ *     Search if the key is within a truncate range. Return 0 on a match, WT_NOTFOUND if not, or an
+ *     error from the collator comparison.
  */
 static int
 __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key, bool *is_within_range)
+  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key)
 {
     int compare_result;
-
-    WT_ASSERT(session, is_within_range != NULL);
-    *is_within_range = false;
 
     /* A zeroed start key indicates a truncate from the beginning of the table. */
     if (start_key->size != 0) {
         WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
-        if (compare_result < 0) {
-            *is_within_range = false;
-            return (0);
-        }
+
+        if (compare_result < 0)
+            return (WT_NOTFOUND);
     }
 
     /* A zeroed stop key indicates a truncate to end of table. */
-    if (stop_key->size == 0) {
-        *is_within_range = true;
+    if (stop_key->size == 0)
         return (0);
-    }
 
     WT_RET(__wt_compare(session, collator, key, stop_key, &compare_result));
-    *is_within_range = (compare_result <= 0);
-    return (0);
+    return (compare_result <= 0) ? 0 : WT_NOTFOUND;
 }
 
 /*
@@ -140,6 +139,66 @@ err:
 }
 
 /*
+ * __is_entry_valid_for_search --
+ *     Determine if a truncate entry is valid for the given search flags.
+ */
+static bool
+__is_entry_valid_for_search(
+  WT_SESSION_IMPL *session, const WT_TRUNCATE *entry, const uint32_t search_flags)
+{
+    WT_ASSERT(session, search_flags != 0U);
+
+    const bool search_committed = FLD_ISSET(search_flags, WT_TRUNCATE_SEARCH_COMMITTED);
+    const bool search_uncommitted = FLD_ISSET(search_flags, WT_TRUNCATE_SEARCH_UNCOMMITTED);
+
+    if (search_committed && search_uncommitted)
+        return (true);
+
+    const bool is_committed =
+      __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
+
+    if (search_committed && is_committed)
+        return (true);
+
+    if (search_uncommitted && !is_committed)
+        return (true);
+
+    return (false);
+}
+
+/*
+ * __truncate_search --
+ *     Walk the layered table truncate list looking for a committed or uncommitted entry (depending
+ *     on the search flags) whose range covers the given key. The matched entry is returned through
+ *     the output parameter when non-NULL.
+ */
+static int
+__truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key,
+  const uint32_t search_flags, WT_TRUNCATE **tp)
+{
+    WT_COLLATOR *collator = layered_table->collator;
+    WT_TRUNCATE *entry = NULL;
+
+    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
+        if (!__is_entry_valid_for_search(session, entry, search_flags))
+            continue;
+
+        const int ret =
+          __key_within_truncate_range(session, collator, &entry->start_key, &entry->stop_key, key);
+
+        WT_RET_NOTFOUND_OK(ret);
+
+        if (ret == 0) {
+            if (tp != NULL)
+                *tp = entry;
+            return (0);
+        }
+    }
+
+    return (WT_NOTFOUND);
+}
+
+/*
  * __wt_layered_table_truncate_detect_write_conflict --
  *     Search if the current key we are modifying conflicts with any uncommitted truncates in the
  *     layered table truncate list.
@@ -151,47 +210,27 @@ int
 __wt_layered_table_truncate_detect_write_conflict(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
 {
-    WT_COLLATOR *collator;
-    WT_DECL_RET;
-    WT_TRUNCATE *entry;
-    bool is_within_range;
-
     if (!__wt_process.disagg_fast_truncate_2026)
         return (0);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    collator = layered_table->collator;
-    is_within_range = false;
-
     __wt_readlock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
-        /*
-         * The truncate entry has already been committed if it is visible to this transaction. We
-         * can ignore these entries.
-         */
-        if (__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
-            continue;
 
-        WT_ERR(__key_within_truncate_range(
-          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range));
+    /* Only uncommitted truncates can conflict with our write. */
+    const int ret =
+      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_UNCOMMITTED, NULL);
 
-        if (is_within_range)
-            break;
-    }
-
-err:
     __wt_readunlock(session, &layered_table->truncate_lock);
-    WT_RET(ret);
 
-    if (is_within_range) {
+    if (ret == 0) {
         WT_STAT_CONN_INCR(session, txn_update_conflict);
         __wt_session_set_last_error(
           session, WT_ROLLBACK, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
         return (WT_ROLLBACK);
     }
 
-    return (0);
+    return (ret == WT_NOTFOUND) ? 0 : ret;
 }
 
 /*
@@ -202,44 +241,20 @@ int
 __wt_truncate_delete_visible_check(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
 {
-    WT_COLLATOR *collator;
-    WT_DECL_RET;
-    WT_TRUNCATE *entry;
-    bool is_within_range;
-
     if (!__wt_process.disagg_fast_truncate_2026)
         return (WT_NOTFOUND);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    collator = layered_table->collator;
-    is_within_range = false;
-
     __wt_readlock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
-        /*
-         * Ignore all truncate entries that haven't been committed. They won't be visible to this
-         * transaction.
-         */
-        if (!__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
-            continue;
 
-        WT_ERR(__key_within_truncate_range(
-          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range));
+    /* Only committed truncates are visible to this transaction's snapshot. */
+    const int ret =
+      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_COMMITTED, tp);
 
-        if (!is_within_range)
-            continue;
-
-        if (tp != NULL)
-            *tp = entry;
-
-        break;
-    }
-
-err:
     __wt_readunlock(session, &layered_table->truncate_lock);
-    WT_RET(ret);
-    return (is_within_range ? 0 : WT_NOTFOUND);
+
+    return (ret);
 }
 
 /*
