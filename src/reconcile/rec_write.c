@@ -3306,7 +3306,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
 
-        if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count > 0)
+        if (r->multi->block_meta->delta_count > 0)
             __rec_disagg_clear_stale_mod_state(session, page);
 
         /*
