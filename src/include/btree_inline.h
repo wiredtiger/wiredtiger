@@ -936,8 +936,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+    WT_ASSERT_ALWAYS(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader,
+      "Follower attempting to modify page in shared btree");
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
@@ -1048,8 +1049,9 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
+    WT_ASSERT_ALWAYS(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader,
+      "Follower attempting to modify shared btree");
 
     /*
      * Test before setting the dirty flag, it's a hot cache line.
@@ -1149,8 +1151,9 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+    WT_ASSERT_ALWAYS(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader,
+      "Follower attempting to set page modify in shared btree");
 
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
@@ -1189,8 +1192,9 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return (0);
 
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+    WT_ASSERT_ALWAYS(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader,
+      "Follower attempting to modify parent page in shared btree");
 
     /*
      * This function exists as a place to stash this comment. There are a few places where we need
