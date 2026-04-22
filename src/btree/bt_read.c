@@ -454,6 +454,9 @@ skip_read:
       (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP) &&
         (ref->page != NULL) && !WT_PAGE_IS_INTERNAL(ref->page));
 
+    if (F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP))
+        WT_STAT_CONN_INCR(session, eviction_force_nokeep_in_read);
+
     __wt_ref_make_visible(session, ref, *wont_need);
 
     WT_ASSERT(session, ret == 0);
@@ -571,7 +574,16 @@ read:
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
             FLD_CLR(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
-
+            /*
+             * If configured to not trash the cache, leave the page generation unset, we'll set it
+             * before returning to the oldest read generation, so the page is forcibly evicted as
+             * soon as possible. We don't do that set here because we don't want to evict the page
+             * before we "acquire" it. Also avoid queuing a pre-fetch page for forced eviction
+             * before it has a chance of being used. Otherwise the work we've just done is wasted.
+             */
+            wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
+              F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
+              (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP));
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
@@ -647,6 +659,7 @@ read:
              */
             if (force_attempts < 10 && __evict_force_check(session, ref)) {
                 ++force_attempts;
+                WT_STAT_CONN_INCR(session, eviction_force_btread);
                 ret = __wt_page_release_evict(session, ref, 0);
                 /*
                  * If forced eviction succeeded, don't retry. If it failed, stall.

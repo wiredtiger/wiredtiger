@@ -2452,6 +2452,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     if (F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT)) {
         WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
+        WT_STAT_CONN_INCR(session, eviction_force_btinline1);
         return (0);
     }
 
@@ -2465,10 +2466,15 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
           (inmem_split ? LF_ISSET(WT_READ_NO_SPLIT) : F_ISSET(session, WT_SESSION_NO_RECONCILE)))
             __wt_evict_page_urgent(session, ref);
         else {
+            WT_STAT_CONN_INCR(session, eviction_force_btinline2);
+            if (__wt_page_is_modified(ref->page))
+                WT_STAT_CONN_INCR(session, eviction_force_app_try_dirty);
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
+
             return (0);
         }
-    }
+    } else
+        WT_STAT_CONN_INCR(session, eviction_force_noforce);
 
     return (__wt_hazard_clear(session, ref));
 }
