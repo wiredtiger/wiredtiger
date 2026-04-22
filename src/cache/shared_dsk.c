@@ -206,7 +206,7 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
         __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,
           "release: disk image removed from shared dsk cache", hash, bucket, lock_idx,
           shared_dsk_item->addr, shared_dsk_item->addr_size);
-        __wt_free(session, shared_dsk_item->data);
+        __wt_overwrite_and_free_len(session, shared_dsk_item->data, shared_dsk_item->data_size);
         __wt_free(session, shared_dsk_item);
     } else {
         __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
@@ -276,7 +276,7 @@ __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
         while (!TAILQ_EMPTY(&shared_dsk_cache->hash[i])) {
             shared_dsk_item = TAILQ_FIRST(&shared_dsk_cache->hash[i]);
             TAILQ_REMOVE(&shared_dsk_cache->hash[i], shared_dsk_item, hashq);
-            __wt_free(session, shared_dsk_item->data);
+            __wt_overwrite_and_free_len(session, shared_dsk_item->data, shared_dsk_item->data_size);
             __wt_free(session, shared_dsk_item);
         }
     }

@@ -149,9 +149,20 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         break;
     }
 
-    /* Discard any allocated disk image. */
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
-        __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
+    /*
+     * Discard any allocated disk image. When the image is owned by the shared disk cache, release
+     * our reference instead of freeing the memory directly; the cache frees the data once the last
+     * reference is dropped.
+     */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC)) {
+        if (page->disagg_info != NULL && page->disagg_info->shared_dsk_item != NULL) {
+            WT_ASSERT(session, S2C(session)->cache->shared_dsk_cache.enabled);
+            WT_ASSERT(session, page->disagg_info->shared_dsk_item->data == dsk);
+            WT_ASSERT(session, page->disagg_info->shared_dsk_item->data_size == dsk->mem_size);
+            __wt_shared_dsk_cache_release(session, page->disagg_info->shared_dsk_item);
+        } else
+            __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
+    }
 
     __wt_overwrite_and_free(session, page);
 }
