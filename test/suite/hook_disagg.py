@@ -236,6 +236,8 @@ def replace_uri(uri):
 # Called to replace Session.alter.
 def session_alter_replace(orig_session_open_cursor, session_self, uri, config):
     uri = replace_uri(uri)
+    if uri.startswith("layered:"):
+        skip_test("session.alter is not supported for layered tables in disagg storage")
     return orig_session_open_cursor(session_self, uri, config)
 
 # Called to replace Session.checkpoint.
@@ -298,6 +300,9 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     import_enabled = config and 'import=(enabled' in config
     if import_enabled:
         skip_test("Import does not work in disagg storage")
+
+    if 'write_timestamp_usage=never' in config_str:
+        skip_test("write_timestamp_usage=never is incompatible with disagg storage")
 
     if uri.startswith("index:"):
         # URI is index:base_name:index_name
