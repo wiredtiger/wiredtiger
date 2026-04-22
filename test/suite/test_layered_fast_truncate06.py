@@ -165,15 +165,16 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
                    [self.key(i) for i in range(200, 211)]
         self.assertEqual(self.visible_keys(), expected)
 
-    # A bounded truncate and an open-ended truncate that overlap. Bounded covers 20-60 and
-    # the open-ended (50-end) extends past it; their union is 20-end. Forward and backward
-    # scans must skip the union without double-hiding or revealing keys in the overlap.
+    # A bounded truncate followed by an open-ended truncate whose requested start key (50) has
+    # already been deleted by the first truncate. session.truncate's internal search_near advances
+    # the start to the nearest live key (61), producing an adjacent [61, nitems] entry rather than
+    # the requested [50, nitems]. Forward and backward scans must still see only 1-19.
     def test_bounded_and_open_ended_combined(self):
         self.setup_follower()
         self.truncate(start=20, stop=60)
         self.assert_trunc_log(20, 60)
         self.truncate(start=50, stop=None)
-        self.assert_trunc_log(50, self.nitems)
+        self.assert_trunc_log(61, self.nitems)
         expected = [self.key(i) for i in range(1, 20)]
         self.assertEqual(self.visible_keys(), expected)
         self.assertEqual(self.visible_keys_reverse(), list(reversed(expected)))

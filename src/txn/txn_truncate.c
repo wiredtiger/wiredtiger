@@ -139,7 +139,6 @@ err:
     __wt_scr_free(session, &start_buf);
     __wt_scr_free(session, &stop_buf);
 
-    WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
 
