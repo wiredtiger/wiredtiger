@@ -99,7 +99,6 @@ class test_hs01(wttest.WiredTigerTestCase):
         conn.close()
 
     def test_hs(self):
-        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
         # Create a small table.
         uri = "table:test_hs01"
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
