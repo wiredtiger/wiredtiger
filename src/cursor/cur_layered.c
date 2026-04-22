@@ -787,10 +787,13 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        WT_RET_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t));
-        if (ret == WT_NOTFOUND)
+        ret = __wt_truncate_delete_visible_check(
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
             break;
+        }
+        WT_RET(ret);
 
         /*
          * An open-ended truncation means a truncate to the end of the table. When iterating forward
