@@ -64,7 +64,6 @@ __txn_insert_truncate_entry_helper(
     WT_TRUNCATE *t;
 
     t = *tp;
->>>>>>> develop
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
     WT_ERR(__wt_txn_truncate(session, t));
