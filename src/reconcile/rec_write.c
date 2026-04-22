@@ -3229,11 +3229,9 @@ split:
 
 /*
  * __rec_disagg_clear_stale_mod_state --
- *     Clear the preserved page->modify state left by the previous successful reconciliation. After
- *     a failed delta write, __wt_btree_block_free invokes plh_discard which terminates the entire
- *     delta chain in storage, invalidating the cookie and disk image the previous wrapup saved.
- *     Reset the fields the same way a successful wrapup would so the next reconciliation starts
- *     from a "never reconciled" state.
+ *     Reset preserved page->modify state after a failed delta write. The chain that state described
+ *     was just destroyed in storage by plh_discard, so the saved cookie, disk image, and rec_result
+ *     are stale, clear them the same way a successful wrapup would.
  */
 static void
 __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -3294,23 +3292,12 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * during the next reconciliation for the replaced page. In other cases, the old page ID will be
      * released upon successful reconciliation.
      *
-     * For a failed disaggregated delta write, __wt_btree_block_free above invoked plh_discard,
-     * which deletes the entire delta chain (base_lsn to current LSN) from storage -- not just the
-     * delta entry we were attempting to write. This destroys every block that the previous
-     * successful reconciliation's preserved state still references. If we leave that stale state
-     * in place, a later wrapup will trust it and operate on data that no longer exists. Two
-     * downstream failures have been observed:
-     *
-     *   - mod->mod_replace.block_cookie still non-NULL and page->disagg_info->block_meta
-     *     .cumulative_size still set: wrapup enters the WT_PM_REC_REPLACE path and calls
-     *     __wt_block_disagg_obsolete_delta_chain a second time for the same chain, under-flowing
-     *     block_disagg->size and tripping the decrease-size assertion.
-     *   - ref->addr still holds a cookie for the now-dead page id: wrapup calls
-     *     __wt_ref_block_free(ref, true) which issues a second plh_discard on an already-
-     *     terminated chain, producing EINVAL and a panic.
-     *
-     * Clear the preserved state the same way a successful wrapup would, so the next reconciliation
-     * starts from a known-good "never reconciled" state.
+     * ref->addr is cleared unconditionally -- any reference to an invalidated page id is orphaned.
+     * For a failed delta write, the block free above also invoked plh_discard which terminated the
+     * entire chain in storage, so the page->modify state saved by the previous successful
+     * reconciliation now points at destroyed data and must be reset too. Without these cleanups, a
+     * later wrapup trusts the stale state and either double-subtracts the chain's cumulative size
+     * or double-discards the chain.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
