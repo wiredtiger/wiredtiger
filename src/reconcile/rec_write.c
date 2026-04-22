@@ -3229,9 +3229,9 @@ split:
 
 /*
  * __rec_disagg_clear_stale_mod_state --
- *     Reset preserved page->modify state after a failed delta write. The chain that state described
- *     was just destroyed in storage by plh_discard, so the saved cookie, disk image, and rec_result
- *     are stale, clear them the same way a successful wrapup would.
+ *     Reset preserved reconciliation state on the page after a failed delta write. The chain that
+ *     state described was just terminated in storage, so the saved cookie, disk image, and
+ *     reconciliation result are stale, clear them the same way a successful wrapup would.
  */
 static void
 __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -3292,13 +3292,13 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * during the next reconciliation for the replaced page. In other cases, the old page ID will be
      * released upon successful reconciliation.
      *
-     * ref->addr is cleared unconditionally -- any reference to an invalidated page id is orphaned.
-     * The page->modify state is only cleared for delta failures: the block free above invoked
-     * plh_discard which terminated the entire chain in storage, so the state saved by the previous
-     * successful reconciliation now points at destroyed data and must be reset. Full-image failures
-     * only discard the new entry (not the chain), so the preserved mod state still describes live
-     * storage and is left intact. Without these cleanups, a later wrapup trusts the stale state and
-     * either double-subtracts the chain's cumulative size or double-discards the chain.
+     * The cached page reference is cleared unconditionally -- any reference to an invalidated page
+     * id is orphaned. The preserved reconciliation state is only cleared for delta failures: the
+     * block free above also terminated the entire chain in storage, so the state saved by the
+     * previous successful reconciliation now points at destroyed data and must be reset. Full-image
+     * failures only discard the new entry (not the chain), so the preserved state still describes
+     * live storage and is left intact. Without these cleanups, a later wrapup trusts the stale
+     * state and either double-subtracts the chain's cumulative size or double-discards the chain.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
