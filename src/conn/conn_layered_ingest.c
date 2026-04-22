@@ -206,6 +206,71 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
+
+/*
+ * __wt_layered_verify_gc_update --
+ *     Diagnostic check: before an update on an ingest btree is pruned by garbage collection, verify
+ *     the most recent update in the chain against the latest stable-table checkpoint. If the update
+ *     is a tombstone the key must not exist on the stable table; if it is a data value the key must
+ *     exist.
+ */
+int
+__wt_layered_verify_gc_update(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd_to_prune)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *stable_cursor;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    uint32_t ingest_id;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
+      "checkpoint=WiredTigerCheckpoint", "readonly", NULL};
+
+    stable_cursor = NULL;
+
+    if (upd_to_prune == NULL || !WT_UPDATE_DATA_VALUE(upd_to_prune))
+        return (0);
+
+    conn = S2C(session);
+    if (!conn->layered_table_manager.init)
+        return (0);
+
+    ingest_id = S2BT(session)->id;
+    entry = conn->layered_table_manager.entries[ingest_id];
+    if (entry == NULL)
+        return (0);
+
+    /* Materialize the key for this cursor position into cbt->iface.key. */
+    WT_RET(__wt_key_return(cbt));
+
+    /*
+     * Open a read-only cursor on the latest checkpoint of the stable table. If the stable table has
+     * never been checkpointed there is nothing to verify against.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
+
+    stable_cursor->set_key(stable_cursor, &cbt->iface.key);
+    ret = stable_cursor->search(stable_cursor);
+    WT_ERR_NOTFOUND_OK(ret, true);
+
+    if (upd_to_prune->type == WT_UPDATE_TOMBSTONE)
+        WT_ASSERT_ALWAYS(session, ret == WT_NOTFOUND,
+          "GC verify: last update is a tombstone but key still exists on the stable table");
+    else
+        WT_ASSERT_ALWAYS(session, ret == 0,
+          "GC verify: last update is a data value but key is missing on the stable table");
+    ret = 0;
+
+err:
+    if (stable_cursor != NULL)
+        WT_TRET(stable_cursor->close(stable_cursor));
+    return (ret);
+}
 #endif
 
 /*
