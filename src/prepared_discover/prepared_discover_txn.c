@@ -205,38 +205,34 @@ int
 __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
   const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_UPDATE *upd;
-    uint32_t i, table_count;
+    size_t prefix_len, size;
+    const char *stable_suffix;
 
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
     cursor = NULL;
-    entry = NULL;
-    conn = S2C(session);
-    manager = &conn->layered_table_manager;
-    table_count = manager->open_layered_table_count;
-    for (i = 0; i < table_count; i++) {
-        /* Find the entry with stable uri that matches the currently opened dhandle. */
-        if (manager->entries[i] != NULL) {
-            if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
-                entry = manager->entries[i];
-                break;
-            }
-        }
-    }
-    WT_ASSERT_ALWAYS(
-      session, entry != NULL, "Unable to find matching ingest table to restore prepared update");
-    /* Open cursor on the ingest table */
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
+
+    /*
+     * Derive the ingest URI from the stable URI by the schema_create convention: layered:X has
+     * stable component file:X.wt_stable and ingest component file:X.wt_ingest. The stable_uri
+     * passed in also carries a /<checkpoint> suffix that is dropped here.
+     */
+    stable_suffix = strstr(stable_uri, ".wt_stable");
+    WT_ASSERT_ALWAYS(session, stable_suffix != NULL,
+      "prepared update restoration expected stable btree URI, got %s", stable_uri);
+    prefix_len = (size_t)(stable_suffix - stable_uri);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
+    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "%.*s.wt_ingest", (int)prefix_len, stable_uri));
+
+    WT_ERR(__wt_open_cursor(session, ingest_uri_buf->data, NULL, cfg, &cursor));
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    size_t size;
     WT_ERR(__prepare_discover_alloc_upd(session, value, unpack, &upd, &size));
 
     /* Search the page and apply the modification. */
@@ -247,5 +243,6 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
 err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
+    __wt_scr_free(session, &ingest_uri_buf);
     return (ret);
 }
