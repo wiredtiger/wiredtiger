@@ -716,6 +716,13 @@ connection_runtime_config = [
             to happen more aggressively. This includes but is not limited to not skewing newest,
             not favoring leaf pages, and modifying the eviction score mechanism.''',
             type='boolean'),
+        Config('evict_walk_full', 'false', r'''
+            if true, the eviction server walks the entire tree on every pass rather than stopping
+            at the per-tree quota. This guarantees all pages are visited each pass regardless of
+            where the walk starts, which is useful when testing eviction features that produce
+            candidate pages at unpredictable positions in the tree.
+            This is intended for testing purposes only.''',
+            type='boolean'),
         Config('log_retention', '0', r'''
             adjust log removal to retain at least this number of log files.
             (Warning: this option can remove log files required for recovery if no checkpoints

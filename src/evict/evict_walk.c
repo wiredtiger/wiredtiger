@@ -1096,13 +1096,13 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     WT_EVICT *evict;
     WT_PAGE *page;
     bool evict_clean, evict_clean_scrub, evict_dirty, evict_updates, modified, should_evict_page;
-    evict_clean_scrub = false;
 
     btree = S2BT(session);
     conn = S2C(session);
     evict = conn->evict;
     page = ref->page;
     modified = __wt_page_is_modified(page);
+    evict_clean_scrub = false;
     *queuedp = false;
 
     /* Don't queue dirty pages in trees during checkpoints. */
@@ -1166,16 +1166,18 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(page);
 
     /*
-     * A clean page with a saved disk image is a candidate for clean-scrub re-instantiation: we can
-     * swap out the in-memory content without a disk read, reclaiming update memory. Only consider
-     * this when under updates pressure and the btree has saved images available.
+     * A clean page with a saved disk image is a candidate for clean-scrub re-instantiation: we
+     * can swap out the in-memory content without a disk read, reclaiming update memory. Skip
+     * while the btree is being checkpointed: __wt_split_multi would return EBUSY (parent locked
+     * by the checkpoint thread), wasting an eviction slot. After checkpoint the walk
+     * re-encounters these pages and queues them successfully.
      */
     evict_clean_scrub =
       (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ||
         FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_CLEAN_SCRUB)) &&
-      !modified && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+      !modified && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !WT_BTREE_SYNCING(btree) &&
       __wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) > 0 &&
-      page->modify != NULL && page->modify->mod_disk_image != NULL;
+      __wt_evict_page_has_clean_scrub_image(page);
 
     should_evict_page = evict_clean || evict_dirty || evict_updates || evict_clean_scrub;
     /* Skip pages we don't want. */
@@ -1226,12 +1228,26 @@ fast:
     if (!__wt_page_can_evict(session, ref, NULL))
         return;
 
+    /*
+     * Clean-scrub candidates go directly to the urgent queue so they are processed promptly,
+     * before the eviction walk moves on to many dirty pages. The flag must be set before queuing
+     * because __evict_list_clear only clears the LRU flags, not WT_PAGE_EVICT_CLEAN_SCRUB.
+     */
+    if (evict_clean_scrub) {
+        F_SET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB);
+        if (__wt_evict_page_urgent(session, ref)) {
+            *urgent_queuedp = true;
+            return;
+        }
+        /*
+         * Urgent queue is full or the page is already queued: fall through to the normal
+         * eviction queue so the page still gets a chance to be scrubbed.
+         */
+    }
+
     WT_ASSERT(session, evict_entry->ref == NULL);
     if (!__wti_evict_push_candidate(session, queue, evict_entry, ref))
         return;
-
-    if (evict_clean_scrub)
-        F_SET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB);
 
     *queuedp = true;
     __wt_verbose_debug2(session, WT_VERB_EVICTION, "walk select: %p, size %" WT_SIZET_FMT,

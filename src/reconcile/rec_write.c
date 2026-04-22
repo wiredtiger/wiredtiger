@@ -2431,17 +2431,13 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
 /*
  * __rec_should_save_disk_image --
- *     Return true if we should save a disk image for later clean-scrub eviction. We save when the
- *     page has been recently accessed (read generation ahead of the eviction cursor) and its
- *     accumulated update volume is at least 10% of the total in-memory page footprint, indicating
- *     that re-instantiating from the disk image would reclaim meaningful memory.
+ *     Return true if we should save a disk image for later clean-scrub eviction. Images are saved
+ *     only when the clean-scrub debug flag is explicitly enabled on the connection.
  */
 static bool
 __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_PAGE *page;
-    size_t footprint;
-    uint64_t bytes_updates;
 
     page = r->page;
 
@@ -2456,21 +2452,21 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     if (page->modify == NULL)
         return (false);
 
-    /* Debug mode bypasses read-gen and update-volume thresholds for testing. */
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB))
-        return (true);
-
-    /* Only retain images for recently-accessed pages. */
-    if (__wt_atomic_load_uint64_relaxed(&page->read_gen) <= __evict_read_gen(session))
+    /* Never save disk images for internal system btrees (metadata, HS). */
+    if (WT_IS_METADATA(S2BT(session)->dhandle) || WT_IS_HS(S2BT(session)->dhandle))
         return (false);
 
-    /* Require update volume >= 10% of total in-memory page size. */
-    bytes_updates = __wt_atomic_load_uint64_relaxed(&page->modify->bytes_updates);
-    footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
-    if (bytes_updates == 0 || footprint == 0)
+    /*
+     * Only save disk images during checkpoint reconciliation. During eviction of dirty pages,
+     * the existing dirty-scrub path (WT_REC_SCRUB) handles immediate re-instantiation.
+     * Saving images during eviction would trigger that path unintentionally and prevent pages
+     * from being evicted to disk.
+     */
+    if (F_ISSET(r, WT_REC_EVICT))
         return (false);
 
-    return (bytes_updates * 10 >= footprint);
+    /* Only save disk images when the debug flag is explicitly enabled. */
+    return (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB));
 }
 
 /*

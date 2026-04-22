@@ -19,7 +19,7 @@
 #define WT_REC_CHECKPOINT 0x0004u
 #define WT_REC_CHECKPOINT_RUNNING 0x0008u
 #define WT_REC_CLEAN_AFTER_REC 0x0010u
-#define WT_REC_CLEAN_SCRUB 0x0020u    /* Save disk image for clean-scrub eviction */
+#define WT_REC_CLEAN_SCRUB 0x0020u /* Save disk image for clean-scrub eviction */
 #define WT_REC_EVICT 0x0040u
 #define WT_REC_EVICT_CALL_CLOSING 0x0080u
 #define WT_REC_HS 0x0100u
