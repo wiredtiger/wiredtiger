@@ -29,7 +29,8 @@
 # test_layered_fast_truncate04.py
 #   Follower-initiated truncate stores a bounded range in the truncate list.
 #   Verifies NULL start/stop from the session API are resolved to the table's
-#   first/last visible key.
+#   first/last visible key, both via the verbose log line and by the row set
+#   visible on subsequent reads.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -38,11 +39,15 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
 
-    conn_config = 'verbose=[layered:5],disaggregated=(role="leader"),'
-    uri='layered:test_layered_fast_truncate04'
+    conn_config = 'verbose=[layered:3],disaggregated=(role="leader"),'
+    uri = 'layered:test_layered_fast_truncate04'
 
+    key_formats = [
+        ('string', dict(key_format='S')),
+        ('int', dict(key_format='i')),
+    ]
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate04', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, key_formats)
 
     nitems = 100
 
@@ -50,15 +55,17 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         if wiredtiger.disagg_fast_truncate_build() == 0:
             self.skipTest("fast truncate support is not enabled")
         super().setUp()
-        # Layered manager emits DEBUG_5 messages on every session; silence
-        # them so the post-test check only sees the truncate log lines.
-        self.ignoreStdoutPattern(r'__wti?_layered_table_manager_')
 
+    # Zero-padded string keys so lexicographic order matches numeric order.
     def key(self, n):
-        return f'{n:04d}'
+        return f'{n:04d}' if self.key_format == 'S' else n
+
+    # How the key is printed in the verbose log (via __wt_key_string).
+    def key_str(self, n):
+        return f'{n:04d}' if self.key_format == 'S' else str(n)
 
     def setup_follower(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.session.create(self.uri, f'key_format={self.key_format},value_format=S')
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, self.nitems + 1):
             self.session.begin_transaction()
@@ -66,7 +73,7 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
         cursor.close()
         self.session.checkpoint()
-        follower_config = ('verbose=[layered:5],disaggregated=(role="follower",'
+        follower_config = ('verbose=[layered:3],disaggregated=(role="follower",'
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
         self.reopen_conn(config=follower_config)
 
@@ -88,23 +95,45 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         if c_stop is not None:
             c_stop.close()
 
+    def visible_keys(self):
+        c = self.session.open_cursor(self.uri)
+        keys = []
+        while c.next() == 0:
+            keys.append(c.get_key())
+        c.close()
+        return keys
+
+    # Keys in [1, nitems] minus [start, stop] (inclusive on both ends).
+    def expected_keys(self, start, stop):
+        return [self.key(i) for i in range(1, self.nitems + 1)
+                if i < start or i > stop]
+
     # Assert the single truncate log line emitted with the concrete bounded range.
-    def assert_trunc_log(self, start_key, stop_key):
+    def assert_trunc_log(self, start, stop):
         self.captureout.checkAdditionalPattern(self,
-            f'truncate {self.uri}: start={start_key} stop={stop_key}')
+            f'truncate {self.uri}: start={self.key_str(start)} stop={self.key_str(stop)}')
         self.cleanStdout()
+
+    def test_bounded_range(self):
+        self.setup_follower()
+        self.truncate(start=30, stop=60)
+        self.assert_trunc_log(30, 60)
+        self.assertEqual(self.visible_keys(), self.expected_keys(30, 60))
 
     def test_null_start_resolves_to_first_key(self):
         self.setup_follower()
         self.truncate(start=None, stop=60)
-        self.assert_trunc_log(self.key(1), self.key(60))
+        self.assert_trunc_log(1, 60)
+        self.assertEqual(self.visible_keys(), self.expected_keys(1, 60))
 
     def test_null_stop_resolves_to_last_key(self):
         self.setup_follower()
         self.truncate(start=30, stop=None)
-        self.assert_trunc_log(self.key(30), self.key(self.nitems))
+        self.assert_trunc_log(30, self.nitems)
+        self.assertEqual(self.visible_keys(), self.expected_keys(30, self.nitems))
 
     def test_both_null_is_full_table(self):
         self.setup_follower()
         self.truncate(start=None, stop=None)
-        self.assert_trunc_log(self.key(1), self.key(self.nitems))
+        self.assert_trunc_log(1, self.nitems)
+        self.assertEqual(self.visible_keys(), [])

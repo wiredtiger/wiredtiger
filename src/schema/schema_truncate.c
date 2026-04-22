@@ -191,51 +191,35 @@ __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 
 /*
  * __layered_range_truncate --
- *     Resolve any NULL start/stop keys to concrete keys, then dispatch to the layered truncate.
- *     Every read-path consumer expects the truncate-list entry to be bounded on both sides.
+ *     Truncate of a cursor range, layered table implementation. The truncate-list entries require
+ *     keys to be set on both sides. Therefore resolve any NULL start/stop to the table's first/last
+ *     visible key.
  */
 static int
 __layered_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 {
     WT_CURSOR *local_stop;
     WT_DECL_RET;
-    WT_ITEM local_start_key, local_stop_key;
     WT_SESSION_IMPL *session;
 
     session = trunc_info->session;
     local_stop = NULL;
-    WT_CLEAR(local_start_key);
-    WT_CLEAR(local_stop_key);
 
+    /* The caller always creates a start cursor and positions it. */
     WT_ERR(__cursor_needkey(trunc_info->start));
 
-    /* Truncate-list entries are bounded on both sides. Resolve any NULL start/stop
-     * to the table's first/last visible key. */
-    if (trunc_info->orig_start_key == NULL) {
-        WT_ERR(__wt_cursor_get_raw_key(trunc_info->start, &local_start_key));
-        trunc_info->orig_start_key = &local_start_key;
-    }
-
+    /* If there is no given stop cursor, create a local one and position it to last key on table. */
     if (trunc_info->stop == NULL) {
         WT_ERR(__wt_open_cursor(session, trunc_info->uri, NULL, NULL, &local_stop));
         WT_ERR(local_stop->prev(local_stop));
-        WT_ERR(__wt_cursor_get_raw_key(local_stop, &local_stop_key));
         trunc_info->stop = local_stop;
-        trunc_info->orig_stop_key = &local_stop_key;
-    } else
-        WT_ERR(__cursor_needkey(trunc_info->stop));
+    }
 
-    /* The resolved keys share memory with their backing cursors; the list entry
-     * takes its own copy before the cursors close below. */
     ret = __wt_layered_truncate(trunc_info);
 
 err:
-    /* trunc_info is shared with the caller  clear local pointers we added. */
-    if (trunc_info->orig_start_key == &local_start_key)
-        trunc_info->orig_start_key = NULL;
     if (local_stop != NULL) {
         trunc_info->stop = NULL;
-        trunc_info->orig_stop_key = NULL;
         WT_TRET(local_stop->close(local_stop));
     }
     return (ret);

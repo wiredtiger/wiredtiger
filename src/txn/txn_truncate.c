@@ -80,7 +80,7 @@ __wt_insert_truncate_entry(
 
     WT_RET(__wt_scr_alloc(session, 0, &start_buf));
     WT_RET(__wt_scr_alloc(session, 0, &stop_buf));
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
       "truncate %s: start=%s stop=%s", uri,
       __wt_key_string(
         session, start_key->data, start_key->size, layered_table->key_format, start_buf),
