@@ -584,8 +584,8 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             // sequence.
             char rand_chars[DYNAMIC_TABLE_LEN];
             gen_random_table_name(rand_chars, _rand_state);
-            const std::string uri(_workload->options.create_uri_prefix + _workload->options.create_prefix +
-              rand_chars);
+            const std::string uri(
+              _workload->options.create_uri_prefix + _workload->options.create_prefix + rand_chars);
 
             // Create the table and its mirror if enabled.
             int ret = create_table(session, config, uri, _workload->options.mirror_tables);
@@ -911,11 +911,13 @@ WorkloadRunner::checkpoint_acquire(WT_CONNECTION *conn)
         if (checkpoint_metadata.data != NULL && checkpoint_metadata.size != 0) {
             /*
              * Keep checkpoint acquire output concise: the runner already shows write volume and
-             * follower progress each interval. Only print a one-line summary of the checkpoint meta.
+             * follower progress each interval. Only print a one-line summary of the checkpoint
+             * meta.
              */
             first = false;
-            std::cerr << workgen_elapsed_prefix() << "checkpoint_acquire: meta.size="
-                      << checkpoint_metadata.size << " ts=" << checkpoint_ts << std::endl;
+            std::cerr << workgen_elapsed_prefix()
+                      << "checkpoint_acquire: meta.size=" << checkpoint_metadata.size
+                      << " ts=" << checkpoint_ts << std::endl;
 
             int n = snprintf(cfg, sizeof(cfg), "disaggregated=(checkpoint_meta=\"%.*s\")",
               (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
@@ -962,40 +964,44 @@ WorkloadRunner::checkpoint_acquire(WT_CONNECTION *conn)
             /*
              * layered_table_manager_logops_{applied,skipped}: schema stats are not incremented
              * anywhere in the engine today, so these stay 0. Follower write volume for this runner
-             * is mirrored at the API (see follower_mirror_ops in periodic reports), not via internal
-             * layered log replay. Disagg checkpoint pickup is reflected in checkpoint_pickups_*.
+             * is mirrored at the API (see follower_mirror_ops in periodic reports), not via
+             * internal layered log replay. Disagg checkpoint pickup is reflected in
+             * checkpoint_pickups_*.
              */
-            WT_ERR(read_stat_u64(WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED, &logops_applied));
-            WT_ERR(read_stat_u64(WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED, &logops_skipped));
+            WT_ERR(
+              read_stat_u64(WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED, &logops_applied));
+            WT_ERR(
+              read_stat_u64(WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED, &logops_skipped));
             WT_ERR(read_stat_u64(
               WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED, &pickups));
-            WT_ERR(read_stat_u64(
-              WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FOLLOWER,
-              &pickups_follower));
+            WT_ERR(
+              read_stat_u64(WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FOLLOWER,
+                &pickups_follower));
             /* Ingest garbage-collection / prune progress signals. */
-            WT_ERR(read_stat_u64(WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP, &evict_skip_prune));
             WT_ERR(read_stat_u64(
-              WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP_NOT_MOVE, &evict_skip_prune_not_move));
-            WT_ERR(read_stat_u64(WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP, &blocked_prune));
+              WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP, &evict_skip_prune));
+            WT_ERR(read_stat_u64(WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP_NOT_MOVE,
+              &evict_skip_prune_not_move));
+            WT_ERR(
+              read_stat_u64(WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP, &blocked_prune));
             WT_ERR(read_stat_u64(
               WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE, &rec_gc_disk));
             WT_ERR(read_stat_u64(
               WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN, &rec_gc_chain));
 
             std::cerr << workgen_elapsed_prefix() << "checkpoint_acquire: follower_stats"
-                      << " logops_applied=" << logops_applied
-                      << " (+" << (logops_applied - last_logops_applied) << ")"
-                      << " logops_skipped=" << logops_skipped
-                      << " (+" << (logops_skipped - last_logops_skipped) << ")"
-                      << " checkpoint_pickups_succeed=" << pickups
-                      << " (+" << (pickups - last_pickups) << ")"
+                      << " logops_applied=" << logops_applied << " (+"
+                      << (logops_applied - last_logops_applied) << ")"
+                      << " logops_skipped=" << logops_skipped << " (+"
+                      << (logops_skipped - last_logops_skipped) << ")"
+                      << " checkpoint_pickups_succeed=" << pickups << " (+"
+                      << (pickups - last_pickups) << ")"
                       << " standby_pickups_follower=" << pickups_follower
                       << " ingest_prune_blocked=" << blocked_prune
                       << " evict_skip_prune_ts=" << evict_skip_prune
                       << " evict_skip_prune_not_move=" << evict_skip_prune_not_move
                       << " rec_ingest_gc_disk_keys=" << rec_gc_disk
-                      << " rec_ingest_gc_chain_keys=" << rec_gc_chain
-                      << std::endl;
+                      << " rec_ingest_gc_chain_keys=" << rec_gc_chain << std::endl;
             last_logops_applied = logops_applied;
             last_logops_skipped = logops_skipped;
             last_pickups = pickups;
@@ -1006,7 +1012,8 @@ WorkloadRunner::checkpoint_acquire(WT_CONNECTION *conn)
              * typically "layered:foo".
              */
             WT_CURSOR *md = nullptr;
-            int mret = mirror_session->open_cursor(mirror_session, "metadata:", nullptr, nullptr, &md);
+            int mret =
+              mirror_session->open_cursor(mirror_session, "metadata:", nullptr, nullptr, &md);
             if (mret == 0) {
                 md->set_key(md, "layered:foo");
                 mret = md->search(md);
@@ -1579,9 +1586,9 @@ ThreadRunner::ThreadRunner()
     : _errno(0), _exception(), _thread(nullptr), _context(nullptr), _icontext(nullptr),
       _workload(nullptr), _wrunner(nullptr), _rand_state(nullptr), _throttle(nullptr),
       _throttle_ops(0), _throttle_limit(0), _in_transaction(false), _start_time_us(0),
-      _op_time_us(0), _number(0), _stats(false), _table_usage(), _cursors(nullptr),
-      _stop(false), _session(nullptr), _mirror_session(nullptr),
-      _keybuf(nullptr), _valuebuf(nullptr), _repeat(false)
+      _op_time_us(0), _number(0), _stats(false), _table_usage(), _cursors(nullptr), _stop(false),
+      _session(nullptr), _mirror_session(nullptr), _keybuf(nullptr), _valuebuf(nullptr),
+      _repeat(false)
 {
 }
 
@@ -1599,8 +1606,8 @@ ThreadRunner::create_all(WT_CONNECTION *conn)
         _thread->_op.synchronized_check();
     WT_RET(conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
     if (_wrunner->_mirror_conn != nullptr)
-        WT_RET(_wrunner->_mirror_conn->open_session(
-          _wrunner->_mirror_conn, nullptr, _thread->options.session_config.c_str(), &_mirror_session));
+        WT_RET(_wrunner->_mirror_conn->open_session(_wrunner->_mirror_conn, nullptr,
+          _thread->options.session_config.c_str(), &_mirror_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
     WT_RET(workgen_random_alloc(_session, &_rand_state));
@@ -2373,7 +2380,8 @@ err:
                 if (_mirror_session != nullptr)
                     WT_TRET(_mirror_session->commit_transaction(
                       _mirror_session, op->transaction->_commit_config.c_str()));
-                ret = _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
+                ret =
+                  _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
             }
         }
         if (ret != 0) {
@@ -3531,12 +3539,12 @@ WorkloadOptions::WorkloadOptions()
       sample_rate(1), warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0),
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
       create_interval(0), create_uri_prefix("table:"), create_prefix(""), create_target(0),
-      create_trigger(0), drop_count(0),
-      drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
-      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), max_num_files(INT_MAX),
-      approx_payload_bytes_per_insert(0), approx_payload_bytes_per_update(0),
-      mirror_connection(false), mirror_home("follower"), mirror_conn_config("create"),
-      mirror_page_log("palite"), mirror_checkpoint_acquire_interval(0),
+      create_trigger(0), drop_count(0), drop_interval(0), drop_target(0), drop_trigger(0),
+      random_table_values(false), mirror_tables(false), mirror_suffix("_mirror"),
+      background_compact(0), max_num_files(INT_MAX), approx_payload_bytes_per_insert(0),
+      approx_payload_bytes_per_update(0), mirror_connection(false), mirror_home("follower"),
+      mirror_conn_config("create"), mirror_page_log("palite"),
+      mirror_checkpoint_acquire_interval(0),
       mirror_table_create_config("key_format=S,value_format=S"), _options()
 {
     _options.add_int("max_latency", max_latency,
@@ -3638,8 +3646,7 @@ WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
       run_time(other.run_time), sample_interval_ms(other.sample_interval_ms),
       sample_file(other.sample_file), sample_rate(other.sample_rate),
       stable_timestamp_lag(other.stable_timestamp_lag), timestamp_advance(other.timestamp_advance),
-      warmup(other.warmup),
-      approx_payload_bytes_per_insert(other.approx_payload_bytes_per_insert),
+      warmup(other.warmup), approx_payload_bytes_per_insert(other.approx_payload_bytes_per_insert),
       approx_payload_bytes_per_update(other.approx_payload_bytes_per_update),
       mirror_connection(other.mirror_connection), mirror_home(other.mirror_home),
       mirror_conn_config(other.mirror_conn_config), mirror_page_log(other.mirror_page_log),
@@ -3756,8 +3763,8 @@ WorkloadRunner::run(WT_CONNECTION *conn)
         WT_ERR(_mirror_conn->open_session(_mirror_conn, nullptr, nullptr, &msession));
         for (const auto &kv : _workload->_context->_internal->_tint) {
             const std::string &uri = kv.first;
-            int cr = msession->create(msession, uri.c_str(),
-              _workload->options.mirror_table_create_config.c_str());
+            int cr = msession->create(
+              msession, uri.c_str(), _workload->options.mirror_table_create_config.c_str());
             if (cr != 0 && cr != EEXIST)
                 WT_ERR(cr);
         }
@@ -3867,8 +3874,8 @@ WorkloadRunner::report(time_t interval, time_t totalsecs, Stats *prev_totals)
         uint64_t mi = _mirror_inserts.load(std::memory_order_relaxed);
         uint64_t mu = _mirror_updates.load(std::memory_order_relaxed);
         uint64_t mr = _mirror_removes.load(std::memory_order_relaxed);
-        out << ", follower_mirror_ops=" << "ins " << (mi - last_mi) << " upd " << (mu - last_mu)
-            << " rem " << (mr - last_mr);
+        out << ", follower_mirror_ops="
+            << "ins " << (mi - last_mi) << " upd " << (mu - last_mu) << " rem " << (mr - last_mr);
         last_mi = mi;
         last_mu = mu;
         last_mr = mr;
@@ -4103,11 +4110,10 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         workgen_epoch(&_start);
         workgen_elapsed_reset();
         /*
-         * Emit a single anchor line so downstream trace parsers can align WiredTiger verbose
-         * lines (wall-clock timestamps) with workgen's elapsed-time prefix on one time axis.
+         * Emit a single anchor line so downstream trace parsers can align WiredTiger verbose lines
+         * (wall-clock timestamps) with workgen's elapsed-time prefix on one time axis.
          */
-        std::cerr << workgen_elapsed_prefix()
-                  << "trace_epoch: wall_sec=" << _start.tv_sec
+        std::cerr << workgen_elapsed_prefix() << "trace_epoch: wall_sec=" << _start.tv_sec
                   << " wall_nsec=" << _start.tv_nsec << std::endl;
         end = _start + options->run_time;
         timespec next_report = _start + options->report_interval;

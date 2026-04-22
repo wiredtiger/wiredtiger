@@ -258,8 +258,8 @@ struct __wt_btree {
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
     /*
-     * Garbage-collect ingest chunk btrees (WT_BTREE_GARBAGE_COLLECT): maximum timestamp published at
-     * prepare or commit time, and a count of transactional operations not yet released (paired
+     * Garbage-collect ingest chunk btrees (WT_BTREE_GARBAGE_COLLECT): maximum timestamp published
+     * at prepare or commit time, and a count of transactional operations not yet released (paired
      * with __txn_next_op / __wt_txn_op_free). Used for cheap ingest obsolete-for-drop checks.
      */
     wt_shared wt_timestamp_t ingest_gc_max_timestamp;
