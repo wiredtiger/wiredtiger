@@ -235,9 +235,9 @@ def replace_uri(uri):
 
 # Called to replace Session.alter.
 def session_alter_replace(orig_session_open_cursor, session_self, uri, config):
-    uri = replace_uri(uri)
-    if uri.startswith("layered:"):
+    if is_layered(uri) or uri.startswith("layered:"):
         skip_test("session.alter is not supported for layered tables in disagg storage")
+    uri = replace_uri(uri)
     return orig_session_open_cursor(session_self, uri, config)
 
 # Called to replace Session.checkpoint.
