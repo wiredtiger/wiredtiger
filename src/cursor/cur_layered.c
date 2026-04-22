@@ -786,10 +786,8 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
     for (;;) {
         ret = __wt_truncate_delete_visible_check(
           session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
+        if (ret == WT_NOTFOUND)
             break;
-        }
         WT_RET(ret);
 
         /*
