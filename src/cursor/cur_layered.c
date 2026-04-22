@@ -2755,9 +2755,6 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     if (cval.val != 0)
         WT_RET_MSG(session, EINVAL, "Layered trees do not support bulk loading");
 
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION))
-        WT_RET_MSG(session, EINVAL, "Layered trees do not support cursor reposition");
-
     /* Get the layered tree, and hold a reference to it until the cursor is closed. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, cfg, 0));
 
