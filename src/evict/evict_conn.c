@@ -296,6 +296,23 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION);
 
+    /*
+     * Clean-scrub eviction retains reconciled disk images so clean pages can be re-instantiated
+     * from memory. Enabled explicitly via the eviction config, and forced on when the connection
+     * is using disaggregated storage (checked via the raw config here because disagg is
+     * initialized after __wt_evict_create — see conn_open.c:__wt_connection_open). Cleared
+     * explicitly so reconfigure can disable the feature at runtime.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "eviction.clean_scrub_eviction", &cval));
+    if (cval.val != 0)
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_CLEAN_SCRUB_EVICTION);
+    else {
+        F_CLR_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_CLEAN_SCRUB_EVICTION);
+        WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+        if (cval.len != 0)
+            F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_CLEAN_SCRUB_EVICTION);
+    }
+
     WT_RET(__wt_config_gets(session, cfg, "eviction.skip_update_obsolete_check", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);

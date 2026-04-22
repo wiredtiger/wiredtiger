@@ -819,6 +819,13 @@ connection_runtime_config = [
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 half way between the target limit to the trigger limit.''',
                 type='boolean'),
+            Config('clean_scrub_eviction', 'false',
+                r'''If true, save disk images during reconciliation so that clean pages can be
+                re-instantiated from their saved image during eviction rather than being written
+                to disk or dropped and re-read later. Reclaims in-memory update content without a
+                disk read at the cost of retaining the reconciled image in memory. Automatically
+                enabled when the connection is using disaggregated storage.''',
+                type='boolean'),
             Config('skip_update_obsolete_check', 'false',
                 r'''Skip checking for obsolete updates whenever an update operation is
                 performed.''',

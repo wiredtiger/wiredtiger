@@ -2356,8 +2356,9 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
 /*
  * __rec_should_save_disk_image --
- *     Return true if we should save a disk image for later clean-scrub eviction. Images are saved
- *     only when the clean-scrub debug flag is explicitly enabled on the connection.
+ *     Return true if we should save a disk image for later clean-scrub eviction. The feature is
+ *     gated upstream by the WT_REC_CLEAN_SCRUB flag, which is set based on the
+ *     eviction.clean_scrub_eviction configuration.
  */
 static bool
 __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
@@ -2366,7 +2367,7 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     page = r->page;
 
-    /* Only save images when eviction is actively reclaiming updates content. */
+    /* Upstream gate: feature is not enabled. */
     if (!F_ISSET(r, WT_REC_CLEAN_SCRUB))
         return (false);
 
@@ -2390,8 +2391,7 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     if (F_ISSET(r, WT_REC_EVICT))
         return (false);
 
-    /* Only save disk images when the debug flag is explicitly enabled. */
-    return (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB));
+    return (true);
 }
 
 /*
