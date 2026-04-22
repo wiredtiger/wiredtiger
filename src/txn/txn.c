@@ -1090,7 +1090,7 @@ __txn_resolve_prepared_update_chain(
     }
 
     /* Resolve the prepared update to be a committed update. */
-    __txn_apply_prepare_state_update(session, upd, true);
+    __txn_apply_prepare_state_update(session, upd, txn_time_point, true);
 
     /* Sleep for 1 second in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
@@ -1099,11 +1099,11 @@ __txn_resolve_prepared_update_chain(
 }
 
 /*
- * __txn_resolve_prepared_op --
+ * __wt_txn_resolve_prepared_op --
  *     Resolve a transaction's operations indirect references.
  */
-static int
-__txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
+int
+__wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
   WT_TXN_TIME_POINT *txn_time_point, WT_ITEM *key, uint64_t recno, bool commit, WT_CURSOR **cursorp)
 {
     WT_CURSOR *hs_cursor;
@@ -1210,7 +1210,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
      * prepared update on the disk image.
      */
     if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
-      (upd->type != WT_UPDATE_TOMBSTONE || (upd->next != NULL && upd->txnid == upd->next->txnid)))
+      (upd->type != WT_UPDATE_TOMBSTONE ||
+        (upd->next != NULL && F_ISSET(upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS))))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
     else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
@@ -1361,6 +1362,7 @@ __txn_mod_sortable_key(WT_TXN_OP *opt)
     case (WT_TXN_OP_REF_DELETE):
     case (WT_TXN_OP_TRUNCATE_COL):
     case (WT_TXN_OP_TRUNCATE_ROW):
+    case (WT_TXN_OP_FOLLOWER_TRUNCATE):
         return (false);
     case (WT_TXN_OP_BASIC_COL):
     case (WT_TXN_OP_BASIC_ROW):
@@ -1547,13 +1549,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
     __wt_txn_release_snapshot(session);
 
-    /*
-     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
-     * page within each file are done at the same time.
-     */
-    if (prepare)
-        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
-
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         switch (op->type) {
@@ -1593,7 +1588,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                         key = &op->u.op_row.key;
                     else
                         recno = op->u.op_col.recno;
-                    WT_ERR(__txn_resolve_prepared_op(
+                    WT_ERR(__wt_txn_resolve_prepared_op(
                       session, op->btree, &txn->time_point, key, recno, true, &cursor));
                 }
 
@@ -1618,6 +1613,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ERR(__wti_mark_committed_truncate_table(session, op));
             break;
         }
 
@@ -1958,8 +1956,16 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
             ++prepared_updates;
 
-            __txn_apply_prepare_state_update(session, upd, false);
-            op->u.op_upd = NULL;
+            __txn_apply_prepare_state_update(session, upd, &session->txn->time_point, false);
+            /*
+             * After prepare, commit and rollback resolve prepared updates by walking the btree
+             * rather than following op->u.op_upd, so we clear the pointer to avoid a stale
+             * reference. Exception: on an ingest btree, the drain path during step-up walks the op
+             * list and uses op->u.op_upd to locate the update that must be redirected to the stable
+             * btree, so the pointer must remain set.
+             */
+            if (!F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT))
+                op->u.op_upd = NULL;
 
             /*
              * If there are older updates to this key by the same transaction, set the repeated key
@@ -1988,12 +1994,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_delete_apply_prepare_state(session, op, false);
             break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
             break;
         }
     }
+
     WT_STAT_CONN_INCRV(session, txn_prepared_updates, prepared_updates);
     WT_STAT_CONN_INCRV(session, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
 #ifdef HAVE_DIAGNOSTIC
@@ -2009,6 +2017,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         __txn_remove_from_global_table(session);
+
+    /*
+     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
+     * page within each file are done at the same time.
+     */
+    __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     return (0);
 }
@@ -2059,13 +2073,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
      */
     __wt_txn_release_snapshot(session);
 
-    /*
-     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
-     * page within each file are done at the same time.
-     */
-    if (prepare)
-        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
-
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         /* Assert it's not an update to the history store file. */
@@ -2107,7 +2114,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                         key = &op->u.op_row.key;
                     else
                         recno = op->u.op_col.recno;
-                    WT_TRET(__txn_resolve_prepared_op(
+                    WT_TRET(__wt_txn_resolve_prepared_op(
                       session, op->btree, &txn->time_point, key, recno, false, &cursor));
                 }
 #ifdef HAVE_DIAGNOSTIC
@@ -2117,6 +2124,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_TRET(__wt_delete_page_rollback(session, op));
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_RET(__wti_layered_table_truncate_rollback(session, op));
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2368,7 +2378,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     /* Represents the read timestamp of the oldest active reader.*/
     WT_STATP_CONN_SET(
       session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
-    /* Represents the lag of the oldest reader  with respect to the oldest timestamp, if any. */
+    /* Represents the lag of the oldest reader with respect to the oldest timestamp, if any. */
     WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader_lag, oldest_reader_lag);
 
     /* Fetch the global timestamp values for debugging purposes.*/

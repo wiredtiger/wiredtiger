@@ -5,8 +5,6 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
-        misc_tests/test_binary_search_string.cpp
-        misc_tests/test_bitmap.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
@@ -20,6 +18,7 @@ else()
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
+        misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp

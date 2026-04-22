@@ -239,11 +239,11 @@ rollback_to_stable(WT_SESSION *session)
 
     /* Rollback-to-stable is not supported for disaggregated storage. */
     if (g.disagg_storage_config)
-        return;
+        goto done;
 
     /* Rollback-to-stable is not supported for precise checkpoint. */
     if (GV(PRECISE_CHECKPOINT))
-        return;
+        goto done;
 
     /* Rollback the system using the RTS threads config. */
     num_threads = GV(ROLLBACK_TO_STABLE_THREADS);
@@ -258,9 +258,6 @@ rollback_to_stable(WT_SESSION *session)
     testutil_check(timestamp_query("get=stable_timestamp", &g.stable_timestamp));
     trace_msg(session, "rollback-to-stable: stable timestamp %" PRIu64, g.stable_timestamp);
 
-    /* Check the saved snap operations for consistency. */
-    snap_repeat_rollback(session, tinfo_list, GV(RUNS_THREADS));
-
     /*
      * For a predictable run, the final stable timestamp is known and fixed, but individual threads
      * may have gone beyond that. Now that we've rolled back, set the current timestamp to the
@@ -268,6 +265,10 @@ rollback_to_stable(WT_SESSION *session)
      */
     if (GV(RUNS_PREDICTABLE_REPLAY))
         g.timestamp = g.stable_timestamp;
+
+done:
+    /* Check the saved snap operations for consistency. */
+    snap_repeat_stable(session, tinfo_list, GV(RUNS_THREADS));
 }
 
 /*
@@ -796,7 +797,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * unexpected. A row cannot be reserved with ignore prepare.
          */
         if (intxn && iso_level == ISOLATION_SNAPSHOT && tinfo->ignore_prepare == false &&
-          mmrand(&tinfo->data_rnd, 0, 20) == 1) {
+          mmrand(&tinfo->data_rnd, 0, 100) < GV(OPS_RESERVE)) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);

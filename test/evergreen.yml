@@ -60,10 +60,10 @@ functions:
               export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
               export TESTUTIL_BYPASS_ASAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
-              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_MSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
-              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_TSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
@@ -256,7 +256,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_PATH}
-        virtualenv -p python3 venv
+        virtualenv -p python3.13 venv
         source venv/bin/activate
         buildscripts/poetry_sync.sh
 
@@ -330,7 +330,8 @@ functions:
           ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
-          ${CC_OPTIMIZE_LEVEL|}"
+          ${CC_OPTIMIZE_LEVEL|} \
+          ${WT_DISAGG_FAST_TRUNCATE_BUILD|}"
 
         # The RHEL PPC platform does not have ZSTD. Strip it out.
         if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
@@ -1133,20 +1134,6 @@ functions:
             ./t -R $format_args ${extra_args|} || fail
           fi
         done
-  "timestamp abort disagg":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        ${additional_san_vars}
-        for i in $(seq ${times|1}); do
-          echo Iteration $i/${times}
-          ./test_timestamp_abort -G -s
-        done
   "many dbs test":
     command: shell.exec
     params:
@@ -1696,7 +1683,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
+          format_test_script_args: -t 360 -- debug.realloc_exact=0
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -1766,6 +1753,20 @@ variables:
           format_args: disagg.mode=leader ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
+  - &format-stress-test-disagg-leader-pull-request
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes.
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader runs.timer=5:10
+          times: 1
+
   - &format-stress-test-disagg-follower
     depends_on:
       - name: compile
@@ -1775,60 +1776,6 @@ variables:
         vars:
           format_args: disagg.mode=follower runs.ops=500000:2000000
           times: 5
-
-  - &format-stress-test-disagg-switch
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=switch runs.timer=10:15
-          times: 5
-
-  # FIXME-WT-16113: Consolidate this logic in test/format itself.
-  - &format-stress-test-disagg-switch-data-validation
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          # Validate data with a non-layered table.
-          format_args: disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
-          times: 5
-
-  - &format-stress-test-disagg-multi
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
-          times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
-
-  - &format-stress-test-disagg-multi-data-validation
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          # Validate data with a non-layered table.
-          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
-          times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
-
-  - &timestamp-abort-test-disagg
-    depends_on:
-        - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "timestamp abort disagg"
-        vars:
-          times: 50
 
 #######################################
 #               Tasks                 #
@@ -4931,22 +4878,6 @@ tasks:
                 ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: chunkcache-test
-    tags: ["pull_request"]
-    exec_timeout_secs: 1200 # 20 minutes
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ${python_binary|python3} chunkcache_simple.py
-
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
     # Set 5 hours timeout (60 * 60 * 5)
@@ -5160,6 +5091,12 @@ tasks:
   - <<: *format-stress-test-disagg-leader-data-validation
     name: format-stress-test-disagg-leader-data-validation-2
     tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-1
+    tags: ["pull_request"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-2
+    tags: ["pull_request"]
 
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-1
@@ -5167,56 +5104,6 @@ tasks:
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-2
     tags: ["stress-test-disagg"]
-
-  # FIXME-WT-16394: Enable disagg switch mode on all platforms once failures have been resolved.
-  - <<: *format-stress-test-disagg-switch
-    name: format-stress-test-disagg-switch-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
-  - <<: *format-stress-test-disagg-switch
-    name: format-stress-test-disagg-switch-2
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-switch
-    name: format-stress-test-disagg-switch-3
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-switch-data-validation
-    name: format-stress-test-disagg-switch-data-validation-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-switch-data-validation
-    name: format-stress-test-disagg-switch-data-validation-2
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-switch-data-validation
-    name: format-stress-test-disagg-switch-data-validation-3
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-multi
-    name: format-stress-test-disagg-multi-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
-  - <<: *format-stress-test-disagg-multi
-    name: format-stress-test-disagg-multi-2
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-multi-data-validation
-    name: format-stress-test-disagg-multi-validation-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-multi-data-validation
-    name: format-stress-test-disagg-multi-validation-2
-    tags: ["stress-test-disagg-fail"]
-
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-2
-    tags: ["stress-test-disagg-fail"]
-
-  - name: format-stress-test-disagg-leader-pull-request
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          # run for 10 minutes.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
@@ -6198,46 +6085,6 @@ tasks:
         vars:
           test-name: log.wtperf
 
-    #####################################
-    # Performance Tests for chunk cache #
-    #####################################
-
-  - name: perf-test-chunk-cache
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-
-  - name: perf-test-chunk-cache-base
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads-base.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
-
     ###########################################
     #        Performance Long Tests           #
     ###########################################
@@ -6736,7 +6583,6 @@ buildvariants:
     - name: bench-tiered-push-pull
     - name: bench-tiered-push-pull-s3
     - name: unit-test-hook-tiered-s3
-    - name: chunkcache-test
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
@@ -6776,7 +6622,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test !format-mirror-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7106,7 +6952,6 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: configure-combinations
     - name: fops
     - name: format-failure-configs-test
@@ -7460,7 +7305,6 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: compile
     - name: fops
     - name: format-failure-configs-test
@@ -7544,7 +7388,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7677,35 +7521,3 @@ buildvariants:
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
-
-- name: amazon2023-disagg-stress
-  display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
-  batchtime: 4320 # once every two days
-  run_on:
-  - amazon2023.3-arm64-large
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    disagg_run: true
-  tasks:
-    - name: compile
-    - name: ".stress-test-disagg-fail"
-
-- name: amazon2023-disagg-asan-stress
-  display_name: "[Failure Expected] Amazon2023 ARM64 ASAN Disagg Stress tests"
-  batchtime: 4320 # once every three days
-  run_on:
-  - amazon2023.3-arm64-large
-  expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-    ENABLE_TCMALLOC: 0
-    additional_env_vars: |
-      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    disagg_run: true
-    <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-    additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-  tasks:
-    - name: compile
-    - name: ".stress-test-disagg-san-fail"
