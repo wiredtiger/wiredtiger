@@ -800,9 +800,8 @@ __clayered_leader_reposition_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *sta
         WT_RET(stable->search_near(stable, &cmp));
 
         /*
-         * Advance until the stable cursor is strictly past the truncated boundary. Boundary
-         * keys are inclusive, so cmp == 0 means we are still on a deleted key and must step
-         * one further.
+         * Advance until the stable cursor is strictly past the truncated boundary. Boundary keys
+         * are inclusive, so cmp == 0 means we are still on a deleted key and must step one further.
          */
         while (forward ? cmp <= 0 : cmp >= 0) {
             /*

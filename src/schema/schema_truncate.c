@@ -59,8 +59,8 @@ err:
 
 /*
  * __truncate_layered --
- *     Truncate for a layered data source. Opens both start and stop cursors so the
- *     downstream truncate list entry can be stored with concrete keys on both ends.
+ *     Truncate for a layered data source. Opens both start and stop cursors so the downstream
+ *     truncate list entry can be stored with concrete keys on both ends.
  */
 static int
 __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
@@ -191,9 +191,8 @@ __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 
 /*
  * __layered_range_truncate --
- *     Resolve any NULL start/stop keys to concrete keys, then dispatch to the layered
- *     truncate. Every read-path consumer expects the truncate-list entry to
- *     be bounded on both sides.
+ *     Resolve any NULL start/stop keys to concrete keys, then dispatch to the layered truncate.
+ *     Every read-path consumer expects the truncate-list entry to be bounded on both sides.
  */
 static int
 __layered_range_truncate(WT_TRUNCATE_INFO *trunc_info)
@@ -231,7 +230,7 @@ __layered_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     ret = __wt_layered_truncate(trunc_info);
 
 err:
-    /* trunc_info is shared with the caller — clear local pointers we added. */
+    /* trunc_info is shared with the caller  clear local pointers we added. */
     if (trunc_info->orig_start_key == &local_start_key)
         trunc_info->orig_start_key = NULL;
     if (local_stop != NULL) {
@@ -269,8 +268,7 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
         ret = __wt_table_range_truncate(trunc_info);
     else if (__wt_process.disagg_fast_truncate_2026 && WT_PREFIX_MATCH(uri, "layered:"))
         ret = __layered_range_truncate(trunc_info);
-    else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL &&
-      dsrc->range_truncate != NULL)
+    else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL && dsrc->range_truncate != NULL)
         ret = dsrc->range_truncate(dsrc, &session->iface, trunc_info->start, trunc_info->stop);
     else
         ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);
