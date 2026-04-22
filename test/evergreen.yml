@@ -2925,6 +2925,19 @@ tasks:
         vars:
           unit_test_args: -v 2 --hook timestamp
 
+  # Run the Python test suite with eviction=(clean_scrub_eviction=true) applied to every
+  # wiredtiger_open call, so clean-scrub eviction is exercised broadly across existing tests
+  # rather than only by tests that opt in explicitly.
+  - name: unit-test-hook-clean-scrub-eviction
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --hook clean_scrub_eviction
+
   # A version of the tiered, timestamp hook test, scaled down for running during pull requests.
   # A small (1 out of N) random sample is run.
   - name: unit-test-hook-tiered-timestamp-quick
@@ -6607,6 +6620,7 @@ buildvariants:
     - name: unit-test-hook-tiered-timestamp
     - name: unit-test-hook-timing-stress-log
     - name: unit-test-hook-timestamp
+    - name: unit-test-hook-clean-scrub-eviction
     - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
