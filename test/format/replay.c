@@ -161,10 +161,25 @@ replay_operation_enabled(thread_op op)
         return (true);
 
     /*
-     * We don't permit modify operations with predictable replay. A modify applies a delta on top of
-     * the existing value read at the transaction's read timestamp. The read timestamp is
-     * non-deterministic, so a modify can produce different results across runs if the read
-     * timestamp straddles a prior write to the same key.
+     * We don't permit modify operations with predictable replay.
+     *
+     * The problem is read timestamps. As currently implemented, the read timestamp selected is
+     * variable, based on the state of other threads and their progress with other timestamped
+     * operations. And if two changes are made to the same key in a short amount of time, if the
+     * second operation were to be performed sometimes with a read timestamp before the first
+     * operation, and sometimes with a read timestamp after the first operation, then the results
+     * would be variable.
+     *
+     * We could track recent operations on a key (in its lane, for instance), but when we realize
+     * the read timestamp isn't recent enough, we would need to wait for the stable timestamp to
+     * move forward (and our waiting can affect/delay other thread's operations as well). Having the
+     * stable timestamp move forward is the only way our read timestamp can progress.
+     *
+     * Another possibility that also involves tracking recent operations on a key would be to
+     * disallow modifies that occur within, say 10000 timestamps of a previous write operation on
+     * the same key. Those modifies could be silently converted to reads, for instance. If our read
+     * timestamp was greater than 10000 timestamps behind, we'd still need to wait for the stable
+     * timestamp to catch up.
      */
     if (op == MODIFY)
         return (false);
