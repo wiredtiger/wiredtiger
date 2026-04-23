@@ -1264,27 +1264,21 @@ static int
 __verify_key_hs(
   WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
 {
-/* FIXME-WT-10779 - Enable the history store validation. */
-#ifdef WT_VERIFY_VALIDATE_HISTORY_STORE
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
-    wt_timestamp_t older_start_ts, older_stop_ts;
-    uint64_t hs_counter;
+    WT_ITEM hs_value;
+    wt_timestamp_t durable_start_ts, older_start_ts, older_stop_ts;
+    uint64_t hs_counter, upd_type_full;
     uint32_t hs_btree_id;
+    int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    WT_CLEAR(hs_value);
     WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-
-    /*
-     * Set the data store timestamp and transactions to initiate timestamp range verification. Since
-     * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
-     * in which case we initialize our newest with the max txn-id.
-     */
-    older_stop_ts = WT_TS_NONE;
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
@@ -1295,6 +1289,17 @@ __verify_key_hs(
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
+
+        /* Stop when we have iterated past the current btree or key. */
+        if (hs_btree_id != btree->id)
+            break;
+        WT_ERR(__wt_compare(session, NULL, vs->tmp2, tmp1, &cmp));
+        if (cmp != 0)
+            break;
+
+        WT_ERR(hs_cursor->get_value(
+          hs_cursor, &older_stop_ts, &durable_start_ts, &upd_type_full, &hs_value));
+
         /* Verify the newer record's start is later than the older record's stop. */
         if (newer_start_ts < older_stop_ts) {
             WT_ERR_MSG(session, WT_ERROR,
@@ -1319,13 +1324,6 @@ __verify_key_hs(
 err:
     WT_TRET(hs_cursor->close(hs_cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
-#else
-    WT_UNUSED(session);
-    WT_UNUSED(tmp1);
-    WT_UNUSED(newer_start_ts);
-    WT_UNUSED(vs);
-    return (0);
-#endif
 }
 
 /*
