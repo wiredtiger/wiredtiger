@@ -344,10 +344,15 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Determine the number of buckets. We want to size them in proportion to the cache size.
      * If we have too many buckets for a small cache, we end up wasting up looking through
      * empty buckets. If we have too few buckets for a large cache, we will compete for locks
-     * protecting the buckets.
-     *
+     * protecting the buckets. We use an experimentally determined heuristic of 230 buckets
+     * for each GB of cache, with 23 and 9200 being the lower and upper limits respectively.
      */
-    
+    if (evict->evict_num_buckets == 0)
+        evict->evict_num_buckets = conn->cache_size / WT_GIGABYTE * 230;
+
+    evict->evict_num_buckets = WT_MIN(evict->evict_num_buckets, 9200);
+    evict->evict_num_buckets = WT_MAX(evict->evict_num_buckets, 23);
+
     /*
      * Allocate the eviction buckets.
      */
@@ -356,8 +361,6 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
         bucketset->level = i;
 
         bucketset->num_buckets = evict->evict_num_buckets;
-
-        bucketset->num_buckets = 100;
 
         printf("allocating %d buckets at level %d \n", (int)bucketset->num_buckets, i);
 
