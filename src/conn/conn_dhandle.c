@@ -395,7 +395,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
             WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
             if (!__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
                 WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
-                  "the table has uncommitted data and cannot be dropped yet");
+                  "the table has uncommitted data and cannot be closed yet");
         }
 
         /* Turn off eviction. */
@@ -649,10 +649,6 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_btree_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
-        /* Layered cursor operations maintain data-source statistics on the layered handle. */
-        if (dhandle->stat_array == NULL)
-            WT_ERR(__wt_stat_dsrc_init(session, dhandle));
-
         WT_ERR(__wt_schema_open_layered(session));
         break;
     case WT_DHANDLE_TYPE_TABLE:
