@@ -45,10 +45,6 @@ class test_txn24(wttest.WiredTigerTestCase):
     # by setting rollbacks_allowed to 0 here.
     rollbacks_allowed = 0
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
-
     def conn_config(self):
         return 'cache_size=100MB,eviction=(threads_min=4,threads_max=4),verbose=[transaction]'
 
@@ -59,6 +55,10 @@ class test_txn24(wttest.WiredTigerTestCase):
         return val
 
     def test_snapshot_isolation_and_eviction(self):
+        # Verbose transaction logging is enabled; suppress the "oldest id pinned" messages that
+        # may appear from background eviction threads during the long-running transaction below.
+        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
+
         # Create and populate a table.
         uri = "table:test_txn24"
         table_params = 'key_format={},value_format={}'.format(self.key_format, 'S')
@@ -158,14 +158,12 @@ class test_txn24(wttest.WiredTigerTestCase):
             cursor3[i] = new_val
             session3.commit_transaction()
 
-        # After we close the oldest transaction, whenever it updates the next oldest transaction,
-        # a verbose log message about the oldest id being pinned should appear.
+        # Committing the oldest transaction should cause a verbose message to appear when
+        # __wt_txn_update_oldest next runs, because the pinning session has changed.
         self.session.commit_transaction()
         session3.checkpoint()
         self.captureout.checkAdditionalPattern(self, r"oldest id .* pinned in session")
+        # Background eviction threads may continue emitting these messages; ignore trailing
+        # occurrences so tearDown does not flag them as unexpected output.
+        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
         session2.commit_transaction()
-
-        # Additional "oldest id pinned" messages may appear after session2 commits (e.g. from the
-        # eviction server observing a new pinning session). Consume them so tearDown does not treat
-        # them as unexpected output.
-        self.captureout.check(self, ignore_pat=r"oldest id .* pinned in session")
