@@ -232,13 +232,11 @@ __wt_layered_verify_gc_update(
         return (0);
 
     conn = S2C(session);
-    if (!conn->layered_table_manager.init)
-        return (0);
+    WT_ASSERT(session, conn->layered_table_manager.init);
 
     ingest_id = S2BT(session)->id;
     entry = conn->layered_table_manager.entries[ingest_id];
-    if (entry == NULL)
-        return (0);
+    WT_ASSERT(session, entry != NULL);
 
     /* Materialize the key for this cursor position into cbt->iface.key. */
     WT_RET(__wt_key_return(cbt));
@@ -258,12 +256,15 @@ __wt_layered_verify_gc_update(
     ret = stable_cursor->search(stable_cursor);
     WT_ERR_NOTFOUND_OK(ret, true);
 
-    if (upd_to_prune->type == WT_UPDATE_TOMBSTONE)
-        WT_ASSERT_ALWAYS(session, ret == WT_NOTFOUND,
-          "GC verify: last update is a tombstone but key still exists on the stable table");
-    else
-        WT_ASSERT_ALWAYS(session, ret == 0,
-          "GC verify: last update is a data value but key is missing on the stable table");
+    if (upd_to_prune->type == WT_UPDATE_TOMBSTONE) {
+        if (ret != WT_NOTFOUND)
+            WT_ERR_MSG(session, WT_ERROR,
+              "GC verify: last update is a tombstone but key still exists on the stable table");
+    } else {
+        if (ret != 0)
+            WT_ERR_MSG(session, WT_ERROR,
+              "GC verify: last update is a data value but key is missing on the stable table");
+    }
     ret = 0;
 
 err:

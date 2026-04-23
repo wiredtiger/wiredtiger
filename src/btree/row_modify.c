@@ -446,7 +446,8 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd)) {
 #ifdef HAVE_DIAGNOSTIC
                 if (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT))
-                    WT_IGNORE_RET(__wt_layered_verify_gc_update(session, cbt, upd));
+                    WT_ASSERT_ALWAYS(session, __wt_layered_verify_gc_update(session, cbt, upd) == 0,
+                      "GC verify check failed for the most recent update before pruning");
 #endif
                 first = upd;
             }
