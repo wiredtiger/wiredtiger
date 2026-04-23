@@ -656,6 +656,9 @@ __schema_open_layered(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
+    /* The handle is being opened; clear the closed flag. */
+    F_CLR(layered, WT_LAYERED_TABLE_CLOSED);
+
     /* FIXME-WT-14738: Setup collator information. */
     WT_RET_NOTFOUND_OK(__wt_config_gets(session, layered_cfg, "collator", &cval));
     if (cval.len != 0) {
