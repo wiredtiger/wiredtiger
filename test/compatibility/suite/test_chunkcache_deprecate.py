@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import compatibility_test, compatibility_version, errno, wiredtiger
+import compatibility_test, compatibility_version, errno, sys, wiredtiger
 
 
 class test_chunkcache_deprecate(compatibility_test.CompatibilityTestCase):
@@ -58,7 +58,7 @@ class test_chunkcache_deprecate(compatibility_test.CompatibilityTestCase):
         # Chunk cache was introduced in mongodb-8.0: earlier branches reject the config key.
         cc_introduced_version = compatibility_version.WTVersion("mongodb-8.0")
         # Chunk cache deprecation currently lives only on develop (WT-17169). Update this
-        # boundary if/when the change is backported to a release branch.
+        # boundary if/when the change is back ported to a release branch.
         cc_deprecated_version = compatibility_version.WTVersion("develop")
 
         # If the older branch is already at or past the deprecation version, just verify that
@@ -118,8 +118,21 @@ class test_chunkcache_deprecate(compatibility_test.CompatibilityTestCase):
         # Runs on the newer branch: opening should succeed with a deprecation warning because
         # chunk_cache is configured but disabled in the basecfg.
         conn = wiredtiger.wiredtiger_open('.', self.conn_config)
+
+        # Assert the expected deprecation warning was emitted during wiredtiger_open. The test
+        # framework redirects this subprocess's stdout (both Python and C-level writes) to
+        # stdout.txt in the test's working directory.
+        sys.stdout.flush()
+        with open('stdout.txt', 'r') as f:
+            stdout_contents = f.read()
+        expected_warning = 'chunk cache has been deprecated and is no longer supported'
+        assert expected_warning in stdout_contents, \
+            f'expected deprecation warning {expected_warning!r} in stdout, got:\n{stdout_contents}'
+
         session = conn.open_session()
 
+        # Verify the data written on the older branch is readable and intact, i.e. the upgraded
+        # database is actually usable — not just that wiredtiger_open returned successfully.
         c = session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
             assert c[i] == str(i), f'data mismatch on key {i}'
