@@ -164,3 +164,8 @@ class test_txn24(wttest.WiredTigerTestCase):
         session3.checkpoint()
         self.captureout.checkAdditionalPattern(self, r"oldest id .* pinned in session")
         session2.commit_transaction()
+
+        # Additional "oldest id pinned" messages may appear after session2 commits (e.g. from the
+        # eviction server observing a new pinning session). Consume them so tearDown does not treat
+        # them as unexpected output.
+        self.captureout.check(self, ignore_pat=r"oldest id .* pinned in session")
