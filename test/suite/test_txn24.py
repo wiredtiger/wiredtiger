@@ -45,8 +45,12 @@ class test_txn24(wttest.WiredTigerTestCase):
     # by setting rollbacks_allowed to 0 here.
     rollbacks_allowed = 0
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
+
     def conn_config(self):
-        return 'cache_size=100MB,eviction=(threads_min=4,threads_max=4)'
+        return 'cache_size=100MB,eviction=(threads_min=4,threads_max=4),verbose=[transaction]'
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -116,3 +120,47 @@ class test_txn24(wttest.WiredTigerTestCase):
         # Before committing the long running transaction check whether any bytes were written to disk s part of eviction.
         self.assertGreater((bytes_evicted_new - bytes_evicted), 0)
         self.session.commit_transaction()
+
+    def test_oldest_id_log(self):
+        # Create and populate a table.
+        uri = "table:test_txn24"
+        table_params = 'key_format={},value_format=S'.format(self.key_format)
+
+        default_val = 'ABCD' * 60
+        new_val = 'YYYY' * 60
+        n_rows = 480000
+
+        # Populate
+        self.session.create(uri, table_params + self.extraconfig)
+        cursor = self.session.open_cursor(uri, None)
+        for i in range(1, n_rows + 1):
+            cursor[i] = default_val
+        cursor.close()
+
+        # Perform a checkpoint. There should be no dirty content in the cache after this.
+        self.session.checkpoint()
+
+        # Start a long-running transaction, make an update and keep it running.
+        cursor = self.session.open_cursor(uri, None)
+        self.session.begin_transaction()
+        cursor[1] = new_val
+
+        # Start another long-running transaction, make an update and keep it running.
+        session2 = self.setUpSessionOpen(self.conn)
+        cursor2 = session2.open_cursor(uri)
+        session2.begin_transaction()
+        cursor2[2] = new_val
+
+        session3 = self.setUpSessionOpen(self.conn)
+        cursor3 = session3.open_cursor(uri)
+        for i in range(3, n_rows):
+            session3.begin_transaction()
+            cursor3[i] = new_val
+            session3.commit_transaction()
+
+        # After we close the oldest transaction, whenever it updates the next oldest transaction,
+        # a verbose log message about the oldest id being pinned should appear.
+        self.session.commit_transaction()
+        session3.checkpoint()
+        self.captureout.checkAdditionalPattern(self, r"oldest id .* pinned in session")
+        session2.commit_transaction()
