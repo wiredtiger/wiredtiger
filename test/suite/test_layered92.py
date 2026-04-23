@@ -116,5 +116,7 @@ class test_layered92(wttest.WiredTigerTestCase):
         # temporary instrumentation showing what cursors are cached and created,
         # and when. These numbers tend to be higher than we might want because
         # metadata cursors are not cached, and these make up the bulk of cursor opens.
+        # FIXME-WT-17299 By getting metadata caching, we should be able to calculate these
+        # numbers more closely.
         self.check_cursor_create_stats(self.session, 75)
         self.check_cursor_create_stats(self.session_follow, 325)
