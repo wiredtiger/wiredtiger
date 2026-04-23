@@ -2143,6 +2143,11 @@ row_remove(TINFO *tinfo, bool positioned)
         cursor->set_key(cursor, tinfo->key);
     }
 
+    /*
+     * Call cursor->remove() directly. A prior search guard was removed because overwrite mode does
+     * not affect cursor->remove() (it always checks read_ts visibility), and the search result
+     * would (with an old read_ts) incorrectly return WT_NOTFOUND when we actually want WT_ROLLBACK.
+     */
     ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
@@ -2169,6 +2174,7 @@ col_remove(TINFO *tinfo, bool positioned)
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
+    /* See row_remove for the rationale behind calling cursor->remove() directly. */
     ret = cursor->remove(cursor);
 
     if (ret != 0 && ret != WT_NOTFOUND)
