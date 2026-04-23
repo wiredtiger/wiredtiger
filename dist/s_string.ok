@@ -57,6 +57,7 @@ BqRv
 Brueckner
 Bsearch
 Btree
+Btrees
 Buf
 Buildvariants
 Bxxx
@@ -225,6 +226,7 @@ Hendrik
 HookCreator
 HookCreators
 IAA
+IBBXS
 IEC
 IKEY
 IMPL
@@ -426,6 +428,7 @@ Runtime
 RuntimeError
 SCons
 SDK
+SIGABRT
 SIMD
 SLS
 SLVG
@@ -518,6 +521,7 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
+Upd
 Uryyb
 VARCHAR
 VLCS
@@ -529,6 +533,7 @@ Vc
 Vigenere
 Vixie
 VxWorks
+WAL
 WCHAR
 WILLNEED
 WIREDTIGER
@@ -885,6 +890,7 @@ destructor
 dev
 dh
 dhandle
+dhandle's
 dhandles
 dicts
 didworkp
@@ -1312,6 +1318,7 @@ munmap
 mutex
 mutexes
 mux
+mvcc
 myconn
 mytable
 nTemp
