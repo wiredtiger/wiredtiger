@@ -51,6 +51,7 @@ static void config_obsolete_cleanup(void);
 static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
+static void config_prefetch(void);
 static void config_run_length(void);
 static void config_statistics(void);
 static void config_tiered_storage(void);
@@ -494,6 +495,7 @@ config_run(void)
     config_disagg_storage();                         /* Disaggregated storage */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
+    config_prefetch();                               /* Prefetch */
     config_checkpoint();                             /* Checkpoints */
     config_compression(NULL, "logging.compression"); /* Logging compression */
     config_encryption();                             /* Encryption */
@@ -511,6 +513,31 @@ config_run(void)
     config_run_length();
 
     config_random_generators_before_run();
+}
+
+/*
+ * config_prefetch --
+ *     Prefetch configuration.
+ */
+static void
+config_prefetch(void)
+{
+    /*
+     * prefetch.default requires prefetch (available=true) at the connection level. If default was
+     * randomly enabled without available, silently turn it off. If the user explicitly set default,
+     * force available on if not explicitly set.
+     */
+    if (!GV(PREFETCH) && GV(PREFETCH_DEFAULT)) {
+        if (config_explicit(NULL, "prefetch.default")) {
+            if (config_explicit(NULL, "prefetch"))
+                testutil_die(EINVAL,
+                  "prefetch.default requires prefetch (available) to be enabled; set prefetch=1 or "
+                  "remove prefetch.default");
+            /* User explicitly set default=true but left available unset - force it on. */
+            config_single(NULL, "prefetch=1", false);
+        } else
+            config_off(NULL, "prefetch.default");
+    }
 }
 
 /*
