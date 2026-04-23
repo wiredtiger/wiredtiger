@@ -128,7 +128,9 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         default_val = 'ABCD' * 60
         new_val = 'YYYY' * 60
-        n_rows = 480000
+        # Needs > 10,000 transactions from session3 to exceed the verbose-message threshold
+        # (current_id - oldest_id > 10 * WT_THOUSAND). Keep small enough to avoid cache pressure.
+        n_rows = 12000
 
         # Populate
         self.session.create(uri, table_params + self.extraconfig)
