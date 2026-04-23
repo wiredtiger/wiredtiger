@@ -57,6 +57,7 @@ BqRv
 Brueckner
 Bsearch
 Btree
+Btrees
 Buf
 Buildvariants
 Bxxx
@@ -427,7 +428,6 @@ Runtime
 RuntimeError
 SCons
 SDK
-SDKROOT
 SIGABRT
 SIMD
 SLS
@@ -521,6 +521,7 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
+Upd
 Uryyb
 VARCHAR
 VLCS
@@ -532,6 +533,7 @@ Vc
 Vigenere
 Vixie
 VxWorks
+WAL
 WCHAR
 WILLNEED
 WIREDTIGER
@@ -888,6 +890,7 @@ destructor
 dev
 dh
 dhandle
+dhandle's
 dhandles
 dicts
 didworkp
@@ -1186,9 +1189,7 @@ kvraw
 kvs
 lang
 las
-latencies
 latin
-layeredp
 lazyfs
 lbrace
 lbracket
@@ -1317,6 +1318,7 @@ munmap
 mutex
 mutexes
 mux
+mvcc
 myconn
 mytable
 nTemp

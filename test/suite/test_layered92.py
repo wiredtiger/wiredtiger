@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,97 +26,100 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger
-import wttest
-from wiredtiger import stat
+# test_layered92.py
+#   Test the reserve() operation on layered cursors for keys in different states:
+#   present in stable, present in ingest, present in both, or not present.
+
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered92.py
-# Follower tests of cached cursors
 @disagg_test_class
 class test_layered92(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader")'
-    conn_config_follower = 'disaggregated=(role="follower")'
-
-    nuri = 10
-    uri = "layered:test_layered92"
-
-    disagg_storages = gen_disagg_storages('test_layered92', disagg_only = True)
+    uri = 'layered:test_layered92'
+    disagg_storages = gen_disagg_storages('test_layered92', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
+    conn_follow = None
+    session_follow = None
 
-    _ts = 0
-    def next_ts(self):
-        self._ts += 1
-        return self._ts
+    def write(self, session, key, ts):
+        session.begin_transaction()
+        c = session.open_cursor(self.uri)
+        c[key] = 'v'
+        c.close()
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
 
-    def show_cursor_create_stats(self, session, label):
-        scursor = session.open_cursor('statistics:', None, None)
-        cursor_create = scursor[stat.conn.cursor_create][2]
-        self.pr(f'{label}: cursor_create: {cursor_create}')
-        scursor.close()
-
-    def check_cursor_create_stats(self, session, limit):
-        scursor = session.open_cursor('statistics:', None, None)
-        cursor_create = scursor[stat.conn.cursor_create][2]
-        self.assertLess(cursor_create, limit)
-        scursor.close()
-
-    def test_standby_open_cursor(self):
-        # Make a follower
-        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() +
-                                ',create,statistics=(all),' + self.conn_config_follower)
-        self.session_follow = self.conn_follow.open_session('')
-
-        for i in range(0, self.nuri):
-            self.session.create(f"{self.uri}_{i}", 'key_format=S,value_format=S')
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(self.next_ts())}')
+    def checkpoint(self, ts):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
         self.session.checkpoint()
 
-        for bigloop_count in range(0, 10):
-            # Every time through the big loop, we create stuff on the leader, checkpoint it,
-            # advance the checkpoint and then read the stuff (several times) on the follower.
+    def open_follower(self):
+        self.conn_follow = self.wiredtiger_open(
+            'follower',
+            self.extensionsConfig() + ',create,disaggregated=(role="follower")')
+        self.session_follow = self.conn_follow.open_session('')
 
-            ts = self.next_ts()
-            self.pr(f'committing at {ts}')
-            with self.transaction(commit_timestamp = ts):
-                # The first two tables have content on every checkpoint.
-                # The other tables are written once and never again.
-                for i in range(0, self.nuri):
-                    if i >= 2 and bigloop_count > 0:
-                        continue
-                    c = self.session.open_cursor(f'{self.uri}_{i}')
-                    c['a'] = str(bigloop_count)
-                    c.close()
+    def do_reserve(self, session, key):
+        c = session.open_cursor(self.uri)
+        session.begin_transaction()
+        c.set_key(key)
+        try:
+            return c.reserve()
+        finally:
+            session.rollback_transaction()
+            c.close()
 
-            # Checkpoint at this timestamp, and pick it up on follower
-            self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
-            self.session.checkpoint()
-            self.disagg_advance_checkpoint(self.conn_follow)
+    # Leader: writes always go to stable.
+    def test_leader_key_exists(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
-            # On the follower, we are read-heavy.
-            # Five times through a loop that visits all the URIs.
-            for follower_count in range(0, 5):
-                for i in range(0, self.nuri):
-                    c = self.session_follow.open_cursor(f'{self.uri}_{i}')
-                    if i < 2:
-                        self.assertEqual(c['a'], str(bigloop_count))
-                    else:
-                        self.assertEqual(c['a'], '0')
-                    c.close()
+        # Check that we can do reserve for a key before the checkpoint
+        self.write(self.session, key=1, ts=1)
+        self.assertEqual(self.do_reserve(self.session, key=1), 0)
 
-            self.show_cursor_create_stats(self.session, 'leader')
-            self.show_cursor_create_stats(self.session_follow, 'follower')
+        # And after the checkpoint
+        self.checkpoint(ts=1)
+        self.assertEqual(self.do_reserve(self.session, key=1), 0)
 
-        # Every time we do a cursor create, it's a situation where we
-        # might have been able to use a cached cursor instead. So numbers
-        # that are "too high" indicate we are caching cursors.
-        #
-        # The numbers below are determined empirically, after running with
-        # temporary instrumentation showing what cursors are cached and created,
-        # and when. These numbers tend to be higher than we might want because
-        # metadata cursors are not cached, and these make up the bulk of cursor opens.
-        # FIXME-WT-17299 By getting metadata caching, we should be able to calculate these
-        # numbers more closely.
-        self.check_cursor_create_stats(self.session, 75)
-        self.check_cursor_create_stats(self.session_follow, 325)
+    def test_leader_key_missing(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.checkpoint(ts=1)
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.do_reserve(self.session, key=99))
+
+    def test_follower_key_in_stable_only(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.write(self.session, key=1, ts=1)
+        self.checkpoint(ts=1)
+        self.open_follower()
+        self.disagg_advance_checkpoint(self.conn_follow)
+        self.assertEqual(self.do_reserve(self.session_follow, key=1), 0)
+
+    def test_follower_key_in_ingest_only(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.checkpoint(ts=1)
+        self.open_follower()
+        self.disagg_advance_checkpoint(self.conn_follow)
+        self.write(self.session_follow, key=1, ts=2)
+        self.assertEqual(self.do_reserve(self.session_follow, key=1), 0)
+
+    def test_follower_key_in_both(self):
+        # Insert the key on the leader
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.write(self.session, key=1, ts=1)
+        self.checkpoint(ts=1)
+
+        # And then on the follower
+        self.open_follower()
+        self.disagg_advance_checkpoint(self.conn_follow)
+        self.write(self.session_follow, key=1, ts=2)
+        self.assertEqual(self.do_reserve(self.session_follow, key=1), 0)
+
+    def test_follower_key_missing(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.checkpoint(ts=1)
+        self.open_follower()
+        self.disagg_advance_checkpoint(self.conn_follow)
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: self.do_reserve(self.session_follow, key=99))
