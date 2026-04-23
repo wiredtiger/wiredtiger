@@ -70,7 +70,6 @@ CDB
 CELLs
 CGmP
 CGs
-CHUNKCACHE
 CKPT
 CLAYERED
 CLOEXEC
@@ -538,7 +537,6 @@ WILLNEED
 WIREDTIGER
 WRLSN
 WRNOLOCK
-WT's
 WTBranches
 WTI
 WTPERF
@@ -559,7 +557,6 @@ WiredTiger
 WiredTiger's
 WiredTigerCC
 WiredTigerCheckpoint
-WiredTigerChunkCache
 WiredTigerError
 WiredTigerHS
 WiredTigerHook
@@ -747,7 +744,6 @@ chk
 chkpt
 chmod
 chr
-chunkcache
 cip
 ciphertext
 ckpt
@@ -1201,7 +1197,6 @@ len
 lengthp
 lenp
 lex
-lexically
 lexicographically
 lf
 libdatasource
