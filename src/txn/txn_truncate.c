@@ -42,10 +42,10 @@ static int
 __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
   const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key, bool *is_within_rangep)
 {
-    int compare_result = 0;
-
     WT_ASSERT(session, is_within_rangep != NULL);
     *is_within_rangep = false;
+
+    int compare_result = 0;
 
     /* A zeroed start key indicates a truncate from the beginning of the table. */
     if (start_key->size != 0) {
