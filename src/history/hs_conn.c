@@ -26,7 +26,7 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
         return (0);
 
     /* The LAS table may exist on upgrade. Discard it. */
-    WT_WITH_SCHEMA_LOCK(
+    WT_WITH_SCHEMA_WRITE_LOCK(
       session, ret = __wt_schema_drop(session, "file:WiredTigerLAS.wt", drop_cfg, false));
 
     return (ret);

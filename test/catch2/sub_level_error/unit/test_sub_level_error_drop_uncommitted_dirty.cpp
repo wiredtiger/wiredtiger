@@ -72,9 +72,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
 
     SECTION("Test WT_DIRTY_DATA is not thrown (btree is unmodified, is not bulk, is not metadata)")
     {
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -83,9 +83,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
     {
         F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
 
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -94,9 +94,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
     {
         F_SET(S2BT(session_impl), WT_BTREE_BULK);
 
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -106,9 +106,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
         F_SET(S2BT(session_impl), WT_BTREE_BULK);
         F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
 
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -117,9 +117,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
     {
         S2BT(session_impl)->modified = true;
 
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == EBUSY);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, DIRTY_DATA_MSG);
     }
@@ -129,9 +129,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
         S2BT(session_impl)->modified = true;
         F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
 
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -141,9 +141,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
         S2BT(session_impl)->modified = true;
         F_SET(S2BT(session_impl), WT_BTREE_BULK);
 
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -154,9 +154,9 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
         F_SET(S2BT(session_impl), WT_BTREE_BULK);
         F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
 
-        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
         REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
-        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }

@@ -226,3 +226,25 @@ __wti_debug_crash_if_flag_set(
         __wt_abort(session);
     }
 }
+
+/*
+ * __wt_assert_schema_read_lock_owned --
+ *     Check whether the current thread holds the schema read lock.
+ */
+void
+__wt_assert_schema_read_lock_owned(WT_SESSION_IMPL *session)
+{
+    /* Write implies read, so both are fine. */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+}
+
+/*
+ * __wt_assert_schema_write_lock_owned --
+ *     Check whether the current thread holds the schema write lock.
+ */
+void
+__wt_assert_schema_write_lock_owned(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_WRITE));
+    WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA_READ));
+}

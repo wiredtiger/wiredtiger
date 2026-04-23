@@ -190,7 +190,7 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
 
     /* Use the counter if there is no predefined ID for the table. */
     uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
-    WT_WITH_SCHEMA_LOCK(session, file_id = ++S2C(session)->next_file_id);
+    WT_WITH_SCHEMA_WRITE_LOCK(session, file_id = ++S2C(session)->next_file_id);
     uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(file_id, ns);
     __validate_file_id(session, namespaced_id);
     return (namespaced_id);
@@ -991,7 +991,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     cgname = filename = NULL;
     table = NULL;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    __wt_assert_schema_write_lock_owned(session);
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
     tablename = uri;
@@ -1146,7 +1146,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     tablecfg = NULL;
     meta_value = NULL;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    __wt_assert_schema_write_lock_owned(session);
 
     ret = __wt_config_getones(session, config, "log.enabled", &cval);
     WT_RET_NOTFOUND_OK(ret);
@@ -1349,7 +1349,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
              * By default use the connection level bucket and prefix. Then we add in any user
              * configuration that may override the system one.
              */
-            WT_WITH_SCHEMA_LOCK(session, incr_file_id = ++conn->next_file_id);
+            WT_WITH_SCHEMA_WRITE_LOCK(session, incr_file_id = ++conn->next_file_id);
 
             WT_ERR(__wt_buf_fmt(session, tmp,
               ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
@@ -1506,7 +1506,7 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
             if (WT_BTREE_ID_SHARED(prev_file_id))
                 WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
 
-            WT_WITH_SCHEMA_LOCK(session, next_raw_id = ++conn->next_file_id);
+            WT_WITH_SCHEMA_WRITE_LOCK(session, next_raw_id = ++conn->next_file_id);
             new_file_id = WT_BTREE_ID_NAMESPACED(next_raw_id, WT_BTREE_ID_NAMESPACE_LOCAL);
         }
 
@@ -1724,14 +1724,7 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
 
-    /*
-     * We should be calling this function with the schema lock, but we cannot verify it here because
-     * we can re-enter this function with the internal session. If we get here using the internal
-     * session, we cannot check whether we own the lock, as it would be locked by the outer session.
-     * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
-     * acquired by us.
-     */
-    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+    __wt_assert_schema_write_lock_owned(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config);

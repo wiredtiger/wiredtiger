@@ -657,7 +657,7 @@ struct __wt_connection_impl {
     WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
     WT_SPINLOCK metadata_lock;   /* Metadata update spinlock */
     WT_SPINLOCK reconfig_lock;   /* Single thread reconfigure */
-    WT_SPINLOCK schema_lock;     /* Schema operation spinlock */
+    WT_RWLOCK schema_lock;       /* Schema operation lock */
     WT_RWLOCK table_lock;        /* Table list lock */
     WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
     WT_SPINLOCK turtle_lock;     /* Turtle file spinlock */

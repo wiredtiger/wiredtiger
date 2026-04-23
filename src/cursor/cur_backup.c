@@ -391,8 +391,8 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
      */
     WT_STAT_CONN_SET(session, backup_start, 1);
     if (othercb == NULL) {
-        WT_WITH_CHECKPOINT_LOCK(
-          session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
         WT_ERR(ret);
     } else
         WT_ERR(__backup_start(session, cb, othercb, cfg));
@@ -563,7 +563,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
 
     if (!is_dup) {
         WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-        WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+        __wt_assert_schema_read_lock_owned(session);
     }
 
     /*
@@ -766,7 +766,7 @@ __backup_start(
 
     if (!is_dup) {
         WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-        WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+        __wt_assert_schema_read_lock_owned(session);
     }
 
     cb->next = 0;

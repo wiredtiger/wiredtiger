@@ -1561,7 +1561,7 @@ __conn_cleanup_chunk_cache(WT_SESSION_IMPL *session)
     WT_RET(ret);
     __wt_free(session, value);
 
-    WT_WITH_SCHEMA_LOCK(
+    WT_WITH_SCHEMA_WRITE_LOCK(
       session, ret = __wt_schema_drop(session, WT_CC_METAFILE_URI, drop_cfg, false));
 
     return (ret);

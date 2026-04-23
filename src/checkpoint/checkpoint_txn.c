@@ -98,7 +98,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     cursor = NULL;
     release = false;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
 
     /*
@@ -959,7 +959,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
 
     API_CONF(session, WT_SESSION, begin_transaction, "isolation=snapshot", txn_conf);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    __wt_assert_schema_read_lock_owned(session);
 
     WT_ERR(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     use_timestamp = (cval.val != 0);
@@ -1513,9 +1513,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * the metadata.
      *
      * Hold the schema lock while starting the transaction and gathering handles so the set we get
-     * is complete and correct.
+     * is complete and correct. We need the write lock here because tiered storage may flush and
+     * rotate files around -- we can likely downgrade to a read lock once tiered storage is removed.
      */
-    WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
+    WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
 
     WT_ERR(__checkpoint_db_debug_crash_points(session, cfg));
@@ -1617,7 +1618,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * adjust the overall database size after the checkpoint completes.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(
+        WT_WITH_SCHEMA_WRITE_LOCK(
           session, ret = __checkpoint_process_disagg_metadata(session, &drop_size));
         WT_ERR(ret);
     }

@@ -60,7 +60,7 @@ __metadata_init(WT_SESSION_IMPL *session)
      * We're single-threaded, but acquire the schema lock regardless: the lower level code checks
      * that it is appropriately synchronized.
      */
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, WT_METAFILE_URI, NULL));
+    WT_WITH_SCHEMA_WRITE_LOCK(session, ret = __wt_schema_create(session, WT_METAFILE_URI, NULL));
 
     return (ret);
 }
@@ -242,7 +242,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
             WT_ERR(__wt_config_getones(session, metadata_conf, "id", &cval));
             conn->partial_backup_remove_ids[i] = (uint32_t)cval.val;
 
-            WT_WITH_SCHEMA_LOCK(session,
+            WT_WITH_SCHEMA_WRITE_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(session,
                 ret =
                   __wt_schema_drop(session, meta_state.partial_backup_names[i], drop_cfg, false)));

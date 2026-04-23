@@ -395,7 +395,7 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
     bool exclusive_refreshed;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     /*
      * Determine what configuration says about exclusive access. A non exclusive alter that doesn't
@@ -442,7 +442,7 @@ __wt_schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[
     WT_SESSION_IMPL *int_session;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    __wt_assert_schema_write_lock_owned(session);
 
     /* Add a 2 second wait to simulate session alter slowness. */
     tsp.tv_sec = 2;

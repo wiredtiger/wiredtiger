@@ -309,7 +309,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bool bm_start, quit, skip_hs;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    __wt_assert_schema_read_lock_owned(session);
 
     btree = S2BT(session);
     bm = btree->bm;
