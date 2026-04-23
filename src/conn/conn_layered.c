@@ -196,7 +196,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
          * nodes.
          */
         if (checkpoint_time != checkpoint_time_new)
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_ERR_PANIC(session, WT_PANIC,
               "Checkpoint order should be strictly increasing. "
               "Current checkpoint order: %" PRId64 ", time: %" PRIu64
               ". New checkpoint order: %" PRId64 ", time: %" PRIu64
