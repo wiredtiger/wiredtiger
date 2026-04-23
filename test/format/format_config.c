@@ -529,12 +529,9 @@ config_prefetch(void)
      */
     if (!GV(PREFETCH) && GV(PREFETCH_DEFAULT)) {
         if (config_explicit(NULL, "prefetch.default")) {
-            if (config_explicit(NULL, "prefetch"))
-                testutil_die(EINVAL,
-                  "prefetch.default requires prefetch (available) to be enabled; set prefetch=1 or "
-                  "remove prefetch.default");
-            /* User explicitly set default=true but left available unset - force it on. */
-            config_single(NULL, "prefetch=1", false);
+            if (!config_explicit(NULL, "prefetch"))
+                /* User explicitly set default=true but left available unset - force it on. */
+                config_single(NULL, "prefetch=1", true);
         } else
             config_off(NULL, "prefetch.default");
     }
