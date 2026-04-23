@@ -3110,7 +3110,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (btree->modified && !bulk && !metadata) {
         ret = __wt_set_return(session, EBUSY);
         WT_RET_SUB(
-          session, ret, WT_DIRTY_DATA, "the table has dirty data and can not be dropped yet");
+          session, ret, WT_DIRTY_DATA, "the table has dirty data and cannot be closed yet");
     }
 
     /*
