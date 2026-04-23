@@ -74,9 +74,8 @@ __btree_pin_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_ERR(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0));
 
     /*
-     * Save the dhandle pointer before incrementing session_inuse: __wt_session_release_dhandle
-     * clears session->dhandle unconditionally, so we need our own reference to undo the increment
-     * on the error path.
+     * Save the dhandle pointer before incrementing session_inuse: releasing the dhandle clears the
+     * reference unconditionally, so we need our own copy to undo the increment on the error path.
      */
     hs_dhandle = session->dhandle;
     (void)__wt_atomic_add_int32(&hs_dhandle->session_inuse, 1);
@@ -162,8 +161,8 @@ __btree_pin_hs_dhandle_and_get_meta_checkpoint(WT_SESSION_IMPL *session, WT_BTRE
 
 err:
     /*
-     * On error, btree->hs_checkpoint_name remains set if the history store dhandle was successfully
-     * pinned. The caller is responsible for releasing it on the error path.
+     * On error, the pinned history store dhandle is not released here. The caller is responsible
+     * for releasing it on the error path.
      */
     return (ret);
 }
@@ -332,9 +331,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     if (0) {
 err:
         /*
-         * Closing the btree releases the pinned history store dhandle if btree->hs_checkpoint_name
-         * is set, covering the case where the history store was pinned successfully but a later
-         * step failed.
+         * Closing the btree releases the pinned history store dhandle, covering the case where the
+         * history store was pinned successfully but a later step failed.
          */
         WT_TRET(__wt_btree_close(session));
     }
