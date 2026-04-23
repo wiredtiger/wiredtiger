@@ -8,10 +8,12 @@
 
 #include "wt_internal.h"
 
-typedef enum {
-    WT_TRUNCATE_SEARCH_VISIBLE,
-    WT_TRUNCATE_SEARCH_NOT_VISIBLE
-} WT_TRUNCATE_SEARCH_MODE;
+/*
+ * Selects which truncate-list entries __truncate_search considers: those visible to the calling
+ * transaction (committed truncates we may need to honor) or those not visible (uncommitted
+ * truncates that may conflict with our writes).
+ */
+typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_TRUNCATE_SEARCH_MODE;
 
 /*
  * __disagg_truncate_free --
@@ -154,14 +156,12 @@ static int
 __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key,
   const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
 {
+    WT_ASSERT(session, is_foundp != NULL);
+
     WT_COLLATOR *collator = layered_table->collator;
     WT_TRUNCATE *entry = NULL;
 
-    WT_ASSERT(session, is_foundp != NULL);
     *is_foundp = false;
-
-    WT_ASSERT(
-      session, mode == WT_TRUNCATE_SEARCH_VISIBLE || mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE);
 
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         const bool is_visible =
@@ -250,8 +250,7 @@ __wt_truncate_delete_visible_check(
      * Ignore all truncate entries that haven't been committed. They won't be visible to this
      * transaction.
      */
-    ret =
-      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, tp, &is_found);
+    ret = __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, tp, &is_found);
 
     __wt_readunlock(session, &layered_table->truncate_lock);
     WT_RET(ret);
