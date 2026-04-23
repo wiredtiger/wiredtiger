@@ -13,14 +13,10 @@
  * range on a layered table. These tests verify:
  *   - keys inside, outside, and at the boundaries of a single range
  *   - single-key ranges (start == stop)
- *   - open-ended ranges (no stop key)
  *   - multiple non-overlapping and overlapping ranges
- *   - the optional output pointer is filled on a match (bounded and open-ended)
+ *   - the optional output pointer is filled on a match
  *   - the feature flag early-return path
  *   - lock discipline: read lock is always released
- *
- * Transaction visibility is not tested here. All entries use WT_TXN_NONE so
- * they are globally visible without requiring a snapshot transaction setup.
  */
 
 #include <catch2/catch.hpp>
@@ -40,15 +36,9 @@ struct TruncVisibleCheckFixture {
     {
         session = mock->get_wt_session_impl();
 
-        /* Save process-level feature flag so it can be restored after each test. */
-        saved_flag = __wt_process.disagg_fast_truncate_2026;
         __wt_process.disagg_fast_truncate_2026 = true;
 
-        /*
-         * __wt_txn_visible always dereferences session->txn even for WT_TXN_NONE entries.
-         * Allocate a zeroed transaction and shared list so those accesses do not crash.
-         * Transaction visibility behaviour is not the focus of these tests.
-         */
+        /* Allocate a zeroed transaction and shared list. */
         WT_TXN_SHARED *txn_shared_list;
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN_SHARED), &txn_shared_list) == 0);
         S2C(session)->txn_global.txn_shared_list = txn_shared_list;
@@ -76,16 +66,10 @@ struct TruncVisibleCheckFixture {
 
         __wt_free(session, session->txn);
         __wt_free(session, S2C(session)->txn_global.txn_shared_list);
-
-        __wt_process.disagg_fast_truncate_2026 = saved_flag;
     }
 
     /*
      * Add a truncate entry to the table's truncate list.
-     *
-     * start_key and stop_key must be string literals (they are not copied; the fixture does not
-     * free them). Passing nullptr for stop_key creates an open-ended range that extends to the end
-     * of the table.
      *
      * WT_TXN_NONE makes entries globally visible without needing a transaction.
      */
@@ -102,11 +86,8 @@ struct TruncVisibleCheckFixture {
         t->start_key.data = start_key;
         t->start_key.size = strlen(start_key);
 
-        if (stop_key != nullptr) {
-            t->stop_key.data = stop_key;
-            t->stop_key.size = strlen(stop_key);
-        }
-        /* stop_key.size == 0 (from calloc) signals "truncate to end of table". */
+        t->stop_key.data = stop_key;
+        t->stop_key.size = strlen(stop_key);
 
         TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
     }
@@ -125,20 +106,19 @@ struct TruncVisibleCheckFixture {
     std::shared_ptr<mock_session> mock;
     WT_SESSION_IMPL *session;
     WT_LAYERED_TABLE *layered_table;
-    bool saved_flag;
 };
 
-TEST_CASE_METHOD(
-  TruncVisibleCheckFixture, "truncate_delete_visible_check: single range", "[truncate][visibility]")
+TEST_CASE_METHOD(TruncVisibleCheckFixture,
+  "truncate_delete_visible_check: search key outside all truncate ranges", "[truncate]")
 {
-    SECTION("empty truncate list  key is not deleted")
+    SECTION("empty truncate list")
     {
         WT_ITEM key = make_key("key150");
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
     }
 
-    SECTION("key is before the truncated range")
+    SECTION("key before the truncated range")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key050");
@@ -146,14 +126,7 @@ TEST_CASE_METHOD(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
     }
 
-    SECTION("key is inside the truncated range")
-    {
-        add_truncate_entry("key100", "key200");
-        WT_ITEM key = make_key("key150");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-
-    SECTION("key is after the truncated range")
+    SECTION("key after the truncated range")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key250");
@@ -161,28 +134,7 @@ TEST_CASE_METHOD(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
     }
 
-    SECTION("key is exactly at the start boundary  inclusive")
-    {
-        add_truncate_entry("key100", "key200");
-        WT_ITEM key = make_key("key100");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-
-    SECTION("key is exactly at the stop boundary  inclusive")
-    {
-        add_truncate_entry("key100", "key200");
-        WT_ITEM key = make_key("key200");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-
-    SECTION("single-key range  exactly that key is deleted")
-    {
-        add_truncate_entry("key100", "key100");
-        WT_ITEM key = make_key("key100");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-
-    SECTION("single-key range  key just before is not deleted")
+    SECTION("single-key range: key just before")
     {
         add_truncate_entry("key100", "key100");
         WT_ITEM key = make_key("key099");
@@ -190,65 +142,15 @@ TEST_CASE_METHOD(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
     }
 
-    SECTION("single-key range  key just after is not deleted")
+    SECTION("single-key range: key just after")
     {
         add_truncate_entry("key100", "key100");
         WT_ITEM key = make_key("key101");
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
     }
-}
 
-TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: open-ended range",
-  "[truncate][visibility]")
-{
-    /*
-     * An open-ended truncate has no stop key (stop_key.size == 0). Any key at or after the start is
-     * considered deleted.
-     */
-    SECTION("key before the open-ended truncate start  not deleted")
-    {
-        add_truncate_entry("key500", nullptr);
-        WT_ITEM key = make_key("key400");
-        CHECK(
-          __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
-    }
-
-    SECTION("key exactly at the open-ended truncate start  deleted")
-    {
-        add_truncate_entry("key500", nullptr);
-        WT_ITEM key = make_key("key500");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-
-    SECTION("key well past the open-ended truncate start  deleted")
-    {
-        add_truncate_entry("key500", nullptr);
-        WT_ITEM key = make_key("key999");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-}
-
-TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: multiple ranges",
-  "[truncate][visibility]")
-{
-    SECTION("key matched by the first of two ranges")
-    {
-        add_truncate_entry("key100", "key200");
-        add_truncate_entry("key400", "key500");
-        WT_ITEM key = make_key("key150");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-
-    SECTION("key matched by the second of two ranges")
-    {
-        add_truncate_entry("key100", "key200");
-        add_truncate_entry("key400", "key500");
-        WT_ITEM key = make_key("key450");
-        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
-    }
-
-    SECTION("key falls between two ranges  not deleted")
+    SECTION("key between two non-overlapping ranges")
     {
         add_truncate_entry("key100", "key200");
         add_truncate_entry("key400", "key500");
@@ -256,8 +158,60 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: multi
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
     }
+}
 
-    SECTION("key falls inside two overlapping ranges  deleted")
+TEST_CASE_METHOD(TruncVisibleCheckFixture,
+  "truncate_delete_visible_check: search key inside a committed truncate range", "[truncate]")
+{
+    SECTION("key strictly inside the range")
+    {
+        add_truncate_entry("key100", "key200");
+        WT_ITEM key = make_key("key150");
+        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
+    }
+
+    SECTION("key at the start boundary (inclusive)")
+    {
+        add_truncate_entry("key100", "key200");
+        WT_ITEM key = make_key("key100");
+        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
+    }
+
+    SECTION("key at the stop boundary (inclusive)")
+    {
+        add_truncate_entry("key100", "key200");
+        WT_ITEM key = make_key("key200");
+        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
+    }
+
+    SECTION("single-key range, exact match")
+    {
+        add_truncate_entry("key100", "key100");
+        WT_ITEM key = make_key("key100");
+        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
+    }
+
+    SECTION("key matched by the first of two non-overlapping ranges")
+    {
+        add_truncate_entry("key100", "key200");
+        add_truncate_entry("key400", "key500");
+        WT_ITEM key = make_key("key150");
+        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
+    }
+
+    SECTION("key matched by the second of two non-overlapping ranges")
+    {
+        add_truncate_entry("key100", "key200");
+        add_truncate_entry("key400", "key500");
+        WT_ITEM key = make_key("key450");
+        CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
+    }
+}
+
+TEST_CASE_METHOD(TruncVisibleCheckFixture,
+  "truncate_delete_visible_check: search key inside overlapping truncate ranges", "[truncate]")
+{
+    SECTION("key in the overlap region of both ranges")
     {
         add_truncate_entry("key100", "key300");
         add_truncate_entry("key200", "key400");
@@ -265,7 +219,7 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: multi
         CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
     }
 
-    SECTION("key falls inside the first range of an overlapping pair but not the second")
+    SECTION("key in the first range only (outside the overlap)")
     {
         add_truncate_entry("key100", "key300");
         add_truncate_entry("key200", "key400");
@@ -273,7 +227,7 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: multi
         CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
     }
 
-    SECTION("key falls inside the second range of an overlapping pair but not the first")
+    SECTION("key in the second range only (outside the overlap)")
     {
         add_truncate_entry("key100", "key300");
         add_truncate_entry("key200", "key400");
@@ -282,8 +236,8 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: multi
     }
 }
 
-TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: lock discipline",
-  "[truncate][visibility]")
+TEST_CASE_METHOD(
+  TruncVisibleCheckFixture, "truncate_delete_visible_check: lock discipline", "[truncate]")
 {
     /*
      * Verify that the read lock on the truncate list is always released before the function
@@ -326,10 +280,10 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: lock 
     }
 }
 
-TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: output parameter tp",
-  "[truncate][visibility]")
+TEST_CASE_METHOD(
+  TruncVisibleCheckFixture, "truncate_delete_visible_check: output parameter tp", "[truncate]")
 {
-    SECTION("tp is null  function does not crash on a match")
+    SECTION("When tp is null ensure function does not crash on a match")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key150");
@@ -347,7 +301,7 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: outpu
         CHECK(strncmp((const char *)tp->stop_key.data, "key200", tp->stop_key.size) == 0);
     }
 
-    SECTION("tp is not modified when key is not deleted")
+    SECTION("tp is null, when there is a miss")
     {
         add_truncate_entry("key100", "key200");
         WT_ITEM key = make_key("key050");
@@ -355,26 +309,14 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: outpu
         CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, &tp) == WT_NOTFOUND);
         CHECK(tp == nullptr);
     }
-
-    SECTION("tp points to the matching open-ended entry")
-    {
-        add_truncate_entry("key500", nullptr);
-        WT_ITEM key = make_key("key600");
-        WT_TRUNCATE *tp = nullptr;
-        REQUIRE(__wt_truncate_delete_visible_check(session, layered_table, &key, &tp) == 0);
-        REQUIRE(tp != nullptr);
-        CHECK(strncmp((const char *)tp->start_key.data, "key500", tp->start_key.size) == 0);
-        CHECK(tp->stop_key.size == 0); /* open-ended: no stop key */
-    }
 }
 
-TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: feature flag disabled",
-  "[truncate][visibility]")
+TEST_CASE_METHOD(
+  TruncVisibleCheckFixture, "truncate_delete_visible_check: feature flag disabled", "[truncate]")
 {
     /*
      * When disagg_fast_truncate_2026 is false the function must return WT_NOTFOUND immediately
-     * without consulting the truncate list. This covers the early-return branch at the top of
-     * __wt_truncate_delete_visible_check.
+     * without consulting the truncate list
      */
     SECTION("returns WT_NOTFOUND even when a matching entry exists")
     {
@@ -383,7 +325,5 @@ TEST_CASE_METHOD(TruncVisibleCheckFixture, "truncate_delete_visible_check: featu
         WT_ITEM key = make_key("key150");
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
-        /* Restore so the fixture destructor's assertions are not surprised. */
-        __wt_process.disagg_fast_truncate_2026 = true;
     }
 }
