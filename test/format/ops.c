@@ -784,6 +784,8 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * Inserts, removes and updates can be done following a cursor set-key, or based on a cursor
          * position taken from a previous search. If not already doing a read, position the cursor
          * at an existing point in the tree 20% of the time.
+         *
+         * FIXME-WT-17260: Enable pre-positioning the cursor in predictable replay mode.
          */
         if (op != READ && mmrand(&tinfo->data_rnd, 1, 5) == 1) {
             ++tinfo->search;
@@ -2139,9 +2141,15 @@ row_remove(TINFO *tinfo, bool positioned)
     }
 
     /*
-     * Call cursor->remove() directly. A prior search guard was removed because overwrite mode does
-     * not affect cursor->remove() (it always checks read_ts visibility), and the search result
-     * would (with an old read_ts) incorrectly return WT_NOTFOUND when we actually want WT_ROLLBACK.
+     * Call cursor->remove() directly. A prior search guard was removed because overwrite mode no
+     * longer has any effect on cursor->remove(), and the search result sometimes incorrectly
+     * returns WT_NOTFOUND when we actually want WT_ROLLBACK. This can happen when the search sees a
+     * tombstone, but there are newer invisible updates. Whether the search succeeds or not depends
+     * on the current read_ts, which varies non-deterministically across runs.
+     *
+     * In predictable replay mode, this violates our assumption that every operation succeeds or
+     * fails deterministically, since the remove could fail with WT_NOTFOUND in one run and
+     * succeeded in another after rolling back and retrying with a higher read_ts.
      */
     ret = cursor->remove(cursor);
 
