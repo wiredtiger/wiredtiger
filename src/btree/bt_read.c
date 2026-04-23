@@ -739,6 +739,20 @@ skip_evict:
         /*
          * We failed to get the page -- yield before retrying, and if we've yielded enough times,
          * start sleeping so we don't burn CPU to no purpose.
+         *
+         * First check if we can help with eviction -- this converts wasted wait time into
+         * productive work that clears cache space and directly addresses the root cause of page
+         * contention under out-of-cache workloads. Only fall through to yield/sleep if no
+         * eviction work is available.
+         */
+        if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
+            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, false, &cache_work));
+            if (cache_work)
+                continue;
+        }
+
+        /*
+         * No eviction work available -- yield or sleep as before.
          */
         if (yield_cnt < WT_THOUSAND) {
             if (!stalled) {
@@ -747,17 +761,6 @@ skip_evict:
                 continue;
             }
             yield_cnt = WT_THOUSAND;
-        }
-
-        /*
-         * If stalling and this thread is allowed to do eviction work, check if the cache needs help
-         * evicting clean pages (don't force a read to do dirty eviction). If we do work for the
-         * cache, substitute that for a sleep.
-         */
-        if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
-            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, false, &cache_work));
-            if (cache_work)
-                continue;
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         ++sleep_count;
