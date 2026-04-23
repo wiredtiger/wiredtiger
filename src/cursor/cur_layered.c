@@ -778,19 +778,17 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
     if (!__wt_process.disagg_fast_truncate_2026)
         return (0);
 
-    /* Fast truncate only works under snapshot isolation. */
-    WT_ASSERT(session, session->txn->isolation == WT_ISO_SNAPSHOT);
     __clayered_get_collator(clayered, &collator);
-
     /*
      * There could be overlapping truncates in the layered table truncate list. So we need to loop
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        WT_RET_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t));
+        ret = __wt_truncate_delete_visible_check(
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
         if (ret == WT_NOTFOUND)
             break;
+        WT_RET(ret);
 
         stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
         WT_RET(stable->search_near(stable, &cmp));
@@ -2121,8 +2119,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+      S2C(session)->layered_table_manager.leader || !F_ISSET(cursor, WT_CURSTD_OVERWRITE), false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -2184,8 +2181,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(clayered, WT_CURSTD_OVERWRITE),
-      false));
+      S2C(session)->layered_table_manager.leader || !F_ISSET(cursor, WT_CURSTD_OVERWRITE), false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
