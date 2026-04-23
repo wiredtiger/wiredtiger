@@ -418,16 +418,9 @@ wt_wrap_close_session(WT_SESSION *session)
 const char *
 session_prefetch_cfg(void)
 {
-    if (!GV(PREFETCH))
-        return (mmrand(&g.data_rnd, 1, 2) == 1 ? NULL : SESSION_PREFETCH_CFG_OFF);
-
     /* Enable prefetch 20% of the time. */
-    switch (mmrand(&g.data_rnd, 1, 10)) {
-    case 1 ... 8:
+    if (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1)
         return (SESSION_PREFETCH_CFG_ON);
-    case 9:
-        return (SESSION_PREFETCH_CFG_OFF);
-    default:
-        return (NULL);
-    }
+    
+    return (mmrand(&g.data_rnd, 1, 2) == 1 ? SESSION_PREFETCH_CFG_OFF : NULL);
 }
