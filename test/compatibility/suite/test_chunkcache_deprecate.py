@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import compatibility_test, compatibility_version, errno, sys, wiredtiger
+import compatibility_test, compatibility_version, errno, wiredtiger
 
 
 class test_chunkcache_deprecate(compatibility_test.CompatibilityTestCase):
@@ -97,7 +97,8 @@ class test_chunkcache_deprecate(compatibility_test.CompatibilityTestCase):
             wiredtiger.wiredtiger_open('.', 'create,chunk_cache=(enabled=true)')
             assert False, 'wiredtiger_open with chunk_cache=(enabled=true) should fail'
         except wiredtiger.WiredTigerError as e:
-            assert str(e) in wiredtiger.wiredtiger_strerror(errno.ENOTSUP)
+            assert str(e) == wiredtiger.wiredtiger_strerror(errno.ENOTSUP)
+        self.assert_captured_output_contains('stderr', 'chunk cache has been deprecated')
 
     def on_older_branch(self):
         # Runs on the older branch to create a database and persist chunk_cache configuration in
@@ -119,20 +120,13 @@ class test_chunkcache_deprecate(compatibility_test.CompatibilityTestCase):
         # chunk_cache is configured but disabled in the basecfg.
         conn = wiredtiger.wiredtiger_open('.', self.conn_config)
 
-        # Assert the expected deprecation warning was emitted during wiredtiger_open. The test
-        # framework redirects this subprocess's stdout (both Python and C-level writes) to
-        # stdout.txt in the test's working directory.
-        sys.stdout.flush()
-        with open('stdout.txt', 'r') as f:
-            stdout_contents = f.read()
-        expected_warning = 'chunk cache has been deprecated and is no longer supported'
-        assert expected_warning in stdout_contents, \
-            f'expected deprecation warning {expected_warning!r} in stdout, got:\n{stdout_contents}'
+        # Assert the expected deprecation warning was emitted during wiredtiger_open.
+        self.assert_captured_output_contains('stdout', 'chunk cache has been deprecated')
 
         session = conn.open_session()
 
         # Verify the data written on the older branch is readable and intact, i.e. the upgraded
-        # database is actually usable — not just that wiredtiger_open returned successfully.
+        # database is actually usable  not just that wiredtiger_open returned successfully.
         c = session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
             assert c[i] == str(i), f'data mismatch on key {i}'
@@ -147,7 +141,8 @@ class test_chunkcache_deprecate(compatibility_test.CompatibilityTestCase):
             wiredtiger.wiredtiger_open('.', self.conn_config)
             assert False, 'wiredtiger_open should fail when basecfg has chunk_cache enabled'
         except wiredtiger.WiredTigerError as e:
-            assert str(e) in wiredtiger.wiredtiger_strerror(errno.ENOTSUP)
+            assert str(e) == wiredtiger.wiredtiger_strerror(errno.ENOTSUP)
+        self.assert_captured_output_contains('stderr', 'chunk cache has been deprecated')
 
 
 if __name__ == '__main__':
