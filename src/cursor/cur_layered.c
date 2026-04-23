@@ -236,7 +236,6 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     c = &clayered->iface;
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     checkpoint_name = NULL;
-    stable_uri = layered->stable_uri;
 
     WT_RET(__wt_scr_alloc(session, 0, &random_config));
     /* Get the configuration for random cursors, if any. */
@@ -314,25 +313,6 @@ retry:
     }
 
 err:
-    /*
-     * The first checkpoint might have arrived while we were opening a live btree and this situation
-     * might lead to opening a live btree for a stable table on a follower which could lead to
-     * writing a data from an old checkpoint during the step-up.
-     *
-     * FIXME-WT-17244: This is a temporary protection and we should avoid having this situation
-     * later.
-     */
-    if (F_ISSET(clayered, WT_CLAYERED_STABLE_NO_CKPT)) {
-        WT_ASSERT_ALWAYS(session, !leader, "Leader should never have NO_CKPT flag.");
-
-        const char *checkpoint_name_chk = NULL;
-        int tmp_ret =
-          __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name_chk, NULL, NULL);
-        WT_ASSERT_ALWAYS(session, tmp_ret == WT_NOTFOUND,
-          "Opened a live stable btree on a follower after a checkpoint arrived.");
-        __wt_free(session, checkpoint_name_chk);
-    }
-
     __wt_scr_free(session, &random_config);
     __wt_scr_free(session, &stable_uri_buf);
     __wt_free(session, checkpoint_name);
