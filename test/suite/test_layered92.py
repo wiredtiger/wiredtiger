@@ -83,11 +83,11 @@ class test_layered92(wttest.WiredTigerTestCase):
                 # The first two tables have content on every checkpoint.
                 # The other tables are written once and never again.
                 for i in range(0, self.nuri):
-                    if i < 2 or bigloop_count == 0:
-                        self.session.breakpoint()
-                        c = self.session.open_cursor(f'{self.uri}_{i}')
-                        c['a'] = str(bigloop_count)
-                        c.close()
+                    if i >= 2 and bigloop_count > 0:
+                        continue
+                    c = self.session.open_cursor(f'{self.uri}_{i}')
+                    c['a'] = str(bigloop_count)
+                    c.close()
 
             # Checkpoint at this timestamp, and pick it up on follower
             self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
@@ -109,12 +109,12 @@ class test_layered92(wttest.WiredTigerTestCase):
             self.show_cursor_create_stats(self.session_follow, 'follower')
 
         # Every time we do a cursor create, it's a situation where we
-        # might have been able to use a cached cursor instead.  So numbers
+        # might have been able to use a cached cursor instead. So numbers
         # that are "too high" indicate we are caching cursors.
         #
         # The numbers below are determined empirically, after running with
         # temporary instrumentation showing what cursors are cached and created,
         # and when. These numbers tend to be higher than we might want because
-        # history store cursors are not cached, and these make up the bulk of cursor opens.
+        # metadata cursors are not cached, and these make up the bulk of cursor opens.
         self.check_cursor_create_stats(self.session, 75)
         self.check_cursor_create_stats(self.session_follow, 325)

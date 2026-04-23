@@ -1044,8 +1044,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
         return (WT_NOTFOUND);
 
     /* If original config string is NULL or "", don't check it. */
-    have_config =
-      (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL && (cfg[2] != NULL || cfg[1][0] != '\0'));
+    have_config = !__wt_config_empty(cfg);
 
     /* Use a null configuration array when applicable for fastest configuration lookups. */
     if (!have_config)
