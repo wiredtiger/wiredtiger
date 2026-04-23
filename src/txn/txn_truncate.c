@@ -157,11 +157,10 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
   const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
 {
     WT_ASSERT(session, is_foundp != NULL);
+    *is_foundp = false;
 
     WT_COLLATOR *collator = layered_table->collator;
     WT_TRUNCATE *entry = NULL;
-
-    *is_foundp = false;
 
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         const bool is_visible =
