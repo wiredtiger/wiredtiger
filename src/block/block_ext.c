@@ -1502,11 +1502,13 @@ __block_extlist_dump_buckets(
 
     __wt_verbose_level(session, WT_VERB_BLOCK, level, "%s", (char *)t1->data);
 
-    /* Print each extent with its offset and size. */
+    /* Print each extent with its offset and size when block verbosity is enabled. */
+    __wt_verbose_level(
+        session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_1, "%s", "Extent Number:   Offset, Size");
     i = 0;
     WT_EXT_FOREACH (ext, el->off)
-        __wt_verbose_level(session, WT_VERB_BLOCK, level, "%" PRIu32 ":   %" PRIdMAX ", %" PRIdMAX,
-          ++i, (intmax_t)ext->off, (intmax_t)ext->size);
+        __wt_verbose_level(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_1,
+            "%u:   %" PRIdMAX ", %" PRIdMAX, ++i, (intmax_t)ext->off, (intmax_t)ext->size);
 
 done:
 err:
