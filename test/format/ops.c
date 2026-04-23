@@ -780,9 +780,10 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * position taken from a previous search. If not already doing a read, position the cursor
          * at an existing point in the tree 20% of the time.
          *
-         * For predictable replay, don't pre-position the cursor. Each operation must be
-         * independent, always using the explicit set-key path with the key derived from the replay
-         * timestamp.
+         * For predictable replay, skip the pre-positioning search. read_row() depends on key
+         * visibility at the non-deterministic read timestamp. If it succeeds in one run but fails
+         * in another, positioned differs, which changes whether key_gen_insert consumes data_rnd,
+         * causing all subsequent random decisions to diverge.
          */
         if (!GV(RUNS_PREDICTABLE_REPLAY) && op != READ && mmrand(&tinfo->data_rnd, 1, 5) == 1) {
             ++tinfo->search;
