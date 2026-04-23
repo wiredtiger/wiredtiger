@@ -118,8 +118,6 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
         self.truncate_range(100, 700)
         self.sample_assert_random(100, 700)
 
-    # FIXME-WT-17133: random cursor inherits the same ingest-truncate gap.
-    @unittest.skip("FIXME-WT-17133")
     def test_random_cursor_skips_truncated_range_with_live_ingest(self):
         # Update 200-400 on follower so those keys are live in ingest, then
         # truncate a range covering them. No random sample should leak.
