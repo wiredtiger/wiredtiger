@@ -421,6 +421,6 @@ session_prefetch_cfg(void)
     /* Enable prefetch 20% of the time. */
     if (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1)
         return (SESSION_PREFETCH_CFG_ON);
-    
+
     return (mmrand(&g.data_rnd, 1, 2) == 1 ? SESSION_PREFETCH_CFG_OFF : NULL);
 }
