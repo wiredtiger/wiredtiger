@@ -818,66 +818,89 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
 }
 
 /*
+ * __layered_truncate_leader --
+ *     Discard a cursor range from the stable table.
+ */
+static int
+__layered_truncate_leader(WT_TRUNCATE_INFO *trunc_info)
+{
+    /*
+     * On leader mode, the stable cursors will always be positioned on the table. So we can directly
+     * reference them here.
+     */
+    WT_DECL_RET;
+
+    WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
+    WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
+
+    trunc_info->start = clayered_start->stable_cursor;
+    trunc_info->stop = clayered_stop->stable_cursor;
+
+    WT_WITH_BTREE(
+      trunc_info->session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
+
+    return (ret);
+}
+
+/*
+ * __layered_truncate_follower --
+ *     Discard a cursor range from the ingest table.
+ */
+static int
+__layered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
+{
+    /*
+     * Set the keys on the ingest cursors. The ingest cursor may not have its key set if the layered
+     * cursor was positioned via next/prev, or if search_near on an empty ingest table reset the
+     * cursor position.
+     */
+    WT_ITEM start_key, stop_key;
+    WT_RET(__wt_cursor_get_raw_key(trunc_info->start, &start_key));
+    WT_RET(__wt_cursor_get_raw_key(trunc_info->stop, &stop_key));
+
+    WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
+    WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
+    __wt_cursor_set_raw_key(clayered_start->ingest_cursor, &start_key);
+    __wt_cursor_set_raw_key(clayered_stop->ingest_cursor, &stop_key);
+
+    /*
+     * Perform truncate on ingest table.
+     *
+     * FIXME-WT-17133: We need to position the ingest cursors before we start removing entries.
+     */
+    WT_RET_NOTFOUND_OK(
+      __wt_range_truncate(clayered_start->ingest_cursor, clayered_stop->ingest_cursor));
+
+    /* Add a truncate entry inside layered table truncate list. */
+    WT_RET(__wt_insert_truncate_entry(trunc_info->session, trunc_info->uri, &start_key, &stop_key));
+
+    return (0);
+}
+
+/*
  * __wt_layered_truncate --
  *     Discard a cursor range from the layered table.
  */
 int
 __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
 {
-    WT_DECL_RET;
-    WT_ITEM start_key, stop_key;
-    WT_SESSION_IMPL *session;
-    const char *uri;
-
-    session = trunc_info->session;
-    uri = trunc_info->uri;
-
+    WT_SESSION_IMPL *session = trunc_info->session;
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
-    WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
-
-    /* The start and stop cursor should not be NULL at this point. */
-    WT_ASSERT(session, clayered_start != NULL && clayered_stop != NULL);
+    /* These should have been initialized upstream. */
+    WT_ASSERT(session, trunc_info->start != NULL);
+    WT_ASSERT(session, trunc_info->stop != NULL);
 
     /*
      * On leader mode, we can directly perform truncate operation on the stable table. On follower
      * mode, we need to perform truncate on the ingest table and add an entry inside the truncate
      * list.
      */
-    if (S2C(session)->layered_table_manager.leader) {
-        /*
-         * On leader mode, the stable cursors will always be positioned on the table. So we can
-         * directly reference it here.
-         */
-        trunc_info->start = clayered_start->stable_cursor;
-        trunc_info->stop = clayered_stop->stable_cursor;
-        WT_WITH_BTREE(
-          session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
-        WT_RET(ret);
-    } else {
-        /*
-         * Set the keys on the ingest cursors. The ingest cursor may not have its key set if the
-         * layered cursor was positioned via next/prev, or if search_near on an empty ingest table
-         * reset the cursor position.
-         */
-        WT_RET(__wt_cursor_get_raw_key(trunc_info->start, &start_key));
-        WT_RET(__wt_cursor_get_raw_key(trunc_info->stop, &stop_key));
+    if (S2C(session)->layered_table_manager.leader)
+        WT_RET(__layered_truncate_leader(trunc_info));
+    else
+        WT_RET(__layered_truncate_follower(trunc_info));
 
-        __wt_cursor_set_raw_key(clayered_start->ingest_cursor, &start_key);
-        __wt_cursor_set_raw_key(clayered_stop->ingest_cursor, &stop_key);
-
-        /*
-         * Perform truncate on ingest table.
-         *
-         * FIXME-WT-17133: We need to position the ingest cursors before we start removing entries.
-         */
-        WT_RET_NOTFOUND_OK(
-          __wt_range_truncate(clayered_start->ingest_cursor, clayered_stop->ingest_cursor));
-
-        /* Add a truncate entry inside layered table truncate list. */
-        WT_RET(__wt_insert_truncate_entry(session, uri, &start_key, &stop_key));
-    }
     return (0);
 }
 
