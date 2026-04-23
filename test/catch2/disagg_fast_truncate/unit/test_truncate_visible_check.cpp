@@ -20,7 +20,7 @@
  */
 
 #include <catch2/catch.hpp>
-#include "../wrappers/mock_session.h"
+#include "../../wrappers/mock_session.h"
 
 extern "C" {
 #include "wt_internal.h"

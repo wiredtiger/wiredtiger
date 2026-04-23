@@ -22,7 +22,6 @@ else()
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
-        misc_tests/test_truncate_visible_check.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
@@ -41,6 +40,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        disagg_fast_truncate/unit/test_truncate_visible_check.cpp
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
         ext/test_checkpoint_meta_version.cpp
