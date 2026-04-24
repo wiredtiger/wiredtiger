@@ -261,6 +261,8 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
     /* Close all open cursors. */
     WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, cursors, q, cursor_tmp)
     {
+        if (WT_PREFIX_MATCH(cursor->internal_uri, "layered:"))
+            F_SET(cursor, WT_CURSTD_CONSTITUENT_DEAD);
         if (F_ISSET(cursor, WT_CURSTD_CACHED))
             /*
              * Put the cached cursor in an open state that allows it to be closed.
@@ -275,8 +277,6 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
             WT_TRET(session->event_handler->handle_close(
               session->event_handler, &session->iface, cursor));
 
-        if (WT_PREFIX_MATCH(cursor->internal_uri, "layered:"))
-            F_SET(cursor, WT_CURSTD_CONSTITUENT_DEAD);
         WT_TRET(cursor->close(cursor));
     }
     WT_TAILQ_SAFE_REMOVE_END

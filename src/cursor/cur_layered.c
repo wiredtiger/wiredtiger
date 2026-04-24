@@ -182,16 +182,58 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 
     clayered->current_cursor = NULL;
     if ((c = clayered->ingest_cursor) != NULL) {
+        if (F_ISSET(c, WT_CURSTD_CACHED))
+            c->reopen(c, false);
         WT_RET(c->close(c));
         clayered->ingest_cursor = NULL;
     }
     if ((c = clayered->stable_cursor) != NULL) {
+        if (F_ISSET(c, WT_CURSTD_CACHED))
+            c->reopen(c, false);
         WT_RET(c->close(c));
         clayered->stable_cursor = NULL;
     }
 
     /* Some flags persist across closes of constituents. */
     F_CLR(clayered, ~(WT_CLAYERED_ACTIVE | WT_CLAYERED_RANDOM));
+    return (0);
+}
+
+/*
+ * __clayered_cache_cursors --
+ *     Cache any constituent btree cursors.
+ */
+static int
+__clayered_cache_cursors(WT_CURSOR_LAYERED *clayered)
+{
+    WT_CURSOR *c;
+
+    clayered->current_cursor = NULL;
+    if ((c = clayered->ingest_cursor) != NULL)
+        WT_RET(c->cache(c));
+    if ((c = clayered->stable_cursor) != NULL)
+        WT_RET(c->cache(c));
+
+    /* Some flags persist across caching of constituents. */
+    F_CLR(clayered, ~(WT_CLAYERED_ACTIVE | WT_CLAYERED_RANDOM));
+    return (0);
+}
+
+/*
+ * __clayered_reopen_cursors --
+ *     Reopen any constituent btree cursors.
+ */
+static int
+__clayered_reopen_cursors(WT_CURSOR_LAYERED *clayered)
+{
+    WT_CURSOR *c;
+
+    clayered->current_cursor = NULL;
+    if ((c = clayered->ingest_cursor) != NULL)
+        WT_RET(c->reopen(c, false));
+    if ((c = clayered->stable_cursor) != NULL)
+        WT_RET(c->reopen(c, false));
+
     return (0);
 }
 
@@ -630,12 +672,18 @@ static int
 __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *c;
     bool leader;
 
     conn = S2C(session);
 
-    if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
+    if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL) {
+        if ((c = clayered->ingest_cursor) != NULL && F_ISSET(c, WT_CURSTD_CACHED))
+            c->reopen(c, false);
+        if ((c = clayered->stable_cursor) != NULL && F_ISSET(c, WT_CURSTD_CACHED))
+            c->reopen(c, false);
         return (0);
+    }
 
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
@@ -1423,6 +1471,7 @@ __clayered_cache(WT_CURSOR *cursor)
 static int
 __clayered_reopen_int(WT_CURSOR *cursor)
 {
+    WT_CURSOR_LAYERED *clayered;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -1430,6 +1479,7 @@ __clayered_reopen_int(WT_CURSOR *cursor)
 
     session = CUR2S(cursor);
     dhandle = session->dhandle;
+    clayered = (WT_CURSOR_LAYERED *)cursor;
 
     /*
      * Lock the handle: we're only interested in open handles, any other state disqualifies the
@@ -1461,8 +1511,13 @@ __clayered_reopen_int(WT_CURSOR *cursor)
         cursor->key_format = layered->key_format;
         cursor->value_format = layered->value_format;
 
+        if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
+            WT_RET(__clayered_reopen_cursors(clayered));
         WT_STAT_CONN_DSRC_INCR(session, cursor_reopen);
     }
+    if (ret != 0)
+        WT_RET(__clayered_close_cursors(clayered));
+
     return (ret);
 }
 
@@ -2482,7 +2537,7 @@ err:
              * during connection->close performing a close of all cursors in the session.
              */
             if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
-                WT_TRET(__clayered_close_cursors(clayered));
+                WT_TRET(__clayered_cache_cursors(clayered));
 
             goto done;
         }
