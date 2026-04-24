@@ -845,6 +845,10 @@ __wt_evict_app_assist_worker_check(
     if (!__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
         return (0);
 
+    /* Checkpoint reconciliation workers cannot participate in eviction. */
+    if (F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER))
+        return (0);
+
     /* Eviction causes reconciliation. So don't evict if we can't reconcile */
     if (F_ISSET(session, WT_SESSION_NO_RECONCILE))
         return (0);

@@ -850,6 +850,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_pages_visited_internal;
     int64_t checkpoint_pages_visited_leaf;
     int64_t checkpoint_pages_reconciled;
+    int64_t checkpoint_parallel_pages_reconciled;
     int64_t checkpoint_prep_running;
     int64_t checkpoint_prep_max;
     int64_t checkpoint_prep_min;
