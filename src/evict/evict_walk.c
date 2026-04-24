@@ -1102,7 +1102,6 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     evict = conn->evict;
     page = ref->page;
     modified = __wt_page_is_modified(page);
-    evict_clean_scrub = false;
     *queuedp = false;
 
     /* Don't queue dirty pages in trees during checkpoints. */
@@ -1157,27 +1156,17 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     }
 
     /* Pages that are empty or from dead trees are fast-tracked. */
-    if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+    if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD)) {
+        evict_clean_scrub = false;
         goto fast;
+    }
 
     evict_clean =
       F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(page);
 
-    /*
-     * A clean page with a saved disk image is a candidate for clean-scrub re-instantiation: we
-     * can swap out the in-memory content without a disk read, reclaiming update memory. Skip
-     * while the btree is being checkpointed: __wt_split_multi would return EBUSY (parent locked
-     * by the checkpoint thread), wasting an eviction slot. After checkpoint the walk
-     * re-encounters these pages and queues them successfully.
-     */
-    evict_clean_scrub =
-      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ||
-        FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_CLEAN_SCRUB)) &&
-      !modified && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !WT_BTREE_SYNCING(btree) &&
-      __wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) > 0 &&
-      __wti_evict_page_has_clean_scrub_image(page);
+    evict_clean_scrub = __wti_evict_page_is_clean_scrub_candidate(session, page);
 
     should_evict_page = evict_clean || evict_dirty || evict_updates || evict_clean_scrub;
     /* Skip pages we don't want. */
@@ -1229,9 +1218,10 @@ fast:
         return;
 
     /*
-     * Clean-scrub candidates go directly to the urgent queue so they are processed promptly,
-     * before the eviction walk moves on to many dirty pages. The flag must be set before queuing
-     * because __evict_list_clear only clears the LRU flags, not WT_PAGE_EVICT_CLEAN_SCRUB.
+     * Clean-scrub candidates go directly to the urgent queue so they are processed promptly rather
+     * than waiting behind dirty pages in the regular queue. The clean-scrub marker must be applied
+     * before queuing because it survives dequeue and is read by the eviction path when the
+     * candidate is eventually selected.
      */
     if (evict_clean_scrub) {
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB);

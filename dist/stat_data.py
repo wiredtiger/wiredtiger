@@ -80,6 +80,14 @@ class CheckpointStat(Stat):
     prefix = 'checkpoint'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CheckpointStat.prefix, desc, flags)
+class ChunkCacheStat(Stat):
+    prefix = 'chunk-cache'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, ChunkCacheStat.prefix, desc, flags)
+class CleanScrubCacheStat(Stat):
+    prefix = 'clean-scrub'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CleanScrubCacheStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -1195,11 +1203,6 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_cas_btree_max_lsn_race', 'number of times when cas update the btree max_lsn failed'),
-    CacheStat('cache_clean_scrub_eviction', 'clean pages successfully re-instantiated via clean-scrub eviction'),
-    CacheStat('cache_clean_scrub_fail_rewrite', 'clean-scrub evictions failed due to parent update conflict'),
-    CacheStat('cache_clean_scrub_image_saved', 'pages with disk image saved for clean-scrub eviction'),
-    CacheStat('cache_clean_scrub_image_saved_bytes', 'bytes of disk images saved for clean-scrub eviction', 'size'),
-    CacheStat('cache_clean_scrub_page_dirtied', 'clean-scrub candidates skipped because page was re-dirtied before eviction'),
     CacheStat('cache_evict_split_failed_lock', 'realizing in-memory split after reconciliation failed due to internal lock busy'),
     CacheStat('cache_eviction_ahead_of_last_materialized_lsn', 'pages evicted ahead of the page materialization frontier'),
     CacheStat('cache_eviction_app_threads_fill_ratio_25_50', 'application threads eviction requested with cache fill ratio >= 25% and < 50%'),
@@ -1317,6 +1320,15 @@ conn_dsrc_stats = [
     # Checkpoint statistics
     ##########################################
     CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
+
+    ##########################################
+    # Clean-scrub eviction statistics
+    ##########################################
+    CleanScrubCacheStat('cache_clean_scrub_eviction', 'pages successfully re-instantiated'),
+    CleanScrubCacheStat('cache_clean_scrub_fail_rewrite', 'evictions failed due to parent update conflict'),
+    CleanScrubCacheStat('cache_clean_scrub_image_saved', 'page disk images saved'),
+    CleanScrubCacheStat('cache_clean_scrub_image_saved_bytes', 'page disk image bytes saved', 'size'),
+    CleanScrubCacheStat('cache_clean_scrub_page_dirtied', 'candidates skipped because the page was re-dirtied prior to eviction'),
 
     ##########################################
     # Cursor operations

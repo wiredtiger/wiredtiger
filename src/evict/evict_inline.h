@@ -153,24 +153,54 @@ __wt_evict_page_is_soon(WT_PAGE *page)
 
 /*
  * __wti_evict_page_has_clean_scrub_image --
- *     Return true if the page has a saved disk image suitable for clean-scrub re-instantiation.
- *     Handles both single-block (mod_disk_image) and multi-block (mod_multi[0].disk_image) cases.
- *     Multi-block images flagged with the update-restore bit belong to a different mechanism and
- *     are not eligible.
+ *     Return true if the page has a saved disk image that can be used to rebuild the in-memory page
+ *     without reading from disk. A page qualifies when reconciliation attached an image either as a
+ *     single replacement block or as a set of per-chunk multi-block images. Images that the
+ *     update-restore path attached to keep pending updates pinned to the page are excluded: freeing
+ *     such an image as part of re-instantiation would discard the attached updates and lose work.
  */
 static WT_INLINE bool
 __wti_evict_page_has_clean_scrub_image(WT_PAGE *page)
 {
-    WT_PAGE_MODIFY *mod;
+    WT_PAGE_MODIFY *mod = page->modify;
 
-    mod = page->modify;
     if (mod == NULL)
         return (false);
+    /* Single-block reconciliation: the replacement image hangs directly off the modify struct. */
     if (mod->mod_disk_image != NULL)
         return (true);
+    /* Multi-block reconciliation: images hang off the per-chunk mod_multi array. */
     return (mod->rec_result == WT_PM_REC_MULTIBLOCK && mod->mod_multi != NULL &&
-      mod->mod_multi_entries > 0 && mod->mod_multi[0].disk_image != NULL &&
-      !F_ISSET(&mod->mod_multi[0], WT_MULTI_SUPD_RESTORE));
+      mod->mod_multi_entries > 0 && WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(mod->mod_multi[0]));
+}
+
+/*
+ * __wti_evict_page_is_clean_scrub_candidate --
+ *     Return true if the page is a fresh candidate for clean-scrub re-instantiation. This is the
+ *     full policy gate used when deciding whether to route a page into the clean-scrub pipeline,
+ *     whether at queue time or opportunistically at evict time: the page must be clean, the btree
+ *     must be eligible (not in-memory, not currently checkpointing), the connection must be under
+ *     update pressure or running with the clean-scrub debug flag, and the btree must have at least
+ *     one saved image. The checks are ordered cheapest-first.
+ */
+static WT_INLINE bool
+__wti_evict_page_is_clean_scrub_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    if (__wt_page_is_modified(page))
+        return (false);
+
+    WT_BTREE *btree = S2BT(session);
+    if (F_ISSET(btree, WT_BTREE_IN_MEMORY) || WT_BTREE_SYNCING(btree))
+        return (false);
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    if (!F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES) &&
+      !FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_CLEAN_SCRUB))
+        return (false);
+
+    if (__wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) == 0)
+        return (false);
+    return (__wti_evict_page_has_clean_scrub_image(page));
 }
 
 /* !!!

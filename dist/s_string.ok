@@ -906,6 +906,7 @@ deflateEnd
 deflateInit
 del
 deletable
+dequeue
 dequeued
 der
 deref
