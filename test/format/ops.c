@@ -1277,23 +1277,19 @@ rollback_retry:
         if (op == INSERT || op == UPDATE)
             val_gen(table, &tinfo->data_rnd, tinfo->new_value, tinfo->keyno);
 
-        /*
-         * For MODIFY in predictable replay, if read_ts (non-deterministic, affected by thread
-         * scheduling) is below last_commit_ts, the modify may see a tombstone in one run but a live
-         * value in another: seeing a tombstone returns WT_NOTFOUND (no-op), while a live value
-         * succeeds, diverging the databases. Spin-yield until replay_maximum_committed catches up
-         * so both runs see the same key state.
-         */
-        if (GV(RUNS_PREDICTABLE_REPLAY) && op == MODIFY &&
-          tinfo->read_ts < g.lanes[tinfo->lane].last_commit_ts) {
-            while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
-                __wt_yield();
-            goto rollback;
-        }
-
         /* If modify, build a modify change vector. */
-        if (op == MODIFY)
+        if (op == MODIFY) {
+            /*
+             * FIXME-WT-17311: If we can make modify return WT_ROLLBACK instead of WT_NOTFOUND when
+             * it sees an outdated tombstone, we will no longer need this rollback check. The
+             * WT_ROLLBACK will signal that we need to try again with a higher read timestamp, and
+             * the rollback will be triggered automatically in predictable replay mode.
+             */
+            if (replay_modify_needs_rollback(tinfo, op))
+                goto rollback;
+
             modify_build(tinfo);
+        }
 
         ret = 0;
         skip1 = skip2 = NULL;

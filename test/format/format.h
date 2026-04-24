@@ -502,6 +502,7 @@ void replay_committed(TINFO *);
 void replay_end_timed_run(void);
 void replay_loop_begin(TINFO *, bool);
 wt_timestamp_t replay_maximum_committed(void);
+bool replay_modify_needs_rollback(TINFO *, thread_op);
 bool replay_operation_enabled(thread_op);
 void replay_pause_after_rollback(TINFO *, uint32_t);
 wt_timestamp_t replay_prepare_ts(TINFO *);
