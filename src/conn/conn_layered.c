@@ -489,13 +489,18 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     /*
      * Prepend the new metadata LSN to the checkpoint history ring used by the read-age histogram.
      * Shift existing entries toward the end, discarding the oldest when full.
+     *
+     * Bracket the array update with seqlock increments so that reader threads outside the
+     * checkpoint lock can take a consistent snapshot using the seqlock protocol.
      */
+    (void)__wt_atomic_add_uint32(&disagg->ckpt_lsn_seqcount, 1); /* begin write: odd */
     n = WT_MIN(disagg->ckpt_lsn_count, WT_DISAGG_CKPT_HIST_SIZE - 1);
     memmove(&disagg->ckpt_lsn_history[1], &disagg->ckpt_lsn_history[0],
       n * sizeof(*disagg->ckpt_lsn_history));
     disagg->ckpt_lsn_history[0] = ckpt_meta->metadata_lsn;
     if (disagg->ckpt_lsn_count < WT_DISAGG_CKPT_HIST_SIZE)
         ++disagg->ckpt_lsn_count;
+    (void)__wt_atomic_add_uint32(&disagg->ckpt_lsn_seqcount, 1); /* end write: even */
 
     /* Update the timestamps. */
     __wt_atomic_store_uint64_release(
@@ -522,6 +527,53 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
 
 err:
     return (ret);
+}
+
+/*
+ * __disagg_log_read_age_hist --
+ *     Emit the accumulated read-age histogram to the verbose log.
+ */
+static void
+__disagg_log_read_age_hist(WT_SESSION_IMPL *session)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t total, hist[WT_DISAGG_CKPT_HIST_SIZE + 2];
+    size_t used;
+    uint32_t i;
+    char buf[512];
+
+    disagg = &S2C(session)->disaggregated_storage;
+
+    /* Snapshot the histogram with relaxed loads — we only need a rough picture. */
+    total = 0;
+    for (i = 0; i < WT_DISAGG_CKPT_HIST_SIZE + 2; i++) {
+        hist[i] = __wt_atomic_load_uint64_relaxed(&disagg->read_age_hist[i]);
+        total += hist[i];
+    }
+
+    if (total == 0)
+        return;
+
+    buf[0] = '\0';
+    used = 0;
+    for (i = 0; i < WT_DISAGG_CKPT_HIST_SIZE + 2; i++) {
+        if (hist[i] == 0)
+            continue;
+        if (sizeof(buf) - used <= 1)
+            break;
+        if (i < WT_DISAGG_CKPT_HIST_SIZE)
+            (void)__wt_snprintf_len_incr(buf + used, sizeof(buf) - used, &used,
+              " [-%u]=%" PRIu64, i, hist[i]);
+        else if (i == WT_DISAGG_CKPT_HIST_SIZE)
+            (void)__wt_snprintf_len_incr(buf + used, sizeof(buf) - used, &used,
+              " [older]=%" PRIu64, hist[i]);
+        else
+            (void)__wt_snprintf_len_incr(buf + used, sizeof(buf) - used, &used,
+              " [unknown]=%" PRIu64, hist[i]);
+    }
+
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Read-age histogram (total=%" PRIu64 "):%s", total, buf);
 }
 
 /*
@@ -617,6 +669,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
+    __disagg_log_read_age_hist(session);
 
 err:
     if (ret == 0) {

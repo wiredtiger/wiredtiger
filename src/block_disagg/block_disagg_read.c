@@ -324,6 +324,28 @@ err:
 }
 
 /*
+ * __disagg_page_age_bucket --
+ *     Given a page LSN and a snapshot of the checkpoint LSN history, return the read-age histogram
+ *     bucket index. hist[0] is the most recently picked-up checkpoint; hist[count-1] is the oldest
+ *     tracked. Returns i if the page was last written in the interval (hist[i+1], hist[i]], i.e.
+ *     after the previous checkpoint completed but at or before checkpoint i. Returns
+ *     WT_DISAGG_CKPT_HIST_SIZE for pages older than the tracked window, and
+ *     WT_DISAGG_CKPT_HIST_SIZE+1 for an unclassifiable LSN (zero or ahead of hist[0]).
+ */
+static uint32_t
+__disagg_page_age_bucket(uint64_t page_lsn, const uint64_t *hist, uint32_t count)
+{
+    uint32_t i;
+
+    if (page_lsn == 0 || count == 0 || page_lsn > hist[0])
+        return (WT_DISAGG_CKPT_HIST_SIZE + 1);
+    for (i = 0; i + 1 < count; i++)
+        if (page_lsn > hist[i + 1])
+            return (i);
+    return (WT_DISAGG_CKPT_HIST_SIZE);
+}
+
+/*
  * __wti_block_disagg_read --
  *     A basic read of a single block is not supported in disaggregated storage.
  */
@@ -353,11 +375,35 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t hist_snapshot[WT_DISAGG_CKPT_HIST_SIZE];
+    uint32_t bucket, count_snapshot, seq1;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    disagg = &S2C(session)->disaggregated_storage;
 
     /* Crack the cookie. */
     WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+
+    /*
+     * Take a consistent snapshot of the checkpoint LSN history using the seqlock protocol, then
+     * classify the page LSN into a histogram bucket and increment the counter.
+     */
+    for (;;) {
+        seq1 = __wt_atomic_load_uint32_acquire(&disagg->ckpt_lsn_seqcount);
+        if (seq1 & 1) {
+            WT_PAUSE();
+            continue;
+        }
+        memcpy(hist_snapshot, disagg->ckpt_lsn_history, sizeof(hist_snapshot));
+        count_snapshot = disagg->ckpt_lsn_count;
+        WT_ACQUIRE_BARRIER();
+        if (__wt_atomic_load_uint32_relaxed(&disagg->ckpt_lsn_seqcount) == seq1)
+            break;
+    }
+
+    bucket = __disagg_page_age_bucket(cookie.lsn, hist_snapshot, count_snapshot);
+    (void)__wt_atomic_add_uint64_relaxed(&disagg->read_age_hist[bucket], 1);
 
     /* Read the block. */
     WT_RET(

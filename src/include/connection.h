@@ -270,10 +270,24 @@ struct __wt_disaggregated_storage {
 
     /*
      * History of metadata_lsn values for recently picked-up checkpoints, used for the block-read
-     * age histogram. history[0] is the most recent. Protected by the checkpoint lock.
+     * age histogram. history[0] is the most recent.
+     *
+     * Writes are serialized by the checkpoint lock and bracketed by seqlock increments. Readers
+     * outside the checkpoint lock use the seqlock protocol: read seqcount (acquire), copy array,
+     * acquire barrier, read seqcount again; retry if either count is odd or they differ.
      */
-    uint64_t ckpt_lsn_history[WT_DISAGG_CKPT_HIST_SIZE];
-    uint32_t ckpt_lsn_count;
+    wt_shared uint32_t ckpt_lsn_seqcount;       /* seqlock generation counter */
+    wt_shared uint64_t ckpt_lsn_history[WT_DISAGG_CKPT_HIST_SIZE]; /* [0] = most recent */
+    wt_shared uint32_t ckpt_lsn_count;          /* valid entries in ckpt_lsn_history */
+
+    /*
+     * Per-checkpoint-age histogram of block-manager reads, updated from arbitrary reader sessions
+     * with relaxed atomic increments. Bucket [i] counts reads for pages last written in the
+     * checkpoint picked up i steps ago. Bucket [WT_DISAGG_CKPT_HIST_SIZE] counts reads for pages
+     * older than the tracked window. Bucket [WT_DISAGG_CKPT_HIST_SIZE + 1] counts reads with an
+     * unclassifiable LSN (zero LSN or ahead of the most recent known checkpoint).
+     */
+    wt_shared uint64_t read_age_hist[WT_DISAGG_CKPT_HIST_SIZE + 2];
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
