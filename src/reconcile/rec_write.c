@@ -3238,16 +3238,13 @@ split:
 static int
 __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_BTREE *btree;
+    WT_BTREE *btree = S2BT(session);
     WT_MULTI *multi;
-    WT_PAGE_MODIFY *mod;
+    WT_PAGE_MODIFY *mod = page->modify;
     uint32_t i;
 
-    mod = page->modify;
     if (mod == NULL)
         return (0);
-
-    btree = S2BT(session);
 
     switch (mod->rec_result) {
     case 0:               /* Never reconciled, nothing to clear. */
