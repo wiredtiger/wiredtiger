@@ -1707,7 +1707,7 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
         if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
             WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
         else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") ||
-          WT_SUFFIX_MATCH(files[i], ".wt_stable"))
+          WT_URI_IS_STABLE(files[i]))
             /*
              * Delete all normal tables since they are not usable without metadata anyway.
              *

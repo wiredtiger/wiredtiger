@@ -36,6 +36,22 @@ __prepared_discover_btree_has_prepare(WT_SESSION_IMPL *session, const char *conf
 }
 
 /*
+ * __prepared_discover_is_follower_stable_walk --
+ *     Return whether prepared discovery for this URI needs the "follower reads stable checkpoint"
+ *     treatment: rewrite the URI to point at the stable checkpoint and replay on-disk prepared
+ *     updates to the ingest constituent. True only when the session is a disaggregated follower and
+ *     the URI refers to a layered table's stable constituent. For non-layered btrees (and on
+ *     leaders), prepared updates land in the in-memory update chain via page-read instantiation and
+ *     no stable/ingest indirection is needed.
+ */
+static WT_INLINE bool
+__prepared_discover_is_follower_stable_walk(WT_SESSION_IMPL *session, const char *uri)
+{
+    return (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader &&
+      WT_URI_IS_STABLE(uri));
+}
+
+/*
  * __prepared_discover_open_ingest_cursor --
  *     Derive the ingest URI from the current stable btree handle and open a cursor on it. The
  *     stable btree is preserved as session->dhandle across the open.
@@ -416,11 +432,7 @@ __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
     btree = S2BT(session);
     /* There is nothing to do on an empty tree. */
     if (btree->root.page != NULL) {
-        /*
-         * On a follower, open the ingest cursor before walking so it is ready for every prepared
-         * key encountered in the stable checkpoint.
-         */
-        if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader)
+        if (__prepared_discover_is_follower_stable_walk(session, uri))
             WT_ERR(__prepared_discover_open_ingest_cursor(session, &ingest_cursor));
 
         flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
@@ -453,11 +465,7 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     const char *checkpoint_name, *uri, *config;
     bool has_prepare;
-    /*
-     * TODO: how careful does this need to be about concurrent schema operations? If this step needs
-     * to be exclusive in some way it should probably accumulate a set of relevant handles before
-     * releasing that access and doing the processing after generating the list.
-     */
+
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
@@ -472,12 +480,12 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
         WT_ERR(__prepared_discover_btree_has_prepare(session, config, &has_prepare));
         if (!has_prepare)
             continue;
-        /* If this is a follower node, open the stable table and search for prepared update there */
-        if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+        if (__prepared_discover_is_follower_stable_walk(session, uri)) {
             /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
             WT_ERR(__wt_meta_checkpoint_last_name(session, uri, &checkpoint_name, NULL, NULL));
             WT_ASSERT(session, ret == 0);
-            WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+            if (stable_uri_buf == NULL)
+                WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
             /*
              * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
              * stable checkpoint, but without it being a traditional checkpoint cursor.

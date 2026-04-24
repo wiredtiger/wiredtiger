@@ -623,8 +623,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
     else {
         WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
-        if (strstr(btree->dhandle->name, ".wt_stable") != NULL ||
-          WT_CONFIG_LIT_MATCH("disagg", cval)) {
+        if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
             F_SET(btree, WT_BTREE_DISAGGREGATED);
 
             WT_RET(__btree_setup_page_log(session, btree));
