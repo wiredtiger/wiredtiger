@@ -530,53 +530,6 @@ err:
 }
 
 /*
- * __disagg_log_read_age_hist --
- *     Emit the accumulated read-age histogram to the verbose log.
- */
-static void
-__disagg_log_read_age_hist(WT_SESSION_IMPL *session)
-{
-    WT_DISAGGREGATED_STORAGE *disagg;
-    uint64_t total, hist[WT_DISAGG_CKPT_HIST_SIZE + 2];
-    size_t used;
-    uint32_t i;
-    char buf[512];
-
-    disagg = &S2C(session)->disaggregated_storage;
-
-    /* Snapshot the histogram with relaxed loads — we only need a rough picture. */
-    total = 0;
-    for (i = 0; i < WT_DISAGG_CKPT_HIST_SIZE + 2; i++) {
-        hist[i] = __wt_atomic_load_uint64_relaxed(&disagg->read_age_hist[i]);
-        total += hist[i];
-    }
-
-    if (total == 0)
-        return;
-
-    buf[0] = '\0';
-    used = 0;
-    for (i = 0; i < WT_DISAGG_CKPT_HIST_SIZE + 2; i++) {
-        if (hist[i] == 0)
-            continue;
-        if (sizeof(buf) - used <= 1)
-            break;
-        if (i < WT_DISAGG_CKPT_HIST_SIZE)
-            (void)__wt_snprintf_len_incr(buf + used, sizeof(buf) - used, &used,
-              " [-%u]=%" PRIu64, i, hist[i]);
-        else if (i == WT_DISAGG_CKPT_HIST_SIZE)
-            (void)__wt_snprintf_len_incr(buf + used, sizeof(buf) - used, &used,
-              " [older]=%" PRIu64, hist[i]);
-        else
-            (void)__wt_snprintf_len_incr(buf + used, sizeof(buf) - used, &used,
-              " [unknown]=%" PRIu64, hist[i]);
-    }
-
-    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Read-age histogram (total=%" PRIu64 "):%s", total, buf);
-}
-
-/*
  * __disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
  */
@@ -669,7 +622,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
-    __disagg_log_read_age_hist(session);
 
 err:
     if (ret == 0) {

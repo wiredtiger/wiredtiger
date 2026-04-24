@@ -985,6 +985,14 @@ struct __wt_connection_stats {
     int64_t dh_session_sweeps;
     int64_t disagg_abandon_checkpoint_failed;
     int64_t disagg_abandon_checkpoint_succeed;
+    int64_t disagg_read_age_ckpt1;
+    int64_t disagg_read_age_ckpt16_31;
+    int64_t disagg_read_age_ckpt2_3;
+    int64_t disagg_read_age_ckpt4_7;
+    int64_t disagg_read_age_ckpt8_15;
+    int64_t disagg_read_age_ckpt0;
+    int64_t disagg_read_age_older;
+    int64_t disagg_read_age_unknown;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_role_leader;

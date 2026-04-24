@@ -2458,6 +2458,14 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: session sweep attempts",
   "disagg: abandon checkpoints failed",
   "disagg: abandon checkpoints succeeded",
+  "disagg: block reads from 1 checkpoint ago",
+  "disagg: block reads from 16-31 checkpoints ago",
+  "disagg: block reads from 2-3 checkpoints ago",
+  "disagg: block reads from 4-7 checkpoints ago",
+  "disagg: block reads from 8-15 checkpoints ago",
+  "disagg: block reads from most recent checkpoint",
+  "disagg: block reads from pages older than tracked checkpoint window",
+  "disagg: block reads with unclassifiable page LSN (zero or ahead of latest checkpoint)",
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: role leader",
@@ -3502,6 +3510,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_session_sweeps = 0;
     stats->disagg_abandon_checkpoint_failed = 0;
     stats->disagg_abandon_checkpoint_succeed = 0;
+    stats->disagg_read_age_ckpt1 = 0;
+    stats->disagg_read_age_ckpt16_31 = 0;
+    stats->disagg_read_age_ckpt2_3 = 0;
+    stats->disagg_read_age_ckpt4_7 = 0;
+    stats->disagg_read_age_ckpt8_15 = 0;
+    stats->disagg_read_age_ckpt0 = 0;
+    stats->disagg_read_age_older = 0;
+    stats->disagg_read_age_unknown = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_role_leader = 0;
@@ -4659,6 +4675,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_failed);
     to->disagg_abandon_checkpoint_succeed +=
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_succeed);
+    to->disagg_read_age_ckpt1 += WT_STAT_CONN_READ(from, disagg_read_age_ckpt1);
+    to->disagg_read_age_ckpt16_31 += WT_STAT_CONN_READ(from, disagg_read_age_ckpt16_31);
+    to->disagg_read_age_ckpt2_3 += WT_STAT_CONN_READ(from, disagg_read_age_ckpt2_3);
+    to->disagg_read_age_ckpt4_7 += WT_STAT_CONN_READ(from, disagg_read_age_ckpt4_7);
+    to->disagg_read_age_ckpt8_15 += WT_STAT_CONN_READ(from, disagg_read_age_ckpt8_15);
+    to->disagg_read_age_ckpt0 += WT_STAT_CONN_READ(from, disagg_read_age_ckpt0);
+    to->disagg_read_age_older += WT_STAT_CONN_READ(from, disagg_read_age_older);
+    to->disagg_read_age_unknown += WT_STAT_CONN_READ(from, disagg_read_age_unknown);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);

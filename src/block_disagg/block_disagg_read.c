@@ -364,31 +364,20 @@ __wti_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
 }
 
 /*
- * __wti_block_disagg_read_multiple --
- *     Map or read address cookie referenced page and deltas into an array of buffers, with memory
- *     managed by a memory buffer.
+ * __disagg_record_read_age --
+ *     Classify a page read by age (checkpoints since it was last written) and increment the
+ *     corresponding connection statistic.
  */
-int
-__wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
-  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size, WT_ITEM *buffer_array,
-  u_int *buffer_count)
+static void
+__disagg_record_read_age(WT_SESSION_IMPL *session, uint64_t page_lsn)
 {
-    WT_BLOCK_DISAGG *block_disagg;
-    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t hist_snapshot[WT_DISAGG_CKPT_HIST_SIZE];
     uint32_t bucket, count_snapshot, seq1;
 
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     disagg = &S2C(session)->disaggregated_storage;
 
-    /* Crack the cookie. */
-    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
-
-    /*
-     * Take a consistent snapshot of the checkpoint LSN history using the seqlock protocol, then
-     * classify the page LSN into a histogram bucket and increment the counter.
-     */
+    /* Take a consistent snapshot of the checkpoint LSN history via the seqlock protocol. */
     for (;;) {
         seq1 = __wt_atomic_load_uint32_acquire(&disagg->ckpt_lsn_seqcount);
         if (seq1 & 1) {
@@ -402,8 +391,58 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
             break;
     }
 
-    bucket = __disagg_page_age_bucket(cookie.lsn, hist_snapshot, count_snapshot);
-    (void)__wt_atomic_add_uint64_relaxed(&disagg->read_age_hist[bucket], 1);
+    bucket = __disagg_page_age_bucket(page_lsn, hist_snapshot, count_snapshot);
+
+    switch (bucket) {
+    case 0:
+        WT_STAT_CONN_INCR(session, disagg_read_age_ckpt0);
+        break;
+    case 1:
+        WT_STAT_CONN_INCR(session, disagg_read_age_ckpt1);
+        break;
+    case 2:
+    case 3:
+        WT_STAT_CONN_INCR(session, disagg_read_age_ckpt2_3);
+        break;
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+        WT_STAT_CONN_INCR(session, disagg_read_age_ckpt4_7);
+        break;
+    default:
+        if (bucket < 16)
+            WT_STAT_CONN_INCR(session, disagg_read_age_ckpt8_15);
+        else if (bucket < WT_DISAGG_CKPT_HIST_SIZE)
+            WT_STAT_CONN_INCR(session, disagg_read_age_ckpt16_31);
+        else if (bucket == WT_DISAGG_CKPT_HIST_SIZE)
+            WT_STAT_CONN_INCR(session, disagg_read_age_older);
+        else
+            WT_STAT_CONN_INCR(session, disagg_read_age_unknown);
+        break;
+    }
+}
+
+/*
+ * __wti_block_disagg_read_multiple --
+ *     Map or read address cookie referenced page and deltas into an array of buffers, with memory
+ *     managed by a memory buffer.
+ */
+int
+__wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size, WT_ITEM *buffer_array,
+  u_int *buffer_count)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+
+    /* Crack the cookie. */
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+
+    /* Classify the read by checkpoint age and update the corresponding statistic. */
+    __disagg_record_read_age(session, cookie.lsn);
 
     /* Read the block. */
     WT_RET(
