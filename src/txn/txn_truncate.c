@@ -40,7 +40,6 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
     WT_ASSERT(session, is_within_range != NULL);
     *is_within_range = false;
 
-    /* A zeroed start key indicates a truncate from the beginning of the table. */
     WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
     if (compare_result < 0) {
         *is_within_range = false;
@@ -114,7 +113,7 @@ __wt_insert_truncate_entry(
     WT_RET(__wt_scr_alloc(session, 0, &start_buf));
     WT_RET(__wt_scr_alloc(session, 0, &stop_buf));
     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
-      "truncate %s: start=%s stop=%s", uri,
+      "insert entry into truncate list on table %s: start=%s stop=%s", uri,
       __wt_key_string(
         session, start_key->data, start_key->size, layered_table->key_format, start_buf),
       __wt_key_string(

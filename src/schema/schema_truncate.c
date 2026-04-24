@@ -80,11 +80,7 @@ __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
         goto done;
     }
     WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &stop));
-    WT_ERR_NOTFOUND_OK(stop->prev(stop), true);
-    if (ret == WT_NOTFOUND) {
-        ret = 0;
-        goto done;
-    }
+    WT_ERR(stop->prev(stop));
     WT_ERR(__wt_session_range_truncate(session, NULL, start, stop));
 
 done:
@@ -208,7 +204,11 @@ __layered_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     /* The caller always creates a start cursor and positions it. */
     WT_ERR(__cursor_needkey(trunc_info->start));
 
-    /* If there is no given stop cursor, create a local one and position it to last key on table. */
+    /*
+     * If there is no given stop cursor, create a local one and position it to last key on table.
+     *
+     * FIXME-WT-17308: Remove once the session truncate starts creating local cursors.
+     */
     if (trunc_info->stop == NULL) {
         WT_ERR(__wt_open_cursor(session, trunc_info->uri, NULL, NULL, &local_stop));
         WT_ERR(local_stop->prev(local_stop));

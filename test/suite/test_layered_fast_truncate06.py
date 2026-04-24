@@ -66,12 +66,7 @@ class test_layered_fast_truncate06(wttest.WiredTigerTestCase):
 
     def setup_follower(self):
         self.session.create(self.uri, f'key_format={self.key_format},value_format=S')
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(1, self.nitems + 1):
-            self.session.begin_transaction()
-            cursor[self.key(i)] = 'v'
-            self.session.commit_transaction()
-        cursor.close()
+        self.insert_range(1, self.nitems)
         self.session.checkpoint()
         follower_config = ('verbose=[layered:3],disaggregated=(role="follower",'
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
@@ -87,7 +82,7 @@ class test_layered_fast_truncate06(wttest.WiredTigerTestCase):
             c_stop.set_key(self.key(stop))
 
         # Use the table uri if both start and stop cursors are not given.
-        uri = self.uri if c_start is None and c_stop is None else None
+        uri = self.uri if (c_start is None and c_stop is None) else None
         self.session.begin_transaction()
         self.session.truncate(uri, c_start, c_stop, None)
         self.session.commit_transaction()

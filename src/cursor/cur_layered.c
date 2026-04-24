@@ -832,8 +832,8 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
 
-    /* The start cursor should not be NULL at this point. */
-    WT_ASSERT(session, clayered_start != NULL);
+    /* The start and stop cursor should not be NULL at this point. */
+    WT_ASSERT(session, clayered_start != NULL && clayered_stop != NULL);
 
     /*
      * On leader mode, we can directly perform truncate operation on the stable table. On follower
