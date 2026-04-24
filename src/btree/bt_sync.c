@@ -463,6 +463,13 @@ err:
     WT_TRET(__wt_page_release(session, prev, flags));
 
     /*
+     * Wait for the workers to finish, as they may be still doing work if we got here because of an
+     * error.
+     */
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
+        WT_TRET(__wt_checkpoint_parallel_finish(session));
+
+    /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
      * started, release it.
      */
