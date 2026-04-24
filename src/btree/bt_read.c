@@ -737,10 +737,10 @@ skip_evict:
         }
 
         /*
-         * Before yielding, try to help with eviction: under cache-pressure workloads
-         * the stall is caused by a full cache, so assisting eviction clears the root
-         * cause instead of burning the retry on a yield. Skip dirty eviction -- we
-         * don't want to force a read to do write work.
+         * Before yielding, try to help with eviction: under cache-pressure workloads the stall is
+         * caused by a full cache, so assisting eviction clears the root cause instead of burning
+         * the retry on a yield. Skip dirty eviction -- we don't want to force a read to do write
+         * work.
          */
         if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
             WT_RET(__wt_evict_app_assist_worker_check(session, true, true, false, &cache_work));
