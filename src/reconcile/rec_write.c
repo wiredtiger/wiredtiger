@@ -3236,13 +3236,18 @@ split:
  *     result to access the correct member.
  */
 static int
-__rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
+__rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    WT_BTREE *btree;
+    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    uint32_t i;
 
     mod = page->modify;
     if (mod == NULL)
         return (0);
+
+    btree = S2BT(session);
 
     switch (mod->rec_result) {
     case 0:               /* Never reconciled, nothing to clear. */
@@ -3258,10 +3263,22 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WTI_RECONCILE *r, W
         break;
     case WT_PM_REC_MULTIBLOCK:
         /*
-         * Delegate to the split-discard routine, which frees each multi-block entry, handles size
-         * accounting via the block free, and resets the reconciliation state.
+         * Free each multi-block entry's memory without touching storage. The entries reference
+         * separate pages under their own page ids, so they are not orphaned by this page's page id
+         * invalidation and must not be discarded from storage here.
          */
-        return (__rec_split_discard(session, r, page));
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+            if (btree->type == BTREE_ROW)
+                __wt_free(session, multi->key);
+            __wt_free(session, multi->disk_image);
+            __wt_free(session, multi->supd);
+            __wt_free(session, multi->addr.block_cookie);
+            __wt_free(session, multi->block_meta);
+        }
+        __wt_free(session, mod->mod_multi);
+        mod->mod_multi_entries = 0;
+        mod->rec_result = 0;
+        break;
     default:
         return (__wt_illegal_value(session, mod->rec_result));
     }
@@ -3326,12 +3343,20 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
 
-        if (r->multi->block_meta->delta_count == 0 &&
+        /*
+         * For a single-replacement previous with a full-image failure now, subtract the previous
+         * chain's cumulative size explicitly. Delta failures already had the cumulative subtracted
+         * by the block free above. A multi-block previous references separate pages under their own
+         * page ids that are not orphaned by this page's page id invalidation, so no size accounting
+         * adjustment is needed for them here.
+         */
+        if (page->modify != NULL && page->modify->rec_result == WT_PM_REC_REPLACE &&
+          r->multi->block_meta->delta_count == 0 &&
           page->disagg_info->block_meta.cumulative_size > 0)
             __wt_block_disagg_obsolete_delta_chain(
               session, page->disagg_info->block_meta.cumulative_size);
 
-        WT_TRET(__rec_disagg_clear_stale_mod_state(session, r, page));
+        WT_TRET(__rec_disagg_clear_stale_mod_state(session, page));
 
         /*
          * The page id above was just invalidated, so any reference to it is now orphaned. ref->addr
