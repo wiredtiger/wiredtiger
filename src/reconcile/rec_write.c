@@ -3245,6 +3245,9 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WTI_RECONCILE *r, W
         return (0);
 
     switch (mod->rec_result) {
+    case 0:               /* Never reconciled, nothing to clear. */
+    case WT_PM_REC_EMPTY: /* Empty page, no block state to clear. */
+        break;
     case WT_PM_REC_REPLACE:
         if (mod->mod_replace.block_cookie != NULL) {
             __wt_free(session, mod->mod_replace.block_cookie);
@@ -3259,6 +3262,8 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WTI_RECONCILE *r, W
          * accounting via the block free, and resets the reconciliation state.
          */
         return (__rec_split_discard(session, r, page));
+    default:
+        return (__wt_illegal_value(session, mod->rec_result));
     }
     return (0);
 }
