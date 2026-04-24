@@ -221,7 +221,7 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
             hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw,
               hs_insert_tw.durable_stop_ts, hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type,
               &hs_value);
-            WT_ERR_MSG_CHK(session, hs_insert_cursor->insert(hs_insert_cursor), EBUSY,
+            WT_ERR_MSG_CHK(session, hs_insert_cursor->insert(hs_insert_cursor),
               "failed to reinsert history store record with corrected timestamp: btree=%" PRIu32
               " start_ts=%" PRIu64,
               btree_id, hs_insert_tw.start_ts);
@@ -1364,8 +1364,8 @@ __rec_hs_delete_record(
                   "Retrieved wrong update from history store: empty tombstone with stop timestamp");
         }
         WT_ERR_MSG_CHK(session, r->hs_cursor->remove(r->hs_cursor),
-          "failed to remove history store record: btree=%" PRIu32 " start_ts=%" PRIu64,
-          btree->id, upd->upd_start_ts);
+          "failed to remove history store record: btree=%" PRIu32 " start_ts=%" PRIu64, btree->id,
+          upd->upd_start_ts);
     }
 done:
     if (tombstone != NULL)
