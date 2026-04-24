@@ -241,9 +241,8 @@ TEST_CASE_METHOD(
 {
     /*
      * Verify that the read lock on the truncate list is always released before the function
-     * returns. The check works by acquiring the exclusive write lock immediately after the call. If
-     * the function leaked the read lock, the write lock attempt would deadlock (detected by the
-     * test runner timeout).
+     * returns. If the function leaked the read lock, a subsequent __wt_try_writelock would return
+     * EBUSY; a successful acquisition proves no reader holds the lock.
      */
     SECTION("read lock is released after a match")
     {
@@ -252,7 +251,7 @@ TEST_CASE_METHOD(
 
         CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == 0);
 
-        __wt_writelock(session, &layered_table->truncate_lock);
+        CHECK(__wt_try_writelock(session, &layered_table->truncate_lock) == 0);
         __wt_writeunlock(session, &layered_table->truncate_lock);
     }
 
@@ -264,7 +263,7 @@ TEST_CASE_METHOD(
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
 
-        __wt_writelock(session, &layered_table->truncate_lock);
+        CHECK(__wt_try_writelock(session, &layered_table->truncate_lock) == 0);
         __wt_writeunlock(session, &layered_table->truncate_lock);
     }
 
@@ -275,7 +274,7 @@ TEST_CASE_METHOD(
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
 
-        __wt_writelock(session, &layered_table->truncate_lock);
+        CHECK(__wt_try_writelock(session, &layered_table->truncate_lock) == 0);
         __wt_writeunlock(session, &layered_table->truncate_lock);
     }
 }
