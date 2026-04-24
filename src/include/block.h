@@ -193,6 +193,7 @@ struct __wt_block_ckpt {
 
 #define WT_BLOCK_INVALID_PAGE_ID 0 /* Invalid page ID, e.g., if it's not allocated. */
 #define WT_BLOCK_MIN_PAGE_ID 100   /* Minimum page ID that can be used for user data. */
+#define WT_BLOCK_INVALID_PAGE_ID_MAX UINT64_MAX /* Sentinel value, not a valid page ID. */
 
 /*
  * WT_BM --

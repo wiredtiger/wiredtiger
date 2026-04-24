@@ -1584,9 +1584,10 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
             break;
         uint64_t id_in_pali = index_in_pali < num_pages_found_in_pali ?
           ((uint64_t *)item->data)[index_in_pali] :
-          UINT64_MAX;
-        uint64_t id_in_btree =
-          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : UINT64_MAX;
+          WT_BLOCK_INVALID_PAGE_ID_MAX;
+        uint64_t id_in_btree = index_in_btree < num_pages_found_in_btree ?
+          page_ids[index_in_btree] :
+          WT_BLOCK_INVALID_PAGE_ID_MAX;
 
         if (index_in_btree == num_pages_found_in_btree || id_in_pali < id_in_btree) {
             __wt_verbose_error(session, WT_VERB_VERIFY,
