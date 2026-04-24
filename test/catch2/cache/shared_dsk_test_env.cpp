@@ -1,0 +1,115 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#include "shared_dsk_test_env.h"
+
+#include <cstring>
+
+#include "../utils.h"
+
+namespace utils {
+
+static constexpr const char *SHARED_DSK_TEST_URI = "table:shared_dsk_test";
+
+shared_dsk_test_env::shared_dsk_test_env()
+    : _conn(DB_HOME, "create,statistics=(fast)"), _session(nullptr), _cursor(nullptr),
+      _disagg_sentinel(0)
+{
+    _session = _conn.create_session();
+    WT_SESSION *sess = &_session->iface;
+
+    /*
+     * Create a real table and open a cursor on it so the btree has a WT-assigned id. We borrow the
+     * cursor's dhandle for session->dhandle so the btree id resolves against a real btree.
+     */
+    REQUIRE(sess->create(sess, SHARED_DSK_TEST_URI, "key_format=S,value_format=S") == 0);
+    REQUIRE(sess->open_cursor(sess, SHARED_DSK_TEST_URI, nullptr, nullptr, &_cursor) == 0);
+    _session->dhandle = ((WT_CURSOR_BTREE *)_cursor)->dhandle;
+
+    WT_CONNECTION_IMPL *conn = S2C(_session);
+
+    /*
+     * __wti_shared_dsk_cache_destroy asserts the connection is disaggregated. Point page_log_meta
+     * at a non-null dummy so __wt_conn_is_disagg returns true.
+     */
+    conn->disaggregated_storage.page_log_meta =
+      reinterpret_cast<WT_PAGE_LOG_HANDLE *>(&_disagg_sentinel);
+
+    /*
+     * The real wiredtiger_open path leaves shared_dsk_cache disabled (it's gated behind a real
+     * disaggregated configuration). Initialize it by hand.
+     */
+    REQUIRE(__wti_shared_dsk_cache_init(_session, SHARED_DSK_TEST_HASH_SIZE) == 0);
+    conn->cache->shared_dsk_cache.enabled = true;
+}
+
+shared_dsk_test_env::~shared_dsk_test_env()
+{
+    WT_CONNECTION_IMPL *conn = S2C(_session);
+
+    __wti_shared_dsk_cache_destroy(_session);
+    /* Prevent the connection-close cache destroy from running again. */
+    conn->cache->shared_dsk_cache.enabled = false;
+
+    /* Detach the dummy so __wti_disagg_destroy doesn't dereference it as a real handle. */
+    conn->disaggregated_storage.page_log_meta = nullptr;
+
+    if (_cursor != nullptr)
+        _cursor->close(_cursor);
+    _session->dhandle = nullptr;
+
+    /* Drop the table so it doesn't linger in DB_HOME across tests. */
+    WT_SESSION *sess = &_session->iface;
+    (void)sess->drop(sess, SHARED_DSK_TEST_URI, "force=true");
+}
+
+WT_SESSION_IMPL *
+shared_dsk_test_env::session()
+{
+    return _session;
+}
+
+WT_CONNECTION_STATS *
+shared_dsk_test_env::stats()
+{
+    return S2C(_session)->stats[_session->stat_conn_bucket];
+}
+
+uint32_t
+shared_dsk_test_env::btree_id()
+{
+    return S2BT(_session)->id;
+}
+
+WT_SHARED_DSK_ITEM *
+shared_dsk_test_env::put(const uint8_t *addr, size_t addr_size)
+{
+    void *data = nullptr;
+    REQUIRE(__wt_calloc(_session, 1, SHARED_DSK_TEST_DATA_SIZE, &data) == 0);
+
+    WT_PAGE_BLOCK_META block_meta;
+    memset(&block_meta, 0, sizeof(block_meta));
+
+    WT_SHARED_DSK_ITEM *item = nullptr;
+    bool inserted = false;
+    REQUIRE(__wt_shared_dsk_cache_put(_session, data, SHARED_DSK_TEST_DATA_SIZE, addr, addr_size,
+              &block_meta, &item, &inserted) == 0);
+    REQUIRE(inserted);
+    REQUIRE(item != nullptr);
+    return item;
+}
+
+void
+shared_dsk_test_env::release_to_zero(WT_SHARED_DSK_ITEM *item)
+{
+    int32_t remaining = item->ref_count;
+    for (int32_t i = 0; i < remaining; i++)
+        __wt_shared_dsk_cache_release(_session, item);
+}
+
+} // namespace utils.

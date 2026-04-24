@@ -1,0 +1,55 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#pragma once
+
+#include <catch2/catch.hpp>
+
+#include "../wrappers/connection_wrapper.h"
+
+extern "C" {
+#include "wt_internal.h"
+}
+
+namespace utils {
+
+constexpr u_int SHARED_DSK_TEST_HASH_SIZE = 16;
+constexpr size_t SHARED_DSK_TEST_DATA_SIZE = 16;
+
+/*
+ * Stands up the minimum state needed to exercise the shared disk cache against a real connection: a
+ * real WT_CACHE (created by wiredtiger_open), an initialized shared dsk cache, a real dhandle +
+ * btree obtained by creating a table and opening a cursor on it, and enough of
+ * conn->disaggregated_storage to satisfy the disagg assertion in destroy.
+ */
+class shared_dsk_test_env {
+public:
+    shared_dsk_test_env();
+    ~shared_dsk_test_env();
+
+    shared_dsk_test_env(const shared_dsk_test_env &) = delete;
+    shared_dsk_test_env &operator=(const shared_dsk_test_env &) = delete;
+
+    WT_SESSION_IMPL *session();
+    WT_CONNECTION_STATS *stats();
+    uint32_t btree_id();
+
+    /* Insert a fresh item at the given addr and return it (ref_count == 1). */
+    WT_SHARED_DSK_ITEM *put(const uint8_t *addr, size_t addr_size);
+
+    /* Release an item until its reference count hits zero and the cache frees it. */
+    void release_to_zero(WT_SHARED_DSK_ITEM *item);
+
+private:
+    connection_wrapper _conn;
+    WT_SESSION_IMPL *_session;
+    WT_CURSOR *_cursor;
+    int _disagg_sentinel;
+};
+
+} // namespace utils.

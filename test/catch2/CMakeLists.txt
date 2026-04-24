@@ -25,6 +25,7 @@ else()
         misc_tests/test_tailq.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
+        cache/unit/test_shared_dsk_cache_get.cpp
         block/unit/test_bitstring.cpp
         block/unit/test_block_addr.cpp
         block/unit/test_block_bitflip.cpp
@@ -84,6 +85,7 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    cache/shared_dsk_test_env.cpp
     sub_level_error/utils_sub_level_error.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
