@@ -1771,9 +1771,7 @@ retry:
         if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
             break;
 
-        /*
-         * Eviction server will be suspended if cache pool is reconfiguring.
-         */
+        /* Eviction server will be suspended if cache pool is reconfiguring. */
         if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_CACHE_POOL))
             break;
 
