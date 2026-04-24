@@ -385,10 +385,8 @@ __evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref)
         return (ret);
     }
 
-    /* On success the old page and mod are gone; update the per-btree image counters. */
-    WT_BTREE *btree = S2BT(session);
-    (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_count, 1);
-    (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_bytes, image_size);
+    /* On success the old page and mod are gone; release the image accounting. */
+    __wt_cache_clean_scrub_image_release(session, 1, image_size);
     WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_eviction);
 
     return (0);
@@ -429,12 +427,9 @@ __evict_clean_scrub_multi(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_RET(__wt_split_multi(session, ref, false));
 
-    /* On success the old page and mod are gone; update the per-btree image counters. */
-    if (n_images > 0) {
-        WT_BTREE *btree = S2BT(session);
-        (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_count, n_images);
-        (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_bytes, total_bytes);
-    }
+    /* On success the old page and mod are gone; release the image accounting. */
+    if (n_images > 0)
+        __wt_cache_clean_scrub_image_release(session, n_images, total_bytes);
     WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_eviction);
 
     return (0);

@@ -208,7 +208,14 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
              * eviction after reconciliation. If the split code only successfully instantiates a
              * subset of new pages into memory, free the instantiated pages and the new disk images
              * of the pages not in memory. We will redo reconciliation next time we visit this page.
+             *
+             * Clean-scrub images are tracked in a separate inventory. If such an image is
+             * tagged and still attached when the page is torn down, release its accounting
+             * before the free so the inventory counters do not drift.
              */
+            if (multi->disk_image != NULL && F_ISSET(multi, WT_MULTI_CLEAN_SCRUB_IMAGE))
+                __wt_cache_clean_scrub_image_release(
+                  session, 1, ((WT_PAGE_HEADER *)multi->disk_image)->mem_size);
             __wt_free(session, multi->disk_image);
             __wt_free(session, multi->addr.block_cookie);
             __wt_free(session, multi->block_meta);
@@ -226,8 +233,15 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * disk image into memory. Free the new disk image in this case. If a checkpoint visits this
          * page, it would write the new disk image even it hasn't been instantiated into memory.
          * Therefore, no need to reconcile the page again if it remains clean.
+         *
+         * Clean-scrub images are tracked in a separate inventory. If such an image is tagged
+         * and still attached when the page is torn down, release its accounting before the free
+         * so the inventory counters do not drift.
          */
         __wt_free(session, mod->mod_replace.block_cookie);
+        if (mod->mod_disk_image != NULL && F_ISSET(mod, WT_PAGE_MODIFY_CLEAN_SCRUB_IMAGE))
+            __wt_cache_clean_scrub_image_release(
+              session, 1, ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size);
         __wt_free(session, mod->mod_disk_image);
         break;
     }

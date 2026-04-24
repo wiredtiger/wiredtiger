@@ -209,6 +209,7 @@ static const char *const __stats_dsrc_desc[] = {
   "checkpoint-cleanup: pages skipped during tree walk",
   "checkpoint-cleanup: pages visited",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
+  "clean-scrub: bytes currently held in saved disk images",
   "clean-scrub: candidates skipped because the page was re-dirtied prior to eviction",
   "clean-scrub: evictions failed due to parent update conflict",
   "clean-scrub: page disk image bytes saved",
@@ -666,6 +667,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->checkpoint_cleanup_pages_walk_skipped = 0;
     stats->checkpoint_cleanup_pages_visited = 0;
     stats->checkpoint_snapshot_acquired = 0;
+    /* not clearing cache_clean_scrub_image_bytes */
     stats->cache_clean_scrub_page_dirtied = 0;
     stats->cache_clean_scrub_fail_rewrite = 0;
     stats->cache_clean_scrub_image_saved_bytes = 0;
@@ -1120,6 +1122,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->checkpoint_cleanup_pages_walk_skipped += from->checkpoint_cleanup_pages_walk_skipped;
     to->checkpoint_cleanup_pages_visited += from->checkpoint_cleanup_pages_visited;
     to->checkpoint_snapshot_acquired += from->checkpoint_snapshot_acquired;
+    to->cache_clean_scrub_image_bytes += from->cache_clean_scrub_image_bytes;
     to->cache_clean_scrub_page_dirtied += from->cache_clean_scrub_page_dirtied;
     to->cache_clean_scrub_fail_rewrite += from->cache_clean_scrub_fail_rewrite;
     to->cache_clean_scrub_image_saved_bytes += from->cache_clean_scrub_image_saved_bytes;
@@ -1611,6 +1614,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->checkpoint_cleanup_pages_visited +=
       WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_visited);
     to->checkpoint_snapshot_acquired += WT_STAT_DSRC_READ(from, checkpoint_snapshot_acquired);
+    to->cache_clean_scrub_image_bytes += WT_STAT_DSRC_READ(from, cache_clean_scrub_image_bytes);
     to->cache_clean_scrub_page_dirtied += WT_STAT_DSRC_READ(from, cache_clean_scrub_page_dirtied);
     to->cache_clean_scrub_fail_rewrite += WT_STAT_DSRC_READ(from, cache_clean_scrub_fail_rewrite);
     to->cache_clean_scrub_image_saved_bytes +=
@@ -2374,6 +2378,7 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: total chunks held by the chunk cache",
   "chunk-cache: total number of chunks inserted on startup from persisted metadata",
   "chunk-cache: total pinned chunks held by the chunk cache",
+  "clean-scrub: bytes currently held in saved disk images",
   "clean-scrub: candidates skipped because the page was re-dirtied prior to eviction",
   "clean-scrub: evictions failed due to parent update conflict",
   "clean-scrub: page disk image bytes saved",
@@ -3446,6 +3451,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->chunkcache_chunks_inuse = 0;
     stats->chunkcache_created_from_metadata = 0;
     stats->chunkcache_chunks_pinned = 0;
+    /* not clearing cache_clean_scrub_image_bytes */
     stats->cache_clean_scrub_page_dirtied = 0;
     stats->cache_clean_scrub_fail_rewrite = 0;
     stats->cache_clean_scrub_image_saved_bytes = 0;
@@ -4629,6 +4635,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_created_from_metadata +=
       WT_STAT_CONN_READ(from, chunkcache_created_from_metadata);
     to->chunkcache_chunks_pinned += WT_STAT_CONN_READ(from, chunkcache_chunks_pinned);
+    to->cache_clean_scrub_image_bytes += WT_STAT_CONN_READ(from, cache_clean_scrub_image_bytes);
     to->cache_clean_scrub_page_dirtied += WT_STAT_CONN_READ(from, cache_clean_scrub_page_dirtied);
     to->cache_clean_scrub_fail_rewrite += WT_STAT_CONN_READ(from, cache_clean_scrub_fail_rewrite);
     to->cache_clean_scrub_image_saved_bytes +=

@@ -191,6 +191,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
       session, stats, cache_bytes_updates_ingest, __wt_cache_bytes_updates_ingest(cache));
     WT_STATP_CONN_SET(
       session, stats, cache_bytes_updates_stable, __wt_cache_bytes_updates_stable(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_clean_scrub_image_bytes, __wt_cache_bytes_clean_scrub_image(cache));
 
     WT_STATP_CONN_SET(session, stats, cache_pages_dirty,
       __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_intl) +

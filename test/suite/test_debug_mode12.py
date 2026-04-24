@@ -106,6 +106,43 @@ class test_debug_mode12(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_value(), 'b' * self.value_size)
         cursor.close()
 
+    # Verify that saved-image bytes are reflected in the connection cache bytes counters so
+    # the memory used by clean-scrub inventory is visible to operators.
+    def test_image_bytes_tracked(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        # Baseline: nothing saved yet.
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.cache_clean_scrub_image_bytes][2], 0)
+        stat_cursor.close()
+
+        self.populate(0, self.nrows)
+        self.session.checkpoint()
+
+        # After checkpoint: the outstanding gauge should be positive and at most the cumulative
+        # saved bytes. The gauge (cache_clean_scrub_image_bytes) is an inventory-style counter;
+        # the cumulative counter (cache_clean_scrub_image_saved_bytes) monotonically increases.
+        stat_cursor = self.session.open_cursor('statistics:')
+        saved_bytes = stat_cursor[stat.conn.cache_clean_scrub_image_saved_bytes][2]
+        outstanding = stat_cursor[stat.conn.cache_clean_scrub_image_bytes][2]
+        stat_cursor.close()
+        # The gauge includes a small overhead fudge factor (see __wt_cache_bytes_plus_overhead),
+        # so it can slightly exceed the raw cumulative saved_bytes. We only care that it tracks
+        # saves: positive, and within a sensible range of the cumulative figure.
+        self.assertGreater(outstanding, 0)
+        self.assertLess(outstanding, saved_bytes * 2)
+
+        # Force cache pressure so the images are eventually scrubbed/discarded.
+        self.populate(self.nrows, self.nrows * 12)
+
+        # After eviction has run the outstanding gauge drops: images are either scrubbed (the
+        # bytes move into the new child pages' disk image counters) or the owning pages are
+        # discarded. Either way our inventory counter should decrease.
+        stat_cursor = self.session.open_cursor('statistics:')
+        after = stat_cursor[stat.conn.cache_clean_scrub_image_bytes][2]
+        stat_cursor.close()
+        self.assertLess(after, outstanding)
+
     # Verify that disabling the flag at runtime stops clean-scrub evictions.
     def test_clean_scrub_off(self):
         self.conn.reconfigure('eviction=(clean_scrub_eviction=false)')

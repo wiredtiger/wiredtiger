@@ -116,8 +116,9 @@ struct __wt_cache {
     wt_shared uint64_t bytes_dirty_leaf_ingest;
     wt_shared uint64_t bytes_dirty_leaf_stable;
     wt_shared uint64_t bytes_dirty_total;
-    wt_shared uint64_t bytes_evict;      /* Bytes/pages discarded by eviction */
-    wt_shared uint64_t bytes_image_intl; /* Bytes of disk images (internal) */
+    wt_shared uint64_t bytes_clean_scrub_image; /* Bytes of saved clean-scrub disk images */
+    wt_shared uint64_t bytes_evict;             /* Bytes/pages discarded by eviction */
+    wt_shared uint64_t bytes_image_intl;        /* Bytes of disk images (internal) */
     wt_shared uint64_t bytes_image_intl_ingest;
     wt_shared uint64_t bytes_image_intl_stable;
     wt_shared uint64_t bytes_image_leaf; /* Bytes of disk images (leaf) */

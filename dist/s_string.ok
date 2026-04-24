@@ -1441,6 +1441,7 @@ numrows
 nuris
 nvram
 objectid
+observability
 offpage
 offsetp
 ok
@@ -1806,6 +1807,7 @@ tombstoned
 toml
 toolchain
 toolchains
+totalling
 totalsec
 tp
 traceapi
