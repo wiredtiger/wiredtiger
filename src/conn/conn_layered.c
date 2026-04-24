@@ -475,13 +475,27 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint32_t n;
+
+    disagg = &conn->disaggregated_storage;
 
     /*
      * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
      * updates are protected by the checkpoint lock.
      */
-    __wt_atomic_store_uint64_release(
-      &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
+    __wt_atomic_store_uint64_release(&disagg->last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
+
+    /*
+     * Prepend the new metadata LSN to the checkpoint history ring used by the read-age histogram.
+     * Shift existing entries toward the end, discarding the oldest when full.
+     */
+    n = WT_MIN(disagg->ckpt_lsn_count, WT_DISAGG_CKPT_HIST_SIZE - 1);
+    memmove(&disagg->ckpt_lsn_history[1], &disagg->ckpt_lsn_history[0],
+      n * sizeof(*disagg->ckpt_lsn_history));
+    disagg->ckpt_lsn_history[0] = ckpt_meta->metadata_lsn;
+    if (disagg->ckpt_lsn_count < WT_DISAGG_CKPT_HIST_SIZE)
+        ++disagg->ckpt_lsn_count;
 
     /* Update the timestamps. */
     __wt_atomic_store_uint64_release(

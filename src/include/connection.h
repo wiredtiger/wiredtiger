@@ -248,6 +248,12 @@ typedef struct __wt_disagg_checkpoint_meta {
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 /*
+ * WT_DISAGG_CKPT_HIST_SIZE --
+ *     Number of recent checkpoint metadata LSNs retained for the read-age histogram.
+ */
+#define WT_DISAGG_CKPT_HIST_SIZE 32
+
+/*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
@@ -261,6 +267,13 @@ struct __wt_disaggregated_storage {
 
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
+
+    /*
+     * History of metadata_lsn values for recently picked-up checkpoints, used for the block-read
+     * age histogram. history[0] is the most recent. Protected by the checkpoint lock.
+     */
+    uint64_t ckpt_lsn_history[WT_DISAGG_CKPT_HIST_SIZE];
+    uint32_t ckpt_lsn_count;
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
