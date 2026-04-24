@@ -316,17 +316,17 @@ struct __wt_multi {
     uint32_t supd_entries;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_MULTI_SKIP_WRITE 0x1u
-#define WT_MULTI_SUPD_RESTORE 0x2u
+#define WT_MULTI_CLEAN_SCRUB_IMAGE 0x1u
+#define WT_MULTI_SKIP_WRITE 0x2u
+#define WT_MULTI_SUPD_RESTORE 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 
 /*
- * Return true if a WT_MULTI entry is carrying a reconciled disk image that can be used to re-
- * instantiate a clean page in memory. The update-restore mechanism also attaches a disk image (to
- * keep out-of-order updates pinned to an otherwise reconciled page); those images are not eligible
- * because freeing them would discard the attached updates.
+ * True if the multi-block entry's disk image is eligible for clean-scrub re-instantiation. The
+ * update-restore mechanism also attaches a disk image to pin pending updates to the page; those
+ * images are not eligible because scrubbing would discard the attached updates.
  */
 #define WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(multi) \
     ((multi).disk_image != NULL && !F_ISSET(&(multi), WT_MULTI_SUPD_RESTORE))
@@ -540,8 +540,9 @@ struct __wt_page_modify {
 
 /* Additional diagnostics fields to catch invalid updates to page_state, even in release builds. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_PAGE_MODIFY_EXCLUSIVE 0x1u
-#define WT_PAGE_MODIFY_RECONCILING 0x2u
+#define WT_PAGE_MODIFY_CLEAN_SCRUB_IMAGE 0x1u
+#define WT_PAGE_MODIFY_EXCLUSIVE 0x2u
+#define WT_PAGE_MODIFY_RECONCILING 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };

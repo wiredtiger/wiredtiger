@@ -215,6 +215,33 @@ __wt_cache_bytes_updates(WT_CACHE *cache)
 }
 
 /*
+ * __wt_cache_bytes_clean_scrub_image --
+ *     Bytes of reconciled disk images currently retained on pages for later clean-scrub
+ *     re-instantiation. Observation gauge only; no eviction trigger consumes this counter.
+ */
+static WT_INLINE uint64_t
+__wt_cache_bytes_clean_scrub_image(WT_CACHE *cache)
+{
+    return (__wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_clean_scrub_image)));
+}
+
+/*
+ * __wt_cache_clean_scrub_image_release --
+ *     Release inventory accounting for saved images. The page footprint contribution is handled
+ *     separately by the normal page-lifecycle accounting.
+ */
+static WT_INLINE void
+__wt_cache_clean_scrub_image_release(WT_SESSION_IMPL *session, uint32_t count, uint64_t size)
+{
+    WT_BTREE *btree = S2BT(session);
+
+    (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_count, count);
+    (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_bytes, size);
+    (void)__wt_atomic_sub_uint64_relaxed(&S2C(session)->cache->bytes_clean_scrub_image, size);
+}
+
+/*
  * __wt_cache_bytes_updates_ingest --
  *     Return the number of bytes in use for updates for the ingest btrees.
  */

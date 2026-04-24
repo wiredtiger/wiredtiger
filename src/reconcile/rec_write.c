@@ -907,6 +907,17 @@ __rec_cleanup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             __wt_free(session, multi->key.ikey);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+        /* Reconciliation failed: the image was allocated but never installed, undo the save. */
+        if (multi->disk_image != NULL && F_ISSET(multi, WT_MULTI_CLEAN_SCRUB_IMAGE)) {
+            size_t image_sz = ((WT_PAGE_HEADER *)multi->disk_image)->mem_size;
+            __wt_cache_clean_scrub_image_release(session, 1, image_sz);
+            __wt_cache_decr_check_size(
+              session, &r->page->memory_footprint, image_sz, "WT_PAGE.memory_footprint");
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_inmem, image_sz, "WT_BTREE.bytes_inmem");
+            __wt_cache_decr_check_uint64(
+              session, &S2C(session)->cache->bytes_inmem, image_sz, "WT_CACHE.bytes_inmem");
+        }
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
         __wt_free(session, multi->addr.block_cookie);
@@ -2656,10 +2667,23 @@ copy_image:
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
     else if (__rec_should_save_disk_image(session, r)) {
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
-        WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_image_saved);
-        WT_STAT_CONN_DSRC_INCRV(session, cache_clean_scrub_image_saved_bytes, chunk->image.size);
+        F_SET(multi, WT_MULTI_CLEAN_SCRUB_IMAGE);
+
+        /*
+         * Saved images should drive the normal eviction triggers. Don't use the generic footprint
+         * helper: it also bumps bytes_updates, which is for update content only.
+         */
+        (void)__wt_atomic_add_size_relaxed(&r->page->memory_footprint, chunk->image.size);
+        (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, chunk->image.size);
+        (void)__wt_atomic_add_uint64_relaxed(&conn->cache->bytes_inmem, chunk->image.size);
+
         (void)__wt_atomic_add_uint64_relaxed(&btree->clean_scrub_image_count, 1);
         (void)__wt_atomic_add_uint64_relaxed(&btree->clean_scrub_image_bytes, chunk->image.size);
+        (void)__wt_atomic_add_uint64_relaxed(
+          &conn->cache->bytes_clean_scrub_image, chunk->image.size);
+
+        WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_image_saved);
+        WT_STAT_CONN_DSRC_INCRV(session, cache_clean_scrub_image_saved_bytes, chunk->image.size);
     }
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
@@ -2781,6 +2805,17 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (btree->type == BTREE_ROW)
             __wt_free(session, multi->key);
 
+        /* Old image dropped while the page stays: undo the save-time footprint bump. */
+        if (multi->disk_image != NULL && F_ISSET(multi, WT_MULTI_CLEAN_SCRUB_IMAGE)) {
+            size_t image_sz = ((WT_PAGE_HEADER *)multi->disk_image)->mem_size;
+            __wt_cache_clean_scrub_image_release(session, 1, image_sz);
+            __wt_cache_decr_check_size(
+              session, &page->memory_footprint, image_sz, "WT_PAGE.memory_footprint");
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_inmem, image_sz, "WT_BTREE.bytes_inmem");
+            __wt_cache_decr_check_uint64(
+              session, &S2C(session)->cache->bytes_inmem, image_sz, "WT_CACHE.bytes_inmem");
+        }
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
 
@@ -3091,6 +3126,22 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
         mod->mod_replace.block_cookie_size = 0;
+        /*
+         * Old image dropped while the page stays: undo the save-time footprint bump, and clear
+         * the flag so the page's later discard doesn't release again.
+         */
+        if (mod->mod_disk_image != NULL && F_ISSET(mod, WT_PAGE_MODIFY_CLEAN_SCRUB_IMAGE)) {
+            size_t image_sz = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
+
+            __wt_cache_clean_scrub_image_release(session, 1, image_sz);
+            __wt_cache_decr_check_size(
+              session, &page->memory_footprint, image_sz, "WT_PAGE.memory_footprint");
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_inmem, image_sz, "WT_BTREE.bytes_inmem");
+            __wt_cache_decr_check_uint64(
+              session, &S2C(session)->cache->bytes_inmem, image_sz, "WT_CACHE.bytes_inmem");
+            F_CLR(mod, WT_PAGE_MODIFY_CLEAN_SCRUB_IMAGE);
+        }
         __wt_free(session, mod->mod_disk_image);
         break;
     default:
@@ -3174,6 +3225,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
+                if (F_ISSET(r->multi, WT_MULTI_CLEAN_SCRUB_IMAGE))
+                    F_SET(mod, WT_PAGE_MODIFY_CLEAN_SCRUB_IMAGE);
                 if (page->disagg_info != NULL)
                     page->disagg_info->block_meta = *r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);

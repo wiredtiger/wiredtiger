@@ -890,6 +890,7 @@ struct __wt_connection_stats {
     int64_t chunkcache_chunks_inuse;
     int64_t chunkcache_created_from_metadata;
     int64_t chunkcache_chunks_pinned;
+    int64_t cache_clean_scrub_image_bytes;
     int64_t cache_clean_scrub_page_dirtied;
     int64_t cache_clean_scrub_fail_rewrite;
     int64_t cache_clean_scrub_image_saved_bytes;
@@ -1641,6 +1642,7 @@ struct __wt_dsrc_stats {
     int64_t checkpoint_cleanup_pages_walk_skipped;
     int64_t checkpoint_cleanup_pages_visited;
     int64_t checkpoint_snapshot_acquired;
+    int64_t cache_clean_scrub_image_bytes;
     int64_t cache_clean_scrub_page_dirtied;
     int64_t cache_clean_scrub_fail_rewrite;
     int64_t cache_clean_scrub_image_saved_bytes;
