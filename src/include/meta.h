@@ -69,12 +69,8 @@
 /* Check whether a string is a legal URI for a btree object */
 #define WT_BTREE_PREFIX(str) (WT_PREFIX_MATCH(str, "file:") || WT_PREFIX_MATCH(str, "tiered:"))
 
-/*
- * Check whether a URI refers to the stable constituent of a layered table. Matches both the bare
- * form (e.g. "file:foo.wt_stable") and the checkpoint-view form produced by prepared discovery
- * (e.g. "file:foo.wt_stable/WiredTigerCheckpoint.3"). Do not use when strict suffix semantics are
- * required (e.g. trimming ".wt_stable" off the end of a name).
- */
+/* Check whether a URI refers to the stable constituent of a layered table (bare or checkpoint-view
+ * form). Don't use when strict-suffix semantics are required. */
 #define WT_URI_IS_STABLE(uri) (strstr(uri, ".wt_stable") != NULL)
 
 /*
