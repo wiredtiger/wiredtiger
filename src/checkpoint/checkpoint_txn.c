@@ -1106,6 +1106,40 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(original_snap_min);
 
+    /*
+     * For parallel checkpoints, create a private read-only copy of the snapshot for the checkpoint
+     * workers to use. Workers will read from this instead of live txn->snapshot_data.
+     */
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session)) {
+        WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+        WT_TXN_SNAPSHOT *src, *dst;
+        uint32_t capacity, count;
+
+        ckpt_threads = conn->ckpt_reconcile_threads;
+        WT_ASSERT(session, ckpt_threads != NULL);
+
+        src = &txn->snapshot_data;
+        dst = &ckpt_threads->checkpoint_snapshot;
+        count = src->snapshot_count;
+        capacity = (uint32_t)conn->session_array.size;
+
+        /*
+         * Allocate or grow the backing array for the checkpoint snapshot. The maximum snapshot
+         * length is bounded by conn->session_array.size (one entry per session).
+         */
+        WT_ERR(__wt_realloc_def(session, &ckpt_threads->checkpoint_snapshot_capacity, capacity,
+          &ckpt_threads->checkpoint_snapshot_array));
+
+        /* Copy the checkpoint snapshot data */
+        dst->snap_min = src->snap_min;
+        dst->snap_max = src->snap_max;
+        dst->snapshot_count = count;
+        dst->snapshot = ckpt_threads->checkpoint_snapshot_array;
+
+        if (count > 0)
+            memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
+    }
+
     if (use_timestamp)
         __wt_verbose_info(session, WT_VERB_CHECKPOINT,
           "Checkpoint requested at stable timestamp %s",
@@ -1423,6 +1457,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
     }
 
+    F_SET(session, WT_SESSION_CHECKPOINT);
+
     /* Check if this is a named checkpoint. */
     WT_RET(__wt_config_gets(session, cfg, "name", &cval));
     if (cval.len != 0) {
@@ -1648,6 +1684,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_meta_sysinfo_set(session, name, namelen));
 
     /* Release the snapshot so we aren't pinning updates in cache. */
+    WT_ERR(__wti_checkpoint_parallel_release_snapshot(session));
     __wt_txn_release_snapshot(session);
 
     WT_STAT_CONN_SET(session, checkpoint_snapshot_acquired, 0);
@@ -1695,9 +1732,18 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Commit the transaction now that we are sure that all files in the checkpoint have been
      * flushed to disk. It's OK to commit before checkpointing the metadata since we know that all
      * files in the checkpoint are now in a consistent state.
+     *
+     * With multi-threaded checkpoints, each thread uses a different transaction. We have to commit
+     * either one transaction or all of them together, so panic if we can't actually do that.
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
-    WT_ERR(__wt_txn_commit(session, NULL));
+    if ((ret = __wti_checkpoint_parallel_commit(session)) != 0)
+        WT_ERR_PANIC(session, ret, "Checkpoint worker transaction commit failed");
+    if ((ret = __wt_txn_commit(session, NULL)) != 0)
+        WT_ERR_PANIC(session, ret, "Checkpoint transaction commit failed");
+
+    /* Clear the checkpoint flag, as it governs the checkpoint transaction above. */
+    F_CLR(session, WT_SESSION_CHECKPOINT);
 
     /* Crash before updating the metadata if checkpoint crash point is configured. */
     if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_UPDATE)
@@ -1920,6 +1966,12 @@ err:
         __wt_scr_free(session, &session->ckpt.drop_list);
 
     __checkpoint_clear_time(session);
+
+    /*
+     * Clear the flag before we exit the function, this only matters in the error path as we clear
+     * it earlier too.
+     */
+    F_CLR(session, WT_SESSION_CHECKPOINT);
 
     /* Clear the timestamp of the in-progress checkpoint now that we are done. */
     conn->disaggregated_storage.cur_checkpoint_timestamp = WT_TS_NONE;

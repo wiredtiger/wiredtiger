@@ -100,6 +100,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wti_tiered_storage_destroy(session, false));
     WT_TRET(__wti_sweep_destroy(session));
     WT_TRET(__wti_prefetch_destroy(session));
+    WT_TRET(__wt_checkpoint_parallel_thread_destroy(session));
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_threads_destroy(session));
@@ -231,6 +232,12 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
 
     __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "starting WiredTiger utility threads");
+
+    /*
+     * Start the checkpoint page reconciliation threads. This must be done before any metadata
+     * operations, because they often require checkpoints.
+     */
+    WT_RET(__wt_checkpoint_parallel_thread_create(session, cfg));
 
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
