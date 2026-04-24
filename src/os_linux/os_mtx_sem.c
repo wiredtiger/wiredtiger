@@ -67,8 +67,10 @@ __wt_semaphore_wait(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 {
     WT_UNUSED(session);
 
-    if (sem_wait(&sem->sem) != 0)
-        return (errno);
+    while (sem_wait(&sem->sem) != 0)
+        /* Retry if interrupted by a signal. */
+        if (errno != EINTR)
+            return (errno);
 
     return (0);
 }
