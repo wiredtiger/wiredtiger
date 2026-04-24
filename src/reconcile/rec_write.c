@@ -3232,22 +3232,35 @@ split:
  *     Reset preserved reconciliation state on the page after a failed reconciliation. The page id
  *     has been invalidated, so the saved cookie, disk image, and reconciliation result no longer
  *     describe anything the btree still claims. Clear them the same way a successful wrapup would.
+ *     The single-replacement and multi-block state share a union, so dispatch on the reconciliation
+ *     result to access the correct member.
  */
-static void
-__rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
+static int
+__rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
 
     mod = page->modify;
     if (mod == NULL)
-        return;
+        return (0);
 
-    if (mod->mod_replace.block_cookie != NULL) {
-        __wt_free(session, mod->mod_replace.block_cookie);
-        mod->mod_replace.block_cookie_size = 0;
+    switch (mod->rec_result) {
+    case WT_PM_REC_REPLACE:
+        if (mod->mod_replace.block_cookie != NULL) {
+            __wt_free(session, mod->mod_replace.block_cookie);
+            mod->mod_replace.block_cookie_size = 0;
+        }
+        __wt_free(session, mod->mod_disk_image);
+        mod->rec_result = 0;
+        break;
+    case WT_PM_REC_MULTIBLOCK:
+        /*
+         * Delegate to the split-discard routine, which frees each multi-block entry, handles size
+         * accounting via the block free, and resets the reconciliation state.
+         */
+        return (__rec_split_discard(session, r, page));
     }
-    __wt_free(session, mod->mod_disk_image);
-    mod->rec_result = 0;
+    return (0);
 }
 
 /*
@@ -3313,7 +3326,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             __wt_block_disagg_obsolete_delta_chain(
               session, page->disagg_info->block_meta.cumulative_size);
 
-        __rec_disagg_clear_stale_mod_state(session, page);
+        WT_TRET(__rec_disagg_clear_stale_mod_state(session, r, page));
 
         /*
          * The page id above was just invalidated, so any reference to it is now orphaned. ref->addr
