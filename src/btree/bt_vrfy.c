@@ -1259,18 +1259,17 @@ msg:
 
 /*
  * __verify_key_hs --
- *     Verify a key against the history store. The unpack denotes the data store's timestamp range
- *     information and is used for verifying timestamp range overlaps.
+ *     Verify a key against the history store. Walks HS records for a DS key backwards and checks
+ *     that consecutive HS records have non-overlapping timestamp ranges.
  */
 static int
-__verify_key_hs(
-  WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
+__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
     WT_ITEM hs_value;
-    wt_timestamp_t durable_start_ts, older_start_ts, older_stop_ts;
+    wt_timestamp_t durable_start_ts, newer_start_ts, older_start_ts, older_stop_ts;
     uint64_t hs_counter, upd_type_full;
     uint32_t hs_btree_id;
     int cmp;
@@ -1279,6 +1278,13 @@ __verify_key_hs(
     btree = S2BT(session);
     hs_btree_id = btree->id;
     WT_CLEAR(hs_value);
+    /*
+     * Initialize newer_start_ts to WT_TS_MAX so the first iteration (DS-to-HS comparison) skips
+     * the overlap check. After RTS, stale HS stop_ts values can exceed the DS start_ts for the
+     * restored version, causing false positives. The overlap check only runs between consecutive HS
+     * records (from the second iteration onwards) where it is reliable.
+     */
+    newer_start_ts = WT_TS_MAX;
     WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
@@ -1479,7 +1485,7 @@ __verify_page_content_leaf(
 
             if (!vs->skip_hs) {
                 WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
-                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+                WT_RET(__verify_key_hs(session, vs->tmp1, vs));
             }
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
@@ -1487,7 +1493,7 @@ __verify_page_content_leaf(
                 p = vs->tmp1->mem;
                 WT_RET(__wt_vpack_uint(&p, 0, recno));
                 vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+                WT_RET(__verify_key_hs(session, vs->tmp1, vs));
             }
             recno += rle;
             vs->records_so_far += rle;
