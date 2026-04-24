@@ -107,7 +107,6 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
         c.close()
 
     def test_tiered08(self):
-        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
 
         cfg = self.conn_config()
         self.pr('Config is: ' + cfg)
