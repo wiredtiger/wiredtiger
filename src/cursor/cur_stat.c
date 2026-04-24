@@ -455,9 +455,8 @@ retry:
     }
 
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
-    if (ret == EBUSY) {
+    if (ret == EBUSY)
         goto retry;
-    }
 
     WT_ERR(ret);
 

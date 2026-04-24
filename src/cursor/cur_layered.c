@@ -251,7 +251,7 @@ err:
 /*
  * __clayered_open_stable_follower --
  *     Open the stable table cursor on the newest available checkpoint. In some cases it's fine to
- *     not have a checkpoint (e.g. when we open it for the first time) - live the cursor
+ *     not have a checkpoint (e.g. when we open it for the first time) - leave the cursor
  *     uninitialized.
  */
 static int
@@ -332,7 +332,12 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration, wt_ti
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
-    /* There is no sense in reopening a stable cursor on a leader. */
+    /*
+     * Currently there is no need to reopen the stable cursor on the leader since we require all the
+     * cursors to be closed before stepping up or down.
+     *
+     * FIXME-WT-17309: Support changing a role without closing all the cursors before.
+     */
     if (S2C(session)->layered_table_manager.leader)
         return (false);
 
@@ -388,7 +393,7 @@ __clayered_advance_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
     WT_CURSOR *old_stable;
     WT_DECL_RET;
 
-    /* A stable cursor should be advanced on the leader. */
+    /* A stable cursor should not be advanced on the leader. */
     WT_ASSERT(session, !S2C(session)->layered_table_manager.leader);
 
     /*
