@@ -2769,6 +2769,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
      * now, and merge the rest to be written.
      */
     WT_ERR(__wt_config_merge(session, cfg + 1,
+      "checkpoint_threads=,"
       "compatibility=(release=),"
       "config_base=,"
       "create=,"

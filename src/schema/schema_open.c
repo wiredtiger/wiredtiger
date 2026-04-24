@@ -711,6 +711,8 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 
+    F_SET(layered, WT_LAYERED_TABLE_OPEN);
+
     return (0);
 }
 
