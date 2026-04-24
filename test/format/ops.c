@@ -1285,7 +1285,7 @@ rollback_retry:
              * WT_ROLLBACK will signal that we need to try again with a higher read timestamp, and
              * the rollback will be triggered automatically in predictable replay mode.
              */
-            if (replay_modify_needs_rollback(tinfo, op))
+            if (replay_stale_read_ts(tinfo))
                 goto rollback;
 
             modify_build(tinfo);

@@ -505,17 +505,14 @@ replay_rollback(TINFO *tinfo)
 }
 
 /*
- * replay_modify_needs_rollback --
- *     For MODIFY operations in predictable replay, if the transaction's read timestamp is below the
- *     lane's last commit timestamp, rollback and retry until the read timestamp has caught up.
- *     Without this, one run may see a tombstone (WT_NOTFOUND) while another sees a live value,
- *     diverging the databases.
+ * replay_stale_read_ts --
+ *     Return true if the transaction's read timestamp is below the lane's last commit timestamp.
+ *     This means there may be updates that are invisible to the current op, and we need to rollback
+ *     and retry with a higher read timestamp in order to see them.
  */
 bool
-replay_modify_needs_rollback(TINFO *tinfo, thread_op op)
+replay_stale_read_ts(TINFO *tinfo)
 {
-    testutil_assert(op == MODIFY);
-
     return (GV(RUNS_PREDICTABLE_REPLAY) && tinfo->read_ts < g.lanes[tinfo->lane].last_commit_ts);
 }
 
