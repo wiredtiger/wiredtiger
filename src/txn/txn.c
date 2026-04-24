@@ -85,6 +85,31 @@ __txn_sort_snapshot(WT_SESSION_IMPL *session, uint32_t n, uint64_t snap_max)
 }
 
 /*
+ * __wt_txn_import_snapshot --
+ *     Import a snapshot into the current transaction.
+ */
+void
+__wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapshot)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    WT_ASSERT_ALWAYS(session, txn->snapshot_data.snapshot != NULL,
+      "Snapshot data must be allocated before importing a snapshot");
+    WT_ASSERT_ALWAYS(session,
+      snapshot->snapshot_count <= (uint32_t)S2C(session)->session_array.size,
+      "Snapshot count exceeds session array size");
+
+    txn->snapshot_data.snapshot_count = snapshot->snapshot_count;
+    txn->snapshot_data.snap_max = snapshot->snap_max;
+    txn->snapshot_data.snap_min = snapshot->snap_min;
+    memcpy(txn->snapshot_data.snapshot, snapshot->snapshot,
+      snapshot->snapshot_count * sizeof(snapshot->snapshot[0]));
+    F_SET(txn, WT_TXN_HAS_SNAPSHOT);
+}
+
+/*
  * __wt_txn_release_snapshot --
  *     Release the snapshot in the current transaction.
  */
@@ -111,8 +136,11 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
-    /* Clear a checkpoint's pinned ID and timestamp. */
-    if (WT_SESSION_IS_CHECKPOINT(session)) {
+    /*
+     * Clear a checkpoint's pinned ID and timestamp, only do this if we are the original checkpoint
+     * thread and not a worker.
+     */
+    if (WT_SESSION_IS_CHECKPOINT(session) && !F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         __wt_atomic_store_uint64_v_relaxed(
           &txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
         __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, WT_TS_NONE);
@@ -780,7 +808,7 @@ __txn_release(WT_SESSION_IMPL *session)
     WT_ASSERT(session, txn->mod_count == 0);
 
     /* Clear the transaction's ID from the global table. */
-    if (WT_SESSION_IS_CHECKPOINT(session)) {
+    if (WT_SESSION_IS_CHECKPOINT(session) && !F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         WT_ASSERT(session,
           __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id) == WT_TXN_NONE);
         txn->time_point.id = WT_TXN_NONE;

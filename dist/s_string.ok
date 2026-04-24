@@ -112,6 +112,7 @@ Coverity
 Cppsuite
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -423,6 +424,8 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+RelWithDebInfo
+ReleaseSemaphore
 Rogerio
 Runtime
 RuntimeError
@@ -1016,6 +1019,7 @@ fnv
 foc
 fopen
 forceerror
+foreach
 formatmessage
 forw
 foward
