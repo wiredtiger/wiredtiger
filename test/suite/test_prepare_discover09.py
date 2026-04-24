@@ -11,8 +11,8 @@
 # means.
 #
 # test_prepare_discover09.py
-#   WT-17302: a single prepared transaction that touches both a layered
-#   table and a regular (non-layered) table must be discoverable via
+#   A single prepared transaction that touches both a layered table and a
+#   regular (non-layered) table must be discoverable via
 #   "prepared_discover:" on the follower. Resolving the claim (commit or
 #   rollback) must apply to the updates on every table the transaction
 #   wrote, not only the layered ones.

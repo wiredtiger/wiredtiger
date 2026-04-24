@@ -37,12 +37,8 @@ __prepared_discover_btree_has_prepare(WT_SESSION_IMPL *session, const char *conf
 
 /*
  * __prepared_discover_is_follower_stable_walk --
- *     Return whether prepared discovery for this URI needs the "follower reads stable checkpoint"
- *     treatment: rewrite the URI to point at the stable checkpoint and replay on-disk prepared
- *     updates to the ingest constituent. True only when the session is a disaggregated follower and
- *     the URI refers to a layered table's stable constituent. For non-layered btrees (and on
- *     leaders), prepared updates land in the in-memory update chain via page-read instantiation and
- *     no stable/ingest indirection is needed.
+ *     Return true when prepared discovery should read this URI from the stable checkpoint and
+ *     replay onto ingest: a disaggregated follower walking a layered stable constituent.
  */
 static WT_INLINE bool
 __prepared_discover_is_follower_stable_walk(WT_SESSION_IMPL *session, const char *uri)
