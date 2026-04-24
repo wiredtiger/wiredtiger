@@ -751,9 +751,6 @@ skip_evict:
                 continue;
         }
 
-        /*
-         * No eviction work available -- yield or sleep as before.
-         */
         if (yield_cnt < WT_THOUSAND) {
             if (!stalled) {
                 ++yield_cnt;
