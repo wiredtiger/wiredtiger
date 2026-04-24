@@ -843,6 +843,28 @@ __layered_truncate_leader(WT_TRUNCATE_INFO *trunc_info)
 }
 
 /*
+ * __search_near_key --
+ *     Position a cursor on the given key, or at the nearest key in the requested direction if the
+ *     key itself isn't present. Returns WT_NOTFOUND if nothing in that direction exists.
+ */
+static int
+__search_near_key(WT_CURSOR *cursor, WT_ITEM *key, bool forward)
+{
+    __wt_cursor_set_raw_key(cursor, key);
+
+    int cmp;
+    WT_RET(cursor->search_near(cursor, &cmp));
+
+    /* Check if we are on the wrong side of the key. */
+    if (forward && cmp < 0)
+        return (cursor->next(cursor));
+    else if (!forward && cmp > 0)
+        return (cursor->prev(cursor));
+
+    return (0);
+}
+
+/*
  * __layered_truncate_follower --
  *     Discard a cursor range from the ingest table.
  */
@@ -858,18 +880,25 @@ __layered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WT_RET(__wt_cursor_get_raw_key(trunc_info->start, &start_key));
     WT_RET(__wt_cursor_get_raw_key(trunc_info->stop, &stop_key));
 
+    /* Position the ingest cursors. */
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
-    __wt_cursor_set_raw_key(clayered_start->ingest_cursor, &start_key);
-    __wt_cursor_set_raw_key(clayered_stop->ingest_cursor, &stop_key);
+    WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
+    WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
+
+    const int ret_start = __search_near_key(ingest_start, &start_key, true);
+    WT_RET_NOTFOUND_OK(ret_start);
+
+    const int ret_stop = __search_near_key(ingest_stop, &stop_key, false);
+    WT_RET_NOTFOUND_OK(ret_stop);
 
     /*
-     * Perform truncate on ingest table.
-     *
-     * FIXME-WT-17133: We need to position the ingest cursors before we start removing entries.
+     * If either positioning returned WT_NOTFOUND, the ingest table has no keys in the range and
+     * there is nothing to remove from ingest. Still add the truncate-list entry so stable rows in
+     * the range are hidden.
      */
-    WT_RET_NOTFOUND_OK(
-      __wt_range_truncate(clayered_start->ingest_cursor, clayered_stop->ingest_cursor));
+    if (ret_start == 0 && ret_stop == 0)
+        WT_RET_NOTFOUND_OK(__wt_range_truncate(ingest_start, ingest_stop));
 
     /* Add a truncate entry inside layered table truncate list. */
     WT_RET(__wt_insert_truncate_entry(trunc_info->session, trunc_info->uri, &start_key, &stop_key));
