@@ -34,6 +34,7 @@ typedef struct {
     bool dump_layout, dump_tree_shape;
     bool dump_pages;
     bool read_corrupt;
+    bool skip_hs; /* Skip history store verification (metadata, HS itself) */
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
@@ -375,6 +376,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      */
     skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || WT_IS_URI_HS(name) ||
       F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID);
+    vs->skip_hs = skip_hs;
 
     /* Loop through the file's checkpoints, verifying each one. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
@@ -1475,15 +1477,18 @@ __verify_page_content_leaf(
               unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)
                 continue;
 
-            WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+            if (!vs->skip_hs) {
+                WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+            }
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
-            p = vs->tmp1->mem;
-            WT_RET(__wt_vpack_uint(&p, 0, recno));
-            vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
-
+            if (!vs->skip_hs) {
+                p = vs->tmp1->mem;
+                WT_RET(__wt_vpack_uint(&p, 0, recno));
+                vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+            }
             recno += rle;
             vs->records_so_far += rle;
         }
