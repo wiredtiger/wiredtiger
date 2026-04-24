@@ -522,19 +522,26 @@ config_run(void)
 static void
 config_prefetch(void)
 {
+    bool available = GV(PREFETCH) != 0;
+    bool default_on = GV(PREFETCH_DEFAULT) != 0;
+
+    /* Nothing to fix: either prefetch is available (valid), or default is off (no constraint). */
+    if (available || !default_on)
+        return;
+
     /*
-     * prefetch.default requires prefetch (available=true) at the connection level. If default was
-     * randomly enabled without available, silently turn it off. If the user explicitly set default,
-     * force available on if not explicitly set.
+     * Invalid combination: prefetch.default=true requires prefetch=true (available).
+     * Resolve based on whether the flags came from the user or were randomly generated:
+     * - User explicitly set prefetch.default but left prefetch unset: force prefetch on.
+     * - prefetch.default was randomly turned on: silently turn it off.
      */
-    if (!GV(PREFETCH) && GV(PREFETCH_DEFAULT)) {
-        if (config_explicit(NULL, "prefetch.default")) {
-            if (!config_explicit(NULL, "prefetch"))
-                /* User explicitly set default=true but left available unset - force it on. */
-                config_single(NULL, "prefetch=1", true);
-        } else
-            config_off(NULL, "prefetch.default");
-    }
+    bool available_explicit = config_explicit(NULL, "prefetch");
+    bool default_explicit = config_explicit(NULL, "prefetch.default");
+
+    if (default_explicit && !available_explicit)
+        config_single(NULL, "prefetch=1", true);
+    else if (!default_explicit)
+        config_off(NULL, "prefetch.default");
 }
 
 /*
