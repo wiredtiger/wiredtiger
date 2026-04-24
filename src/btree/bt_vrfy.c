@@ -1582,10 +1582,11 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          index_in_pali <= num_pages_found_in_pali && index_in_btree <= num_pages_found_in_btree;) {
         if (index_in_pali == num_pages_found_in_pali && index_in_btree == num_pages_found_in_btree)
             break;
-        uint64_t id_in_pali =
-          index_in_pali < num_pages_found_in_pali ? ((uint64_t *)item->data)[index_in_pali] : 0;
+        uint64_t id_in_pali = index_in_pali < num_pages_found_in_pali ?
+          ((uint64_t *)item->data)[index_in_pali] :
+          UINT64_MAX;
         uint64_t id_in_btree =
-          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
+          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : UINT64_MAX;
 
         if (index_in_btree == num_pages_found_in_btree || id_in_pali < id_in_btree) {
             __wt_verbose_error(session, WT_VERB_VERIFY,
