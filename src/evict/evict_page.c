@@ -304,42 +304,28 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 
 /*
  * __evict_clean_scrub --
- *     Clean-scrub a page that reconciled to a single disk block (WT_PM_REC_REPLACE): rewrite the
- *     page in place from its saved disk image via __wt_split_rewrite(), reclaiming in-memory update
- *     content without a disk read. The page stays as one page; only its in-memory content is
- *     replaced.
+ *     Re-instantiate a page that reconciled to a single on-disk block by rewriting the page in
+ *     place from its saved disk image, reclaiming in-memory update content without a disk read. The
+ *     page remains a single page; only its in-memory contents are replaced. The multi-block case is
+ *     not interchangeable because it changes the tree structure (one page becomes N children), so
+ *     the two cases are handled by separate functions.
  *
- * The companion __evict_clean_scrub_multi() handles the multi-block case. The two cannot share an
- *     implementation: this path calls __wt_split_rewrite (in-place rewrite from a single WT_MULTI),
- *     whereas the multi-block path calls __wt_split_multi (split into N child refs in the parent).
- *     Routing between the two happens in __evict_dispatch_clean_scrub().
- *
- * The saved image is from a prior reconciliation (typically checkpoint). If the parent update fails
- *     (e.g. split generation conflict), the disk image is restored on the modify structure so the
- *     page can be retried later.
+ * On failure the ownership transfer of the disk image is reversed so the page can be retried.
  */
 static int
-__evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
-    WT_MULTI multi;
-    WT_PAGE_MODIFY *mod;
-    uint32_t image_size;
-    void *tmp;
 
-    WT_UNUSED(flags);
-
-    btree = S2BT(session);
-    mod = ref->page->modify;
-
+    WT_PAGE_MODIFY *mod = ref->page->modify;
     WT_ASSERT(session, mod != NULL && mod->rec_result == WT_PM_REC_REPLACE);
     WT_ASSERT(session, mod->mod_disk_image != NULL);
 
-    image_size = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
+    uint32_t image_size = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
 
     /* The split code works with WT_MULTI structures, build one for the disk image. */
-    memset(&multi, 0, sizeof(multi));
+    WT_MULTI multi;
+    WT_CLEAR(multi);
     multi.disk_image = mod->mod_disk_image;
     multi.addr = mod->mod_replace;
     if (ref->page->disagg_info != NULL) {
@@ -351,7 +337,7 @@ __evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * Transfer ownership of the disk image to the multi struct so it isn't freed twice if the
      * rewrite fails and the page is discarded. Restore it on failure so the page can be retried.
      */
-    tmp = mod->mod_disk_image;
+    void *tmp = mod->mod_disk_image;
     mod->mod_disk_image = NULL;
     ret = __wt_split_rewrite(session, ref, &multi, true);
     __wt_free(session, multi.block_meta);
@@ -362,6 +348,7 @@ __evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* On success the old page and mod are gone; update the per-btree image counters. */
+    WT_BTREE *btree = S2BT(session);
     (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_count, 1);
     (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_bytes, image_size);
     WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_eviction);
@@ -371,28 +358,15 @@ __evict_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
 /*
  * __evict_clean_scrub_multi --
- *     Clean-scrub a page that reconciled to multiple disk blocks (WT_PM_REC_MULTIBLOCK): split the
- *     page into N child refs in the parent via __wt_split_multi(), instantiating each child from
- *     its saved disk image. This changes the tree structure (one page becomes N children); it is
- *     not an in-place rewrite.
- *
- * The companion __evict_clean_scrub() handles the single-block case. The two cannot share an
- *     implementation: the single-block path rewrites the page in place; this path splits the page
- *     and mutates the parent page index. Routing happens in __evict_dispatch_clean_scrub().
+ *     Re-instantiate a page that reconciled to multiple on-disk blocks by splitting it into the
+ *     corresponding child pages, each built from its saved disk image. No disk reads are needed.
+ *     The tree structure changes: one page becomes N children, and the parent page index is
+ *     mutated, so this cannot share an implementation with the single-block case.
  */
 static int
-__evict_clean_scrub_multi(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__evict_clean_scrub_multi(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_BTREE *btree;
-    WT_PAGE_MODIFY *mod;
-    uint64_t total_bytes;
-    uint32_t i, n_images;
-
-    WT_UNUSED(flags);
-
-    btree = S2BT(session);
-    mod = ref->page->modify;
-
+    WT_PAGE_MODIFY *mod = ref->page->modify;
     WT_ASSERT(session, mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK);
     WT_ASSERT(session, mod->mod_multi != NULL && mod->mod_multi_entries > 0);
 
@@ -400,27 +374,26 @@ __evict_clean_scrub_multi(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * Count only disk images saved by the clean-scrub mechanism (not WT_MULTI_SUPD_RESTORE, which
      * uses disk images for a different purpose and is not counted in clean_scrub_image_count).
      */
-    n_images = 0;
-    total_bytes = 0;
-    for (i = 0; i < mod->mod_multi_entries; i++) {
-        if (mod->mod_multi[i].disk_image != NULL &&
-          !F_ISSET(&mod->mod_multi[i], WT_MULTI_SUPD_RESTORE)) {
+    uint32_t n_images = 0;
+    uint64_t total_bytes = 0;
+    for (uint32_t i = 0; i < mod->mod_multi_entries; i++) {
+        if (WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(mod->mod_multi[i])) {
             n_images++;
             total_bytes += ((WT_PAGE_HEADER *)mod->mod_multi[i].disk_image)->mem_size;
         }
     }
 
     /*
-     * Split the page into child refs backed by the reconciled disk blocks. If disk images are
-     * present, __wt_split_multi instantiates child pages from them, avoiding disk reads. On failure
-     * the page (and its saved images) remain intact, so the counters are correct without a
-     * decrement; if __wt_split_multi ever evolves to partially free images on error, this needs to
-     * be revisited.
+     * Split the page into child refs backed by the reconciled disk blocks. When disk images are
+     * present they back the new child pages directly, avoiding disk reads. On failure the page and
+     * its saved images remain intact, so the image counters are correct without an early decrement;
+     * this relies on the split code never partially freeing images on error.
      */
     WT_RET(__wt_split_multi(session, ref, false));
 
     /* On success the old page and mod are gone; update the per-btree image counters. */
     if (n_images > 0) {
+        WT_BTREE *btree = S2BT(session);
         (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_count, n_images);
         (void)__wt_atomic_sub_uint64_relaxed(&btree->clean_scrub_image_bytes, total_bytes);
     }
@@ -431,21 +404,18 @@ __evict_clean_scrub_multi(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
 /*
  * __evict_dispatch_clean_scrub --
- *     Route to the single-block or multi-block clean-scrub function based on the reconciliation
- *     result on the page. The two functions are not interchangeable: single-block rewrites the page
- *     in place (__wt_split_rewrite) while multi-block splits it into child refs (__wt_split_multi),
- *     so this helper simply selects the correct one. Caller must have verified
- *     __wti_evict_page_has_clean_scrub_image().
+ *     Route to the correct re-instantiation path based on how the page was reconciled. The
+ *     single-block case rewrites in place; the multi-block case splits the page and mutates the
+ *     parent. The caller is responsible for verifying that the page has an eligible disk image.
  */
 static int
-__evict_dispatch_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__evict_dispatch_clean_scrub(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_PAGE_MODIFY *mod;
+    WT_PAGE_MODIFY *mod = ref->page->modify;
 
-    mod = ref->page->modify;
     if (mod->mod_disk_image != NULL)
-        return (__evict_clean_scrub(session, ref, flags));
-    return (__evict_clean_scrub_multi(session, ref, flags));
+        return (__evict_clean_scrub(session, ref));
+    return (__evict_clean_scrub_multi(session, ref));
 }
 
 /* !!!
@@ -587,7 +557,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB)) {
         if (!is_dirty && __wti_evict_page_has_clean_scrub_image(page)) {
-            WT_ERR(__evict_dispatch_clean_scrub(session, ref, flags));
+            WT_ERR(__evict_dispatch_clean_scrub(session, ref));
             goto done;
         }
         F_CLR_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB);
@@ -596,17 +566,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     }
 
     /*
-     * Opportunistic clean-scrub: a clean page that wasn't queued with the flag but has a saved disk
-     * image (e.g., queued for normal eviction before checkpoint ran). Only fires under updates
-     * pressure (or the debug flag) and only when the btree has saved clean-scrub images to avoid
-     * misidentifying images saved by other mechanisms (e.g., WT_MULTI_SUPD_RESTORE).
+     * Opportunistic clean-scrub: a page that wasn't queued with the flag but is nevertheless a
+     * fresh candidate (for example, it was queued for normal eviction before a checkpoint produced
+     * its saved image). Apply the same policy gate used at queue time.
      */
-    if (!is_dirty && !WT_BTREE_SYNCING(S2BT(session)) &&
-      __wt_atomic_load_uint64_relaxed(&S2BT(session)->clean_scrub_image_count) > 0 &&
-      (F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES) ||
-        FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB)) &&
-      __wti_evict_page_has_clean_scrub_image(page)) {
-        WT_ERR(__evict_dispatch_clean_scrub(session, ref, flags));
+    if (__wti_evict_page_is_clean_scrub_candidate(session, page)) {
+        WT_ERR(__evict_dispatch_clean_scrub(session, ref));
         goto done;
     }
 

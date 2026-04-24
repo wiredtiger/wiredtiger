@@ -2363,23 +2363,8 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 static bool
 __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
-    WT_PAGE *page;
-
-    page = r->page;
-
     /* Upstream gate: feature is not enabled. */
     if (!F_ISSET(r, WT_REC_CLEAN_SCRUB))
-        return (false);
-
-    /* Only leaf pages accumulate updates worth scrubbing. */
-    if (WT_PAGE_IS_INTERNAL(page))
-        return (false);
-
-    if (page->modify == NULL)
-        return (false);
-
-    /* Never save disk images for internal system btrees (metadata, HS). */
-    if (WT_IS_METADATA(S2BT(session)->dhandle) || WT_IS_HS(S2BT(session)->dhandle))
         return (false);
 
     /*
@@ -2391,7 +2376,16 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     if (F_ISSET(r, WT_REC_EVICT))
         return (false);
 
-    return (true);
+    /* Never save disk images for internal system btrees (metadata, HS). */
+    if (WT_IS_METADATA(S2BT(session)->dhandle) || WT_IS_HS(S2BT(session)->dhandle))
+        return (false);
+
+    WT_PAGE *page = r->page;
+    /* Only leaf pages accumulate updates worth scrubbing. */
+    if (WT_PAGE_IS_INTERNAL(page))
+        return (false);
+
+    return (page->modify != NULL);
 }
 
 /*

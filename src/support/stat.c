@@ -60,14 +60,10 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: application threads eviction skip page with updates or dirty page",
   "cache: bytes currently in the cache",
   "cache: bytes dirty in the cache cumulative",
-  "cache: bytes of disk images saved for clean-scrub eviction",
   "cache: bytes read into cache",
   "cache: bytes written from cache",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
-  "cache: clean pages successfully re-instantiated via clean-scrub eviction",
-  "cache: clean-scrub candidates skipped because page was re-dirtied before eviction",
-  "cache: clean-scrub evictions failed due to parent update conflict",
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: eviction gave up due to detecting a disk value without a timestamp behind the last "
@@ -162,7 +158,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages seen by eviction walk",
   "cache: pages with an unresolved multiblock split flagged by checkpoint to be evicted soon",
   "cache: pages with an unresolved multiblock split re-reconciled by checkpoint",
-  "cache: pages with disk image saved for clean-scrub eviction",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration due to invisible updates",
   "cache: pages written requiring in-memory restoration due to scrub eviction",
@@ -214,6 +209,11 @@ static const char *const __stats_dsrc_desc[] = {
   "checkpoint-cleanup: pages skipped during tree walk",
   "checkpoint-cleanup: pages visited",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
+  "clean-scrub: candidates skipped because the page was re-dirtied prior to eviction",
+  "clean-scrub: evictions failed due to parent update conflict",
+  "clean-scrub: page disk image bytes saved",
+  "clean-scrub: page disk images saved",
+  "clean-scrub: pages successfully re-instantiated",
   "compression: compressed page maximum internal page size prior to compression",
   "compression: compressed page maximum leaf page size prior to compression",
   "compression: page written to disk failed to compress",
@@ -533,14 +533,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_app_threads_skip_updates_dirty_page = 0;
     /* not clearing cache_bytes_inuse */
     /* not clearing cache_bytes_dirty_total */
-    stats->cache_clean_scrub_image_saved_bytes = 0;
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
-    stats->cache_clean_scrub_eviction = 0;
-    stats->cache_clean_scrub_page_dirtied = 0;
-    stats->cache_clean_scrub_fail_rewrite = 0;
     stats->eviction_fail = 0;
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_1 = 0;
@@ -622,7 +618,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_pages_seen = 0;
     stats->cache_eviction_multiblock_checkpoint_flagged = 0;
     stats->cache_eviction_multiblock_split_re_reconciled = 0;
-    stats->cache_clean_scrub_image_saved = 0;
     stats->cache_write = 0;
     stats->cache_write_restore_invisible = 0;
     stats->cache_write_restore_scrub = 0;
@@ -671,6 +666,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->checkpoint_cleanup_pages_walk_skipped = 0;
     stats->checkpoint_cleanup_pages_visited = 0;
     stats->checkpoint_snapshot_acquired = 0;
+    stats->cache_clean_scrub_page_dirtied = 0;
+    stats->cache_clean_scrub_fail_rewrite = 0;
+    stats->cache_clean_scrub_image_saved_bytes = 0;
+    stats->cache_clean_scrub_image_saved = 0;
+    stats->cache_clean_scrub_eviction = 0;
     /* not clearing compress_precomp_intl_max_page_size */
     /* not clearing compress_precomp_leaf_max_page_size */
     stats->compress_write_fail = 0;
@@ -969,14 +969,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_app_threads_skip_updates_dirty_page;
     to->cache_bytes_inuse += from->cache_bytes_inuse;
     to->cache_bytes_dirty_total += from->cache_bytes_dirty_total;
-    to->cache_clean_scrub_image_saved_bytes += from->cache_clean_scrub_image_saved_bytes;
     to->cache_bytes_read += from->cache_bytes_read;
     to->cache_bytes_write += from->cache_bytes_write;
     to->cache_eviction_blocked_checkpoint += from->cache_eviction_blocked_checkpoint;
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
-    to->cache_clean_scrub_eviction += from->cache_clean_scrub_eviction;
-    to->cache_clean_scrub_page_dirtied += from->cache_clean_scrub_page_dirtied;
-    to->cache_clean_scrub_fail_rewrite += from->cache_clean_scrub_fail_rewrite;
     to->eviction_fail += from->eviction_fail;
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       from->cache_eviction_blocked_disagg_dirty_internal_page;
@@ -1071,7 +1067,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_multiblock_checkpoint_flagged;
     to->cache_eviction_multiblock_split_re_reconciled +=
       from->cache_eviction_multiblock_split_re_reconciled;
-    to->cache_clean_scrub_image_saved += from->cache_clean_scrub_image_saved;
     to->cache_write += from->cache_write;
     to->cache_write_restore_invisible += from->cache_write_restore_invisible;
     to->cache_write_restore_scrub += from->cache_write_restore_scrub;
@@ -1125,6 +1120,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->checkpoint_cleanup_pages_walk_skipped += from->checkpoint_cleanup_pages_walk_skipped;
     to->checkpoint_cleanup_pages_visited += from->checkpoint_cleanup_pages_visited;
     to->checkpoint_snapshot_acquired += from->checkpoint_snapshot_acquired;
+    to->cache_clean_scrub_page_dirtied += from->cache_clean_scrub_page_dirtied;
+    to->cache_clean_scrub_fail_rewrite += from->cache_clean_scrub_fail_rewrite;
+    to->cache_clean_scrub_image_saved_bytes += from->cache_clean_scrub_image_saved_bytes;
+    to->cache_clean_scrub_image_saved += from->cache_clean_scrub_image_saved;
+    to->cache_clean_scrub_eviction += from->cache_clean_scrub_eviction;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
     to->compress_precomp_leaf_max_page_size += from->compress_precomp_leaf_max_page_size;
     to->compress_write_fail += from->compress_write_fail;
@@ -1430,17 +1430,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_app_threads_skip_updates_dirty_page);
     to->cache_bytes_inuse += WT_STAT_DSRC_READ(from, cache_bytes_inuse);
     to->cache_bytes_dirty_total += WT_STAT_DSRC_READ(from, cache_bytes_dirty_total);
-    to->cache_clean_scrub_image_saved_bytes +=
-      WT_STAT_DSRC_READ(from, cache_clean_scrub_image_saved_bytes);
     to->cache_bytes_read += WT_STAT_DSRC_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_DSRC_READ(from, cache_bytes_write);
     to->cache_eviction_blocked_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_hs);
-    to->cache_clean_scrub_eviction += WT_STAT_DSRC_READ(from, cache_clean_scrub_eviction);
-    to->cache_clean_scrub_page_dirtied += WT_STAT_DSRC_READ(from, cache_clean_scrub_page_dirtied);
-    to->cache_clean_scrub_fail_rewrite += WT_STAT_DSRC_READ(from, cache_clean_scrub_fail_rewrite);
     to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
@@ -1556,7 +1551,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_multiblock_checkpoint_flagged);
     to->cache_eviction_multiblock_split_re_reconciled +=
       WT_STAT_DSRC_READ(from, cache_eviction_multiblock_split_re_reconciled);
-    to->cache_clean_scrub_image_saved += WT_STAT_DSRC_READ(from, cache_clean_scrub_image_saved);
     to->cache_write += WT_STAT_DSRC_READ(from, cache_write);
     to->cache_write_restore_invisible += WT_STAT_DSRC_READ(from, cache_write_restore_invisible);
     to->cache_write_restore_scrub += WT_STAT_DSRC_READ(from, cache_write_restore_scrub);
@@ -1617,6 +1611,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->checkpoint_cleanup_pages_visited +=
       WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_visited);
     to->checkpoint_snapshot_acquired += WT_STAT_DSRC_READ(from, checkpoint_snapshot_acquired);
+    to->cache_clean_scrub_page_dirtied += WT_STAT_DSRC_READ(from, cache_clean_scrub_page_dirtied);
+    to->cache_clean_scrub_fail_rewrite += WT_STAT_DSRC_READ(from, cache_clean_scrub_fail_rewrite);
+    to->cache_clean_scrub_image_saved_bytes +=
+      WT_STAT_DSRC_READ(from, cache_clean_scrub_image_saved_bytes);
+    to->cache_clean_scrub_image_saved += WT_STAT_DSRC_READ(from, cache_clean_scrub_image_saved);
+    to->cache_clean_scrub_eviction += WT_STAT_DSRC_READ(from, cache_clean_scrub_eviction);
     to->compress_precomp_intl_max_page_size +=
       WT_STAT_DSRC_READ(from, compress_precomp_intl_max_page_size);
     to->compress_precomp_leaf_max_page_size +=
@@ -2001,15 +2001,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes currently in the cache",
   "cache: bytes dirty in the cache cumulative",
   "cache: bytes not belonging to page images in the cache",
-  "cache: bytes of disk images saved for clean-scrub eviction",
   "cache: bytes read into cache",
   "cache: bytes written from cache",
   "cache: cache tolerance configured",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
-  "cache: clean pages successfully re-instantiated via clean-scrub eviction",
-  "cache: clean-scrub candidates skipped because page was re-dirtied before eviction",
-  "cache: clean-scrub evictions failed due to parent update conflict",
   "cache: dirty bytes belonging to the history store table in the cache",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: evict page attempts by eviction server",
@@ -2241,7 +2237,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages walked for eviction",
   "cache: pages with an unresolved multiblock split flagged by checkpoint to be evicted soon",
   "cache: pages with an unresolved multiblock split re-reconciled by checkpoint",
-  "cache: pages with disk image saved for clean-scrub eviction",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration due to invisible updates",
   "cache: pages written requiring in-memory restoration due to scrub eviction",
@@ -2379,6 +2374,11 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: total chunks held by the chunk cache",
   "chunk-cache: total number of chunks inserted on startup from persisted metadata",
   "chunk-cache: total pinned chunks held by the chunk cache",
+  "clean-scrub: candidates skipped because the page was re-dirtied prior to eviction",
+  "clean-scrub: evictions failed due to parent update conflict",
+  "clean-scrub: page disk image bytes saved",
+  "clean-scrub: page disk images saved",
+  "clean-scrub: pages successfully re-instantiated",
   "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",
   "connection: auto adjusting condition wait raced to update timeout and skipped updating",
@@ -3100,15 +3100,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_inuse */
     /* not clearing cache_bytes_dirty_total */
     /* not clearing cache_bytes_other */
-    stats->cache_clean_scrub_image_saved_bytes = 0;
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
     /* not clearing cache_tolerance_level */
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
-    stats->cache_clean_scrub_eviction = 0;
-    stats->cache_clean_scrub_page_dirtied = 0;
-    stats->cache_clean_scrub_fail_rewrite = 0;
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     stats->eviction_server_evict_attempt = 0;
@@ -3314,7 +3310,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_walk = 0;
     stats->cache_eviction_multiblock_checkpoint_flagged = 0;
     stats->cache_eviction_multiblock_split_re_reconciled = 0;
-    stats->cache_clean_scrub_image_saved = 0;
     stats->cache_write = 0;
     stats->cache_write_restore_invisible = 0;
     stats->cache_write_restore_scrub = 0;
@@ -3451,6 +3446,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->chunkcache_chunks_inuse = 0;
     stats->chunkcache_created_from_metadata = 0;
     stats->chunkcache_chunks_pinned = 0;
+    stats->cache_clean_scrub_page_dirtied = 0;
+    stats->cache_clean_scrub_fail_rewrite = 0;
+    stats->cache_clean_scrub_image_saved_bytes = 0;
+    stats->cache_clean_scrub_image_saved = 0;
+    stats->cache_clean_scrub_eviction = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
     stats->cond_auto_wait_skipped = 0;
@@ -4166,8 +4166,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_inuse += WT_STAT_CONN_READ(from, cache_bytes_inuse);
     to->cache_bytes_dirty_total += WT_STAT_CONN_READ(from, cache_bytes_dirty_total);
     to->cache_bytes_other += WT_STAT_CONN_READ(from, cache_bytes_other);
-    to->cache_clean_scrub_image_saved_bytes +=
-      WT_STAT_CONN_READ(from, cache_clean_scrub_image_saved_bytes);
     to->cache_bytes_read += WT_STAT_CONN_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_CONN_READ(from, cache_bytes_write);
     to->cache_tolerance_level += WT_STAT_CONN_READ(from, cache_tolerance_level);
@@ -4175,9 +4173,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_hs);
-    to->cache_clean_scrub_eviction += WT_STAT_CONN_READ(from, cache_clean_scrub_eviction);
-    to->cache_clean_scrub_page_dirtied += WT_STAT_CONN_READ(from, cache_clean_scrub_page_dirtied);
-    to->cache_clean_scrub_fail_rewrite += WT_STAT_CONN_READ(from, cache_clean_scrub_fail_rewrite);
     to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
@@ -4467,7 +4462,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_multiblock_checkpoint_flagged);
     to->cache_eviction_multiblock_split_re_reconciled +=
       WT_STAT_CONN_READ(from, cache_eviction_multiblock_split_re_reconciled);
-    to->cache_clean_scrub_image_saved += WT_STAT_CONN_READ(from, cache_clean_scrub_image_saved);
     to->cache_write += WT_STAT_CONN_READ(from, cache_write);
     to->cache_write_restore_invisible += WT_STAT_CONN_READ(from, cache_write_restore_invisible);
     to->cache_write_restore_scrub += WT_STAT_CONN_READ(from, cache_write_restore_scrub);
@@ -4635,6 +4629,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->chunkcache_created_from_metadata +=
       WT_STAT_CONN_READ(from, chunkcache_created_from_metadata);
     to->chunkcache_chunks_pinned += WT_STAT_CONN_READ(from, chunkcache_chunks_pinned);
+    to->cache_clean_scrub_page_dirtied += WT_STAT_CONN_READ(from, cache_clean_scrub_page_dirtied);
+    to->cache_clean_scrub_fail_rewrite += WT_STAT_CONN_READ(from, cache_clean_scrub_fail_rewrite);
+    to->cache_clean_scrub_image_saved_bytes +=
+      WT_STAT_CONN_READ(from, cache_clean_scrub_image_saved_bytes);
+    to->cache_clean_scrub_image_saved += WT_STAT_CONN_READ(from, cache_clean_scrub_image_saved);
+    to->cache_clean_scrub_eviction += WT_STAT_CONN_READ(from, cache_clean_scrub_eviction);
     to->cond_auto_wait_reset += WT_STAT_CONN_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_CONN_READ(from, cond_auto_wait);
     to->cond_auto_wait_skipped += WT_STAT_CONN_READ(from, cond_auto_wait_skipped);

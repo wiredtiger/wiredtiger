@@ -323,6 +323,15 @@ struct __wt_multi {
 };
 
 /*
+ * Return true if a WT_MULTI entry is carrying a reconciled disk image that can be used to re-
+ * instantiate a clean page in memory. The update-restore mechanism also attaches a disk image (to
+ * keep out-of-order updates pinned to an otherwise reconciled page); those images are not eligible
+ * because freeing them would discard the attached updates.
+ */
+#define WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(multi) \
+    ((multi).disk_image != NULL && !F_ISSET(&(multi), WT_MULTI_SUPD_RESTORE))
+
+/*
  * WT_OVFL_TRACK --
  *  Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
  * so we don't allocate the structures to track them until we actually see them in the data.
