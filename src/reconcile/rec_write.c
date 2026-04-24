@@ -3229,9 +3229,9 @@ split:
 
 /*
  * __rec_disagg_clear_stale_mod_state --
- *     Reset preserved reconciliation state on the page after a failed delta write. The chain that
- *     state described was just terminated in storage, so the saved cookie, disk image, and
- *     reconciliation result are stale, clear them the same way a successful wrapup would.
+ *     Reset preserved reconciliation state on the page after a failed reconciliation. The page id
+ *     has been invalidated, so the saved cookie, disk image, and reconciliation result no longer
+ *     describe anything the btree still claims. Clear them the same way a successful wrapup would.
  */
 static void
 __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -3292,13 +3292,15 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * during the next reconciliation for the replaced page. In other cases, the old page ID will be
      * released upon successful reconciliation.
      *
-     * The cached page reference is cleared unconditionally -- any reference to an invalidated page
-     * id is orphaned. The preserved reconciliation state is only cleared for delta failures: the
-     * block free above also terminated the entire chain in storage, so the state saved by the
-     * previous successful reconciliation now points at destroyed data and must be reset. Full-image
-     * failures only discard the new entry (not the chain), so the preserved state still describes
-     * live storage and is left intact. Without these cleanups, a later wrapup trusts the stale
-     * state and either double-subtracts the chain's cumulative size or double-discards the chain.
+     * Invalidating the page id orphans every reference keyed to it, so clear the preserved
+     * reconciliation state and the cached page reference uniformly. Size accounting for the old
+     * chain is handled here in the error path so the next reconciliation doesn't need to finish
+     * the work:
+     *   - Delta failure: the block free above tombstoned the entire chain and already subtracted
+     *     its cumulative size from the total -- nothing extra needed.
+     *   - Full-image failure: the block free above only tombstoned the new entry and subtracted
+     *     just the new writes size. The old chain's cumulative size is still in the total, so
+     *     subtract it explicitly here.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
@@ -3306,14 +3308,19 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
 
-        if (r->multi->block_meta->delta_count > 0)
-            __rec_disagg_clear_stale_mod_state(session, page);
+        if (r->multi->block_meta->delta_count == 0 &&
+          page->disagg_info->block_meta.cumulative_size > 0)
+            __wt_block_disagg_obsolete_delta_chain(
+              session, page->disagg_info->block_meta.cumulative_size);
+
+        __rec_disagg_clear_stale_mod_state(session, page);
 
         /*
          * The page id above was just invalidated, so any reference to it is now orphaned. ref->addr
          * still carries a cookie with that now-dead page id; a later wrapup that tries to free it
-         * would produce a second discard in the chain and fail. Clear the stale reference so the
-         * next reconciliation's wrapup sees no address to free.
+         * would either produce a redundant discard on storage that is no longer part of the btree,
+         * or (in the delta case) a second discard on an already-terminated chain and fail. Clear
+         * the stale reference so the next reconciliation's wrapup sees no address to free.
          */
         __wt_ref_addr_free(session, r->ref);
     }
