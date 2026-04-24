@@ -3323,23 +3323,15 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * Delete the updates left in the history store by prepared rollback first before moving updates
      * to the history store.
      */
-    ret = __wti_rec_hs_delete_updates(session, r);
-    if (ret != 0)
-        __wt_verbose_error(session, WT_VERB_HS,
-          "failed to delete updates from history store during wrapup: btree=%" PRIu32 " error=%d",
-          btree->id, ret);
-    WT_ERR(ret);
+    WT_ERR_MSG_CHK(session, __wti_rec_hs_delete_updates(session, r),
+      "failed to delete updates from history store during wrapup: btree=%" PRIu32, btree->id);
 
     is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
-            ret = __wti_rec_hs_insert_updates(session, r, multi);
-            if (ret != 0)
-                __wt_verbose_error(session, WT_VERB_HS,
-                  "failed to insert updates into history store during wrapup: btree=%" PRIu32
-                  " error=%d",
-                  btree->id, ret);
-            WT_ERR(ret);
+            WT_ERR_MSG_CHK(session, __wti_rec_hs_insert_updates(session, r, multi),
+              "failed to insert updates into history store during wrapup: btree=%" PRIu32,
+              btree->id);
             /* FIXME-WT-15709: build delta for split pages. */
             if (!is_disagg && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
                 __wt_free(session, multi->supd);
