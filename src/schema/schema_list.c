@@ -235,7 +235,7 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
 void
 __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
 {
-    if (F_ISSET(layered, WT_LAYERED_TABLE_CLOSED))
+    if (!F_ISSET(layered, WT_LAYERED_TABLE_OPEN))
         return;
 
     /* Remove the ingest handle from layered table manager list */
@@ -247,7 +247,7 @@ __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
     __wt_free(session, layered->ingest_uri);
     __wt_free(session, layered->stable_uri);
 
-    F_SET(layered, WT_LAYERED_TABLE_CLOSED);
+    F_CLR(layered, WT_LAYERED_TABLE_OPEN);
 }
 
 /*

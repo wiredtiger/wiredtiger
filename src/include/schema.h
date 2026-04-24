@@ -123,7 +123,7 @@ struct __wt_layered_table {
     WT_RWLOCK truncate_lock; /* R/W Lock used for managing changes to truncate list.*/
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_LAYERED_TABLE_CLOSED 0x1u
+#define WT_LAYERED_TABLE_OPEN 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
