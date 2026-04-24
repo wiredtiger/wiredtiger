@@ -895,7 +895,7 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
-    WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
+    WT_CURSOssR *ingest_stop = clayered_stop->ingest_cursor;
 
     const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);
     WT_RET_NOTFOUND_OK(ret_start);
