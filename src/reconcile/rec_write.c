@@ -3259,7 +3259,6 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
             mod->mod_replace.block_cookie_size = 0;
         }
         __wt_free(session, mod->mod_disk_image);
-        mod->rec_result = 0;
         break;
     case WT_PM_REC_MULTIBLOCK:
         /*
@@ -3277,11 +3276,11 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
         }
         __wt_free(session, mod->mod_multi);
         mod->mod_multi_entries = 0;
-        mod->rec_result = 0;
         break;
     default:
         return (__wt_illegal_value(session, mod->rec_result));
     }
+    mod->rec_result = 0;
     return (0);
 }
 
