@@ -259,15 +259,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * consistent view of that namespace. Set the checkpointing flag to block such actions and
          * wait for any problematic eviction or page splits to complete.
          */
-        WT_ASSERT(session,
-          __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF &&
-            __wt_atomic_load_ptr_relaxed(&btree->sync_session) == NULL);
+        WT_ASSERT(session, __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF);
 
-        /*
-         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
-         * variables.
-         */
-        __wt_atomic_store_ptr_release(&btree->sync_session, session);
+        session->syncing = true;
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
@@ -311,6 +305,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
             if (WT_SESSION_IS_CHECKPOINT(session))
                 ++conn->ckpt.progress.pages_visited;
+
+            /*
+             * Wait for the leaf pages to finish reconciling before checking whether the internal
+             * page is dirty, as reconciling the leaf pages could have made the internal page dirty.
+             */
+            if (WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+                if (WT_SESSION_IS_CHECKPOINT(session) && is_internal)
+                    WT_ERR(__wt_checkpoint_parallel_finish(session));
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
@@ -390,7 +392,18 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_IS_HS(btree->dhandle))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
-            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+            /* Reconcile leaf pages in parallel, waiting at each internal page. */
+            if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
+              !is_internal) {
+                /*
+                 * Duplicate the position, and give it to the parallel checkpoint worker. The
+                 * existing walk position will be release by the walk code.
+                 */
+                WT_REF *walk_dup = NULL;
+                WT_ERR(__sync_dup_walk(session, walk, 0, &walk_dup));
+                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup, rec_flags, flags));
+            } else
+                WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /*
              * Handle unresolved multiblock reconciliations. Some of these will be pages left dirty
@@ -407,6 +420,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 __wt_checkpoint_progress_stats(
                   session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
         }
+
+        /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
+        if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
+            WT_ERR(__wt_checkpoint_parallel_finish(session));
 
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
@@ -446,6 +463,13 @@ err:
     WT_TRET(__wt_page_release(session, prev, flags));
 
     /*
+     * Wait for the workers to finish, as they may be still doing work if we got here because of an
+     * error.
+     */
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
+        WT_TRET(__wt_checkpoint_parallel_finish(session));
+
+    /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
      * started, release it.
      */
@@ -463,12 +487,8 @@ err:
         __wt_checkpoint_update_generation(session, btree);
 
         /* Clear the checkpoint flag. */
-        /*
-         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
-         * variables.
-         */
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
-        __wt_atomic_store_ptr_release(&btree->sync_session, NULL);
+        session->syncing = false;
     }
 
     __wt_spin_unlock(session, &btree->flush_lock);
