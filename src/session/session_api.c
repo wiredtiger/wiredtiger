@@ -362,6 +362,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Close all open cursors while the cursor cache is disabled. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
+    /* Rollback any active transaction. */
     if (F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_TRET(__session_rollback_transaction((WT_SESSION *)session, NULL));
 
