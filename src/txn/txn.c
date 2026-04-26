@@ -2097,6 +2097,17 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
     /*
+     * Rolling back a prepared transaction under preserve_prepared requires a rollback timestamp.
+     * Connection close skips prepared work below, so only enforce when not closing.
+     */
+    if (prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) &&
+      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
+        WT_RET_MSG(session, EINVAL,
+          "rollback_timestamp must be set when rolling back a prepared transaction under "
+          "preserve_prepared");
+
+    /*
      * Release our snapshot in case it is keeping data pinned. This will not make the updates
      * visible to other threads because we haven't removed the transaction id from the global
      * transaction table at the end of the function.
