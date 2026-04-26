@@ -1884,6 +1884,7 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
+    F_SET(txn, WT_TXN_FORCE_ROLLBACK);
     WT_TRET(__wt_txn_rollback(session, cfg, false));
     return (ret);
 }
@@ -2096,12 +2097,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     if (api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
-    /*
-     * Rolling back a prepared transaction under preserve_prepared requires a rollback timestamp.
-     * Connection close skips prepared work below, so only enforce when not closing.
-     */
+    /* Rolling back a prepared transaction under preserve_prepared requires a rollback timestamp. */
     if (prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) &&
+      !F_ISSET(txn, WT_TXN_FORCE_ROLLBACK) &&
       !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
         WT_RET_MSG(session, EINVAL,
           "rollback_timestamp must be set when rolling back a prepared transaction under "
