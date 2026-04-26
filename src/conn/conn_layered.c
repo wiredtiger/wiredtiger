@@ -283,6 +283,8 @@ __disagg_apply_checkpoint_meta(
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
+    uint64_t loop_clk_start, loop_us_total;
+    uint64_t new_us_total, ingest_create_us_total;
     uint32_t existing_tables, new_tables, new_ingest;
     char *current_value_copy, *layered_ingest_uri, *cfg_ret;
     const char *cfg[3], *checkpoint_name, *current_value, *metadata_checkpoint_name, *metadata_key,
@@ -294,6 +296,7 @@ __disagg_apply_checkpoint_meta(
     checkpoint_name = metadata_checkpoint_name = NULL;
     current_value_copy = layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
+    loop_us_total = new_us_total = ingest_create_us_total = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
@@ -324,6 +327,7 @@ __disagg_apply_checkpoint_meta(
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
+    loop_clk_start = __wt_clock(session);
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
         WT_ERR(cursor->get_value(cursor, &metadata_value));
@@ -333,6 +337,7 @@ __disagg_apply_checkpoint_meta(
 
         if (ret == 0 && WT_PREFIX_MATCH(metadata_key, "file:")) {
             /* Existing table: Just apply the new metadata. */
+
             WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
             WT_ERR(__wt_buf_fmt(session, metadata_cfg, "checkpoint=%.*s", (int)cval.len, cval.str));
 
@@ -389,6 +394,9 @@ __disagg_apply_checkpoint_meta(
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* FIXME-WT-14730: verify that there is no btree ID conflict. */
+            uint64_t new_clk_start, new_clk_end, sub_clk_start, sub_clk_end;
+
+            new_clk_start = __wt_clock(session);
 
             /* Create the corresponding ingest table, if it does not exist. */
             if (WT_PREFIX_MATCH(metadata_key, "layered:")) {
@@ -400,11 +408,14 @@ __disagg_apply_checkpoint_meta(
                     md_cursor->set_key(md_cursor, layered_ingest_uri);
                     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
                     if (ret == WT_NOTFOUND) {
+                        sub_clk_start = __wt_clock(session);
                         WT_ERR_MSG_CHK(session,
                           __layered_create_missing_ingest_table(
                             session, layered_ingest_uri, metadata_value),
                           "Failed to create missing ingest table \"%s\" from \"%s\"",
                           layered_ingest_uri, metadata_value);
+                        sub_clk_end = __wt_clock(session);
+                        ingest_create_us_total += WT_CLOCKDIFF_US(sub_clk_end, sub_clk_start);
                         new_ingest++;
                     }
                     __wt_free(session, layered_ingest_uri);
@@ -422,14 +433,20 @@ __disagg_apply_checkpoint_meta(
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Inserted new key to the local metadata \"%s\": \"%s\"", metadata_key,
               metadata_value);
+
+            new_clk_end = __wt_clock(session);
+            new_us_total += WT_CLOCKDIFF_US(new_clk_end, new_clk_start);
         }
     }
+    loop_us_total = WT_CLOCKDIFF_US(__wt_clock(session), loop_clk_start);
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
-      " new ingest tables",
-      existing_tables, new_tables, new_ingest);
+    __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_WARNING,
+      "[pickup-timer] apply_checkpoint_meta: existing=%" PRIu32 " new=%" PRIu32
+      " new_ingest=%" PRIu32 " for_loop=%" PRIu64 "ms new_branch=%" PRIu64
+      "ms ingest_create_total=%" PRIu64 "ms",
+      existing_tables, new_tables, new_ingest, loop_us_total / 1000, new_us_total / 1000,
+      ingest_create_us_total / 1000);
 
 done:
 err:
@@ -522,7 +539,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
+    WT_TIMER timer_total, timer_step;
     uint64_t current_meta_lsn;
+    uint64_t ms_total, ms_fetch, ms_parse, ms_crypt, ms_md_cursor, ms_save_local, ms_apply,
+      ms_finalize;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -531,6 +551,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_CLEAR(metadata_buf);
     WT_CLEAR(metadata);
     md_cursor = NULL;
+    ms_total = ms_fetch = ms_parse = ms_crypt = ms_md_cursor = ms_save_local = ms_apply =
+      ms_finalize = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -559,16 +581,21 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
         goto err;
     }
 
-    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
-      ckpt_meta->metadata_lsn);
+    __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_WARNING,
+      "[pickup-timer] start: metadata_lsn=%" PRIu64, ckpt_meta->metadata_lsn);
+
+    __wt_timer_start(session, &timer_total);
 
     /*
      * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
      */
-
+    __wt_timer_start(session, &timer_step);
     WT_ERR(__wti_disagg_fetch_shared_meta(session, ckpt_meta, &metadata_buf));
+    __wt_timer_evaluate_ms(session, &timer_step, &ms_fetch);
+
+    __wt_timer_start(session, &timer_step);
     WT_ERR(__wt_disagg_parse_meta(session, &metadata_buf, &metadata));
+    __wt_timer_evaluate_ms(session, &timer_step, &ms_parse);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
@@ -580,29 +607,43 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /* Load crypt key data with the key provider extension, if any. */
+    __wt_timer_start(session, &timer_step);
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
+    __wt_timer_evaluate_ms(session, &timer_step, &ms_crypt);
 
     /* Open up a metadata cursor pointing at our table */
+    __wt_timer_start(session, &timer_step);
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+    __wt_timer_evaluate_ms(session, &timer_step, &ms_md_cursor);
 
     /* Update our local metadata with the new checkpoint entry. */
+    __wt_timer_start(session, &timer_step);
     WT_ERR(__disagg_save_checkpoint_meta_local(session, md_cursor, &metadata));
+    __wt_timer_evaluate_ms(session, &timer_step, &ms_save_local);
 
     /* Part 2: Apply the metadata for other tables from the shared metadata table. */
+    __wt_timer_start(session, &timer_step);
     WT_WITH_SCHEMA_LOCK(
       session, ret = __disagg_apply_checkpoint_meta(session, md_cursor, ckpt_meta));
+    __wt_timer_evaluate_ms(session, &timer_step, &ms_apply);
     WT_ERR(ret);
 
     /*
      * Part 3: Do the bookkeeping.
      */
-
+    __wt_timer_start(session, &timer_step);
     WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
+    __wt_timer_evaluate_ms(session, &timer_step, &ms_finalize);
 
-    /* Log the completion of the checkpoint pick-up. */
-    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
-      ckpt_meta->metadata_lsn);
+    __wt_timer_evaluate_ms(session, &timer_total, &ms_total);
+
+    /* Per-step pickup timing summary. */
+    __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_WARNING,
+      "[pickup-timer] metadata_lsn=%" PRIu64 " total=%" PRIu64 "ms fetch_shared_meta=%" PRIu64
+      "ms parse_meta=%" PRIu64 "ms load_crypt=%" PRIu64 "ms md_cursor_open=%" PRIu64
+      "ms save_local=%" PRIu64 "ms apply_meta=%" PRIu64 "ms finalize=%" PRIu64 "ms",
+      ckpt_meta->metadata_lsn, ms_total, ms_fetch, ms_parse, ms_crypt, ms_md_cursor, ms_save_local,
+      ms_apply, ms_finalize);
 
 err:
     if (ret == 0) {
@@ -1622,8 +1663,8 @@ __on_file_in_wt_dir(WT_SESSION_IMPL *session, const char *fname, bool fail)
           "use 'disaggregated.local_files_action=delete' to remove it.",
           fname);
 
-    __wt_verbose_warning(
-      session, WT_VERB_METADATA, "Removing local file due to disagg mode: %s", fname);
+    // __wt_verbose_warning(
+    //   session, WT_VERB_METADATA, "Removing local file due to disagg mode: %s", fname);
     WT_RET(__wt_fs_remove(session, fname, false, false));
 
     return (0);
@@ -1694,7 +1735,8 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
          * Delete any WiredTiger files to prevent reading them during startup. But keep
          * WiredTiger.lock as a safety mechanism.
          */
-        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
+        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD) &&
+          !WT_PREFIX_MATCH(files[i], "WiredTigerStat"))
             WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
         else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") ||
           WT_SUFFIX_MATCH(files[i], ".wt_stable"))
