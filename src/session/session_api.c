@@ -362,15 +362,8 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Close all open cursors while the cursor cache is disabled. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
-    /*
-     * Rollback any active transaction. Mark the rollback as forced so callers that have no chance
-     * to provide configuration (e.g. the prepared-rollback timestamp under preserve_prepared) are
-     * not rejected.
-     */
-    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
-        F_SET(session->txn, WT_TXN_FORCE_ROLLBACK);
+    if (F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_TRET(__session_rollback_transaction((WT_SESSION *)session, NULL));
-    }
 
     /*
      * Also release any pinned transaction ID from a non-transactional operation.
