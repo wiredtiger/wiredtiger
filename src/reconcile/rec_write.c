@@ -230,10 +230,10 @@ __reconcile_post_wrapup(
     /*
      * When threads perform eviction, don't cache block manager structures (even across calls), we
      * can have a significant number of threads doing eviction at the same time with large items.
-     * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
-     * discarded.
+     * Ignore the main checkpoint thread, once the checkpoint completes, all unnecessary session
+     * resources will be discarded. Checkpoint worker threads need to clean up their own resources.
      */
-    if (!WT_SESSION_IS_CHECKPOINT(session)) {
+    if (!WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         /*
          * Clean up the underlying block manager memory too: it's not reconciliation, but threads
          * discarding reconciliation structures want to clean up the block manager's structures as
@@ -2437,7 +2437,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
      * unless we're the checkpoint thread. Big pages take a lot of writes, avoid wasting work.
      */
-    if (!last_block && __wt_btree_syncing_by_other_session(session)) {
+    if (!last_block && __wt_btree_syncing_by_other_sessions(session)) {
         WT_STAT_CONN_DSRC_INCR(
           session, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
         return (__wt_set_return(session, EBUSY));
@@ -3367,6 +3367,13 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
+        /*
+         * The discard above terminates the delta chain for this page id. ref->addr still carries a
+         * cookie with that now-dead page id; a later wrapup that tries to free it would produce a
+         * second discard in the chain and fail. Clear the stale reference so the next
+         * reconciliation's wrapup sees no address to free.
+         */
+        __wt_ref_addr_free(session, r->ref);
     }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));

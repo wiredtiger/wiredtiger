@@ -126,7 +126,7 @@ def find(topdir, filename):
 # Show an environment variable if verbose enough.
 def show_env(verbose, envvar):
     if verbose >= 2:
-        print(envvar + "=" + os.getenv(envvar))
+        print(envvar + "=" + str(os.getenv(envvar)))
 
 # capture the category (AKA 'subsuite') part of a test name,
 # e.g. test_util03 -> util
