@@ -958,7 +958,7 @@ __wt_evict_app_assist_worker_check(
   WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
 {
 
-#define APP_DONT_HELP 0
+#define APP_DONT_HELP 1
 #if APP_DONT_HELP
     (void)session;
     (void)busy;
@@ -971,6 +971,8 @@ __wt_evict_app_assist_worker_check(
     WT_IGNORE_RET(__evict_check_user_ok_with_eviction(session, interruptible));
     return (0);
 #else
+    WT_TXN_GLOBAL *txn_global = &(S2C(session))->txn_global;
+
     WT_STAT_CONN_INCR(session, application_check_evict);
     if (didworkp != NULL)
         *didworkp = false;
@@ -981,6 +983,14 @@ __wt_evict_app_assist_worker_check(
         WT_STAT_CONN_INCR(session, app_evict_refused_server_not_running);
         return (0);
     }
+
+    if(__wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running)) {
+        WT_STAT_CONN_INCR(session, app_evict_refused_checkpoint);
+        return (0);
+    }
+
+    if (F_ISSET(evict, WT_EVICT_CACHE_SCRUB))
+        return(0);
 
     /* Eviction causes reconciliation. So don't evict if we can't reconcile */
     if (F_ISSET(session, WT_SESSION_NO_RECONCILE)) {
@@ -1025,7 +1035,6 @@ __wt_evict_app_assist_worker_check(
      * evict what we can. Otherwise, we are at a transaction boundary and we can work harder to make
      * sure there is free space in the cache.
      */
-    WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     busy = busy || __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE ||
       session->hazards.num_active > 0 ||

@@ -524,6 +524,7 @@ struct __wt_connection_stats {
     int64_t app_evict_refused_busy_below_target;
     int64_t app_evict_refused_no_evict_or_metadata;
     int64_t app_evict_refused_checkpoint_txn;
+    int64_t app_evict_refused_checkpoint;
     int64_t app_evict_refused_max_wait_disabled;
     int64_t app_evict_refused_not_needed;
     int64_t app_evict_refused_locks_or_ignore_cache;
