@@ -3203,8 +3203,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         __wt_free(session, mod->mod_replace.block_cookie);
         mod->mod_replace.block_cookie_size = 0;
         /*
-         * Old image dropped while the page stays: undo the save-time footprint bump, and clear
-         * the flag so the page's later discard doesn't release again.
+         * Old image dropped while the page stays: undo the save-time footprint bump, and clear the
+         * flag so the page's later discard doesn't release again.
          */
         if (mod->mod_disk_image != NULL && F_ISSET(mod, WT_PAGE_MODIFY_CLEAN_SCRUB_IMAGE)) {
             size_t image_sz = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
