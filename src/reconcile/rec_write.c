@@ -3324,13 +3324,16 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      *
      * Invalidating the page id orphans every reference keyed to it, so clear the preserved
      * reconciliation state and the cached page reference uniformly. Size accounting for the old
-     * chain is handled here in the error path so the next reconciliation doesn't need to finish
-     * the work:
+     * content is handled here in the error path so the next reconciliation doesn't need to
+     * finish the work:
      *   - Delta failure: the block free above tombstoned the entire chain and already subtracted
      *     its cumulative size from the total -- nothing extra needed.
-     *   - Full-image failure: the block free above only tombstoned the new entry and subtracted
-     *     just the new writes size. The old chain's cumulative size is still in the total, so
-     *     subtract it explicitly here.
+     *   - Full-image failure over a previous single-block replacement: the block free above only
+     *     tombstoned the new entry and subtracted just the new writes size, so subtract the old
+     *     chain's cumulative size explicitly.
+     *   - Full-image failure over a previous multi-block result: those entries reference separate
+     *     pages under their own page ids and are not orphaned by this page's page id invalidation,
+     *     so no size adjustment here.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
@@ -3338,13 +3341,6 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
 
-        /*
-         * For a single-replacement previous with a full-image failure now, subtract the previous
-         * chain's cumulative size explicitly. Delta failures already had the cumulative subtracted
-         * by the block free above. A multi-block previous references separate pages under their own
-         * page ids that are not orphaned by this page's page id invalidation, so no size accounting
-         * adjustment is needed for them here.
-         */
         if (page->modify != NULL && page->modify->rec_result == WT_PM_REC_REPLACE &&
           r->multi->block_meta->delta_count == 0 &&
           page->disagg_info->block_meta.cumulative_size > 0)
