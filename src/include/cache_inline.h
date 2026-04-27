@@ -242,6 +242,53 @@ __wt_cache_clean_scrub_image_release(WT_SESSION_IMPL *session, uint32_t count, u
 }
 
 /*
+ * __wt_cache_image_inmem_incr --
+ *     Bump the in-memory footprint counters by SIZE bytes of saved-image content. Mirrors the
+ *     bytes_inmem (and disagg ingest/stable) updates that __wt_cache_page_inmem_incr makes, but
+ *     deliberately leaves bytes_updates alone: saved disk images are not update content.
+ */
+static WT_INLINE void
+__wt_cache_image_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree = S2BT(session);
+    WT_CACHE *cache = S2C(session)->cache;
+
+    (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
+    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem, size);
+    if (__wt_conn_is_disagg(session)) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem_ingest, size);
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem_stable, size);
+    }
+}
+
+/*
+ * __wt_cache_image_inmem_decr --
+ *     Reverse of __wt_cache_image_inmem_incr. Used when an image leaves a page that itself stays in
+ *     memory; the standard discard path handles the all-at-once case.
+ */
+static WT_INLINE void
+__wt_cache_image_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree = S2BT(session);
+    WT_CACHE *cache = S2C(session)->cache;
+
+    __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
+    __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
+    __wt_cache_decr_check_uint64(session, &cache->bytes_inmem, size, "WT_CACHE.bytes_inmem");
+    if (__wt_conn_is_disagg(session)) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_inmem_ingest, size, "WT_CACHE.bytes_inmem_ingest");
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_inmem_stable, size, "WT_CACHE.bytes_inmem_stable");
+    }
+}
+
+/*
  * __wt_cache_bytes_updates_ingest --
  *     Return the number of bytes in use for updates for the ingest btrees.
  */

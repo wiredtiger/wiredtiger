@@ -468,6 +468,7 @@ StoreLoad
 StoreStore
 Strobed
 Su
+Subclasses
 Subdirectory
 Subprocess
 TAILQ
