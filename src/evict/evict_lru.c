@@ -356,10 +356,10 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
 
-    /* If a worker thread is here, there is no work to do; pause. */
-//    if (ret == WT_NOTFOUND && !is_server && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION)) {
-//        __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
-//    }
+    /* If a worker thread is here, there is no work to do; pause.  */
+    if (ret == WT_NOTFOUND && !is_server && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION)) {
+        __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+    }
 
     WT_TRACK_OP_END(session);
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -963,8 +963,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
                 /*
                  * Back off if we aren't making progress.
                  */
-                //WT_STAT_CONN_INCR(session, eviction_server_slept);
-                //__wt_cond_wait(session, evict->evict_server_cond, WT_THOUSAND, NULL);
+                WT_STAT_CONN_INCR(session, eviction_server_slept);
+                __wt_cond_wait(session, evict->evict_server_cond, WT_THOUSAND, NULL);
                 continue;
             }
             WT_STAT_CONN_INCR(session, eviction_slow);
@@ -1172,7 +1172,6 @@ __evict_get_ref(
     conn = S2C(session);
     evict = conn->evict;
     early_skipped_tree = skipped = skip_locked = 0;
-    //cumulative = total_items = 0;
     i = 0;
     iter = total_iter = 0;
     min_level = max_level = 0;

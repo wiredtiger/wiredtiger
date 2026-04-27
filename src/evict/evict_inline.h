@@ -957,6 +957,20 @@ static WT_INLINE int
 __wt_evict_app_assist_worker_check(
   WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
 {
+
+#define APP_DONT_HELP 0
+#if APP_DONT_HELP
+    (void)session;
+    (void)busy;
+    (void)readonly;
+    (void)interruptible;
+
+    if (didworkp != NULL)
+        *didworkp = true;
+
+    WT_IGNORE_RET(__evict_check_user_ok_with_eviction(session, interruptible));
+    return (0);
+#else
     WT_STAT_CONN_INCR(session, application_check_evict);
     if (didworkp != NULL)
         *didworkp = false;
@@ -1111,4 +1125,5 @@ __wt_evict_app_assist_worker_check(
 
     WT_STAT_CONN_INCR(session, app_evict_accepted);
     return (__wti_evict_app_assist_worker(session, busy, readonly, interruptible));
+#endif
 }
