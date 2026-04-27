@@ -889,6 +889,7 @@ designator
 dest
 destSize
 destructor
+deterministically
 dev
 dh
 dhandle

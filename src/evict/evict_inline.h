@@ -172,10 +172,10 @@ __wti_evict_page_has_clean_scrub_image(WT_PAGE *page)
 /*
  * __wti_evict_page_is_clean_scrub_candidate --
  *     Full policy gate for routing a page into the clean-scrub pipeline: the page must be clean,
- *     the btree eligible (not in-memory, not currently checkpointing), the connection under
- *     updates pressure or running with the clean-scrub debug flag, and the btree must hold at
- *     least one saved image. Shared by queue-time and evict-time fresh decisions so the two sites
- *     cannot drift. Checks are ordered cheapest-first.
+ *     the btree eligible (not in-memory, not currently checkpointing), the connection under updates
+ *     pressure or running with the clean-scrub debug flag, and the btree must hold at least one
+ *     saved image. Shared by queue-time and evict-time fresh decisions so the two sites cannot
+ *     drift. Checks are ordered cheapest-first.
  */
 static WT_INLINE bool
 __wti_evict_page_is_clean_scrub_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
