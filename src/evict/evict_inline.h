@@ -958,7 +958,7 @@ __wt_evict_app_assist_worker_check(
   WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
 {
 
-#define APP_DONT_HELP 1
+#define APP_DONT_HELP 0
 #if APP_DONT_HELP
     (void)session;
     (void)busy;
@@ -989,7 +989,7 @@ __wt_evict_app_assist_worker_check(
         return (0);
     }
 
-    if (F_ISSET(evict, WT_EVICT_CACHE_SCRUB))
+    if (F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB))
         return(0);
 
     /* Eviction causes reconciliation. So don't evict if we can't reconcile */
