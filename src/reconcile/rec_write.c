@@ -914,12 +914,7 @@ __rec_cleanup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (multi->disk_image != NULL && F_ISSET(multi, WT_MULTI_CLEAN_SCRUB_IMAGE)) {
             size_t image_sz = ((WT_PAGE_HEADER *)multi->disk_image)->mem_size;
             __wt_cache_clean_scrub_image_release(session, 1, image_sz);
-            __wt_cache_decr_check_size(
-              session, &r->page->memory_footprint, image_sz, "WT_PAGE.memory_footprint");
-            __wt_cache_decr_check_uint64(
-              session, &btree->bytes_inmem, image_sz, "WT_BTREE.bytes_inmem");
-            __wt_cache_decr_check_uint64(
-              session, &S2C(session)->cache->bytes_inmem, image_sz, "WT_CACHE.bytes_inmem");
+            __wt_cache_image_inmem_decr(session, r->page, image_sz);
         }
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
@@ -2744,13 +2739,8 @@ copy_image:
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
         F_SET(multi, WT_MULTI_CLEAN_SCRUB_IMAGE);
 
-        /*
-         * Saved images should drive the normal eviction triggers. Don't use the generic footprint
-         * helper: it also bumps bytes_updates, which is for update content only.
-         */
-        (void)__wt_atomic_add_size_relaxed(&r->page->memory_footprint, chunk->image.size);
-        (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, chunk->image.size);
-        (void)__wt_atomic_add_uint64_relaxed(&conn->cache->bytes_inmem, chunk->image.size);
+        /* Drive the normal eviction triggers via the in-memory footprint counters. */
+        __wt_cache_image_inmem_incr(session, r->page, chunk->image.size);
 
         (void)__wt_atomic_add_uint64_relaxed(&btree->clean_scrub_image_count, 1);
         (void)__wt_atomic_add_uint64_relaxed(&btree->clean_scrub_image_bytes, chunk->image.size);
@@ -2884,12 +2874,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (multi->disk_image != NULL && F_ISSET(multi, WT_MULTI_CLEAN_SCRUB_IMAGE)) {
             size_t image_sz = ((WT_PAGE_HEADER *)multi->disk_image)->mem_size;
             __wt_cache_clean_scrub_image_release(session, 1, image_sz);
-            __wt_cache_decr_check_size(
-              session, &page->memory_footprint, image_sz, "WT_PAGE.memory_footprint");
-            __wt_cache_decr_check_uint64(
-              session, &btree->bytes_inmem, image_sz, "WT_BTREE.bytes_inmem");
-            __wt_cache_decr_check_uint64(
-              session, &S2C(session)->cache->bytes_inmem, image_sz, "WT_CACHE.bytes_inmem");
+            __wt_cache_image_inmem_decr(session, page, image_sz);
         }
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
@@ -3210,12 +3195,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             size_t image_sz = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
 
             __wt_cache_clean_scrub_image_release(session, 1, image_sz);
-            __wt_cache_decr_check_size(
-              session, &page->memory_footprint, image_sz, "WT_PAGE.memory_footprint");
-            __wt_cache_decr_check_uint64(
-              session, &btree->bytes_inmem, image_sz, "WT_BTREE.bytes_inmem");
-            __wt_cache_decr_check_uint64(
-              session, &S2C(session)->cache->bytes_inmem, image_sz, "WT_CACHE.bytes_inmem");
+            __wt_cache_image_inmem_decr(session, page, image_sz);
             F_CLR(mod, WT_PAGE_MODIFY_CLEAN_SCRUB_IMAGE);
         }
         __wt_free(session, mod->mod_disk_image);
