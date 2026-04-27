@@ -213,12 +213,12 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
             __wt_cache_clean_scrub_image_release(
               session, 1, ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size);
         /*
-         * Discard the new disk image if it is not NULL. If the new disk image is NULL, it must
-         * have been instantiated into memory. Otherwise, we have a failure in eviction after
-         * reconciliation and later we decide to discard the old disk image without loading the
-         * new disk image into memory. Free the new disk image in this case. If a checkpoint
-         * visits this page, it would write the new disk image even it hasn't been instantiated
-         * into memory. Therefore, no need to reconcile the page again if it remains clean.
+         * Discard the new disk image if it is not NULL. If the new disk image is NULL, it must have
+         * been instantiated into memory. Otherwise, we have a failure in eviction after
+         * reconciliation and later we decide to discard the old disk image without loading the new
+         * disk image into memory. Free the new disk image in this case. If a checkpoint visits this
+         * page, it would write the new disk image even it hasn't been instantiated into memory.
+         * Therefore, no need to reconcile the page again if it remains clean.
          */
         __wt_free(session, mod->mod_disk_image);
         break;
