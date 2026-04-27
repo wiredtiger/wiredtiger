@@ -1103,9 +1103,9 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     uint64_t v;
     const uint8_t *p;
     uint8_t flags;
-    bool copy_cell;
+    bool copy_cell, has_prepare_fast_truncate, prepare_fast_truncate;
 
-    copy_cell = false;
+    copy_cell = has_prepare_fast_truncate = prepare_fast_truncate = false;
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
@@ -1198,8 +1198,19 @@ copy_cell_restart:
         flags = *p++; /* skip second descriptor byte */
         WT_CELL_LEN_CHK(p, 0, dsk, end);
 
-        if (LF_ISSET(WT_CELL_PREPARE))
-            ta->prepare = 1;
+        has_prepare_fast_truncate =
+          unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE);
+        if (LF_ISSET(WT_CELL_PREPARE)) {
+            /*
+             * For a prepared fast-truncate, the prepare state is recorded in the time aggregate. We
+             * cannot have a prepared fast-truncate and a prepared time aggregate at the same time.
+             * Otherwise, it would be a write conflict.
+             */
+            if (has_prepare_fast_truncate)
+                prepare_fast_truncate = true;
+            else
+                ta->prepare = 1;
+        }
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_ts));
@@ -1360,16 +1371,34 @@ copy_cell_restart:
     }
 
     /* Unpack any fast-truncate information. */
-    if (unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
+    if (has_prepare_fast_truncate) {
         page_del = &unpack_addr->page_del;
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
-        WT_RET(
-          __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_start_ts));
-        WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_durable_ts));
-        page_del->prepare_state = 0; /* No prepare can have been in progress. */
-        page_del->committed = true;  /* There is no running transaction. */
+        if (prepare_fast_truncate) {
+            page_del->prepare_state = WT_PREPARE_INPROGRESS;
+            page_del->committed = false;
+            /*
+             * For prepared fast-truncates, the prepared state is shared with the time aggregate but
+             * the prepare timestamp and the prepared id are stored in the page_del block.
+             */
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->prepare_ts));
+            page_del->pg_del_start_ts = page_del->prepare_ts;
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->prepared_id));
+            WT_ASSERT_ALWAYS(session,
+              !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
+                page_del->prepared_id != WT_PREPARED_ID_NONE,
+              "Read prepared record with no prepared id when preserve prepared is enabled.");
+        } else {
+            page_del->prepare_state = WT_PREPARE_INIT;
+            page_del->committed = true;
+            WT_RET(__wt_vunpack_uint(
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_start_ts));
+            WT_RET(__wt_vunpack_uint(
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_durable_ts));
+        }
         page_del->selected_for_write = true;
     }
 

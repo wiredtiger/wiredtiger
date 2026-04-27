@@ -5,6 +5,7 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
+        misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
