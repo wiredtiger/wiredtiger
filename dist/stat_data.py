@@ -80,10 +80,6 @@ class CheckpointStat(Stat):
     prefix = 'checkpoint'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CheckpointStat.prefix, desc, flags)
-class ChunkCacheStat(Stat):
-    prefix = 'chunk-cache'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, ChunkCacheStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -337,6 +333,7 @@ conn_stats = [
     CacheStat('cache_pages_dirty_stable', 'tracked dirty pages in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_ingest', 'pages currently held in the cache from the ingest btrees', 'no_clear,no_scale'),
+    CacheStat('cache_pages_inuse_leaf', 'leaf pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
@@ -474,14 +471,12 @@ conn_stats = [
     ##########################################
     # Capacity statistics
     ##########################################
-    CapacityStat('capacity_bytes_chunkcache', 'bytes written for chunk cache'),
     CapacityStat('capacity_bytes_ckpt', 'bytes written for checkpoint'),
     CapacityStat('capacity_bytes_evict', 'bytes written for eviction'),
     CapacityStat('capacity_bytes_log', 'bytes written for log'),
     CapacityStat('capacity_bytes_read', 'bytes read'),
     CapacityStat('capacity_bytes_written', 'bytes written total'),
     CapacityStat('capacity_threshold', 'threshold to call fsync'),
-    CapacityStat('capacity_time_chunkcache', 'time waiting for chunk cache IO bandwidth (usecs)'),
     CapacityStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
     CapacityStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
     CapacityStat('capacity_time_log', 'time waiting during logging (usecs)'),
@@ -549,32 +544,6 @@ conn_stats = [
     CheckpointStat('checkpoints_compact', 'number of checkpoints started by compaction'),
     CheckpointStat('checkpoints_total_failed', 'total failed number of checkpoints'),
     CheckpointStat('checkpoints_total_succeed', 'total succeed number of checkpoints'),
-
-    ##########################################
-    # Chunk cache statistics
-    ##########################################
-    ChunkCacheStat('chunkcache_bytes_inuse', 'total bytes used by the cache'),
-    ChunkCacheStat('chunkcache_bytes_inuse_pinned', 'total bytes used by the cache for pinned chunks'),
-    ChunkCacheStat('chunkcache_bytes_read_persistent', 'total bytes read from persistent content'),
-    ChunkCacheStat('chunkcache_chunks_evicted', 'chunks evicted'),
-    ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
-    ChunkCacheStat('chunkcache_chunks_loaded_from_flushed_tables', 'number of chunks loaded from flushed tables in chunk cache'),
-    ChunkCacheStat('chunkcache_chunks_pinned', 'total pinned chunks held by the chunk cache'),
-    ChunkCacheStat('chunkcache_created_from_metadata', 'total number of chunks inserted on startup from persisted metadata'),
-    ChunkCacheStat('chunkcache_exceeded_bitmap_capacity', 'could not allocate due to exceeding bitmap capacity'),
-    ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
-    ChunkCacheStat('chunkcache_io_failed', 'number of times a read from storage failed'),
-    ChunkCacheStat('chunkcache_lookups', 'lookups'),
-    ChunkCacheStat('chunkcache_metadata_inserted', 'number of metadata entries inserted'),
-    ChunkCacheStat('chunkcache_metadata_removed', 'number of metadata entries removed'),
-    ChunkCacheStat('chunkcache_metadata_work_units_created', 'number of metadata inserts/deletes pushed to the worker thread'),
-    ChunkCacheStat('chunkcache_metadata_work_units_dequeued', 'number of metadata inserts/deletes read by the worker thread'),
-    ChunkCacheStat('chunkcache_metadata_work_units_dropped', 'number of metadata inserts/deletes dropped by the worker thread'),
-    ChunkCacheStat('chunkcache_misses', 'number of misses'),
-    ChunkCacheStat('chunkcache_retries', 'retried accessing a chunk while I/O was in progress'),
-    ChunkCacheStat('chunkcache_retries_checksum_mismatch', 'retries from a chunk cache checksum mismatch'),
-    ChunkCacheStat('chunkcache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
-    ChunkCacheStat('chunkcache_toomany_retries', 'timed out due to too many retries'),
 
     ##########################################
     # Cursor operations
@@ -1219,6 +1188,8 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_hs_cursor_not_cached', 'history store cursor not cached during eviction'),
     CacheStat('cache_eviction_hs_shared_cursor_not_cached', 'shared history store cursor not cached during eviction'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
+    CacheStat('cache_eviction_multiblock_checkpoint_flagged', 'pages with an unresolved multiblock split flagged by checkpoint to be evicted soon'),
+    CacheStat('cache_eviction_multiblock_split_re_reconciled', 'pages with an unresolved multiblock split re-reconciled by checkpoint'),
     CacheStat('cache_eviction_pages_queued_clean', 'eviction walk pages queued that were clean'),
     CacheStat('cache_eviction_pages_queued_dirty', 'eviction walk pages queued that were dirty'),
     CacheStat('cache_eviction_pages_queued_updates', 'eviction walk pages queued that had updates'),
@@ -1273,7 +1244,9 @@ conn_dsrc_stats = [
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_delta_updates', 'size of delta updates reconstructed on the base page'),
+    CacheStat('cache_read_internal', 'internal pages read into cache'),
     CacheStat('cache_read_internal_delta', 'number of internal pages read that had deltas attached'),
+    CacheStat('cache_read_leaf', 'leaf pages read into cache'),
     CacheStat('cache_read_leaf_delta', 'number of leaf pages read that had deltas attached'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_read_restored_tombstone_bytes', 'size of tombstones restored when reading a page'),

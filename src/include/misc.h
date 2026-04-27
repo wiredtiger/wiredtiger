@@ -298,26 +298,6 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
         }                                                              \
     } while (0)
 
-/*
- * Binary search for a string key. Note: For the binary search to function correctly, the array
- * should not contain NULL values.
- */
-#define WT_BINARY_SEARCH_STRING(key, arrayp, n, found)                 \
-    do {                                                               \
-        uint32_t __base, __indx, __limit;                              \
-        (found) = false;                                               \
-        for (__base = 0, __limit = (n); __limit != 0; __limit >>= 1) { \
-            __indx = __base + (__limit >> 1);                          \
-            if (strcmp((arrayp)[__indx], (key)) < 0) {                 \
-                __base = __indx + 1;                                   \
-                --__limit;                                             \
-            } else if (strcmp((arrayp)[__indx], (key)) == 0) {         \
-                (found) = true;                                        \
-                break;                                                 \
-            }                                                          \
-        }                                                              \
-    } while (0)
-
 #define WT_CLEAR(s) memset(&(s), 0, sizeof(s))
 
 /* Check if a string matches a prefix. */
@@ -430,13 +410,6 @@ union __wt_rand_state {
         uint32_t w, z;
     } x;
 };
-
-/*
- * WT_TAILQ_EMPTY_TSAN_SUPPRESS --
- *	Check if the queue is empty, suppressing TSAN warnings.
- */
-#define WT_TAILQ_EMPTY_TSAN_SUPPRESS(head) \
-    (__wt_tsan_suppress_load_pointer((void **)&(head)->tqh_first) == NULL)
 
 /*
  * WT_TAILQ_SAFE_REMOVE_BEGIN/END --

@@ -910,6 +910,8 @@ err:
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size, false);
     (void)__wt_atomic_add_uint64_relaxed(&cache->pages_inmem, 1);
+    if (!WT_PAGE_IS_INTERNAL(page))
+        (void)__wt_atomic_add_uint64_relaxed(&cache->pages_inmem_leaf, 1);
     if (__wt_conn_is_disagg(session)) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             (void)__wt_atomic_add_uint64_relaxed(&cache->pages_inmem_ingest, 1);
@@ -1251,6 +1253,10 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
             WT_RET(__inmem_row_leaf_entries(session, dsk, &alloc_entries));
         break;
     default:
+        __wt_log_data_dump(session, dsk, dsk->mem_size,
+          "page corrupt dump: page type %" PRIu8 ", page size %" PRIu32
+          ", write generation %" PRIu64 ", entries %" PRIu32,
+          dsk->type, dsk->mem_size, dsk->write_gen, dsk->u.entries);
         return (__wt_illegal_value(session, dsk->type));
     }
 
@@ -1283,6 +1289,10 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         WT_ERR(__inmem_row_leaf(session, page, instantiate_updp));
         break;
     default:
+        __wt_log_data_dump(session, dsk, dsk->mem_size,
+          "page corrupt dump: page type %" PRIu8 ", page size %" PRIu32
+          ", write generation %" PRIu64 ", entries %" PRIu32,
+          dsk->type, dsk->mem_size, dsk->write_gen, dsk->u.entries);
         WT_ERR(__wt_illegal_value(session, page->type));
     }
 

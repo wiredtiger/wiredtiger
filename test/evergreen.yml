@@ -60,10 +60,10 @@ functions:
               export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
               export TESTUTIL_BYPASS_ASAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
-              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_MSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
-              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_TSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
@@ -330,7 +330,8 @@ functions:
           ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
-          ${CC_OPTIMIZE_LEVEL|}"
+          ${CC_OPTIMIZE_LEVEL|} \
+          ${WT_DISAGG_FAST_TRUNCATE_BUILD|}"
 
         # The RHEL PPC platform does not have ZSTD. Strip it out.
         if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
@@ -1684,7 +1685,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
+          format_test_script_args: -t 360 -- debug.realloc_exact=0
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -1753,6 +1754,20 @@ variables:
           # Validate data with a non-layered table.
           format_args: disagg.mode=leader ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
+
+  - &format-stress-test-disagg-leader-pull-request
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes.
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader runs.timer=5:10
+          times: 1
 
   - &format-stress-test-disagg-follower
     depends_on:
@@ -2876,6 +2891,270 @@ tasks:
         vars:
           # As follower, run a minimal functionality test
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower,table_prefix=table)" base01
+
+  - name: unit-test-hook-parallel-checkpoint
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-tsan
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test tsan parallel"
+        vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
+          unit_test_parallel_ignore: test/suite/tsan.fail
+          unit_test_parallel_args: -v 2 --timeout 300 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-bucket00
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 0/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket01
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 1/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket02
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 2/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket03
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 3/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket04
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 4/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket05
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 5/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket06
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 6/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket07
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 7/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket08
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 8/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket09
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 9/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket10
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 10/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket11
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 11/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket12
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 12/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket13
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 13/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket14
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 14/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket15
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 15/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket16
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 16/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket17
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 17/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket18
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 18/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket19
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 19/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket20
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 20/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket21
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 21/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket22
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 22/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket23
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 23/24
 
   - name: unit-test-hook-timing-stress-log
     tags: ["python"]
@@ -4886,22 +5165,6 @@ tasks:
                 ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: chunkcache-test
-    tags: ["pull_request"]
-    exec_timeout_secs: 1200 # 20 minutes
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ${python_binary|python3} chunkcache_simple.py
-
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
     # Set 5 hours timeout (60 * 60 * 5)
@@ -5115,6 +5378,12 @@ tasks:
   - <<: *format-stress-test-disagg-leader-data-validation
     name: format-stress-test-disagg-leader-data-validation-2
     tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-1
+    tags: ["pull_request"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-2
+    tags: ["pull_request"]
 
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-1
@@ -5122,17 +5391,6 @@ tasks:
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-2
     tags: ["stress-test-disagg"]
-
-  - name: format-stress-test-disagg-leader-pull-request
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          # run for 10 minutes.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
@@ -6114,46 +6372,6 @@ tasks:
         vars:
           test-name: log.wtperf
 
-    #####################################
-    # Performance Tests for chunk cache #
-    #####################################
-
-  - name: perf-test-chunk-cache
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-
-  - name: perf-test-chunk-cache-base
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads-base.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
-
     ###########################################
     #        Performance Long Tests           #
     ###########################################
@@ -6624,6 +6842,7 @@ buildvariants:
     - name: configure-combinations
     - name: unit-test-zstd
     - name: unit-test-hook-disagg-leader-key-provider
+    - name: unit-test-hook-parallel-checkpoint
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
@@ -6652,7 +6871,6 @@ buildvariants:
     - name: bench-tiered-push-pull
     - name: bench-tiered-push-pull-s3
     - name: unit-test-hook-tiered-s3
-    - name: chunkcache-test
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
@@ -6692,7 +6910,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test !format-mirror-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -6735,6 +6953,7 @@ buildvariants:
     - name: unit-test-hook-disagg-follower-tsan
       distros: ubuntu2004-large
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-disagg-leader-tsan
       distros: ubuntu2004-large
     - name: format-stress-test-tsan
@@ -7022,7 +7241,6 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: configure-combinations
     - name: fops
     - name: format-failure-configs-test
@@ -7376,7 +7594,6 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: compile
     - name: fops
     - name: format-failure-configs-test
@@ -7460,7 +7677,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7504,6 +7721,7 @@ buildvariants:
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
       distros: amazon2023.3-arm64-large
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-tsan
       distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Enable the common test format tag for TSAN

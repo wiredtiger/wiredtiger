@@ -128,6 +128,26 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 }
 
 /*
+ * __sync_check_for_multiblock_rec --
+ *     If a page has a pending multiblock split as a result of checkpoint reconciliation, flag it
+ *     for eviction. Writing out that split is more efficient than allowing the page to go through
+ *     reconciliation again. This also has the desirable effect of increasing the number of deltas
+ *     WiredTiger can generate for a workload; essentially, the pages that the original page was
+ *     split into can have deltas generated from them.
+ */
+static void
+__sync_check_for_multiblock_rec(WT_SESSION_IMPL *session, WT_REF *walk, bool internal)
+{
+    WT_PAGE *page = walk->page;
+
+    if (internal || !WT_REC_RESULT_MULTIBLOCK_SPLIT(page))
+        return;
+
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_checkpoint_flagged);
+    __wt_evict_page_soon(session, walk);
+}
+
+/*
  * __wt_sync_file --
  *     Flush pages for a specific file.
  */
@@ -283,6 +303,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
             else
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
+            if (WT_SESSION_IS_CHECKPOINT(session))
+                ++conn->ckpt.progress.pages_visited;
 
             /*
              * Wait for the leaf pages to finish reconciling before checking whether the internal
@@ -307,6 +329,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
+
+                /* Handle unresolved multiblock reconciliations that we see along the way. */
+                __sync_check_for_multiblock_rec(session, walk, is_internal);
                 continue;
             }
 
@@ -381,6 +406,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /*
+             * Handle unresolved multiblock reconciliations. Some of these will be pages left dirty
+             * by checkpoint. Which means eviction will still not be able to evict them, however it
+             * can still realize the split and avoid checkpoint splitting the page again.
+             */
+            __sync_check_for_multiblock_rec(session, walk, is_internal);
+
+            /*
              * Update checkpoint IO tracking data for the session running the checkpoint. Other
              * session can execute this code but we are not tracking their progress.
              */
@@ -429,6 +461,13 @@ err:
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
+
+    /*
+     * Wait for the workers to finish, as they may be still doing work if we got here because of an
+     * error.
+     */
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
+        WT_TRET(__wt_checkpoint_parallel_finish(session));
 
     /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
