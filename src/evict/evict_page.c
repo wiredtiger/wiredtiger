@@ -673,7 +673,7 @@ err:
          */
         if (ret == EBUSY && !closing && F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB) &&
           !__wt_page_is_modified(page) && __wti_evict_page_has_clean_scrub_image(page))
-            (void)__wt_evict_page_urgent(session, ref);
+            WT_IGNORE_RET(__wt_evict_page_urgent(session, ref));
 
         if (ebusy_only && ret != EBUSY)
             WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
