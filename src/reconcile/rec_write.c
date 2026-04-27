@@ -3241,7 +3241,6 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_BTREE *btree = S2BT(session);
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod = page->modify;
-    uint32_t i;
 
     if (mod == NULL)
         return (0);
@@ -3259,18 +3258,18 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
         break;
     case WT_PM_REC_MULTIBLOCK:
         /*
-         * Free each multi-block entry's memory without touching storage. The entries reference
-         * separate pages under their own page ids, so they are not orphaned by this page's page id
-         * invalidation and must not be discarded from storage here.
+         * The outer page id match means we can only reach here with a single multi-block entry.
+         * Free its memory without touching storage -- it references a separate page under its own
+         * page id and is not orphaned by the invalidation here.
          */
-        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            if (btree->type == BTREE_ROW)
-                __wt_free(session, multi->key);
-            __wt_free(session, multi->disk_image);
-            __wt_free(session, multi->supd);
-            __wt_free(session, multi->addr.block_cookie);
-            __wt_free(session, multi->block_meta);
-        }
+        WT_ASSERT(session, mod->mod_multi_entries == 1);
+        multi = &mod->mod_multi[0];
+        if (btree->type == BTREE_ROW)
+            __wt_free(session, multi->key);
+        __wt_free(session, multi->disk_image);
+        __wt_free(session, multi->supd);
+        __wt_free(session, multi->addr.block_cookie);
+        __wt_free(session, multi->block_meta);
         __wt_free(session, mod->mod_multi);
         mod->mod_multi_entries = 0;
         break;
