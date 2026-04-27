@@ -1103,9 +1103,9 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     uint64_t v;
     const uint8_t *p;
     uint8_t flags;
-    bool copy_cell, has_prepare_fast_truncate, prepare_fast_truncate;
+    bool copy_cell, has_fast_truncate, prepare_fast_truncate;
 
-    copy_cell = has_prepare_fast_truncate = prepare_fast_truncate = false;
+    copy_cell = has_fast_truncate = prepare_fast_truncate = false;
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
@@ -1193,20 +1193,25 @@ copy_cell_restart:
         if (unpack_addr == NULL)
             return (WT_ERROR);
 
+        /*
+         * A committed fast-truncate cell may be written without WT_CELL_SECOND_DESC when its time
+         * aggregate is globally visible. Compute this flag before the SECOND_DESC early-exit so the
+         * page_del block is always unpacked for fast-truncate addr-del cells.
+         */
+        has_fast_truncate = unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE);
+
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
         WT_CELL_LEN_CHK(p, 0, dsk, end);
 
-        has_prepare_fast_truncate =
-          unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE);
         if (LF_ISSET(WT_CELL_PREPARE)) {
             /*
              * For a prepared fast-truncate, the prepare state is recorded in the time aggregate. We
              * cannot have a prepared fast-truncate and a prepared time aggregate at the same time.
              * Otherwise, it would be a write conflict.
              */
-            if (has_prepare_fast_truncate)
+            if (has_fast_truncate)
                 prepare_fast_truncate = true;
             else
                 ta->prepare = 1;
@@ -1371,7 +1376,7 @@ copy_cell_restart:
     }
 
     /* Unpack any fast-truncate information. */
-    if (has_prepare_fast_truncate) {
+    if (has_fast_truncate) {
         page_del = &unpack_addr->page_del;
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
