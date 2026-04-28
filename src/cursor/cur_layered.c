@@ -148,6 +148,11 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
         F_SET(clayered, WT_CLAYERED_ACTIVE);
     }
 
+    /* A leader must never operate with a checkpointed stable cursor. */
+    WT_ASSERT(session,
+      !S2C(session)->layered_table_manager.leader ||
+        (clayered->stable_cursor != NULL &&
+          strstr(clayered->stable_cursor->uri, WT_CHECKPOINT) == NULL));
     return (0);
 }
 
