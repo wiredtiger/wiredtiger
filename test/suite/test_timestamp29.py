@@ -61,7 +61,7 @@ class test_timestamp29(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_disagg_epoch), 1)
         self.assertEqual(self.get_stat(stat.conn.txn_set_ts_stable_disagg_epoch_upd), 1)
 
-        # Advance the epoch forward — legal transition.
+        # Advance the epoch forward, which is a legal transition.
         self.conn.set_timestamp(
             'stable_disaggregated_schema_epoch=' + self.timestamp_str(20))
         self.assertEpochEqual(20)

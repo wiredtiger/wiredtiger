@@ -203,8 +203,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         ts = txn_global->recovery_timestamp;
     else if (WT_CONFIG_LIT_MATCH("stable_timestamp", cval) || WT_CONFIG_LIT_MATCH("stable", cval))
         ts = __wt_get_stable_timestamp(session);
-    else if (WT_CONFIG_LIT_MATCH("stable_disaggregated_schema_epoch", cval) ||
-      WT_CONFIG_LIT_MATCH("stable_disaggregated_schema_epoch", cval))
+    else if (WT_CONFIG_LIT_MATCH("stable_disaggregated_schema_epoch", cval))
         ts = __wt_get_stable_disaggregated_schema_epoch(session);
     else
         WT_RET_MSG(session, EINVAL, "unknown timestamp query %.*s", (int)cval.len, cval.str);
