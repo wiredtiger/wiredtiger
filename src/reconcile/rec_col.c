@@ -214,9 +214,9 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
 
         /*
          * Copy the value (which is in val, val == r->v) onto the page. Hold the child's hazard
-         * pointer until val's data has been copied: val->buf.data may point at the child's
-         * freshly-allocated WT_ADDR block_cookie, which an evicting __wt_split_rewrite on the
-         * child would free.
+         * pointer until the val data has been copied: val->buf.data may point at the child's
+         * freshly-allocated WT_ADDR block_cookie, which an evicting __wt_split_rewrite on the child
+         * would free.
          */
         __wti_rec_image_copy(session, r, val);
         if (page_del != NULL)
