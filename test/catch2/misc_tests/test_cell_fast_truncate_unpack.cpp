@@ -34,14 +34,14 @@ build_ft_addr_del_cell(WT_CELL *cell, bool is_prepared, uint64_t txnid, uint64_t
 
 /*
  * build_prepared_addr_cell --
- *     Build an addr-del cell marked as prepared but without any fast-truncate deletion data. This
- *     represents an internal page whose time aggregate spans a prepared transaction.
+ *     Build a regular addr cell marked as prepared. Used to verify that the prepare flag on a
+ *     non-fast-truncate addr cell propagates to the time aggregate.
  */
 static void
 build_prepared_addr_cell(WT_CELL *cell)
 {
     uint8_t *p = cell->__chunk;
-    *p++ = WT_CELL_ADDR_DEL | WT_CELL_SECOND_DESC;
+    *p++ = WT_CELL_ADDR_LEAF | WT_CELL_SECOND_DESC;
     *p++ = WT_CELL_PREPARE;
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, 0)); /* zero-length address cookie */
 }
