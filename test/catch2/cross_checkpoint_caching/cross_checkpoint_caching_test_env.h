@@ -18,22 +18,24 @@ extern "C" {
 
 namespace utils {
 
-constexpr u_int SHARED_DSK_TEST_HASH_SIZE = 16;
-constexpr size_t SHARED_DSK_TEST_DATA_SIZE = 16;
+constexpr u_int CROSS_CHECKPOINT_CACHING_TEST_HASH_SIZE = 16;
+constexpr size_t CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE = 16;
 
 /*
- * Stands up the minimum state needed to exercise the shared disk cache against a real connection: a
- * real WT_CACHE (created by wiredtiger_open), an initialized shared dsk cache, a real dhandle +
- * btree obtained by creating a table and opening a cursor on it, and enough of
+ * Stands up the minimum state needed to exercise the cross-checkpoint cache against a real
+ * connection: a real WT_CACHE (created by wiredtiger_open), an initialized shared dsk cache, a real
+ * dhandle + btree obtained by creating a table and opening a cursor on it, and enough of
  * conn->disaggregated_storage to satisfy the disagg assertion in destroy.
  */
-class shared_dsk_test_env {
+class cross_checkpoint_caching_test_env {
 public:
-    explicit shared_dsk_test_env(u_int hash_size = SHARED_DSK_TEST_HASH_SIZE);
-    ~shared_dsk_test_env();
+    explicit cross_checkpoint_caching_test_env(
+      u_int hash_size = CROSS_CHECKPOINT_CACHING_TEST_HASH_SIZE);
+    ~cross_checkpoint_caching_test_env();
 
-    shared_dsk_test_env(const shared_dsk_test_env &) = delete;
-    shared_dsk_test_env &operator=(const shared_dsk_test_env &) = delete;
+    cross_checkpoint_caching_test_env(const cross_checkpoint_caching_test_env &) = delete;
+    cross_checkpoint_caching_test_env &operator=(const cross_checkpoint_caching_test_env &) =
+      delete;
 
     WT_SESSION_IMPL *session();
     WT_CONNECTION_STATS *stats();

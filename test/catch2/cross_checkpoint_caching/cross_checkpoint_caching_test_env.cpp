@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "shared_dsk_test_env.h"
+#include "cross_checkpoint_caching_test_env.h"
 
 #include <cstring>
 
@@ -14,9 +14,10 @@
 
 namespace utils {
 
-static constexpr const char *SHARED_DSK_TEST_URI = "table:shared_dsk_test";
+static constexpr const char *CROSS_CHECKPOINT_CACHING_TEST_URI =
+  "table:cross_checkpoint_caching_test";
 
-shared_dsk_test_env::shared_dsk_test_env(u_int hash_size)
+cross_checkpoint_caching_test_env::cross_checkpoint_caching_test_env(u_int hash_size)
     : _conn(DB_HOME, "create,statistics=(fast)"), _session(nullptr), _cursor(nullptr),
       _disagg_sentinel(0)
 {
@@ -27,8 +28,8 @@ shared_dsk_test_env::shared_dsk_test_env(u_int hash_size)
      * Create a real table and open a cursor on it so the btree has a WT-assigned id. We borrow the
      * cursor's dhandle for _session->dhandle so the btree id resolves against a real btree.
      */
-    REQUIRE(session->create(session, SHARED_DSK_TEST_URI, "key_format=S,value_format=S") == 0);
-    REQUIRE(session->open_cursor(session, SHARED_DSK_TEST_URI, nullptr, nullptr, &_cursor) == 0);
+    REQUIRE(session->create(session, CROSS_CHECKPOINT_CACHING_TEST_URI, "key_format=S,value_format=S") == 0);
+    REQUIRE(session->open_cursor(session, CROSS_CHECKPOINT_CACHING_TEST_URI, nullptr, nullptr, &_cursor) == 0);
     _session->dhandle = ((WT_CURSOR_BTREE *)_cursor)->dhandle;
 
     WT_CONNECTION_IMPL *conn = S2C(_session);
@@ -48,7 +49,7 @@ shared_dsk_test_env::shared_dsk_test_env(u_int hash_size)
     conn->cache->shared_dsk_cache.enabled = true;
 }
 
-shared_dsk_test_env::~shared_dsk_test_env()
+cross_checkpoint_caching_test_env::~cross_checkpoint_caching_test_env()
 {
     WT_CONNECTION_IMPL *conn = S2C(_session);
 
@@ -65,39 +66,39 @@ shared_dsk_test_env::~shared_dsk_test_env()
 
     /* Drop the table so it doesn't linger in DB_HOME across tests. */
     WT_SESSION *session = &_session->iface;
-    (void)session->drop(session, SHARED_DSK_TEST_URI, "force=true");
+    (void)session->drop(session, CROSS_CHECKPOINT_CACHING_TEST_URI, "force=true");
 }
 
 WT_SESSION_IMPL *
-shared_dsk_test_env::session()
+cross_checkpoint_caching_test_env::session()
 {
     return _session;
 }
 
 WT_CONNECTION_STATS *
-shared_dsk_test_env::stats()
+cross_checkpoint_caching_test_env::stats()
 {
     return S2C(_session)->stats[_session->stat_conn_bucket];
 }
 
 uint32_t
-shared_dsk_test_env::btree_id()
+cross_checkpoint_caching_test_env::btree_id()
 {
     return S2BT(_session)->id;
 }
 
 WT_SHARED_DSK_ITEM *
-shared_dsk_test_env::put(const uint8_t *addr, size_t addr_size)
+cross_checkpoint_caching_test_env::put(const uint8_t *addr, size_t addr_size)
 {
     void *data = nullptr;
-    REQUIRE(__wt_calloc(_session, 1, SHARED_DSK_TEST_DATA_SIZE, &data) == 0);
+    REQUIRE(__wt_calloc(_session, 1, CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE, &data) == 0);
 
     WT_PAGE_BLOCK_META block_meta;
     memset(&block_meta, 0, sizeof(block_meta));
 
     WT_SHARED_DSK_ITEM *item = nullptr;
     bool inserted = false;
-    REQUIRE(__wt_shared_dsk_cache_put(_session, data, SHARED_DSK_TEST_DATA_SIZE, addr, addr_size,
+    REQUIRE(__wt_shared_dsk_cache_put(_session, data, CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE, addr, addr_size,
               &block_meta, &item, &inserted) == 0);
     REQUIRE(inserted);
     REQUIRE(item != nullptr);
@@ -105,7 +106,7 @@ shared_dsk_test_env::put(const uint8_t *addr, size_t addr_size)
 }
 
 int
-shared_dsk_test_env::bucket_size(u_int bucket)
+cross_checkpoint_caching_test_env::bucket_size(u_int bucket)
 {
     WT_SHARED_DSK_CACHE *cache = &S2C(_session)->cache->shared_dsk_cache;
     REQUIRE(bucket < cache->hash_size);

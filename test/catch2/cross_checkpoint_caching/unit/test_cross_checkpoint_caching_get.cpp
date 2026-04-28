@@ -6,16 +6,16 @@
  * See the file LICENSE for redistribution information.
  */
 
-// Test the shared disk hash table get function. [shared_dsk_cache_get]
+// Test the cross-checkpoint cache get function. [cross_checkpoint_caching_get]
 
-#include "../shared_dsk_test_env.h"
+#include "../cross_checkpoint_caching_test_env.h"
 
 using namespace utils;
 
-TEST_CASE("shared_dsk_cache_get: miss on empty cache returns NULL",
-  "[shared_dsk_cache],[shared_dsk_cache_get]")
+TEST_CASE("cross_checkpoint_caching_get: miss on empty cache returns NULL",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
-    shared_dsk_test_env env;
+    cross_checkpoint_caching_test_env env;
     const uint8_t addr[] = {0xde, 0xad, 0xbe, 0xef};
 
     WT_SHARED_DSK_ITEM *got = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
@@ -25,10 +25,10 @@ TEST_CASE("shared_dsk_cache_get: miss on empty cache returns NULL",
     REQUIRE(env.stats()->cache_shared_dsk_hit == 0);
 }
 
-TEST_CASE("shared_dsk_cache_get: hit returns inserted item and increments ref_count",
-  "[shared_dsk_cache],[shared_dsk_cache_get]")
+TEST_CASE("cross_checkpoint_caching_get: hit returns inserted item and increments ref_count",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
-    shared_dsk_test_env env;
+    cross_checkpoint_caching_test_env env;
     const uint8_t addr[] = {0x01, 0x02, 0x03, 0x04};
 
     WT_SHARED_DSK_ITEM *put_item = env.put(addr, sizeof(addr));
@@ -48,9 +48,9 @@ TEST_CASE("shared_dsk_cache_get: hit returns inserted item and increments ref_co
 }
 
 TEST_CASE(
-  "shared_dsk_cache_get: different addr misses", "[shared_dsk_cache],[shared_dsk_cache_get]")
+  "cross_checkpoint_caching_get: different addr misses", "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
-    shared_dsk_test_env env;
+    cross_checkpoint_caching_test_env env;
     const uint8_t addr_a[] = {0x01, 0x02, 0x03, 0x04};
     const uint8_t addr_b[] = {0x05, 0x06, 0x07, 0x08};
 
@@ -65,9 +65,9 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "shared_dsk_cache_get: different addr_size misses", "[shared_dsk_cache],[shared_dsk_cache_get]")
+  "cross_checkpoint_caching_get: different addr_size misses", "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
-    shared_dsk_test_env env;
+    cross_checkpoint_caching_test_env env;
     const uint8_t addr_full[] = {0x01, 0x02, 0x03, 0x04};
     const uint8_t addr_short[] = {0x01, 0x02, 0x03};
 
@@ -81,10 +81,10 @@ TEST_CASE(
     REQUIRE(env.stats()->cache_shared_dsk_miss == 1);
 }
 
-TEST_CASE("shared_dsk_cache_get: different file id misses even with identical addr",
-  "[shared_dsk_cache],[shared_dsk_cache_get]")
+TEST_CASE("cross_checkpoint_caching_get: different file id misses even with identical addr",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
-    shared_dsk_test_env env;
+    cross_checkpoint_caching_test_env env;
     const uint8_t addr[] = {0x01, 0x02, 0x03, 0x04};
 
     WT_SHARED_DSK_ITEM *put_item = env.put(addr, sizeof(addr));
@@ -103,10 +103,10 @@ TEST_CASE("shared_dsk_cache_get: different file id misses even with identical ad
     S2BT(env.session())->id = original_id;
 }
 
-TEST_CASE("shared_dsk_cache_get: repeated hits accumulate ref_count and stats",
-  "[shared_dsk_cache],[shared_dsk_cache_get]")
+TEST_CASE("cross_checkpoint_caching_get: repeated hits accumulate ref_count and stats",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
-    shared_dsk_test_env env;
+    cross_checkpoint_caching_test_env env;
     const uint8_t addr[] = {0xaa, 0xbb};
 
     WT_SHARED_DSK_ITEM *put_item = env.put(addr, sizeof(addr));
@@ -124,11 +124,11 @@ TEST_CASE("shared_dsk_cache_get: repeated hits accumulate ref_count and stats",
     REQUIRE(env.stats()->cache_shared_dsk_miss == 0);
 }
 
-TEST_CASE("shared_dsk_cache_get: two entries in the same bucket are distinguished by addr",
-  "[shared_dsk_cache],[shared_dsk_cache_get]")
+TEST_CASE("cross_checkpoint_caching_get: two entries in the same bucket are distinguished by addr",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
     // hash_size=1 to force every entry into bucket 0, so all puts collide.
-    shared_dsk_test_env env(1);
+    cross_checkpoint_caching_test_env env(1);
     const uint8_t addr_a[] = {0x10, 0x20};
     const uint8_t addr_b[] = {0x30, 0x40};
 
@@ -149,12 +149,12 @@ TEST_CASE("shared_dsk_cache_get: two entries in the same bucket are distinguishe
     REQUIRE(item_b->ref_count == 2);
 }
 
-TEST_CASE("shared_dsk_cache_get: same addr with different fid in same bucket distinguished by fid",
-  "[shared_dsk_cache],[shared_dsk_cache_get]")
+TEST_CASE("cross_checkpoint_caching_get: same addr with different fid in same bucket distinguished by fid",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
     // Same addr means same bucket. Swap the session's btree id between puts so each entry stores
     // a different fid. get should return the one whose fid matches the session's current id.
-    shared_dsk_test_env env;
+    cross_checkpoint_caching_test_env env;
     const uint8_t addr[] = {0x01, 0x02, 0x03, 0x04};
     const uint32_t fid_a = 100;
     const uint32_t fid_b = 200;
