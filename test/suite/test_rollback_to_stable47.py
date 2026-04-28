@@ -182,7 +182,7 @@ class test_rollback_to_stable47(test_rollback_to_stable_base):
         # Keys 6..10: tombstoned by RTS (value_b ts=30 > stable=20) -- must be absent.
 
         self.check(value_a, uri, nrows_stable, 10)
-        
+
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(30))
         cursor = self.session.open_cursor(uri)
         for i in range(nrows_stable + 1, nrows + 1):
