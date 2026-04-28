@@ -1192,7 +1192,7 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
     if (commit)
         WT_RET(__wt_txn_timestamp_usage_check(
           session, btree, txn_time_point->commit_timestamp, upd->prev_durable_ts));
-    else
+    else if (txn_time_point->rollback_timestamp != WT_TS_NONE)
         WT_RET(__wt_txn_timestamp_usage_check(
           session, btree, txn_time_point->rollback_timestamp, upd->prev_durable_ts));
 

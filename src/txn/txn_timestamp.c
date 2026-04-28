@@ -971,7 +971,8 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
      * timestamp. Also, the rollback timestamp cannot be set before the transaction has actually
      * been prepared.
      */
-    if (txn->time_point.prepare_timestamp > rollback_ts)
+    if (F_ISSET(txn, WT_TXN_PREPARE) && rollback_ts != WT_TS_NONE &&
+      txn->time_point.prepare_timestamp > rollback_ts)
         WT_RET_MSG(session, EINVAL,
           "rollback timestamp %s is less than the prepare timestamp %s for this transaction",
           __wt_timestamp_to_string(rollback_ts, ts_string[0]),
@@ -1019,14 +1020,12 @@ __txn_set_prepared_id(WT_SESSION_IMPL *session, uint64_t prepared_id)
 int
 __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
 {
-    WT_BTREE *btree;
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN *txn;
     wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts, rollback_ts;
-    uint16_t flags;
     bool set_ts;
 
     conn = S2C(session);
@@ -1074,25 +1073,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
             }
         }
         WT_RET_NOTFOUND_OK(ret);
-    }
-
-    /* Check for set timestamps on disallowed tables. */
-    if (set_ts || commit_ts != WT_TS_NONE || durable_ts != WT_TS_NONE) {
-        btree = S2BT(session);
-        flags = btree->dhandle->ts_flags;
-        /*
-         * No time is passed and txn doesn't have a commit / durable timestamp.
-         */
-        if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
-            __wt_err(session, EINVAL,
-              "%s: " WT_TS_VERBOSE_PREFIX "timestamp set when disallowed by table configuration",
-              btree->dhandle->name);
-            WT_IGNORE_RET(__wt_verbose_dump_txn_one(session, session, EINVAL, NULL));
-#ifdef HAVE_DIAGNOSTIC
-            __wt_abort(session);
-#endif
-            return (EINVAL);
-        }
     }
 
     if (commit)

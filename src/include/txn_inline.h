@@ -604,7 +604,7 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
     name = btree->dhandle->name;
     txn_has_ts = F_ISSET(&txn->time_point,
       WT_TXN_TIME_POINT_HAS_TS_COMMIT | WT_TXN_TIME_POINT_HAS_TS_DURABLE |
-        WT_TXN_TIME_POINT_HAS_TS_PREPARE);
+        WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
 
     /* Timestamps are ignored on logged files. */
     if (F_ISSET(btree, WT_BTREE_LOGGED))
