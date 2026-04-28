@@ -660,6 +660,28 @@ if __name__ == '__main__':
             return (count == 0)
         suites = [s for s in suites if not isempty(s)]
 
+        # Surface module-import failures with their underlying ImportError before sort/scenario
+        # generation, which would otherwise crash on the placeholder TestCase objects unittest
+        # creates for failed imports (they don't have WiredTigerTestCase methods like simpleName).
+        import_failures = []
+        for s in suites:
+            for t in s:
+                cls_name = type(t).__name__
+                if cls_name in ('ModuleImportFailure', '_FailedTest', 'LoadTestsFailure'):
+                    # The placeholder's test method re-raises the original exception when called.
+                    try:
+                        t.debug()
+                        msg = '(no exception captured)'
+                    except Exception as e:
+                        msg = str(e)
+                    import_failures.append((str(t), msg))
+        if import_failures:
+            print("ERROR: %d test module(s) failed to import:" % len(import_failures))
+            for name, msg in import_failures:
+                print("  %s" % name)
+                print("    %s" % msg.replace('\n', '\n    '))
+            sys.exit(2)
+
         suites = sorted(suites, key=lambda c: str(list(c)[0]))
         if configfile != None:
             suites = configApply(suites, configfile, configwrite)
