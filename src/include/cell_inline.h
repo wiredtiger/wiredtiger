@@ -1392,6 +1392,8 @@ copy_cell_restart:
             page_del->pg_del_start_ts = page_del->prepare_ts;
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->prepared_id));
+            /* Explicitly initialize the durable timestamp to WT_TS_NONE. */
+            page_del->pg_del_durable_ts = WT_TS_NONE;
             WT_ASSERT_ALWAYS(session,
               !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
                 page_del->prepared_id != WT_PREPARED_ID_NONE,
