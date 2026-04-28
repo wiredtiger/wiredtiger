@@ -938,11 +938,10 @@ __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *c
     if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
         goto return_false;
 
+    *cacheablep = true;
     if (0) {
 return_false:
         *cacheablep = false;
-    } else {
-        *cacheablep = true;
     }
 
     return (0);
