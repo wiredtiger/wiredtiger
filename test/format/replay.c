@@ -506,14 +506,20 @@ replay_rollback(TINFO *tinfo)
 
 /*
  * replay_stale_read_ts --
- *     Return true if the transaction's read timestamp is below the lane's last commit timestamp.
- *     This means there may be updates that are invisible to the current op, and we need to rollback
- *     and retry with a higher read timestamp in order to see them.
+ *     Return true if the transaction's read timestamp is below the lane's last commit timestamp,
+ *     meaning an operation may produce non-deterministic results. Spins until
+ *     replay_maximum_committed catches up before returning, so the subsequent rollback and retry
+ *     will acquire a read timestamp that sees a consistent key state.
  */
 bool
 replay_stale_read_ts(TINFO *tinfo)
 {
-    return (GV(RUNS_PREDICTABLE_REPLAY) && tinfo->read_ts < g.lanes[tinfo->lane].last_commit_ts);
+    if (!GV(RUNS_PREDICTABLE_REPLAY) || tinfo->read_ts >= g.lanes[tinfo->lane].last_commit_ts)
+        return (false);
+
+    while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
+        __wt_yield();
+    return (true);
 }
 
 /*
