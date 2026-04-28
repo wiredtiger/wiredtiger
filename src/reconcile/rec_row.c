@@ -797,8 +797,9 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
 
         /*
-         * Copy the key and value onto the page. val->buf.data may point directly into ref's WT_ADDR
-         * block_cookie; hold the hazard pointer until after both copies.
+         * Copy the key and value onto the page. Hold the child's hazard pointer until the val data
+         * has been copied: val->buf.data may point at the child's freshly-allocated WT_ADDR
+         * block_cookie, which an evicting __wt_split_rewrite on the child would free.
          */
         __wti_rec_image_copy(session, r, key);
         __wti_rec_image_copy(session, r, val);
