@@ -1289,7 +1289,7 @@ __clayered_reset(WT_CURSOR *cursor)
      * FIXME-WT-17309: We currently close constituents every time we reset a cursor to ensure we do
      * not leave a checkpointed stable btree open for a cursor after a step-up.
      */
-    __clayered_close_cursors(clayered);
+    WT_TRET(__clayered_close_cursors(clayered));
 
 err:
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
