@@ -25,7 +25,6 @@ else()
         misc_tests/test_tailq.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
-        cache/unit/test_shared_dsk_cache_get.cpp
         block/unit/test_bitstring.cpp
         block/unit/test_block_addr.cpp
         block/unit/test_block_bitflip.cpp
@@ -39,6 +38,7 @@ else()
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
+        cache/unit/test_shared_dsk_cache_get.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp

@@ -29,7 +29,7 @@ constexpr size_t SHARED_DSK_TEST_DATA_SIZE = 16;
  */
 class shared_dsk_test_env {
 public:
-    shared_dsk_test_env();
+    explicit shared_dsk_test_env(u_int hash_size = SHARED_DSK_TEST_HASH_SIZE);
     ~shared_dsk_test_env();
 
     shared_dsk_test_env(const shared_dsk_test_env &) = delete;
@@ -42,8 +42,8 @@ public:
     /* Insert a fresh item at the given addr and return it (ref_count == 1). */
     WT_SHARED_DSK_ITEM *put(const uint8_t *addr, size_t addr_size);
 
-    /* Release an item until its reference count hits zero and the cache frees it. */
-    void release_to_zero(WT_SHARED_DSK_ITEM *item);
+    /* Count the entries currently chained in the given bucket. */
+    int bucket_size(u_int bucket);
 
 private:
     connection_wrapper _conn;

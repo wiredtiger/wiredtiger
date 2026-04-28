@@ -16,19 +16,19 @@ namespace utils {
 
 static constexpr const char *SHARED_DSK_TEST_URI = "table:shared_dsk_test";
 
-shared_dsk_test_env::shared_dsk_test_env()
+shared_dsk_test_env::shared_dsk_test_env(u_int hash_size)
     : _conn(DB_HOME, "create,statistics=(fast)"), _session(nullptr), _cursor(nullptr),
       _disagg_sentinel(0)
 {
     _session = _conn.create_session();
-    WT_SESSION *sess = &_session->iface;
+    WT_SESSION *session = &_session->iface;
 
     /*
      * Create a real table and open a cursor on it so the btree has a WT-assigned id. We borrow the
-     * cursor's dhandle for session->dhandle so the btree id resolves against a real btree.
+     * cursor's dhandle for _session->dhandle so the btree id resolves against a real btree.
      */
-    REQUIRE(sess->create(sess, SHARED_DSK_TEST_URI, "key_format=S,value_format=S") == 0);
-    REQUIRE(sess->open_cursor(sess, SHARED_DSK_TEST_URI, nullptr, nullptr, &_cursor) == 0);
+    REQUIRE(session->create(session, SHARED_DSK_TEST_URI, "key_format=S,value_format=S") == 0);
+    REQUIRE(session->open_cursor(session, SHARED_DSK_TEST_URI, nullptr, nullptr, &_cursor) == 0);
     _session->dhandle = ((WT_CURSOR_BTREE *)_cursor)->dhandle;
 
     WT_CONNECTION_IMPL *conn = S2C(_session);
@@ -44,7 +44,7 @@ shared_dsk_test_env::shared_dsk_test_env()
      * The real wiredtiger_open path leaves shared_dsk_cache disabled (it's gated behind a real
      * disaggregated configuration). Initialize it by hand.
      */
-    REQUIRE(__wti_shared_dsk_cache_init(_session, SHARED_DSK_TEST_HASH_SIZE) == 0);
+    REQUIRE(__wti_shared_dsk_cache_init(_session, hash_size) == 0);
     conn->cache->shared_dsk_cache.enabled = true;
 }
 
@@ -64,8 +64,8 @@ shared_dsk_test_env::~shared_dsk_test_env()
     _session->dhandle = nullptr;
 
     /* Drop the table so it doesn't linger in DB_HOME across tests. */
-    WT_SESSION *sess = &_session->iface;
-    (void)sess->drop(sess, SHARED_DSK_TEST_URI, "force=true");
+    WT_SESSION *session = &_session->iface;
+    (void)session->drop(session, SHARED_DSK_TEST_URI, "force=true");
 }
 
 WT_SESSION_IMPL *
@@ -104,12 +104,17 @@ shared_dsk_test_env::put(const uint8_t *addr, size_t addr_size)
     return item;
 }
 
-void
-shared_dsk_test_env::release_to_zero(WT_SHARED_DSK_ITEM *item)
+int
+shared_dsk_test_env::bucket_size(u_int bucket)
 {
-    int32_t remaining = item->ref_count;
-    for (int32_t i = 0; i < remaining; i++)
-        __wt_shared_dsk_cache_release(_session, item);
+    WT_SHARED_DSK_CACHE *cache = &S2C(_session)->cache->shared_dsk_cache;
+    REQUIRE(bucket < cache->hash_size);
+
+    int count = 0;
+    WT_SHARED_DSK_ITEM *item;
+    TAILQ_FOREACH (item, &cache->hash[bucket], hashq)
+        count++;
+    return count;
 }
 
 } // namespace utils.
