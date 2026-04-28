@@ -779,7 +779,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
 
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
-        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
         __wt_ref_key(page, ref, &p, &size);
@@ -791,7 +790,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (__wti_rec_need_split(r, key->len + val->len))
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
 
-        /* Copy the key and value onto the page. */
+        /*
+         * Copy the key and value onto the page. Hold the child's hazard pointer until val's data
+         * has been copied: val->buf.data may point at the child's freshly-allocated WT_ADDR
+         * block_cookie, which an evicting __wt_split_rewrite on the child would free.
+         */
         __wti_rec_image_copy(session, r, key);
         __wti_rec_image_copy(session, r, val);
         if (page_del != NULL)
@@ -803,6 +806,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         if (build_delta && prev_dirty && !retain_onpage)
             WT_ERR(__rec_pack_delta_row_int(session, r, key, val, &ta));
+
+        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /*
          * Set the ref dirty state to clean if there were no concurrent changes while reconciling
