@@ -180,6 +180,13 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 {
     WT_CURSOR *c;
 
+    /*
+     * Note: There no need to close the constituent cursors if it has been already done during
+     * connection->close performing a close of all cursors in the session.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_CONSTITUENT_DEAD))
+        return (0);
+
     clayered->current_cursor = NULL;
     if ((c = clayered->ingest_cursor) != NULL) {
         WT_RET(c->close(c));
@@ -539,21 +546,9 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
             WT_RET(WT_ROLLBACK);
         }
 
-        /*
-         * It turns out that the right choice for step up and step down is always to reopen the
-         * stable cursor whenever we can.
-         *
-         * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
-         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
-         as
-         * this request was kicked off on the follower, so it must be all reads. But we want to
-         * discard the stable cursor when we can, as long as we're not breaking transactional
-         * semantics for cursors.
-         *
-         * For step down, we're currently using a R/W stable cursor. After the check above, we
-         know
-         * we've done read operations to this point. So again, we should reopen if we can.
-         */
+        /* FIXME-WT-17309: Currently the stable table cursor should be closed on a role change. */
+        WT_ASSERT_ALWAYS(session, clayered->stable_cursor == NULL,
+          "Changing role with a stable table cursor being open.");
     }
 
     if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
@@ -1284,6 +1279,12 @@ __clayered_reset(WT_CURSOR *cursor)
         __wt_cursor_bound_reset(cursor);
         WT_TRET(__clayered_copy_bounds(clayered));
     }
+
+    /*
+     * FIXME-WT-17309: We currently close constituents every time we reset a cursor to ensure we do
+     * not leave a checkpointed stable btree open for a cursor after a step-up.
+     */
+    __clayered_close_cursors(clayered);
 
 err:
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -2422,12 +2423,7 @@ __clayered_close_int(WT_CURSOR *cursor)
       "Valid layered dhandle is required to close a cursor");
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
-    /*
-     * No need to close the constituent cursors if it has been already done during connection->close
-     * performing a close of all cursors in the session.
-     */
-    if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
-        WT_TRET(__clayered_close_cursors(clayered));
+    WT_TRET(__clayered_close_cursors(clayered));
 
     __wt_cursor_close(cursor);
 
@@ -2477,12 +2473,8 @@ err:
             /*
              * If the cursor has been cached, try to cache the constituent cursors by evoking a
              * cursor close.
-             *
-             * Note: There no need to close the constituent cursors if it has been already done
-             * during connection->close performing a close of all cursors in the session.
              */
-            if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
-                WT_TRET(__clayered_close_cursors(clayered));
+            WT_TRET(__clayered_close_cursors(clayered));
 
             goto done;
         }
