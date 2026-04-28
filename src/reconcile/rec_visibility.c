@@ -641,8 +641,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
          * tombstone semantically deleted the on-disk value, so the chain's later re-insert was
          * legitimately committed without aligning to the now-stale on-disk durable_ts. Once the
          * tombstone is gone the asserts below would see this out of order edge case, but it is
-         * benign. Mirror the existing visible_all escape on the start_ts assert below to handle
-         * this case here too.
+         * benign. Check global visibility to handle this case.
          */
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
             WT_ASSERT_ALWAYS(session,
