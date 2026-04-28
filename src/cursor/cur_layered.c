@@ -824,8 +824,6 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     session = trunc_info->session;
     uri = trunc_info->uri;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
-
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
 
@@ -849,6 +847,8 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
           session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
         WT_RET(ret);
     } else {
+         WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
         /*
          * Set the original keys on the ingest cursors. The ingest cursor may not have its key set
          * if the layered cursor was positioned via next/prev, or if search_near on an empty ingest
