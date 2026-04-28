@@ -110,15 +110,16 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
     /* Add an entry for this key to the transaction structure */
     if (rip != NULL) {
         /*
-         * In disagg, follower node needs to restore prepared updates from stable checkpoint onto
-         * the ingest table for resolving txn since it can only edit the ingest table. Therefore it
-         * needs to do a full restoration of the update and move it to the ingest table. For leader
-         * mode and non-disagg btree, it should already have restored the prepared update to its
-         * btree, so we would never hit this block.
+         * In disagg, a follower walks the stable constituent's checkpoint and restores prepared
+         * updates onto the ingest table, since transaction resolution can only edit the ingest
+         * table. That requires fully reconstructing the update and inserting it into the ingest
+         * table. Leaders, non-disagg btrees, and non-stable constituents should already have their
+         * prepared updates restored on their own btree, so we should never hit this block for them.
          */
         WT_ASSERT_ALWAYS(session,
-          __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader,
-          "prepared update restoration should only happen on disaggregated follower nodes");
+          __prepared_discover_is_follower_stable_walk(session, session->dhandle->name),
+          "prepared update restoration from on-disk cell should only happen when walking a stable "
+          "constituent on a disaggregated follower");
 
         WT_ERR(__wt_scr_alloc(session, 0, &value));
         WT_ERR(__wt_page_cell_data_ref_kv(session, page, vpack, value));
