@@ -113,10 +113,10 @@ replay_end_timed_run(void)
  * replay_maximum_committed --
  *     For predictable replay runs, return the largest timestamp that's no longer in use.
  */
-uint64_t
+wt_timestamp_t
 replay_maximum_committed(void)
 {
-    uint64_t commit_ts, ts;
+    wt_timestamp_t commit_ts, ts;
     uint32_t lane;
 
     /*
@@ -124,18 +124,26 @@ replay_maximum_committed(void)
      * be behind. So we use a cached value most of the time.
      */
     ts = g.replay_cached_committed;
-    if (ts == 0 || __wt_atomic_add_uint32_v(&g.replay_calculate_committed, 1) % 20 == 0) {
+    if (ts == WT_TS_NONE || __wt_atomic_add_uint32_v(&g.replay_calculate_committed, 1) % 20 == 0) {
         WT_ACQUIRE_READ_WITH_BARRIER(ts, g.timestamp);
         testutil_check(pthread_rwlock_wrlock(&g.lane_lock));
         for (lane = 0; lane < LANE_COUNT; ++lane) {
             if (g.lanes[lane].in_use) {
                 commit_ts = g.lanes[lane].last_commit_ts;
-                if (commit_ts != 0)
+                if (commit_ts != WT_TS_NONE)
                     ts = WT_MIN(ts, commit_ts);
             }
         }
-        if (ts == 0)
+        if (ts == WT_TS_NONE)
             ts = 1;
+        /*
+         * Only update the cached value when we've moved forward. A reclaimed lane's stale
+         * last_commit_ts can produce a lower minimum, but everything up to the previously cached
+         * value is already committed and safe to use as the stable timestamp.
+         */
+        if (ts < g.replay_cached_committed)
+            ts = g.replay_cached_committed;
+
         g.replay_cached_committed = ts;
         testutil_check(pthread_rwlock_unlock(&g.lane_lock));
     }
@@ -151,40 +159,6 @@ replay_operation_enabled(thread_op op)
 {
     if (!GV(RUNS_PREDICTABLE_REPLAY))
         return (true);
-
-    /*
-     * We don't permit modify operations with predictable replay.
-     *
-     * The problem is read timestamps. As currently implemented, the read timestamp selected is
-     * variable, based on the state of other threads and their progress with other timestamped
-     * operations. And if two changes are made to the same key in a short amount of time, if the
-     * second operation were to be performed sometimes with a read timestamp before the first
-     * operation, and sometimes with a read timestamp after the first operation, then the results
-     * would be variable.
-     *
-     * We could track recent operations on a key (in its lane, for instance), but when we realize
-     * the read timestamp isn't recent enough, we would need to wait for the stable timestamp to
-     * move forward (and our waiting can affect/delay other thread's operations as well). Having the
-     * stable timestamp move forward is the only way our read timestamp can progress.
-     *
-     * Another possibility that also involves tracking recent operations on a key would be to
-     * disallow modifies that occur within, say 10000 timestamps of a previous write operation on
-     * the same key. Those modifies could be silently converted to reads, for instance. If our read
-     * timestamp was greater than 10000 timestamps behind, we'd still need to wait for the stable
-     * timestamp to catch up.
-     */
-    if (op == MODIFY)
-        return (false);
-
-    /*
-     * FIXME-WT-10570. We don't permit remove operations with predictable replay.
-     *
-     * This should be something we can and should fix. The problem may be similar to the problem
-     * with modify, where having a varying read timestamp can cause different results for different
-     * runs.
-     */
-    if (op == REMOVE)
-        return (false);
 
     /*
      * We don't permit truncate operations with predictable replay.
@@ -240,7 +214,8 @@ replay_pick_timestamp(TINFO *tinfo)
         testutil_assert(tinfo->lane == LANE_NONE);
 
         stop_ts = g.stop_timestamp;
-        if (stop_ts != 0 && g.stable_timestamp >= stop_ts && tinfo->replay_ts == 0) {
+        if (stop_ts != WT_TS_NONE && g.stable_timestamp >= stop_ts &&
+          tinfo->replay_ts == WT_TS_NONE) {
             tinfo->quit = true;
             return;
         }
@@ -305,13 +280,13 @@ replay_loop_begin(TINFO *tinfo, bool intxn)
          * We don't have a replay timestamp and the again flag is off.
          *   4) It's our first time through the loop, this is equivalent to the previous case.
          */
-        testutil_assert(tinfo->replay_again == (tinfo->replay_ts != 0));
+        testutil_assert(tinfo->replay_again == (tinfo->replay_ts != WT_TS_NONE));
         /*
          * Choose a unique timestamp for commits and rollbacks, based on the conditions above.
          */
         replay_pick_timestamp(tinfo);
 
-        testutil_assert(tinfo->quit || tinfo->replay_ts != 0);
+        testutil_assert(tinfo->quit || tinfo->replay_ts != WT_TS_NONE);
     }
 }
 
@@ -338,7 +313,7 @@ replay_run_reset(void)
         for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
             tinfo = *tlp;
             tinfo->replay_again = false;
-            tinfo->replay_ts = 0;
+            tinfo->replay_ts = WT_TS_NONE;
             tinfo->lane = 0;
             tinfo->op = (thread_op)0;
         }
@@ -374,16 +349,16 @@ replay_run_end(WT_SESSION *session)
  * replay_read_ts --
  *     Return a read timestamp for a begin transaction call.
  */
-uint64_t
+wt_timestamp_t
 replay_read_ts(TINFO *tinfo)
 {
-    uint64_t commit_ts;
+    wt_timestamp_t commit_ts;
 
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY) && tinfo->lane != LANE_NONE &&
-      g.lanes[tinfo->lane].in_use && tinfo->replay_ts != 0);
+      g.lanes[tinfo->lane].in_use && tinfo->replay_ts != WT_TS_NONE);
 
     commit_ts = replay_maximum_committed();
-    testutil_assert(commit_ts != 0);
+    testutil_assert(commit_ts != WT_TS_NONE);
     return (commit_ts);
 }
 
@@ -391,15 +366,15 @@ replay_read_ts(TINFO *tinfo)
  * replay_prepare_ts --
  *     Return a timestamp to be used for prepare.
  */
-uint64_t
+wt_timestamp_t
 replay_prepare_ts(TINFO *tinfo)
 {
-    uint64_t prepare_ts, ts;
+    wt_timestamp_t prepare_ts, ts;
 
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY));
 
     /* See if we're just starting a run. */
-    if (tinfo->replay_ts == 0 || tinfo->replay_ts <= g.replay_start_timestamp + LANE_COUNT)
+    if (tinfo->replay_ts == WT_TS_NONE || tinfo->replay_ts <= g.replay_start_timestamp + LANE_COUNT)
         /*
          * When we're starting a run, we'll just use the final commit timestamp for our prepare
          * timestamp. We know that's safe.
@@ -428,12 +403,12 @@ replay_prepare_ts(TINFO *tinfo)
  * replay_commit_ts --
  *     Return the commit timestamp.
  */
-uint64_t
+wt_timestamp_t
 replay_commit_ts(TINFO *tinfo)
 {
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY));
 
-    testutil_assert(tinfo->replay_ts != 0);
+    testutil_assert(tinfo->replay_ts != WT_TS_NONE);
     return (tinfo->replay_ts);
 }
 
@@ -441,12 +416,12 @@ replay_commit_ts(TINFO *tinfo)
  * replay_rollback_ts --
  *     Return the rollback timestamp.
  */
-uint64_t
+wt_timestamp_t
 replay_rollback_ts(TINFO *tinfo)
 {
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY));
 
-    testutil_assert(tinfo->replay_ts != 0);
+    testutil_assert(tinfo->replay_ts != WT_TS_NONE);
     return (tinfo->replay_ts);
 }
 
@@ -462,7 +437,7 @@ replay_committed(TINFO *tinfo)
     if (!GV(RUNS_PREDICTABLE_REPLAY))
         return;
 
-    testutil_assert(tinfo->replay_ts != 0);
+    testutil_assert(tinfo->replay_ts != WT_TS_NONE);
     testutil_assert(tinfo->lane != LANE_NONE);
 
     lane = tinfo->lane;
@@ -477,7 +452,7 @@ replay_committed(TINFO *tinfo)
     if (g.timestamp <= tinfo->replay_ts + LANE_COUNT) {
         WT_RELEASE_WRITE_WITH_BARRIER(g.lanes[lane].in_use, false);
         tinfo->lane = LANE_NONE;
-        tinfo->replay_ts = 0;
+        tinfo->replay_ts = WT_TS_NONE;
     } else {
         tinfo->replay_ts += LANE_COUNT;
         tinfo->replay_again = true;
@@ -524,9 +499,27 @@ replay_rollback(TINFO *tinfo)
      */
     tinfo->replay_again = true;
 
-    testutil_assert(tinfo->replay_ts != 0);
+    testutil_assert(tinfo->replay_ts != WT_TS_NONE);
     testutil_assert(tinfo->lane != LANE_NONE);
     testutil_assert(g.lanes[tinfo->lane].in_use);
+}
+
+/*
+ * replay_stale_read_ts --
+ *     Return true if the transaction's read timestamp is below the lane's last commit timestamp,
+ *     meaning an operation may produce non-deterministic results. Spins until
+ *     replay_maximum_committed catches up before returning, so the subsequent rollback and retry
+ *     will acquire a read timestamp that sees a consistent key state.
+ */
+bool
+replay_stale_read_ts(TINFO *tinfo)
+{
+    if (!GV(RUNS_PREDICTABLE_REPLAY) || tinfo->read_ts >= g.lanes[tinfo->lane].last_commit_ts)
+        return (false);
+
+    while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
+        __wt_yield();
+    return (true);
 }
 
 /*

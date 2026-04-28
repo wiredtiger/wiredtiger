@@ -160,8 +160,12 @@ class test_layered84(wttest.WiredTigerTestCase):
         prepare_session.close()
 
     def rollback_prepared(self, prepare_session, prepare_cursor):
-        """Roll back a prepared transaction."""
-        prepare_session.rollback_transaction()
+        """
+        Roll back a prepared transaction. The rollback timestamp must be greater than the active
+        read timestamp (60), so use 70.
+        """
+        prepare_session.rollback_transaction(
+            'rollback_timestamp=' + self.timestamp_str(70))
         prepare_cursor.close()
         prepare_session.close()
 
@@ -779,7 +783,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         keys_before, got_conflict = self.walk_next_collect(cursor)
         self.assertTrue(got_conflict, "Expected prepared conflict at key 3")
 
-        # Roll back: the overwrite is cancelled; key 3 reverts to its committed value.
+        # Roll back: the overwrite is canceled; key 3 reverts to its committed value.
         self.rollback_prepared(prepare_session, prepare_cursor)
 
         keys_after, _ = self.walk_next_collect(cursor)
@@ -820,7 +824,7 @@ class test_layered84(wttest.WiredTigerTestCase):
         keys_before, got_conflict = self.walk_prev_collect(cursor)
         self.assertTrue(got_conflict, "Expected prepared conflict at key 3")
 
-        # Roll back: the overwrite is cancelled; key 3 reverts to its committed value.
+        # Roll back: the overwrite is canceled; key 3 reverts to its committed value.
         self.rollback_prepared(prepare_session, prepare_cursor)
 
         keys_after, _ = self.walk_prev_collect(cursor)

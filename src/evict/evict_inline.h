@@ -375,6 +375,8 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Update bytes and pages evicted. */
     (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_evict, memory_footprint);
     (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted, 1);
+    if (!WT_PAGE_IS_INTERNAL(page))
+        (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_leaf, 1);
     if (is_disagg) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_ingest, 1);
@@ -600,7 +602,8 @@ __wt_evict_needed(
          * updates or dirty pages.
          */
         if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
-          (!conn->layered_table_manager.leader || F_ISSET(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
+          (!conn->layered_table_manager.leader ||
+            F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
             double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;
             if (pct_updates > cache_full)
                 __wt_verbose_debug1(
@@ -840,6 +843,10 @@ __wt_evict_app_assist_worker_check(
     /* It is not safe to proceed if the eviction server threads aren't setup yet. */
     WT_CONNECTION_IMPL *conn = S2C(session);
     if (!__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
+        return (0);
+
+    /* Checkpoint reconciliation workers cannot participate in eviction. */
+    if (F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER))
         return (0);
 
     /* Eviction causes reconciliation. So don't evict if we can't reconcile */

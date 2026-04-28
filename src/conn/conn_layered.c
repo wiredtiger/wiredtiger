@@ -1153,6 +1153,7 @@ static int
 __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
 
     conn = S2C(session);
@@ -1180,10 +1181,15 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * checkpoint completion record and drop all later records. If there are no more updates after
      * the last complete checkpoint, the function would have no effect.
      */
-    WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface));
+    ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
+      disagg->npage_log->page_log, &session->iface);
 
-    return (0);
+    if (ret == 0)
+        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_succeed);
+    else
+        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_failed);
+
+    return (ret);
 }
 
 /*
@@ -1270,7 +1276,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
-    F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
@@ -1302,7 +1308,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
-    F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
+    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
 
@@ -1373,6 +1379,26 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_disagg_config_get_role --
+ *     Parse the disaggregated role from the configuration and return whether this node is a leader.
+ */
+int
+__wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *leaderp)
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("follower", cval))
+        *leaderp = false;
+    else if (WT_CONFIG_LIT_MATCH("leader", cval))
+        *leaderp = true;
+    else
+        WT_RET_MSG(session, EINVAL, "Invalid node role");
+
+    return (0);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -1396,6 +1422,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* Reconfigure-only settings. */
     if (reconfig) {
+        WT_STAT_CONN_INCR(session, disagg_conn_reconfig);
 
         /* Pick up a new checkpoint (followers only). */
         WT_ERR_NOTFOUND_OK(
@@ -1424,14 +1451,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR_MSG_CHK(session, __wti_disagg_set_last_materialized_lsn(session, (uint64_t)cval.val),
           "Failed to set the last materialized LSN to %" PRIu64, (uint64_t)cval.val);
 
-    /* Set the role. */
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
-    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("follower", cval))
-        leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval))
-        leader = true;
-    else
-        WT_ERR_MSG(session, EINVAL, "Invalid node role");
+    /* Get the configured role. */
+    WT_ERR(__wt_disagg_config_get_role(session, cfg, &leader));
 
     if (!reconfig) {
         /* Set the initial role. */
@@ -1484,6 +1505,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
+        /*
+         * FIXME-WT-17177: Read-only connections are currently not supported with disaggregated
+         * storage.
+         */
+        if (F_ISSET(conn, WT_CONN_READONLY))
+            WT_ERR_MSG(session, ENOTSUP,
+              "disaggregated storage is not supported with read-only connections");
+
         WT_ERR(__wti_layered_table_manager_init(session));
 
         /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
@@ -1581,11 +1610,11 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
- * __on_file_in_wt_dir --
- *     Act on a file in WT directory: delete or fail depending on the flag.
+ * __remove_or_fail_local_wt_file --
+ *     Remove a local WiredTiger file or fail with EEXIST, depending on the configured action.
  */
 static int
-__on_file_in_wt_dir(WT_SESSION_IMPL *session, const char *fname, bool fail)
+__remove_or_fail_local_wt_file(WT_SESSION_IMPL *session, const char *fname, bool fail)
 {
     if (fail)
         WT_RET_MSG(session, EEXIST,
@@ -1664,9 +1693,12 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
         /*
          * Delete any WiredTiger files to prevent reading them during startup. But keep
          * WiredTiger.lock as a safety mechanism.
+         *
+         * Prevent deleting stat files since they can be useful for debugging.
          */
-        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
-            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
+        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD) &&
+          !WT_PREFIX_MATCH(files[i], "WiredTigerStat"))
+            WT_ERR(__remove_or_fail_local_wt_file(session, full_path, fail));
         else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") ||
           WT_SUFFIX_MATCH(files[i], ".wt_stable"))
             /*
@@ -1676,7 +1708,7 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
              * are not deleted now, the files will be renamed and kept around - someone will have to
              * clean them up later.
              */
-            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
+            WT_ERR(__remove_or_fail_local_wt_file(session, full_path, fail));
         else
             __wt_verbose_debug1(session, WT_VERB_METADATA, "Keeping local file: %s", full_path);
     }
@@ -1829,11 +1861,13 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
-        WT_ERR(__wt_buf_fmt(session, meta,
-          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
-          ",version=%d,compatible_version=%d",
-          meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
-          WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
+        WT_ERR_MSG_CHK(session,
+          __wt_buf_fmt(session, meta,
+            "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
+            ",version=%d,compatible_version=%d",
+            meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
+            WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION),
+          "Failed to format checkpoint metadata");
 
         complete_args.checkpoint_id = 0;
         complete_args.checkpoint_timestamp = checkpoint_timestamp;
@@ -1841,8 +1875,10 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         complete_args.checkpoint_oldest_timestamp =
           conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
         complete_args.lsn = 0;
-        WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint(
-          disagg->npage_log->page_log, &session->iface, &complete_args));
+        WT_ERR_MSG_CHK(session,
+          disagg->npage_log->page_log->pl_complete_checkpoint(
+            disagg->npage_log->page_log, &session->iface, &complete_args),
+          "Failed to complete checkpoint");
 
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
@@ -1851,9 +1887,14 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           "Completed disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",
           meta_lsn, checkpoint_timestamp,
           __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
-    }
+    } else
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Checkpoint completion skipped due to unsuccessful checkpoint: lsn=%" PRIu64
+          ", timestamp=%" PRIu64 " %s",
+          meta_lsn, checkpoint_timestamp,
+          __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
 
-    WT_ERR(__disagg_begin_checkpoint(session));
+    WT_ERR_MSG_CHK(session, __disagg_begin_checkpoint(session), "Failed to begin a new checkpoint");
 
 err:
     __wt_scr_free(session, &meta);

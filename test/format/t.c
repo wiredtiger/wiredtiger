@@ -455,6 +455,8 @@ skip_operations:
 static void
 format_die(void)
 {
+    bool expect_failure;
+
     /* If only checking configuration syntax, no need to message or drop core. */
     if (syntax_check)
         exit(1);
@@ -473,13 +475,19 @@ format_die(void)
      */
     (void)pthread_rwlock_wrlock(&g.death_lock);
 
+    /* Check if we are expecting a failure, e.g., due to fault injection. */
+    expect_failure = __wt_atomic_load_bool_acquire(&g.expect_failure);
+
     /* Write a failure message so format.sh knows we failed. */
-    fprintf(stderr, "\n%s: run FAILED\n", progname);
+    if (!expect_failure)
+        fprintf(stderr, "\n%s: run FAILED\n", progname);
+    else
+        fprintf(stderr, "\n%s: run finished due to an expected failure\n", progname);
     fflush(stderr);
     fflush(stdout);
 
     /* Display the configuration that failed. */
-    if (g.configured)
+    if (g.configured && !expect_failure)
         config_print(true);
 
     /* Now about to close shared resources, give them a chance to empty. */
