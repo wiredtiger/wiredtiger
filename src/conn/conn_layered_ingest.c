@@ -224,8 +224,26 @@ __layered_fix_prepared_transaction_callback(
     txn = array_session->txn;
     *exit_walkp = false;
 
-    if (txn->time_point.id != cookie->txnid)
+    if (!F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
+
+    /*
+     * Prefer matching by transaction id: a live in-flight prepared transaction that survived
+     * step-up shares its session's transaction id with the on-disk start record. Only fall back to
+     * the prepared id when the transaction id does not match, which covers sessions that reclaimed
+     * the prepared transaction from a checkpoint at startup recovery -- those sessions have no
+     * transaction id assigned but do carry a prepared id.
+     */
+    if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID)) {
+        WT_ASSERT(session, F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID));
+        if (txn->time_point.prepared_id != cookie->prepared_id)
+            return (0);
+    } else if (txn->time_point.id != cookie->txnid)
+        return (0);
+    else
+        WT_ASSERT(session,
+          !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID) ||
+            txn->time_point.prepared_id == cookie->prepared_id);
 
     for (size_t i = 0; i < txn->mod_count; i++) {
         WT_TXN_OP *op = &txn->mod[i];
@@ -283,12 +301,17 @@ __layered_fix_prepared_transaction_callback(
  *     session_inuse reference from the ingest dhandle to the stable dhandle to keep reference
  *     counts balanced.
  *
+ * The owning session is identified by either the on-disk transaction id (set on a session whose
+ *     prepared transaction remained in-flight across step-up) or the on-disk prepared id (set on a
+ *     session that reclaimed the prepared transaction from a checkpoint at startup recovery, where
+ *     no transaction id is assigned).
+ *
  * This is a temporary solution. It assumes no concurrent commit/rollback of the prepared
  *     transaction and no prepared fast-truncate operations.
  */
 static int
 __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BTREE *ingest_btree,
-  WT_BTREE *stable_btree, uint64_t txnid)
+  WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
 {
     WT_FIX_PREPARED_COOKIE cookie;
 
@@ -296,6 +319,7 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
     cookie.ingest_btree = ingest_btree;
     cookie.stable_btree = stable_btree;
     cookie.txnid = txnid;
+    cookie.prepared_id = prepared_id;
 
     return (
       __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
@@ -415,7 +439,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                     if (!prepare_txn_fixed) {
                         WT_ASSERT(session, upds == NULL);
                         WT_ERR(__layered_fix_prepared_transaction(
-                          session, key, ingest_btree, stable_btree, start_txn));
+                          session, key, ingest_btree, stable_btree, start_txn, start_prepared_id));
                         prepare_txn_fixed = true;
                     }
                 } else if (!prepare_resolved) {
@@ -495,7 +519,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
                 if (prepare && !prepare_txn_fixed) {
                     WT_ASSERT(session, upds == NULL);
                     WT_ERR(__layered_fix_prepared_transaction(
-                      session, key, ingest_btree, stable_btree, start_txn));
+                      session, key, ingest_btree, stable_btree, start_txn, start_prepared_id));
                     prepare_txn_fixed = true;
                 }
             }

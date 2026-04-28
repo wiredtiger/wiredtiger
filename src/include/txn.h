@@ -471,10 +471,19 @@ struct __wt_txn {
 /*
  * WT_FIX_PREPARED_COOKIE --
  *   State passed to find the prepared transaction to fix when draining the ingest btree.
+ *   The owning session is identified by either of two ids depending on how the prepared
+ *   transaction came to live in this connection:
+ *     - txnid: matches a session whose prepared transaction remained in-flight across
+ *       step-up and therefore still carries a transaction id.
+ *     - prepared_id: matches a session that reclaimed the prepared transaction from a
+ *       checkpoint at startup recovery. Such a session has no transaction id assigned but
+ *       does carry a prepared id.
+ *   Pass WT_PREPARED_ID_NONE for prepared_id to disable the prepared-id match path.
  */
 struct __wt_fix_prepared_cookie {
     WT_BTREE *ingest_btree;
     WT_BTREE *stable_btree;
     WT_ITEM *key;
     uint64_t txnid;
+    uint64_t prepared_id;
 };

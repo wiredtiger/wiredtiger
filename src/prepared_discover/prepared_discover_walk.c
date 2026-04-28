@@ -477,7 +477,8 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
             /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
             WT_ERR(__wt_meta_checkpoint_last_name(session, uri, &checkpoint_name, NULL, NULL));
             WT_ASSERT(session, ret == 0);
-            WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+            if (stable_uri_buf == NULL)
+                WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
             /*
              * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
              * stable checkpoint, but without it being a traditional checkpoint cursor.
