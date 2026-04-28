@@ -154,6 +154,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages read into cache by checkpoint",
   "cache: pages requested from the cache",
   "cache: pages requested from the cache due to pre-fetch",
+  "cache: pages requested from the cache for stable disaggregated tables",
   "cache: pages requested from the cache internal",
   "cache: pages requested from the cache leaf",
   "cache: pages requested from the history store",
@@ -173,6 +174,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: shared history store cursor not cached during eviction",
   "cache: size of delta updates reconstructed on the base page",
   "cache: size of tombstones restored when reading a page",
+  "cache: stable disaggregated table pages read into cache",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: tracked dirty bytes in the cache",
@@ -611,6 +613,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read_checkpoint = 0;
     stats->cache_pages_requested = 0;
     stats->cache_pages_prefetch = 0;
+    stats->cache_pages_requested_stable = 0;
     stats->cache_pages_requested_internal = 0;
     stats->cache_pages_requested_leaf = 0;
     stats->cache_pages_requested_hs = 0;
@@ -629,6 +632,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_hs_shared_cursor_not_cached = 0;
     stats->cache_read_delta_updates = 0;
     stats->cache_read_restored_tombstone_bytes = 0;
+    stats->cache_read_stable = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_dirty */
@@ -1055,6 +1059,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read_checkpoint += from->cache_read_checkpoint;
     to->cache_pages_requested += from->cache_pages_requested;
     to->cache_pages_prefetch += from->cache_pages_prefetch;
+    to->cache_pages_requested_stable += from->cache_pages_requested_stable;
     to->cache_pages_requested_internal += from->cache_pages_requested_internal;
     to->cache_pages_requested_leaf += from->cache_pages_requested_leaf;
     to->cache_pages_requested_hs += from->cache_pages_requested_hs;
@@ -1077,6 +1082,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_hs_shared_cursor_not_cached;
     to->cache_read_delta_updates += from->cache_read_delta_updates;
     to->cache_read_restored_tombstone_bytes += from->cache_read_restored_tombstone_bytes;
+    to->cache_read_stable += from->cache_read_stable;
     to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
     to->cache_hs_insert_reverse_modify += from->cache_hs_insert_reverse_modify;
     to->cache_bytes_dirty += from->cache_bytes_dirty;
@@ -1536,6 +1542,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read_checkpoint += WT_STAT_DSRC_READ(from, cache_read_checkpoint);
     to->cache_pages_requested += WT_STAT_DSRC_READ(from, cache_pages_requested);
     to->cache_pages_prefetch += WT_STAT_DSRC_READ(from, cache_pages_prefetch);
+    to->cache_pages_requested_stable += WT_STAT_DSRC_READ(from, cache_pages_requested_stable);
     to->cache_pages_requested_internal += WT_STAT_DSRC_READ(from, cache_pages_requested_internal);
     to->cache_pages_requested_leaf += WT_STAT_DSRC_READ(from, cache_pages_requested_leaf);
     to->cache_pages_requested_hs += WT_STAT_DSRC_READ(from, cache_pages_requested_hs);
@@ -1561,6 +1568,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read_delta_updates += WT_STAT_DSRC_READ(from, cache_read_delta_updates);
     to->cache_read_restored_tombstone_bytes +=
       WT_STAT_DSRC_READ(from, cache_read_restored_tombstone_bytes);
+    to->cache_read_stable += WT_STAT_DSRC_READ(from, cache_read_stable);
     to->cache_hs_insert_full_update += WT_STAT_DSRC_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_DSRC_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_dirty += WT_STAT_DSRC_READ(from, cache_bytes_dirty);
@@ -2211,6 +2219,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages removed from the ordinary queue to be queued for urgent eviction",
   "cache: pages requested from the cache",
   "cache: pages requested from the cache due to pre-fetch",
+  "cache: pages requested from the cache for stable disaggregated tables",
   "cache: pages requested from the cache internal",
   "cache: pages requested from the cache leaf",
   "cache: pages requested from the history store",
@@ -2240,6 +2249,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: shared history store cursor not cached during eviction",
   "cache: size of delta updates reconstructed on the base page",
   "cache: size of tombstones restored when reading a page",
+  "cache: stable disaggregated table pages read into cache",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: time eviction worker threads spend waiting for locks (usecs)",
@@ -2468,6 +2478,14 @@ static const char *const __stats_connection_desc[] = {
   "disagg: block reads with unclassifiable page LSN (zero or ahead of latest checkpoint)",
   "disagg: connection reconfiguration",
   "disagg: database size",
+  "disagg: delta reads whose predecessor is 1 checkpoint ago",
+  "disagg: delta reads whose predecessor is 16-31 checkpoints ago",
+  "disagg: delta reads whose predecessor is 2-3 checkpoints ago",
+  "disagg: delta reads whose predecessor is 4-7 checkpoints ago",
+  "disagg: delta reads whose predecessor is 8-15 checkpoints ago",
+  "disagg: delta reads whose predecessor is in most recent checkpoint",
+  "disagg: delta reads whose predecessor is older than tracked checkpoint window",
+  "disagg: delta reads with unclassifiable predecessor LSN (zero or ahead of latest checkpoint)",
   "disagg: role leader",
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
@@ -3268,6 +3286,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_clear_ordinary = 0;
     stats->cache_pages_requested = 0;
     stats->cache_pages_prefetch = 0;
+    stats->cache_pages_requested_stable = 0;
     stats->cache_pages_requested_internal = 0;
     stats->cache_pages_requested_leaf = 0;
     stats->cache_pages_requested_hs = 0;
@@ -3294,6 +3313,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_hs_shared_cursor_not_cached = 0;
     stats->cache_read_delta_updates = 0;
     stats->cache_read_restored_tombstone_bytes = 0;
+    stats->cache_read_stable = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     stats->eviction_worker_lock_wait_time = 0;
@@ -3520,6 +3540,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_read_age_unknown = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
+    stats->disagg_read_pred_ckpt1 = 0;
+    stats->disagg_read_pred_ckpt16_31 = 0;
+    stats->disagg_read_pred_ckpt2_3 = 0;
+    stats->disagg_read_pred_ckpt4_7 = 0;
+    stats->disagg_read_pred_ckpt8_15 = 0;
+    stats->disagg_read_pred_ckpt0 = 0;
+    stats->disagg_read_pred_older = 0;
+    stats->disagg_read_pred_unknown = 0;
     stats->disagg_role_leader = 0;
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
@@ -4399,6 +4427,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_clear_ordinary += WT_STAT_CONN_READ(from, eviction_clear_ordinary);
     to->cache_pages_requested += WT_STAT_CONN_READ(from, cache_pages_requested);
     to->cache_pages_prefetch += WT_STAT_CONN_READ(from, cache_pages_prefetch);
+    to->cache_pages_requested_stable += WT_STAT_CONN_READ(from, cache_pages_requested_stable);
     to->cache_pages_requested_internal += WT_STAT_CONN_READ(from, cache_pages_requested_internal);
     to->cache_pages_requested_leaf += WT_STAT_CONN_READ(from, cache_pages_requested_leaf);
     to->cache_pages_requested_hs += WT_STAT_CONN_READ(from, cache_pages_requested_hs);
@@ -4433,6 +4462,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_delta_updates += WT_STAT_CONN_READ(from, cache_read_delta_updates);
     to->cache_read_restored_tombstone_bytes +=
       WT_STAT_CONN_READ(from, cache_read_restored_tombstone_bytes);
+    to->cache_read_stable += WT_STAT_CONN_READ(from, cache_read_stable);
     to->cache_hs_insert_full_update += WT_STAT_CONN_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_CONN_READ(from, cache_hs_insert_reverse_modify);
     to->eviction_worker_lock_wait_time += WT_STAT_CONN_READ(from, eviction_worker_lock_wait_time);
@@ -4685,6 +4715,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_read_age_unknown += WT_STAT_CONN_READ(from, disagg_read_age_unknown);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
+    to->disagg_read_pred_ckpt1 += WT_STAT_CONN_READ(from, disagg_read_pred_ckpt1);
+    to->disagg_read_pred_ckpt16_31 += WT_STAT_CONN_READ(from, disagg_read_pred_ckpt16_31);
+    to->disagg_read_pred_ckpt2_3 += WT_STAT_CONN_READ(from, disagg_read_pred_ckpt2_3);
+    to->disagg_read_pred_ckpt4_7 += WT_STAT_CONN_READ(from, disagg_read_pred_ckpt4_7);
+    to->disagg_read_pred_ckpt8_15 += WT_STAT_CONN_READ(from, disagg_read_pred_ckpt8_15);
+    to->disagg_read_pred_ckpt0 += WT_STAT_CONN_READ(from, disagg_read_pred_ckpt0);
+    to->disagg_read_pred_older += WT_STAT_CONN_READ(from, disagg_read_pred_older);
+    to->disagg_read_pred_unknown += WT_STAT_CONN_READ(from, disagg_read_pred_unknown);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);

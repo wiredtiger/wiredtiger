@@ -516,6 +516,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_internal);
         else
             WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_leaf);
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_stable);
     }
 
     if (LF_ISSET(WT_READ_PREFETCH))

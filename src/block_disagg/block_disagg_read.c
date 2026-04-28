@@ -364,35 +364,12 @@ __wti_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
 }
 
 /*
- * __disagg_record_read_age --
- *     Classify a page read by age (checkpoints since it was last written) and increment the
- *     corresponding connection statistic.
+ * __disagg_incr_age_stat --
+ *     Increment the read-age statistic corresponding to the given bucket index.
  */
 static void
-__disagg_record_read_age(WT_SESSION_IMPL *session, uint64_t page_lsn)
+__disagg_incr_age_stat(WT_SESSION_IMPL *session, uint32_t bucket)
 {
-    WT_DISAGGREGATED_STORAGE *disagg;
-    uint64_t hist_snapshot[WT_DISAGG_CKPT_HIST_SIZE];
-    uint32_t bucket, count_snapshot, seq1;
-
-    disagg = &S2C(session)->disaggregated_storage;
-
-    /* Take a consistent snapshot of the checkpoint LSN history via the seqlock protocol. */
-    for (;;) {
-        seq1 = __wt_atomic_load_uint32_acquire(&disagg->ckpt_lsn_seqcount);
-        if (seq1 & 1) {
-            WT_PAUSE();
-            continue;
-        }
-        memcpy(hist_snapshot, disagg->ckpt_lsn_history, sizeof(hist_snapshot));
-        count_snapshot = disagg->ckpt_lsn_count;
-        WT_ACQUIRE_BARRIER();
-        if (__wt_atomic_load_uint32_relaxed(&disagg->ckpt_lsn_seqcount) == seq1)
-            break;
-    }
-
-    bucket = __disagg_page_age_bucket(page_lsn, hist_snapshot, count_snapshot);
-
     switch (bucket) {
     case 0:
         WT_STAT_CONN_INCR(session, disagg_read_age_ckpt0);
@@ -424,6 +401,78 @@ __disagg_record_read_age(WT_SESSION_IMPL *session, uint64_t page_lsn)
 }
 
 /*
+ * __disagg_incr_pred_stat --
+ *     Increment the predecessor read-age statistic corresponding to the given bucket index.
+ */
+static void
+__disagg_incr_pred_stat(WT_SESSION_IMPL *session, uint32_t bucket)
+{
+    switch (bucket) {
+    case 0:
+        WT_STAT_CONN_INCR(session, disagg_read_pred_ckpt0);
+        break;
+    case 1:
+        WT_STAT_CONN_INCR(session, disagg_read_pred_ckpt1);
+        break;
+    case 2:
+    case 3:
+        WT_STAT_CONN_INCR(session, disagg_read_pred_ckpt2_3);
+        break;
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+        WT_STAT_CONN_INCR(session, disagg_read_pred_ckpt4_7);
+        break;
+    default:
+        if (bucket < 16)
+            WT_STAT_CONN_INCR(session, disagg_read_pred_ckpt8_15);
+        else if (bucket < WT_DISAGG_CKPT_HIST_SIZE)
+            WT_STAT_CONN_INCR(session, disagg_read_pred_ckpt16_31);
+        else if (bucket == WT_DISAGG_CKPT_HIST_SIZE)
+            WT_STAT_CONN_INCR(session, disagg_read_pred_older);
+        else
+            WT_STAT_CONN_INCR(session, disagg_read_pred_unknown);
+        break;
+    }
+}
+
+/*
+ * __disagg_record_read_ages --
+ *     Classify page_lsn into a read-age histogram bucket and update the corresponding statistic.
+ *     If pred_lsn is non-zero, also classify it into the predecessor histogram. Both LSNs are
+ *     classified against the same seqlock snapshot of the checkpoint history.
+ */
+static void
+__disagg_record_read_ages(WT_SESSION_IMPL *session, uint64_t page_lsn, uint64_t pred_lsn)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t hist_snapshot[WT_DISAGG_CKPT_HIST_SIZE];
+    uint32_t count_snapshot, seq1;
+
+    disagg = &S2C(session)->disaggregated_storage;
+
+    /* Take a consistent snapshot of the checkpoint LSN history via the seqlock protocol. */
+    for (;;) {
+        seq1 = __wt_atomic_load_uint32_acquire(&disagg->ckpt_lsn_seqcount);
+        if (seq1 & 1) {
+            WT_PAUSE();
+            continue;
+        }
+        memcpy(hist_snapshot, disagg->ckpt_lsn_history, sizeof(hist_snapshot));
+        count_snapshot = disagg->ckpt_lsn_count;
+        WT_ACQUIRE_BARRIER();
+        if (__wt_atomic_load_uint32_relaxed(&disagg->ckpt_lsn_seqcount) == seq1)
+            break;
+    }
+
+    __disagg_incr_age_stat(session, __disagg_page_age_bucket(page_lsn, hist_snapshot, count_snapshot));
+    if (pred_lsn != 0)
+        __disagg_incr_pred_stat(
+          session, __disagg_page_age_bucket(pred_lsn, hist_snapshot, count_snapshot));
+}
+
+/*
  * __wti_block_disagg_read_multiple --
  *     Map or read address cookie referenced page and deltas into an array of buffers, with memory
  *     managed by a memory buffer.
@@ -441,13 +490,19 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
     /* Crack the cookie. */
     WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
-    /* Classify the read by checkpoint age and update the corresponding statistic. */
-    __disagg_record_read_age(session, cookie.lsn);
-
     /* Read the block. */
     WT_RET(
       __block_disagg_read_multiple(session, block_disagg, block_meta, cookie.page_id, cookie.flags,
         cookie.lsn, cookie.base_lsn, cookie.size, cookie.checksum, buffer_array, buffer_count));
+
+    /*
+     * Classify this read by checkpoint age. For delta pages, also classify the predecessor LSN
+     * (the next item in the delta chain: a prior delta or the base image). Both use a single
+     * seqlock snapshot of the checkpoint history. block_meta->backlink_lsn is zero for base-image
+     * reads (delta_count == 0), which suppresses the predecessor histogram update.
+     */
+    __disagg_record_read_ages(session, cookie.lsn,
+      block_meta->delta_count > 0 ? block_meta->backlink_lsn : 0);
 
     return (0);
 }

@@ -225,6 +225,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
+        if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_stable);
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
             WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
         else
@@ -517,6 +519,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_stable);
         if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
             WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
         else

@@ -743,6 +743,7 @@ struct __wt_connection_stats {
     int64_t eviction_clear_ordinary;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
+    int64_t cache_pages_requested_stable;
     int64_t cache_pages_requested_internal;
     int64_t cache_pages_requested_leaf;
     int64_t cache_pages_requested_hs;
@@ -769,6 +770,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_hs_shared_cursor_not_cached;
     int64_t cache_read_delta_updates;
     int64_t cache_read_restored_tombstone_bytes;
+    int64_t cache_read_stable;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t eviction_worker_lock_wait_time;
@@ -995,6 +997,14 @@ struct __wt_connection_stats {
     int64_t disagg_read_age_unknown;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
+    int64_t disagg_read_pred_ckpt1;
+    int64_t disagg_read_pred_ckpt16_31;
+    int64_t disagg_read_pred_ckpt2_3;
+    int64_t disagg_read_pred_ckpt4_7;
+    int64_t disagg_read_pred_ckpt8_15;
+    int64_t disagg_read_pred_ckpt0;
+    int64_t disagg_read_pred_older;
+    int64_t disagg_read_pred_unknown;
     int64_t disagg_role_leader;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_time;
@@ -1571,6 +1581,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
+    int64_t cache_pages_requested_stable;
     int64_t cache_pages_requested_internal;
     int64_t cache_pages_requested_leaf;
     int64_t cache_pages_requested_hs;
@@ -1589,6 +1600,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_hs_shared_cursor_not_cached;
     int64_t cache_read_delta_updates;
     int64_t cache_read_restored_tombstone_bytes;
+    int64_t cache_read_stable;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;
