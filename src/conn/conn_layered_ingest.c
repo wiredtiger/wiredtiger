@@ -220,13 +220,15 @@ __wt_layered_verify_gc_update(
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *stable_cursor;
+    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     uint32_t ingest_id;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
-      "checkpoint=WiredTigerCheckpoint", "readonly", NULL};
+    const char *checkpoint_name;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL};
 
     stable_cursor = NULL;
+    checkpoint_name = NULL;
 
     if (upd_to_prune == NULL || !WT_UPDATE_DATA_VALUE(upd_to_prune))
         return (0);
@@ -241,16 +243,39 @@ __wt_layered_verify_gc_update(
     /* Materialize the key for this cursor position into cbt->iface.key. */
     WT_RET(__wt_key_return(cbt));
 
+retry:
     /*
-     * Open a read-only cursor on the latest checkpoint of the stable table. If the stable table has
-     * never been checkpointed there is nothing to verify against.
+     * Look up the most recent stable-table checkpoint. If no checkpoint exists yet, there is
+     * nothing to verify against.
      */
     WT_ERR_NOTFOUND_OK(
-      __wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor), true);
+      __wt_meta_checkpoint_last_name(session, entry->stable_uri, &checkpoint_name, NULL, NULL),
+      true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto err;
     }
+
+    /*
+     * Build a URI with a "/<checkpoint name>" suffix. This reads from the stable checkpoint
+     * without going through the traditional checkpoint-cursor path.
+     */
+    if (stable_uri_buf == NULL)
+        WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "%s/%s", entry->stable_uri, checkpoint_name));
+
+    ret = __wt_open_cursor(session, stable_uri_buf->data, NULL, cfg, &stable_cursor);
+    if (ret == EBUSY) {
+        /*
+         * The named checkpoint we picked may have been replaced by a concurrent checkpoint. Drop
+         * the stale name and look up the latest one again before retrying. FIXME-WT-16476: no
+         * need to yield if we no longer take the checkpoint lock.
+         */
+        __wt_free(session, checkpoint_name);
+        __wt_yield();
+        goto retry;
+    }
+    WT_ERR(ret);
 
     stable_cursor->set_key(stable_cursor, &cbt->iface.key);
     ret = stable_cursor->search(stable_cursor);
@@ -270,6 +295,8 @@ __wt_layered_verify_gc_update(
 err:
     if (stable_cursor != NULL)
         WT_TRET(stable_cursor->close(stable_cursor));
+    __wt_free(session, checkpoint_name);
+    __wt_scr_free(session, &stable_uri_buf);
     return (ret);
 }
 #endif
