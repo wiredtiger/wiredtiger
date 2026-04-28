@@ -881,32 +881,47 @@ __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_rec_free_replace_state --
- *     Free the saved single-replacement reconciliation output (block cookie + cached disk image) on
- *     a page's modify struct. Does not touch storage.
+ * __wt_rec_clear_modify_state --
+ *     Free the page's saved reconciliation output (single-replacement state or multi-block
+ *     entries), dispatching on the reconciliation result. Memory cleanup only --
+ *     does not touch storage. Does not reset rec_result; callers that keep the page must reset it
+ *     themselves to avoid a later wrapup trusting the now-cleared state.
  */
-static WT_INLINE void
-__wt_rec_free_replace_state(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
+static WT_INLINE int
+__wt_rec_clear_modify_state(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    __wt_free(session, mod->mod_replace.block_cookie);
-    mod->mod_replace.block_cookie_size = 0;
-    __wt_free(session, mod->mod_disk_image);
-}
+    WT_MULTI *multi;
+    WT_PAGE_MODIFY *mod = page->modify;
+    uint32_t i;
 
-/*
- * __wt_rec_free_multi_entry --
- *     Free a single multi-block entry's owned memory: key (row stores only), saved updates, cached
- *     disk image, address cookie, and block metadata. Does not touch storage.
- */
-static WT_INLINE void
-__wt_rec_free_multi_entry(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
-{
-    if (page->type == WT_PAGE_ROW_INT || page->type == WT_PAGE_ROW_LEAF)
-        __wt_free(session, multi->key.ikey);
-    __wt_free(session, multi->supd);
-    __wt_free(session, multi->disk_image);
-    __wt_free(session, multi->addr.block_cookie);
-    __wt_free(session, multi->block_meta);
+    if (mod == NULL)
+        return (0);
+
+    switch (mod->rec_result) {
+    case 0:               /* Never reconciled, nothing to clear. */
+    case WT_PM_REC_EMPTY: /* Empty page, no block state to clear. */
+        break;
+    case WT_PM_REC_REPLACE:
+        __wt_free(session, mod->mod_replace.block_cookie);
+        mod->mod_replace.block_cookie_size = 0;
+        __wt_free(session, mod->mod_disk_image);
+        break;
+    case WT_PM_REC_MULTIBLOCK:
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+            if (page->type == WT_PAGE_ROW_INT || page->type == WT_PAGE_ROW_LEAF)
+                __wt_free(session, multi->key.ikey);
+            __wt_free(session, multi->supd);
+            __wt_free(session, multi->disk_image);
+            __wt_free(session, multi->addr.block_cookie);
+            __wt_free(session, multi->block_meta);
+        }
+        __wt_free(session, mod->mod_multi);
+        mod->mod_multi_entries = 0;
+        break;
+    default:
+        return (__wt_illegal_value(session, mod->rec_result));
+    }
+    return (0);
 }
 
 /*

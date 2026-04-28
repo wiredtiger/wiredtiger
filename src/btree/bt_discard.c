@@ -164,9 +164,7 @@ static void
 __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_INSERT_HEAD *append;
-    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
-    uint32_t i;
     bool update_ignore;
 
     mod = page->modify;
@@ -174,28 +172,8 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* In some failed-split cases, we can't discard updates. */
     update_ignore = F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE);
 
-    switch (mod->rec_result) {
-    case WT_PM_REC_MULTIBLOCK:
-        /* Free list of replacement blocks. */
-        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
-            __wt_rec_free_multi_entry(session, page, multi);
-        __wt_free(session, mod->mod_multi);
-        break;
-    case WT_PM_REC_REPLACE:
-        /*
-         * Discard any replacement address: this memory is usually moved into the parent's WT_REF,
-         * but at the root that can't happen.
-         *
-         * Discard the new disk image if it is not NULL. If the new disk image is NULL, it must have
-         * been instantiated into memory. Otherwise, we have a failure in eviction after
-         * reconciliation and later we decide to discard the old disk image without loading the new
-         * disk image into memory. Free the new disk image in this case. If a checkpoint visits this
-         * page, it would write the new disk image even it hasn't been instantiated into memory.
-         * Therefore, no need to reconcile the page again if it remains clean.
-         */
-        __wt_rec_free_replace_state(session, mod);
-        break;
-    }
+    /* Free the saved reconciliation output. The page is being freed entirely. */
+    WT_IGNORE_RET(__wt_rec_clear_modify_state(session, page));
 
     switch (page->type) {
     case WT_PAGE_COL_VAR:
