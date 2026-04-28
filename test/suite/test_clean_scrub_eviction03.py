@@ -33,6 +33,8 @@ import threading, wttest
 # test_clean_scrub_eviction03.py
 #       Workload variants and concurrency: large pages, concurrent readers, scrub during
 #       checkpoint, and the page-dirtied race.
+@wttest.skip_for_hook("disagg",
+    "disaggregated storage auto-enables clean-scrub eviction; coverage there is in test_clean_scrub_eviction_disagg01")
 class test_clean_scrub_eviction03(CleanScrubBase, wttest.WiredTigerTestCase):
     scenarios = clean_scrub_scenarios
     uri = "table:test_clean_scrub_eviction03"

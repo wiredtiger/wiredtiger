@@ -33,6 +33,8 @@ import wttest
 # test_clean_scrub_eviction01.py
 #       Core clean-scrub eviction behavior: reconciliation saves disk images, the eviction
 #       walk picks them up and re-instantiates pages from them, and the data stays correct.
+@wttest.skip_for_hook("disagg",
+    "disaggregated storage auto-enables clean-scrub eviction; coverage there is in test_clean_scrub_eviction_disagg01")
 class test_clean_scrub_eviction01(CleanScrubBase, wttest.WiredTigerTestCase):
     scenarios = clean_scrub_scenarios
     uri = "table:test_clean_scrub_eviction01"
