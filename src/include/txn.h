@@ -29,10 +29,11 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
-#define WT_TXN_LOG_CKPT_PREPARE 0x02u
-#define WT_TXN_LOG_CKPT_START 0x04u
-#define WT_TXN_LOG_CKPT_STOP 0x08u
-#define WT_TXN_LOG_CKPT_SYNC 0x10u
+#define WT_TXN_LOG_CKPT_FLUSH 0x02u
+#define WT_TXN_LOG_CKPT_PREPARE 0x04u
+#define WT_TXN_LOG_CKPT_START 0x08u
+#define WT_TXN_LOG_CKPT_STOP 0x10u
+#define WT_TXN_LOG_CKPT_SYNC 0x20u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -70,9 +71,7 @@ typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
     (S2C(s)->txn_global.txn_shared_list == NULL ? NULL : \
                                                   &S2C(s)->txn_global.txn_shared_list[(s)->id])
 
-#define WT_SESSION_IS_CHECKPOINT(s) \
-    (!WT_SESSION_IS_DEFAULT(s) &&   \
-      (s)->id == __wt_atomic_load_uint32_v_relaxed(&S2C(s)->txn_global.checkpoint_id))
+#define WT_SESSION_IS_CHECKPOINT(s) (F_ISSET((s), WT_SESSION_CHECKPOINT))
 
 /*
  * Perform an operation at the specified isolation level.
@@ -222,6 +221,7 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;                     /* Debug mode rollback */
     wt_shared volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
+    uint64_t oldest_id_last_verbose; /* Oldest ID at last long-running txn verbose message */
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 

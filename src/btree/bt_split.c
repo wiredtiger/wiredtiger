@@ -700,7 +700,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * sync.
      */
     deleted_entries = 0;
-    if (!__wt_btree_syncing_by_other_session(session))
+    if (!__wt_btree_syncing_by_other_sessions(session))
         for (i = 0; i < parent_entries; ++i) {
             next_ref = pindex->index[i];
             WT_ASSERT(session, WT_REF_GET_STATE(next_ref) != WT_REF_SPLIT);
@@ -1221,7 +1221,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * (which causes reconciliation to loop until the exclusive lock is resolved). If we want to
      * split the parent, give up to avoid that deadlock.
      */
-    if (!trylock && __wt_btree_syncing_by_other_session(session))
+    if (!trylock && __wt_btree_syncing_by_other_sessions(session))
         return (__wt_set_return(session, EBUSY));
 
     /*

@@ -160,7 +160,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
-        __wt_schema_close_layered(session, (WT_LAYERED_TABLE *)dhandle);
+        __wt_schema_destroy_layered(session, (WT_LAYERED_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TABLE:
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
@@ -395,7 +395,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
             WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
             if (!__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
                 WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
-                  "the table has uncommitted data and cannot be dropped yet");
+                  "the table has uncommitted data and cannot be closed yet");
         }
 
         /* Turn off eviction. */
