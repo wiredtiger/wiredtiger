@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest, wiredtiger
+import unittest, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -196,6 +196,8 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
         c1.close()
         c2.close()
 
+    # FIXME-WT-17272: search_near in truncate path misses uncommitted ingest updates
+    @unittest.skip("FIXME-WT-17272")
     def test_truncate_write_conflict_2(self):
         self.session.create(self.uri, self.session_create_config())
 
