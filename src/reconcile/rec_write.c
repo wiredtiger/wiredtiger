@@ -302,7 +302,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     case WT_PAGE_ROW_LEAF:
         /* Track whether checkpoint is re-reconciling a page with an unresolved multiblock split. */
-        if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
           WT_REC_RESULT_MULTIBLOCK_SPLIT(page) && F_ISSET(r, WT_REC_CHECKPOINT))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_split_re_reconciled);
         /*
