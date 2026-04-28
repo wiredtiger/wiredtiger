@@ -538,7 +538,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         prev_upd = upd = NULL;
 
         WT_ASSERT(session, updates.size > 0);
-        cache_hs_update_processed += updates.size;
+        cache_hs_update_processed += updates.size - 1;
         __wt_update_vector_peek(&updates, &oldest_upd);
 
         WT_ASSERT(session,
