@@ -3085,7 +3085,7 @@ struct __wt_connection {
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
  * @config{checkpoint_threads, the number of checkpoint threads for syncing tables in parallel
- * during checkpoints., an integer greater than or equal to \c 1; default \c 4.}
+ * during checkpoints., an integer greater than or equal to \c 1; default \c 1.}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of
  * related configuration options defined as follows.}
@@ -7352,7 +7352,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED		1413
 /*! checkpoint: most recent time (msecs) */
 #define	WT_STAT_CONN_CHECKPOINT_TIME_RECENT		1414
-/*! checkpoint: number of bytes caused to be reconciled */
+/*! checkpoint: number of bytes reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED_BYTES	1415
 /*! checkpoint: number of checkpoints started by api */
 #define	WT_STAT_CONN_CHECKPOINTS_API			1416
@@ -7362,13 +7362,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_SYNC			1418
 /*! checkpoint: number of handles visited after writes complete */
 #define	WT_STAT_CONN_CHECKPOINT_PRESYNC			1419
-/*! checkpoint: number of history store pages caused to be reconciled */
+/*! checkpoint: number of history store pages reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_HS_PAGES_RECONCILED	1420
 /*! checkpoint: number of internal pages visited */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_INTERNAL	1421
 /*! checkpoint: number of leaf pages visited */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_LEAF	1422
-/*! checkpoint: number of pages caused to be reconciled */
+/*! checkpoint: number of pages reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED	1423
 /*!
  * checkpoint: number of pages reconciled by checkpoint parallel worker

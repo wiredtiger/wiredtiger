@@ -160,7 +160,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
-        __wt_schema_close_layered(session, (WT_LAYERED_TABLE *)dhandle);
+        __wt_schema_destroy_layered(session, (WT_LAYERED_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TABLE:
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
