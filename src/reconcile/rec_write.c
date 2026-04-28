@@ -3288,7 +3288,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
 
-        if (page->modify != NULL && page->modify->rec_result == WT_PM_REC_REPLACE &&
+        if (page->modify->rec_result == WT_PM_REC_REPLACE &&
           r->multi->block_meta->delta_count == 0 &&
           page->disagg_info->block_meta.cumulative_size > 0)
             __wt_block_disagg_obsolete_delta_chain(
@@ -3296,11 +3296,9 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         /* Outer page-id match implies a previous multiblock could only have one entry. */
         WT_ASSERT(session,
-          page->modify == NULL || page->modify->rec_result != WT_PM_REC_MULTIBLOCK ||
-            page->modify->mod_multi_entries == 1);
+          page->modify->rec_result != WT_PM_REC_MULTIBLOCK || page->modify->mod_multi_entries == 1);
         WT_TRET(__wt_rec_clear_modify_state(session, page));
-        if (page->modify != NULL)
-            page->modify->rec_result = 0;
+        page->modify->rec_result = 0;
 
         /*
          * The page id above was just invalidated, so any reference to it is now orphaned. ref->addr
