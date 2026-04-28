@@ -3238,8 +3238,6 @@ split:
 static int
 __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_BTREE *btree = S2BT(session);
-    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod = page->modify;
 
     if (mod == NULL)
@@ -3250,11 +3248,7 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
     case WT_PM_REC_EMPTY: /* Empty page, no block state to clear. */
         break;
     case WT_PM_REC_REPLACE:
-        if (mod->mod_replace.block_cookie != NULL) {
-            __wt_free(session, mod->mod_replace.block_cookie);
-            mod->mod_replace.block_cookie_size = 0;
-        }
-        __wt_free(session, mod->mod_disk_image);
+        __wt_rec_free_replace_state(session, mod);
         break;
     case WT_PM_REC_MULTIBLOCK:
         /*
@@ -3263,13 +3257,7 @@ __rec_disagg_clear_stale_mod_state(WT_SESSION_IMPL *session, WT_PAGE *page)
          * page id and is not orphaned by the invalidation here.
          */
         WT_ASSERT(session, mod->mod_multi_entries == 1);
-        multi = &mod->mod_multi[0];
-        if (btree->type == BTREE_ROW)
-            __wt_free(session, multi->key);
-        __wt_free(session, multi->disk_image);
-        __wt_free(session, multi->supd);
-        __wt_free(session, multi->addr.block_cookie);
-        __wt_free(session, multi->block_meta);
+        __wt_rec_free_multi_entry(session, page, &mod->mod_multi[0]);
         __wt_free(session, mod->mod_multi);
         mod->mod_multi_entries = 0;
         break;

@@ -881,6 +881,35 @@ __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __wt_rec_free_replace_state --
+ *     Free the saved single-replacement reconciliation output (block cookie + cached disk image) on
+ *     a page's modify struct. Does not touch storage.
+ */
+static WT_INLINE void
+__wt_rec_free_replace_state(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
+{
+    __wt_free(session, mod->mod_replace.block_cookie);
+    mod->mod_replace.block_cookie_size = 0;
+    __wt_free(session, mod->mod_disk_image);
+}
+
+/*
+ * __wt_rec_free_multi_entry --
+ *     Free a single multi-block entry's owned memory: key (row stores only), saved updates, cached
+ *     disk image, address cookie, and block metadata. Does not touch storage.
+ */
+static WT_INLINE void
+__wt_rec_free_multi_entry(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
+{
+    if (page->type == WT_PAGE_ROW_INT || page->type == WT_PAGE_ROW_LEAF)
+        __wt_free(session, multi->key.ikey);
+    __wt_free(session, multi->supd);
+    __wt_free(session, multi->disk_image);
+    __wt_free(session, multi->addr.block_cookie);
+    __wt_free(session, multi->block_meta);
+}
+
+/*
  * __wt_page_only_modify_set --
  *     Mark the page (but only the page) dirty.
  */

@@ -177,25 +177,8 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     switch (mod->rec_result) {
     case WT_PM_REC_MULTIBLOCK:
         /* Free list of replacement blocks. */
-        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            switch (page->type) {
-            case WT_PAGE_ROW_INT:
-            case WT_PAGE_ROW_LEAF:
-                __wt_free(session, multi->key.ikey);
-                break;
-            }
-            __wt_free(session, multi->supd);
-            /*
-             * Discard the new disk images if they are not NULL. If the new disk images are NULL,
-             * they must have been instantiated into memory. Otherwise, we have a failure in
-             * eviction after reconciliation. If the split code only successfully instantiates a
-             * subset of new pages into memory, free the instantiated pages and the new disk images
-             * of the pages not in memory. We will redo reconciliation next time we visit this page.
-             */
-            __wt_free(session, multi->disk_image);
-            __wt_free(session, multi->addr.block_cookie);
-            __wt_free(session, multi->block_meta);
-        }
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
+            __wt_rec_free_multi_entry(session, page, multi);
         __wt_free(session, mod->mod_multi);
         break;
     case WT_PM_REC_REPLACE:
@@ -210,8 +193,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * page, it would write the new disk image even it hasn't been instantiated into memory.
          * Therefore, no need to reconcile the page again if it remains clean.
          */
-        __wt_free(session, mod->mod_replace.block_cookie);
-        __wt_free(session, mod->mod_disk_image);
+        __wt_rec_free_replace_state(session, mod);
         break;
     }
 

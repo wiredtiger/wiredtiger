@@ -2522,6 +2522,9 @@ static WT_INLINE void __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *
 static WT_INLINE void __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
+static WT_INLINE void __wt_rec_free_multi_entry(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi);
+static WT_INLINE void __wt_rec_free_replace_state(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod);
 static WT_INLINE void __wt_ref_ascend(
   WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp);
 static WT_INLINE void __wt_ref_index_slot(
