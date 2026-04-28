@@ -223,10 +223,11 @@ typedef struct {
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
 
-    bool backward_compatible; /* Backward compatibility testing */
-    bool configured;          /* Configuration completed */
-    bool reopen;              /* Reopen an existing database */
-    bool workers_finished;    /* Operations completed */
+    bool backward_compatible;      /* Backward compatibility testing */
+    bool configured;               /* Configuration completed */
+    wt_shared bool expect_failure; /* We expect a failure */
+    bool reopen;                   /* Reopen an existing database */
+    bool workers_finished;         /* Operations completed */
 
     WT_CONNECTION *trace_conn; /* Tracing operations */
     WT_SESSION *trace_session;

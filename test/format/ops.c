@@ -97,6 +97,9 @@ random_failure(void)
 {
     static char *core = NULL;
 
+    /* Let the handlers know that we are expecting a failure. */
+    __wt_atomic_store_bool(&g.expect_failure, true);
+
     /*
      * Let our caller know. Note, format.sh checks for this message, so be cautious in changing the
      * format.
