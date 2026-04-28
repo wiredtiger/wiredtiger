@@ -257,6 +257,7 @@ ISA
 ISSET
 ITEMs
 Idempotence
+ImportError
 InitializeCriticalSectionAndSpinCount
 Instantiation
 Intra
@@ -504,6 +505,7 @@ TSan
 TTY
 TW
 TXN
+TestCase
 TestSuiteConnection
 Testcases
 ThreadList
@@ -1661,6 +1663,7 @@ sig
 sigchld
 signalled
 sii
+simpleName
 sizeof
 sizep
 sizev
