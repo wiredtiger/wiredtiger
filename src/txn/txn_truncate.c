@@ -49,7 +49,7 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 
     WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
     if (compare_result < 0) {
-        *is_within_range = false;
+        *is_within_rangep = false;
         return (0);
     }
 
