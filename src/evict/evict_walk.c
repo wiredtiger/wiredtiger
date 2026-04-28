@@ -586,6 +586,15 @@ __wti_evict_push_candidate(
     u_int slot;
 
     /*
+     * Skip pushing refs that aren't currently in memory. A ref can transition out of WT_REF_MEM
+     * (typically to WT_REF_LOCKED for an in-progress eviction) after the caller's earlier state
+     * check but before reaching us; pushing a locked ref would set WT_PAGE_EVICT_LRU on a page
+     * that the active evictor is about to discard, tripping the discard-time assertion.
+     */
+    if (WT_REF_GET_STATE(ref) != WT_REF_MEM)
+        return (false);
+
+    /*
      * Threads can race to queue a page (e.g., an ordinary LRU walk can race with a page being
      * queued for urgent eviction).
      */
@@ -594,6 +603,16 @@ __wti_evict_push_candidate(
     if (orig_flags == new_flags ||
       !__wt_atomic_cas_uint16(&ref->page->flags_atomic, orig_flags, new_flags)) {
         WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flaging);
+        return (false);
+    }
+
+    /*
+     * Close the TOCTOU window: if the ref transitioned to WT_REF_LOCKED between the pre-check
+     * above and the CAS, the active evictor has already passed its own LRU clear and would trip
+     * the discard-time assertion. Undo the flag set so the discard sees a clean state.
+     */
+    if (WT_REF_GET_STATE(ref) != WT_REF_MEM) {
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU);
         return (false);
     }
 
