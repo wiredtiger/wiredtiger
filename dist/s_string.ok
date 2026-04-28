@@ -575,6 +575,7 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerShared
 WiredTigerSharedHS
+WiredTigerStat
 WiredTigerTestCase
 WiredTigerTimestamp
 WiredTigerTmplog
