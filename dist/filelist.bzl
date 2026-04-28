@@ -61,6 +61,7 @@ WT_FILELIST = ['src/block/block_addr.c',
  'src/call_log/call_log.c',
  'src/checkpoint/checkpoint_ckptlist.c',
  'src/checkpoint/checkpoint_conn.c',
+ 'src/checkpoint/checkpoint_parallel.c',
  'src/checkpoint/checkpoint_stats.c',
  'src/checkpoint/checkpoint_txn.c',
  'src/checksum/software/checksum.c',
@@ -219,29 +220,9 @@ WT_FILELIST_X86_HOST = ['src/checksum/x86/crc32-x86-alt.c', 'src/checksum/x86/cr
 
 WT_FILELIST_ZSERIES_HOST = ['src/checksum/zseries/crc32-s390x.c', 'src/checksum/zseries/crc32le-vx.S']
 
-WT_FILELIST_DARWIN_HOST = ['src/os_darwin/os_futex.c']
+WT_FILELIST_DARWIN_HOST = ['src/os_darwin/os_futex.c', 'src/os_darwin/os_mtx_sem.c']
 
-WT_FILELIST_LINUX_HOST = ['src/os_linux/os_futex.c']
-
-WT_FILELIST_WINDOWS_HOST = ['src/os_win/os_futex.c',
- 'src/os_win/os_dir.c',
- 'src/os_win/os_dlopen.c',
- 'src/os_win/os_fs.c',
- 'src/os_win/os_getenv.c',
- 'src/os_win/os_map.c',
- 'src/os_win/os_mtx_cond.c',
- 'src/os_win/os_once.c',
- 'src/os_win/os_pagesize.c',
- 'src/os_win/os_path.c',
- 'src/os_win/os_priv.c',
- 'src/os_win/os_setvbuf.c',
- 'src/os_win/os_sleep.c',
- 'src/os_win/os_snprintf.c',
- 'src/os_win/os_thread.c',
- 'src/os_win/os_time.c',
- 'src/os_win/os_utf8.c',
- 'src/os_win/os_winerr.c',
- 'src/os_win/os_yield.c']
+WT_FILELIST_LINUX_HOST = ['src/os_linux/os_futex.c', 'src/os_linux/os_mtx_sem.c']
 
 WT_FILELIST_POSIX_HOST = ['src/os_posix/os_dir.c',
  'src/os_posix/os_dlopen.c',
@@ -260,3 +241,24 @@ WT_FILELIST_POSIX_HOST = ['src/os_posix/os_dir.c',
  'src/os_posix/os_thread.c',
  'src/os_posix/os_time.c',
  'src/os_posix/os_yield.c']
+
+WT_FILELIST_WINDOWS_HOST = ['src/os_win/os_dir.c',
+ 'src/os_win/os_dlopen.c',
+ 'src/os_win/os_fs.c',
+ 'src/os_win/os_futex.c',
+ 'src/os_win/os_getenv.c',
+ 'src/os_win/os_map.c',
+ 'src/os_win/os_mtx_cond.c',
+ 'src/os_win/os_mtx_sem.c',
+ 'src/os_win/os_once.c',
+ 'src/os_win/os_pagesize.c',
+ 'src/os_win/os_path.c',
+ 'src/os_win/os_priv.c',
+ 'src/os_win/os_setvbuf.c',
+ 'src/os_win/os_sleep.c',
+ 'src/os_win/os_snprintf.c',
+ 'src/os_win/os_thread.c',
+ 'src/os_win/os_time.c',
+ 'src/os_win/os_utf8.c',
+ 'src/os_win/os_winerr.c',
+ 'src/os_win/os_yield.c']

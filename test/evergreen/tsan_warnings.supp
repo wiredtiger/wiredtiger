@@ -100,6 +100,9 @@ race:snap_op_init
 race:snap_track
 race:snap_verify_callback
 
+# FIXME-WT-16783: Statistic logging flags have concurrent accesses
+race:__statlog_config
+
 # Recently introduced issues.
 # FIXME-WT-16312: Check synchornization for __cell_unpack_window_cleanup_kv
 race:__cell_unpack_window_cleanup_kv
