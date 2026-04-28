@@ -219,10 +219,11 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
          * block_cookie; hold the hazard pointer until after the copy.
          */
         __wti_rec_image_copy(session, r, val);
-        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
         if (page_del != NULL)
             WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
+
+        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
     }
     WT_INTL_FOREACH_END;
 
