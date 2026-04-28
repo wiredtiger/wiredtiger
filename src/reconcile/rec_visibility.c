@@ -635,9 +635,19 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
     if (WT_REC_HAS_ON_DISK(vpack) && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw))) {
         char ts_string[4][WT_TS_INT_STRING_SIZE];
         prepare_state = __wt_atomic_load_uint8_v_acquire(&prev_upd->prepare_state);
+        /*
+         * The on-disk durable_ts may be ahead of the chain's prev_upd durable_ts when an obsolete
+         * check has removed a globally visible tombstone that previously sat between them. The
+         * tombstone semantically deleted the on-disk value, so the chain's later re-insert was
+         * legitimately committed without aligning to the now-stale on-disk durable_ts. Once the
+         * tombstone is gone the asserts below would see this out of order edge case, but it is
+         * benign. Mirror the existing visible_all escape on the start_ts assert below to handle
+         * this case here too.
+         */
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
             WT_ASSERT_ALWAYS(session,
-              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
+              __wt_txn_upd_visible_all(session, prev_upd) ||
+                prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
                 prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
                 prev_upd->upd_durable_ts >= vpack->tw.durable_stop_ts,
               "Stop: Durable timestamps cannot be out of order for updates: "
@@ -649,7 +659,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
               __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]));
         } else
             WT_ASSERT_ALWAYS(session,
-              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
+              __wt_txn_upd_visible_all(session, prev_upd) ||
+                prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
                 prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
                 prev_upd->upd_durable_ts >= vpack->tw.durable_start_ts,
               "Start: Durable timestamps cannot be out of order for updates: "
