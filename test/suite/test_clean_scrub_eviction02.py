@@ -34,6 +34,8 @@ import wiredtiger, wttest
 #       Memory accounting and runtime configuration: saved-image bytes are visible in the
 #       cache counters, system btrees are excluded, the inventory gauge returns to zero, and
 #       the feature can be turned on or off at runtime.
+@wttest.skip_for_hook("disagg",
+    "disaggregated storage auto-enables clean-scrub eviction; runtime on/off toggling tests don't apply there")
 class test_clean_scrub_eviction02(CleanScrubBase, wttest.WiredTigerTestCase):
     scenarios = clean_scrub_scenarios
     uri = "table:test_clean_scrub_eviction02"
@@ -94,10 +96,12 @@ class test_clean_scrub_eviction02(CleanScrubBase, wttest.WiredTigerTestCase):
         self.populate(0, self.nrows)
         self.session.checkpoint()
 
+        # Verify that saves happened via the monotonic counter; the gauge can race with eviction
+        # scrubbing saved images back out under cache pressure on faster builds.
         stat_cursor = self.session.open_cursor('statistics:')
-        peak = stat_cursor[stat.conn.cache_clean_scrub_image_bytes][2]
+        saves = stat_cursor[stat.conn.cache_clean_scrub_image_saved][2]
         stat_cursor.close()
-        self.assertGreater(peak, 0)
+        self.assertGreater(saves, 0)
 
         self.conn.reconfigure('eviction=(clean_scrub_eviction=false)')
         self.populate(self.nrows, self.nrows * 12)

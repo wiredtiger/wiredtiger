@@ -108,10 +108,17 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20) +
             ',stable_timestamp=' + self.timestamp_str(20))
 
+        # Subtract any retained clean-scrub image bytes from cache_bytes_inuse before the bound
+        # check: this test verifies that obsolete updates get freed, an invariant that's
+        # orthogonal to whether clean-scrub eviction is retaining additional disk-image footprint
+        # (auto-enabled under disaggregated storage).
+        def working_set():
+            return (self.get_stat(stat.conn.cache_bytes_inuse) -
+                    self.get_stat(stat.conn.cache_clean_scrub_image_bytes))
+
         # Checkpoint.
         self.session.checkpoint()
-        bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
-        self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
+        self.assertLess(working_set(), prev_bytes_in_use * 2)
 
         # Another set of updates.
         self.large_updates(ds.uri, ds, nrows, value_d, 30)
@@ -122,8 +129,7 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
 
         # Checkpoint.
         self.session.checkpoint()
-        bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
-        self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
+        self.assertLess(working_set(), prev_bytes_in_use * 2)
 
         # Another set of updates.
         self.large_updates(ds.uri, ds, nrows, value_e, 40)
@@ -135,8 +141,7 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         # Checkpoint.
         self.session.breakpoint()
         self.session.checkpoint()
-        bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
-        self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
+        self.assertLess(working_set(), prev_bytes_in_use * 2)
         self.assertGreater(self.get_stat(stat.conn.cache_obsolete_updates_removed), 0)
 
 if __name__ == '__main__':
