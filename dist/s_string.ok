@@ -112,6 +112,7 @@ Coverity
 Cppsuite
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -423,6 +424,8 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+RelWithDebInfo
+ReleaseSemaphore
 Rogerio
 Runtime
 RuntimeError
@@ -521,7 +524,6 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
-Upd
 Uryyb
 VARCHAR
 VLCS
@@ -533,6 +535,7 @@ Vc
 Vigenere
 Vixie
 VxWorks
+WAL
 WCHAR
 WILLNEED
 WIREDTIGER
@@ -572,6 +575,7 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerShared
 WiredTigerSharedHS
+WiredTigerStat
 WiredTigerTestCase
 WiredTigerTimestamp
 WiredTigerTmplog
@@ -631,7 +635,6 @@ asan
 ascii
 assertEqual
 assertGreater
-assertGreaterEqual
 assertTrue
 assertfmt
 asymptote
@@ -886,6 +889,7 @@ designator
 dest
 destSize
 destructor
+deterministically
 dev
 dh
 dhandle
@@ -1016,6 +1020,7 @@ fnv
 foc
 fopen
 forceerror
+foreach
 formatmessage
 forw
 foward

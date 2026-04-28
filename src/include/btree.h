@@ -228,9 +228,8 @@ struct __wt_btree {
     uint64_t rec_max_txn;    /* Maximum transaction seen by reconciliation (clean trees). */
     wt_timestamp_t rec_max_timestamp; /* Maximum timestamp seen by reconciliation (clean trees). */
 
-    wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
-    wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
-    wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
+    wt_shared uint64_t checkpoint_gen; /* Checkpoint generation */
+    wt_shared WT_BTREE_SYNC syncing;   /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -241,11 +240,10 @@ struct __wt_btree {
  */
 #define WT_BTREE_SYNCING(btree) \
     (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
-#define WT_SESSION_BTREE_SYNC(session) \
-    (__wt_atomic_load_ptr_acquire(&S2BT(session)->sync_session) == (session))
-#define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                                \
-    (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
-      __wt_atomic_load_ptr_acquire(&(btree)->sync_session) == (session))
+#define WT_SESSION_BTREE_SYNC(session) ((session)->syncing && WT_BTREE_SYNCING(S2BT(session)))
+#define WT_SESSION_BTREE_SYNC_SAFE(session) \
+    ((session)->syncing ||                  \
+      __wt_atomic_load_enum_acquire(&S2BT(session)->syncing) != WT_BTREE_SYNC_RUNNING)
 
     wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
@@ -293,9 +291,9 @@ struct __wt_btree {
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
      */
-    WT_SPINLOCK flush_lock;          /* Lock to flush the tree's pages */
-    uint64_t flush_most_recent_secs; /* Wall clock time for the most recent flush */
-    uint64_t flush_most_recent_ts;   /* Timestamp of the most recent flush */
+    WT_SPINLOCK flush_lock;              /* Lock to flush the tree's pages */
+    uint64_t flush_most_recent_secs;     /* Wall clock time for the most recent flush */
+    wt_timestamp_t flush_most_recent_ts; /* Timestamp of the most recent flush */
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything

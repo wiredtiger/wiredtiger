@@ -108,7 +108,8 @@ class test_layered73(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_key(), 2)
             self.assertEqual(cursor.get_value(), "prepared_value")
         else:
-            prepare_session.rollback_transaction()
+            prepare_session.rollback_transaction(
+                'rollback_timestamp=' + self.timestamp_str(70))
         prepare_cursor.close()
 
     def test_next_key_preserved_on_prepare_conflict(self):
@@ -146,7 +147,8 @@ class test_layered73(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_key(), 2)
             self.assertEqual(cursor.get_value(), "prepared_value")
         else:
-            prepare_session.rollback_transaction()
+            prepare_session.rollback_transaction(
+                'rollback_timestamp=' + self.timestamp_str(70))
 
         prepare_cursor.close()
 
@@ -184,6 +186,7 @@ class test_layered73(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_key(), 4)
             self.assertEqual(cursor.get_value(), "prepared_value")
         else:
-            prepare_session.rollback_transaction()
+            prepare_session.rollback_transaction(
+                'rollback_timestamp=' + self.timestamp_str(70))
 
         prepare_cursor.close()
