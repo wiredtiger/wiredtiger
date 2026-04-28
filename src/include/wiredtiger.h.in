@@ -7350,7 +7350,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED		1412
 /*! checkpoint: most recent time (msecs) */
 #define	WT_STAT_CONN_CHECKPOINT_TIME_RECENT		1413
-/*! checkpoint: number of bytes caused to be reconciled */
+/*! checkpoint: number of bytes reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED_BYTES	1414
 /*! checkpoint: number of checkpoints started by api */
 #define	WT_STAT_CONN_CHECKPOINTS_API			1415
@@ -7360,13 +7360,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_SYNC			1417
 /*! checkpoint: number of handles visited after writes complete */
 #define	WT_STAT_CONN_CHECKPOINT_PRESYNC			1418
-/*! checkpoint: number of history store pages caused to be reconciled */
+/*! checkpoint: number of history store pages reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_HS_PAGES_RECONCILED	1419
 /*! checkpoint: number of internal pages visited */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_INTERNAL	1420
 /*! checkpoint: number of leaf pages visited */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_LEAF	1421
-/*! checkpoint: number of pages caused to be reconciled */
+/*! checkpoint: number of pages reconciled */
 #define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED	1422
 /*!
  * checkpoint: number of pages reconciled by checkpoint parallel worker
