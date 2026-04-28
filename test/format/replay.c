@@ -161,30 +161,6 @@ replay_operation_enabled(thread_op op)
         return (true);
 
     /*
-     * We don't permit modify operations with predictable replay.
-     *
-     * The problem is read timestamps. As currently implemented, the read timestamp selected is
-     * variable, based on the state of other threads and their progress with other timestamped
-     * operations. And if two changes are made to the same key in a short amount of time, if the
-     * second operation were to be performed sometimes with a read timestamp before the first
-     * operation, and sometimes with a read timestamp after the first operation, then the results
-     * would be variable.
-     *
-     * We could track recent operations on a key (in its lane, for instance), but when we realize
-     * the read timestamp isn't recent enough, we would need to wait for the stable timestamp to
-     * move forward (and our waiting can affect/delay other thread's operations as well). Having the
-     * stable timestamp move forward is the only way our read timestamp can progress.
-     *
-     * Another possibility that also involves tracking recent operations on a key would be to
-     * disallow modifies that occur within, say 10000 timestamps of a previous write operation on
-     * the same key. Those modifies could be silently converted to reads, for instance. If our read
-     * timestamp was greater than 10000 timestamps behind, we'd still need to wait for the stable
-     * timestamp to catch up.
-     */
-    if (op == MODIFY)
-        return (false);
-
-    /*
      * We don't permit truncate operations with predictable replay.
      *
      * Currently, we use an operation's timestamp to help derive the operation's key.
@@ -526,6 +502,24 @@ replay_rollback(TINFO *tinfo)
     testutil_assert(tinfo->replay_ts != WT_TS_NONE);
     testutil_assert(tinfo->lane != LANE_NONE);
     testutil_assert(g.lanes[tinfo->lane].in_use);
+}
+
+/*
+ * replay_stale_read_ts --
+ *     Return true if the transaction's read timestamp is below the lane's last commit timestamp,
+ *     meaning an operation may produce non-deterministic results. Spins until
+ *     replay_maximum_committed catches up before returning, so the subsequent rollback and retry
+ *     will acquire a read timestamp that sees a consistent key state.
+ */
+bool
+replay_stale_read_ts(TINFO *tinfo)
+{
+    if (!GV(RUNS_PREDICTABLE_REPLAY) || tinfo->read_ts >= g.lanes[tinfo->lane].last_commit_ts)
+        return (false);
+
+    while (replay_maximum_committed() < g.lanes[tinfo->lane].last_commit_ts)
+        __wt_yield();
+    return (true);
 }
 
 /*

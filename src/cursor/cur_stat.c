@@ -455,8 +455,11 @@ retry:
     }
 
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
-    if (ret == EBUSY)
+    if (ret == EBUSY) {
+        /* FIXME-WT-16476: no need to yield if we no longer take the checkpoint lock. */
+        __wt_yield();
         goto retry;
+    }
 
     WT_ERR(ret);
 
