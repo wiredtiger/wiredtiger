@@ -494,7 +494,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         WT_ASSERT(session,
           (hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == hs_start_ts) &&
             (hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == hs_durable_ts) &&
-            ((hs_tw->durable_stop_ts == 0 && hs_stop_durable_ts == WT_TS_MAX) ||
+            ((hs_tw->durable_stop_ts == WT_TS_NONE && hs_stop_durable_ts == WT_TS_MAX) ||
               hs_tw->durable_stop_ts == hs_stop_durable_ts));
 
         /*
@@ -789,8 +789,6 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             upd->prepare_ts = tw->start_prepare_ts;
             upd->prepared_id = tw->start_prepared_id;
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-                F_SET(upd, WT_UPDATE_DURABLE);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_KEY_CLEAR_REMOVE

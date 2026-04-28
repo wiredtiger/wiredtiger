@@ -904,7 +904,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* If the file is being checkpointed, other threads can't evict dirty pages. */
-    if (__wt_btree_syncing_by_other_session(session))
+    if (__wt_btree_syncing_by_other_sessions(session))
         return (0);
 
     /* The checkpoint cursor dhandle is read-only. Do not mark these pages as dirty. */

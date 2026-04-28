@@ -125,7 +125,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: in-memory page splits performed on ingest btree pages",
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
+  "cache: internal pages read into cache",
   "cache: internal pages split during eviction",
+  "cache: leaf pages read into cache",
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
@@ -581,7 +583,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_inmem_split_ingest = 0;
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
+    stats->cache_read_internal = 0;
     stats->cache_eviction_split_internal = 0;
+    stats->cache_read_leaf = 0;
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
@@ -1020,7 +1024,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_internal_page_split +=
       from->cache_eviction_blocked_internal_page_split;
     to->cache_eviction_internal += from->cache_eviction_internal;
+    to->cache_read_internal += from->cache_read_internal;
     to->cache_eviction_split_internal += from->cache_eviction_split_internal;
+    to->cache_read_leaf += from->cache_read_leaf;
     to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
     to->cache_eviction_random_sample_inmem_root += from->cache_eviction_random_sample_inmem_root;
     to->cache_eviction_dirty += from->cache_eviction_dirty;
@@ -1493,7 +1499,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_internal_page_split +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_internal_page_split);
     to->cache_eviction_internal += WT_STAT_DSRC_READ(from, cache_eviction_internal);
+    to->cache_read_internal += WT_STAT_DSRC_READ(from, cache_read_internal);
     to->cache_eviction_split_internal += WT_STAT_DSRC_READ(from, cache_eviction_split_internal);
+    to->cache_read_leaf += WT_STAT_DSRC_READ(from, cache_read_leaf);
     to->cache_eviction_split_leaf += WT_STAT_DSRC_READ(from, cache_eviction_split_leaf);
     to->cache_eviction_random_sample_inmem_root +=
       WT_STAT_DSRC_READ(from, cache_eviction_random_sample_inmem_root);
@@ -2011,7 +2019,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server completed walks of all dhandles",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
-  "cache: eviction server races with the reconfigure API call in disagg",
   "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
@@ -2139,10 +2146,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
   "cache: internal pages queued for eviction",
+  "cache: internal pages read into cache",
   "cache: internal pages seen by eviction walk",
   "cache: internal pages seen by eviction walk that are already queued",
   "cache: internal pages split during eviction",
   "cache: leaf pages currently held in the cache",
+  "cache: leaf pages read into cache",
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: maximum bytes configured",
@@ -2302,15 +2311,16 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
-  "checkpoint: number of bytes caused to be reconciled",
+  "checkpoint: number of bytes reconciled",
   "checkpoint: number of checkpoints started by api",
   "checkpoint: number of checkpoints started by compaction",
   "checkpoint: number of files synced",
   "checkpoint: number of handles visited after writes complete",
-  "checkpoint: number of history store pages caused to be reconciled",
+  "checkpoint: number of history store pages reconciled",
   "checkpoint: number of internal pages visited",
   "checkpoint: number of leaf pages visited",
-  "checkpoint: number of pages caused to be reconciled",
+  "checkpoint: number of pages reconciled",
+  "checkpoint: number of pages reconciled by checkpoint parallel worker threads",
   "checkpoint: prepare currently running",
   "checkpoint: prepare max time (msecs)",
   "checkpoint: prepare min time (msecs)",
@@ -3076,7 +3086,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_queue_not_empty = 0;
     /* not clearing eviction_dhandle_complete_walk */
     stats->eviction_server_push_pages_failed_when_flaging = 0;
-    stats->eviction_server_race_reconfigure_disagg = 0;
     stats->eviction_server_skip_intl_page_non_aggressive = 0;
     stats->eviction_server_skip_pages_already_in_urgent_queue = 0;
     stats->cache_eviction_blocked_prefetched = 0;
@@ -3188,10 +3197,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
     stats->eviction_internal_pages_queued = 0;
+    stats->cache_read_internal = 0;
     stats->eviction_internal_pages_seen = 0;
     stats->eviction_internal_pages_already_queued = 0;
     stats->cache_eviction_split_internal = 0;
     /* not clearing cache_pages_inuse_leaf */
+    stats->cache_read_leaf = 0;
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
     /* not clearing cache_bytes_max */
@@ -3354,6 +3365,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_pages_visited_internal = 0;
     stats->checkpoint_pages_visited_leaf = 0;
     stats->checkpoint_pages_reconciled = 0;
+    stats->checkpoint_parallel_pages_reconciled = 0;
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
     /* not clearing checkpoint_prep_min */
@@ -4123,8 +4135,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_dhandle_complete_walk += WT_STAT_CONN_READ(from, eviction_dhandle_complete_walk);
     to->eviction_server_push_pages_failed_when_flaging +=
       WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flaging);
-    to->eviction_server_race_reconfigure_disagg +=
-      WT_STAT_CONN_READ(from, eviction_server_race_reconfigure_disagg);
     to->eviction_server_skip_intl_page_non_aggressive +=
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_non_aggressive);
     to->eviction_server_skip_pages_already_in_urgent_queue +=
@@ -4284,11 +4294,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_internal_page_split);
     to->cache_eviction_internal += WT_STAT_CONN_READ(from, cache_eviction_internal);
     to->eviction_internal_pages_queued += WT_STAT_CONN_READ(from, eviction_internal_pages_queued);
+    to->cache_read_internal += WT_STAT_CONN_READ(from, cache_read_internal);
     to->eviction_internal_pages_seen += WT_STAT_CONN_READ(from, eviction_internal_pages_seen);
     to->eviction_internal_pages_already_queued +=
       WT_STAT_CONN_READ(from, eviction_internal_pages_already_queued);
     to->cache_eviction_split_internal += WT_STAT_CONN_READ(from, cache_eviction_split_internal);
     to->cache_pages_inuse_leaf += WT_STAT_CONN_READ(from, cache_pages_inuse_leaf);
+    to->cache_read_leaf += WT_STAT_CONN_READ(from, cache_read_leaf);
     to->cache_eviction_split_leaf += WT_STAT_CONN_READ(from, cache_eviction_split_leaf);
     to->cache_eviction_random_sample_inmem_root +=
       WT_STAT_CONN_READ(from, cache_eviction_random_sample_inmem_root);
@@ -4500,6 +4512,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, checkpoint_pages_visited_internal);
     to->checkpoint_pages_visited_leaf += WT_STAT_CONN_READ(from, checkpoint_pages_visited_leaf);
     to->checkpoint_pages_reconciled += WT_STAT_CONN_READ(from, checkpoint_pages_reconciled);
+    to->checkpoint_parallel_pages_reconciled +=
+      WT_STAT_CONN_READ(from, checkpoint_parallel_pages_reconciled);
     to->checkpoint_prep_running += WT_STAT_CONN_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_CONN_READ(from, checkpoint_prep_max);
     to->checkpoint_prep_min += WT_STAT_CONN_READ(from, checkpoint_prep_min);

@@ -930,6 +930,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
         # no_run will contain a list of files we don't want to run,
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
@@ -972,6 +973,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
         # no_run will contain a list of files we don't want to run,
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
@@ -2582,6 +2584,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # Run the set of tests that are not in the fail list.
           unit_test_parallel_ignore: test/suite/tsan.fail
           unit_test_parallel_args: -v 2 --timeout 300
@@ -2598,6 +2603,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # Run the set of tests that are not in the fail list.
           unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
@@ -2616,6 +2624,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
           unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
@@ -2630,6 +2641,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
           unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
@@ -2644,6 +2658,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
           unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
@@ -2658,6 +2675,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
           unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
@@ -2672,6 +2692,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
           unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
@@ -2868,6 +2891,270 @@ tasks:
         vars:
           # As follower, run a minimal functionality test
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower,table_prefix=table)" base01
+
+  - name: unit-test-hook-parallel-checkpoint
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-tsan
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test tsan parallel"
+        vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
+          unit_test_parallel_ignore: test/suite/tsan.fail
+          unit_test_parallel_args: -v 2 --timeout 300 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-bucket00
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 0/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket01
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 1/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket02
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 2/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket03
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 3/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket04
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 4/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket05
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 5/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket06
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 6/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket07
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 7/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket08
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 8/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket09
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 9/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket10
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 10/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket11
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 11/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket12
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 12/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket13
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 13/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket14
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 14/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket15
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 15/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket16
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 16/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket17
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 17/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket18
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 18/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket19
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 19/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket20
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 20/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket21
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 21/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket22
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 22/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket23
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 23/24
 
   - name: unit-test-hook-timing-stress-log
     tags: ["python"]
@@ -6555,6 +6842,7 @@ buildvariants:
     - name: configure-combinations
     - name: unit-test-zstd
     - name: unit-test-hook-disagg-leader-key-provider
+    - name: unit-test-hook-parallel-checkpoint
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
@@ -6665,6 +6953,7 @@ buildvariants:
     - name: unit-test-hook-disagg-follower-tsan
       distros: ubuntu2004-large
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-disagg-leader-tsan
       distros: ubuntu2004-large
     - name: format-stress-test-tsan
@@ -7432,6 +7721,7 @@ buildvariants:
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
       distros: amazon2023.3-arm64-large
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-tsan
       distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Enable the common test format tag for TSAN
