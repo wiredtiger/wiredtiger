@@ -158,6 +158,6 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
         self.assertEqual(discovered, [prepared_id])
 
         # Resolving the claim must apply to every table the prepared
-        # transaction wrote  both the layered and the regular one.
+        # transaction wrote both the layered and the regular one.
         self.assert_table_state(self.layered_uri, self.resolve)
         self.assert_table_state(self.local_uri, self.resolve)
