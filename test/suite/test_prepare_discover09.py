@@ -27,20 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare_discover09.py
-#   A prepared transaction captured in a checkpoint, then reclaimed on a follower via
-#   "claim_prepared_id", must survive step-up. A reclaimed transaction owns no per-session
-#   transaction id  the only identifier its session carries is the prepared id  so when the
-#   ingest drain runs as part of step-up it must locate the owning session by prepared id when
-#   patching the in-flight operations from the ingest btree to the stable btree.
-#
-#   This test exercises that step-up path end-to-end: discover, reclaim, step up, then resolve.
-#   The fix is the match-by-prepared-id branch in the ingest drain's session walk; without it,
-#   the drain skips the reclaim session and either crashes during ingest truncate or leaves
-#   stale operation pointers behind.
-#
-#   Scenario dimensions:
-#     resolve:     commit | rollback   how the reclaimed transaction is resolved post-step-up
-#     multi_table: True  | False       whether the prepared transaction spans two layered tables
+#   A prepared transaction reclaimed on a follower via claim_prepared_id must survive
+#   step-up. The reclaim session has no transaction id, so the ingest drain at step-up
+#   must match it by prepared id to patch its operations onto the stable btree.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -94,23 +83,16 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
 
     def test_claimed_prepare_insert_survives_step_up(self):
         """
-        A prepared INSERT (keys 4-6) captured in the leader's checkpoint is loaded by the
-        follower, reclaimed via claim_prepared_id, and then resolved after step-up. The
-        reclaim session has no transaction id, so the ingest drain at step-up must match
-        the owning session by prepared id when patching its in-flight operations from the
-        ingest btree to the stable btree.
-
-        Verifies the resolve sequence completes without error and the connection closes
-        cleanly. When multi_table=True the prepared transaction also covers a second
-        layered table; both tables are exercised by the same reclaim.
+        Prepared INSERT (keys 4-6) is captured in the leader's checkpoint, reclaimed on
+        the follower via claim_prepared_id, then resolved after step-up. Verifies the
+        resolve sequence completes without error.
         """
         prepared_id = 12345
         uris = self._uris
 
         # ---- Phase 1 (Leader) ----
-        # Commit baseline keys 1-3, prepare INSERT on keys 4-6, advance stable past the
-        # prepare timestamp, and checkpoint so the prepare is captured on disk. Roll back
-        # the leader's prepare afterward; the follower reclaims it by prepared id below.
+        # Commit baseline keys 1-3, prepare INSERT on keys 4-6, checkpoint with the
+        # prepare captured, then roll back so the follower can reclaim it by prepared id.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp='  + self.timestamp_str(50))
 
@@ -146,10 +128,8 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
         self.conn.close('debug=(skip_checkpoint=true)')
 
         # ---- Phase 2 (Follower: discover and reclaim) ----
-        # Open the follower from the captured checkpoint, walk the prepared_discover cursor,
-        # and reclaim each surfaced prepared id on a dedicated session via claim_prepared_id.
-        # Reclaiming sets the session's prepared id but deliberately leaves its transaction
-        # id unset, which is the case the step-up callback must handle.
+        # Walk prepared_discover and reclaim each surfaced id on a dedicated session.
+        # Reclaiming sets prepared id but leaves transaction id unset.
         conn_follow = self._open_follower(checkpoint_meta)
         discover_session = conn_follow.open_session()
         discover_cursor = discover_session.open_cursor('prepared_discover:')
@@ -159,8 +139,7 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
         while discover_cursor.next() == 0:
             pid = discover_cursor.get_key()
             discovered.append(pid)
-            # The discover cursor must not close until every surfaced prepared id has been
-            # claimed; reclaim now and leave the session active until after step-up.
+            # Every surfaced prepared id must be claimed before the cursor closes.
             claim_session.begin_transaction(
                 'claim_prepared_id=' + self.prepared_id_str(pid))
 
@@ -169,16 +148,9 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
         discover_session.close()
 
         # ---- Phase 3 (Step up while the reclaim is live) ----
-        # The ingest drain that runs as part of step-up walks active sessions, finds the
-        # session that owns the prepared transaction, and patches its operations so they
-        # apply to the stable btree. The reclaim session has no transaction id, so this
-        # match must succeed by prepared id.
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
         # ---- Phase 4 (Resolve the reclaimed transaction) ----
-        # The resolve must complete without error. Without the step-up fix, the drain skips
-        # the reclaim session, leaving its operations pointing at the about-to-be-truncated
-        # ingest btree; the resolve below would then trip on the inconsistent state.
         if self.commit:
             claim_session.timestamp_transaction(
                 'commit_timestamp=' + self.timestamp_str(200) +
@@ -189,7 +161,6 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
                 'rollback_timestamp=' + self.timestamp_str(210))
         claim_session.close()
 
-        # Advance stable past the resolve and checkpoint to flush the resolved state.
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
         self._checkpoint(conn_follow)
 
