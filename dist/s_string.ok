@@ -905,6 +905,7 @@ dirlist
 dirstore
 disagg
 disaggregated
+discoverable
 disproportionally
 distros
 disttop
@@ -1753,6 +1754,7 @@ tombstoned
 toml
 toolchain
 totalsec
+tp
 traceapi
 tracepat
 transactional

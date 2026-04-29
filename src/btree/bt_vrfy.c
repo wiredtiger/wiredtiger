@@ -258,7 +258,7 @@ __verify_unique_btree_ids(WT_SESSION_IMPL *session)
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
-        if (!WT_PREFIX_MATCH(key, "file:") || !WT_SUFFIX_MATCH(key, ".wt_stable"))
+        if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
             continue;
         WT_ERR(cursor->get_value(cursor, &value));
         WT_ERR(__wt_config_getones(session, value, "id", &id_val));
@@ -344,7 +344,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * the verify session's exclusive lock is on the stable file, not the metadata file, so a shared
      * metadata cursor can be opened directly on the verify session.
      */
-    if (WT_SUFFIX_MATCH(name, ".wt_stable"))
+    if (WT_URI_IS_STABLE(name))
         WT_ERR(__verify_unique_btree_ids(session));
 
     /*

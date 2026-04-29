@@ -86,7 +86,7 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 
     npage_log = NULL;
 
-    if (WT_PREFIX_MATCH(uri, "file:") && WT_SUFFIX_MATCH(uri, ".wt_stable")) {
+    if (WT_URI_IS_STABLE(uri)) {
         WT_RET_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
         if (ret == WT_NOTFOUND || page_log_item.len == 0)
