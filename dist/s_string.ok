@@ -478,6 +478,7 @@ TCMalloc
 TESTUTIL
 TID
 TMP
+TOCTOU
 TODO
 TRET
 TRYLOCK
@@ -977,6 +978,7 @@ ev
 evd
 eventv
 evictable
+evictor
 exactp
 exc
 exe
