@@ -430,8 +430,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                     # If we don't we'll immediately panic
                     if commit_ts < self.oldest_ts:
                         commit_ts = self.oldest_ts
-                    if durable_ts < commit_ts:
-                        durable_ts = commit_ts
+                    if durable_ts <= commit_ts:
+                        durable_ts = commit_ts + 1
                     if durable_ts <= self.stable_ts:
                         durable_ts = self.stable_ts + 1
                 value = self.gen_value(iternum, commit_ts)
