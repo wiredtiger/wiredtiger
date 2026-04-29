@@ -199,6 +199,7 @@ create_configs()
     echo "obsolete_cleanup.method=off" >> $file_name  # WT-14142 - Not supported by older releases
     echo "obsolete_cleanup.wait=0" >> $file_name      # WT-14142 - Not supported by older releases
     echo "prefetch=0" >> $file_name                   # WT-12978 - Not supported by older releases
+    echo "prefetch.default=0" >> $file_name           # WT-16671 - Not supported by older releases
     echo "rows=1000000" >> $file_name
     echo "salvage=0" >> $file_name                    # Faster runs
     echo "statistics_log.sources=off" >> $file_name   # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
