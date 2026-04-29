@@ -2766,7 +2766,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         else
             ++pages_seen_clean;
 
-        if (__evict_page_updates_candidate(S2BT(session), ref))
+        if (__evict_page_updates_candidate(btree, ref))
             ++pages_seen_updates;
 
         /* Count internal pages seen. */
