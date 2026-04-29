@@ -3367,7 +3367,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_pages_visited_internal = 0;
     stats->checkpoint_pages_visited_leaf = 0;
     stats->checkpoint_pages_reconciled = 0;
-    stats->checkpoint_parallel_pages_reconciled = 0;
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
     /* not clearing checkpoint_prep_min */
@@ -4516,8 +4515,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, checkpoint_pages_visited_internal);
     to->checkpoint_pages_visited_leaf += WT_STAT_CONN_READ(from, checkpoint_pages_visited_leaf);
     to->checkpoint_pages_reconciled += WT_STAT_CONN_READ(from, checkpoint_pages_reconciled);
-    to->checkpoint_parallel_pages_reconciled +=
-      WT_STAT_CONN_READ(from, checkpoint_parallel_pages_reconciled);
     to->checkpoint_prep_running += WT_STAT_CONN_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_CONN_READ(from, checkpoint_prep_max);
     to->checkpoint_prep_min += WT_STAT_CONN_READ(from, checkpoint_prep_min);

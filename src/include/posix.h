@@ -29,7 +29,6 @@
  */
 typedef pthread_cond_t wt_cond_t;
 typedef pthread_mutex_t wt_mutex_t;
-
 typedef struct {
     bool created;
     uint16_t name_index;
