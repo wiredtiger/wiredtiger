@@ -2775,6 +2775,10 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
     F_SET(session, session_flags | WT_SESSION_INTERNAL);
     FLD_SET(session->lock_flags, session_lock_flags);
 
+    /* Internal sessions created from checkpoint sessions are not actually checkpoint sessions. */
+    F_CLR(session, WT_SESSION_CHECKPOINT);
+    F_CLR(session, WT_SESSION_CHECKPOINT_WORKER);
+
     *sessionp = session;
     return (0);
 }

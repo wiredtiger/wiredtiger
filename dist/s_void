@@ -35,6 +35,7 @@ func_ok()
         -e '/int __bm_stat$/d' \
         -e '/int __bmd_stat$/d' \
         -e '/int __checkpoint_presync$/d' \
+        -e '/int __checkpoint_parallel_thread_release_snapshot$/d' \
         -e '/int __compact_uri_analyze$/d' \
         -e '/int __compact_walk_page_skip$/d' \
         -e '/int __config_parser_close$/d' \
@@ -95,6 +96,8 @@ func_ok()
         -e '/int __wt_logop_unpack$/d' \
         -e '/int __wt_logrec_read$/d' \
         -e '/int __wt_once$/d' \
+        -e '/int __wt_semaphore_destroy$/d' \
+        -e '/int __wt_semaphore_post$/d' \
         -e '/int __wt_session_breakpoint$/d' \
         -e '/int __wt_set_return_func$/d' \
         -e '/int __wt_spin_init$/d' \

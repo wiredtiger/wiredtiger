@@ -1102,6 +1102,11 @@ __conn_rollback_transaction_callback(
 
     if (F_ISSET(array_session->txn, WT_TXN_RUNNING)) {
         wt_session = &array_session->iface;
+        /*
+         * Connection close has no opportunity to provide configuration. Mark this rollback as
+         * forced so rollback timestamp enforcement is bypassed.
+         */
+        F_SET(array_session->txn, WT_TXN_FORCE_ROLLBACK);
         return (wt_session->rollback_transaction(wt_session, NULL));
     }
     return (0);
@@ -2769,6 +2774,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
      * now, and merge the rest to be written.
      */
     WT_ERR(__wt_config_merge(session, cfg + 1,
+      "checkpoint_threads=,"
       "compatibility=(release=),"
       "config_base=,"
       "create=,"

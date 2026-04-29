@@ -121,6 +121,11 @@ struct __wt_layered_table {
     TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
 
     WT_RWLOCK truncate_lock; /* R/W Lock used for managing changes to truncate list.*/
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_LAYERED_TABLE_OPEN 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /* Holds metadata entry name and the associated config string. */

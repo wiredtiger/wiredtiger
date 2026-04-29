@@ -148,11 +148,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: page written requiring history store records",
   "cache: pages dirtied due to obsolete time window by eviction",
   "cache: pages evicted ahead of the page materialization frontier",
-  "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
   "cache: pages read into cache by checkpoint",
-  "cache: pages requested from the cache",
   "cache: pages requested from the cache due to pre-fetch",
   "cache: pages requested from the cache internal",
   "cache: pages requested from the cache leaf",
@@ -605,11 +603,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_write_hs = 0;
     stats->cache_eviction_dirty_obsolete_tw = 0;
     stats->cache_eviction_ahead_of_last_materialized_lsn = 0;
-    stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
     stats->cache_read_checkpoint = 0;
-    stats->cache_pages_requested = 0;
     stats->cache_pages_prefetch = 0;
     stats->cache_pages_requested_internal = 0;
     stats->cache_pages_requested_leaf = 0;
@@ -1049,11 +1045,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty_obsolete_tw += from->cache_eviction_dirty_obsolete_tw;
     to->cache_eviction_ahead_of_last_materialized_lsn +=
       from->cache_eviction_ahead_of_last_materialized_lsn;
-    to->cache_read += from->cache_read;
     to->cache_read_deleted += from->cache_read_deleted;
     to->cache_read_deleted_prepared += from->cache_read_deleted_prepared;
     to->cache_read_checkpoint += from->cache_read_checkpoint;
-    to->cache_pages_requested += from->cache_pages_requested;
     to->cache_pages_prefetch += from->cache_pages_prefetch;
     to->cache_pages_requested_internal += from->cache_pages_requested_internal;
     to->cache_pages_requested_leaf += from->cache_pages_requested_leaf;
@@ -1530,11 +1524,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_obsolete_tw);
     to->cache_eviction_ahead_of_last_materialized_lsn +=
       WT_STAT_DSRC_READ(from, cache_eviction_ahead_of_last_materialized_lsn);
-    to->cache_read += WT_STAT_DSRC_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_DSRC_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_DSRC_READ(from, cache_read_deleted_prepared);
     to->cache_read_checkpoint += WT_STAT_DSRC_READ(from, cache_read_checkpoint);
-    to->cache_pages_requested += WT_STAT_DSRC_READ(from, cache_pages_requested);
     to->cache_pages_prefetch += WT_STAT_DSRC_READ(from, cache_pages_prefetch);
     to->cache_pages_requested_internal += WT_STAT_DSRC_READ(from, cache_pages_requested_internal);
     to->cache_pages_requested_leaf += WT_STAT_DSRC_READ(from, cache_pages_requested_leaf);
@@ -2019,7 +2011,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server completed walks of all dhandles",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
-  "cache: eviction server races with the reconfigure API call in disagg",
   "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
@@ -2204,12 +2195,10 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages queued for urgent eviction",
   "cache: pages queued for urgent eviction during walk",
   "cache: pages queued for urgent eviction from history store due to high dirty content",
-  "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
   "cache: pages read into cache by checkpoint",
   "cache: pages removed from the ordinary queue to be queued for urgent eviction",
-  "cache: pages requested from the cache",
   "cache: pages requested from the cache due to pre-fetch",
   "cache: pages requested from the cache internal",
   "cache: pages requested from the cache leaf",
@@ -2312,15 +2301,16 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
-  "checkpoint: number of bytes caused to be reconciled",
+  "checkpoint: number of bytes reconciled",
   "checkpoint: number of checkpoints started by api",
   "checkpoint: number of checkpoints started by compaction",
   "checkpoint: number of files synced",
   "checkpoint: number of handles visited after writes complete",
-  "checkpoint: number of history store pages caused to be reconciled",
+  "checkpoint: number of history store pages reconciled",
   "checkpoint: number of internal pages visited",
   "checkpoint: number of leaf pages visited",
-  "checkpoint: number of pages caused to be reconciled",
+  "checkpoint: number of pages reconciled",
+  "checkpoint: number of pages reconciled by checkpoint parallel worker threads",
   "checkpoint: prepare currently running",
   "checkpoint: prepare max time (msecs)",
   "checkpoint: prepare min time (msecs)",
@@ -3086,7 +3076,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_queue_not_empty = 0;
     /* not clearing eviction_dhandle_complete_walk */
     stats->eviction_server_push_pages_failed_when_flaging = 0;
-    stats->eviction_server_race_reconfigure_disagg = 0;
     stats->eviction_server_skip_intl_page_non_aggressive = 0;
     stats->eviction_server_skip_pages_already_in_urgent_queue = 0;
     stats->cache_eviction_blocked_prefetched = 0;
@@ -3252,12 +3241,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_pages_queued_urgent = 0;
     stats->eviction_pages_queued_oldest = 0;
     stats->eviction_pages_queued_urgent_hs_dirty = 0;
-    stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
     stats->cache_read_checkpoint = 0;
     stats->eviction_clear_ordinary = 0;
-    stats->cache_pages_requested = 0;
     stats->cache_pages_prefetch = 0;
     stats->cache_pages_requested_internal = 0;
     stats->cache_pages_requested_leaf = 0;
@@ -3366,6 +3353,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_pages_visited_internal = 0;
     stats->checkpoint_pages_visited_leaf = 0;
     stats->checkpoint_pages_reconciled = 0;
+    stats->checkpoint_parallel_pages_reconciled = 0;
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
     /* not clearing checkpoint_prep_min */
@@ -4135,8 +4123,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_dhandle_complete_walk += WT_STAT_CONN_READ(from, eviction_dhandle_complete_walk);
     to->eviction_server_push_pages_failed_when_flaging +=
       WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flaging);
-    to->eviction_server_race_reconfigure_disagg +=
-      WT_STAT_CONN_READ(from, eviction_server_race_reconfigure_disagg);
     to->eviction_server_skip_intl_page_non_aggressive +=
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_non_aggressive);
     to->eviction_server_skip_pages_already_in_urgent_queue +=
@@ -4374,12 +4360,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_pages_queued_oldest += WT_STAT_CONN_READ(from, eviction_pages_queued_oldest);
     to->eviction_pages_queued_urgent_hs_dirty +=
       WT_STAT_CONN_READ(from, eviction_pages_queued_urgent_hs_dirty);
-    to->cache_read += WT_STAT_CONN_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_CONN_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_CONN_READ(from, cache_read_deleted_prepared);
     to->cache_read_checkpoint += WT_STAT_CONN_READ(from, cache_read_checkpoint);
     to->eviction_clear_ordinary += WT_STAT_CONN_READ(from, eviction_clear_ordinary);
-    to->cache_pages_requested += WT_STAT_CONN_READ(from, cache_pages_requested);
     to->cache_pages_prefetch += WT_STAT_CONN_READ(from, cache_pages_prefetch);
     to->cache_pages_requested_internal += WT_STAT_CONN_READ(from, cache_pages_requested_internal);
     to->cache_pages_requested_leaf += WT_STAT_CONN_READ(from, cache_pages_requested_leaf);
@@ -4514,6 +4498,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, checkpoint_pages_visited_internal);
     to->checkpoint_pages_visited_leaf += WT_STAT_CONN_READ(from, checkpoint_pages_visited_leaf);
     to->checkpoint_pages_reconciled += WT_STAT_CONN_READ(from, checkpoint_pages_reconciled);
+    to->checkpoint_parallel_pages_reconciled +=
+      WT_STAT_CONN_READ(from, checkpoint_parallel_pages_reconciled);
     to->checkpoint_prep_running += WT_STAT_CONN_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_CONN_READ(from, checkpoint_prep_max);
     to->checkpoint_prep_min += WT_STAT_CONN_READ(from, checkpoint_prep_min);

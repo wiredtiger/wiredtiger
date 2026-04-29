@@ -795,17 +795,6 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
             break;
         WT_RET(ret);
 
-        /*
-         * An open-ended truncation means a truncate to the end of the table. When iterating forward
-         * there are no more visible stable keys; reset the cursor to clear WT_CURSTD_KEY_INT.
-         *
-         * FIXME-WT-17237: Deprecate open ended truncates.
-         */
-        if (forward && t->stop_key.size == 0) {
-            WT_RET(stable->reset(stable));
-            return (WT_NOTFOUND);
-        }
-
         stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
         WT_RET(stable->search_near(stable, &cmp));
 
@@ -836,6 +825,7 @@ int
 __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
 {
     WT_DECL_RET;
+    WT_ITEM start_key, stop_key;
     WT_SESSION_IMPL *session;
     const char *uri;
 
@@ -847,8 +837,8 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
 
-    /* The start cursor should not be NULL at this point. */
-    WT_ASSERT(session, clayered_start != NULL);
+    /* The start and stop cursor should not be NULL at this point. */
+    WT_ASSERT(session, clayered_start != NULL && clayered_stop != NULL);
 
     /*
      * On leader mode, we can directly perform truncate operation on the stable table. On follower
@@ -861,42 +851,32 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
          * directly reference it here.
          */
         trunc_info->start = clayered_start->stable_cursor;
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
-            trunc_info->stop = clayered_stop->stable_cursor;
+        trunc_info->stop = clayered_stop->stable_cursor;
         WT_WITH_BTREE(
           session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
         WT_RET(ret);
     } else {
         /*
-         * Set the original keys on the ingest cursors. The ingest cursor may not have its key set
-         * if the layered cursor was positioned via next/prev, or if search_near on an empty ingest
-         * table reset the cursor position.
+         * Set the keys on the ingest cursors. The ingest cursor may not have its key set if the
+         * layered cursor was positioned via next/prev, or if search_near on an empty ingest table
+         * reset the cursor position.
          */
+        WT_RET(__wt_cursor_get_raw_key(trunc_info->start, &start_key));
+        WT_RET(__wt_cursor_get_raw_key(trunc_info->stop, &stop_key));
 
-        trunc_info->start = NULL;
-        if (trunc_info->orig_start_key != NULL) {
-            clayered_start->ingest_cursor->set_key(
-              clayered_start->ingest_cursor, trunc_info->orig_start_key);
-            trunc_info->start = clayered_start->ingest_cursor;
-        }
-
-        trunc_info->stop = NULL;
-        if (clayered_stop != NULL && trunc_info->orig_stop_key != NULL) {
-            clayered_stop->ingest_cursor->set_key(
-              clayered_stop->ingest_cursor, trunc_info->orig_stop_key);
-            trunc_info->stop = clayered_stop->ingest_cursor;
-        }
+        __wt_cursor_set_raw_key(clayered_start->ingest_cursor, &start_key);
+        __wt_cursor_set_raw_key(clayered_stop->ingest_cursor, &stop_key);
 
         /*
          * Perform truncate on ingest table.
          *
          * FIXME-WT-17133: We need to position the ingest cursors before we start removing entries.
          */
-        WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));
+        WT_RET_NOTFOUND_OK(
+          __wt_range_truncate(clayered_start->ingest_cursor, clayered_stop->ingest_cursor));
 
         /* Add a truncate entry inside layered table truncate list. */
-        WT_RET(__wt_insert_truncate_entry(
-          session, uri, trunc_info->orig_start_key, trunc_info->orig_stop_key));
+        WT_RET(__wt_insert_truncate_entry(session, uri, &start_key, &stop_key));
     }
     return (0);
 }

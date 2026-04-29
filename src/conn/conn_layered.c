@@ -167,7 +167,6 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
     checkpoint_order = checkpoint_order_new = 0;
     checkpoint_time = checkpoint_time_new = 0;
     *checkpoint_name = checkpoint_name_new = NULL;
-    *discardp = false;
 
     WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, cfg_current, checkpoint_name, &checkpoint_order,
                          &checkpoint_time),
@@ -175,6 +174,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
     /* Early exit if we can't find the configuration of last checkpoint. */
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, *checkpoint_name == NULL);
+        *discardp = false;
         return (0);
     }
 
@@ -187,28 +187,16 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
       true);
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, checkpoint_name_new == NULL);
+        *discardp = false;
         return (0);
     }
 
-    if (checkpoint_order == checkpoint_order_new) {
-        /*
-         * Checkpoint orders are strictly increasing if the checkpoints are written by different
-         * nodes.
-         */
-        if (checkpoint_time != checkpoint_time_new)
-            WT_ERR_PANIC(session, WT_PANIC,
-              "Checkpoint order should be strictly increasing. "
-              "Current checkpoint order: %" PRId64 ", time: %" PRIu64
-              ". New checkpoint order: %" PRId64 ", time: %" PRIu64
-              ". Current configuration: '%s'. New configuration: '%s'.",
-              checkpoint_order, checkpoint_time, checkpoint_order_new, checkpoint_time_new,
-              cfg_current, cfg_new);
-    } else
-        /*
-         * Treat the checkpoint order configurations as the source of truth when determining whether
-         * the checkpoint has changed.
-         */
-        *discardp = true;
+    /*
+     * Treat the checkpoint order and time configurations as the source of truth when determining
+     * whether the checkpoint has changed.
+     */
+    *discardp =
+      !(checkpoint_order == checkpoint_order_new && checkpoint_time == checkpoint_time_new);
 
 #ifdef HAVE_DIAGNOSTIC
     if (!*discardp)
@@ -373,6 +361,8 @@ __disagg_apply_checkpoint_meta(
              * date. Any new opens will get the new metadata.
              *
              * FIXME-WT-14730: check that the other parts of the metadata are identical.
+             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
+             * different nodes.
              */
             WT_ERR(__disagg_discard_old_checkpoint_check(
               session, current_value_copy, cfg_ret, &checkpoint_name, &discard));
@@ -1286,7 +1276,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
-    F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
@@ -1318,7 +1308,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
-    F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
+    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
 
@@ -1620,11 +1610,11 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
- * __on_file_in_wt_dir --
- *     Act on a file in WT directory: delete or fail depending on the flag.
+ * __remove_or_fail_local_wt_file --
+ *     Remove a local WiredTiger file or fail with EEXIST, depending on the configured action.
  */
 static int
-__on_file_in_wt_dir(WT_SESSION_IMPL *session, const char *fname, bool fail)
+__remove_or_fail_local_wt_file(WT_SESSION_IMPL *session, const char *fname, bool fail)
 {
     if (fail)
         WT_RET_MSG(session, EEXIST,
@@ -1703,9 +1693,12 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
         /*
          * Delete any WiredTiger files to prevent reading them during startup. But keep
          * WiredTiger.lock as a safety mechanism.
+         *
+         * Prevent deleting stat files since they can be useful for debugging.
          */
-        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
-            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
+        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD) &&
+          !WT_PREFIX_MATCH(files[i], "WiredTigerStat"))
+            WT_ERR(__remove_or_fail_local_wt_file(session, full_path, fail));
         else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") ||
           WT_URI_IS_STABLE(files[i]))
             /*
@@ -1715,7 +1708,7 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
              * are not deleted now, the files will be renamed and kept around - someone will have to
              * clean them up later.
              */
-            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
+            WT_ERR(__remove_or_fail_local_wt_file(session, full_path, fail));
         else
             __wt_verbose_debug1(session, WT_VERB_METADATA, "Keeping local file: %s", full_path);
     }
