@@ -1275,6 +1275,9 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, WT_VSTUFF *vs)
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    if (vs->skip_hs)
+        return (0);
+
     btree = S2BT(session);
     hs_btree_id = btree->id;
     WT_CLEAR(hs_value);
@@ -1483,18 +1486,14 @@ __verify_page_content_leaf(
               unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)
                 continue;
 
-            if (!vs->skip_hs) {
-                WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
-                WT_RET(__verify_key_hs(session, vs->tmp1, vs));
-            }
+            WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
+            WT_RET(__verify_key_hs(session, vs->tmp1, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
-            if (!vs->skip_hs) {
-                p = vs->tmp1->mem;
-                WT_RET(__wt_vpack_uint(&p, 0, recno));
-                vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-                WT_RET(__verify_key_hs(session, vs->tmp1, vs));
-            }
+            p = vs->tmp1->mem;
+            WT_RET(__wt_vpack_uint(&p, 0, recno));
+            vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
+            WT_RET(__verify_key_hs(session, vs->tmp1, vs));
             recno += rle;
             vs->records_so_far += rle;
         }
