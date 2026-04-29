@@ -1284,6 +1284,7 @@ conn_dsrc_stats = [
     CleanScrubCacheStat('cache_clean_scrub_eviction', 'pages successfully re-instantiated'),
     CleanScrubCacheStat('cache_clean_scrub_fail_rewrite', 'evictions failed due to parent update conflict'),
     CleanScrubCacheStat('cache_clean_scrub_image_bytes', 'bytes currently held in saved disk images', 'no_clear,no_scale,size'),
+    CleanScrubCacheStat('cache_clean_scrub_image_save_skipped', 'page disk image saves skipped because clean_scrub_max was reached'),
     CleanScrubCacheStat('cache_clean_scrub_image_saved', 'page disk images saved'),
     CleanScrubCacheStat('cache_clean_scrub_image_saved_bytes', 'page disk image bytes saved', 'size'),
     CleanScrubCacheStat('cache_clean_scrub_page_dirtied', 'candidates skipped because the page was re-dirtied prior to eviction'),

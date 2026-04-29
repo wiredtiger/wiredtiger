@@ -2391,7 +2391,26 @@ __rec_should_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     if (WT_PAGE_IS_INTERNAL(page))
         return (false);
 
-    return (page->modify != NULL);
+    if (page->modify == NULL)
+        return (false);
+
+    /*
+     * Cap the saved-image footprint at clean_scrub_max percent of the cache. We compare the raw
+     * accumulated image bytes (no overhead factor) against the same fraction of cache_size, so
+     * the bound matches the config knob directly.
+     */
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    uint8_t max_pct =
+      __wt_atomic_load_uint8_relaxed(&conn->cache->cache_eviction_controls.clean_scrub_max_pct);
+    if (max_pct > 0) {
+        uint64_t saved =
+          __wt_atomic_load_uint64_relaxed(&conn->cache->bytes_clean_scrub_image);
+        if (saved >= (conn->cache_size / 100) * max_pct) {
+            WT_STAT_CONN_DSRC_INCR(session, cache_clean_scrub_image_save_skipped);
+            return (false);
+        }
+    }
+    return (true);
 }
 
 /*

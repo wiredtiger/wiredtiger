@@ -873,6 +873,7 @@ struct __wt_connection_stats {
     int64_t cache_clean_scrub_page_dirtied;
     int64_t cache_clean_scrub_fail_rewrite;
     int64_t cache_clean_scrub_image_saved_bytes;
+    int64_t cache_clean_scrub_image_save_skipped;
     int64_t cache_clean_scrub_image_saved;
     int64_t cache_clean_scrub_eviction;
     int64_t cond_auto_wait_reset;
@@ -1627,6 +1628,7 @@ struct __wt_dsrc_stats {
     int64_t cache_clean_scrub_page_dirtied;
     int64_t cache_clean_scrub_fail_rewrite;
     int64_t cache_clean_scrub_image_saved_bytes;
+    int64_t cache_clean_scrub_image_save_skipped;
     int64_t cache_clean_scrub_image_saved;
     int64_t cache_clean_scrub_eviction;
     int64_t compress_precomp_intl_max_page_size;

@@ -215,6 +215,7 @@ static const char *const __stats_dsrc_desc[] = {
   "clean-scrub: candidates skipped because the page was re-dirtied prior to eviction",
   "clean-scrub: evictions failed due to parent update conflict",
   "clean-scrub: page disk image bytes saved",
+  "clean-scrub: page disk image saves skipped because clean_scrub_max was reached",
   "clean-scrub: page disk images saved",
   "clean-scrub: pages successfully re-instantiated",
   "compression: compressed page maximum internal page size prior to compression",
@@ -675,6 +676,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_clean_scrub_page_dirtied = 0;
     stats->cache_clean_scrub_fail_rewrite = 0;
     stats->cache_clean_scrub_image_saved_bytes = 0;
+    stats->cache_clean_scrub_image_save_skipped = 0;
     stats->cache_clean_scrub_image_saved = 0;
     stats->cache_clean_scrub_eviction = 0;
     /* not clearing compress_precomp_intl_max_page_size */
@@ -1132,6 +1134,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_clean_scrub_page_dirtied += from->cache_clean_scrub_page_dirtied;
     to->cache_clean_scrub_fail_rewrite += from->cache_clean_scrub_fail_rewrite;
     to->cache_clean_scrub_image_saved_bytes += from->cache_clean_scrub_image_saved_bytes;
+    to->cache_clean_scrub_image_save_skipped += from->cache_clean_scrub_image_save_skipped;
     to->cache_clean_scrub_image_saved += from->cache_clean_scrub_image_saved;
     to->cache_clean_scrub_eviction += from->cache_clean_scrub_eviction;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
@@ -1627,6 +1630,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_clean_scrub_fail_rewrite += WT_STAT_DSRC_READ(from, cache_clean_scrub_fail_rewrite);
     to->cache_clean_scrub_image_saved_bytes +=
       WT_STAT_DSRC_READ(from, cache_clean_scrub_image_saved_bytes);
+    to->cache_clean_scrub_image_save_skipped +=
+      WT_STAT_DSRC_READ(from, cache_clean_scrub_image_save_skipped);
     to->cache_clean_scrub_image_saved += WT_STAT_DSRC_READ(from, cache_clean_scrub_image_saved);
     to->cache_clean_scrub_eviction += WT_STAT_DSRC_READ(from, cache_clean_scrub_eviction);
     to->compress_precomp_intl_max_page_size +=
@@ -2369,6 +2374,7 @@ static const char *const __stats_connection_desc[] = {
   "clean-scrub: candidates skipped because the page was re-dirtied prior to eviction",
   "clean-scrub: evictions failed due to parent update conflict",
   "clean-scrub: page disk image bytes saved",
+  "clean-scrub: page disk image saves skipped because clean_scrub_max was reached",
   "clean-scrub: page disk images saved",
   "clean-scrub: pages successfully re-instantiated",
   "connection: auto adjusting condition resets",
@@ -3421,6 +3427,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_clean_scrub_page_dirtied = 0;
     stats->cache_clean_scrub_fail_rewrite = 0;
     stats->cache_clean_scrub_image_saved_bytes = 0;
+    stats->cache_clean_scrub_image_save_skipped = 0;
     stats->cache_clean_scrub_image_saved = 0;
     stats->cache_clean_scrub_eviction = 0;
     stats->cond_auto_wait_reset = 0;
@@ -4578,6 +4585,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_clean_scrub_fail_rewrite += WT_STAT_CONN_READ(from, cache_clean_scrub_fail_rewrite);
     to->cache_clean_scrub_image_saved_bytes +=
       WT_STAT_CONN_READ(from, cache_clean_scrub_image_saved_bytes);
+    to->cache_clean_scrub_image_save_skipped +=
+      WT_STAT_CONN_READ(from, cache_clean_scrub_image_save_skipped);
     to->cache_clean_scrub_image_saved += WT_STAT_CONN_READ(from, cache_clean_scrub_image_saved);
     to->cache_clean_scrub_eviction += WT_STAT_CONN_READ(from, cache_clean_scrub_eviction);
     to->cond_auto_wait_reset += WT_STAT_CONN_READ(from, cond_auto_wait_reset);
