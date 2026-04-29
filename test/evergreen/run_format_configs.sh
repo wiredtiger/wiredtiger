@@ -55,21 +55,57 @@ wait_for_process()
 				wait $process
 				exit_status=$?
 
-				let "running--"
-
 				# Grep for the exact process id in the temp file.
-				config_name=`grep -E -w "${process}" $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
+				config_name=`grep -E -w "${process}" $tmp_file | awk -F ":" '{print $2}' \
+					| rev | awk -F "/" '{print $1}' | rev`
+				dir="WT_TEST_$config_name"
+				log="WT_TEST_$config_name.log"
+
+				# Test recovery of jobs configured for random abort.
+				if [ -f "$log" ] && grep -q 'aborting to test recovery' "$log" 2>/dev/null; then
+					rec_dir="$dir.RECOVER"
+					cp -pr $dir $rec_dir
+
+					(echo
+					echo "Running recovery after abort test"
+					echo "Original directory copied into $rec_dir"
+					echo) >> $log
+
+					./t -Rqv -h $dir >> $log 2>&1 &
+					rec_pid="$!"
+					wait $rec_pid
+					exit_status=$?
+
+					echo >> $log
+					echo "Exit status of recovery process ${rec_pid} is ${exit_status}" >> $log
+					if [ $exit_status -eq 0 ]; then
+						rm -rf $rec_dir
+					fi
+				else
+					echo >> $log
+					echo "Exit status of pid ${process} is ${exit_status}" >> $log
+				fi
+
+				# Print the log if it exists.
+				echo
+				echo "Log for config ${config_name}:"
+				[ -f $log ] && sed "s/^/${config_name}: /" $log
+				echo
+
+				# We are done.
+				let "running--"
 				if [ $exit_status -ne "0" ]; then
 					let "failure++"
-					[ -f WT_TEST_${config_name}/CONFIG ] && cat WT_TEST_${config_name}/CONFIG
+					[ -f $dir/CONFIG ] && cat $dir/CONFIG
 				else
 					let "success++"
 					# Remove database files of successful jobs.
-					[ -d WT_TEST_${config_name} ] && rm -rf WT_TEST_${config_name}
+					[ -f $log ] && rm -f $log
+					[ -d $dir ] && rm -rf $dir
 				fi
 
-				echo "Exit status of pid ${process} and config ${config_name} is ${exit_status}"
-				# Continue checking other runnung process status before exiting the for loop.
+				echo "Exit status for config ${config_name} is ${exit_status}"
+				# Continue checking other running process status before exiting the for loop.
 				continue
 			fi
 		done
@@ -106,9 +142,10 @@ touch $tmp_file
 # Cycle through format CONFIGs recorded under the "failure_configs" directory
 for config in $(find ../../../test/format/failure_configs/ -name "CONFIG.*" | sort)
 do
-	echo -e "\nTesting CONFIG $config ...\n"
+	echo -e "\nTesting CONFIG $config ..."
 	basename_config=$(basename $config)
-	./t -1 -c $config -h WT_TEST_$basename_config &
+	log="WT_TEST_$basename_config.log"
+	./t -1 -c $config -h WT_TEST_$basename_config > $log 2>&1 &
 	let "running++"
 
 	PID="$!"
