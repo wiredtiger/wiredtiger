@@ -829,11 +829,11 @@ thread_run(void *arg)
          * Put an informative string into the value so that it can be viewed well in a binary dump.
          */
         testutil_snprintf(cbuf, sizeof(cbuf),
-          "COLL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i);
+          "COLL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts + 1, i);
         testutil_snprintf(lbuf, sizeof(lbuf),
-          "LOCAL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i);
+          "LOCAL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts + 1, i);
         testutil_snprintf(obuf, sizeof(obuf),
-          "OPLOG: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i);
+          "OPLOG: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts + 1, i);
         data.size = __wt_random(&td->data_rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
@@ -858,10 +858,10 @@ thread_run(void *arg)
                     __wt_yield();
 
                 testutil_snprintf(tscfg, sizeof(tscfg),
-                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, stable_ts,
+                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, stable_ts + 1,
                   stable_ts + 1);
             } else
-                testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts);
+                testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts + 1);
 
             testutil_check(session->commit_transaction(session, tscfg));
             if (use_prep) {
@@ -869,7 +869,7 @@ thread_run(void *arg)
                  * Durable timestamp should not be passed as oplog transaction is a non-prepared
                  * transaction.
                  */
-                testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts);
+                testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts + 1);
                 testutil_check(oplog_session->commit_transaction(oplog_session, tscfg));
             }
             /*
@@ -877,7 +877,7 @@ thread_run(void *arg)
              * statement, if we were to race with the timestamp thread, it might see our thread
              * update before the commit.
              */
-            WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].ts, stable_ts);
+            WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].ts, stable_ts + 1);
         } else {
             testutil_check(session->commit_transaction(session, NULL));
             if (use_prep)
@@ -894,7 +894,7 @@ thread_run(void *arg)
         /*
          * Save the timestamp and key separately for checking later.
          */
-        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", stable_ts, i) < 0)
+        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", stable_ts + 1, i) < 0)
             testutil_die(EIO, "fprintf");
 
         if (0) {
