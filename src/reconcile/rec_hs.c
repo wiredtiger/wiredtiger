@@ -231,9 +231,8 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
 
         /* Delete the entry that needs to fix. */
         WT_ERR_MSG_CHK(session, hs_cursor->remove(hs_cursor),
-          "failed to remove history store record during reorder: btree=%" PRIu32
-          " start_ts=%" PRIu64,
-          btree_id, hs_start_ts);
+          "failed to remove history store record during reorder: btree=%" PRIu32 " start_ts=%s",
+          btree_id, __wt_timestamp_to_string(hs_start_ts, ts_string));
         ++cache_hs_order_remove;
     }
     if (ret == WT_NOTFOUND)
@@ -553,7 +552,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     cursor->set_value(
       cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
     WT_ERR_MSG_CHK(session, cursor->insert(cursor),
-      "failed to insert history store record: btree=%" PRIu32 " start_ts=%s type=%" PRIu8,
+      "failed to insert history store record: btree=%" PRIu32 " time_window=%s type=%" PRIu8,
       btree->id, __wt_time_window_to_string(tw, tw_string), type);
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE,
@@ -1292,6 +1291,7 @@ __rec_hs_delete_record(
 {
     WT_BTREE *btree;
     WT_DECL_RET;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool hs_read_committed;
 
     WT_TIME_WINDOW *hs_tw;
@@ -1373,8 +1373,8 @@ __rec_hs_delete_record(
                   "Retrieved wrong update from history store: empty tombstone with stop timestamp");
         }
         WT_ERR_MSG_CHK(session, r->hs_cursor->remove(r->hs_cursor),
-          "failed to remove history store record: btree=%" PRIu32 " start_ts=%" PRIu64, btree->id,
-          upd->upd_start_ts);
+          "failed to remove history store record: btree=%" PRIu32 " start_ts=%s", btree->id,
+          __wt_timestamp_to_string(upd->upd_start_ts, ts_string));
     }
 done:
     if (tombstone != NULL)
