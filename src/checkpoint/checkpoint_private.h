@@ -98,4 +98,13 @@ struct __wti_ckpt_timer {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern int __wti_checkpoint_parallel_commit(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_checkpoint_parallel_release_snapshot(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+
+#ifdef HAVE_UNITTEST
+
+#endif
+
 /* DO NOT EDIT: automatically built by prototypes.py: END */

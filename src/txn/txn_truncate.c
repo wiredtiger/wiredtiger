@@ -9,6 +9,13 @@
 #include "wt_internal.h"
 
 /*
+ * Selects which truncate-list entries __truncate_search considers: those visible to the calling
+ * transaction (committed truncates we may need to honor) or those not visible (uncommitted
+ * truncates that may conflict with our writes).
+ */
+typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_TRUNCATE_SEARCH_MODE;
+
+/*
  * __disagg_truncate_free --
  *     Free an entry in the layered dhandle truncate list.
  */
@@ -33,30 +40,21 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
  */
 static int
 __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key, bool *is_within_range)
+  const WT_ITEM *start_key, const WT_ITEM *stop_key, const WT_ITEM *key, bool *is_within_rangep)
 {
-    int compare_result;
+    WT_ASSERT(session, is_within_rangep != NULL);
+    *is_within_rangep = false;
 
-    WT_ASSERT(session, is_within_range != NULL);
-    *is_within_range = false;
+    int compare_result = 0;
 
-    /* A zeroed start key indicates a truncate from the beginning of the table. */
-    if (start_key->size != 0) {
-        WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
-        if (compare_result < 0) {
-            *is_within_range = false;
-            return (0);
-        }
-    }
-
-    /* A zeroed stop key indicates a truncate to end of table. */
-    if (stop_key->size == 0) {
-        *is_within_range = true;
+    WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
+    if (compare_result < 0) {
+        *is_within_rangep = false;
         return (0);
     }
 
     WT_RET(__wt_compare(session, collator, key, stop_key, &compare_result));
-    *is_within_range = (compare_result <= 0);
+    *is_within_rangep = (compare_result <= 0);
     return (0);
 }
 
@@ -96,6 +94,8 @@ int
 __wt_insert_truncate_entry(
   WT_SESSION_IMPL *session, const char *uri, WT_ITEM *start_key, WT_ITEM *stop_key)
 {
+    WT_DECL_ITEM(start_buf);
+    WT_DECL_ITEM(stop_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *t = NULL;
@@ -113,16 +113,23 @@ __wt_insert_truncate_entry(
       "failed to get layered dhandle for truncate entry insert");
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
+    /* Caller resolves open-ended ranges to concrete keys before reaching us. */
+    WT_ASSERT(session, start_key != NULL && stop_key != NULL);
+    WT_ASSERT(session, start_key->size != 0 && stop_key->size != 0);
+
+    WT_RET(__wt_scr_alloc(session, 0, &start_buf));
+    WT_RET(__wt_scr_alloc(session, 0, &stop_buf));
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
+      "insert entry into truncate list on table %s: start=%s stop=%s", uri,
+      __wt_key_string(
+        session, start_key->data, start_key->size, layered_table->key_format, start_buf),
+      __wt_key_string(
+        session, stop_key->data, stop_key->size, layered_table->key_format, stop_buf));
+
     WT_ERR(__wt_calloc_one(session, &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
-
-    /* A NULL start key indicates a truncate starts from the beginning of the table. */
-    if (start_key != NULL)
-        WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
-
-    /* A NULL stop key indicates a truncate to end of table. */
-    if (stop_key != NULL)
-        WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
+    WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
+    WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
 
     /*
      * Mark the WT_TRUNCATE object modified by the current transaction. Also required to update the
@@ -135,9 +142,50 @@ __wt_insert_truncate_entry(
 err:
         __disagg_truncate_free(session, &t);
     }
-
     WT_TRET(__wt_session_release_dhandle(session));
+    __wt_scr_free(session, &start_buf);
+    __wt_scr_free(session, &stop_buf);
+
     return (ret);
+}
+
+/*
+ * __truncate_search --
+ *     Walk the layered table truncate list looking for a committed or uncommitted entry (depending
+ *     on the search mode) whose range covers the given key. The matched entry is returned through
+ *     the output parameter when non-NULL.
+ */
+static int
+__truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key,
+  const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
+{
+    WT_ASSERT(session, is_foundp != NULL);
+    *is_foundp = false;
+
+    WT_COLLATOR *collator = layered_table->collator;
+    WT_TRUNCATE *entry = NULL;
+
+    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
+        const bool is_visible =
+          __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
+
+        if (mode == WT_TRUNCATE_SEARCH_VISIBLE && !is_visible)
+            continue;
+
+        if (mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE && is_visible)
+            continue;
+
+        WT_RET(__key_within_truncate_range(
+          session, collator, &entry->start_key, &entry->stop_key, key, is_foundp));
+
+        if (*is_foundp) {
+            if (tp != NULL)
+                *tp = entry;
+            break;
+        }
+    }
+
+    return (0);
 }
 
 /*
@@ -152,40 +200,27 @@ int
 __wt_layered_table_truncate_detect_write_conflict(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
 {
-    WT_COLLATOR *collator;
     WT_DECL_RET;
-    WT_TRUNCATE *entry;
-    bool is_within_range;
+    bool is_found = false;
 
     if (!__wt_process.disagg_fast_truncate_2026)
         return (0);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    collator = layered_table->collator;
-    is_within_range = false;
-
     __wt_readlock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
-        /*
-         * The truncate entry has already been committed if it is visible to this transaction. We
-         * can ignore these entries.
-         */
-        if (__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
-            continue;
 
-        WT_ERR(__key_within_truncate_range(
-          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range));
+    /*
+     * The truncate entry has already been committed if it is visible to this transaction. We can
+     * ignore these entries.
+     */
+    ret = __truncate_search(
+      session, layered_table, key, WT_TRUNCATE_SEARCH_NOT_VISIBLE, NULL, &is_found);
 
-        if (is_within_range)
-            break;
-    }
-
-err:
     __wt_readunlock(session, &layered_table->truncate_lock);
     WT_RET(ret);
 
-    if (is_within_range) {
+    if (is_found) {
         WT_STAT_CONN_INCR(session, txn_update_conflict);
         __wt_session_set_last_error(
           session, WT_ROLLBACK, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
@@ -203,44 +238,26 @@ int
 __wt_truncate_delete_visible_check(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
 {
-    WT_COLLATOR *collator;
     WT_DECL_RET;
-    WT_TRUNCATE *entry;
-    bool is_within_range;
+    bool is_found = false;
 
     if (!__wt_process.disagg_fast_truncate_2026)
         return (WT_NOTFOUND);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    collator = layered_table->collator;
-    is_within_range = false;
-
     __wt_readlock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
-        /*
-         * Ignore all truncate entries that haven't been committed. They won't be visible to this
-         * transaction.
-         */
-        if (!__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
-            continue;
 
-        WT_ERR(__key_within_truncate_range(
-          session, collator, &entry->start_key, &entry->stop_key, key, &is_within_range));
+    /*
+     * Ignore all truncate entries that haven't been committed. They won't be visible to this
+     * transaction.
+     */
+    ret = __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, tp, &is_found);
 
-        if (!is_within_range)
-            continue;
-
-        if (tp != NULL)
-            *tp = entry;
-
-        break;
-    }
-
-err:
     __wt_readunlock(session, &layered_table->truncate_lock);
     WT_RET(ret);
-    return (is_within_range ? 0 : WT_NOTFOUND);
+
+    return (is_found ? 0 : WT_NOTFOUND);
 }
 
 /*

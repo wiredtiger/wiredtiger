@@ -567,11 +567,38 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
+          # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
+          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000 ops.pct.delete=0
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   - &format-stress-test-disagg-multi-data-validation
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000 ops.pct.delete=0
+          times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
+  - &format-stress-test-disagg-multi-delete-enabled
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
+          times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
+  - &format-stress-test-disagg-multi-delete-enabled-data-validation
     depends_on:
       - name: compile
     commands:
@@ -652,6 +679,18 @@ tasks:
     tags: ["stress-test-disagg-fail"]
   - <<: *format-stress-test-disagg-multi-data-validation
     name: format-stress-test-disagg-multi-validation-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled
+    name: format-stress-test-disagg-multi-delete-enabled-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled
+    name: format-stress-test-disagg-multi-delete-enabled-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled-data-validation
+    name: format-stress-test-disagg-multi-delete-enabled-validation-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled-data-validation
+    name: format-stress-test-disagg-multi-delete-enabled-validation-2
     tags: ["stress-test-disagg-fail"]
 
   - <<: *timestamp-abort-test-disagg
