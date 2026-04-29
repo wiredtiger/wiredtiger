@@ -26,18 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover09.py
+# test_prepare_discover10.py
 #   A prepared transaction reclaimed on a follower via claim_prepared_id must survive
 #   step-up. The reclaim session has no transaction id, so the ingest drain at step-up
 #   must match it by prepared id to patch its operations onto the stable btree.
 
+import wiredtiger
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_prepare_discover09(wttest.WiredTigerTestCase):
-    tablename = 'test_prepare_discover09'
+class test_prepare_discover10(wttest.WiredTigerTestCase):
+    tablename = 'test_prepare_discover10'
     uri = 'layered:' + tablename
 
     resolve_scenarios = [
@@ -48,7 +49,7 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
         ('single_table', dict(multi_table=False)),
         ('multi_table',  dict(multi_table=True)),
     ]
-    disagg_storages = gen_disagg_storages('test_prepare_discover09', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_prepare_discover10', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolve_scenarios, multi_table_scenarios)
 
     conn_base_config = (
@@ -163,5 +164,40 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
 
         conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
         self._checkpoint(conn_follow)
+
+        # ---- Phase 5 (Validate data) ----
+        # At ts 60, only the baseline keys 1-3 are visible; the prepared insert is
+        # younger than the read. At ts 220 the resolution is observable: keys 4-6
+        # carry their prepared values when committed and are absent when rolled back.
+        read_session = conn_follow.open_session()
+        read_cursors = [read_session.open_cursor(uri) for uri in uris]
+
+        read_session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+        for c in read_cursors:
+            self.assertEqual(c[1], 'committed_value_1')
+            self.assertEqual(c[2], 'committed_value_2')
+            self.assertEqual(c[3], 'committed_value_3')
+            for i in range(4, 7):
+                c.set_key(i)
+                self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
+        read_session.rollback_transaction()
+
+        read_session.begin_transaction('read_timestamp=' + self.timestamp_str(220))
+        for c in read_cursors:
+            self.assertEqual(c[1], 'committed_value_1')
+            self.assertEqual(c[2], 'committed_value_2')
+            self.assertEqual(c[3], 'committed_value_3')
+            for i in range(4, 7):
+                c.set_key(i)
+                if self.commit:
+                    self.assertEqual(c.search(), 0)
+                    self.assertEqual(c.get_value(), f'prepared_value_{i}')
+                else:
+                    self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
+        read_session.rollback_transaction()
+
+        for c in read_cursors:
+            c.close()
+        read_session.close()
 
         conn_follow.close()
