@@ -197,11 +197,13 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 
 /*
  * __clayered_seed_random --
- *     Seed a constituent cursor's random state. The constituent itself is opened without
- *     next_random=true (which would re-bind its next/prev to the random-pick / not-supported stubs
- *     and break __clayered_iterate's deletion-skip loop), but __clayered_next_random calls
- *     __wti_curfile_next_random on it directly, which uses cbt->rnd. Mirror what
- *     __curfile_create's next_random branch does. Callers must check WT_CLAYERED_RANDOM first.
+ *     Seed the constituent cursor's random state. The constituent itself is opened without random
+ *     config because it overwrites normal next/prev methods. The next/prev methods are required for
+ *     cursor::search_near to work. Instead initialize the cbt->rnd and directly use the file
+ *     cursor::next_random function.
+ *
+ * FIXME-WT-17343: There is an ugly cursor layering violation here. We directly use file cursors
+ *     methods and initialize random state in the cursor structure.
  */
 static void
 __clayered_seed_random(
@@ -2469,12 +2471,16 @@ __clayered_next_random(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered, false, true, true));
 
     /*
-     * Pick a random row from stable, falling back to ingest if stable is empty. FIXME-WT-14736:
-     * consider the relative size of ingest in the future.
+     * Pick a random row from stable, and fall back to ingest if stable is empty or not yet opened.
+     * Followers defer the stable cursor open until the first checkpoint is picked up.
+     *
+     * FIXME-WT-14736: consider the relative size of ingest in the future.
      */
     c = clayered->stable_cursor;
-    WT_ERR_NOTFOUND_OK(__wti_curfile_next_random(c), true);
-    if (ret == WT_NOTFOUND) {
+    if (c != NULL)
+        WT_ERR_NOTFOUND_OK(__wti_curfile_next_random(c), true);
+
+    if (c == NULL || ret == WT_NOTFOUND) {
         c = clayered->ingest_cursor;
         WT_ERR(__wti_curfile_next_random(c));
     }
