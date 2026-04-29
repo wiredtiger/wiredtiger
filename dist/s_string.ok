@@ -826,6 +826,7 @@ ffs
 fgetln
 fh
 fhandle
+fid
 fifo
 filefrag
 fileid

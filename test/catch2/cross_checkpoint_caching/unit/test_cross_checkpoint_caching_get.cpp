@@ -135,7 +135,7 @@ TEST_CASE("cross_checkpoint_caching_get: two entries in the same bucket are dist
     WT_SHARED_DSK_ITEM *item_a = env.put(addr_a, sizeof(addr_a));
     WT_SHARED_DSK_ITEM *item_b = env.put(addr_b, sizeof(addr_b));
     REQUIRE(item_a != item_b);
-    // Saniyty check that both puts actually inserted distinct entries.
+    // Sanity check that both puts actually inserted distinct entries.
     REQUIRE(env.bucket_size(0) == 2);
 
     WT_SHARED_DSK_ITEM *got_a = nullptr;
@@ -150,11 +150,11 @@ TEST_CASE("cross_checkpoint_caching_get: two entries in the same bucket are dist
 }
 
 TEST_CASE(
-  "cross_checkpoint_caching_get: same addr with different fid in same bucket distinguished by fid",
+  "cross_checkpoint_caching_get: same addr with different fileid in same bucket distinguished by fileid",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
     // Same addr means same bucket. Swap the session's btree id between puts so each entry stores
-    // a different fid. get should return the one whose fid matches the session's current id.
+    // a different fileid. get should return the one whose fileid matches the session's current id.
     cross_checkpoint_caching_test_env env;
     const uint8_t addr[] = {0x01, 0x02, 0x03, 0x04};
     const uint32_t fid_a = 100;
