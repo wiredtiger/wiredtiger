@@ -548,7 +548,7 @@ test_transaction_prepared(void)
     txn2->prepare(5);
     testutil_assert(txn1->state() == model::kv_transaction_state::prepared);
     testutil_assert(txn2->state() == model::kv_transaction_state::prepared);
-    txn1->commit(10, 10);
+    txn1->commit(10, 11);
     txn2->commit(10, 15);
     testutil_assert(table->get(key1) == value1);
     testutil_assert(table->get(key2) == value2);
@@ -564,7 +564,7 @@ test_transaction_prepared(void)
     testutil_assert(table->insert(txn2, key1, value4) == WT_ROLLBACK);
     testutil_assert(!txn1->failed());
     testutil_assert(txn2->failed());
-    txn1->commit(20, 20);
+    txn1->commit(20, 21);
     txn2->commit(20);
     testutil_assert(table->get(key1) == value1);
 
@@ -572,7 +572,7 @@ test_transaction_prepared(void)
     txn2 = database.begin_transaction();
     testutil_check(table->insert(txn1, key1, value3));
     txn1->prepare(30);
-    txn1->commit(30, 30);
+    txn1->commit(30, 31);
     testutil_assert(table->insert(txn2, key1, value4) == WT_ROLLBACK);
     txn2->commit(30);
     testutil_assert(table->get(key1) == value3);
@@ -585,13 +585,13 @@ test_transaction_prepared(void)
     testutil_assert(table->get_ext(key1, v, 40) == WT_PREPARE_CONFLICT);
     testutil_assert(table->get(key1, 39) == value3);
     testutil_assert(table->get(key1, 20) == value1);
-    txn1->commit(40, 40);
+    txn1->commit(40, 41);
     testutil_assert(table->get(key1, 40) == value1);
 
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key1, value1));
     txn1->prepare(50);
-    txn1->commit(50, 50);
+    txn1->commit(50, 51);
     testutil_assert(table->get(key1) == value1);
 
     txn1 = database.begin_transaction();
@@ -607,7 +607,7 @@ test_transaction_prepared(void)
     txn2 = database.begin_transaction();
     txn1->prepare(70);
     testutil_assert(table->get_ext(txn2, key3, v) == WT_NOTFOUND);
-    txn1->commit(70, 70);
+    txn1->commit(70, 71);
     txn2->commit(70);
 
     /* Read behavior 2: insert key3 (txn1), prepare txn1, begin txn2, txn2 has read conflict. */
@@ -616,7 +616,7 @@ test_transaction_prepared(void)
     txn1->prepare(80);
     txn2 = database.begin_transaction();
     testutil_assert(table->get_ext(txn2, key3, v) == WT_PREPARE_CONFLICT);
-    txn1->commit(80, 80);
+    txn1->commit(80, 81);
     txn2->commit(80);
 
     /*
@@ -627,7 +627,7 @@ test_transaction_prepared(void)
     testutil_check(table->insert(txn1, key3, value2));
     txn1->prepare(90);
     txn2 = database.begin_transaction();
-    txn1->commit(90, 90);
+    txn1->commit(90, 91);
     testutil_assert(table->get_ext(txn2, key3, v) == 0);
     testutil_assert(v == value2);
     txn2->commit(90);
@@ -685,14 +685,14 @@ test_transaction_prepared_wt(void)
     wt_model_txn_insert_both(table, uri, txn1, session1, key1, value4);
     wt_model_txn_prepare_both(txn1, session1, 20);
     wt_model_txn_insert_both(table, uri, txn2, session2, key1, value4); /* Rollback. */
-    wt_model_txn_commit_both(txn1, session1, 20, 20);
+    wt_model_txn_commit_both(txn1, session1, 20, 21);
     wt_model_txn_commit_both(txn2, session2, 20);
 
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_begin_both(txn2, session2);
     wt_model_txn_insert_both(table, uri, txn1, session1, key1, value3);
     wt_model_txn_prepare_both(txn1, session1, 30);
-    wt_model_txn_commit_both(txn1, session1, 30, 30);
+    wt_model_txn_commit_both(txn1, session1, 30, 31);
     wt_model_txn_insert_both(table, uri, txn2, session2, key1, value4); /* Rollback. */
     wt_model_txn_commit_both(txn2, session2, 30);
 
@@ -704,13 +704,13 @@ test_transaction_prepared_wt(void)
     wt_model_assert(table, uri, key1, 40); /* Prepare conflict. */
     wt_model_assert(table, uri, key1, 39); /* Success. */
     wt_model_assert(table, uri, key1, 20); /* Success. */
-    wt_model_txn_commit_both(txn1, session1, 40, 40);
+    wt_model_txn_commit_both(txn1, session1, 40, 41);
     wt_model_assert(table, uri, key1, 40);
 
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_insert_both(table, uri, txn1, session1, key1, value1);
     wt_model_txn_prepare_both(txn1, session1, 50);
-    wt_model_txn_commit_both(txn1, session1, 50, 50);
+    wt_model_txn_commit_both(txn1, session1, 50, 51);
     wt_model_assert(table, uri, key1, 50); /* Success. */
 
     wt_model_txn_begin_both(txn1, session1);
@@ -726,7 +726,7 @@ test_transaction_prepared_wt(void)
     wt_model_txn_begin_both(txn2, session2);
     wt_model_txn_prepare_both(txn1, session1, 70);
     wt_model_txn_assert(table, uri, txn2, session2, key3); /* not found */
-    wt_model_txn_commit_both(txn1, session1, 70, 70);
+    wt_model_txn_commit_both(txn1, session1, 70, 71);
     wt_model_txn_commit_both(txn2, session2, 70, 0);
 
     /* Read behavior 2: insert key3 (txn1), prepare txn1, begin txn2, txn2 has read conflict. */
@@ -735,7 +735,7 @@ test_transaction_prepared_wt(void)
     wt_model_txn_prepare_both(txn1, session1, 80);
     wt_model_txn_begin_both(txn2, session2);
     wt_model_txn_assert(table, uri, txn2, session2, key3); /* conflict */
-    wt_model_txn_commit_both(txn1, session1, 80, 80);
+    wt_model_txn_commit_both(txn1, session1, 80, 81);
     wt_model_txn_commit_both(txn2, session2, 80, 0);
 
     /*
@@ -746,7 +746,7 @@ test_transaction_prepared_wt(void)
     wt_model_txn_insert_both(table, uri, txn1, session1, key3, value2);
     wt_model_txn_prepare_both(txn1, session1, 90);
     wt_model_txn_begin_both(txn2, session2);
-    wt_model_txn_commit_both(txn1, session1, 90, 90);
+    wt_model_txn_commit_both(txn1, session1, 90, 91);
     wt_model_txn_assert(table, uri, txn2, session2, key3); /* success */
     wt_model_txn_commit_both(txn2, session2, 90, 0);
 

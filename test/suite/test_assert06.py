@@ -210,7 +210,7 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         c[key] = ds.value(16)
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(22))
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(22))
-        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(22))
+        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(23))
         self.session.commit_transaction()
 
         # Confirm that rolling back after preparing doesn't fire an assertion.
