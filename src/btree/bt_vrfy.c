@@ -1279,10 +1279,10 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, WT_VSTUFF *vs)
     hs_btree_id = btree->id;
     WT_CLEAR(hs_value);
     /*
-     * Initialize newer_start_ts to WT_TS_MAX so the first iteration (DS-to-HS comparison) skips
-     * the overlap check. After RTS, stale HS stop_ts values can exceed the DS start_ts for the
-     * restored version, causing false positives. The overlap check only runs between consecutive HS
-     * records (from the second iteration onwards) where it is reliable.
+     * Initialize newer_start_ts to WT_TS_MAX so the first iteration (DS-to-HS comparison) skips the
+     * overlap check. After RTS, stale HS stop_ts values can exceed the DS start_ts for the restored
+     * version, causing false positives. The overlap check only runs between consecutive HS records
+     * (from the second iteration) where it is reliable.
      */
     newer_start_ts = WT_TS_MAX;
     WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
