@@ -2705,6 +2705,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      */
     WT_ITEM_SET(cursor->key, current->key);
     WT_ITEM_SET(cursor->value, current->value);
+    __clayered_deleted_decode(&cursor->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT);
 

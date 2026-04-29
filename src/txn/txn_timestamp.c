@@ -966,6 +966,19 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
 
     __txn_assert_after_reads(session, "rollback", rollback_ts);
 
+    /*
+     * For a prepared transaction, the rollback timestamp should not be less than the prepare
+     * timestamp. Also, the rollback timestamp cannot be set before the transaction has actually
+     * been prepared.
+     */
+    if (F_ISSET(txn, WT_TXN_PREPARE) && rollback_ts != WT_TS_NONE &&
+      txn->time_point.prepare_timestamp >= rollback_ts)
+        WT_RET_MSG(session, EINVAL,
+          "rollback timestamp %s is less than or equal to the prepare timestamp %s for this "
+          "transaction",
+          __wt_timestamp_to_string(rollback_ts, ts_string[0]),
+          __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[1]));
+
     /* Check whether the rollback timestamp is less than the stable timestamp. */
     stable_ts = __wt_get_stable_timestamp(session);
     if (rollback_ts <= stable_ts) {
