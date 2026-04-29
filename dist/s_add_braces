@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+# Add braces around single-statement if/for/while/do bodies — both .c/.cpp
+# sources and .h/.hpp headers, in one fast pass.
+#
+# Uses clang-format 15+ with `InsertBraces: true`. Pure tokenizer-level
+# transformation — no compile DB, no TU context, no parallel-write race,
+# header parsing isn't required. This makes the script independent of the
+# project's pinned compiler/clang-tidy toolchain.
+#
+# clang-format 15+ is NOT in the default project toolchain (which pins v12).
+# Install user-locally with:
+#     pip3 install --user clang-format
+# Then `~/.local/bin/clang-format` will be picked up.
+#
+# Usage:
+#   dist/s_add_braces                          # process all sources
+#   dist/s_add_braces path/to/file.c ...       # process specific files
+#   CLANG_FORMAT=/path/to/clang-format dist/s_add_braces
+#
+
+set -o pipefail
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
+
+REQUIRED_MAJOR=15
+
+# Returns the major version of `clang-format`, or empty if unparseable.
+cf_major() {
+    "$1" --version 2>/dev/null \
+        | sed -nE 's/.*clang-format version ([0-9]+)\..*/\1/p' \
+        | head -1
+}
+
+# Locate a clang-format that supports InsertBraces (added in v$REQUIRED_MAJOR).
+cf=""
+if [ -n "${CLANG_FORMAT:-}" ]; then
+    # If user set $CLANG_FORMAT, fail loudly if it's invalid — don't silently
+    # fall back to PATH search.
+    cf_path="$CLANG_FORMAT"
+    if ! [ -x "$cf_path" ] || [ ! -f "$cf_path" ]; then
+        cf_path="$(command -v "$CLANG_FORMAT" 2>/dev/null || true)"
+    fi
+    if [ -z "$cf_path" ]; then
+        echo "$0: \$CLANG_FORMAT='$CLANG_FORMAT' is not an executable" >&2
+        exit 1
+    fi
+    ver=$(cf_major "$cf_path")
+    if [ -z "$ver" ] || [ "$ver" -lt "$REQUIRED_MAJOR" ]; then
+        echo "$0: \$CLANG_FORMAT ($cf_path) is version '${ver:-unknown}', need >= $REQUIRED_MAJOR" >&2
+        exit 1
+    fi
+    cf="$cf_path"
+else
+    for cand in "$HOME/.local/bin/clang-format" \
+                clang-format-22 clang-format-21 clang-format-20 \
+                clang-format-19 clang-format-18 clang-format-17 \
+                clang-format-16 clang-format-15 \
+                clang-format; do
+        path="$(command -v "$cand" 2>/dev/null || true)"
+        [ -n "$path" ] || continue
+        ver=$(cf_major "$path")
+        if [ -n "$ver" ] && [ "$ver" -ge "$REQUIRED_MAJOR" ]; then
+            cf="$path"
+            break
+        fi
+    done
+fi
+if [ -z "$cf" ]; then
+    echo "$0: no clang-format >= $REQUIRED_MAJOR found (InsertBraces requires v$REQUIRED_MAJOR+)" >&2
+    echo "$0: install with: pip3 install --user clang-format" >&2
+    echo "$0: or set \$CLANG_FORMAT to a recent clang-format binary" >&2
+    exit 1
+fi
+
+# Generate a temporary config that inherits the project .clang-format
+# and adds InsertBraces.
+cfg="$t-clang-format"
+sed '/^\.\.\.$/i\
+InsertBraces: true' .clang-format > "$cfg"
+
+echo "$0: clang-format: $cf ($("$cf" --version | head -1))"
+echo "$0: config: project .clang-format + InsertBraces"
+
+if [ "$#" -gt 0 ]; then
+    files=("$@")
+else
+    mapfile -t files < <(find bench examples ext src test \
+        \( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.cxx' -o -name '*.hpp' \) \
+        -not -path '*/3rdparty/*' \
+        -not -path '*/_deps/*' \
+        | filter_if_fast)
+fi
+
+[ "${#files[@]}" -eq 0 ] && { echo "$0: no files"; exit 0; }
+
+echo "$0: processing ${#files[@]} files"
+check_xargs_P
+printf '%s\n' "${files[@]}" \
+    | tr '\n' '\0' \
+    | xargs -0 $XARGS_P -n 50 "$cf" -i --style="file:$cfg"
+
+# Re-format the modified files using the project's pinned clang-format
+# (currently v12) so the output matches what s_clang_format validates in CI.
+modified=$(git diff --name-only -- "${files[@]}" 2>/dev/null)
+if [ -n "$modified" ]; then
+    echo "$0: normalising formatting via project's pinned clang-format"
+    printf '%s\n' "$modified" \
+        | tr '\n' '\0' \
+        | xargs -0 "$DIST_DIR/s_clang_format" || {
+            echo "$0: s_clang_format failed" >&2
+            exit 1
+        }
+fi

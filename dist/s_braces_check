@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+# Regression check: fail if any bare-bodied if/for/while/do exists in C/C++
+# sources or transitively-included project headers. Read-only — no fixes.
+#
+# Designed to plug into dist/s_all:  every TU in the compile database is
+# scanned in parallel with `readability-braces-around-statements` promoted to
+# an error. Read-only access means there is no parallel-write race even with
+# `-header-filter='.*'`.
+#
+# Usage:
+#   dist/s_braces_check                    # check everything
+#   dist/s_braces_check path/to/file.c     # check specific TUs
+#   dist/s_braces_check -F                 # fast mode: only changed files
+#
+
+set -o pipefail
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
+check_fast_mode_flag
+
+# Locate clang-tidy.
+tidy="${CLANGTIDY:-}"
+if [ -z "$tidy" ]; then
+    for cand in clang-tidy clang-tidy-15 clang-tidy-14 clang-tidy-13 clang-tidy-12; do
+        if command -v "$cand" >/dev/null 2>&1; then
+            tidy="$(command -v "$cand")"
+            break
+        fi
+    done
+fi
+if [ -z "$tidy" ]; then
+    # No clang-tidy available — skip rather than fail the s_all run.
+    echo "$0: skipped (no clang-tidy found)"
+    exit 0
+fi
+
+# Locate compile DB.
+build="${BUILDDIR:-}"
+if [ -z "$build" ]; then
+    for cand in build cmake-build-debug cmake-build-release; do
+        if [ -f "$cand/compile_commands.json" ]; then
+            build="$cand"
+            break
+        fi
+    done
+fi
+if [ -z "$build" ] || [ ! -f "$build/compile_commands.json" ]; then
+    echo "$0: skipped (no compile_commands.json — run cmake to enable this check)"
+    exit 0
+fi
+build="$(realpath "$build")"
+
+checks='-*,readability-braces-around-statements'
+
+is_main_run && {
+    find bench examples ext src test \
+        \( -name '*.c' -o -name '*.cpp' -o -name '*.cxx' \) \
+        -not -path 'test/3rdparty/*' \
+        -not -path '*/_deps/*' \
+        | filter_if_fast \
+        | do_in_parallel
+    exit $?
+}
+
+# Recursive invocation: check each file argument. Capture clang-tidy output
+# and fail only on actual brace-check warnings — ignore unrelated compile
+# errors (e.g. third-party extensions whose private headers aren't present).
+rc=0
+for f in "$@"; do
+    out=$("$tidy" --quiet \
+        -checks="$checks" \
+        -header-filter='.*' \
+        -p="$build" \
+        --extra-arg=-Wno-unknown-warning-option \
+        --extra-arg=-Wno-error \
+        "$f" 2>/dev/null)
+    if grep -q '\[readability-braces-around-statements\]' <<<"$out"; then
+        printf '%s\n' "$out" | grep -B1 '\[readability-braces-around-statements\]'
+        rc=1
+    fi
+done
+exit $rc
