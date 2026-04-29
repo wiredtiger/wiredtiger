@@ -479,3 +479,53 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     }
     __wt_writeunlock(session, &layered_table->truncate_lock);
 }
+
+/*
+ * __truncate_entry_eligible_for_gc --
+ *     Determine if an entry is redundant and should be removed from the list.
+ */
+static bool
+__truncate_entry_eligible_for_gc(const WT_TRUNCATE *const entry, const wt_timestamp_t prune_ts)
+{
+    if (prune_ts == WT_TS_NONE)
+        return (false);
+
+    if (entry->durable_ts == WT_TS_NONE)
+        return (false);
+
+    return (entry->durable_ts <= prune_ts);
+}
+
+/*
+ * __wt_layered_table_truncate_gc --
+ *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
+ */
+void
+__wt_layered_table_truncate_gc(WT_SESSION_IMPL *const session,
+  WT_LAYERED_TABLE *const layered_table, const wt_timestamp_t prune_ts)
+{
+    if (!__wt_process.disagg_fast_truncate_2026)
+        return;
+
+    WT_ASSERT(session, layered_table != NULL);
+    WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
+
+    if (prune_ts == WT_TS_NONE)
+        return;
+
+    WT_TRUNCATE *entry = NULL;
+    WT_TRUNCATE *next = NULL;
+
+    __wt_writelock(session, &layered_table->truncate_lock);
+
+    TAILQ_FOREACH_SAFE(entry, &layered_table->truncateqh, q, next)
+    {
+        if (!__truncate_entry_eligible_for_gc(entry, prune_ts))
+            continue;
+
+        TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
+        __disagg_truncate_free(session, &entry);
+    }
+
+    __wt_writeunlock(session, &layered_table->truncate_lock);
+}
