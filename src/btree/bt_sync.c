@@ -140,7 +140,8 @@ __sync_check_for_multiblock_rec(WT_SESSION_IMPL *session, WT_REF *walk, bool int
 {
     WT_PAGE *page = walk->page;
 
-    if (internal || !WT_REC_RESULT_MULTIBLOCK_SPLIT(page))
+    if (internal || !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
+      !WT_REC_RESULT_MULTIBLOCK_SPLIT(page))
         return;
 
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_checkpoint_flagged);
