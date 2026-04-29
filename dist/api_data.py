@@ -838,6 +838,13 @@ connection_runtime_config = [
                 disk read at the cost of retaining the reconciled image in memory. Automatically
                 enabled when the connection is using disaggregated storage.''',
                 type='boolean'),
+            Config('clean_scrub_max', '5',
+                r'''Maximum fraction of the cache (in percent) that may be held by saved
+                clean-scrub disk images. When the in-memory footprint of saved images reaches
+                this fraction of \c cache_size, reconciliation stops saving new images until
+                eviction releases existing ones. Has no effect when \c clean_scrub_eviction is
+                false.''',
+                min=0, max=100),
             Config('skip_update_obsolete_check', 'false',
                 r'''Skip checking for obsolete updates whenever an update operation is
                 performed.''',

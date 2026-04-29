@@ -31,6 +31,8 @@ struct __wt_cache_eviction_controls {
     wt_shared uint8_t
       app_eviction_min_cache_fill_ratio; /* Application eviction minimum cache fill ratio */
 
+    wt_shared uint8_t clean_scrub_max_pct; /* Max % of cache held by saved clean-scrub images */
+
 /* cache eviction controls bit positions */
 #define WT_CACHE_CLEAN_SCRUB_EVICTION 0x1u
 #define WT_CACHE_EVICT_INCREMENTAL_APP 0x2u

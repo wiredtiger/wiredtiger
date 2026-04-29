@@ -119,6 +119,24 @@ class test_clean_scrub_eviction02(CleanScrubBase, wttest.WiredTigerTestCase):
         self.assertEqual(remaining, 0,
             "inventory gauge did not return to zero after table drop: {} bytes".format(remaining))
 
+    # The clean_scrub_max bound caps the saved-image footprint; reconciliation reports the skips.
+    def test_clean_scrub_max_bound(self):
+        # 50MB cache * 1% = 512KB ceiling. After-reconciliation image bytes for nrows*4 records
+        # exceed this, so the cap kicks in and the skip counter advances.
+        self.conn.reconfigure('eviction=(clean_scrub_eviction=true,clean_scrub_max=1)')
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.populate(0, self.nrows * 4)
+        self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        gauge = stat_cursor[stat.conn.cache_clean_scrub_image_bytes][2]
+        skipped = stat_cursor[stat.conn.cache_clean_scrub_image_save_skipped][2]
+        stat_cursor.close()
+        self.assertGreater(skipped, 0)
+        # Allow ~2x headroom over the raw bound to account for the cache-overhead factor.
+        self.assertLess(gauge, 50 * 1024 * 1024 // 50,
+            "saved-image gauge {} exceeded 2% of cache (bound was 1%)".format(gauge))
+
     # Disabling the feature at runtime stops scrub evictions.
     def test_clean_scrub_off(self):
         self.conn.reconfigure('eviction=(clean_scrub_eviction=false)')

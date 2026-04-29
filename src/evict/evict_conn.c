@@ -313,6 +313,10 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
             F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_CLEAN_SCRUB_EVICTION);
     }
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction.clean_scrub_max", &cval));
+    __wt_atomic_store_uint8_relaxed(
+      &cache->cache_eviction_controls.clean_scrub_max_pct, (uint8_t)cval.val);
+
     WT_RET(__wt_config_gets(session, cfg, "eviction.skip_update_obsolete_check", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
