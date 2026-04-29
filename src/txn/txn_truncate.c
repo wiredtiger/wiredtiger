@@ -356,7 +356,7 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
 
 /*
  * __truncate_entry_eligible_for_gc --
- *     A committed entry whose effect is now in the picked-up checkpoint.
+ *     Determine if an entry is redundant and should be removed from the list.
  */
 static bool
 __truncate_entry_eligible_for_gc(const WT_TRUNCATE *const entry, const wt_timestamp_t prune_ts)
