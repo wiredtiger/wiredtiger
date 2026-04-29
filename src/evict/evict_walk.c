@@ -586,10 +586,18 @@ __wti_evict_push_candidate(
     u_int slot;
 
     /*
-     * Skip pushing refs that aren't currently in memory. A ref can transition out of WT_REF_MEM
-     * (typically to WT_REF_LOCKED for an in-progress eviction) after the caller's earlier state
-     * check but before reaching us; pushing a locked ref would set WT_PAGE_EVICT_LRU on a page
-     * that the active evictor is about to discard, tripping the discard-time assertion.
+     * Caller must hold evict_queue_lock. The lock serializes push against
+     * __wti_evict_list_clear_page so an active eviction LRU clear cannot interleave between our
+     * state check and our flag CAS. Without that serialization a walker could push
+     * WT_PAGE_EVICT_LRU on a page whose ref has just transitioned to WT_REF_LOCKED, causing the
+     * discard inside __split_multi to trip the queued-for-eviction assertion in __wt_page_out.
+     */
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->evict_queue_lock);
+
+    /*
+     * With the lock held, pair this state read with the flag CAS below: if the ref is in MEM at
+     * this point, a later LRU clear (which also takes evict_queue_lock) sees and undoes our flag
+     * set before the discard runs.
      */
     if (WT_REF_GET_STATE(ref) != WT_REF_MEM)
         return (false);
@@ -603,16 +611,6 @@ __wti_evict_push_candidate(
     if (orig_flags == new_flags ||
       !__wt_atomic_cas_uint16(&ref->page->flags_atomic, orig_flags, new_flags)) {
         WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flaging);
-        return (false);
-    }
-
-    /*
-     * Close the TOCTOU window: if the ref transitioned to WT_REF_LOCKED between the pre-check
-     * above and the CAS, the active evictor has already passed its own LRU clear and would trip
-     * the discard-time assertion. Undo the flag set so the discard sees a clean state.
-     */
-    if (WT_REF_GET_STATE(ref) != WT_REF_MEM) {
-        F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU);
         return (false);
     }
 
@@ -1255,7 +1253,14 @@ fast:
     }
 
     WT_ASSERT(session, evict_entry->ref == NULL);
-    if (!__wti_evict_push_candidate(session, queue, evict_entry, ref))
+    /*
+     * Take evict_queue_lock around the push so it serializes with __wti_evict_list_clear_page; see
+     * the assertion in __wti_evict_push_candidate.
+     */
+    __wt_spin_lock(session, &evict->evict_queue_lock);
+    bool pushed = __wti_evict_push_candidate(session, queue, evict_entry, ref);
+    __wt_spin_unlock(session, &evict->evict_queue_lock);
+    if (!pushed)
         return;
 
     *queuedp = true;
