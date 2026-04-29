@@ -118,7 +118,8 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
                     'commit_timestamp=' + self.timestamp_str(200) +
                     ',durable_timestamp=' + self.timestamp_str(210))
             else:
-                claim_session.rollback_transaction()
+                claim_session.rollback_transaction(
+                    'rollback_timestamp=' + self.timestamp_str(210))
         cursor.close()
         claim_session.close()
         return discovered
