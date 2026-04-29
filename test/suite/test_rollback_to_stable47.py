@@ -41,37 +41,22 @@ from wtthread import checkpoint_thread
 
 # test_rollback_to_stable47.py
 #
-# Test that RTS correctly handles a page with mixed stable/unstable keys after backup restore,
-# followed by two re-insertions (first stable, second unstable) and a subsequent crash.
+# Test that reconciliation handles correctly the chain shape produced when an
+# obsolete check has removed a globally visible tombstone that was previously
+# installed by RTS on top of an existing on-disk value. The chain then has an
+# older durable_ts than the (now-stale) on-disk image, which reconciliation
+# must accept rather than treat as an invariant violation.
 #
-# Step-by-step scenario:
-#
-# 1. Create a table where keys 1..5 are stable (committed at ts=10, stable=20) and
-#    keys 6..10 are unstable (committed at ts=30), all on the same leaf page.
-#    Checkpoint and take a backup.
-#
-# 2. Open from the backup. WiredTiger runs RTS automatically (stable=20): the unstable keys
-#    (6..10) are tombstoned at no_ts.  Stable keys (1..5) survive.
-#
-# 3. Re-insert keys 6..10 with value_c at prepare_ts=24, commit_ts=25, durable_ts=26.
-#    Update chain: [value_c ts=25] -> [tombstone no_ts (from backup-restore RTS)].
-#
-# 4. Advance oldest=30, stable=30. value_c (ts=25 < stable=30) is now stable.
-#    Insert value_d at ts=35 (unstable: 35 > stable=30).
-#    Update chain: [value_d ts=35] -> [value_c ts=25 (stable)] -> [tombstone no_ts].
-#
-# 5. Run a checkpoint in parallel with eviction using the checkpoint_slow timing stress
-#    (when the ckpt_stress scenario is active).  checkpoint_slow makes the checkpoint yield
-#    frequently, increasing the chance that eviction races with it and that reconciliation
-#    collapses the globally visible tombstone, leaving value_c as the base disk image.
-#
-# 6. Simulate a second crash+restart (stable=30).  RTS must remove value_d (ts=35 unstable)
-#    and restore value_c (ts=25 stable).  The globally visible tombstone from backup-restore
-#    RTS sits beneath value_c; RTS must not let it corrupt the restoration.
-#
-# Expected final state:
-#   Keys 1..5  -> value_a (stable, unchanged)
-#   Keys 6..10 -> value_c (restored by second RTS after removing unstable value_d)
+# Phases:
+# 1. Keys 1..5 commit ts=10, keys 6..10 commit ts=30. Checkpoint, take backup.
+# 2. Reopen backup with stable=20. RTS tombstones keys 6..10 at no_ts.
+# 3. Prepared re-insert of value_c on keys 6..10 (durable=26).
+#    Chain: [value_c durable=26] -> [tombstone no_ts].
+# 4. Advance oldest=stable=30; commit value_d at ts=35.
+#    Chain: [value_d durable=35] -> [value_c durable=26] -> [tombstone].
+# 5. Concurrent checkpoint + forced eviction with checkpoint_slow timing stress
+#    widens the race. The obsolete check removes the tombstone, leaving the
+#    chain in an out-of-order state that reconciliation must accept.
 class test_rollback_to_stable47(test_rollback_to_stable_base):
     format_values = [
         ("column", dict(key_format="r", value_format="S")),

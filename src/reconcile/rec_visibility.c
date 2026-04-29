@@ -645,10 +645,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
          */
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
             WT_ASSERT_ALWAYS(session,
-              __wt_txn_upd_visible_all(session, prev_upd) ||
-                prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
                 prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
-                prev_upd->upd_durable_ts >= vpack->tw.durable_stop_ts,
+                prev_upd->upd_durable_ts >= vpack->tw.durable_stop_ts ||
+                __wt_txn_upd_visible_all(session, prev_upd),
               "Stop: Durable timestamps cannot be out of order for updates: "
               "prev_upd->upd_start_ts=%s, prev_upd->prepare_ts=%s, prev_upd->upd_durable_ts=%s, "
               "prev_upd->flags=%" PRIu16 ", vpack->tw.durable_stop_ts=%s",
@@ -658,10 +658,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
               __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]));
         } else
             WT_ASSERT_ALWAYS(session,
-              __wt_txn_upd_visible_all(session, prev_upd) ||
-                prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
                 prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
-                prev_upd->upd_durable_ts >= vpack->tw.durable_start_ts,
+                prev_upd->upd_durable_ts >= vpack->tw.durable_start_ts ||
+                __wt_txn_upd_visible_all(session, prev_upd),
               "Start: Durable timestamps cannot be out of order for updates: "
               "prev_upd->upd_start_ts=%s, prev_upd->prepare_ts=%s, prev_upd->upd_durable_ts=%s, "
               "prev_upd->flags=%" PRIu16 ", vpack->tw.durable_start_ts=%s",
