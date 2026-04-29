@@ -1619,11 +1619,10 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    WT_TRET(__verify_compare_page_id_lists(session, page_ids, (size_t)num_pages_found_in_btree,
-      (const uint64_t *)item->data, num_pages_found_in_pali));
-
-    if (ret != 0)
-        WT_ERR_MSG(session, ret, "Page discard verification found mismatches");
+    WT_ERR_MSG_CHK(session,
+      __verify_compare_page_id_lists(session, page_ids, (size_t)num_pages_found_in_btree,
+        (const uint64_t *)item->data, num_pages_found_in_pali),
+      "Page discard verification found mismatches");
 
 err:
 
