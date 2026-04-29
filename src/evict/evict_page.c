@@ -627,16 +627,6 @@ err:
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 
-        /*
-         * If a clean-scrub attempt failed with EBUSY (e.g., checkpoint locked the parent, or a
-         * hazard pointer blocked exclusive access), re-queue the page urgently so it gets another
-         * attempt quickly. The flag is intentionally not cleared on the scrub path until after
-         * dispatch succeeds, so its presence here identifies the failed scrub attempt.
-         */
-        if (ret == EBUSY && !closing && F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB) &&
-          !__wt_page_is_modified(page) && __wti_evict_page_has_clean_scrub_image(page))
-            WT_IGNORE_RET(__wt_evict_page_urgent(session, ref));
-
         if (ebusy_only && ret != EBUSY)
             WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
     }
