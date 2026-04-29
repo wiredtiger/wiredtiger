@@ -158,22 +158,22 @@ err:
 
 /*
  * __layered_derive_stable_uri --
- *     Derive the stable constituent URI corresponding to an ingest constituent URI.
+ *     Derive the stable constituent URI corresponding to an ingest constituent URI. The result is
+ *     written into the caller's scratch buffer, which must already be allocated.
  */
 static int
-__layered_derive_stable_uri(
-  WT_SESSION_IMPL *session, const char *ingest_uri, char *buf, size_t buf_size)
+__layered_derive_stable_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT_ITEM *buf)
 {
     static const char ingest_suffix[] = ".wt_ingest";
     size_t prefix_len, uri_len;
 
     uri_len = strlen(ingest_uri);
     WT_ASSERT_ALWAYS(session, uri_len > sizeof(ingest_suffix) - 1,
-      "Ingest URI is too short to contain a .wt_ingest suffix");
+      "Ingest URI is too short to contain an ingest suffix");
     prefix_len = uri_len - (sizeof(ingest_suffix) - 1);
     WT_ASSERT_ALWAYS(session, strcmp(ingest_uri + prefix_len, ingest_suffix) == 0,
-      "Ingest URI does not end in .wt_ingest");
-    return (__wt_snprintf(buf, buf_size, "%.*s.wt_stable", (int)prefix_len, ingest_uri));
+      "Ingest URI does not end in the expected ingest suffix");
+    return (__wt_buf_fmt(session, buf, "%.*s.wt_stable", (int)prefix_len, ingest_uri));
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -327,6 +327,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
@@ -337,7 +338,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     uint64_t start_prepared_id, start_txn, stop_prepared_id, stop_txn;
     uint8_t flags, location, prepare, type;
     int cmp;
-    char buf[256], buf2[64], stable_uri[512];
+    char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
@@ -348,11 +349,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
-    WT_RET(__layered_derive_stable_uri(session, ingest_uri, stable_uri, sizeof(stable_uri)));
+    WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
+    WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-    WT_RET(__wt_open_cursor(session, stable_uri, NULL, open_cfg, &stable_cursor));
+    WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     stable_btree = CUR2BT(cbt);
     if (last_checkpoint_timestamp != WT_TS_NONE)
@@ -538,6 +540,7 @@ err:
     if (upds != NULL)
         __wt_free_update_list(session, &upds);
     __wt_scr_free(session, &key);
+    __wt_scr_free(session, &stable_uri_buf);
     __wt_scr_free(session, &tmp_key);
     __wt_scr_free(session, &value);
     if (ingest_version_cursor != NULL)
