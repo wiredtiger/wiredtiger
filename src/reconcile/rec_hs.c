@@ -552,8 +552,9 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     cursor->set_value(
       cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
     WT_ERR_MSG_CHK(session, cursor->insert(cursor),
-      "failed to insert history store record: btree=%" PRIu32 " start_ts=%" PRIu64 " type=%" PRIu8,
-      btree->id, tw->start_ts, type);
+      "failed to insert history store record: btree=%" PRIu32 " start_ts=%" PRIu64
+      " stop_ts=%" PRIu64 " type=%" PRIu8,
+      btree->id, tw->start_ts, tw->stop_ts, type);
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE,
       "finished inserting an update to the history store for %p", (void *)ref);
@@ -957,8 +958,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              */
             if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
               oldest_upd->upd_start_ts == WT_TS_NONE) {
-                WT_ERR(__wti_rec_hs_delete_key(
-                  session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
+                WT_ERR_MSG_CHK(session,
+                  __wti_rec_hs_delete_key(
+                    session, hs_cursor, btree->id, key, false, error_on_ts_ordering),
+                  "failed to clear stale history store entries before insert: btree=%" PRIu32,
+                  btree->id);
 
                 WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
 
@@ -1118,7 +1122,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
               modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
-                WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
+                WT_ERR_MSG_CHK(session,
+                  __wt_modify_pack(hs_cursor, entries, nentries, &modify_value),
+                  "failed to pack modify value for history store insertion: btree=%" PRIu32
+                  " start_ts=%" PRIu64,
+                  btree->id, tw.start_ts);
                 WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_MODIFY,
                   modify_value, &tw, error_on_ts_ordering));
                 ++cache_hs_insert_reverse_modify;

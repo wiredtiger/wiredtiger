@@ -3330,8 +3330,9 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
             WT_ERR_MSG_CHK(session, __wti_rec_hs_insert_updates(session, r, multi),
-              "failed to insert updates into history store during wrapup: btree=%" PRIu32,
-              btree->id);
+              "failed to insert updates into history store during wrapup: btree=%" PRIu32
+              " supd_entries=%" PRIu32,
+              btree->id, multi->supd_entries);
             /* FIXME-WT-15709: build delta for split pages. */
             if (!is_disagg && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
                 __wt_free(session, multi->supd);
