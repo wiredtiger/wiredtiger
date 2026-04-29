@@ -865,6 +865,38 @@ __clayered_position_near_key(WT_CURSOR *cursor, WT_ITEM *key, bool forward)
 }
 
 /*
+ * __clayered_range_truncate_ingest --
+ *     Apply a layered tombstone to each key in a cursor range on the ingest btree.
+ */
+static int
+__clayered_range_truncate_ingest(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, WT_CURSOR *start, WT_CURSOR *stop)
+{
+    WT_DECL_RET;
+    WT_CURSOR *cursor = start;
+    int cmp = -1;
+
+    do {
+        /* Check the current position relative to the truncate end. */
+        WT_RET(cursor->compare(cursor, stop, &cmp));
+
+        /* Avoid stacking consecutive tombstones on the update chain. */
+        if (!__wt_clayered_deleted(&cursor->value)) {
+            WT_ITEM key;
+            WT_RET(__wt_cursor_get_raw_key(cursor, &key));
+            WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, layered, &key));
+            cursor->set_value(cursor, &__wt_tombstone);
+            WT_RET(cursor->update(cursor));
+        }
+
+        ret = cursor->next(cursor);
+    } while (cmp < 0 && ret == 0);
+
+    WT_RET_NOTFOUND_OK(ret);
+    return (0);
+}
+
+/*
  * __clayered_truncate_follower --
  *     Discard a cursor range from the ingest table.
  */
@@ -897,8 +929,11 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
      * there is nothing to remove from ingest. Still add the truncate-list entry so stable rows in
      * the range are hidden.
      */
-    if (ret_start == 0 && ret_stop == 0)
-        WT_RET_NOTFOUND_OK(__wt_range_truncate(ingest_start, ingest_stop));
+    if (ret_start == 0 && ret_stop == 0) {
+        WT_LAYERED_TABLE *dhandle = (WT_LAYERED_TABLE *)clayered_start->dhandle;
+        WT_RET(__clayered_range_truncate_ingest(
+          trunc_info->session, dhandle, ingest_start, ingest_stop));
+    }
 
     /* Add a truncate entry inside layered table truncate list. */
     WT_RET(__wt_insert_truncate_entry(trunc_info->session, trunc_info->uri, &start_key, &stop_key));
