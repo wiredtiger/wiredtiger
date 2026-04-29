@@ -478,7 +478,9 @@ struct __wt_txn {
  *     - prepared_id: matches a session that reclaimed the prepared transaction from a
  *       checkpoint at startup recovery. Such a session has no transaction id assigned but
  *       does carry a prepared id.
- *   Pass WT_PREPARED_ID_NONE for prepared_id to disable the prepared-id match path.
+ *   Both ids must be set to the values associated with the prepared transaction being
+ *   fixed; the callback prefers txnid when the candidate session has a transaction id and
+ *   falls back to prepared_id otherwise.
  */
 struct __wt_fix_prepared_cookie {
     WT_BTREE *ingest_btree;

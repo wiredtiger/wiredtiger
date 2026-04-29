@@ -587,10 +587,12 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_ERR_MSG_CHK(session, __layered_reset_ingest_table_prune_timestamp(session, ingest_uri),
       "Failed to reset ingest table prune timestamp \"%s\"", ingest_uri);
 
-    WT_WITH_DHANDLE(session, work_item->ingest_dhandle, __wt_cursor_dhandle_decr_use(session););
-    work_item->ingest_dhandle = NULL;
-
 err:
+    /*
+     * Balance the pin acquired when queueing. The work item has already been removed from the
+     * queue, so the cleanup helper won't see it on the error path either.
+     */
+    WT_WITH_DHANDLE(session, work_item->ingest_dhandle, __wt_cursor_dhandle_decr_use(session));
     __wt_free(session, work_item);
     return (ret);
 }
