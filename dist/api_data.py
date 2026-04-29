@@ -2274,10 +2274,9 @@ methods = {
         be monotonically increasing. The value must not be newer than the current stable timestamp.
         See @ref timestamp_global_api'''),
     Config('stable_disaggregated_schema_epoch', '', r'''
-        set the stable schema epoch for disaggregated storage; checkpoints will not include
-        the effects of schema operations with higher epochs. Values must be monotonically
-        increasing. This timestamp is independent of the oldest and stable timestamps.
-        See @ref timestamp_global_api'''),
+        set the stable schema epoch for disaggregated storage; the shared metadata included in the
+        disaggregated storage checkpoint will not include the effects of schema operations with
+        higher epochs. Values must be monotonically increasing. See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value

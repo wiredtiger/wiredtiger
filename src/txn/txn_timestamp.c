@@ -483,9 +483,9 @@ set:
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
 
+    /* Stable disaggregated schema epoch cannot be forced to move backwards. */
     if (has_stable_disagg_epoch &&
       (!__wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) ||
-        force ||
         stable_disagg_epoch >
           __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch))) {
         __wt_atomic_store_uint64_relaxed(
