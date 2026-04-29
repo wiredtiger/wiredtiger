@@ -331,7 +331,7 @@ err:
  * __curfile_search_near --
  *     WT_CURSOR->search_near method for the btree cursor type.
  */
-int
+static int
 __curfile_search_near(WT_CURSOR *cursor, int *exact)
 {
     WT_CURSOR_BTREE *cbt;
