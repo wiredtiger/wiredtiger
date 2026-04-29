@@ -224,10 +224,11 @@ typedef struct {
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
 
-    bool backward_compatible; /* Backward compatibility testing */
-    bool configured;          /* Configuration completed */
-    bool reopen;              /* Reopen an existing database */
-    bool workers_finished;    /* Operations completed */
+    bool backward_compatible;      /* Backward compatibility testing */
+    bool configured;               /* Configuration completed */
+    wt_shared bool expect_failure; /* We expect a failure */
+    bool reopen;                   /* Reopen an existing database */
+    bool workers_finished;         /* Operations completed */
 
     WT_CONNECTION *trace_conn; /* Tracing operations */
     WT_SESSION *trace_session;
@@ -510,6 +511,7 @@ wt_timestamp_t replay_read_ts(TINFO *);
 void replay_rollback(TINFO *);
 void replay_run_begin(WT_SESSION *);
 void replay_run_end(WT_SESSION *);
+bool replay_stale_read_ts(TINFO *);
 int timestamp_query(const char *, wt_timestamp_t *);
 void timestamp_teardown(WT_SESSION *);
 void trace_config(const char *);

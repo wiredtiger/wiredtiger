@@ -1089,6 +1089,9 @@ extern int __wt_thread_group_create(WT_SESSION_IMPL *session, WT_THREAD_GROUP *g
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_thread_group_foreach(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
+  int (*func)(WT_SESSION_IMPL *session, WT_THREAD *context))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
   uint32_t new_min, uint32_t new_max, uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1568,7 +1571,7 @@ extern int __wti_prefetch_destroy(WT_SESSION_IMPL *session)
 extern int __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *upd,
   WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
-  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
+  WT_CURSOR *ingest_cursor, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_row_ikey(WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key,
   size_t size, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1805,6 +1808,7 @@ extern void __wt_root_ref_init(
   WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bool is_recno);
 extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered);
+extern void __wt_schema_destroy_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered);
 extern void __wt_scr_discard(WT_SESSION_IMPL *session);
 extern void __wt_session_close_cache(WT_SESSION_IMPL *session);
 extern void __wt_session_dhandle_sweep(WT_SESSION_IMPL *session);
@@ -1849,6 +1853,7 @@ extern void __wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
 extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
+extern void __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapshot);
 extern void __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 extern void __wt_txn_release_resources(WT_SESSION_IMPL *session);
 extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
@@ -1929,7 +1934,7 @@ static WT_INLINE bool __wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_btree_can_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_btree_syncing_by_other_session(WT_SESSION_IMPL *session)
+static WT_INLINE bool __wt_btree_syncing_by_other_sessions(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_cache_full(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

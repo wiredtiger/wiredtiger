@@ -151,6 +151,8 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
+{"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8}
+
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
 {"debug.background_compact", "background compaction processes files more often", C_BOOL, 5, 0, 0}

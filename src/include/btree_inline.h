@@ -2053,11 +2053,11 @@ __wt_page_del_committed_set(WT_PAGE_DELETED *page_del)
 }
 
 /*
- * __wt_btree_syncing_by_other_session --
- *     Returns true if the session's current btree is being synced by another thread.
+ * __wt_btree_syncing_by_other_sessions --
+ *     Returns true if the session's current btree is being synced, but not by the current session.
  */
 static WT_INLINE bool
-__wt_btree_syncing_by_other_session(WT_SESSION_IMPL *session)
+__wt_btree_syncing_by_other_sessions(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
 
@@ -2352,7 +2352,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * historical tables, reconciliation no longer writes overflow cookies on internal pages, no
      * matter the size of the key.)
      */
-    if (__wt_btree_syncing_by_other_session(session) &&
+    if (__wt_btree_syncing_by_other_sessions(session) &&
       F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_overflow_keys);
         return (false);
@@ -2386,7 +2386,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * written and the previous version freed, that previous version might be referenced by an
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
-    if (modified && __wt_btree_syncing_by_other_session(session)) {
+    if (modified && __wt_btree_syncing_by_other_sessions(session)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint);
         return (false);
     }
