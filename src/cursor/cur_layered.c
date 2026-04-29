@@ -818,11 +818,11 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
 }
 
 /*
- * __layered_truncate_leader --
+ * __clayered_truncate_leader --
  *     Discard a cursor range from the stable table.
  */
 static int
-__layered_truncate_leader(WT_TRUNCATE_INFO *trunc_info)
+__clayered_truncate_leader(WT_TRUNCATE_INFO *trunc_info)
 {
     /*
      * On leader mode, the stable cursors will always be positioned on the table. So we can directly
@@ -843,12 +843,12 @@ __layered_truncate_leader(WT_TRUNCATE_INFO *trunc_info)
 }
 
 /*
- * __search_near_key --
+ * __clayered_position_near_key --
  *     Position a cursor on the given key, or at the nearest key in the requested direction if the
  *     key itself isn't present. Returns WT_NOTFOUND if nothing in that direction exists.
  */
 static int
-__search_near_key(WT_CURSOR *cursor, WT_ITEM *key, bool forward)
+__clayered_position_near_key(WT_CURSOR *cursor, WT_ITEM *key, bool forward)
 {
     __wt_cursor_set_raw_key(cursor, key);
 
@@ -865,11 +865,11 @@ __search_near_key(WT_CURSOR *cursor, WT_ITEM *key, bool forward)
 }
 
 /*
- * __layered_truncate_follower --
+ * __clayered_truncate_follower --
  *     Discard a cursor range from the ingest table.
  */
 static int
-__layered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
+__clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
 {
     /*
      * Set the keys on the ingest cursors. The ingest cursor may not have its key set if the layered
@@ -886,10 +886,10 @@ __layered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
     WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
 
-    const int ret_start = __search_near_key(ingest_start, &start_key, true);
+    const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);
     WT_RET_NOTFOUND_OK(ret_start);
 
-    const int ret_stop = __search_near_key(ingest_stop, &stop_key, false);
+    const int ret_stop = __clayered_position_near_key(ingest_stop, &stop_key, false);
     WT_RET_NOTFOUND_OK(ret_stop);
 
     /*
@@ -926,9 +926,9 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
      * list.
      */
     if (S2C(session)->layered_table_manager.leader)
-        WT_RET(__layered_truncate_leader(trunc_info));
+        WT_RET(__clayered_truncate_leader(trunc_info));
     else
-        WT_RET(__layered_truncate_follower(trunc_info));
+        WT_RET(__clayered_truncate_follower(trunc_info));
 
     return (0);
 }
