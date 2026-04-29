@@ -34,8 +34,8 @@ public:
     ~cross_checkpoint_caching_test_env();
 
     cross_checkpoint_caching_test_env(const cross_checkpoint_caching_test_env &) = delete;
-    cross_checkpoint_caching_test_env &operator=(const cross_checkpoint_caching_test_env &) =
-      delete;
+    cross_checkpoint_caching_test_env &operator=(
+      const cross_checkpoint_caching_test_env &) = delete;
 
     WT_SESSION_IMPL *session();
     WT_CONNECTION_STATS *stats();

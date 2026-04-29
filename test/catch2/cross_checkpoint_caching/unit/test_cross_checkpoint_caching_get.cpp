@@ -47,8 +47,8 @@ TEST_CASE("cross_checkpoint_caching_get: hit returns inserted item and increment
     REQUIRE(env.stats()->cache_shared_dsk_miss == 0);
 }
 
-TEST_CASE(
-  "cross_checkpoint_caching_get: different addr misses", "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
+TEST_CASE("cross_checkpoint_caching_get: different addr misses",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
     cross_checkpoint_caching_test_env env;
     const uint8_t addr_a[] = {0x01, 0x02, 0x03, 0x04};
@@ -64,8 +64,8 @@ TEST_CASE(
     REQUIRE(env.stats()->cache_shared_dsk_miss == 1);
 }
 
-TEST_CASE(
-  "cross_checkpoint_caching_get: different addr_size misses", "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
+TEST_CASE("cross_checkpoint_caching_get: different addr_size misses",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
     cross_checkpoint_caching_test_env env;
     const uint8_t addr_full[] = {0x01, 0x02, 0x03, 0x04};
@@ -149,7 +149,8 @@ TEST_CASE("cross_checkpoint_caching_get: two entries in the same bucket are dist
     REQUIRE(item_b->ref_count == 2);
 }
 
-TEST_CASE("cross_checkpoint_caching_get: same addr with different fid in same bucket distinguished by fid",
+TEST_CASE(
+  "cross_checkpoint_caching_get: same addr with different fid in same bucket distinguished by fid",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
     // Same addr means same bucket. Swap the session's btree id between puts so each entry stores

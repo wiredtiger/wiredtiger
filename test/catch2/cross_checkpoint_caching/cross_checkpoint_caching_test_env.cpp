@@ -28,8 +28,10 @@ cross_checkpoint_caching_test_env::cross_checkpoint_caching_test_env(u_int hash_
      * Create a real table and open a cursor on it so the btree has a WT-assigned id. We borrow the
      * cursor's dhandle for _session->dhandle so the btree id resolves against a real btree.
      */
-    REQUIRE(session->create(session, CROSS_CHECKPOINT_CACHING_TEST_URI, "key_format=S,value_format=S") == 0);
-    REQUIRE(session->open_cursor(session, CROSS_CHECKPOINT_CACHING_TEST_URI, nullptr, nullptr, &_cursor) == 0);
+    REQUIRE(session->create(
+              session, CROSS_CHECKPOINT_CACHING_TEST_URI, "key_format=S,value_format=S") == 0);
+    REQUIRE(session->open_cursor(
+              session, CROSS_CHECKPOINT_CACHING_TEST_URI, nullptr, nullptr, &_cursor) == 0);
     _session->dhandle = ((WT_CURSOR_BTREE *)_cursor)->dhandle;
 
     WT_CONNECTION_IMPL *conn = S2C(_session);
@@ -98,8 +100,8 @@ cross_checkpoint_caching_test_env::put(const uint8_t *addr, size_t addr_size)
 
     WT_SHARED_DSK_ITEM *item = nullptr;
     bool inserted = false;
-    REQUIRE(__wt_shared_dsk_cache_put(_session, data, CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE, addr, addr_size,
-              &block_meta, &item, &inserted) == 0);
+    REQUIRE(__wt_shared_dsk_cache_put(_session, data, CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE, addr,
+              addr_size, &block_meta, &item, &inserted) == 0);
     REQUIRE(inserted);
     REQUIRE(item != nullptr);
     return item;
