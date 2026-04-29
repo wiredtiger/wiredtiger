@@ -52,7 +52,7 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
             'commit_timestamp=' + self.timestamp_str(timestamp))
         if prepare:
             self.session.timestamp_transaction(
-                'durable_timestamp=' + self.timestamp_str(timestamp))
+                'durable_timestamp=' + self.timestamp_str(timestamp+1))
 
     def test_timestamp_alter(self):
         if wiredtiger.diagnostic_build():

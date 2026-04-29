@@ -858,7 +858,7 @@ thread_run(void *arg)
                     __wt_yield();
 
                 testutil_snprintf(tscfg, sizeof(tscfg),
-                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, stable_ts, stable_ts);
+                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, stable_ts, stable_ts+1);
             } else
                 testutil_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, stable_ts);
 

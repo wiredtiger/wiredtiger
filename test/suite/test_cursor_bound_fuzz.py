@@ -573,7 +573,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 if (prepare):
                     write_session.commit_transaction(
                         'commit_timestamp=' + self.timestamp_str(self.current_ts) +
-                        ',durable_timestamp='+ self.timestamp_str(self.current_ts))
+                        ',durable_timestamp='+ self.timestamp_str(self.current_ts+1))
                     self.clear_prepare_key_ranges()
             self.current_ts += 1
             if (i % 10 == 0):
