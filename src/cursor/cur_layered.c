@@ -270,7 +270,7 @@ retry:
              */
             F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
 
-            cfg[2] = "readonly=true";
+            cfg[1] = "readonly=true";
         } else {
             if (stable_uri_buf == NULL)
                 WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
@@ -2487,7 +2487,7 @@ __clayered_next_random(WT_CURSOR *cursor)
 
     /*
      * Promote the picked key to the layered cursor and resolve any tombstones via search_near.
-     * WT_NOTFOUND here is valid the tree has no documents visible to us.
+     * WT_NOTFOUND here is valid: the tree has no documents visible to us.
      */
     F_CLR(cursor, WT_CURSTD_KEY_INT);
     WT_ERR(__wt_buf_set(session, &cursor->key, c->key.data, c->key.size));
