@@ -374,23 +374,23 @@ __truncate_entry_eligible_for_gc(const WT_TRUNCATE *const entry, const wt_timest
  * __wt_layered_table_truncate_gc --
  *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
  */
-int
+void
 __wt_layered_table_truncate_gc(WT_SESSION_IMPL *const session,
   WT_LAYERED_TABLE *const layered_table, const wt_timestamp_t prune_ts)
 {
     if (!__wt_process.disagg_fast_truncate_2026)
-        return (0);
+        return;
 
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
     if (prune_ts == WT_TS_NONE)
-        return (0);
-
-    __wt_writelock(session, &layered_table->truncate_lock);
+        return;
 
     WT_TRUNCATE *entry = NULL;
     WT_TRUNCATE *next = NULL;
+
+    __wt_writelock(session, &layered_table->truncate_lock);
 
     TAILQ_FOREACH_SAFE(entry, &layered_table->truncateqh, q, next)
     {
@@ -402,6 +402,4 @@ __wt_layered_table_truncate_gc(WT_SESSION_IMPL *const session,
     }
 
     __wt_writeunlock(session, &layered_table->truncate_lock);
-
-    return (0);
 }
