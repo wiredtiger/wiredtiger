@@ -659,7 +659,6 @@ read:
              */
             if (force_attempts < 10 && __evict_force_check(session, ref)) {
                 ++force_attempts;
-                WT_STAT_CONN_INCR(session, eviction_force_btread);
                 ret = __wt_page_release_evict(session, ref, 0);
                 /*
                  * If forced eviction succeeded, don't retry. If it failed, stall.

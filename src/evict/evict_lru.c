@@ -415,7 +415,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
                 break;
             }
             /*
-             * At this point, we are under the evict pass lock XXX -- FIX and should only attempt to
+             * XXX -- there is no longer the evict pass lock. How to synchronize?
+             * At this point, we are under the evict pass lock and should only attempt to
              * read from the cursors dhandle cache to obtain the HS. If it is not present in the
              * cursors dhandle cache, we bail out. We must not proceed to acquire a connection
              * dhandle read lock or a schema lock to acquire the HS dhandle while holding the pass
@@ -844,9 +845,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
         __evict_tune_workers(session);
 
-        //    printf("%" PRIu64 " pages in clean leaf bucket\n",
-//           __wt_atomic_load_uint64_relaxed(&conn->evict->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF].bucketset_num_items));
-
 
         for (i = 0; i < WT_EVICT_LEVELS; i++) {
             switch (i) {
@@ -1114,26 +1112,6 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
     return (false);
 }
 
-#define PRINT_CACHE_STATE 0
-#if PRINT_CACHE_STATE
-static const char *WT_EVICT_LEVEL_NAMES[] = {"WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF", "WT_EVICT_LEVEL_DIRTY_LEAF",
-                                             "WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF", "WT_EVICT_LEVEL_CLEAN_LEAF",
-                                             "WT_EVICT_LEVEL_UPDATES_LEAF", "WT_EVICT_LEVEL_DIRTY_INTERNAL",
-                                             "WT_EVICT_LEVEL_WONT_NEED_INTERNAL", "WT_EVICT_LEVEL_UPDATES_INTERNAL",
-                                             "WT_EVICT_LEVEL_CLEAN_INTERNAL"};
-
-static const char *
-__evict_level_to_string(uint32_t level)
-{
-
-    if (level < (int)(sizeof(WT_EVICT_LEVEL_NAMES) / sizeof(WT_EVICT_LEVEL_NAMES[0])))
-        return WT_EVICT_LEVEL_NAMES[level];
-    else
-        return "UNKNOWN_WT_EVICT_LEVEL";
-}
-
-#endif
-
 /*
  * __evict_get_ref --
  *     Get a page for eviction. The returned page is locked. It will be unlocked by the function
@@ -1157,15 +1135,7 @@ __evict_get_ref(
     bool skip_page;
     int early_skipped_tree, skipped, skip_locked;
     uint32_t i, iter, j, min_level, max_level, num_buckets, total_iter;
-#define PROPORTIONAL 1
-#if PROPORTIONAL
     uint64_t cumulative, rand_val, total_items;
-#endif
-#if PRINT_CACHE_STATE
-    int empty_buckets;
-    WT_CACHE *cache;
-    uint64_t total_items;
-#endif
 
     *btreep = NULL;
     bucketset = NULL;
@@ -1178,10 +1148,6 @@ __evict_get_ref(
     previous_state = 0;
     txn = session->txn;
 
-#if PRINT_CACHE_STATE
-    cache = conn->cache;
-    total_items = 0;
-#endif
     /*
      * It is polite to initialize output variables, but it isn't safe for callers to use the
      * previous state if we don't return a locked ref.
@@ -1197,7 +1163,6 @@ __evict_get_ref(
             WT_STAT_CONN_INCR(session, eviction_target_strategy_updates_only);
     }
 
-#if PROPORTIONAL
     min_level = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
     max_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
 
@@ -1234,23 +1199,7 @@ __evict_get_ref(
             break;
         }
     }
-#else
-    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
-        min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
-        max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-    }
-    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
-        min_level = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
-        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-            max_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-    }
-    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
-        max_level = WT_EVICT_LEVEL_UPDATES_LEAF; // WT_EVICT_LEVEL_UPDATES_INTERNAL;
-        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
-            min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
-    }
-    /* XXX Fix max level */
-#endif
+
     /* Only evict from all levels, including clean internal pages, if this is urgent */
     /* XXX FIx this */
     if (F_ISSET(evict, WT_EVICT_CACHE_URGENT)) {
@@ -1259,47 +1208,12 @@ __evict_get_ref(
         printf("URGENT EVICTION!!!!!!!!!!!!\n");
     }
 
-    if (min_level == 0 && max_level == 0)
-        WT_ASSERT(session, 0);
-
-    /* Application threads evict only clean pages */
+    /* Application threads evict only clean pages, unless we are struggling */
     if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN)
-        && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD)) {
-        //min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
+        && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD) &&
+        !F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD)) {
         min_level = max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
     }
-#if 0
-    /*
-     * We iterate over bucket sets in eviction priority order from highest to lowest is:
-     * 1. Clean leaf pages.
-     * 2. Clean internal pages.
-     * 3. Dirty leaf pages.
-     * 4. Dirty internal pages.
-     *
-     * The iteration order of the bucket sets can be changed if a different priority is desired.
-     *
-     * In each bucketset we iterate over the buckets starting with the smallest, because smaller
-     * buckets will have pages with smaller read generations.
-     */
-    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-        max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
-        max_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
-    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
-        max_level = WT_EVICT_LEVEL_UPDATES_LEAF; // WT_EVICT_LEVEL_UPDATES_INTERNAL;
-
-    if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-        min_level = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
-    if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-        min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
-
-    /* Only evict from all levels, including clean internal pages, if this is urgent */
-    if (F_ISSET(evict, WT_EVICT_CACHE_URGENT)) {
-        min_level = 0;
-        max_level = WT_EVICT_LEVELS - 1;
-        printf("URGENT EVICTION!!!!!!!!!!!!\n");
-    }
-#endif
 
     /* Keep track of the starting bucket where we look for pages to evict */
     switch (min_level) {
@@ -1353,7 +1267,8 @@ __evict_get_ref(
 
         num_buckets = bucketset->num_buckets;
 
-#if 0
+#define LRU_FOR_READS 0 /* I have not seen the workloads where LRU works better than random. */
+#if LRU_FOR_READS
         /*
          * We only care about LRU for clean leaf pages. For other level choose a random starting
          * bucket to reduce contention.
@@ -1375,7 +1290,7 @@ __evict_get_ref(
                 WT_STAT_CONN_INCR(session, eviction_skip_page_locked_bucket);
                 continue;
             }
-#if 0 /* Revisit if LRU is needed for YCSB */
+#if LRU_FOR_READS /* Revisit if LRU is needed for YCSB */
             if (iter > 0 && i == WT_EVICT_LEVEL_CLEAN_LEAF)
                 __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 #endif
@@ -1448,7 +1363,6 @@ __evict_get_ref(
                     *btreep = ref->page->evict_data.dhandle->handle;
                     (void)__wt_atomic_add_uint32_v(&((*btreep)->evict_data.evict_busy), 1);
                     if (__wt_atomic_load_int32_relaxed(&(*btreep)->evict_data.evict_disabled) > 0) {
-                        printf("Late evict_disabled check\n");
                         WT_REF_UNLOCK(ref, previous_state);
                         ref = NULL;
                         (void)__wt_atomic_sub_uint32_v(&((*btreep)->evict_data.evict_busy), 1);
@@ -1479,26 +1393,6 @@ done:
         (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
 
         WT_STAT_CONN_INCR(session, eviction_get_ref_success);
-#if PRINT_CACHE_STATE
-        if (evict->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF].bucketset_num_items == 0) {
-            (void) empty_buckets;
-            printf("Server read_gen is %" PRIu64
-                   ". Evict flags: %d. Found ref in %d iterations at level %s. Min_level %d, "
-                   "max_level = %d\n",
-                   evict->read_gen, (int)evict->flags, (int)total_iter, __evict_level_to_string(i),
-                   (int)min_level, (int)max_level);
-
-            for (i = 0; i < WT_EVICT_LEVELS; i++) {
-                total_items += evict->evict_bucketset[i].bucketset_num_items;
-                printf("level [%d][%s]: %" PRIu64 " items.\n", (int)i, __evict_level_to_string(i),
-                  evict->evict_bucketset[i].bucketset_num_items);
-            }
-            printf("Total pages:  %" PRIu64 ", %" PRIu64 " dirty bytes, %" PRIu64
-                   " update bytes, %" PRIu64 " total pages,  %" PRIu64 " total bytes images\n",
-              total_items, __wt_cache_dirty_inuse(cache), __wt_cache_bytes_updates(cache),
-                   __wt_cache_pages_inuse(cache), __wt_cache_bytes_image(cache));
-        }
-#endif
     } else {
         if (F_ISSET(session,  WT_SESSION_INTERNAL))
             WT_STAT_CONN_INCR(session, eviction_get_ref_empty_worker);

@@ -678,17 +678,12 @@ struct __wt_connection_stats {
     int64_t eviction_force_hs_fail;
     int64_t eviction_force_hs;
     int64_t eviction_force_hs_success;
-    int64_t eviction_force_noforce;
     int64_t eviction_force_clean;
     int64_t eviction_force_dirty;
     int64_t eviction_force_long_update_list;
     int64_t eviction_force_delete;
     int64_t eviction_force;
     int64_t eviction_force_fail;
-    int64_t eviction_force_btinline1;
-    int64_t eviction_force_btinline2;
-    int64_t eviction_force_btread;
-    int64_t eviction_force_btsync;
     int64_t eviction_force_app_refuse_dirty;
     int64_t eviction_force_app_refuse_modify;
     int64_t eviction_force_app_try_dirty;

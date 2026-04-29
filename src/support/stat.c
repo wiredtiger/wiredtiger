@@ -2071,17 +2071,12 @@ static const char *const __stats_connection_desc[] = {
   "open",
   "cache: forced eviction - history store pages successfully evicted while session has history "
   "store cursor open",
-  "cache: forced eviction - page does not have the right read generation",
   "cache: forced eviction - pages evicted that were clean count",
   "cache: forced eviction - pages evicted that were dirty count",
   "cache: forced eviction - pages selected because of a large number of updates to a single item",
   "cache: forced eviction - pages selected because of too many deleted items count",
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
-  "cache: forced eviction: __wt_bt_inline1",
-  "cache: forced eviction: __wt_bt_inline2",
-  "cache: forced eviction: __wt_bt_read",
-  "cache: forced eviction: __wt_bt_sync",
   "cache: forced eviction: app refused because dirty",
   "cache: forced eviction: app refused because modify is not null",
   "cache: forced eviction: app will try to evict dirty",
@@ -3155,17 +3150,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_force_hs_fail = 0;
     stats->eviction_force_hs = 0;
     stats->eviction_force_hs_success = 0;
-    stats->eviction_force_noforce = 0;
     stats->eviction_force_clean = 0;
     stats->eviction_force_dirty = 0;
     stats->eviction_force_long_update_list = 0;
     stats->eviction_force_delete = 0;
     stats->eviction_force = 0;
     stats->eviction_force_fail = 0;
-    stats->eviction_force_btinline1 = 0;
-    stats->eviction_force_btinline2 = 0;
-    stats->eviction_force_btread = 0;
-    stats->eviction_force_btsync = 0;
     stats->eviction_force_app_refuse_dirty = 0;
     stats->eviction_force_app_refuse_modify = 0;
     stats->eviction_force_app_try_dirty = 0;
@@ -4303,17 +4293,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_force_hs_fail += WT_STAT_CONN_READ(from, eviction_force_hs_fail);
     to->eviction_force_hs += WT_STAT_CONN_READ(from, eviction_force_hs);
     to->eviction_force_hs_success += WT_STAT_CONN_READ(from, eviction_force_hs_success);
-    to->eviction_force_noforce += WT_STAT_CONN_READ(from, eviction_force_noforce);
     to->eviction_force_clean += WT_STAT_CONN_READ(from, eviction_force_clean);
     to->eviction_force_dirty += WT_STAT_CONN_READ(from, eviction_force_dirty);
     to->eviction_force_long_update_list += WT_STAT_CONN_READ(from, eviction_force_long_update_list);
     to->eviction_force_delete += WT_STAT_CONN_READ(from, eviction_force_delete);
     to->eviction_force += WT_STAT_CONN_READ(from, eviction_force);
     to->eviction_force_fail += WT_STAT_CONN_READ(from, eviction_force_fail);
-    to->eviction_force_btinline1 += WT_STAT_CONN_READ(from, eviction_force_btinline1);
-    to->eviction_force_btinline2 += WT_STAT_CONN_READ(from, eviction_force_btinline2);
-    to->eviction_force_btread += WT_STAT_CONN_READ(from, eviction_force_btread);
-    to->eviction_force_btsync += WT_STAT_CONN_READ(from, eviction_force_btsync);
     to->eviction_force_app_refuse_dirty += WT_STAT_CONN_READ(from, eviction_force_app_refuse_dirty);
     to->eviction_force_app_refuse_modify +=
       WT_STAT_CONN_READ(from, eviction_force_app_refuse_modify);
