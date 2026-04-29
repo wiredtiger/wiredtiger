@@ -74,7 +74,7 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(3))
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(3))
-        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(3))
+        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(4))
         self.session.commit_transaction()
 
         # In a single transaction it is illegal to set a commit timestamp
@@ -106,5 +106,5 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.prepare_transaction(
                 'prepare_timestamp=' + self.timestamp_str(5))
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(5))
-        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(5))
+        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(6))
         self.session.commit_transaction()

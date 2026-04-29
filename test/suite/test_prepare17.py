@@ -62,7 +62,7 @@ class test_prepare17(wttest.WiredTigerTestCase):
         # Prepare the transaction, allowing for the updates to be evicted.
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(5))
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(5))
-        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(5))
+        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(6))
 
         # Kill the cursor to make sure the updates aren't pinned and give the WT eviction
         # server some time to evict.
