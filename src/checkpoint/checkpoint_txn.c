@@ -2038,6 +2038,12 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     if (ret != 0 && flush)
         WT_IGNORE_RET(
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
+    /*
+     * In disaggregated storage, a checkpoint failure once the checkpoint transaction has started is
+     * unrecoverable: there is no WAL to replay from, and checkpoint metadata may already have been
+     * written to the durable object storage. Rolling back the in-memory transaction would leave the
+     * object storage ahead of the in-memory state, which is permanent corruption. Panic instead.
+     */
     if (ret != 0 && __wt_conn_is_disagg(session) && F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_IGNORE_RET(__wt_panic(
           session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption"));
