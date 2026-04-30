@@ -585,11 +585,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     /*
      * If the page was queued for clean-scrub, attempt to re-instantiate it from its saved disk
-     * image. The flag is left set on EBUSY so the err handler can re-queue the page urgently; it is
-     * cleared on re-dirty (where scrub is no longer applicable) or on missing image.
+     * image. The flag is cleared if the page has been re-dirtied (scrub no longer applicable) or
+     * if the saved image is missing; otherwise it stays set so a later eviction pass can pick the
+     * page up again on retry.
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB)) {
-        if (!is_dirty && __wti_evict_page_has_clean_scrub_image(page)) {
+        if (!is_dirty && __wti_evict_page_has_clean_scrub_image(session, page)) {
             WT_ERR(__evict_dispatch_clean_scrub(session, ref));
             goto done;
         }
@@ -1366,14 +1367,6 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
                 ref->page->read_gen > __evict_read_gen(session))) {
                 LF_SET(WT_REC_SCRUB);
             }
-
-            /*
-             * Signal that disk images should be saved for later clean-scrub eviction so clean pages
-             * can be re-instantiated from memory to reclaim in-memory update content.
-             */
-            if (F_ISSET_ATOMIC_32(
-                  &(conn->cache->cache_eviction_controls), WT_CACHE_CLEAN_SCRUB_EVICTION))
-                LF_SET(WT_REC_CLEAN_SCRUB);
         }
     }
 
