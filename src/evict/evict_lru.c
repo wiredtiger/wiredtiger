@@ -1601,12 +1601,14 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 
     /* Add stats about pages that have been queued. */
     for (candidates = 0; candidates < queue->evict_candidates; ++candidates) {
-        if (__wt_page_is_modified(queue->evict_queue[candidates].ref->page))
+        WT_PAGE *page = queue->evict_queue[candidates].ref->page;
+
+        if (__wt_page_is_modified(page))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_dirty);
         else
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_clean);
 
-        if (__evict_page_updates_candidate(queue->evict_queue[candidates].ref->page))
+        if (__evict_page_updates_candidate(page))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
     }
     queue->evict_current = queue->evict_queue;
@@ -3477,8 +3479,8 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
                 leaf_dirty_bytes += size;
                 leaf_dirty_bytes_max = WT_MAX(leaf_dirty_bytes_max, size);
             }
-            if (__evict_page_updates_candidate(next_walk->page))
-                updates_bytes += next_walk->page->modify->bytes_updates;
+            if (__evict_page_updates_candidate(page))
+                updates_bytes += page->modify->bytes_updates;
         }
     }
 
