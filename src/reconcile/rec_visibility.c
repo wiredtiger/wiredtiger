@@ -92,7 +92,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_UPDATE *append, *oldest_upd, *onpage_upd_or_tombstone, *tombstone;
+    WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
     bool seen_resolved, tombstone_globally_visible;
 
@@ -103,7 +103,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
       "__rec_append_orig_value requires an onpage, non-prepared update");
 
     append = tombstone = NULL;
-    oldest_upd = onpage_upd_or_tombstone = upd;
+    oldest_upd = upd;
     size = total_size = 0;
     seen_resolved = tombstone_globally_visible = false;
 
@@ -1014,7 +1014,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                   *write_prepare &&
                     (prepare_state == WT_PREPARE_INPROGRESS ||
                       prepare_state == WT_PREPARE_LOCKED) &&
-                    prepare_rollback_tombstone->next == upd);
+                    (prepare_rollback_tombstone->next == upd ||
+                      prepare_rollback_tombstone->next->type == WT_UPDATE_RESERVE));
                 /* We skipped the prepare rollback tombstone. */
                 WT_ASSERT(session, *has_newer_updatesp);
                 /*
