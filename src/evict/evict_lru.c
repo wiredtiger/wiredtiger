@@ -146,19 +146,16 @@ __evict_lru_cmp(const void *a_arg, const void *b_arg)
  *     Check whether evicting the page will help reduce tracked updates usage.
  */
 static WT_INLINE bool
-__evict_page_updates_candidate(WT_BTREE *btree, WT_REF *ref)
+__evict_page_updates_candidate(WT_REF *ref)
 {
-    if (ref->page == NULL || ref->page->modify == NULL)
-        return (false);
-
     /*
-     * In-memory trees don't track bytes_updates, so use the modify struct as the signal. For
-     * regular trees, only queue the page if it actually has non-zero tracked update bytes.
+     * Only queue the page if it has non-zero tracked update bytes. This applies to both regular and
+     * in-memory trees: bytes_updates is incremented on writes for all tree types, and freshly-split
+     * child pages start at zero just as they do for regular trees. Evicting a page with no tracked
+     * update bytes does not reduce updates cache pressure.
      */
-    if (btree != NULL && F_ISSET(btree, WT_BTREE_IN_MEMORY))
-        return (true);
-
-    return (ref->page->modify->bytes_updates != 0);
+    return (ref->page != NULL && ref->page->modify != NULL &&
+      ref->page->modify->bytes_updates != 0);
 }
 
 /*
@@ -1610,7 +1607,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         else
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_clean);
 
-        if (__evict_page_updates_candidate(NULL, queue->evict_queue[candidates].ref))
+        if (__evict_page_updates_candidate(queue->evict_queue[candidates].ref))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
     }
     queue->evict_current = queue->evict_queue;
@@ -2572,7 +2569,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
       F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates =
-      F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(btree, ref);
+      F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(ref);
     should_evict_page = evict_clean || evict_dirty || evict_updates;
     /* Skip pages we don't want. */
     if (!should_evict_page) {
@@ -2766,7 +2763,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         else
             ++pages_seen_clean;
 
-        if (__evict_page_updates_candidate(btree, ref))
+        if (__evict_page_updates_candidate(ref))
             ++pages_seen_updates;
 
         /* Count internal pages seen. */
@@ -3482,7 +3479,7 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
                 leaf_dirty_bytes += size;
                 leaf_dirty_bytes_max = WT_MAX(leaf_dirty_bytes_max, size);
             }
-            if (__evict_page_updates_candidate(S2BT(session), next_walk))
+            if (__evict_page_updates_candidate(next_walk))
                 updates_bytes += next_walk->page->modify->bytes_updates;
         }
     }
