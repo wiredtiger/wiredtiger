@@ -1269,17 +1269,14 @@ __verify_key_hs(
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_value;
-    wt_timestamp_t durable_start_ts, older_start_ts, older_stop_ts;
-    uint64_t hs_counter, upd_type_full;
+    wt_timestamp_t older_start_ts, older_stop_ts;
+    uint64_t hs_counter;
     uint32_t hs_btree_id;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     if (vs->skip_hs)
         return (0);
-
-    WT_CLEAR(hs_value);
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
@@ -1303,8 +1300,7 @@ __verify_key_hs(
         if (cmp != 0)
             break;
 
-        WT_ERR(hs_cursor->get_value(
-          hs_cursor, &older_stop_ts, &durable_start_ts, &upd_type_full, &hs_value));
+        WT_ERR(hs_cursor->get_value(hs_cursor, &older_stop_ts, NULL, NULL, NULL));
 
         /*
          * Verify the newer record's start is later than the older record's stop. Skip for
@@ -1497,6 +1493,7 @@ __verify_page_content_leaf(
             WT_RET(__wt_vpack_uint(&p, 0, recno));
             vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
             WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+
             recno += rle;
             vs->records_so_far += rle;
         }
