@@ -1392,6 +1392,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_oldest;
     int64_t txn_set_ts_oldest_upd;
     int64_t txn_set_ts_stable;
+    int64_t txn_set_ts_stable_disagg_epoch;
+    int64_t txn_set_ts_stable_disagg_epoch_upd;
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
