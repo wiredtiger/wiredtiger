@@ -2668,13 +2668,16 @@ struct __wt_connection {
      * \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader returns the
      * minimum of the read timestamps of all active readers; \c pinned returns the minimum of the \c
      * oldest_timestamp and the read timestamps of all active readers; \c recovery returns the
-     * timestamp of the most recent stable checkpoint taken prior to a shutdown; \c stable_timestamp
+     * timestamp of the most recent stable checkpoint taken prior to a shutdown; \c
+     * stable_disaggregated_schema_epoch returns the most recent \c
+     * stable_disaggregated_schema_epoch set with WT_CONNECTION::set_timestamp; \c stable_timestamp
      * returns the most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.  (The \c
      * oldest and \c stable arguments are deprecated short-hand for \c oldest_timestamp and \c
      * stable_timestamp\, respectively.) See @ref timestamp_global_api., a string\, chosen from the
      * following options: \c "all_durable"\, \c "backup_checkpoint"\, \c "last_checkpoint"\, \c
      * "oldest"\, \c "oldest_reader"\, \c "oldest_timestamp"\, \c "pinned"\, \c "recovery"\, \c
-     * "stable"\, \c "stable_timestamp"; default \c all_durable.}
+     * "stable"\, \c "stable_disaggregated_schema_epoch"\, \c "stable_timestamp"; default \c
+     * all_durable.}
      * @configend
      *
      * A timestamp of 0 is returned if the timestamp is not available or has not been set.
@@ -2703,6 +2706,10 @@ struct __wt_connection {
      * @config{oldest_timestamp, future commits and queries will be no earlier than the specified
      * timestamp.  Values must be monotonically increasing.  The value must not be newer than the
      * current stable timestamp.  See @ref timestamp_global_api., a string; default empty.}
+     * @config{stable_disaggregated_schema_epoch, set the stable schema epoch for disaggregated
+     * storage; the shared metadata included in the disaggregated storage checkpoint will not
+     * include the effects of schema operations with higher epochs.  Values must be monotonically
+     * increasing.  See @ref timestamp_global_api., a string; default empty.}
      * @config{stable_timestamp, checkpoints will not include commits that are newer than the
      * specified timestamp in tables configured with \c "log=(enabled=false)". Values must be
      * monotonically increasing.  The value must not be older than the current oldest timestamp.
@@ -8775,66 +8782,70 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1964
 /*! transaction: set timestamp stable calls */
 #define	WT_STAT_CONN_TXN_SET_TS_STABLE			1965
+/*! transaction: set timestamp stable disaggregated schema epoch calls */
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_DISAGG_EPOCH	1966
+/*! transaction: set timestamp stable disaggregated schema epoch updates */
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_DISAGG_EPOCH_UPD	1967
 /*! transaction: set timestamp stable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1966
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1968
 /*! transaction: transaction begins */
-#define	WT_STAT_CONN_TXN_BEGIN				1967
+#define	WT_STAT_CONN_TXN_BEGIN				1969
 /*!
  * transaction: transaction checkpoint history store file duration
  * (usecs)
  */
-#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1968
+#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1970
 /*! transaction: transaction global checkpoint timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_CHECKPOINT_TIMESTAMP	1969
+#define	WT_STAT_CONN_TXN_GLOBAL_CHECKPOINT_TIMESTAMP	1971
 /*! transaction: transaction global durable timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_DURABLE_TIMESTAMP	1970
+#define	WT_STAT_CONN_TXN_GLOBAL_DURABLE_TIMESTAMP	1972
 /*! transaction: transaction global last running timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_LAST_RUNNING_TIMESTAMP	1971
+#define	WT_STAT_CONN_TXN_GLOBAL_LAST_RUNNING_TIMESTAMP	1973
 /*! transaction: transaction global newest timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_NEWEST_TIMESTAMP	1972
+#define	WT_STAT_CONN_TXN_GLOBAL_NEWEST_TIMESTAMP	1974
 /*! transaction: transaction global oldest timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_OLDEST_TIMESTAMP	1973
+#define	WT_STAT_CONN_TXN_GLOBAL_OLDEST_TIMESTAMP	1975
 /*! transaction: transaction global pinned timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_PINNED_TIMESTAMP	1974
+#define	WT_STAT_CONN_TXN_GLOBAL_PINNED_TIMESTAMP	1976
 /*! transaction: transaction global stable timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_STABLE_TIMESTAMP	1975
+#define	WT_STAT_CONN_TXN_GLOBAL_STABLE_TIMESTAMP	1977
 /*! transaction: transaction global version cursor timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_VERSION_CURSOR_TIMESTAMP	1976
+#define	WT_STAT_CONN_TXN_GLOBAL_VERSION_CURSOR_TIMESTAMP	1978
 /*!
  * transaction: transaction number of older readers older than oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_READERS			1977
+#define	WT_STAT_CONN_TXN_PINNED_READERS			1979
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1978
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1980
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1979
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1981
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_LAG		1980
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_LAG		1982
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT_LAG	1981
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT_LAG	1983
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER_LAG	1982
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER_LAG	1984
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1983
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1985
 /*! transaction: transaction read timestamp of the oldest active reader */
-#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1984
+#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1986
 /*! transaction: transaction rollback to stable currently running */
-#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1985
+#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE_RUNNING	1987
 /*! transaction: transaction walk of concurrent sessions */
-#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1986
+#define	WT_STAT_CONN_TXN_WALK_SESSIONS			1988
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1987
+#define	WT_STAT_CONN_TXN_COMMIT				1989
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1988
+#define	WT_STAT_CONN_TXN_ROLLBACK			1990
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1989
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1991
 
 /*!
  * @}
