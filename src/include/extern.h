@@ -1483,6 +1483,8 @@ extern int __wti_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list a
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[],
+  bool *cacheablep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile,
   bool dump_all_data, bool dump_key_data) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
