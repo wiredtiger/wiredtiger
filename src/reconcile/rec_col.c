@@ -463,8 +463,8 @@ record_loop:
                  *
                  * Keep the on-disk cell when the chain still has an unstable aborted prepared
                  * update that we skipped this round: the cell is its only rollback fallback, and
-                 * dropping it now would strand the prepared update with nothing to fall back to
-                 * on a later reconciliation.
+                 * dropping it now would strand the prepared update with nothing to fall back to on
+                 * a later reconciliation.
                  */
                 deleted = true;
                 r->key_removed_from_disk_image = true;
