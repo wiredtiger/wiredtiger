@@ -2753,6 +2753,14 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
         F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
+    /*
+     * Clear any cached value on the layered cursor before delegating the modify to a constituent.
+     * The constituent's search/modify can reallocate its update-value buffer, and any pointer the
+     * layered cursor was holding into that buffer would become stale. The successful path resets
+     * cursor->value at the end; the failure path must leave WT_CURSTD_VALUE_INT cleared so that
+     * __cursor_localvalue at commit time does not read freed memory.
+     */
+    __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
