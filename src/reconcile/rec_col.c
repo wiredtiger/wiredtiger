@@ -449,7 +449,8 @@ record_loop:
                 WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, vpack, &upd_select));
                 upd = upd_select.upd;
                 ins = WT_SKIP_NEXT(ins);
-            }
+            } else
+                upd_select.skip_rollback_prepared_value = false;
 
             update_no_copy = true; /* No data copy */
             repeat_count = 1;      /* Single record */
