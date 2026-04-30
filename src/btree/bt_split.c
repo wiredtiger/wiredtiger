@@ -1645,16 +1645,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                  */
                 supd->free_upds = supd->onpage_tombstone->next;
                 supd->onpage_tombstone->next = NULL;
-            } else if (upd == tmp) {
-                /*
-                 * The chain head is itself the committed item we just wrote to disk, so there are
-                 * no newer updates above it to truncate. Anything behind it has been superseded by
-                 * what we wrote and is safe to free.
-                 */
-                if (tmp->next != NULL) {
-                    supd->free_upds = tmp->next;
-                    tmp->next = NULL;
-                }
             } else if (tmp != NULL) {
                 /*
                  * We have decided to restore this update chain so it must have newer updates than
