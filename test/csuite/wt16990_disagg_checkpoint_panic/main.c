@@ -50,6 +50,7 @@
 #define URI1 "file:test1"
 #define URI2 "file:test2"
 #define TABLE_CONFIG "key_format=S,value_format=S,block_manager=disagg"
+#define EXPECTED_PANIC_MSG "failed while processing shared metadata queue"
 
 /*
  * panic_event_handler --
@@ -216,7 +217,7 @@ main(int argc, char *argv[])
     testutil_assert(fp != NULL);
     found_panic_msg = false;
     while (fgets(buf, sizeof(buf), fp) != NULL) {
-        if (strstr(buf, "failed while processing shared metadata queue") != NULL) {
+        if (strstr(buf, EXPECTED_PANIC_MSG) != NULL) {
             found_panic_msg = true;
             break;
         }
