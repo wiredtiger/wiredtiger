@@ -1004,6 +1004,7 @@ ffs
 fgetln
 fh
 fhandle
+fid
 fifo
 filecmp
 filefrag
