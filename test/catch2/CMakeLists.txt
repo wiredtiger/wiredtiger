@@ -5,6 +5,7 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
+        misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
@@ -19,9 +20,11 @@ else()
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_layered_incomplete_table.cpp
+        misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_verify_compare_page_id_lists.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
@@ -40,6 +43,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        disagg_fast_truncate/unit/test_truncate_visible_check.cpp
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
         ext/test_checkpoint_meta_version.cpp

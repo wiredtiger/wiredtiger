@@ -151,6 +151,8 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
+{"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8}
+
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
 {"debug.background_compact", "background compaction processes files more often", C_BOOL, 5, 0, 0}
@@ -284,6 +286,8 @@ CONFIG configuration_list[] = {
 {"ops.verify", "configure verify", C_BOOL, 100, 1, 0}
 
 {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
+
+{"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0}
 
 {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0}
 

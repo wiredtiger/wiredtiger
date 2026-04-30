@@ -124,8 +124,6 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
-
-    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -524,10 +522,11 @@ struct __wt_name_flag {
 
 /*
  * WT_LAYERED_DRAIN_ENTRY --
- *	Queue entry for layered table drain threads.
+ *	Queue entry for layered table drain threads. Holds a pinned ingest btree dhandle
+ *	(via session_inuse) so the dhandle stays open while the work item is processed.
  */
 struct __wt_layered_drain_entry {
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_DATA_HANDLE *ingest_dhandle;
     TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 
@@ -786,6 +785,9 @@ struct __wt_connection_impl {
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
 
     WT_CKPT_CONNECTION ckpt;
+
+    /* Parallel page reconciliation during a checkpoint. */
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
@@ -1081,18 +1083,19 @@ struct __wt_connection_impl {
  * Server subsystem flags.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_SERVER_CAPACITY 0x001u
-#define WT_CONN_SERVER_CHECKPOINT 0x002u
-#define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x004u
-#define WT_CONN_SERVER_COMPACT 0x008u
-#define WT_CONN_SERVER_EVICTION 0x010u
-#define WT_CONN_SERVER_LAYERED 0x020u
-#define WT_CONN_SERVER_LOG 0x040u
-#define WT_CONN_SERVER_PREFETCH 0x080u
-#define WT_CONN_SERVER_RTS 0x100u
-#define WT_CONN_SERVER_STATISTICS 0x200u
-#define WT_CONN_SERVER_SWEEP 0x400u
-#define WT_CONN_SERVER_TIERED 0x800u
+#define WT_CONN_SERVER_CAPACITY 0x0001u
+#define WT_CONN_SERVER_CHECKPOINT 0x0002u
+#define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x0004u
+#define WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS 0x0008u
+#define WT_CONN_SERVER_COMPACT 0x0010u
+#define WT_CONN_SERVER_EVICTION 0x0020u
+#define WT_CONN_SERVER_LAYERED 0x0040u
+#define WT_CONN_SERVER_LOG 0x0080u
+#define WT_CONN_SERVER_PREFETCH 0x0100u
+#define WT_CONN_SERVER_RTS 0x0200u
+#define WT_CONN_SERVER_STATISTICS 0x0400u
+#define WT_CONN_SERVER_SWEEP 0x0800u
+#define WT_CONN_SERVER_TIERED 0x1000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 
@@ -1130,7 +1133,7 @@ struct __wt_connection_impl {
 #define WT_CONN_OPTRACK 0x00800u
 #define WT_CONN_PANIC 0x01000u
 #define WT_CONN_READY 0x02000u
-#define WT_CONN_RECONFIGURING 0x04000u
+#define WT_CONN_RECONFIGURING_CACHE_POOL 0x04000u
 #define WT_CONN_RECONFIGURING_STEP_UP 0x08000u
 #define WT_CONN_TIERED_FIRST_FLUSH 0x10000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */

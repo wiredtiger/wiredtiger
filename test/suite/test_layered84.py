@@ -160,8 +160,12 @@ class test_layered84(wttest.WiredTigerTestCase):
         prepare_session.close()
 
     def rollback_prepared(self, prepare_session, prepare_cursor):
-        """Roll back a prepared transaction."""
-        prepare_session.rollback_transaction()
+        """
+        Roll back a prepared transaction. The rollback timestamp must be greater than the active
+        read timestamp (60), so use 70.
+        """
+        prepare_session.rollback_transaction(
+            'rollback_timestamp=' + self.timestamp_str(70))
         prepare_cursor.close()
         prepare_session.close()
 

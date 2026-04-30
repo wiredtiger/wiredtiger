@@ -112,6 +112,7 @@ Coverity
 Cppsuite
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -423,6 +424,8 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+RelWithDebInfo
+ReleaseSemaphore
 Rogerio
 Runtime
 RuntimeError
@@ -521,7 +524,6 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
-Upd
 Uryyb
 VARCHAR
 VLCS
@@ -573,6 +575,7 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerShared
 WiredTigerSharedHS
+WiredTigerStat
 WiredTigerTestCase
 WiredTigerTimestamp
 WiredTigerTmplog
@@ -632,7 +635,6 @@ asan
 ascii
 assertEqual
 assertGreater
-assertGreaterEqual
 assertTrue
 assertfmt
 asymptote
@@ -887,6 +889,7 @@ designator
 dest
 destSize
 destructor
+deterministically
 dev
 dh
 dhandle
@@ -902,6 +905,7 @@ dirlist
 dirstore
 disagg
 disaggregated
+discoverable
 disproportionally
 distros
 disttop
@@ -1017,6 +1021,7 @@ fnv
 foc
 fopen
 forceerror
+foreach
 formatmessage
 forw
 foward
@@ -1426,6 +1431,7 @@ pR
 pT
 packv
 pagesize
+pali
 palite
 param
 params
@@ -1749,6 +1755,7 @@ tombstoned
 toml
 toolchain
 totalsec
+tp
 traceapi
 tracepat
 transactional

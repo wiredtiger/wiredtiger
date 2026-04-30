@@ -570,7 +570,6 @@ struct __wt_connection_stats {
     int64_t eviction_queue_not_empty;
     int64_t eviction_dhandle_complete_walk;
     int64_t eviction_server_push_pages_failed_when_flaging;
-    int64_t eviction_server_race_reconfigure_disagg;
     int64_t eviction_server_skip_intl_page_non_aggressive;
     int64_t eviction_server_skip_pages_already_in_urgent_queue;
     int64_t cache_eviction_blocked_prefetched;
@@ -682,10 +681,12 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_internal_page_split;
     int64_t cache_eviction_internal;
     int64_t eviction_internal_pages_queued;
+    int64_t cache_read_internal;
     int64_t eviction_internal_pages_seen;
     int64_t eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
     int64_t cache_pages_inuse_leaf;
+    int64_t cache_read_leaf;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_bytes_max;
@@ -734,12 +735,10 @@ struct __wt_connection_stats {
     int64_t eviction_pages_queued_urgent;
     int64_t eviction_pages_queued_oldest;
     int64_t eviction_pages_queued_urgent_hs_dirty;
-    int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
     int64_t cache_read_checkpoint;
     int64_t eviction_clear_ordinary;
-    int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
     int64_t cache_pages_requested_internal;
     int64_t cache_pages_requested_leaf;
@@ -848,6 +847,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_pages_visited_internal;
     int64_t checkpoint_pages_visited_leaf;
     int64_t checkpoint_pages_reconciled;
+    int64_t checkpoint_parallel_pages_reconciled;
     int64_t checkpoint_prep_running;
     int64_t checkpoint_prep_max;
     int64_t checkpoint_prep_min;
@@ -1392,6 +1392,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_oldest;
     int64_t txn_set_ts_oldest_upd;
     int64_t txn_set_ts_stable;
+    int64_t txn_set_ts_stable_disagg_epoch;
+    int64_t txn_set_ts_stable_disagg_epoch_upd;
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
@@ -1532,7 +1534,9 @@ struct __wt_dsrc_stats {
     int64_t cache_inmem_split_ingest;
     int64_t cache_eviction_blocked_internal_page_split;
     int64_t cache_eviction_internal;
+    int64_t cache_read_internal;
     int64_t cache_eviction_split_internal;
+    int64_t cache_read_leaf;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_eviction_dirty;
@@ -1552,11 +1556,9 @@ struct __wt_dsrc_stats {
     int64_t cache_write_hs;
     int64_t cache_eviction_dirty_obsolete_tw;
     int64_t cache_eviction_ahead_of_last_materialized_lsn;
-    int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
     int64_t cache_read_checkpoint;
-    int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
     int64_t cache_pages_requested_internal;
     int64_t cache_pages_requested_leaf;

@@ -116,6 +116,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
 
+  {"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8, V_GLOBAL_CHECKPOINT_THREADS},
+
   {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
     V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
 
@@ -306,6 +308,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"ops.verify", "configure verify", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_VERIFY},
 
   {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
+
+  {"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0,
+    V_GLOBAL_PREFETCH_DEFAULT},
 
   {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0, V_GLOBAL_PRECISE_CHECKPOINT},
 
