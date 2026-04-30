@@ -2868,6 +2868,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp oldest calls",
   "transaction: set timestamp oldest updates",
   "transaction: set timestamp stable calls",
+  "transaction: set timestamp stable disaggregated schema epoch calls",
+  "transaction: set timestamp stable disaggregated schema epoch updates",
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
@@ -3898,6 +3900,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_oldest = 0;
     stats->txn_set_ts_oldest_upd = 0;
     stats->txn_set_ts_stable = 0;
+    stats->txn_set_ts_stable_disagg_epoch = 0;
+    stats->txn_set_ts_stable_disagg_epoch_upd = 0;
     stats->txn_set_ts_stable_upd = 0;
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
@@ -5165,6 +5169,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_oldest += WT_STAT_CONN_READ(from, txn_set_ts_oldest);
     to->txn_set_ts_oldest_upd += WT_STAT_CONN_READ(from, txn_set_ts_oldest_upd);
     to->txn_set_ts_stable += WT_STAT_CONN_READ(from, txn_set_ts_stable);
+    to->txn_set_ts_stable_disagg_epoch += WT_STAT_CONN_READ(from, txn_set_ts_stable_disagg_epoch);
+    to->txn_set_ts_stable_disagg_epoch_upd +=
+      WT_STAT_CONN_READ(from, txn_set_ts_stable_disagg_epoch_upd);
     to->txn_set_ts_stable_upd += WT_STAT_CONN_READ(from, txn_set_ts_stable_upd);
     to->txn_begin += WT_STAT_CONN_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_CONN_READ(from, txn_hs_ckpt_duration);
