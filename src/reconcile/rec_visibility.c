@@ -1022,10 +1022,20 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                  */
                 WT_ASSERT(session,
                   *write_prepare &&
-                    (prepare_state == WT_PREPARE_INPROGRESS ||
-                      prepare_state == WT_PREPARE_LOCKED) &&
-                    (prepare_rollback_tombstone->next == upd ||
-                      prepare_rollback_tombstone->next->type == WT_UPDATE_RESERVE));
+                    (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED));
+#ifdef HAVE_DIAGNOSTIC
+                /*
+                 * Walk from the rollback tombstone to the current prepared update; the only updates
+                 * permitted in between are reserve updates. Any other update would mean an unknown
+                 * entry slipped in front of the prepared update we are about to select.
+                 */
+                WT_UPDATE *scan;
+                for (scan = prepare_rollback_tombstone->next; scan != NULL && scan != upd;
+                     scan = scan->next)
+                    WT_ASSERT(
+                      session, scan->type == WT_UPDATE_RESERVE && scan->txnid == WT_TXN_ABORTED);
+                WT_ASSERT(session, scan == upd);
+#endif
                 /* We skipped the prepare rollback tombstone. */
                 WT_ASSERT(session, *has_newer_updatesp);
                 /*
