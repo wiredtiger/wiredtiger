@@ -93,7 +93,7 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn)) subtest_run(TEST_OPTS *opts)
     int i;
     char filename[512], key[64], value[64];
 
-    /* No core files  the panic may trigger diagnostic assertions during cleanup. */
+    /* No core files; the panic may trigger diagnostic assertions during cleanup. */
     memset(&rlim, 0, sizeof(rlim));
     testutil_check(setrlimit(RLIMIT_CORE, &rlim));
 
