@@ -157,16 +157,30 @@ __wt_evict_page_is_soon(WT_PAGE *page)
  *     images are excluded: re-instantiating would drop their pinned updates.
  */
 static WT_INLINE bool
-__wti_evict_page_has_clean_scrub_image(WT_PAGE *page)
+__wti_evict_page_has_clean_scrub_image(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_PAGE_MODIFY *mod = page->modify;
+    WT_PAGE_MODIFY *mod;
+    bool has_image;
+    uint32_t i;
 
+    mod = page->modify;
     if (mod == NULL)
         return (false);
     if (mod->mod_disk_image != NULL)
         return (true);
-    return (mod->rec_result == WT_PM_REC_MULTIBLOCK && mod->mod_multi != NULL &&
-      mod->mod_multi_entries > 0 && WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(mod->mod_multi[0]));
+    if (mod->rec_result != WT_PM_REC_MULTIBLOCK || mod->mod_multi == NULL ||
+      mod->mod_multi_entries == 0)
+        return (false);
+
+    /*
+     * Reconciliation produces a uniform set of multi entries: either every entry holds a
+     * clean-scrub image, or none do. Assert the invariant so the predicate (which inspects only
+     * the first entry) cannot drift from the dispatch path that iterates the array.
+     */
+    has_image = WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(mod->mod_multi[0]);
+    for (i = 1; i < mod->mod_multi_entries; ++i)
+        WT_ASSERT(session, WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(mod->mod_multi[i]) == has_image);
+    return (has_image);
 }
 
 /*
@@ -194,7 +208,7 @@ __wti_evict_page_is_clean_scrub_candidate(WT_SESSION_IMPL *session, WT_PAGE *pag
 
     if (__wt_atomic_load_uint64_relaxed(&btree->clean_scrub_image_count) == 0)
         return (false);
-    return (__wti_evict_page_has_clean_scrub_image(page));
+    return (__wti_evict_page_has_clean_scrub_image(session, page));
 }
 
 /* !!!
