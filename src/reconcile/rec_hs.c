@@ -552,8 +552,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     cursor->set_value(
       cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
     WT_ERR_MSG_CHK(session, cursor->insert(cursor),
-      "failed to insert history store record: btree=%" PRIu32 " time_window=%s type=%" PRIu8,
-      btree->id, __wt_time_window_to_string(tw, tw_string), type);
+      "failed to insert history store record: btree=%" PRIu32 " time_window=%s type=%s",
+      btree->id, __wt_time_window_to_string(tw, tw_string), __wt_update_type_str(type));
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE,
       "finished inserting an update to the history store for %p", (void *)ref);
