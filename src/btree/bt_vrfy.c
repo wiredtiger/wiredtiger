@@ -1279,18 +1279,12 @@ __verify_key_hs(
     if (vs->skip_hs)
         return (0);
 
+    WT_CLEAR(hs_value);
+
     btree = S2BT(session);
     hs_btree_id = btree->id;
     WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-
-    WT_CLEAR(hs_value);
-    /*
-     * Set the data store timestamp and transactions to initiate timestamp range verification. Since
-     * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
-     * in which case we initialize our newest with the max txn-id.
-     */
-    older_stop_ts = WT_TS_NONE;
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
@@ -1312,10 +1306,11 @@ __verify_key_hs(
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &older_stop_ts, &durable_start_ts, &upd_type_full, &hs_value));
 
-        /* Verify the newer record's start is later than the older record's stop. Add checks for
-         * non-timestamped DS writes and stale HS entry (from RTS).
+        /*
+         * Verify the newer record's start is later than the older record's stop. Skip for
+         * non-timestamped DS writes and stale HS entries (from RTS lazy cleanup).
          */
-        if (newer_start_ts != WT_TS_NONE && newer_start_ts != older_start_ts &&
+        if (newer_start_ts != WT_TS_NONE && newer_start_ts > older_start_ts &&
           newer_start_ts < older_stop_ts) {
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
@@ -1326,7 +1321,11 @@ __verify_key_hs(
               __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
         }
 
-        if (vs->stable_timestamp != WT_TS_NONE)
+        /*
+         * If we have a stable timestamp, verify that the HS entry doesn't exceed it. Skip for stale
+         * HS entries.
+         */
+        if (newer_start_ts > older_start_ts && vs->stable_timestamp != WT_TS_NONE)
             WT_ERR(
               __verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, older_stop_ts, vs));
 
