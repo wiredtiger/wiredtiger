@@ -2045,8 +2045,8 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      * object storage ahead of the in-memory state, which is permanent corruption. Panic instead.
      */
     if (ret != 0 && __wt_conn_is_disagg(session) && F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_IGNORE_RET(__wt_panic(
-          session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption"));
+        WT_ERR_PANIC(
+          session, ret, "Disaggregated storage checkpoint failed, panic to avoid corruption");
     WT_ERR(ret);
 
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
