@@ -152,7 +152,8 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
     WT_ASSERT(session,
       !S2C(session)->layered_table_manager.leader ||
         (clayered->stable_cursor != NULL &&
-          strstr(clayered->stable_cursor->uri, WT_CHECKPOINT) == NULL));
+          strstr(clayered->stable_cursor->uri, WT_CHECKPOINT) == NULL &&
+          !F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY)));
     return (0);
 }
 
@@ -186,8 +187,10 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
     WT_CURSOR *c;
 
     /*
-     * Note: There no need to close the constituent cursors if it has been already done during
+     * Note: There is no need to close the constituent cursors if it has been already done during
      * connection->close performing a close of all cursors in the session.
+     *
+     * FIXME-WT-17360: Consider removing this flag
      */
     if (F_ISSET(&clayered->iface, WT_CURSTD_CONSTITUENT_DEAD))
         return (0);
@@ -570,7 +573,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          */
 
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
-          "All the cursors should be left unpositioned while changing a role.");
+          "All the cursors should be left unpositioned before changing the role.");
     }
 
     if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
