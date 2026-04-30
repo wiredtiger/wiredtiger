@@ -317,6 +317,176 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 }
 
 /*
+ * __layered_drain_truncate_ingest_has_prior --
+ *     Return whether ingest holds an entry for `key` visible at the active read timestamp. With a
+ *     read_ts of T-1, "yes" means the entry predates the truncate and the main ingest drain owns
+ *     K's chain; "no" means we must apply the truncate's tombstone ourselves.
+ */
+static int
+__layered_drain_truncate_ingest_has_prior(
+  WT_CURSOR *ingest_cursor, const WT_ITEM *key, bool *has_prior)
+{
+    WT_DECL_RET;
+
+    *has_prior = false;
+    ingest_cursor->set_key(ingest_cursor, key);
+    ret = ingest_cursor->search(ingest_cursor);
+    WT_TRET(ingest_cursor->reset(ingest_cursor));
+    if (ret == 0)
+        *has_prior = true;
+    else if (ret == WT_NOTFOUND)
+        ret = 0;
+    return (ret);
+}
+
+/*
+ * __layered_drain_truncate_apply_tombstone --
+ *     Allocate a tombstone with the truncate's timestamps and apply it to the stable row chain
+ *     for `key` (head-of-chain). On success the chain owns the tombstone.
+ */
+static int
+__layered_drain_truncate_apply_tombstone(
+  WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_CURSOR_BTREE *stable_cbt, const WT_ITEM *key)
+{
+    WT_DECL_RET;
+    WT_UPDATE *tombstone;
+
+    WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+    tombstone->txnid = t->txn_id;
+    tombstone->upd_start_ts = t->start_ts;
+    tombstone->upd_durable_ts = t->durable_ts;
+
+    WT_WITH_DHANDLE(session, stable_cbt->dhandle,
+      ret = __layered_move_updates(session, stable_cbt, (WT_ITEM *)key, tombstone, tombstone));
+    if (ret != 0)
+        __wt_free(session, tombstone);
+    return (ret);
+}
+
+/*
+ * __layered_drain_truncate_collect_keys --
+ *     Walk stable across [t.start_key, t.stop_key] under the active read-ts snapshot and append
+ *     each key with no pre-truncate ingest entry to `keys`. The caller owns the allocation; on
+ *     return `*key_count` is set and each `keys[i].data` is malloc'd.
+ */
+static int
+__layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
+  WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor, WT_ITEM **keysp, size_t *keys_alloc_bytes,
+  size_t *key_count)
+{
+    WT_DECL_RET;
+    WT_ITEM *keys, stable_key;
+    void *key_data;
+    int cmp;
+    bool has_prior;
+
+    keys = *keysp;
+    *key_count = 0;
+
+    iter_cursor->set_key(iter_cursor, &t->start_key);
+    WT_ERR_NOTFOUND_OK(iter_cursor->search_near(iter_cursor, &cmp), true);
+    if (ret == 0 && cmp < 0)
+        WT_ERR_NOTFOUND_OK(iter_cursor->next(iter_cursor), true);
+
+    while (ret == 0) {
+        WT_ERR(iter_cursor->get_key(iter_cursor, &stable_key));
+        WT_ERR(__wt_compare(
+          session, CUR2BT(iter_cursor)->collator, &stable_key, &t->stop_key, &cmp));
+        if (cmp > 0)
+            break;
+
+        WT_ERR(
+          __layered_drain_truncate_ingest_has_prior(ingest_cursor, &stable_key, &has_prior));
+        if (!has_prior) {
+            WT_ERR(__wt_realloc_def(session, keys_alloc_bytes, *key_count + 1, &keys));
+            WT_ERR(__wt_malloc(session, stable_key.size, &key_data));
+            memcpy(key_data, stable_key.data, stable_key.size);
+            keys[*key_count].data = key_data;
+            keys[*key_count].size = stable_key.size;
+            ++*key_count;
+        }
+
+        WT_ERR_NOTFOUND_OK(iter_cursor->next(iter_cursor), true);
+    }
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+
+err:
+    *keysp = keys;
+    return (ret);
+}
+
+/*
+ * __layered_drain_truncate_to_stable --
+ *     Apply a single follower-recorded truncate `t` to the stable table at step-up.
+ *
+ *     For each key K in [t.start_key, t.stop_key], apply a stable tombstone iff K has no ingest
+ *     entry visible at read_ts = t.start_ts - 1. Snapshotting at T-1 hides post-truncate reinserts
+ *     so they don't suppress the tombstone, and shows pre-truncate updates so we correctly defer
+ *     to the main ingest drain for those keys.
+ *
+ *     The function runs in two passes so the iterator (on stable) and the writer (also on stable)
+ *     never interleave: pass 1 collects keys-needing-tombstones under the snapshot, pass 2 drops
+ *     the snapshot and applies the tombstones from a flat list — no re-seek dance required.
+ */
+static int
+__layered_drain_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
+  WT_CURSOR_BTREE *stable_cbt, WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor)
+{
+    WT_DECL_RET;
+    WT_ITEM *keys;
+    WT_SESSION *wt_session;
+    size_t i, key_count, keys_alloc_bytes;
+    char read_ts_cfg[64];
+    bool txn_active;
+
+    wt_session = (WT_SESSION *)session;
+    keys = NULL;
+    key_count = keys_alloc_bytes = 0;
+    txn_active = false;
+
+    WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
+
+    /*
+     * Snapshot ingest at t.start_ts - 1. A truncate without a real start_ts is malformed
+     * (followers always commit truncates with a timestamp); fall back to the visible-head check
+     * rather than asserting.
+     */
+    if (t->start_ts > WT_TS_NONE) {
+        WT_ERR(__wt_snprintf(
+          read_ts_cfg, sizeof(read_ts_cfg), "read_timestamp=%" PRIx64, t->start_ts - 1));
+        WT_ERR(wt_session->begin_transaction(wt_session, read_ts_cfg));
+        txn_active = true;
+    }
+
+    /* Pass 1: collect keys that need a stable tombstone. */
+    WT_ERR(__layered_drain_truncate_collect_keys(
+      session, t, iter_cursor, ingest_cursor, &keys, &keys_alloc_bytes, &key_count));
+
+    /* Drop the snapshot txn; pass 2 writes without one. */
+    if (txn_active) {
+        WT_ERR(wt_session->rollback_transaction(wt_session, NULL));
+        txn_active = false;
+    }
+
+    /* Pass 2: apply a tombstone for each collected key. */
+    for (i = 0; i < key_count; ++i)
+        WT_ERR(__layered_drain_truncate_apply_tombstone(session, t, stable_cbt, &keys[i]));
+
+err:
+    if (txn_active)
+        WT_TRET(wt_session->rollback_transaction(wt_session, NULL));
+    WT_TRET(iter_cursor->reset(iter_cursor));
+    WT_TRET(ingest_cursor->reset(ingest_cursor));
+    if (keys != NULL) {
+        for (i = 0; i < key_count; ++i)
+            __wt_free(session, keys[i].data);
+        __wt_free(session, keys);
+    }
+    return (ret);
+}
+
+/*
  * __layered_copy_ingest_table --
  *     Moving all the data from a single ingest table to the corresponding stable table
  */
@@ -324,13 +494,17 @@ static int
 __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
 {
     WT_BTREE *ingest_btree, *stable_btree;
-    WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
+    WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *ingest_raw_cursor, *prepare_cursor,
+      *stable_cursor, *stable_raw_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
+    WT_LAYERED_TABLE *layered_table;
+    WT_SESSION *wt_session;
+    WT_TRUNCATE *t;
     WT_UPDATE *last_upd, *prev_upd, *upd, *upds;
     wt_timestamp_t last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
@@ -344,7 +518,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
     bool is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
-    ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
+    ingest_version_cursor = ingest_raw_cursor = prepare_cursor = stable_cursor =
+      stable_raw_cursor = NULL;
+    layered_table = NULL;
+    wt_session = (WT_SESSION *)session;
     last_upd = prev_upd = upd = upds = NULL;
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
@@ -357,6 +534,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     stable_btree = CUR2BT(cbt);
+
     if (last_checkpoint_timestamp != WT_TS_NONE)
         WT_ERR(__wt_snprintf(
           buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
@@ -374,6 +552,25 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
     WT_ERR(__wt_scr_alloc(session, 0, &value));
+
+    /*
+     * Apply pending follower truncates onto stable before draining ingest. The drain only adds
+     * tombstones for keys with no ingest entry; running it first keeps timestamp ordering on the
+     * stable chain natural — newer ingest-derived updates land on top of the older truncate
+     * tombstone, not the other way around.
+     */
+    layered_table = (WT_LAYERED_TABLE *)entry->pinned_dhandle;
+    if (!TAILQ_EMPTY(&layered_table->truncateqh)) {
+        WT_ERR(wt_session->open_cursor(
+          wt_session, entry->stable_uri, NULL, "raw=true", &stable_raw_cursor));
+        WT_ERR(wt_session->open_cursor(
+          wt_session, entry->ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
+        TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
+            WT_ERR(__layered_drain_truncate_to_stable(
+              session, t, cbt, stable_raw_cursor, ingest_raw_cursor));
+        }
+        __wt_layered_table_truncate_clear(session, layered_table);
+    }
 
     for (;;) {
         upd = NULL;
@@ -549,6 +746,10 @@ err:
         WT_TRET(prepare_cursor->close(prepare_cursor));
     if (stable_cursor != NULL)
         WT_TRET(stable_cursor->close(stable_cursor));
+    if (stable_raw_cursor != NULL)
+        WT_TRET(stable_raw_cursor->close(stable_raw_cursor));
+    if (ingest_raw_cursor != NULL)
+        WT_TRET(ingest_raw_cursor->close(ingest_raw_cursor));
     return (ret);
 }
 

@@ -12,7 +12,6 @@ static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
 static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
-static int __clayered_reserve_constituent(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
@@ -832,9 +831,6 @@ __clayered_position_near_key(WT_CURSOR *cursor, WT_ITEM *key, bool forward)
 {
     __wt_cursor_set_raw_key(cursor, key);
 
-    /* Probe for write conflicts; search_near can't see uncommitted updates. */
-    WT_RET(__clayered_reserve_constituent(session, cursor));
-
     int cmp;
     WT_RET(cursor->search_near(cursor, &cmp));
 
@@ -887,9 +883,9 @@ static int
 __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
 {
     /*
-     * Pull the boundary keys off the layered cursors. The ingest cursors may not have keys set if
-     * the layered cursor was positioned via next/prev, or if search_near on an empty ingest table
-     * reset the cursor position.
+     * Set the keys on the ingest cursors. The ingest cursor may not have its key set if the layered
+     * cursor was positioned via next/prev, or if search_near on an empty ingest table reset the
+     * cursor position.
      */
     WT_ITEM start_key, stop_key;
     WT_RET(__wt_cursor_get_raw_key(trunc_info->start, &start_key));
@@ -899,7 +895,7 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
     WT_CURSOR *ingest_start = clayered_start->ingest_cursor;
-    WT_CURSOssR *ingest_stop = clayered_stop->ingest_cursor;
+    WT_CURSOR *ingest_stop = clayered_stop->ingest_cursor;
 
     const int ret_start = __clayered_position_near_key(ingest_start, &start_key, true);
     WT_RET_NOTFOUND_OK(ret_start);
@@ -919,7 +915,7 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     }
 
     /* Add a truncate entry inside layered table truncate list. */
-    WT_RET(__wt_insert_truncate_entry(session, trunc_info->uri, &start_key, &stop_key));
+    WT_RET(__wt_insert_truncate_entry(trunc_info->session, trunc_info->uri, &start_key, &stop_key));
 
     return (0);
 }
