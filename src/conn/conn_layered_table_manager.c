@@ -28,7 +28,7 @@ __wti_layered_table_manager_init(WT_SESSION_IMPL *session)
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
     /* Allow for up to 1000 files to be allocated at start. */
-    manager->open_layered_table_count = conn->next_file_id + 1000;
+    WT_WITH_SCHEMA_LOCK(session, manager->open_layered_table_count = conn->next_file_id + 1000);
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
     manager->entries_allocated_bytes =
@@ -121,7 +121,6 @@ __layered_table_manager_remove_table_inlock(WT_SESSION_IMPL *session, uint32_t i
           "__wt_layered_table_manager_remove_table stable_uri=%s ingest_id=%" PRIu32,
           entry->stable_uri, ingest_id);
 
-        WT_ASSERT(session, entry->pinned_dhandle == NULL);
         __wt_free(session, entry);
         manager->entries[ingest_id] = NULL;
     }
@@ -161,7 +160,6 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     uint32_t i;
 
     conn = S2C(session);
@@ -179,10 +177,8 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL) {
-            WT_ASSERT(session, entry->pinned_dhandle == NULL);
+        if (manager->entries[i] != NULL)
             __layered_table_manager_remove_table_inlock(session, i);
-        }
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;

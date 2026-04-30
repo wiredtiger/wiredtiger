@@ -92,7 +92,7 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
  */
 int
 __wti_layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
-  uint64_t *complete_checkpoint_lsn, uint64_t *complete_checkpoint_timestamp,
+  uint64_t *complete_checkpoint_lsn, wt_timestamp_t *complete_checkpoint_timestamp,
   WT_ITEM *complete_checkpoint_metadata)
 {
     WT_CONFIG_ITEM cval;
@@ -465,6 +465,9 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         __wt_debug_crash(session);
 done:
 err:
+    if (ret != 0)
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Failed to put new encryption key data to disaggregated storage: %d", ret);
     __wt_scr_free(session, &buf);
     return (ret);
 }
@@ -561,7 +564,7 @@ err:
  */
 int
 __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint_root,
-  size_t checkpoint_root_size, uint64_t checkpoint_timestamp)
+  size_t checkpoint_root_size, wt_timestamp_t checkpoint_timestamp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(metadata_buf);
@@ -569,7 +572,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_DISAGGREGATED_STORAGE *disagg;
     wt_timestamp_t oldest_timestamp;
     uint64_t lsn;
-    uint32_t checksum;
+    uint32_t checksum, max_table_id;
     char *checkpoint_root_copy, ts_string[2][WT_TS_INT_STRING_SIZE];
 
     checkpoint_root_copy = NULL;
@@ -595,15 +598,18 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      */
     WT_ERR(__wt_meta_read_checkpoint_oldest(session, NULL, &oldest_timestamp, NULL));
 
+    WT_WITH_SCHEMA_LOCK(session, max_table_id = conn->next_file_id);
+
     /* Format metadata settings. */
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
         "version=%d,compatible_version=%d,\n"
         "checkpoint=%s,\n"
         "timestamp=%" PRIx64 ",\n"
-        "oldest_timestamp=%" PRIx64,
+        "oldest_timestamp=%" PRIx64 ",\n"
+        "largest_file_id=%" PRIu32,
         WT_DISAGG_CHECKPOINT_TURTLE_VERSION, WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION,
-        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
+        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp, max_table_id));
 
     /* Append key provider metadata, if available. */
     if (conn->key_provider != NULL) {
@@ -643,16 +649,23 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s, oldest_timestamp=%" PRIu64 " %s, checksum=%" PRIx32 ", root=\"%s\"",
+      " %s, oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", checksum=%" PRIx32
+      ", root=\"%s\"",
       lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
-      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), checksum,
-      checkpoint_root_copy);
+      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), max_table_id,
+      checksum, checkpoint_root_copy);
 
     __wt_free(session, disagg->last_checkpoint_root);
     disagg->last_checkpoint_root = checkpoint_root_copy;
     checkpoint_root_copy = NULL;
 
 err:
+    if (ret == 0)
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Updated disaggregated storage checkpoint metadata");
+    else
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Failed to write disaggregated checkpoint metadata: %d", ret);
     __wt_free(session, checkpoint_root_copy);
     __wt_scr_free(session, &metadata_buf);
 
@@ -729,6 +742,7 @@ err:
  *     version=1,compatible_version=1,
  *     checkpoint=(WiredTigerCheckpoint.1=(addr="00c025808282bd21596019", order=1, ...)),
  *     timestamp=0,
+ *     largest_file_id=0,
  *     key_provider=(page.1=(page_id=1,lsn=123),version=1)
  */
 static int
@@ -777,6 +791,14 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             else
                 WT_ERR(__wt_txn_parse_timestamp(
                   session, "oldest timestamp", &metadata->oldest_timestamp, &cfg_value));
+        } else if (WT_CONFIG_LIT_MATCH("largest_file_id", cfg_key)) {
+            WT_ASSERT_ALWAYS(session, metadata->largest_file_id == 0,
+              "Duplicate largest file entry in disaggregated storage metadata: "
+              "metadata->largest_file_id=%" PRIu32,
+              metadata->largest_file_id);
+
+            if (cfg_value.len > 0)
+                metadata->largest_file_id = (uint32_t)cfg_value.val;
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->key_provider == NULL,
               "Duplicate key_provider entry in disaggregated storage metadata");

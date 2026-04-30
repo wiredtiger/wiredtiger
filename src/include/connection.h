@@ -31,7 +31,8 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
-    bool tiered_shared_2023; /* tiered shared run-time configuration */
+    bool tiered_shared_2023;        /* tiered shared run-time configuration */
+    bool disagg_fast_truncate_2026; /* disagg fast truncate run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
@@ -123,8 +124,6 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
-
-    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -167,7 +166,7 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 1
+#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 2
 #define WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION 1
 
 /*
@@ -328,10 +327,10 @@ struct __wt_page_history_item {
     WT_PAGE_HISTORY_KEY key;
 
     uint64_t first_global_read_count;
-    uint64_t first_read_timestamp;
+    wt_timestamp_t first_read_timestamp;
 
     uint64_t last_global_read_count;
-    uint64_t last_read_timestamp;
+    wt_timestamp_t last_read_timestamp;
 
     uint32_t num_evicts;
     uint32_t num_reads;
@@ -523,10 +522,11 @@ struct __wt_name_flag {
 
 /*
  * WT_LAYERED_DRAIN_ENTRY --
- *	Queue entry for layered table drain threads.
+ *	Queue entry for layered table drain threads. Holds a pinned ingest btree dhandle
+ *	(via session_inuse) so the dhandle stays open while the work item is processed.
  */
 struct __wt_layered_drain_entry {
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_DATA_HANDLE *ingest_dhandle;
     TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 
@@ -650,18 +650,17 @@ struct __wt_connection_impl {
 
     const char *cfg; /* Connection configuration */
 
-    WT_SPINLOCK api_lock;                 /* Connection API spinlock */
-    WT_SPINLOCK checkpoint_lock;          /* Checkpoint spinlock */
-    WT_SPINLOCK chunkcache_metadata_lock; /* Chunk cache metadata spinlock */
-    WT_SPINLOCK fh_lock;                  /* File handle queue spinlock */
-    WT_SPINLOCK flush_tier_lock;          /* Flush tier spinlock */
-    WT_SPINLOCK metadata_lock;            /* Metadata update spinlock */
-    WT_SPINLOCK reconfig_lock;            /* Single thread reconfigure */
-    WT_SPINLOCK schema_lock;              /* Schema operation spinlock */
-    WT_RWLOCK table_lock;                 /* Table list lock */
-    WT_SPINLOCK tiered_lock;              /* Tiered work queue spinlock */
-    WT_SPINLOCK turtle_lock;              /* Turtle file spinlock */
-    WT_RWLOCK dhandle_lock;               /* Data handle list lock */
+    WT_SPINLOCK api_lock;        /* Connection API spinlock */
+    WT_SPINLOCK checkpoint_lock; /* Checkpoint spinlock */
+    WT_SPINLOCK fh_lock;         /* File handle queue spinlock */
+    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
+    WT_SPINLOCK metadata_lock;   /* Metadata update spinlock */
+    WT_SPINLOCK reconfig_lock;   /* Single thread reconfigure */
+    WT_SPINLOCK schema_lock;     /* Schema operation spinlock */
+    WT_RWLOCK table_lock;        /* Table list lock */
+    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
+    WT_SPINLOCK turtle_lock;     /* Turtle file spinlock */
+    WT_RWLOCK dhandle_lock;      /* Data handle list lock */
 
     /* Connection queue */
     TAILQ_ENTRY(__wt_connection_impl) q;
@@ -713,11 +712,6 @@ struct __wt_connection_impl {
 
     WT_FH *lock_fh; /* Lock file handle */
 
-    /* Locked: chunk cache metadata work queue (and length counter). */
-    TAILQ_HEAD(__wt_chunkcache_metadata_qh, __wt_chunkcache_metadata_work_unit)
-    chunkcache_metadataqh;
-    int chunkcache_queue_len;
-
     /*
      * The connection keeps a cache of data handles. The set of handles can grow quite large so we
      * maintain both a simple list and a hash table of lists. The hash table key is based on a hash
@@ -741,7 +735,6 @@ struct __wt_connection_impl {
 
     WT_BLKCACHE blkcache;             /* Block cache */
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
-    WT_CHUNKCACHE chunkcache;         /* Chunk cache */
 
     uint64_t *dh_bucket_count;                   /* Locked: handles in each bucket */
     wt_shared uint64_t dhandle_count;            /* Locked: handles in the queue */
@@ -786,12 +779,15 @@ struct __wt_connection_impl {
 
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
     wt_shared uint64_t
-      hot_backup_start;            /* Clock value of most recent checkpoint needed by hot backup */
-    uint64_t hot_backup_timestamp; /* Stable timestamp of checkpoint for the open backup */
-    char **hot_backup_list;        /* Hot backup file list */
+      hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
+    wt_timestamp_t hot_backup_timestamp; /* Stable timestamp of checkpoint for the open backup */
+    char **hot_backup_list;              /* Hot backup file list */
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
 
     WT_CKPT_CONNECTION ckpt;
+
+    /* Parallel page reconciliation during a checkpoint. */
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
@@ -898,11 +894,6 @@ struct __wt_connection_impl {
     uint64_t flush_most_recent;         /* Clock value of last flush_tier */
     uint32_t flush_state;               /* State of last flush tier */
     wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
-
-    WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunk cache metadata server thread session */
-    wt_thread_t chunkcache_metadata_tid;          /* Chunk cache metadata thread */
-    bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
-    WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
     WT_LOG_MANAGER log_mgr;
 
@@ -1096,7 +1087,7 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_CAPACITY 0x0001u
 #define WT_CONN_SERVER_CHECKPOINT 0x0002u
 #define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x0004u
-#define WT_CONN_SERVER_CHUNKCACHE_METADATA 0x0008u
+#define WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS 0x0008u
 #define WT_CONN_SERVER_COMPACT 0x0010u
 #define WT_CONN_SERVER_EVICTION 0x0020u
 #define WT_CONN_SERVER_LAYERED 0x0040u
@@ -1143,7 +1134,7 @@ struct __wt_connection_impl {
 #define WT_CONN_OPTRACK 0x00800u
 #define WT_CONN_PANIC 0x01000u
 #define WT_CONN_READY 0x02000u
-#define WT_CONN_RECONFIGURING 0x04000u
+#define WT_CONN_RECONFIGURING_CACHE_POOL 0x04000u
 #define WT_CONN_RECONFIGURING_STEP_UP 0x08000u
 #define WT_CONN_TIERED_FIRST_FLUSH 0x10000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */

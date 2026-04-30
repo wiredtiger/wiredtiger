@@ -127,8 +127,8 @@ class test_layered43(wttest.WiredTigerTestCase):
 
         # Remember the relevant statistics
         stat_cursor = self.session.open_cursor('statistics:')
-        prev_cache_read = stat_cursor[wiredtiger.stat.conn.cache_read][2]
-        prev_cache_pages_requested = stat_cursor[wiredtiger.stat.conn.cache_pages_requested][2]
+        prev_cache_read_leaf = stat_cursor[wiredtiger.stat.conn.cache_read_leaf][2]
+        prev_cache_pages_requested_leaf = stat_cursor[wiredtiger.stat.conn.cache_pages_requested_leaf][2]
         stat_cursor.close()
 
         # Read it again, which should be satisfied from the block cache
@@ -140,7 +140,7 @@ class test_layered43(wttest.WiredTigerTestCase):
 
         # Check the relevant statistics
         stat_cursor = self.session.open_cursor('statistics:')
-        self.assertEqual(stat_cursor[wiredtiger.stat.conn.cache_read][2], prev_cache_read)
-        self.assertGreater(stat_cursor[wiredtiger.stat.conn.cache_pages_requested][2],
-                           prev_cache_pages_requested)
+        self.assertEqual(stat_cursor[wiredtiger.stat.conn.cache_read_leaf][2], prev_cache_read_leaf)
+        self.assertGreater(stat_cursor[wiredtiger.stat.conn.cache_pages_requested_leaf][2],
+                           prev_cache_pages_requested_leaf)
         stat_cursor.close()

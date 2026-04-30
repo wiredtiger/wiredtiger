@@ -331,7 +331,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          * ref's state. There's nothing to do for in-memory pages as we don't change those.
          */
         if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)) && previous_state != new_state)
-            __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+            __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
     } else
@@ -667,11 +667,11 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    int exact;
+    int cmp, exact;
     const char *key, *value;
 
     cursor = NULL;
-    exact = 0;
+    cmp = exact = 0;
     key = value = NULL;
 
     /* Use a metadata cursor to have access to the existing URIs. */
@@ -680,7 +680,11 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
 
-    /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+    /*
+     * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+     * read-uncommitted isolation and the loop to advance past the target URI) into a proper
+     * internal API. Once that lands, this function can call that API directly.
+     */
     WT_WITH_TXN_ISOLATION(
       session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, &exact));
     WT_ERR(ret);
@@ -688,11 +692,24 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     /*
      * The given URI may not exist in the metadata file. Since we always want to return a URI that
      * is lexicographically larger the given one, make sure not to go backwards.
+     *
+     * With read-uncommitted isolation, new records can appear between the search and stepping
+     * forward. Loop until we advance past the given URI.
      */
     if (exact <= 0) {
-        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
-        WT_ERR(ret);
+        do {
+            /*
+             * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+             * read-uncommitted isolation and the loop to advance past the target URI) into a proper
+             * internal API. Once that lands, this function can call that API directly and this loop
+             * can be removed.
+             */
+            WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+            WT_ERR(ret);
+            WT_ERR(cursor->get_key(cursor, &key));
+            /* Both cursor->key and uri include the NUL terminator, so they can be compared. */
+            WT_ERR(__wt_compare(session, CUR2BT(cursor)->collator, &cursor->key, uri, &cmp));
+        } while (cmp <= 0);
     }
 
     /* Loop through the eligible candidates. */
@@ -710,7 +727,12 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         if (__checkpoint_cleanup_eligibility(session, key, value))
             break;
 
-        /* FIXME-WT-15259: here should be adjusted when this ticket is done. */
+        /*
+         * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+         * read-uncommitted isolation and the loop to advance past the target URI) into a proper
+         * internal API. Once that lands, this function can call that API directly and this loop can
+         * be removed.
+         */
         WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
     } while (ret == 0);
     WT_ERR(ret);

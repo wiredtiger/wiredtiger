@@ -38,7 +38,7 @@
 #define WT_HS_ID 1                                           /* ID for HS */
 #define WT_HS_ID_SHARED 2                                    /* ID for shared HS */
 
-#define WT_CC_METAFILE "WiredTigerCC.wt"          /* Chunk cache metadata table */
+/* Deprecated: chunk cache has been removed, kept for metadata cleanup during upgrade. */
 #define WT_CC_METAFILE_URI "file:WiredTigerCC.wt" /* Chunk cache metadata table URI */
 
 #define WT_DISAGG_METADATA_FILE "WiredTigerShared.wt_stable"     /* Shared metadata table */
@@ -68,6 +68,13 @@
 
 /* Check whether a string is a legal URI for a btree object */
 #define WT_BTREE_PREFIX(str) (WT_PREFIX_MATCH(str, "file:") || WT_PREFIX_MATCH(str, "tiered:"))
+
+/* Check whether a URI refers to the stable constituent of a layered table (bare or checkpoint-view
+ * form). Don't use when strict-suffix semantics are required. */
+#define WT_URI_IS_STABLE(uri) (strstr(uri, ".wt_stable") != NULL)
+
+/* Check whether a URI refers to the ingest constituent of a layered table. */
+#define WT_URI_IS_INGEST(uri) WT_SUFFIX_MATCH(uri, ".wt_ingest")
 
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
@@ -141,10 +148,11 @@ struct __wt_blkincr {
  *     Note: The strings are not null-terminated.
  */
 typedef struct __wt_disagg_metadata {
-    const char *checkpoint;        /* Checkpoint metadata string */
-    size_t checkpoint_len;         /* Length of checkpoint metadata string */
-    uint64_t checkpoint_timestamp; /* Checkpoint timestamp */
-    uint64_t oldest_timestamp;     /* Oldest timestamp */
+    const char *checkpoint;              /* Checkpoint metadata string */
+    size_t checkpoint_len;               /* Length of checkpoint metadata string */
+    wt_timestamp_t checkpoint_timestamp; /* Checkpoint timestamp */
+    wt_timestamp_t oldest_timestamp;     /* Oldest timestamp */
+    uint32_t largest_file_id;            /* High water mark of allocated file IDs */
 
     const char *key_provider; /* Key provider metadata string */
     size_t key_provider_len;  /* Length of key provider metadata string */

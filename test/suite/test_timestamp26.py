@@ -54,6 +54,8 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
     def test_wtu_never(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -84,6 +86,25 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
         # Commit without a timestamp.
         else:
             self.session.commit_transaction()
+
+        self.session.begin_transaction()
+        c[ds.key(7)] = ds.value(9)
+
+        # prepare with a timestamp.
+        if self.with_ts:
+            # Check both an explicit timestamp set and a set at commit.
+            prepare_ts = 'prepare_timestamp=' + self.timestamp_str(11)
+            rollback_ts = 'rollback_timestamp=' + self.timestamp_str(12)
+
+            self.session.prepare_transaction(prepare_ts)
+
+            msg = '/set when disallowed/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.rollback_transaction(rollback_ts), msg)
+
+        # Rollback without a timestamp.
+        else:
+            self.session.rollback_transaction()
 
         self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one/")
 
@@ -160,6 +181,8 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
     def test_alter(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -208,6 +231,8 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
     def test_alter_inconsistent_update(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('session.alter is not supported for layered tables in disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -429,6 +454,14 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         self.assertEqual(c[key1], ds.value(20))
         self.assertEqual(c[key2], ds.value(21))
 
+        self.session.begin_transaction()
+        c[key1] = ds.value(22)
+        c[key2] = ds.value(23)
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(34))
+        self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(35))
+        self.assertEqual(c[key1], ds.value(20))
+        self.assertEqual(c[key2], ds.value(21))
+
         self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
 
 # Test that timestamps are ignored in logged files.
@@ -510,6 +543,8 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
     def test_in_memory_ts(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg') and not self.always:
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(

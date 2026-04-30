@@ -129,20 +129,10 @@ struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
 struct __wt_checkpoint_cleanup;
 typedef struct __wt_checkpoint_cleanup WT_CHECKPOINT_CLEANUP;
-struct __wt_chunkcache;
-typedef struct __wt_chunkcache WT_CHUNKCACHE;
-struct __wt_chunkcache_bucket;
-typedef struct __wt_chunkcache_bucket WT_CHUNKCACHE_BUCKET;
-struct __wt_chunkcache_chunk;
-typedef struct __wt_chunkcache_chunk WT_CHUNKCACHE_CHUNK;
-struct __wt_chunkcache_hashid;
-typedef struct __wt_chunkcache_hashid WT_CHUNKCACHE_HASHID;
-struct __wt_chunkcache_intermediate_hash;
-typedef struct __wt_chunkcache_intermediate_hash WT_CHUNKCACHE_INTERMEDIATE_HASH;
-struct __wt_chunkcache_metadata_work_unit;
-typedef struct __wt_chunkcache_metadata_work_unit WT_CHUNKCACHE_METADATA_WORK_UNIT;
-struct __wt_chunkcache_pinned_list;
-typedef struct __wt_chunkcache_pinned_list WT_CHUNKCACHE_PINNED_LIST;
+struct __wt_checkpoint_page_to_reconcile;
+typedef struct __wt_checkpoint_page_to_reconcile WT_CHECKPOINT_PAGE_TO_RECONCILE;
+struct __wt_checkpoint_reconcile_threads;
+typedef struct __wt_checkpoint_reconcile_threads WT_CHECKPOINT_RECONCILE_THREADS;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_ckpt_block_mods;
@@ -253,6 +243,8 @@ struct __wt_file_handle_posix;
 typedef struct __wt_file_handle_posix WT_FILE_HANDLE_POSIX;
 struct __wt_file_handle_win;
 typedef struct __wt_file_handle_win WT_FILE_HANDLE_WIN;
+struct __wt_fix_prepared_cookie;
+typedef struct __wt_fix_prepared_cookie WT_FIX_PREPARED_COOKIE;
 struct __wt_fstream;
 typedef struct __wt_fstream WT_FSTREAM;
 struct __wt_generation_cookie;
@@ -389,6 +381,8 @@ struct __wt_save_upd;
 typedef struct __wt_save_upd WT_SAVE_UPD;
 struct __wt_scratch_track;
 typedef struct __wt_scratch_track WT_SCRATCH_TRACK;
+struct __wt_semaphore;
+typedef struct __wt_semaphore WT_SEMAPHORE;
 struct __wt_session_impl;
 typedef struct __wt_session_impl WT_SESSION_IMPL;
 struct __wt_session_stash;
@@ -429,6 +423,8 @@ struct __wt_time_aggregate;
 typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
 struct __wt_time_window;
 typedef struct __wt_time_window WT_TIME_WINDOW;
+struct __wt_truncate;
+typedef struct __wt_truncate WT_TRUNCATE;
 struct __wt_truncate_info;
 typedef struct __wt_truncate_info WT_TRUNCATE_INFO;
 struct __wt_txn;
@@ -569,6 +565,12 @@ typedef uint64_t wt_timestamp_t;
 #include "posix.h"
 #endif
 
+#ifdef __linux__
+#include "os_linux.h"
+#elif __APPLE__
+#include "os_darwin.h"
+#endif
+
 #include "misc.h"
 #include "tsan_suppress.h"
 #include "mutex.h"
@@ -584,7 +586,6 @@ typedef uint64_t wt_timestamp_t;
 #include "bitstring.h"
 #include "block.h"
 #include "block_cache.h"
-#include "block_chunkcache.h"
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
@@ -592,7 +593,6 @@ typedef uint64_t wt_timestamp_t;
 #include "capacity.h"
 #include "cell.h"
 #include "cursor.h" /* required by checkpoint */
-#include "../checkpoint/checkpoint.h"
 #include "compact.h"
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
@@ -614,7 +614,8 @@ typedef uint64_t wt_timestamp_t;
 #include "schema.h"
 #include "tiered.h"
 #include "truncate.h"
-#include "txn.h"
+#include "txn.h" /* required by checkpoint.h */
+#include "../checkpoint/checkpoint.h"
 
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */

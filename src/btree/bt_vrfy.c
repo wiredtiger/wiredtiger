@@ -56,6 +56,7 @@ static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_unique_btree_ids(WT_SESSION_IMPL *);
 
 /*
  * __verify_config --
@@ -214,6 +215,81 @@ __verify_disagg_accumulate_size(
     return (0);
 }
 
+typedef struct {
+    uint32_t id;
+    char *uri;
+} WT_ID_URI_PAIR;
+
+/*
+ * __id_uri_pair_cmp --
+ *     Comparator for sorting btree ID entries by ID.
+ */
+static int WT_CDECL
+__id_uri_pair_cmp(const void *a, const void *b)
+{
+    uint32_t ia, ib;
+
+    ia = ((const WT_ID_URI_PAIR *)a)->id;
+    ib = ((const WT_ID_URI_PAIR *)b)->id;
+    return (ia < ib ? -1 : (ia == ib ? 0 : 1));
+}
+
+/*
+ * __verify_unique_btree_ids --
+ *     Verify that no two stable constituent files in the local metadata share the same btree ID.
+ *     Only called for .wt_stable files, where the verify session's exclusive lock is on the stable
+ *     file not the metadata file so a shared metadata cursor can be opened directly.
+ */
+static int
+__verify_unique_btree_ids(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM id_val;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_ID_URI_PAIR *pairs;
+    size_t allocated, count, i;
+    const char *key, *value;
+
+    cursor = NULL;
+    pairs = NULL;
+    allocated = count = 0;
+
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &key));
+        if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
+            continue;
+        WT_ERR(cursor->get_value(cursor, &value));
+        WT_ERR(__wt_config_getones(session, value, "id", &id_val));
+        WT_ERR(__wt_realloc_def(session, &allocated, count + 1, &pairs));
+        pairs[count].id = (uint32_t)id_val.val;
+        WT_ERR(__wt_strdup(session, key, &pairs[count].uri));
+        ++count;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (count > 1) {
+        __wt_qsort(pairs, count, sizeof(WT_ID_URI_PAIR), __id_uri_pair_cmp);
+        for (i = 0; i < count - 1; ++i) {
+            if (pairs[i].id != pairs[i + 1].id)
+                continue;
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", pairs[i].id,
+              pairs[i].uri, pairs[i + 1].uri);
+            ret = WT_ERROR;
+        }
+    }
+
+err:
+    for (i = 0; i < count; ++i)
+        __wt_free(session, pairs[i].uri);
+    __wt_free(session, pairs);
+    if (cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
 /*
  * __wt_verify --
  *     Verify a file.
@@ -264,6 +340,14 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
 
     /*
+     * Check that no two stable constituent files share the same btree ID. Only run for stable files
+     * the verify session's exclusive lock is on the stable file, not the metadata file, so a shared
+     * metadata cursor can be opened directly on the verify session.
+     */
+    if (WT_URI_IS_STABLE(name))
+        WT_ERR(__verify_unique_btree_ids(session));
+
+    /*
      * Get a list of the checkpoints for this file. Empty objects and ingest tables have no
      * checkpoints, in which case there's no work to do.
      */
@@ -271,7 +355,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
-    } else if (WT_SUFFIX_MATCH(name, ".wt_ingest"))
+    } else if (WT_URI_IS_INGEST(name))
         WT_ERR_MSG(session, WT_ERROR,
           "verify (layered): ingest table %s unexpectedly has checkpoints. This is a fatal "
           "violation as the ingest table does not get checkpointed.",
@@ -370,16 +454,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
                 if (!skip_hs) {
                     __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
-#ifndef WT_STANDALONE_BUILD
-                    /* FIXME-WT-16557: Re-enable HS validation at all times. */
-                    if (__wt_conn_is_disagg(session))
-                        __wt_verbose(session, WT_VERB_VERIFY,
-                          "%s: skipping verify against history store in disagg", name);
-                    else
-                        WT_TRET(__wt_hs_verify_one(session, btree->id));
-#else
-                    WT_TRET(__wt_hs_verify_one(session, btree->id));
-#endif
+                    WT_TRET_MSG(session, __wt_hs_verify_one(session, btree->id),
+                      "history store verification failed");
                 }
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
@@ -703,7 +779,8 @@ __verify_tree(
      *
      * Report progress occasionally.
      */
-    WT_RET(__wt_progress_backoff(session, NULL, ++vs->fcnt));
+    if (__wt_counter_backoff(++vs->fcnt, 100))
+        WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
 #ifdef HAVE_DIAGNOSTIC
     /* Optionally dump the blocks or page in debugging mode. */
@@ -1207,7 +1284,7 @@ __verify_key_hs(
      * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
      * in which case we initialize our newest with the max txn-id.
      */
-    older_stop_ts = 0;
+    older_stop_ts = WT_TS_NONE;
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
@@ -1431,6 +1508,47 @@ __verify_page_content_leaf(
 }
 
 /*
+ * __verify_compare_page_id_lists --
+ *     Merge-compare btree_ids against pali_ids, emitting a verbose error for each page ID present
+ *     in one list but absent from the other.
+ */
+static int
+__verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, size_t num_btree,
+  const uint64_t *pali_ids, size_t num_pali)
+{
+    WT_DECL_RET;
+
+    for (uint32_t index_in_pali = 0, index_in_btree = 0;
+         index_in_pali <= num_pali && index_in_btree <= num_btree;) {
+        if (index_in_pali == num_pali && index_in_btree == num_btree)
+            break;
+        uint64_t id_in_pali =
+          index_in_pali < num_pali ? pali_ids[index_in_pali] : WT_BLOCK_INVALID_PAGE_ID_MAX;
+        uint64_t id_in_btree =
+          index_in_btree < num_btree ? btree_ids[index_in_btree] : WT_BLOCK_INVALID_PAGE_ID_MAX;
+
+        if (index_in_btree == num_btree || id_in_pali < id_in_btree) {
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
+              id_in_pali);
+            WT_TRET(EINVAL);
+            index_in_pali++;
+        } else if (index_in_pali == num_pali || id_in_pali > id_in_btree) {
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
+              id_in_btree);
+            WT_TRET(EINVAL);
+            index_in_btree++;
+        } else {
+            index_in_pali++;
+            index_in_btree++;
+        }
+    }
+
+    return (ret);
+}
+
+/*
  * __verify_page_discard --
  *     Verify all live pages in disagg mode, ensuring that no pages were incorrectly discarded.
  */
@@ -1501,35 +1619,10 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    for (uint32_t index_in_pali = 0, index_in_btree = 0;
-         index_in_pali <= num_pages_found_in_pali && index_in_btree <= num_pages_found_in_btree;) {
-        if (index_in_pali == num_pages_found_in_pali && index_in_btree == num_pages_found_in_btree)
-            break;
-        uint64_t id_in_pali =
-          index_in_pali < num_pages_found_in_pali ? ((uint64_t *)item->data)[index_in_pali] : 0;
-        uint64_t id_in_btree =
-          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
-
-        if (index_in_btree == num_pages_found_in_btree || id_in_pali < id_in_btree) {
-            __wt_verbose_error(session, WT_VERB_VERIFY,
-              "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
-              id_in_pali);
-            WT_TRET(EINVAL);
-            index_in_pali++;
-        } else if (index_in_pali == num_pages_found_in_pali || id_in_pali > id_in_btree) {
-            __wt_verbose_error(session, WT_VERB_VERIFY,
-              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
-              id_in_btree);
-            WT_TRET(EINVAL);
-            index_in_btree++;
-        } else {
-            index_in_pali++;
-            index_in_btree++;
-        }
-    }
-
-    if (ret != 0)
-        WT_ERR_MSG(session, ret, "Page discard verification found mismatches");
+    WT_ERR_MSG_CHK(session,
+      __verify_compare_page_id_lists(session, page_ids, (size_t)num_pages_found_in_btree,
+        (const uint64_t *)item->data, num_pages_found_in_pali),
+      "Page discard verification found mismatches");
 
 err:
 
@@ -1556,3 +1649,12 @@ __verify_compare_page_id(const void *a, const void *b)
 
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, size_t num_btree,
+  const uint64_t *pali_ids, size_t num_pali)
+{
+    return (__verify_compare_page_id_lists(session, btree_ids, num_btree, pali_ids, num_pali));
+}
+#endif

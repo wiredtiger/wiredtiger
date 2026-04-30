@@ -1771,17 +1771,9 @@ retry:
         if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
             break;
 
-        /*
-         * A temporary fix has been implemented to allow the eviction server to run during the
-         * reconfigure API call in a disaggregated setup. This is necessary because operations such
-         * as picking up checkpoints, step-up, and step-down require eviction to function in order
-         * to perform metadata read and write processes.
-         */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING)) {
-            if (!__wt_conn_is_disagg(session))
-                break;
-            WT_STAT_CONN_INCR(session, eviction_server_race_reconfigure_disagg);
-        }
+        /* Eviction server will be suspended if cache pool is reconfiguring. */
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_CACHE_POOL))
+            break;
 
         /*
          * If another thread is waiting on the eviction server to clear the walk point in a tree,
@@ -2143,14 +2135,15 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
             wt_timestamp_t prune_timestamp =
               __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-            if (newest_commit_timestamp > prune_timestamp) {
-                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
-                return (true);
-            }
-            if (prune_timestamp != WT_TS_NONE &&
-              page->modify->rec_prune_timestamp >= prune_timestamp) {
-                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
-                return (true);
+            if (prune_timestamp != WT_TS_NONE) {
+                if (newest_commit_timestamp > prune_timestamp) {
+                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
+                    return (true);
+                }
+                if (page->modify->rec_prune_timestamp >= prune_timestamp) {
+                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
+                    return (true);
+                }
             }
         } else {
             if (newest_commit_timestamp > __wt_txn_pinned_stable_timestamp(session)) {
@@ -2492,7 +2485,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     WT_PAGE *page;
-    bool modified, want_page;
+    bool evict_clean, evict_dirty, evict_updates, modified, should_evict_page;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -2556,12 +2549,13 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         goto fast;
 
+    evict_clean =
+      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
+    evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
+    evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL;
+    should_evict_page = evict_clean || evict_dirty || evict_updates;
     /* Skip pages we don't want. */
-    want_page =
-      (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified) ||
-      (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||
-      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL);
-    if (!want_page) {
+    if (!should_evict_page) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_pages);
         return;
     }

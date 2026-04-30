@@ -551,7 +551,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can allocate blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
+    WT_ASSERT(session, WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session));
 
     /* Assert we're maintaining the by-size skiplist. */
     WT_ASSERT(session, block->live.avail.track_size != 0);
@@ -632,8 +632,6 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     wt_off_t offset;
     uint32_t checksum, objectid, size;
 
-    WT_STAT_DSRC_INCR(session, block_free);
-
     /* Crack the cookie. */
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
@@ -681,7 +679,7 @@ __wti_block_off_free(
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can free blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
+    WT_ASSERT(session, WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session));
 
     /* We can't reuse free space in an object. */
     if (objectid != block->objectid)
@@ -701,6 +699,16 @@ __wti_block_off_free(
         ret = __block_merge(session, block, &block->live.avail, offset, size);
     else if (ret == WT_NOTFOUND)
         ret = __block_merge(session, block, &block->live.discard, offset, size);
+
+    /*
+     * Salvage is a corruption repair operation. Including it in the block_free stat would create
+     * misleading spikes unrelated to workload behavior, making the stat unreliable for monitoring
+     * normal user driven activity.
+     */
+    if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE)) {
+        WT_STAT_DSRC_INCR(session, block_free);
+    }
+
     return (ret);
 }
 
@@ -1465,7 +1473,7 @@ __block_extlist_dump_buckets(
     if (block->verify_layout)
         level = WT_VERBOSE_NOTICE;
     else
-        level = WT_VERBOSE_DEBUG_2;
+        level = S2C(session)->verbose[WT_VERB_BLOCK];
 
     WT_ERR(__wt_scr_alloc(session, 0, &t1));
     __wt_verbose_level(session, WT_VERB_BLOCK, level,
@@ -1493,6 +1501,14 @@ __block_extlist_dump_buckets(
         }
 
     __wt_verbose_level(session, WT_VERB_BLOCK, level, "%s", (char *)t1->data);
+
+    /* Print each extent with its offset and size when block verbosity is enabled. */
+    __wt_verbose_level(
+      session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_3, "%s", "Extent Number:   Offset, Size");
+    i = 0;
+    WT_EXT_FOREACH (ext, el->off)
+        __wt_verbose_level(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_3,
+          "%u:   %" PRIdMAX ", %" PRIdMAX, ++i, (intmax_t)ext->off, (intmax_t)ext->size);
 
 done:
 err:

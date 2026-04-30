@@ -174,7 +174,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
         for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
             __txn_get_durable_timestamp(s, &tmpts);
-            if (tmpts != 0 && (ts == 0 || --tmpts < ts))
+            if (tmpts != WT_TS_NONE && (ts == WT_TS_NONE || --tmpts < ts))
                 ts = tmpts;
         }
 
@@ -965,6 +965,19 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
           session, EINVAL, "durable timestamp and rollback timestamp should not be set together");
 
     __txn_assert_after_reads(session, "rollback", rollback_ts);
+
+    /*
+     * For a prepared transaction, the rollback timestamp should not be less than the prepare
+     * timestamp. Also, the rollback timestamp cannot be set before the transaction has actually
+     * been prepared.
+     */
+    if (F_ISSET(txn, WT_TXN_PREPARE) && rollback_ts != WT_TS_NONE &&
+      txn->time_point.prepare_timestamp >= rollback_ts)
+        WT_RET_MSG(session, EINVAL,
+          "rollback timestamp %s is less than or equal to the prepare timestamp %s for this "
+          "transaction",
+          __wt_timestamp_to_string(rollback_ts, ts_string[0]),
+          __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[1]));
 
     /* Check whether the rollback timestamp is less than the stable timestamp. */
     stable_ts = __wt_get_stable_timestamp(session);

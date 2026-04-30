@@ -480,16 +480,11 @@ __session_config_prefetch(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
 
-    if (S2C(session)->prefetch_auto_on)
-        F_SET(session, WT_SESSION_PREFETCH_ENABLED);
-    else
-        F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
-
     /*
      * Override any connection-level pre-fetch settings if a specific session-level setting was
      * provided.
      */
-    if (__wt_conf_gets(session, conf, Prefetch.enabled, &cval) == 0) {
+    if (__wt_conf_getones(session, conf, Prefetch.enabled, &cval) == 0) {
         if (cval.val) {
             if (!S2C(session)->prefetch_available) {
                 F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
@@ -2677,6 +2672,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
         F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
 
+    if (conn->prefetch_auto_on)
+        F_SET(session_ret, WT_SESSION_PREFETCH_ENABLED);
+    else
+        F_CLR(session_ret, WT_SESSION_PREFETCH_ENABLED);
+
     /*
      * Configuration: currently, the configuration for open_session is the same as
      * session.reconfigure, so use that function.
@@ -2759,7 +2759,7 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
 
     /* Acquire a session. */
     WT_RET(__wt_open_session(conn, NULL, NULL, open_metadata, &session));
-    session->name = name;
+    __wt_atomic_store_ptr_relaxed(&session->name, name);
 
     /*
      * Internal sessions should not save error info unless they are spawned by an external session,
@@ -2774,6 +2774,10 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
      */
     F_SET(session, session_flags | WT_SESSION_INTERNAL);
     FLD_SET(session->lock_flags, session_lock_flags);
+
+    /* Internal sessions created from checkpoint sessions are not actually checkpoint sessions. */
+    F_CLR(session, WT_SESSION_CHECKPOINT);
+    F_CLR(session, WT_SESSION_CHECKPOINT_WORKER);
 
     *sessionp = session;
     return (0);
