@@ -1602,7 +1602,6 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     /* Add stats about pages that have been queued. */
     for (candidates = 0; candidates < queue->evict_candidates; ++candidates) {
         WT_PAGE *page = queue->evict_queue[candidates].ref->page;
-
         if (__wt_page_is_modified(page))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_dirty);
         else
