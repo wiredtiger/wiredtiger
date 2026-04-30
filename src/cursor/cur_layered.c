@@ -2828,9 +2828,6 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     /* Try to find the cursor in the cache. */
     WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
-    /* Layered cursor is not compatible with cursor_copy config. */
-    F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
-
     if (0) {
 err:
         /* Our caller expects to release the data handles if we fail. */
