@@ -34,6 +34,10 @@ from wtscenario import make_scenarios
 # test_layered_fast_truncate05.py
 #   Validate cursor::next_random behavior over fast-truncated ranges on a
 #   standby (follower) node.
+
+# FIXME-WT-15189: Random cursor reads hang when the ingest btree contains
+# tombstones for every reachable row.
+@unittest.skip("WT-15189")
 @disagg_test_class
 class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
 
