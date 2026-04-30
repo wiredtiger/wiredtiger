@@ -1624,9 +1624,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
         WT_WITH_SCHEMA_LOCK(
           session, ret = __checkpoint_process_disagg_metadata(session, &drop_size));
-        if (ret != 0)
-            WT_ERR_MSG(session, ret,
-              "Disaggregated storage checkpoint failed while processing shared metadata queue");
+        WT_ERR_MSG_CHK(session, ret,
+          "Disaggregated storage checkpoint failed while processing shared metadata queue");
     }
 
     /*
