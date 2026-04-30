@@ -455,8 +455,17 @@ record_loop:
             repeat_count = 1;      /* Single record */
             deleted = false;
 
-            if (upd == NULL && orig_stale) {
-                /* The on-disk value is stale and there was no update. Treat it as deleted. */
+            if (upd == NULL && orig_stale &&
+              (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
+                !upd_select.skip_rollback_prepared_value)) {
+                /*
+                 * The on-disk value is stale and there was no update. Treat it as deleted.
+                 *
+                 * Keep the on-disk cell when the chain still has an unstable aborted prepared
+                 * update that we skipped this round: the cell is its only rollback fallback, and
+                 * dropping it now would strand the prepared update with nothing to fall back to
+                 * on a later reconciliation.
+                 */
                 deleted = true;
                 r->key_removed_from_disk_image = true;
                 twp = &clear_tw;
