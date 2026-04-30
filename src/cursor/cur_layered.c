@@ -949,7 +949,6 @@ int
 __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
 {
     WT_SESSION_IMPL *session = trunc_info->session;
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
     /* These should have been initialized upstream. */
     WT_ASSERT(session, trunc_info->start != NULL);
@@ -962,8 +961,10 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
      */
     if (S2C(session)->layered_table_manager.leader)
         WT_RET(__clayered_truncate_leader(trunc_info));
-    else
+    else {
+        WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
         WT_RET(__clayered_truncate_follower(trunc_info));
+    }
 
     return (0);
 }
