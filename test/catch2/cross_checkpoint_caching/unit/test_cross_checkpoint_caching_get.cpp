@@ -150,7 +150,8 @@ TEST_CASE("cross_checkpoint_caching_get: two entries in the same bucket are dist
 }
 
 TEST_CASE(
-  "cross_checkpoint_caching_get: same addr with different fileid in same bucket distinguished by fileid",
+  "cross_checkpoint_caching_get: same addr with different fileid in same bucket distinguished by "
+  "fileid",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_get]")
 {
     // Same addr means same bucket. Swap the session's btree id between puts so each entry stores
