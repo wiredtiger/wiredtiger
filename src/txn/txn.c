@@ -1188,10 +1188,13 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
-    /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
+    /* Check the timestamp usage for in-order compliance. */
     if (commit)
         WT_RET(__wt_txn_timestamp_usage_check(
           session, btree, txn_time_point->commit_timestamp, upd->prev_durable_ts));
+    else if (txn_time_point->rollback_timestamp != WT_TS_NONE)
+        WT_RET(__wt_txn_timestamp_usage_check(
+          session, btree, txn_time_point->rollback_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1884,7 +1887,6 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
-    F_SET(txn, WT_TXN_FORCE_ROLLBACK);
     WT_TRET(__wt_txn_rollback(session, cfg, false));
     return (ret);
 }
@@ -2096,14 +2098,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     /* Set the rollback timestamp if it is an user api call. */
     if (api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
-
-    /* Rolling back a prepared transaction under preserve_prepared requires a rollback timestamp. */
-    if (prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      !F_ISSET(txn, WT_TXN_FORCE_ROLLBACK) &&
-      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
-        WT_RET_MSG(session, EINVAL,
-          "rollback_timestamp must be set when rolling back a prepared transaction under "
-          "preserve_prepared");
 
     /*
      * Release our snapshot in case it is keeping data pinned. This will not make the updates

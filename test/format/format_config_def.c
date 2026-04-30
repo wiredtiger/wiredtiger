@@ -309,6 +309,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
 
+  {"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0,
+    V_GLOBAL_PREFETCH_DEFAULT},
+
   {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0, V_GLOBAL_PRECISE_CHECKPOINT},
 
   {"preserve_prepared", "Preserve prepared", C_BOOL, 50, 0, 0, V_GLOBAL_PRESERVE_PREPARED},

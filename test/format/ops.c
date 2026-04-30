@@ -97,6 +97,9 @@ random_failure(void)
 {
     static char *core = NULL;
 
+    /* Let the handlers know that we are expecting a failure. */
+    __wt_atomic_store_bool(&g.expect_failure, true);
+
     /*
      * Let our caller know. Note, format.sh checks for this message, so be cautious in changing the
      * format.
@@ -1630,8 +1633,7 @@ wts_read_scan(TABLE *table, void *args)
 
     /* Open a session and cursor pair. */
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(
-      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, session_prefetch_cfg(), &session);
     wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */
