@@ -2604,10 +2604,21 @@ __clayered_modify_follower(
     else
         WT_ITEM_SET(value, cursor->value);
 
+    /*
+     * If the lookup didn't find a visible value, build the modify on an empty base. Clear value:
+     * on the WT_NOTFOUND error path, __clayered_lookup resets the constituent cursors, which in
+     * cursor-copy debug mode (WT_CONN_DEBUG_CURSOR_COPY) frees the buffer that value was aliasing
+     * via __clayered_lookup_constituent's get_value call. Reading it would be a use-after-free.
+     */
+    if (ret == WT_NOTFOUND) {
+        WT_CLEAR(value);
+        ret = 0;
+    }
+
     if (clayered->current_cursor != ingest) {
         /*
-         * Cursor is positioned on the stable table. Compute a full value and write it to the ingest
-         * table.
+         * Cursor is positioned on the stable table, or no constituent is positioned because the
+         * lookup hit a tombstone or no key. Compute a full value and write it to the ingest table.
          */
         ingest->set_key(ingest, &cursor->key);
         __clayered_deleted_decode(&value);
