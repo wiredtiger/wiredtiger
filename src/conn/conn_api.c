@@ -1594,7 +1594,7 @@ __conn_chunk_cache_check(WT_SESSION_IMPL *session, const char *config, const cha
     cc_enabled = cval.val != 0;
 
     if (cc_enabled)
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, EINVAL,
           "chunk cache has been deprecated and is no longer supported, chunk_cache "
           "configuration should be removed%s%s",
           source != NULL ? " from " : "", source != NULL ? source : "");
