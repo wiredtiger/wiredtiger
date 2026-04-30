@@ -374,6 +374,10 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
 
     session = CUR2S(clayered);
 
+    /* A leader does not require advancing a stable table. */
+    if (S2C(session)->layered_table_manager.leader)
+        return (false);
+
     /* A random stable cursor shouldn't be reopened, it may have additional state. */
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM))
         return (false);
@@ -421,12 +425,12 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
 }
 
 /*
- * __clayered_advance_stable --
- *     Advance the stable cursor to a newer checkpoint.
+ * __clayered_reopen_stable --
+ *     For the follower, advance the stable cursor to a newer checkpoint. Or reopen the stable table
+ *     in the right format on a role change.
  */
 static int
-__clayered_advance_stable(
-  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool current_leader)
+__clayered_reopen_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool current_leader)
 {
     WT_CURSOR *old_stable;
     WT_DECL_RET;
@@ -593,7 +597,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     if ((change_stable = clayered->stable_cursor != NULL &&
             (__clayered_can_advance_stable(clayered, iteration) || role_change))) {
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
-        WT_RET(__clayered_advance_stable(session, clayered, current_leader));
+        WT_RET(__clayered_reopen_stable(session, clayered, current_leader));
     }
 
     /* Update the state of the layered cursor. */
