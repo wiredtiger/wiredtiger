@@ -1628,14 +1628,12 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              */
             if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
               supd->onpage_tombstone != NULL && supd->onpage_upd == NULL) {
-                for (WT_UPDATE *scan = upd; scan != NULL && scan != tmp; scan = scan->next) {
+                for (WT_UPDATE *scan = upd; scan != NULL && scan != supd->onpage_tombstone;
+                     scan = scan->next) {
                     if (scan->prepared_id != WT_PREPARED_ID_NONE) {
                         retain_tombstone = true;
                         break;
                     }
-
-                    if (scan == supd->onpage_tombstone)
-                        break;
                 }
             }
 

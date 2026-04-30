@@ -131,18 +131,8 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
          * levels, or when an application intentionally commits in out of timestamp order, it's
          * possible for an update on the chain to be globally visible and followed by an (earlier)
          * update that is not yet globally visible.
-         *
-         * Skip this shortcut when writing as prepared. The decision to write as prepared was taken
-         * against the pinned stable timestamp captured at reconcile start, which can lag the
-         * current global oldest. By the time we reach here, the chain may have become globally
-         * visible even though we still need to encode this entry as prepared. In that case we must
-         * not return early; the caller relies on the on-page value being available as a rollback
-         * fallback for the prepared update.
          */
-        if (WT_UPDATE_DATA_VALUE(upd) &&
-          (onpage_upd_or_tombstone != upd || onpage_upd_or_tombstone->type != WT_UPDATE_TOMBSTONE ||
-            !write_prepared) &&
-          __wt_txn_upd_visible_all(session, upd))
+        if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
             return (0);
 
         oldest_upd = upd;
