@@ -2713,20 +2713,41 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     /*
      * Assign the new key/value to the top-level cursor.
+     *
+     * WT_ITEM_SET only does a shallow copy: cursor->key.data and cursor->value.data alias memory
+     * owned by the constituent (file) cursor's buffers. Any subsequent operation on the
+     * constituent cursor -- including reads that reconstruct modify chains into _upd_value.buf
+     * (see __wt_modify_reconstruct_from_upd_list) and modifies that grow iface.value via
+     * __wt_buf_set_and_grow (see __wt_btcur_modify) -- can realloc and free the underlying memory
+     * while we still alias it. The session value-copy step run by __wt_txn_commit
+     * (__wt_session_copy_values -> __cursor_localvalue) would then memcpy from a freed buffer.
+     * Localize the key and value into the layered cursor's own buffers before returning so the
+     * caller (and the eventual commit_transaction value copy-out) sees an owned, stable copy.
      */
     WT_ITEM_SET(cursor->key, current->key);
     WT_ITEM_SET(cursor->value, current->value);
     __clayered_deleted_decode(&cursor->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
-    F_SET(cursor, WT_CURSTD_KEY_INT);
-
     WT_ASSERT(session, F_ISSET(current, WT_CURSTD_VALUE_SET));
-    F_SET(cursor, F_MASK(current, WT_CURSTD_VALUE_SET));
+
+    /*
+     * Treat the freshly-assigned key and value as internal (i.e., aliasing constituent storage)
+     * for the purpose of __wt_cursor_localkey / __cursor_localvalue, regardless of which flag the
+     * underlying constituent cursor exposes. Both paths (INT into _upd_value.buf, EXT into the
+     * constituent's own iface.{key,value}.mem) reference memory that the constituent can free or
+     * realloc on a later operation, so we must take an owned copy unconditionally.
+     */
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    WT_ERR(__wt_cursor_localkey(cursor));
+    WT_ERR(__cursor_localvalue(cursor));
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
+     * After localizing above, the key and value live in the layered cursor's own buffers and are
+     * marked WT_CURSTD_KEY_EXT / WT_CURSTD_VALUE_EXT.
      */
-    WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_KEY_SET) != 0);
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_modify);
