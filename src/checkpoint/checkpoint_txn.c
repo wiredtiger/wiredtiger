@@ -2723,9 +2723,12 @@ __checkpoint_disagg_put(WT_SESSION_IMPL *session, wt_timestamp_t ckpt_ts)
          * will retry on the next checkpoint. Therefore, it is okay to continue.
          */
         if (conn->key_provider != NULL)
-            WT_TRET(__wt_disagg_put_crypt_helper(session));
-        WT_TRET(__wt_disagg_put_checkpoint_meta(
-          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_ts));
+            WT_TRET_MSG(session, __wt_disagg_put_crypt_helper(session), "%s",
+              "Disaggregated storage checkpoint failed to write encryption metadata");
+        WT_TRET_MSG(session,
+          __wt_disagg_put_checkpoint_meta(
+            session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_ts),
+          "%s", "Disaggregated storage checkpoint failed to write checkpoint metadata");
     }
 
     return (ret);
