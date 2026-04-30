@@ -16,7 +16,7 @@
 /*
  * test_layered_truncate_visibility.cpp
  *
- * Focused unit coverage for the follower layered-table truncate list visibility helpers.
+ * Test coverage for the follower layered-table truncate list visibility helpers.
  */
 
 namespace {
@@ -59,6 +59,12 @@ public:
         __wt_process.disagg_fast_truncate_2026 = fast_truncate_enabled;
     }
 
+    /*
+     * Reset the mock transaction into a snapshot reader state for visibility checks. The fixture
+     * keeps snap_min/snap_max fixed at 100/200 so tests can classify txn ids below 100 as already
+     * visible and ids at or above 200 as still in-flight without building an explicit snapshot
+     * array.
+     */
     void
     set_reader(uint64_t txn_id, wt_timestamp_t read_timestamp)
     {
@@ -81,6 +87,11 @@ public:
             F_SET(session->txn, WT_TXN_SHARED_TS_READ);
     }
 
+    /*
+     * Reset the mock transaction into the committer state consumed by
+     * __wti_mark_committed_truncate_table_apply. Only the transaction id and commit/durable
+     * timestamps matter for these tests, so the helper sets just those fields.
+     */
     void
     set_committer(
       uint64_t txn_id, wt_timestamp_t commit_timestamp, wt_timestamp_t durable_timestamp)
