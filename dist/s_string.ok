@@ -99,6 +99,7 @@ DS
 DUPLICATEV
 Decrypt
 DeleteFileW
+Deterministically
 Disagg
 Disaggregated
 Dk
@@ -129,6 +130,7 @@ EXTSUBPATH
 Emplace
 Encryptor
 Encryptors
+Enqueue
 Eron
 Exxx
 FALLTHROUGH
@@ -310,6 +312,7 @@ Prealloc
 Precompiled
 Prefetch
 Preload
+Prepend
 Prepending
 Prev
 Ptr
@@ -347,6 +350,7 @@ Redistributions
 Reentrancy
 Reify
 Rogerio
+Runtime
 SDK
 SIMD
 SLS
@@ -540,6 +544,7 @@ bmd
 bms
 bnd
 bool
+boolean
 booleans
 boption
 br
@@ -668,6 +673,7 @@ dT
 darwin
 data's
 datalen
+dataset
 datasource
 datastore
 dbar
@@ -680,6 +686,7 @@ deciles
 decl
 decompressor
 decr
+decrementing
 decrypt
 decrypted
 decrypting
@@ -688,6 +695,7 @@ decrypts
 deflateEnd
 deflateInit
 del
+dequeued
 der
 dereference
 dereferencing
@@ -742,6 +750,7 @@ encryptors
 endian
 endptr
 enomem
+enqueue
 enum
 env
 eof
@@ -878,6 +887,7 @@ img
 impl
 incr
 incrementals
+incrementing
 indx
 inflateInit
 infmt
@@ -1145,6 +1155,7 @@ precompiling
 prefetch
 prefetching
 preload
+prepend
 prepended
 prepending
 presize
@@ -1228,6 +1239,7 @@ rts
 ru
 runnable
 runone
+runtime
 rw
 rwlock
 sHQ
@@ -1357,6 +1369,7 @@ tombstoned
 toml
 toolchain
 totalsec
+transactional
 transactionally
 trecno
 trk
