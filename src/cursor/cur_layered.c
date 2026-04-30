@@ -217,11 +217,11 @@ __clayered_configure_random(
 }
 
 /*
- * __clayered_open_stable --
- *     Open the stable cursor using the given role.
+ * __clayered_open_stable_int --
+ *     Open the stable cursor for the given URI.
  */
 static int
-__clayered_open_stable(WT_CURSOR_LAYERED *clayered, const char *stable_uri)
+__clayered_open_stable_int(WT_CURSOR_LAYERED *clayered, const char *stable_uri)
 {
     WT_DECL_ITEM(random_config);
     WT_DECL_RET;
@@ -278,7 +278,7 @@ retry:
     /* Use a URI with a "/<checkpoint name> suffix. */
     WT_ERR(__wt_buf_fmt(session, last_ckpt_uri, "%s/%s", stable_uri, checkpoint_name));
 
-    ret = __clayered_open_stable(clayered, last_ckpt_uri->data);
+    ret = __clayered_open_stable_int(clayered, last_ckpt_uri->data);
     if (ret == EBUSY) {
         /* Retry to ensure we open the same checkpoint for the HS and the stable table. */
         __wt_free(session, checkpoint_name);
@@ -291,6 +291,20 @@ err:
     __wt_scr_free(session, &last_ckpt_uri);
     __wt_free(session, checkpoint_name);
     return (ret);
+}
+
+/*
+ * __clayered_open_stable --
+ *     Open the stable cursor for the current role.
+ */
+static int
+__clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool checkpoint_expected)
+{
+    WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
+    bool leader = S2C(CUR2S(clayered))->layered_table_manager.leader;
+
+    return (leader ? __clayered_open_stable_int(clayered, layered->stable_uri) :
+                     __clayered_open_stable_follower(clayered, checkpoint_expected));
 }
 
 /*
@@ -387,9 +401,8 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
  *     in the right format on a role change.
  */
 static int
-__clayered_reopen_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool current_leader)
+__clayered_reopen_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
-    WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     WT_CURSOR *old_stable;
     WT_DECL_RET;
 
@@ -401,8 +414,7 @@ __clayered_reopen_stable(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, 
     old_stable = clayered->stable_cursor;
     clayered->stable_cursor = NULL;
 
-    WT_ERR(current_leader ? __clayered_open_stable(clayered, layered->stable_uri) :
-                            __clayered_open_stable_follower(clayered, true));
+    WT_ERR(__clayered_open_stable(clayered, true));
 
     /*
      * If the old cursor has a position, copy it to the newly opened cursor. Prepared updates are
@@ -549,7 +561,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      */
     if ((change_stable = __clayered_can_advance_stable(clayered, iteration))) {
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
-        WT_RET(__clayered_reopen_stable(session, clayered, current_leader));
+        WT_RET(__clayered_reopen_stable(session, clayered));
     }
 
     /* Update the state of the layered cursor. */
@@ -603,10 +615,6 @@ err:
 static int
 __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
-    bool leader = conn->layered_table_manager.leader;
-
     if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
         return (0);
 
@@ -616,10 +624,8 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
     if (clayered->ingest_cursor == NULL)
         WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
 
-    if (F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor == NULL) {
-        WT_RET(leader ? __clayered_open_stable(clayered, layered->stable_uri) :
-                        __clayered_open_stable_follower(clayered, false));
-    }
+    if (F_ISSET(clayered, WT_CLAYERED_READ_STABLE) && clayered->stable_cursor == NULL)
+        WT_RET(__clayered_open_stable(clayered, false));
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
         /*
