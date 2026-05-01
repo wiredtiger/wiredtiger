@@ -414,7 +414,7 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
     WT_ITEM *keys, stable_key;
     WT_SESSION *wt_session;
     int cmp;
-    char read_ts_cfg[64];
+    char read_ts_cfg[96];
     bool has_ingest, txn_active;
     void *key_data;
 
@@ -425,10 +425,13 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
 
     /*
      * Read at start_ts. The truncate's own deletion is a special tombstone written through a file
-     * cursor, so it's visible like any other value at this snapshot.
+     * cursor, so it's visible like any other value at this snapshot. Round up to oldest if
+     * start_ts has aged below it; the truncate's effects are stable by then and reading at oldest
+     * gives the same ownership decision.
      */
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
-    WT_ERR(__wt_snprintf(read_ts_cfg, sizeof(read_ts_cfg), "read_timestamp=%" PRIx64, t->start_ts));
+    WT_ERR(__wt_snprintf(read_ts_cfg, sizeof(read_ts_cfg),
+      "read_timestamp=%" PRIx64 ",roundup_timestamps=(read=true)", t->start_ts));
     WT_ERR(wt_session->begin_transaction(wt_session, read_ts_cfg));
     txn_active = true;
 
