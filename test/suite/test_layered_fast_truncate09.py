@@ -84,6 +84,14 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         cursor.close()
 
+    def remove_kv(self, key, ts):
+        cursor = self.session.open_cursor(self.uri)
+        cursor.set_key(key)
+        self.session.begin_transaction()
+        cursor.remove()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        cursor.close()
+
     def truncate_range(self, start_key, stop_key, ts):
         c_start = self.session.open_cursor(self.uri)
         c_start.set_key(start_key)
@@ -430,6 +438,136 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
             cursor.set_key(i)
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND,
                 f"key {i} should be tombstoned at ts=30")
+        cursor.close()
+        self.session.rollback_transaction()
+
+    # ---- Sentinel-only ingest state and same-range remove + truncate ----
+
+    # A follower remove with no follower truncate. The deletion lives only on the ingest
+    # chain at step-up time; stable must reflect it after the drain runs.
+    def test_layered_remove_only(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.populate_on_leader()
+        self.switch_to_follower()
+        self.remove_kv(300, 20)
+        self.step_up()
+        cursor = self.session.open_cursor(self.uri)
+        cursor.set_key(300)
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        cursor.close()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
+        cursor = self.session.open_cursor(self.uri)
+        cursor.set_key(300)
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.get_value(), "v300")
+        cursor.close()
+        self.session.rollback_transaction()
+
+    # A remove and a truncate sharing the same commit timestamp on K's range. With the
+    # remove's sentinel committed at exactly the truncate's start_ts, the truncate's
+    # snapshot must include start_ts to recognize the sentinel; otherwise replay sees an
+    # apparently empty ingest chain for K and stacks a redundant stable tombstone.
+    def test_layered_remove_and_truncate_same_ts(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.populate_on_leader()
+        self.switch_to_follower()
+        self.remove_kv(300, 20)
+        self.truncate_range(100, 700, 20)
+        self.step_up()
+        for ts in [20, 22, 30]:
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+            cursor = self.session.open_cursor(self.uri)
+            cursor.set_key(300)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND,
+                f"key 300 should be deleted at ts={ts}")
+            cursor.close()
+            self.session.rollback_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(19))
+        cursor = self.session.open_cursor(self.uri)
+        cursor.set_key(300)
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.get_value(), "v300")
+        cursor.close()
+        self.session.rollback_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        for i in [100, 250, 500, 700]:
+            cursor.set_key(i)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        cursor.close()
+
+    # Staggered shape of the same case: remove first, then truncate at a later timestamp.
+    # The intervening gap means the sentinel is visible under any reasonable snapshot, so
+    # the replay path is unambiguous. Here for typical-flow coverage.
+    def test_layered_remove_then_truncate(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.populate_on_leader()
+        self.switch_to_follower()
+        self.remove_kv(300, 20)
+        self.truncate_range(100, 700, 25)
+        self.step_up()
+        for ts in [20, 22, 25, 30]:
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+            cursor = self.session.open_cursor(self.uri)
+            cursor.set_key(300)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND,
+                f"key 300 should be deleted at ts={ts}")
+            cursor.close()
+            self.session.rollback_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
+        cursor = self.session.open_cursor(self.uri)
+        cursor.set_key(300)
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.get_value(), "v300")
+        cursor.close()
+        self.session.rollback_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        for i in [100, 250, 500, 700]:
+            cursor.set_key(i)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        cursor.close()
+
+    # A truncate covers a key whose only ingest entry is a sentinel left by a much-earlier
+    # remove. The sentinel is a regular value at the ingest btree level, so the replay
+    # path correctly defers to the regular drain rather than stamping a redundant tombstone.
+    def test_truncate_over_pre_existing_sentinel(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.populate_on_leader()
+        self.switch_to_follower()
+        # Remove first, then truncate the surrounding range much later.
+        self.remove_kv(300, 15)
+        self.truncate_range(100, 700, 30)
+        self.step_up()
+        # K=300 deleted at ts >= 15; original value visible at ts < 15.
+        for ts in [15, 20, 30, 40]:
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+            cursor = self.session.open_cursor(self.uri)
+            cursor.set_key(300)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            cursor.close()
+            self.session.rollback_transaction()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(12))
+        cursor = self.session.open_cursor(self.uri)
+        cursor.set_key(300)
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.get_value(), "v300")
+        cursor.close()
+        self.session.rollback_transaction()
+
+    # A read at exactly the truncate's commit timestamp must observe the deletion. This
+    # mirrors the inclusive snapshot used internally during replay and is the boundary
+    # case that distinguishes inclusive-vs-exclusive snapshot semantics.
+    def test_read_at_truncate_timestamp(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.populate_on_leader()
+        self.switch_to_follower()
+        self.truncate_range(100, 700, 20)
+        self.step_up()
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        cursor = self.session.open_cursor(self.uri)
+        for i in [100, 250, 500, 700]:
+            cursor.set_key(i)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND,
+                f"key {i} should be deleted at exactly the truncate ts")
         cursor.close()
         self.session.rollback_transaction()
 

@@ -318,31 +318,44 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 
 /*
  * __layered_drain_truncate_ingest_has_prior --
- *     Return whether ingest holds an entry for `key` visible at the active read timestamp. With a
- *     read_ts of T-1, "yes" means the entry predates the truncate and the main ingest drain owns
- *     K's chain; "no" means we must apply the truncate's tombstone ourselves.
+ *     Return whether the ingest chain for `key` already covers the truncate's effect, in which
+ *     case stable does not need a separate replay tombstone -- the chain (including any layered
+ *     deletion encoded as a sentinel value) will be moved onto stable through the regular drain.
+ *     If the row is absent or its only updates are strictly post-truncate, stable still needs the
+ *     replay tombstone to cover the deleted window.
  */
 static int
 __layered_drain_truncate_ingest_has_prior(
   WT_CURSOR *ingest_cursor, const WT_ITEM *key, bool *has_prior)
 {
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
 
     *has_prior = false;
+    cbt = (WT_CURSOR_BTREE *)ingest_cursor;
     ingest_cursor->set_key(ingest_cursor, key);
     ret = ingest_cursor->search(ingest_cursor);
-    WT_TRET(ingest_cursor->reset(ingest_cursor));
     if (ret == 0)
         *has_prior = true;
-    else if (ret == WT_NOTFOUND)
+    else if (ret == WT_NOTFOUND) {
+        /*
+         * Layered tables encode deletions on ingest as sentinel-value updates rather than real
+         * tombstones; this code relies on that invariant when distinguishing "row absent" from
+         * "row deleted". If a real tombstone ever lands on ingest the silent answer would be
+         * wrong (a redundant stable tombstone gets stacked), so catch the violation loudly.
+         */
+        WT_ASSERT(CUR2S(ingest_cursor),
+          cbt->compare != 0 || cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
         ret = 0;
+    }
+    WT_TRET(ingest_cursor->reset(ingest_cursor));
     return (ret);
 }
 
 /*
  * __layered_drain_truncate_apply_tombstone --
- *     Allocate a tombstone with the truncate's timestamps and apply it to the stable row chain
- *     for `key` (head-of-chain). On success the chain owns the tombstone.
+ *     Stamp the truncate's deletion onto the stable chain for `key`. The tombstone carries the
+ *     truncate's commit identity so reads at and after start_ts see the deletion.
  */
 static int
 __layered_drain_truncate_apply_tombstone(
@@ -365,9 +378,9 @@ __layered_drain_truncate_apply_tombstone(
 
 /*
  * __layered_drain_truncate_collect_keys --
- *     Walk stable across [t.start_key, t.stop_key] under the active read-ts snapshot and append
- *     each key with no pre-truncate ingest entry to `keys`. The caller owns the allocation; on
- *     return `*key_count` is set and each `keys[i].data` is malloc'd.
+ *     Walk the truncate's range on stable and collect the keys that need a replay tombstone --
+ *     those that the ingest chain doesn't already cover at the truncate's snapshot. Pass 1 of
+ *     the collect-then-write split.
  */
 static int
 __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
@@ -418,16 +431,16 @@ err:
 
 /*
  * __layered_drain_truncate_to_stable --
- *     Apply a single follower-recorded truncate `t` to the stable table at step-up.
+ *     Apply a single follower-recorded truncate to stable at step-up.
  *
- *     For each key K in [t.start_key, t.stop_key], apply a stable tombstone iff K has no ingest
- *     entry visible at read_ts = t.start_ts - 1. Snapshotting at T-1 hides post-truncate reinserts
- *     so they don't suppress the tombstone, and shows pre-truncate updates so we correctly defer
- *     to the main ingest drain for those keys.
+ *     The read snapshot is inclusive of the truncate's start_ts: this is required because the
+ *     follower's own truncate path commits sentinel updates at start_ts, and replay must see
+ *     them to avoid stacking a redundant stable tombstone over a chain the regular drain will
+ *     also move. Post-truncate updates remain invisible at start_ts and rightly leave their
+ *     keys to receive a stable tombstone here.
  *
- *     The function runs in two passes so the iterator (on stable) and the writer (also on stable)
- *     never interleave: pass 1 collects keys-needing-tombstones under the snapshot, pass 2 drops
- *     the snapshot and applies the tombstones from a flat list — no re-seek dance required.
+ *     Two-pass shape (collect, then write) avoids interleaving an iterator and a writer on the
+ *     same stable btree.
  */
 static int
 __layered_drain_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
@@ -448,13 +461,14 @@ __layered_drain_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
 
     /*
-     * Snapshot ingest at t.start_ts - 1. A truncate without a real start_ts is malformed
-     * (followers always commit truncates with a timestamp); fall back to the visible-head check
-     * rather than asserting.
+     * Snapshot ingest at t.start_ts (inclusive). The truncate's own sentinel updates committed at
+     * start_ts are visible under this snapshot, so K's chain in ingest is recognized and the main
+     * drain owns it. A truncate without a real start_ts is malformed (followers always commit
+     * truncates with a timestamp); fall back to the visible-head check rather than asserting.
      */
     if (t->start_ts > WT_TS_NONE) {
         WT_ERR(__wt_snprintf(
-          read_ts_cfg, sizeof(read_ts_cfg), "read_timestamp=%" PRIx64, t->start_ts - 1));
+          read_ts_cfg, sizeof(read_ts_cfg), "read_timestamp=%" PRIx64, t->start_ts));
         WT_ERR(wt_session->begin_transaction(wt_session, read_ts_cfg));
         txn_active = true;
     }
@@ -498,6 +512,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
       *stable_cursor, *stable_raw_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
@@ -516,14 +531,15 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-    bool is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
+    bool is_prepare_rollback, layered_dhandle_acquired, prepare_resolved, preserve_prepared,
+      prepare_txn_fixed, truncate_locked;
 
     ingest_version_cursor = ingest_raw_cursor = prepare_cursor = stable_cursor =
       stable_raw_cursor = NULL;
     layered_table = NULL;
     wt_session = (WT_SESSION *)session;
     last_upd = prev_upd = upd = upds = NULL;
-    prepare_resolved = prepare_txn_fixed = false;
+    layered_dhandle_acquired = prepare_resolved = prepare_txn_fixed = truncate_locked = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
     WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
@@ -554,22 +570,48 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     WT_ERR(__wt_scr_alloc(session, 0, &value));
 
     /*
-     * Apply pending follower truncates onto stable before draining ingest. The drain only adds
-     * tombstones for keys with no ingest entry; running it first keeps timestamp ordering on the
-     * stable chain natural — newer ingest-derived updates land on top of the older truncate
-     * tombstone, not the other way around.
+     * Pending follower truncates must land on stable before the regular drain runs: ordering them
+     * this way keeps timestamps on the stable chain natural -- newer ingest-derived updates layer
+     * on top of older truncate tombstones rather than the reverse. The truncate metadata lives on
+     * the parent layered dhandle; a follower-only state that never opened the layered URI has no
+     * pending truncates and the replay block becomes a no-op.
      */
-    layered_table = (WT_LAYERED_TABLE *)entry->pinned_dhandle;
-    if (!TAILQ_EMPTY(&layered_table->truncateqh)) {
+    {
+        static const char file_prefix[] = "file:";
+        static const char ingest_suffix[] = ".wt_ingest";
+        size_t uri_len = strlen(ingest_uri);
+        WT_ASSERT_ALWAYS(session,
+          WT_PREFIX_MATCH(ingest_uri, file_prefix) && WT_URI_IS_INGEST(ingest_uri),
+          "Ingest URI does not match expected file:<name>.wt_ingest shape");
+        WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
+        WT_ERR(__wt_buf_fmt(session, layered_uri_buf, "layered:%.*s",
+          (int)(uri_len - (sizeof(file_prefix) - 1) - (sizeof(ingest_suffix) - 1)),
+          ingest_uri + sizeof(file_prefix) - 1));
+    }
+    WT_ERR_NOTFOUND_OK(
+      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
+    if (ret == 0) {
+        layered_dhandle_acquired = true;
+        layered_table = (WT_LAYERED_TABLE *)session->dhandle;
+    } else
+        ret = 0;
+
+    if (layered_table != NULL && !TAILQ_EMPTY(&layered_table->truncateqh)) {
         WT_ERR(wt_session->open_cursor(
-          wt_session, entry->stable_uri, NULL, "raw=true", &stable_raw_cursor));
+          wt_session, stable_uri_buf->data, NULL, "raw=true", &stable_raw_cursor));
         WT_ERR(wt_session->open_cursor(
-          wt_session, entry->ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
+          wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
+        __wt_readlock(session, &layered_table->truncate_lock);
+        truncate_locked = true;
         TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
+            /* Uncommitted entries carry no real timestamps and may still roll back. */
+            if (t->txn_id == WT_TXN_NONE)
+                continue;
             WT_ERR(__layered_drain_truncate_to_stable(
               session, t, cbt, stable_raw_cursor, ingest_raw_cursor));
         }
-        __wt_layered_table_truncate_clear(session, layered_table);
+        __wt_readunlock(session, &layered_table->truncate_lock);
+        truncate_locked = false;
     }
 
     for (;;) {
@@ -750,6 +792,18 @@ err:
         WT_TRET(stable_raw_cursor->close(stable_raw_cursor));
     if (ingest_raw_cursor != NULL)
         WT_TRET(ingest_raw_cursor->close(ingest_raw_cursor));
+    /*
+     * Drop the queue unconditionally. On success the entries have all been applied or were
+     * uncommittable; on error any partial progress is abandoned, and leaving entries behind would
+     * cause an incoherent retry against a stable table that already saw some of them.
+     */
+    if (truncate_locked)
+        __wt_readunlock(session, &layered_table->truncate_lock);
+    if (layered_table != NULL)
+        __wt_layered_table_truncate_clear(session, layered_table);
+    if (layered_dhandle_acquired)
+        WT_TRET(__wt_session_release_dhandle(session));
+    __wt_scr_free(session, &layered_uri_buf);
     return (ret);
 }
 
