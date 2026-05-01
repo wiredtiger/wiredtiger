@@ -178,8 +178,7 @@ __layered_derive_stable_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT
 
 /*
  * __layered_derive_layered_uri --
- *     Derive the parent layered URI from a constituent ingest URI. Symmetric helper to
- *     __layered_derive_stable_uri.
+ *     Derive the parent layered URI from a constituent ingest URI.
  */
 static int
 __layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT_ITEM *buf)
@@ -339,10 +338,9 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 
 /*
  * __layered_drain_truncate_ingest_check --
- *     Decide who is responsible for landing the truncate's deletion of `key` on stable: the
- *     regular ingest drain, or this replay path. If ingest already has a chain for the key, the
- *     drain owns it; otherwise stable still needs a replay tombstone here to cover the deleted
- *     window.
+ *     Decide who is responsible for landing the truncate's deletion: the regular ingest drain,
+ *     or this replay path. If ingest already has a chain for the key, the drain owns it;
+ *     otherwise stable still needs a replay tombstone here to cover the deleted window.
  */
 static int
 __layered_drain_truncate_ingest_check(
@@ -359,10 +357,8 @@ __layered_drain_truncate_ingest_check(
         *has_ingest = true;
     else if (ret == WT_NOTFOUND) {
         /*
-         * Layered tables encode deletions on ingest as sentinel-value updates rather than real
-         * tombstones; this code relies on that invariant when distinguishing "row absent" from
-         * "row deleted". If a real tombstone ever lands on ingest the silent answer would be
-         * wrong (a redundant stable tombstone gets stacked), so catch the violation loudly.
+         * Ingest deletions are stored as special-value updates, never as real tombstones; if
+         * that invariant breaks, our absent-vs-deleted distinction is wrong, so fail loudly.
          */
         WT_ASSERT(CUR2S(ingest_cursor),
           cbt->compare != 0 || cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
@@ -473,8 +469,7 @@ err:
 
 /*
  * __layered_drain_truncate_to_stable --
- *     Apply a single follower-recorded truncate to stable at step-up. Two-pass shape (collect,
- *     then write) avoids interleaving an iterator and a writer on the same stable btree.
+ *     Apply a single follower-recorded truncate to stable at step-up.
  */
 static int
 __layered_drain_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
@@ -535,12 +530,6 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
 
-    /*
-     * The truncate queue lives on the layered dhandle. A follower-only state that never opened
-     * the layered URI has no pending truncates -- nothing to replay. Capture the dhandle pointer
-     * so the release in the err path always operates on the layered dhandle, regardless of where
-     * cursor opens leave session->dhandle.
-     */
     WT_ERR_NOTFOUND_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
     if (ret == WT_NOTFOUND) {

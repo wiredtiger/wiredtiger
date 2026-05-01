@@ -30,10 +30,9 @@ import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# Coverage for the step-up replay of pending follower truncates: stable must reflect
-# every committed follower truncate after the connection becomes leader, regardless of
-# whether the truncated keys had follower-side updates, were reinserted post-truncate,
-# or carried only the special ingest tombstone form used by layered tables.
+# test_layered_fast_truncate09.py
+#   Verify that pending follower truncates land on stable when the follower steps up,
+#   across the variety of per-key shapes the truncated range can carry.
 @disagg_test_class
 class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
 
