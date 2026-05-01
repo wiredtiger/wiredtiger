@@ -2447,8 +2447,10 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: session sweep attempts",
   "disagg: abandon checkpoints failed",
   "disagg: abandon checkpoints succeeded",
+  "disagg: apply checkpoint metadata most recent time (msecs)",
   "disagg: connection reconfiguration",
   "disagg: database size",
+  "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
@@ -3490,8 +3492,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_session_sweeps = 0;
     stats->disagg_abandon_checkpoint_failed = 0;
     stats->disagg_abandon_checkpoint_succeed = 0;
+    stats->disagg_apply_checkpoint_meta_time = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
+    stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_role_leader = 0;
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
@@ -4645,8 +4649,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_failed);
     to->disagg_abandon_checkpoint_succeed +=
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_succeed);
+    to->disagg_apply_checkpoint_meta_time +=
+      WT_STAT_CONN_READ(from, disagg_apply_checkpoint_meta_time);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
+    to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
