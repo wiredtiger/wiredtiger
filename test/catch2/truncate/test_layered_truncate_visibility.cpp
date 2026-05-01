@@ -277,12 +277,22 @@ TEST_CASE_METHOD(layered_truncate_visibility_fixture, "truncate commit stamps th
 
     WT_TRUNCATE *committed = add_truncate(txn_id, start_ts, durable_ts, start, stop);
 
+    const uint64_t overlapping_txn_id = 10;
+    const wt_timestamp_t overlapping_start_ts = 40;
+    const wt_timestamp_t overlapping_durable_ts = 40;
+    WT_TRUNCATE *overlapping = add_truncate(
+      overlapping_txn_id, overlapping_start_ts, overlapping_durable_ts, "0150", "0300");
+
     txn_id = 60;
-    wt_timestamp_t read_timestamp = WT_TS_NONE;
-    const char *key = "0150";
+    wt_timestamp_t read_timestamp = 30;
+    const char *target_only_key = "0125";
+    const char *overlap_key = "0175";
+    const char *overlap_only_key = "0250";
 
     set_reader(txn_id, read_timestamp);
-    REQUIRE(truncate_visible(key) == WT_NOTFOUND);
+    REQUIRE(truncate_visible(target_only_key) == WT_NOTFOUND);
+    REQUIRE(truncate_visible(overlap_key) == WT_NOTFOUND);
+    REQUIRE(truncate_visible(overlap_only_key) == WT_NOTFOUND);
 
     txn_id = 90;
     const wt_timestamp_t commit_timestamp = 30;
@@ -297,11 +307,19 @@ TEST_CASE_METHOD(layered_truncate_visibility_fixture, "truncate commit stamps th
     REQUIRE(committed->txn_id == 90);
     REQUIRE(committed->start_ts == 30);
     REQUIRE(committed->durable_ts == 40);
+    REQUIRE(overlapping->txn_id == overlapping_txn_id);
+    REQUIRE(overlapping->start_ts == overlapping_start_ts);
+    REQUIRE(overlapping->durable_ts == overlapping_durable_ts);
 
     txn_id = 60;
     read_timestamp = 30;
     set_reader(txn_id, read_timestamp);
-    REQUIRE(truncate_visible(key) == 0);
+    REQUIRE(truncate_visible(target_only_key) == 0);
+
+    WT_TRUNCATE *matched = nullptr;
+    REQUIRE(truncate_visible(overlap_key, &matched) == 0);
+    REQUIRE(matched == committed);
+    REQUIRE(truncate_visible(overlap_only_key) == WT_NOTFOUND);
 }
 
 TEST_CASE_METHOD(layered_truncate_visibility_fixture,
@@ -316,7 +334,7 @@ TEST_CASE_METHOD(layered_truncate_visibility_fixture,
     WT_TRUNCATE *rolled_back = add_truncate(txn_id, start_ts, durable_ts, start, stop);
 
     txn_id = 51;
-    start = "0300";
+    start = "0150";
     stop = "0400";
 
     WT_TRUNCATE *surviving = add_truncate(txn_id, start_ts, durable_ts, start, stop);
@@ -329,8 +347,13 @@ TEST_CASE_METHOD(layered_truncate_visibility_fixture,
     REQUIRE(TAILQ_FIRST(&layered_table.truncateqh) == surviving);
     REQUIRE(TAILQ_NEXT(surviving, q) == nullptr);
 
-    const char *key = "0150";
+    const char *key = "0125";
     REQUIRE(truncate_visible(key) == WT_NOTFOUND);
+
+    WT_TRUNCATE *matched = nullptr;
+    key = "0175";
+    REQUIRE(truncate_visible(key, &matched) == 0);
+    REQUIRE(matched == surviving);
 
     key = "0350";
     REQUIRE(truncate_visible(key) == 0);

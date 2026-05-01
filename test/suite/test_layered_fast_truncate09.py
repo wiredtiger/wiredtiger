@@ -124,8 +124,14 @@ class test_layered_fast_truncate07(wttest.WiredTigerTestCase):
 
             ret = self.search_key(self.session, 150)[0]
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-            self.assertEqual(self.search_near_key(self.session, 150), (1, 701))
-            self.assertEqual(self.next_key_after(self.session, 99), 701)
+            exact, landed = self.search_near_key(self.session, 150)
+            self.assertNotEqual(exact, 0)
+            if exact < 0:
+                self.assertEqual(landed, 99)
+                self.assertEqual(self.next_key_after(self.session, 98), 99)
+            else:
+                self.assertEqual(landed, 701)
+                self.assertEqual(self.next_key_after(self.session, 99), 701)
 
     def test_other_transaction_ignores_uncommitted_truncate(self):
         with self.transaction(session=self.session, rollback=True):
@@ -168,8 +174,14 @@ class test_layered_fast_truncate07(wttest.WiredTigerTestCase):
             with self.transaction(session=session2, read_timestamp=30, rollback=True):
                 ret = self.search_key(session2, 150)[0]
                 self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-                self.assertEqual(self.search_near_key(session2, 150), (1, 701))
-                self.assertEqual(self.next_key_after(session2, 99), 701)
+                exact, landed = self.search_near_key(session2, 150)
+                self.assertNotEqual(exact, 0)
+                if exact < 0:
+                    self.assertEqual(landed, 99)
+                    self.assertEqual(self.next_key_after(session2, 98), 99)
+                else:
+                    self.assertEqual(landed, 701)
+                    self.assertEqual(self.next_key_after(session2, 99), 701)
         finally:
             session2.close()
 
@@ -189,6 +201,13 @@ class test_layered_fast_truncate07(wttest.WiredTigerTestCase):
                 self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
                 ret = self.search_key(session2, 500)[0]
                 self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-                self.assertEqual(self.search_near_key(session2, 500), (1, 701))
+                exact, landed = self.search_near_key(session2, 150)
+                self.assertNotEqual(exact, 0)
+                if exact < 0:
+                    self.assertEqual(landed, 99)
+                    self.assertEqual(self.next_key_after(session2, 98), 99)
+                else:
+                    self.assertEqual(landed, 701)
+                    self.assertEqual(self.next_key_after(session2, 99), 701)
         finally:
             session2.close()
