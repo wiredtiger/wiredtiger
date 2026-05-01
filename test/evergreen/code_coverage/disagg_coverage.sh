@@ -172,49 +172,50 @@ run_format_tests() {
     local base_build="${WT_ROOT}/${BUILD_DIR_BASE}0"
     setup_gcov_prefix "$base_build"
 
-    local format_bin="$base_build/test/format/t"
-    local config_disagg="$WT_ROOT/test/format/CONFIG.disagg"
-
-    if [[ ! -x "$format_bin" ]]; then
-        echo "WARNING: format test binary not found at $format_bin, skipping format tests."
+    if [[ ! -x "$base_build/test/format/t" ]]; then
+        echo "WARNING: format test binary not found at $base_build/test/format/t, skipping format tests."
         unset_gcov_prefix
         return
     fi
 
-    # Leader mode — short run appropriate for coverage measurement.
-    # -h sets the home (RUNDIR) directory; keep it inside base_build so gcovr
-    # can find any .gcda files created there alongside the binary's own .gcda files.
-    echo "--- Format leader mode ---"
-    local format_home_leader="$base_build/RUNDIR_disagg_cov_leader"
-    rm -rf "$format_home_leader"
+    # Format must run from {BUILDDIR}/test/format/ so that the binary's
+    # compile-time relative extension paths (../../ext/...) resolve to
+    # {BUILDDIR}/ext/ which is where extensions were built.
+    # -h paths are absolute so they land in base_build regardless of CWD.
+    # The config path goes up 3 levels from test/format/ to reach WT_ROOT.
+    local format_dir="$base_build/test/format"
+    local config_disagg_rel="../../../test/format/CONFIG.disagg"
 
-    "$format_bin" \
-        -h "$format_home_leader" \
-        -c "$config_disagg" \
+    # Leader mode — short run appropriate for coverage measurement.
+    echo "--- Format leader mode ---"
+    rm -rf "$base_build/RUNDIR_disagg_cov_leader"
+
+    (cd "$format_dir" && ./t \
+        -h "$base_build/RUNDIR_disagg_cov_leader" \
+        -c "$config_disagg_rel" \
         disagg.mode=leader \
         runs.rows=10000 \
         runs.ops=50000 \
-        runs.timer=2:5 \
+        runs.timer=2:5) \
         || echo "WARNING: format leader run failed (partial coverage still recorded)"
 
     # Reopen run (-R) exercises crash-recovery and checkpoint-replay code paths.
     echo "--- Format leader reopen (-R) ---"
-    "$format_bin" -R -h "$format_home_leader" \
+    (cd "$format_dir" && ./t -R -h "$base_build/RUNDIR_disagg_cov_leader") \
         || echo "WARNING: format leader reopen failed (partial coverage still recorded)"
 
     # Follower mode: in a standalone run, no leader checkpoint data is available,
     # so this covers follower startup/shutdown code paths only.
     echo "--- Format follower mode ---"
-    local format_home_follower="$base_build/RUNDIR_disagg_cov_follower"
-    rm -rf "$format_home_follower"
+    rm -rf "$base_build/RUNDIR_disagg_cov_follower"
 
-    "$format_bin" \
-        -h "$format_home_follower" \
-        -c "$config_disagg" \
+    (cd "$format_dir" && ./t \
+        -h "$base_build/RUNDIR_disagg_cov_follower" \
+        -c "$config_disagg_rel" \
         disagg.mode=follower \
         runs.rows=10000 \
         runs.ops=50000 \
-        runs.timer=2:5 \
+        runs.timer=2:5) \
         || echo "WARNING: format follower run failed (partial coverage still recorded)"
 
     unset_gcov_prefix
@@ -257,9 +258,12 @@ run_gcovr() {
 
     # code_coverage_analysis.sh reads time.txt (start/end epoch seconds) to
     # report total test duration.  Create it if it doesn't exist.
+    # Use a 1-second delta so code_coverage_analysis.py doesn't divide by zero.
     if [[ ! -f time.txt ]]; then
-        echo "0" > time.txt
-        echo "0" >> time.txt
+        local now
+        now=$(date +%s)
+        echo "$((now - 1))" > time.txt
+        echo "$now" >> time.txt
     fi
 
     ./test/evergreen/code_coverage_analysis.sh \
