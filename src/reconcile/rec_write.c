@@ -302,7 +302,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     case WT_PAGE_ROW_LEAF:
         /* Track whether checkpoint is re-reconciling a page with an unresolved multiblock split. */
-        if (WT_REC_RESULT_MULTIBLOCK_SPLIT(page) && F_ISSET(r, WT_REC_CHECKPOINT))
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && WT_REC_RESULT_MULTIBLOCK_SPLIT(page) &&
+          F_ISSET(r, WT_REC_CHECKPOINT))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_split_re_reconciled);
         /*
          * It's important we wrap this call in a page index guard, the ikey on the ref may still be
@@ -3323,12 +3324,16 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * Delete the updates left in the history store by prepared rollback first before moving updates
      * to the history store.
      */
-    WT_ERR(__wti_rec_hs_delete_updates(session, r));
+    WT_ERR_MSG_CHK(session, __wti_rec_hs_delete_updates(session, r),
+      "failed to delete updates from history store during wrapup: btree=%" PRIu32, btree->id);
 
     is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
-            WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
+            WT_ERR_MSG_CHK(session, __wti_rec_hs_insert_updates(session, r, multi),
+              "failed to insert updates into history store during wrapup: btree=%" PRIu32
+              " supd_entries=%" PRIu32,
+              btree->id, multi->supd_entries);
             /* FIXME-WT-15709: build delta for split pages. */
             if (!is_disagg && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
                 __wt_free(session, multi->supd);

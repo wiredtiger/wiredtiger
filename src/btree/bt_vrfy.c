@@ -258,7 +258,7 @@ __verify_unique_btree_ids(WT_SESSION_IMPL *session)
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
-        if (!WT_PREFIX_MATCH(key, "file:") || !WT_SUFFIX_MATCH(key, ".wt_stable"))
+        if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
             continue;
         WT_ERR(cursor->get_value(cursor, &value));
         WT_ERR(__wt_config_getones(session, value, "id", &id_val));
@@ -344,7 +344,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * the verify session's exclusive lock is on the stable file, not the metadata file, so a shared
      * metadata cursor can be opened directly on the verify session.
      */
-    if (WT_SUFFIX_MATCH(name, ".wt_stable"))
+    if (WT_URI_IS_STABLE(name))
         WT_ERR(__verify_unique_btree_ids(session));
 
     /*
@@ -355,7 +355,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
-    } else if (WT_SUFFIX_MATCH(name, ".wt_ingest"))
+    } else if (WT_URI_IS_INGEST(name))
         WT_ERR_MSG(session, WT_ERROR,
           "verify (layered): ingest table %s unexpectedly has checkpoints. This is a fatal "
           "violation as the ingest table does not get checkpointed.",
@@ -1508,6 +1508,47 @@ __verify_page_content_leaf(
 }
 
 /*
+ * __verify_compare_page_id_lists --
+ *     Merge-compare btree_ids against pali_ids, emitting a verbose error for each page ID present
+ *     in one list but absent from the other.
+ */
+static int
+__verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, size_t num_btree,
+  const uint64_t *pali_ids, size_t num_pali)
+{
+    WT_DECL_RET;
+
+    for (uint32_t index_in_pali = 0, index_in_btree = 0;
+         index_in_pali <= num_pali && index_in_btree <= num_btree;) {
+        if (index_in_pali == num_pali && index_in_btree == num_btree)
+            break;
+        uint64_t id_in_pali =
+          index_in_pali < num_pali ? pali_ids[index_in_pali] : WT_BLOCK_INVALID_PAGE_ID_MAX;
+        uint64_t id_in_btree =
+          index_in_btree < num_btree ? btree_ids[index_in_btree] : WT_BLOCK_INVALID_PAGE_ID_MAX;
+
+        if (index_in_btree == num_btree || id_in_pali < id_in_btree) {
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
+              id_in_pali);
+            WT_TRET(EINVAL);
+            index_in_pali++;
+        } else if (index_in_pali == num_pali || id_in_pali > id_in_btree) {
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
+              id_in_btree);
+            WT_TRET(EINVAL);
+            index_in_btree++;
+        } else {
+            index_in_pali++;
+            index_in_btree++;
+        }
+    }
+
+    return (ret);
+}
+
+/*
  * __verify_page_discard --
  *     Verify all live pages in disagg mode, ensuring that no pages were incorrectly discarded.
  */
@@ -1578,35 +1619,10 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    for (uint32_t index_in_pali = 0, index_in_btree = 0;
-         index_in_pali <= num_pages_found_in_pali && index_in_btree <= num_pages_found_in_btree;) {
-        if (index_in_pali == num_pages_found_in_pali && index_in_btree == num_pages_found_in_btree)
-            break;
-        uint64_t id_in_pali =
-          index_in_pali < num_pages_found_in_pali ? ((uint64_t *)item->data)[index_in_pali] : 0;
-        uint64_t id_in_btree =
-          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
-
-        if (index_in_btree == num_pages_found_in_btree || id_in_pali < id_in_btree) {
-            __wt_verbose_error(session, WT_VERB_VERIFY,
-              "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
-              id_in_pali);
-            WT_TRET(EINVAL);
-            index_in_pali++;
-        } else if (index_in_pali == num_pages_found_in_pali || id_in_pali > id_in_btree) {
-            __wt_verbose_error(session, WT_VERB_VERIFY,
-              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
-              id_in_btree);
-            WT_TRET(EINVAL);
-            index_in_btree++;
-        } else {
-            index_in_pali++;
-            index_in_btree++;
-        }
-    }
-
-    if (ret != 0)
-        WT_ERR_MSG(session, ret, "Page discard verification found mismatches");
+    WT_ERR_MSG_CHK(session,
+      __verify_compare_page_id_lists(session, page_ids, (size_t)num_pages_found_in_btree,
+        (const uint64_t *)item->data, num_pages_found_in_pali),
+      "Page discard verification found mismatches");
 
 err:
 
@@ -1633,3 +1649,12 @@ __verify_compare_page_id(const void *a, const void *b)
 
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, size_t num_btree,
+  const uint64_t *pali_ids, size_t num_pali)
+{
+    return (__verify_compare_page_id_lists(session, btree_ids, num_btree, pali_ids, num_pali));
+}
+#endif

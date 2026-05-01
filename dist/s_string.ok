@@ -905,6 +905,7 @@ dirlist
 dirstore
 disagg
 disaggregated
+discoverable
 disproportionally
 distros
 disttop
@@ -1430,6 +1431,7 @@ pR
 pT
 packv
 pagesize
+pali
 palite
 param
 params
@@ -1753,6 +1755,7 @@ tombstoned
 toml
 toolchain
 totalsec
+tp
 traceapi
 tracepat
 transactional

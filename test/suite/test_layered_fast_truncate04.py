@@ -243,9 +243,6 @@ class test_layered_fast_truncate04(wttest.WiredTigerTestCase):
         self.assert_scan([self.key(i) for i in range(800)]
                          + [self.key(i) for i in range(1000, 1100)])
 
-    # FIXME-WT-17133: ingest truncate doesn't remove live ingest keys when the
-    # start key is absent from ingest.
-    @unittest.skip("FIXME-WT-17133")
     def test_mixed_truncate_and_update(self):
         # Update 200-400 on follower (lands as live committed values in ingest),
         # then truncate a range that covers them. Scans and search must hide them.

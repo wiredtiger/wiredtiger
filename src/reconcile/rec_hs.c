@@ -221,13 +221,18 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
             hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw,
               hs_insert_tw.durable_stop_ts, hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type,
               &hs_value);
-            WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
+            WT_ERR_MSG_CHK(session, hs_insert_cursor->insert(hs_insert_cursor),
+              "failed to reinsert history store record with corrected timestamp: btree=%" PRIu32
+              " time_window=%s",
+              btree_id, __wt_time_window_to_string(&hs_insert_tw, tw_string));
             ++(*counter);
             ++cache_hs_order_reinsert;
         }
 
         /* Delete the entry that needs to fix. */
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        WT_ERR_MSG_CHK(session, hs_cursor->remove(hs_cursor),
+          "failed to remove history store record during reorder: btree=%" PRIu32 " start_ts=%s",
+          btree_id, __wt_timestamp_to_string(hs_start_ts, ts_string));
         ++cache_hs_order_remove;
     }
     if (ret == WT_NOTFOUND)
@@ -374,6 +379,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     uint64_t upd_type_full_diag;
     uint32_t hs_btree_id;
     int cmp;
+    char tw_string[WT_TIME_STRING_SIZE];
     bool hs_read_all_flag, non_ts_updates;
 
     counter = hs_counter = 0;
@@ -545,7 +551,9 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, counter);
     cursor->set_value(
       cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
-    WT_ERR(cursor->insert(cursor));
+    WT_ERR_MSG_CHK(session, cursor->insert(cursor),
+      "failed to insert history store record: btree=%" PRIu32 " time_window=%s type=%s", btree->id,
+      __wt_time_window_to_string(tw, tw_string), __wt_update_type_str(type));
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE,
       "finished inserting an update to the history store for %p", (void *)ref);
@@ -666,6 +674,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     int nentries;
     bool check_prepared, enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed,
       hs_flag_set, hs_stats_updated;
+    char tw_string[WT_TIME_STRING_SIZE];
 
     conn = S2C(session);
     hs_flag_set = hs_stats_updated = false;
@@ -949,8 +958,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              */
             if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
               oldest_upd->upd_start_ts == WT_TS_NONE) {
-                WT_ERR(__wti_rec_hs_delete_key(
-                  session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
+                WT_ERR_MSG_CHK(session,
+                  __wti_rec_hs_delete_key(
+                    session, hs_cursor, btree->id, key, false, error_on_ts_ordering),
+                  "failed to clear stale history store entries before insert: btree=%" PRIu32,
+                  btree->id);
 
                 WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
 
@@ -1110,7 +1122,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
               modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
-                WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
+                WT_ERR_MSG_CHK(session,
+                  __wt_modify_pack(hs_cursor, entries, nentries, &modify_value),
+                  "failed to pack modify value for history store insertion: btree=%" PRIu32
+                  " time_window=%s",
+                  btree->id, __wt_time_window_to_string(&tw, tw_string));
                 WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_MODIFY,
                   modify_value, &tw, error_on_ts_ordering));
                 ++cache_hs_insert_reverse_modify;
@@ -1275,6 +1291,7 @@ __rec_hs_delete_record(
 {
     WT_BTREE *btree;
     WT_DECL_RET;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool hs_read_committed;
 
     WT_TIME_WINDOW *hs_tw;
@@ -1355,7 +1372,9 @@ __rec_hs_delete_record(
                 WT_ASSERT_ALWAYS(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw),
                   "Retrieved wrong update from history store: empty tombstone with stop timestamp");
         }
-        WT_ERR(r->hs_cursor->remove(r->hs_cursor));
+        WT_ERR_MSG_CHK(session, r->hs_cursor->remove(r->hs_cursor),
+          "failed to remove history store record: btree=%" PRIu32 " start_ts=%s", btree->id,
+          __wt_timestamp_to_string(upd->upd_start_ts, ts_string));
     }
 done:
     if (tombstone != NULL)

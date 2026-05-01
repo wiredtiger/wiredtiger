@@ -69,6 +69,13 @@
 /* Check whether a string is a legal URI for a btree object */
 #define WT_BTREE_PREFIX(str) (WT_PREFIX_MATCH(str, "file:") || WT_PREFIX_MATCH(str, "tiered:"))
 
+/* Check whether a URI refers to the stable constituent of a layered table (bare or checkpoint-view
+ * form). Don't use when strict-suffix semantics are required. */
+#define WT_URI_IS_STABLE(uri) (strstr(uri, ".wt_stable") != NULL)
+
+/* Check whether a URI refers to the ingest constituent of a layered table. */
+#define WT_URI_IS_INGEST(uri) WT_SUFFIX_MATCH(uri, ".wt_ingest")
+
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */
