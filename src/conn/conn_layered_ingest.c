@@ -346,22 +346,23 @@ static int
 __layered_drain_truncate_ingest_check(
   WT_CURSOR *ingest_cursor, const WT_ITEM *key, bool *has_ingest)
 {
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
 
     *has_ingest = false;
-    cbt = (WT_CURSOR_BTREE *)ingest_cursor;
     ingest_cursor->set_key(ingest_cursor, key);
     ret = ingest_cursor->search(ingest_cursor);
     if (ret == 0)
         *has_ingest = true;
     else if (ret == WT_NOTFOUND) {
+#ifdef HAVE_DIAGNOSTIC
         /*
          * Ingest deletions are stored as special-value updates, never as real tombstones; if
          * that invariant breaks, our absent-vs-deleted distinction is wrong, so fail loudly.
          */
+        WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)ingest_cursor;
         WT_ASSERT(CUR2S(ingest_cursor),
           cbt->compare != 0 || cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
+#endif
         ret = 0;
     }
     WT_TRET(ingest_cursor->reset(ingest_cursor));
