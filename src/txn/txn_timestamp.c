@@ -203,6 +203,8 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         ts = txn_global->recovery_timestamp;
     else if (WT_CONFIG_LIT_MATCH("stable_timestamp", cval) || WT_CONFIG_LIT_MATCH("stable", cval))
         ts = __wt_get_stable_timestamp(session);
+    else if (WT_CONFIG_LIT_MATCH("stable_disaggregated_schema_epoch", cval))
+        ts = __wt_get_stable_disaggregated_schema_epoch(session);
     else
         WT_RET_MSG(session, EINVAL, "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
@@ -326,10 +328,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t durable_ts, oldest_ts, stable_ts;
-    wt_timestamp_t last_oldest_ts, last_stable_ts;
+    wt_timestamp_t durable_ts, oldest_ts, stable_disagg_epoch, stable_ts;
+    wt_timestamp_t last_oldest_ts, last_stable_disagg_epoch, last_stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool force, has_durable, has_oldest, has_stable;
+    bool force, has_durable, has_oldest, has_stable, has_stable_disagg_epoch;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -350,8 +352,13 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     if (has_stable)
         WT_STAT_CONN_INCR(session, txn_set_ts_stable);
 
+    WT_RET(__wt_config_gets_def(session, cfg, "stable_disaggregated_schema_epoch", 0, &cval));
+    has_stable_disagg_epoch = cval.len != 0;
+    if (has_stable_disagg_epoch)
+        WT_STAT_CONN_INCR(session, txn_set_ts_stable_disagg_epoch);
+
     /* If no timestamp was supplied, there's nothing to do. */
-    if (!has_durable && !has_oldest && !has_stable)
+    if (!has_durable && !has_oldest && !has_stable && !has_stable_disagg_epoch)
         return (0);
 
     /*
@@ -360,6 +367,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_parse_timestamp(session, "durable timestamp", &durable_ts, &durable_cval));
     WT_RET(__wt_txn_parse_timestamp(session, "oldest timestamp", &oldest_ts, &oldest_cval));
     WT_RET(__wt_txn_parse_timestamp(session, "stable timestamp", &stable_ts, &stable_cval));
+    WT_RET(__wt_txn_parse_timestamp(
+      session, "stable disaggregated schema epoch", &stable_disagg_epoch, &cval));
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
@@ -373,8 +382,13 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     last_oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
     last_stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
+    last_stable_disagg_epoch =
+      __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch);
 
-    /* It is an invalid call to set the oldest or stable timestamps behind the current values. */
+    /*
+     * It is an invalid call to set the oldest or stable timestamps or the stable disaggregated
+     * schema epoch behind the current values.
+     */
     if (has_oldest && __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) &&
       oldest_ts < last_oldest_ts) {
         __wt_readunlock(session, &txn_global->rwlock);
@@ -391,6 +405,17 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
           "set_timestamp: stable timestamp %s must not be older than current stable timestamp %s",
           __wt_timestamp_to_string(stable_ts, ts_string[0]),
           __wt_timestamp_to_string(last_stable_ts, ts_string[1]));
+    }
+
+    if (has_stable_disagg_epoch &&
+      __wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) &&
+      stable_disagg_epoch < last_stable_disagg_epoch) {
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: stable disaggregated schema epoch %s must not be older than current "
+          "stable disaggregated schema epoch %s",
+          __wt_timestamp_to_string(stable_disagg_epoch, ts_string[0]),
+          __wt_timestamp_to_string(last_stable_disagg_epoch, ts_string[1]));
     }
 
     /*
@@ -418,7 +443,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_readunlock(session, &txn_global->rwlock);
 
     /* Check if we are actually updating anything. */
-    if (!has_durable && !has_oldest && !has_stable)
+    if (!has_durable && !has_oldest && !has_stable && !has_stable_disagg_epoch)
         return (0);
 
 set:
@@ -456,6 +481,19 @@ set:
         __wt_atomic_store_bool_release(&txn_global->has_stable_timestamp, true);
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
+    }
+
+    /* Stable disaggregated schema epoch cannot be forced to move backwards. */
+    if (has_stable_disagg_epoch &&
+      (!__wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) ||
+        stable_disagg_epoch >
+          __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch))) {
+        __wt_atomic_store_uint64_relaxed(
+          &txn_global->stable_disaggregated_schema_epoch, stable_disagg_epoch);
+        __wt_atomic_store_bool_release(&txn_global->has_stable_disaggregated_schema_epoch, true);
+        WT_STAT_CONN_INCR(session, txn_set_ts_stable_disagg_epoch_upd);
+        __wt_verbose_timestamp(
+          session, stable_disagg_epoch, "Updated global stable disaggregated schema epoch");
     }
 
     /*

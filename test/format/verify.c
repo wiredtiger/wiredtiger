@@ -44,8 +44,7 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, table->track_prefix,
-      enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, table->track_prefix, session_prefetch_cfg(), &session);
     ret = session->verify(session, table->uri, "strict");
     /*
      * On followers, verify returns ENOENT if the stable constituent is missing. Before the first
@@ -185,8 +184,7 @@ table_verify_mirror(
     failures = 0;
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(
-      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, session_prefetch_cfg(), &session);
 
     /* Optionally open a checkpoint to verify. */
     if (checkpoint != NULL)

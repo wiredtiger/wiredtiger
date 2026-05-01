@@ -97,6 +97,9 @@ random_failure(void)
 {
     static char *core = NULL;
 
+    /* Let the handlers know that we are expecting a failure. */
+    __wt_atomic_store_bool(&g.expect_failure, true);
+
     /*
      * Let our caller know. Note, format.sh checks for this message, so be cautious in changing the
      * format.
@@ -1278,8 +1281,18 @@ rollback_retry:
             val_gen(table, &tinfo->data_rnd, tinfo->new_value, tinfo->keyno);
 
         /* If modify, build a modify change vector. */
-        if (op == MODIFY)
+        if (op == MODIFY) {
+            /*
+             * FIXME-WT-17311: If we can make modify return WT_ROLLBACK instead of WT_NOTFOUND when
+             * it sees an outdated tombstone, we will no longer need this rollback check. The
+             * WT_ROLLBACK will signal that we need to try again with a higher read timestamp, and
+             * the rollback will be triggered automatically in predictable replay mode.
+             */
+            if (replay_stale_read_ts(tinfo))
+                goto rollback;
+
             modify_build(tinfo);
+        }
 
         ret = 0;
         skip1 = skip2 = NULL;
@@ -1620,8 +1633,7 @@ wts_read_scan(TABLE *table, void *args)
 
     /* Open a session and cursor pair. */
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(
-      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, session_prefetch_cfg(), &session);
     wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */

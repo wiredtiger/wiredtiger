@@ -124,8 +124,6 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
-
-    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -524,10 +522,11 @@ struct __wt_name_flag {
 
 /*
  * WT_LAYERED_DRAIN_ENTRY --
- *	Queue entry for layered table drain threads.
+ *	Queue entry for layered table drain threads. Holds a pinned ingest btree dhandle
+ *	(via session_inuse) so the dhandle stays open while the work item is processed.
  */
 struct __wt_layered_drain_entry {
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_DATA_HANDLE *ingest_dhandle;
     TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 
@@ -1134,7 +1133,7 @@ struct __wt_connection_impl {
 #define WT_CONN_OPTRACK 0x00800u
 #define WT_CONN_PANIC 0x01000u
 #define WT_CONN_READY 0x02000u
-#define WT_CONN_RECONFIGURING 0x04000u
+#define WT_CONN_RECONFIGURING_CACHE_POOL 0x04000u
 #define WT_CONN_RECONFIGURING_STEP_UP 0x08000u
 #define WT_CONN_TIERED_FIRST_FLUSH 0x10000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */

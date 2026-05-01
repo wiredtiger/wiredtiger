@@ -29,10 +29,11 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
-#define WT_TXN_LOG_CKPT_PREPARE 0x02u
-#define WT_TXN_LOG_CKPT_START 0x04u
-#define WT_TXN_LOG_CKPT_STOP 0x08u
-#define WT_TXN_LOG_CKPT_SYNC 0x10u
+#define WT_TXN_LOG_CKPT_FLUSH 0x02u
+#define WT_TXN_LOG_CKPT_PREPARE 0x04u
+#define WT_TXN_LOG_CKPT_START 0x08u
+#define WT_TXN_LOG_CKPT_STOP 0x10u
+#define WT_TXN_LOG_CKPT_SYNC 0x20u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -185,12 +186,14 @@ struct __wt_txn_global {
     wt_shared wt_timestamp_t oldest_timestamp;
     wt_shared wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
+    wt_shared wt_timestamp_t stable_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t stable_timestamp;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;
     wt_shared bool has_oldest_timestamp;
     wt_shared bool has_pinned_timestamp;
+    wt_shared bool has_stable_disaggregated_schema_epoch;
     wt_shared bool has_stable_timestamp;
     wt_shared bool oldest_is_pinned;
     wt_shared bool stable_is_pinned;
@@ -470,10 +473,21 @@ struct __wt_txn {
 /*
  * WT_FIX_PREPARED_COOKIE --
  *   State passed to find the prepared transaction to fix when draining the ingest btree.
+ *   The owning session is identified by either of two ids depending on how the prepared
+ *   transaction came to live in this connection:
+ *     - txnid: matches a session whose prepared transaction remained in-flight across
+ *       step-up and therefore still carries a transaction id.
+ *     - prepared_id: matches a session that reclaimed the prepared transaction from a
+ *       checkpoint at startup recovery. Such a session has no transaction id assigned but
+ *       does carry a prepared id.
+ *   Both ids must be set to the values associated with the prepared transaction being
+ *   fixed; the callback prefers txnid when the candidate session has a transaction id and
+ *   falls back to prepared_id otherwise.
  */
 struct __wt_fix_prepared_cookie {
     WT_BTREE *ingest_btree;
     WT_BTREE *stable_btree;
     WT_ITEM *key;
     uint64_t txnid;
+    uint64_t prepared_id;
 };

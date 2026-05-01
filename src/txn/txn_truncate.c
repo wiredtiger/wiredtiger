@@ -47,18 +47,9 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 
     int compare_result = 0;
 
-    /* A zeroed start key indicates a truncate from the beginning of the table. */
-    if (start_key->size != 0) {
-        WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
-        if (compare_result < 0) {
-            *is_within_rangep = false;
-            return (0);
-        }
-    }
-
-    /* A zeroed stop key indicates a truncate to end of table. */
-    if (stop_key->size == 0) {
-        *is_within_rangep = true;
+    WT_RET(__wt_compare(session, collator, key, start_key, &compare_result));
+    if (compare_result < 0) {
+        *is_within_rangep = false;
         return (0);
     }
 
@@ -103,6 +94,8 @@ int
 __wt_insert_truncate_entry(
   WT_SESSION_IMPL *session, const char *uri, WT_ITEM *start_key, WT_ITEM *stop_key)
 {
+    WT_DECL_ITEM(start_buf);
+    WT_DECL_ITEM(stop_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *t = NULL;
@@ -120,16 +113,23 @@ __wt_insert_truncate_entry(
       "failed to get layered dhandle for truncate entry insert");
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
+    /* Caller resolves open-ended ranges to concrete keys before reaching us. */
+    WT_ASSERT(session, start_key != NULL && stop_key != NULL);
+    WT_ASSERT(session, start_key->size != 0 && stop_key->size != 0);
+
+    WT_RET(__wt_scr_alloc(session, 0, &start_buf));
+    WT_RET(__wt_scr_alloc(session, 0, &stop_buf));
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
+      "insert entry into truncate list on table %s: start=%s stop=%s", uri,
+      __wt_key_string(
+        session, start_key->data, start_key->size, layered_table->key_format, start_buf),
+      __wt_key_string(
+        session, stop_key->data, stop_key->size, layered_table->key_format, stop_buf));
+
     WT_ERR(__wt_calloc_one(session, &t));
     WT_ERR(__wt_strdup(session, uri, &t->uri));
-
-    /* A NULL start key indicates a truncate starts from the beginning of the table. */
-    if (start_key != NULL)
-        WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
-
-    /* A NULL stop key indicates a truncate to end of table. */
-    if (stop_key != NULL)
-        WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
+    WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
+    WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
 
     /*
      * Mark the WT_TRUNCATE object modified by the current transaction. Also required to update the
@@ -142,8 +142,10 @@ __wt_insert_truncate_entry(
 err:
         __disagg_truncate_free(session, &t);
     }
-
     WT_TRET(__wt_session_release_dhandle(session));
+    __wt_scr_free(session, &start_buf);
+    __wt_scr_free(session, &stop_buf);
+
     return (ret);
 }
 
