@@ -75,13 +75,14 @@
  */
 #define WT_TIME_WINDOW_SET_START(tw, upd, write_prepare)                                    \
     do {                                                                                    \
-        (tw)->start_txn = __wt_atomic_load_uint64_v_acquire(&(upd)->txnid);                 \
         if (write_prepare) {                                                                \
+            (tw)->start_txn = __wt_atomic_load_uint64_v_acquire(&(upd)->txnid);             \
             (tw)->start_prepare_ts = (upd)->prepare_ts;                                     \
             (tw)->start_prepared_id = (upd)->prepared_id;                                   \
             if ((tw)->start_txn == WT_TXN_ABORTED)                                          \
                 (tw)->start_txn = __wt_atomic_load_uint64_relaxed(&(upd)->upd_saved_txnid); \
         } else {                                                                            \
+            (tw)->start_txn = __wt_atomic_load_uint64_v_relaxed(&(upd)->txnid);             \
             (tw)->start_ts = (upd)->upd_start_ts;                                           \
             (tw)->durable_start_ts = (upd)->upd_durable_ts;                                 \
         }                                                                                   \
@@ -94,13 +95,14 @@
  */
 #define WT_TIME_WINDOW_SET_STOP(tw, upd, write_prepare)                                    \
     do {                                                                                   \
-        (tw)->stop_txn = __wt_atomic_load_uint64_v_acquire(&(upd)->txnid);                 \
         if (write_prepare) {                                                               \
+            (tw)->stop_txn = __wt_atomic_load_uint64_v_acquire(&(upd)->txnid);             \
             (tw)->stop_prepare_ts = (upd)->prepare_ts;                                     \
             (tw)->stop_prepared_id = (upd)->prepared_id;                                   \
             if ((tw)->stop_txn == WT_TXN_ABORTED)                                          \
                 (tw)->stop_txn = __wt_atomic_load_uint64_relaxed(&(upd)->upd_saved_txnid); \
         } else {                                                                           \
+            (tw)->stop_txn = __wt_atomic_load_uint64_v_relaxed(&(upd)->txnid);             \
             (tw)->stop_ts = (upd)->upd_start_ts;                                           \
             (tw)->durable_stop_ts = (upd)->upd_durable_ts;                                 \
         }                                                                                  \
