@@ -51,7 +51,7 @@ class test_timestamp29(wttest.WiredTigerTestCase):
             self.conn.query_timestamp('get=stable_disaggregated_schema_epoch'),
             self.timestamp_str(expected_ts))
 
-    def assertLastEpochEqual(self, expected_ts):
+    def assertLastCheckpointEpochEqual(self, expected_ts):
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=last_disaggregated_schema_epoch'),
             self.timestamp_str(expected_ts))
@@ -166,45 +166,46 @@ class test_timestamp29(wttest.WiredTigerTestCase):
 
         # The first checkpoint, taken before the epoch is set, records 0 in the checkpoint.
         self.session.checkpoint()
-        self.assertLastEpochEqual(0)
+        self.assertLastCheckpointEpochEqual(0)
 
-        # Set the epoch (alongside the required ordering timestamps), checkpoint, and verify the
-        # value is written into the checkpoint.
+        # Set the timestamps and the epoch, checkpoint, and verify that the epoch value is included
+        # in the checkpoint.
         self.conn.set_timestamp(
             'oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(10) +
             ',stable_disaggregated_schema_epoch=' + self.timestamp_str(10))
         self.assertEpochEqual(10)
         self.session.checkpoint()
-        self.assertLastEpochEqual(10)
+        self.assertLastCheckpointEpochEqual(10)
 
         # Restart the connection. The new connection should pick up the latest epoch value from the
         # latest checkpoint.
         with self.expectedStdoutPattern('Removing local file'):
             self.reopen_conn()
-        self.assertLastEpochEqual(10)
+        self.assertLastCheckpointEpochEqual(10)
 
-        # Advancing the epoch and checkpointing updates the epoch in the checkpoint to the new value.
+        # Advancing the epoch and the timestamps should update the epoch in the checkpoint to the
+        # new value.
         self.conn.set_timestamp(
             'oldest_timestamp=' + self.timestamp_str(20) +
             ',stable_timestamp=' + self.timestamp_str(30) +
             ',stable_disaggregated_schema_epoch=' + self.timestamp_str(30))
         self.assertEpochEqual(30)
         self.session.checkpoint()
-        self.assertLastEpochEqual(30)
+        self.assertLastCheckpointEpochEqual(30)
 
         # A checkpoint without changing the epoch leaves it at the same value.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
         self.session.checkpoint()
-        self.assertLastEpochEqual(30)
+        self.assertLastCheckpointEpochEqual(30)
 
-        # A checkpoint that changes only the epoch does not get skipped.
+        # A checkpoint that changes only the epoch also advances the epoch value in the checkpoint.
         self.conn.set_timestamp('stable_disaggregated_schema_epoch=' + self.timestamp_str(40))
         self.session.checkpoint()
-        self.assertLastEpochEqual(40)
+        self.assertLastCheckpointEpochEqual(40)
 
         # Restart the connection to check that the new value was preserved.
         with self.expectedStdoutPattern('Removing local file'):
             self.reopen_conn()
-        self.assertEpochEqual(0)       # The epoch value must be set explicitly by the caller.
-        self.assertLastEpochEqual(40)  # The last epoch value is picked up from the checkpoint.
+        self.assertEpochEqual(0) # The "current" epoch value must be set explicitly by the caller.
+        self.assertLastCheckpointEpochEqual(40)
