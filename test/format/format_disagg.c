@@ -246,8 +246,18 @@ disagg_switch_roles(void)
         wts_prepare_discover(g.wts_conn);
     } else {
         /* Stepping up: [follower -> leader] */
+        SAP sap;
+        WT_SESSION *session;
+
         track("[role change] follower -> leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
+
+        /* Advance timestamps and take a checkpoint immediately after becoming leader. */
+        memset(&sap, 0, sizeof(sap));
+        wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+        timestamp_once(session, false, false);
+        testutil_check(session->checkpoint(session, NULL));
+        wt_wrap_close_session(session);
     }
 
     /* After every switch, verify the contents of each table */
