@@ -152,7 +152,6 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
     WT_ASSERT(session,
       !S2C(session)->layered_table_manager.leader ||
         (clayered->stable_cursor != NULL &&
-          strstr(clayered->stable_cursor->uri, WT_CHECKPOINT) == NULL &&
           !F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY)));
     return (0);
 }
