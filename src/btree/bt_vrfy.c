@@ -291,6 +291,85 @@ err:
 }
 
 /*
+ * __wt_verify_disagg_database_size --
+ *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
+ *     checkpoint size for every file, then compare the total against the stored database size.
+ */
+int
+__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t database_size, ckpt_size, total_size;
+    const char *uri, *value;
+
+    conn = S2C(session);
+    cursor = NULL;
+    total_size = 0;
+
+    database_size = conn->disaggregated_storage.database_size;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+
+        /* Only consider file URIs as only they contribute to database_size. */
+        if (!WT_PREFIX_MATCH(uri, "file:") || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
+            continue;
+
+        /* Look up the metadata string and extract the most recent checkpoint size. */
+        WT_ERR(cursor->get_value(cursor, &value));
+        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, value, &ckpt_size), true);
+        if (ret == WT_NOTFOUND)
+            continue;
+
+        total_size += ckpt_size;
+
+        __wt_verbose_debug3(session, WT_VERB_VERIFY,
+          "disagg database size verify: %s checkpoint size %" PRIu64, uri, ckpt_size);
+    }
+    /*
+     * A not found error is okay. cursor->next() returns it once it goes through all the metadata
+     * entries.
+     */
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    /*
+     * Three cases to consider after the metadata walk:
+     *
+     * 1. database_size == 0 and total_size == 0: the database has never been checkpointed.
+     *    Both values are zero, which is a valid pre-checkpoint state. Skip the comparison.
+     *
+     * 2. database_size > 0 but total_size == 0: checkpoints exist in the stored size but
+     *    no matching btree checkpoint sizes were found in metadata. This indicates a
+     *    mismatch and is caught by the comparison below after adding the buffer.
+     *
+     * 3. database_size == 0 but total_size > 0: btree checkpoints exist in metadata but
+     *    the stored database_size was not written (e.g. metadata corruption). The comparison
+     *    below will catch this because total_size + WT_DISAGG_CHECKPOINT_SIZE_BUFFER != 0.
+     */
+    if (database_size != 0 || total_size != 0) {
+        /*
+         * Add the fixed overhead for the KEK table and shared turtle page. These are not tracked in
+         * any btree's checkpoint size but are always included in database_size.
+         */
+        total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+
+        if (total_size != database_size)
+            WT_ERR_MSG(session, WT_ERROR,
+              "database size mismatch: sum of btree checkpoint sizes %" PRIu64
+              " does not match stored database size %" PRIu64,
+              total_size, database_size);
+    }
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
  * __wt_verify --
  *     Verify a file.
  */
@@ -422,7 +501,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Account for the root page in the accumulated total block size. */
             WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
-            /* Validate the size of the btree */
+            /* Validate the size of the btree. */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
                 /*
                  * FIXME-WT-16660: We are seeing mismatches due to nuanced reconciliation issues,
