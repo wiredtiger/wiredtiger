@@ -29,7 +29,7 @@
 # test_timestamp29.py
 #   Timestamps: Test setting and querying the stable disaggregated schema epoch.
 
-import re, time
+import time
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from wiredtiger import stat
