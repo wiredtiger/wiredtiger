@@ -120,7 +120,7 @@ struct __wt_layered_table {
      */
     TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
 
-    WT_RWLOCK truncate_lock; /* R/W Lock used for managing changes to truncate list.*/
+    WT_RWLOCK truncate_lock; /* Protects truncate list membership and entry visibility metadata. */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LAYERED_TABLE_OPEN 0x1u
