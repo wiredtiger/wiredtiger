@@ -10,24 +10,20 @@
 
 /*
  * __wt_session_prefetch_check --
- *     Check if pre-fetching work should be performed for a given ref.
+ *     Check if pre-fetching should be triggered for a given ref. Pre-fetching is skipped for
+ *     internal sessions, internal pages, tiered tables, special btree handles, an overwhelmed
+ *     prefetch queue, and sessions that have not yet read enough pages from disk to justify it.
+ *     Internal pages are excluded because identifying which leaf pages to preload from an internal
+ *     page traversal is non-trivial.
  */
 bool
 __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    /*
-     * Check if pre-fetching is enabled for this particular session. We don't perform pre-fetching
-     * on internal threads or internal pages (finding the right content to preload based on internal
-     * pages is hard), so check for that too. We also want to pre-fetch sessions that have read at
-     * least one page from disk. The result of this function will subsequently be checked by cursor
-     * logic to determine if pre-fetching will be performed.
-     */
     if (!F_ISSET(session, WT_SESSION_PREFETCH_ENABLED))
         return (false);
 
     WT_STAT_CONN_INCR(session, prefetch_enabled);
 
-    /* Disable pre-fetch work on tiered tables. */
     if (__wt_atomic_load_enum_relaxed(&session->dhandle->type) == WT_DHANDLE_TYPE_TIERED ||
       __wt_atomic_load_enum_relaxed(&session->dhandle->type) == WT_DHANDLE_TYPE_TIERED_TREE)
         return (false);
