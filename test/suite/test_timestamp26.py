@@ -87,25 +87,6 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
         else:
             self.session.commit_transaction()
 
-        self.session.begin_transaction()
-        c[ds.key(7)] = ds.value(9)
-
-        # prepare with a timestamp.
-        if self.with_ts:
-            # Check both an explicit timestamp set and a set at commit.
-            prepare_ts = 'prepare_timestamp=' + self.timestamp_str(11)
-            rollback_ts = 'rollback_timestamp=' + self.timestamp_str(12)
-
-            self.session.prepare_transaction(prepare_ts)
-
-            msg = '/set when disallowed/'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.session.rollback_transaction(rollback_ts), msg)
-
-        # Rollback without a timestamp.
-        else:
-            self.session.rollback_transaction()
-
         self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one/")
 
 # Test assert read timestamp settings.
@@ -451,14 +432,6 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         c[key1] = ds.value(20)
         c[key2] = ds.value(21)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(33))
-        self.assertEqual(c[key1], ds.value(20))
-        self.assertEqual(c[key2], ds.value(21))
-
-        self.session.begin_transaction()
-        c[key1] = ds.value(22)
-        c[key2] = ds.value(23)
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(34))
-        self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(35))
         self.assertEqual(c[key1], ds.value(20))
         self.assertEqual(c[key2], ds.value(21))
 

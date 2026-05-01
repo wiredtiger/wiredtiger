@@ -948,12 +948,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
     btree->modified = true;
 
     /* Revert the in-memory root page accounting as we have failed during checkpointing. */
-    if (btree->root_size_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
-        __wt_btree_decrease_size(session, btree->current_root_size);
-        __wt_btree_increase_size(session, btree->previous_root_size);
-
-        btree->current_root_size = btree->previous_root_size;
-    }
+    __wt_block_disagg_checkpoint_rollback(session);
     __wt_ckptlist_free(session, &btree->ckpt);
 }
 
@@ -2852,6 +2847,20 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
 
         fake_ckpt = true;
         __wt_checkpoint_update_generation(session, btree);
+
+        if (__wt_conn_is_disagg(session)) {
+            /*
+             * In disaggregated storage, fake checkpoints must go through the block manager
+             * start/resolve cycle so their metadata is pushed to shared storage. Without this, the
+             * fake checkpoint only exists in local metadata. If leadership changes, the new node
+             * has no knowledge of the fake checkpoint and starts the checkpoint order at 1 again,
+             * producing a duplicate order with a different time and risking data corruption when
+             * metadata is merged.
+             */
+            WT_ERR(bm->checkpoint_start(bm, session));
+            resolve_bm = true;
+        }
+
         goto fake;
     }
 

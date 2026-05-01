@@ -20,11 +20,9 @@
  */
 
 #include <catch2/catch.hpp>
-#include "../../wrappers/mock_session.h"
+#include "wrappers/mock_session.h"
 
-extern "C" {
 #include "wt_internal.h"
-}
 
 /*
  * Fixture: a minimal session and a hand-constructed WT_LAYERED_TABLE with an empty truncate list.

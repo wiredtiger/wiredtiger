@@ -167,6 +167,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
     checkpoint_order = checkpoint_order_new = 0;
     checkpoint_time = checkpoint_time_new = 0;
     *checkpoint_name = checkpoint_name_new = NULL;
+    *discardp = false;
 
     WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, cfg_current, checkpoint_name, &checkpoint_order,
                          &checkpoint_time),
@@ -174,7 +175,6 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
     /* Early exit if we can't find the configuration of last checkpoint. */
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, *checkpoint_name == NULL);
-        *discardp = false;
         return (0);
     }
 
@@ -187,16 +187,28 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
       true);
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, checkpoint_name_new == NULL);
-        *discardp = false;
         return (0);
     }
 
-    /*
-     * Treat the checkpoint order and time configurations as the source of truth when determining
-     * whether the checkpoint has changed.
-     */
-    *discardp =
-      !(checkpoint_order == checkpoint_order_new && checkpoint_time == checkpoint_time_new);
+    if (checkpoint_order == checkpoint_order_new) {
+        /*
+         * Checkpoint orders are strictly increasing if the checkpoints are written by different
+         * nodes.
+         */
+        if (checkpoint_time != checkpoint_time_new)
+            WT_ERR_PANIC(session, WT_PANIC,
+              "Checkpoint order should be strictly increasing. "
+              "Current checkpoint order: %" PRId64 ", time: %" PRIu64
+              ". New checkpoint order: %" PRId64 ", time: %" PRIu64
+              ". Current configuration: '%s'. New configuration: '%s'.",
+              checkpoint_order, checkpoint_time, checkpoint_order_new, checkpoint_time_new,
+              cfg_current, cfg_new);
+    } else
+        /*
+         * Treat the checkpoint order configurations as the source of truth when determining whether
+         * the checkpoint has changed.
+         */
+        *discardp = true;
 
 #ifdef HAVE_DIAGNOSTIC
     if (!*discardp)
@@ -283,6 +295,8 @@ __disagg_apply_checkpoint_meta(
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
+    WT_TIMER apply_timer;
+    uint64_t apply_elapsed_ms;
     uint32_t existing_tables, new_tables, new_ingest;
     char *current_value_copy, *layered_ingest_uri, *cfg_ret;
     const char *cfg[3], *checkpoint_name, *current_value, *metadata_checkpoint_name, *metadata_key,
@@ -297,6 +311,7 @@ __disagg_apply_checkpoint_meta(
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
+    __wt_timer_start(session, &apply_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
@@ -361,8 +376,6 @@ __disagg_apply_checkpoint_meta(
              * date. Any new opens will get the new metadata.
              *
              * FIXME-WT-14730: check that the other parts of the metadata are identical.
-             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
-             * different nodes.
              */
             WT_ERR(__disagg_discard_old_checkpoint_check(
               session, current_value_copy, cfg_ret, &checkpoint_name, &discard));
@@ -426,10 +439,12 @@ __disagg_apply_checkpoint_meta(
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
+    WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
-      " new ingest tables",
-      existing_tables, new_tables, new_ingest);
+      " new ingest tables in %" PRIu64 "ms",
+      existing_tables, new_tables, new_ingest, apply_elapsed_ms);
 
 done:
 err:
@@ -522,7 +537,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    uint64_t current_meta_lsn;
+    WT_TIMER pickup_timer;
+    uint64_t current_meta_lsn, pickup_elapsed_ms;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -559,6 +575,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
         goto err;
     }
 
+    __wt_timer_start(session, &pickup_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
@@ -600,9 +617,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
 
     /* Log the completion of the checkpoint pick-up. */
+    __wt_timer_evaluate_ms(session, &pickup_timer, &pickup_elapsed_ms);
+    WT_STAT_CONN_SET(session, disagg_pick_up_checkpoint_time, pickup_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
-      ckpt_meta->metadata_lsn);
+      "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 " in %" PRIu64
+      "ms",
+      ckpt_meta->metadata_lsn, pickup_elapsed_ms);
 
 err:
     if (ret == 0) {
