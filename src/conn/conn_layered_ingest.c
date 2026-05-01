@@ -530,21 +530,20 @@ err:
 static int
 __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_uri)
 {
-    WT_CURSOR *ingest_raw_cursor, *stable_cursor, *stable_raw_cursor;
+    WT_CURSOR *ingest_raw_cursor, *stable_raw_cursor;
     WT_CURSOR_BTREE *stable_cbt;
+    WT_DATA_HANDLE *layered_dhandle;
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_SESSION *wt_session;
     WT_TRUNCATE *t;
-    const char *stable_uri;
-    bool layered_dhandle_acquired, queue_empty, truncate_locked;
-    const char *open_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+    bool truncate_locked;
 
-    ingest_raw_cursor = stable_cursor = stable_raw_cursor = NULL;
+    ingest_raw_cursor = stable_raw_cursor = NULL;
+    layered_dhandle = NULL;
     layered_table = NULL;
-    layered_dhandle_acquired = truncate_locked = false;
+    truncate_locked = false;
     wt_session = (WT_SESSION *)session;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
@@ -552,11 +551,9 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
 
     /*
      * The truncate queue lives on the layered dhandle. A follower-only state that never opened
-     * the layered URI has no pending truncates -- nothing to replay. Briefly acquire the dhandle
-     * to read the stable URI off the layered_table struct (the dhandle cache keeps the struct
-     * pinned after release, so the pointer stays valid), then release before opening cursors --
-     * cursor opens swap session->dhandle and we want the layered dhandle held cleanly only over
-     * the lock-and-iterate window below.
+     * the layered URI has no pending truncates -- nothing to replay. Capture the dhandle pointer
+     * so the release in the err path always operates on the layered dhandle, regardless of where
+     * cursor opens leave session->dhandle.
      */
     WT_ERR_NOTFOUND_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
@@ -564,28 +561,22 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
         ret = 0;
         goto err;
     }
-    layered_table = (WT_LAYERED_TABLE *)session->dhandle;
-    stable_uri = layered_table->stable_uri;
-    queue_empty = TAILQ_EMPTY(&layered_table->truncateqh);
-    WT_ERR(__wt_session_release_dhandle(session));
-    layered_table = NULL;
-    if (queue_empty)
+    layered_dhandle = session->dhandle;
+    layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
+
+    __wt_readlock(session, &layered_table->truncate_lock);
+    truncate_locked = true;
+    if (TAILQ_EMPTY(&layered_table->truncateqh))
         goto err;
 
-    WT_ERR(__wt_open_cursor(session, stable_uri, NULL, open_cfg, &stable_cursor));
-    stable_cbt = (WT_CURSOR_BTREE *)stable_cursor;
-    WT_ERR(
-      wt_session->open_cursor(wt_session, stable_uri, NULL, "raw=true", &stable_raw_cursor));
+    WT_ERR(wt_session->open_cursor(
+      wt_session, layered_table->stable_uri, NULL, "raw=true", &stable_raw_cursor));
+    stable_cbt = (WT_CURSOR_BTREE *)stable_raw_cursor;
     WT_ERR(
       wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
 
-    WT_ERR(__wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0));
-    layered_dhandle_acquired = true;
-    layered_table = (WT_LAYERED_TABLE *)session->dhandle;
-    __wt_readlock(session, &layered_table->truncate_lock);
-    truncate_locked = true;
     TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
-        /* Uncommitted entries carry no real timestamps and may still roll back. */
+        /* Skip uncommitted truncates. */
         if (t->txn_id == WT_TXN_NONE)
             continue;
         WT_ERR(__layered_drain_truncate_to_stable(
@@ -601,17 +592,17 @@ err:
         WT_TRET(ingest_raw_cursor->close(ingest_raw_cursor));
     if (stable_raw_cursor != NULL)
         WT_TRET(stable_raw_cursor->close(stable_raw_cursor));
-    if (stable_cursor != NULL)
-        WT_TRET(stable_cursor->close(stable_cursor));
-    /*
-     * Drop the queue unconditionally. On success the entries have all been applied or were
-     * uncommittable; on error any partial progress is abandoned, and leaving entries behind would
-     * cause an incoherent retry against a stable table that already saw some of them.
-     */
+    /* Drop the truncate list, all entries should have been applied. */
     if (layered_table != NULL)
         __wt_layered_table_truncate_clear(session, layered_table);
-    if (layered_dhandle_acquired)
-        WT_TRET(__wt_session_release_dhandle(session));
+    /*
+     * Cursor opens and closes can leave session->dhandle pointing at a file dhandle, so scope the
+     * release explicitly back onto the layered dhandle we acquired above. Without this, release
+     * would unlock whatever dhandle happens to be current and corrupt its rwlock state.
+     */
+    if (layered_dhandle != NULL)
+        WT_WITH_DHANDLE(
+          session, layered_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
     __wt_scr_free(session, &layered_uri_buf);
     return (ret);
 }
