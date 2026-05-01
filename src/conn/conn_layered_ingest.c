@@ -176,6 +176,27 @@ __layered_derive_stable_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT
     return (__wt_buf_fmt(session, buf, "%.*s.wt_stable", (int)prefix_len, ingest_uri));
 }
 
+/*
+ * __layered_derive_layered_uri --
+ *     Derive the parent layered URI from a constituent ingest URI. Symmetric helper to
+ *     __layered_derive_stable_uri.
+ */
+static int
+__layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT_ITEM *buf)
+{
+    static const char file_prefix[] = "file:";
+    static const char ingest_suffix[] = ".wt_ingest";
+    size_t name_len, uri_len;
+
+    uri_len = strlen(ingest_uri);
+    WT_ASSERT_ALWAYS(session,
+      WT_PREFIX_MATCH(ingest_uri, file_prefix) && WT_URI_IS_INGEST(ingest_uri),
+      "Ingest URI does not match expected file:<name>.wt_ingest shape");
+    name_len = uri_len - (sizeof(file_prefix) - 1) - (sizeof(ingest_suffix) - 1);
+    return (__wt_buf_fmt(
+      session, buf, "layered:%.*s", (int)name_len, ingest_uri + sizeof(file_prefix) - 1));
+}
+
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __layered_assert_ingest_table_empty --
@@ -501,6 +522,99 @@ err:
 }
 
 /*
+ * __layered_drain_pending_truncates --
+ *     Replay all committed follower truncates onto stable for the given ingest URI's layered
+ *     table. Run before the regular ingest-to-stable copy so the resulting stable chain has its
+ *     truncate tombstones underneath any newer ingest-derived updates.
+ */
+static int
+__layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_uri)
+{
+    WT_CURSOR *ingest_raw_cursor, *stable_cursor, *stable_raw_cursor;
+    WT_CURSOR_BTREE *stable_cbt;
+    WT_DECL_ITEM(layered_uri_buf);
+    WT_DECL_ITEM(stable_uri_buf);
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered_table;
+    WT_SESSION *wt_session;
+    WT_TRUNCATE *t;
+    bool layered_dhandle_acquired, truncate_locked;
+    const char *open_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+
+    ingest_raw_cursor = stable_cursor = stable_raw_cursor = NULL;
+    layered_table = NULL;
+    layered_dhandle_acquired = truncate_locked = false;
+    wt_session = (WT_SESSION *)session;
+
+    WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
+    WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
+    WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
+
+    /*
+     * Open the stable and ingest cursors before taking the layered dhandle. Each cursor open
+     * swaps session->dhandle internally; doing this before we cache the layered_table pointer
+     * keeps the dhandle reference we hold over the lock-and-iterate block clean.
+     */
+    WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor));
+    stable_cbt = (WT_CURSOR_BTREE *)stable_cursor;
+    WT_ERR(wt_session->open_cursor(
+      wt_session, stable_uri_buf->data, NULL, "raw=true", &stable_raw_cursor));
+    WT_ERR(
+      wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
+
+    /*
+     * The truncate queue lives on the layered dhandle. A follower-only state that never opened
+     * the layered URI has no pending truncates -- nothing to replay.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
+    layered_dhandle_acquired = true;
+    layered_table = (WT_LAYERED_TABLE *)session->dhandle;
+    if (TAILQ_EMPTY(&layered_table->truncateqh))
+        goto err;
+
+    __wt_readlock(session, &layered_table->truncate_lock);
+    truncate_locked = true;
+    TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
+        /* Uncommitted entries carry no real timestamps and may still roll back. */
+        if (t->txn_id == WT_TXN_NONE)
+            continue;
+        WT_ERR(__layered_drain_truncate_to_stable(
+          session, t, stable_cbt, stable_raw_cursor, ingest_raw_cursor));
+    }
+    __wt_readunlock(session, &layered_table->truncate_lock);
+    truncate_locked = false;
+
+err:
+    if (truncate_locked)
+        __wt_readunlock(session, &layered_table->truncate_lock);
+    if (ingest_raw_cursor != NULL)
+        WT_TRET(ingest_raw_cursor->close(ingest_raw_cursor));
+    if (stable_raw_cursor != NULL)
+        WT_TRET(stable_raw_cursor->close(stable_raw_cursor));
+    if (stable_cursor != NULL)
+        WT_TRET(stable_cursor->close(stable_cursor));
+    /*
+     * Drop the queue unconditionally. On success the entries have all been applied or were
+     * uncommittable; on error any partial progress is abandoned, and leaving entries behind would
+     * cause an incoherent retry against a stable table that already saw some of them.
+     */
+    if (layered_table != NULL)
+        __wt_layered_table_truncate_clear(session, layered_table);
+    if (layered_dhandle_acquired)
+        WT_TRET(__wt_session_release_dhandle(session));
+    __wt_scr_free(session, &layered_uri_buf);
+    __wt_scr_free(session, &stable_uri_buf);
+    return (ret);
+}
+
+/*
  * __layered_copy_ingest_table --
  *     Moving all the data from a single ingest table to the corresponding stable table
  */
@@ -508,18 +622,13 @@ static int
 __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
 {
     WT_BTREE *ingest_btree, *stable_btree;
-    WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *ingest_raw_cursor, *prepare_cursor,
-      *stable_cursor, *stable_raw_cursor;
+    WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
-    WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
-    WT_LAYERED_TABLE *layered_table;
-    WT_SESSION *wt_session;
-    WT_TRUNCATE *t;
     WT_UPDATE *last_upd, *prev_upd, *upd, *upds;
     wt_timestamp_t last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
@@ -531,15 +640,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-    bool is_prepare_rollback, layered_dhandle_acquired, prepare_resolved, preserve_prepared,
-      prepare_txn_fixed, truncate_locked;
+    bool is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
-    ingest_version_cursor = ingest_raw_cursor = prepare_cursor = stable_cursor =
-      stable_raw_cursor = NULL;
-    layered_table = NULL;
-    wt_session = (WT_SESSION *)session;
+    ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
-    layered_dhandle_acquired = prepare_resolved = prepare_txn_fixed = truncate_locked = false;
+    prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
     WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
@@ -568,51 +673,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
     WT_ERR(__wt_scr_alloc(session, 0, &value));
-
-    /*
-     * Pending follower truncates must land on stable before the regular drain runs: ordering them
-     * this way keeps timestamps on the stable chain natural -- newer ingest-derived updates layer
-     * on top of older truncate tombstones rather than the reverse. The truncate metadata lives on
-     * the parent layered dhandle; a follower-only state that never opened the layered URI has no
-     * pending truncates and the replay block becomes a no-op.
-     */
-    {
-        static const char file_prefix[] = "file:";
-        static const char ingest_suffix[] = ".wt_ingest";
-        size_t uri_len = strlen(ingest_uri);
-        WT_ASSERT_ALWAYS(session,
-          WT_PREFIX_MATCH(ingest_uri, file_prefix) && WT_URI_IS_INGEST(ingest_uri),
-          "Ingest URI does not match expected file:<name>.wt_ingest shape");
-        WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
-        WT_ERR(__wt_buf_fmt(session, layered_uri_buf, "layered:%.*s",
-          (int)(uri_len - (sizeof(file_prefix) - 1) - (sizeof(ingest_suffix) - 1)),
-          ingest_uri + sizeof(file_prefix) - 1));
-    }
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
-    if (ret == 0) {
-        layered_dhandle_acquired = true;
-        layered_table = (WT_LAYERED_TABLE *)session->dhandle;
-    } else
-        ret = 0;
-
-    if (layered_table != NULL && !TAILQ_EMPTY(&layered_table->truncateqh)) {
-        WT_ERR(wt_session->open_cursor(
-          wt_session, stable_uri_buf->data, NULL, "raw=true", &stable_raw_cursor));
-        WT_ERR(wt_session->open_cursor(
-          wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
-        __wt_readlock(session, &layered_table->truncate_lock);
-        truncate_locked = true;
-        TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
-            /* Uncommitted entries carry no real timestamps and may still roll back. */
-            if (t->txn_id == WT_TXN_NONE)
-                continue;
-            WT_ERR(__layered_drain_truncate_to_stable(
-              session, t, cbt, stable_raw_cursor, ingest_raw_cursor));
-        }
-        __wt_readunlock(session, &layered_table->truncate_lock);
-        truncate_locked = false;
-    }
 
     for (;;) {
         upd = NULL;
@@ -788,22 +848,6 @@ err:
         WT_TRET(prepare_cursor->close(prepare_cursor));
     if (stable_cursor != NULL)
         WT_TRET(stable_cursor->close(stable_cursor));
-    if (stable_raw_cursor != NULL)
-        WT_TRET(stable_raw_cursor->close(stable_raw_cursor));
-    if (ingest_raw_cursor != NULL)
-        WT_TRET(ingest_raw_cursor->close(ingest_raw_cursor));
-    /*
-     * Drop the queue unconditionally. On success the entries have all been applied or were
-     * uncommittable; on error any partial progress is abandoned, and leaving entries behind would
-     * cause an incoherent retry against a stable table that already saw some of them.
-     */
-    if (truncate_locked)
-        __wt_readunlock(session, &layered_table->truncate_lock);
-    if (layered_table != NULL)
-        __wt_layered_table_truncate_clear(session, layered_table);
-    if (layered_dhandle_acquired)
-        WT_TRET(__wt_session_release_dhandle(session));
-    __wt_scr_free(session, &layered_uri_buf);
     return (ret);
 }
 
@@ -830,6 +874,13 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
     const char *ingest_uri = work_item->ingest_dhandle->name;
+    /*
+     * Replay pending follower truncates onto stable before copying ingest. Running this first
+     * keeps the resulting stable chain ordered naturally -- newer ingest-derived updates layer
+     * on top of older truncate tombstones rather than the reverse.
+     */
+    WT_ERR_MSG_CHK(session, __layered_drain_pending_truncates(session, ingest_uri),
+      "Failed to replay pending truncates for \"%s\"", ingest_uri);
     WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(session, ingest_uri),
       "Failed to copy ingest table \"%s\" to stable", ingest_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, ingest_uri),
