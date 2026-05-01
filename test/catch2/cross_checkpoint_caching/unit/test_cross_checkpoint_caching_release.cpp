@@ -61,10 +61,11 @@ TEST_CASE("cross_checkpoint_caching_release: ref_count reaching zero removes the
     REQUIRE(env.stats()->cache_shared_dsk_hit == 0);
 }
 
-TEST_CASE("cross_checkpoint_caching_release: only removes the released item, others in same bucket "
-          "persist",
+TEST_CASE(
+  "cross_checkpoint_caching_release: only removes the released item, others in same bucket "
+  "persist",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_release]")
-{ 
+{
     // hash_size=1 forces both entries into bucket 0.
     cross_checkpoint_caching_test_env env(1);
     const uint8_t addr_a[] = {0x10, 0x20};
@@ -116,8 +117,9 @@ TEST_CASE("cross_checkpoint_caching_release: repeated releases mirror repeated g
     REQUIRE(env.bucket_size(0) == 0);
 }
 
-TEST_CASE("cross_checkpoint_caching_release: same addr with different fileid in same bucket only "
-          "removes the matching entry",
+TEST_CASE(
+  "cross_checkpoint_caching_release: same addr with different fileid in same bucket only "
+  "removes the matching entry",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_release]")
 {
     // Same addr means same bucket. Swap the session's btree id between puts so each entry stores
