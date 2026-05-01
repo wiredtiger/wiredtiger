@@ -8237,8 +8237,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PREFETCH_SKIPPED_NO_FLAG_SET	1768
 /*! prefetch: number of times pre-fetch failed to start */
 #define	WT_STAT_CONN_PREFETCH_FAILED_START		1769
-/*! prefetch: pre-fetch enabled for this session */
-#define	WT_STAT_CONN_PREFETCH_ENABLED			1770
+/*! prefetch: pre-fetch attempted, session has pre-fetching enabled */
+#define	WT_STAT_CONN_PREFETCH_ATTEMPTS			1770
 /*! prefetch: pre-fetch not repeating for recently pre-fetched ref */
 #define	WT_STAT_CONN_PREFETCH_SKIPPED_SAME_REF		1771
 /*! prefetch: pre-fetch not triggered after single disk read */
@@ -8262,7 +8262,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! prefetch: pre-fetch skipped reading in a page due to harmless error */
 #define	WT_STAT_CONN_PREFETCH_SKIPPED_ERROR_OK		1781
 /*! prefetch: pre-fetch triggered by page read */
-#define	WT_STAT_CONN_PREFETCH_ATTEMPTS			1782
+#define	WT_STAT_CONN_PREFETCH_ATTEMPTS_SUCCEEDED	1782
 /*! reconciliation: VLCS pages explicitly reconciled as empty */
 #define	WT_STAT_CONN_REC_VLCS_EMPTIED_PAGES		1783
 /*! reconciliation: approximate byte size of timestamps in pages written */

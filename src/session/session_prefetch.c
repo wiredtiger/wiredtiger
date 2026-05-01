@@ -22,7 +22,7 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!F_ISSET(session, WT_SESSION_PREFETCH_ENABLED))
         return (false);
 
-    WT_STAT_CONN_INCR(session, prefetch_enabled);
+    WT_STAT_CONN_INCR(session, prefetch_attempts);
 
     if (__wt_atomic_load_enum_relaxed(&session->dhandle->type) == WT_DHANDLE_TYPE_TIERED ||
       __wt_atomic_load_enum_relaxed(&session->dhandle->type) == WT_DHANDLE_TYPE_TIERED_TREE)
@@ -58,7 +58,7 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     }
 
-    WT_STAT_CONN_INCR(session, prefetch_attempts);
+    WT_STAT_CONN_INCR(session, prefetch_attempts_succeeded);
 
     return (true);
 }
