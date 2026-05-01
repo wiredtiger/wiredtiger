@@ -2666,17 +2666,9 @@ __clayered_modify_follower(
     WT_CLEAR(value);
 
     /* Do a search if we're not positioned. */
-    if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT)) {
+    if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT))
         WT_ERR_NOTFOUND_OK(__clayered_lookup(session, clayered, &value), true);
-        /*
-         * On WT_NOTFOUND, __clayered_lookup may have populated value with a pointer into a
-         * constituent cursor before resetting that cursor on the way out, leaving value->data
-         * pointing into freed memory. Clear value so the modify path below treats the base value as
-         * empty rather than reading the dangling pointer.
-         */
-        if (ret == WT_NOTFOUND)
-            WT_CLEAR(value);
-    } else
+    else
         WT_ITEM_SET(value, cursor->value);
 
     if (clayered->current_cursor != ingest) {
