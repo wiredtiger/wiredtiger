@@ -405,8 +405,8 @@ __layered_drain_truncate_apply_tombstones(WT_SESSION_IMPL *session, WT_TRUNCATE 
 /*
  * __layered_drain_truncate_collect_keys --
  *     Walk the truncate's range on stable and collect the keys the ingest chain doesn't cover.
- *     Pass 1 of the collect-then-write split. We search at start_ts so the truncate is treated
- *     as already applied when deciding ownership of each key.
+ *     We search at start_ts so the truncate is treated as already applied when deciding
+ *     ownership of each key.
  */
 static int
 __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
@@ -415,22 +415,26 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
 {
     WT_DECL_RET;
     WT_ITEM *keys, stable_key;
+    WT_SESSION *wt_session;
     void *key_data;
     int cmp;
+    char read_ts_cfg[64];
     bool has_ingest, txn_active;
 
     keys = *keysp;
     *key_count = 0;
     txn_active = false;
+    wt_session = (WT_SESSION *)session;
 
     /*
      * Read at start_ts. The truncate's own deletion is a special tombstone written through a
      * file cursor, so it's visible like any other value at this snapshot.
      */
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
-    WT_ERR(__wt_txn_begin(session, NULL));
+    WT_ERR(
+      __wt_snprintf(read_ts_cfg, sizeof(read_ts_cfg), "read_timestamp=%" PRIx64, t->start_ts));
+    WT_ERR(wt_session->begin_transaction(wt_session, read_ts_cfg));
     txn_active = true;
-    WT_ERR(__wt_txn_set_timestamp_uint(session, WT_TS_TXN_TYPE_READ, t->start_ts));
 
     iter_cursor->set_key(iter_cursor, &t->start_key);
     WT_ERR_NOTFOUND_OK(iter_cursor->search_near(iter_cursor, &cmp), true);
@@ -462,7 +466,7 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
 
 err:
     if (txn_active)
-        WT_TRET(__wt_txn_rollback(session, NULL, false));
+        WT_TRET(wt_session->rollback_transaction(wt_session, NULL));
     *keysp = keys;
     return (ret);
 }
