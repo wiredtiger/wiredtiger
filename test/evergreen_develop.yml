@@ -92,6 +92,9 @@ buildvariants:
       distros: ubuntu2004-arm64-large
       activate: false # Launch only manually for now
     - name: coverage-report-catch2
+    - name: coverage-report-disagg
+      distros: ubuntu2004-arm64-large
+      activate: false # Launch manually: disagg coverage is slow and separate from the main report
     - name: generate-coverage-report
     - name: cyclomatic-complexity
     - name: code-change-report

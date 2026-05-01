@@ -4355,6 +4355,31 @@ tasks:
       - func: "code coverage publish main page"
       - func: "code coverage publish report"
 
+  - name: coverage-report-disagg
+    # Measures code coverage achieved exclusively by disaggregated-storage test types:
+    #   - test_layered*.py, test_disagg*.py (native disagg Python tests)
+    #   - hook-based leader/follower tests (general suite via hook_disagg.py)
+    #   - format stress tests with CONFIG.disagg (leader and follower modes)
+    #   - checkpoint ctest tests labeled check_disagg
+    #   - catch2 unit tests (includes test_disagg_meta_config)
+    # The report covers src/ and shows which disagg code paths are hit.
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_PATH}
+            test/evergreen/find_cmake.sh
+            date +%s > time.txt
+            test/evergreen/code_coverage/disagg_coverage.sh -j ${num_jobs}
+            date +%s >> time.txt
+      - func: "code coverage publish main page"
+      - func: "code coverage publish report"
+
   - name: code-change-report
     tags: ["pull_request_code_statistics"]
     depends_on:
