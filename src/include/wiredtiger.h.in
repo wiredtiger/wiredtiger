@@ -8259,10 +8259,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PREFETCH_PAGES_QUEUED		1779
 /*! prefetch: pre-fetch pages read in background */
 #define	WT_STAT_CONN_PREFETCH_PAGES_READ		1780
+/*!
+ * prefetch: pre-fetch session check passed, pre-fetch work issued to
+ * btree
+ */
+#define	WT_STAT_CONN_PREFETCH_ATTEMPTS_SUCCEEDED	1781
 /*! prefetch: pre-fetch skipped reading in a page due to harmless error */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_ERROR_OK		1781
-/*! prefetch: pre-fetch triggered by page read */
-#define	WT_STAT_CONN_PREFETCH_ATTEMPTS_SUCCEEDED	1782
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_ERROR_OK		1782
 /*! reconciliation: VLCS pages explicitly reconciled as empty */
 #define	WT_STAT_CONN_REC_VLCS_EMPTIED_PAGES		1783
 /*! reconciliation: approximate byte size of timestamps in pages written */

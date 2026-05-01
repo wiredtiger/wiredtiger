@@ -2672,8 +2672,8 @@ static const char *const __stats_connection_desc[] = {
   "prefetch: pre-fetch page not on disk when reading",
   "prefetch: pre-fetch pages queued",
   "prefetch: pre-fetch pages read in background",
+  "prefetch: pre-fetch session check passed, pre-fetch work issued to btree",
   "prefetch: pre-fetch skipped reading in a page due to harmless error",
-  "prefetch: pre-fetch triggered by page read",
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
@@ -3718,8 +3718,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->prefetch_pages_fail = 0;
     stats->prefetch_pages_queued = 0;
     stats->prefetch_pages_read = 0;
-    stats->prefetch_skipped_error_ok = 0;
     stats->prefetch_attempts_succeeded = 0;
+    stats->prefetch_skipped_error_ok = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -4952,8 +4952,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->prefetch_pages_fail += WT_STAT_CONN_READ(from, prefetch_pages_fail);
     to->prefetch_pages_queued += WT_STAT_CONN_READ(from, prefetch_pages_queued);
     to->prefetch_pages_read += WT_STAT_CONN_READ(from, prefetch_pages_read);
-    to->prefetch_skipped_error_ok += WT_STAT_CONN_READ(from, prefetch_skipped_error_ok);
     to->prefetch_attempts_succeeded += WT_STAT_CONN_READ(from, prefetch_attempts_succeeded);
+    to->prefetch_skipped_error_ok += WT_STAT_CONN_READ(from, prefetch_skipped_error_ok);
     to->rec_vlcs_emptied_pages += WT_STAT_CONN_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_CONN_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);

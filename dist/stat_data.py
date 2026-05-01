@@ -823,7 +823,7 @@ conn_stats = [
     # Prefetch statistics
     ##########################################
     PrefetchStat('prefetch_attempts', 'pre-fetch attempted, session has pre-fetching enabled'),
-    PrefetchStat('prefetch_attempts_succeeded', 'pre-fetch triggered by page read'),
+    PrefetchStat('prefetch_attempts_succeeded', 'pre-fetch session check passed, pre-fetch work issued to btree'),
     PrefetchStat('prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
     PrefetchStat('prefetch_failed_start', 'number of times pre-fetch failed to start'),
     PrefetchStat('prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
