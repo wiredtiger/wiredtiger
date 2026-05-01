@@ -485,9 +485,12 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
 
     /* Update the timestamps. */
     __wt_atomic_store_uint64_release(
+      &conn->disaggregated_storage.last_checkpoint_schema_epoch, metadata->schema_epoch);
+    __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
+    conn->txn_global.last_ckpt_disaggregated_schema_epoch = metadata->schema_epoch;
     conn->txn_global.last_ckpt_timestamp = metadata->checkpoint_timestamp;
 
     /* Set the database size. */
@@ -523,7 +526,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
     uint64_t current_meta_lsn;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
 
@@ -572,11 +575,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s"
-      ", oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", root=\"%.*s\"",
+      " %s, oldest_timestamp=%" PRIu64 " %s, schema_epoch=%" PRIu64 " %s, largest_file_id=%" PRIu32
+      ", root=\"%.*s\"",
       ckpt_meta->metadata_lsn, metadata.checkpoint_timestamp,
       __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string[0]),
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
+      metadata.schema_epoch, __wt_timestamp_to_string(metadata.schema_epoch, ts_string[2]),
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /* Load crypt key data with the key provider extension, if any. */
