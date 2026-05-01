@@ -22,10 +22,10 @@ __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * least one page from disk. The result of this function will subsequently be checked by cursor
      * logic to determine if pre-fetching will be performed.
      */
-    if (!F_ISSET(session, WT_SESSION_PREFETCH_ENABLED)) {
-        WT_STAT_CONN_INCR(session, prefetch_skipped_not_enabled);
+    if (!F_ISSET(session, WT_SESSION_PREFETCH_ENABLED))
         return (false);
-    }
+
+    WT_STAT_CONN_INCR(session, prefetch_enabled);
 
     /* Disable pre-fetch work on tiered tables. */
     if (__wt_atomic_load_enum_relaxed(&session->dhandle->type) == WT_DHANDLE_TYPE_TIERED ||

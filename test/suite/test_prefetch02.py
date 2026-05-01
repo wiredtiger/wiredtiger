@@ -85,10 +85,6 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         prefetch_pages_read = self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session_name)
         return pages_queued, prefetch_attempts, prefetch_pages_read
 
-    def get_prefetch_skipped_stat(self, session_name):
-        prefetch_skips = self.get_stat(wiredtiger.stat.conn.prefetch_skipped_not_enabled, session_name)
-        return prefetch_skips
-
     # Checks for pre-fetching activity by asserting that relevant statistics have increased.
     def check_prefetching_activity(self, session_name, pages_queued, prefetch_attempts, prefetch_pages_read):
         new_pages_queued, new_prefetch_attempts, new_prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
@@ -98,12 +94,9 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertGreaterEqual(new_prefetch_attempts, prefetch_attempts)
         self.assertGreaterEqual(new_prefetch_pages_read, prefetch_pages_read)
 
-    # Checks that the values of statistics related to pre-fetching activity are equal to zero,
-    # and that pages are being skipped when deciding whether to pre-fetch the page or not.
-    def check_no_prefetching_activity(self, session_name, prefetch_skips):
-        new_prefetch_skips = self.get_prefetch_skipped_stat(session_name)
+    # Checks that the values of statistics related to pre-fetching activity are equal to zero.
+    def check_no_prefetching_activity(self, session_name):
         pages_queued, prefetch_attempts, prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
-        self.assertGreaterEqual(new_prefetch_skips, prefetch_skips)
         self.assertEqual(pages_queued, 0)
         self.assertEqual(prefetch_attempts, 0)
         self.assertEqual(prefetch_pages_read, 0)
@@ -139,7 +132,6 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             for i in range(self.nrows // 2):
                 ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
             pages_queued, prefetch_attempts, prefetch_pages_read = self.get_prefetch_activity_stats(s)
-            prefetch_skips = self.get_prefetch_skipped_stat(s)
 
             while True:
                 ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
@@ -151,7 +143,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             if self.prefetch:
                 self.check_prefetching_activity(s, pages_queued, prefetch_attempts, prefetch_pages_read)
             else:
-                self.check_no_prefetching_activity(s, prefetch_skips)
+                self.check_no_prefetching_activity(s)
 
         elif self.scenario_type == 'verify':
             if self.prefetch:
@@ -161,4 +153,4 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             else:
                 verify_session = new_conn.open_session("")
                 self.verifyUntilSuccess(verify_session, self.uri)
-                self.check_no_prefetching_activity(verify_session, 0)
+                self.check_no_prefetching_activity(verify_session)

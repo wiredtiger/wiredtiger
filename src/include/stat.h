@@ -1196,6 +1196,7 @@ struct __wt_connection_stats {
     int64_t prefetch_skipped_internal_page;
     int64_t prefetch_skipped_no_flag_set;
     int64_t prefetch_failed_start;
+    int64_t prefetch_enabled;
     int64_t prefetch_skipped_same_ref;
     int64_t prefetch_disk_one;
     int64_t prefetch_skipped_no_valid_dhandle;
@@ -1203,7 +1204,6 @@ struct __wt_connection_stats {
     int64_t prefetch_skipped_internal_session;
     int64_t prefetch_skipped_special_handle;
     int64_t prefetch_skipped_queue_full;
-    int64_t prefetch_skipped_not_enabled;
     int64_t prefetch_pages_fail;
     int64_t prefetch_pages_queued;
     int64_t prefetch_pages_read;

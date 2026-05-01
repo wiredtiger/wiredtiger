@@ -824,6 +824,7 @@ conn_stats = [
     ##########################################
     PrefetchStat('prefetch_attempts', 'pre-fetch triggered by page read'),
     PrefetchStat('prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
+    PrefetchStat('prefetch_enabled', 'pre-fetch enabled for this session'),
     PrefetchStat('prefetch_failed_start', 'number of times pre-fetch failed to start'),
     PrefetchStat('prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
     PrefetchStat('prefetch_pages_queued', 'pre-fetch pages queued'),
@@ -834,7 +835,6 @@ conn_stats = [
     PrefetchStat('prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
     PrefetchStat('prefetch_skipped_no_flag_set', 'could not perform pre-fetch on ref without the pre-fetch flag set'),
     PrefetchStat('prefetch_skipped_no_valid_dhandle', 'pre-fetch not triggered as there is no valid dhandle'),
-    PrefetchStat('prefetch_skipped_not_enabled', 'pre-fetch not triggered, pre-fetching not enabled for the session'),
     PrefetchStat('prefetch_skipped_queue_full', 'pre-fetch not triggered, pre-fetch queue is full'),
     PrefetchStat('prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
     PrefetchStat('prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
