@@ -86,7 +86,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         return pages_queued, prefetch_attempts, prefetch_pages_read
 
     def get_prefetch_skipped_stat(self, session_name):
-        prefetch_skips = self.get_stat(wiredtiger.stat.conn.prefetch_skipped, session_name)
+        prefetch_skips = self.get_stat(wiredtiger.stat.conn.prefetch_skipped_not_enabled, session_name)
         return prefetch_skips
 
     # Checks for pre-fetching activity by asserting that relevant statistics have increased.

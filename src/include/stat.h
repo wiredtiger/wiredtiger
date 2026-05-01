@@ -1199,10 +1199,11 @@ struct __wt_connection_stats {
     int64_t prefetch_skipped_same_ref;
     int64_t prefetch_disk_one;
     int64_t prefetch_skipped_no_valid_dhandle;
-    int64_t prefetch_skipped;
     int64_t prefetch_skipped_disk_read_count;
     int64_t prefetch_skipped_internal_session;
     int64_t prefetch_skipped_special_handle;
+    int64_t prefetch_skipped_queue_full;
+    int64_t prefetch_skipped_not_enabled;
     int64_t prefetch_pages_fail;
     int64_t prefetch_pages_queued;
     int64_t prefetch_pages_read;

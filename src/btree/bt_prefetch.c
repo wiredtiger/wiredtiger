@@ -52,7 +52,6 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
       session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
         ++session->pf.prefetch_skipped_with_parent;
         WT_STAT_CONN_INCR(session, prefetch_skipped_same_ref);
-        WT_STAT_CONN_INCR(session, prefetch_skipped);
         return (0);
     }
 
