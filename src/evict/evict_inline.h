@@ -160,8 +160,8 @@ static WT_INLINE bool
 __wti_evict_page_has_clean_scrub_image(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
-    bool has_image;
     uint32_t i;
+    bool has_image;
 
     mod = page->modify;
     if (mod == NULL)
@@ -174,8 +174,8 @@ __wti_evict_page_has_clean_scrub_image(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * Reconciliation produces a uniform set of multi entries: either every entry holds a
-     * clean-scrub image, or none do. Assert the invariant so the predicate (which inspects only
-     * the first entry) cannot drift from the dispatch path that iterates the array.
+     * clean-scrub image, or none do. Assert the invariant so the predicate (which inspects only the
+     * first entry) cannot drift from the dispatch path that iterates the array.
      */
     has_image = WT_MULTI_HAS_CLEAN_SCRUB_IMAGE(mod->mod_multi[0]);
     for (i = 1; i < mod->mod_multi_entries; ++i)
