@@ -533,12 +533,12 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
     WT_CURSOR *ingest_raw_cursor, *stable_cursor, *stable_raw_cursor;
     WT_CURSOR_BTREE *stable_cbt;
     WT_DECL_ITEM(layered_uri_buf);
-    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_SESSION *wt_session;
     WT_TRUNCATE *t;
-    bool layered_dhandle_acquired, truncate_locked;
+    const char *stable_uri;
+    bool layered_dhandle_acquired, queue_empty, truncate_locked;
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
@@ -547,26 +547,16 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
     layered_dhandle_acquired = truncate_locked = false;
     wt_session = (WT_SESSION *)session;
 
-    WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
-    WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
-    WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
+    WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
 
     /*
-     * Open the stable and ingest cursors before taking the layered dhandle. Each cursor open
-     * swaps session->dhandle internally; doing this before we cache the layered_table pointer
-     * keeps the dhandle reference we hold over the lock-and-iterate block clean.
-     */
-    WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor));
-    stable_cbt = (WT_CURSOR_BTREE *)stable_cursor;
-    WT_ERR(wt_session->open_cursor(
-      wt_session, stable_uri_buf->data, NULL, "raw=true", &stable_raw_cursor));
-    WT_ERR(
-      wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
-
-    /*
      * The truncate queue lives on the layered dhandle. A follower-only state that never opened
-     * the layered URI has no pending truncates -- nothing to replay.
+     * the layered URI has no pending truncates -- nothing to replay. Briefly acquire the dhandle
+     * to read the stable URI off the layered_table struct (the dhandle cache keeps the struct
+     * pinned after release, so the pointer stays valid), then release before opening cursors --
+     * cursor opens swap session->dhandle and we want the layered dhandle held cleanly only over
+     * the lock-and-iterate window below.
      */
     WT_ERR_NOTFOUND_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
@@ -574,11 +564,24 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
         ret = 0;
         goto err;
     }
-    layered_dhandle_acquired = true;
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
-    if (TAILQ_EMPTY(&layered_table->truncateqh))
+    stable_uri = layered_table->stable_uri;
+    queue_empty = TAILQ_EMPTY(&layered_table->truncateqh);
+    WT_ERR(__wt_session_release_dhandle(session));
+    layered_table = NULL;
+    if (queue_empty)
         goto err;
 
+    WT_ERR(__wt_open_cursor(session, stable_uri, NULL, open_cfg, &stable_cursor));
+    stable_cbt = (WT_CURSOR_BTREE *)stable_cursor;
+    WT_ERR(
+      wt_session->open_cursor(wt_session, stable_uri, NULL, "raw=true", &stable_raw_cursor));
+    WT_ERR(
+      wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
+
+    WT_ERR(__wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0));
+    layered_dhandle_acquired = true;
+    layered_table = (WT_LAYERED_TABLE *)session->dhandle;
     __wt_readlock(session, &layered_table->truncate_lock);
     truncate_locked = true;
     TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
@@ -610,7 +613,6 @@ err:
     if (layered_dhandle_acquired)
         WT_TRET(__wt_session_release_dhandle(session));
     __wt_scr_free(session, &layered_uri_buf);
-    __wt_scr_free(session, &stable_uri_buf);
     return (ret);
 }
 
