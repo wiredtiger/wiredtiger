@@ -1195,7 +1195,6 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_total_usecs;
     int64_t prefetch_skipped_internal_page;
     int64_t prefetch_skipped_no_flag_set;
-    int64_t prefetch_failed_start;
     int64_t prefetch_attempts;
     int64_t prefetch_skipped_same_ref;
     int64_t prefetch_disk_one;
@@ -1209,6 +1208,7 @@ struct __wt_connection_stats {
     int64_t prefetch_pages_read;
     int64_t prefetch_attempts_succeeded;
     int64_t prefetch_skipped_error_ok;
+    int64_t prefetch_skipped_internal_split_gen;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;

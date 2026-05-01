@@ -8235,37 +8235,40 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * flag set
  */
 #define	WT_STAT_CONN_PREFETCH_SKIPPED_NO_FLAG_SET	1768
-/*! prefetch: number of times pre-fetch failed to start */
-#define	WT_STAT_CONN_PREFETCH_FAILED_START		1769
 /*! prefetch: pre-fetch attempted, session has pre-fetching enabled */
-#define	WT_STAT_CONN_PREFETCH_ATTEMPTS			1770
+#define	WT_STAT_CONN_PREFETCH_ATTEMPTS			1769
 /*! prefetch: pre-fetch not repeating for recently pre-fetched ref */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_SAME_REF		1771
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_SAME_REF		1770
 /*! prefetch: pre-fetch not triggered after single disk read */
-#define	WT_STAT_CONN_PREFETCH_DISK_ONE			1772
+#define	WT_STAT_CONN_PREFETCH_DISK_ONE			1771
 /*! prefetch: pre-fetch not triggered as there is no valid dhandle */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_NO_VALID_DHANDLE	1773
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_NO_VALID_DHANDLE	1772
 /*! prefetch: pre-fetch not triggered due to disk read count */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_DISK_READ_COUNT	1774
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_DISK_READ_COUNT	1773
 /*! prefetch: pre-fetch not triggered due to internal session */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_INTERNAL_SESSION	1775
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_INTERNAL_SESSION	1774
 /*! prefetch: pre-fetch not triggered due to special btree handle */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_SPECIAL_HANDLE	1776
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_SPECIAL_HANDLE	1775
 /*! prefetch: pre-fetch not triggered, pre-fetch queue is full */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_QUEUE_FULL	1777
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_QUEUE_FULL	1776
 /*! prefetch: pre-fetch page not on disk when reading */
-#define	WT_STAT_CONN_PREFETCH_PAGES_FAIL		1778
+#define	WT_STAT_CONN_PREFETCH_PAGES_FAIL		1777
 /*! prefetch: pre-fetch pages queued */
-#define	WT_STAT_CONN_PREFETCH_PAGES_QUEUED		1779
+#define	WT_STAT_CONN_PREFETCH_PAGES_QUEUED		1778
 /*! prefetch: pre-fetch pages read in background */
-#define	WT_STAT_CONN_PREFETCH_PAGES_READ		1780
+#define	WT_STAT_CONN_PREFETCH_PAGES_READ		1779
 /*!
  * prefetch: pre-fetch session check passed, pre-fetch work issued to
  * btree
  */
-#define	WT_STAT_CONN_PREFETCH_ATTEMPTS_SUCCEEDED	1781
+#define	WT_STAT_CONN_PREFETCH_ATTEMPTS_SUCCEEDED	1780
 /*! prefetch: pre-fetch skipped reading in a page due to harmless error */
-#define	WT_STAT_CONN_PREFETCH_SKIPPED_ERROR_OK		1782
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_ERROR_OK		1781
+/*!
+ * prefetch: pre-fetch skipped traversal of internal page due to active
+ * split generation
+ */
+#define	WT_STAT_CONN_PREFETCH_SKIPPED_INTERNAL_SPLIT_GEN	1782
 /*! reconciliation: VLCS pages explicitly reconciled as empty */
 #define	WT_STAT_CONN_REC_VLCS_EMPTIED_PAGES		1783
 /*! reconciliation: approximate byte size of timestamps in pages written */
