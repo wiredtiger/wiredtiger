@@ -338,9 +338,9 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 
 /*
  * __layered_drain_truncate_ingest_check --
- *     Decide who is responsible for landing the truncate's deletion: the regular ingest drain,
- *     or this replay path. If ingest already has a chain for the key, the drain owns it;
- *     otherwise stable still needs a replay tombstone here to cover the deleted window.
+ *     Decide who is responsible for landing the truncate's deletion: the regular ingest drain, or
+ *     this replay path. If ingest already has a chain for the key, the drain owns it; otherwise
+ *     stable still needs a replay tombstone here to cover the deleted window.
  */
 static int
 __layered_drain_truncate_ingest_check(
@@ -356,12 +356,12 @@ __layered_drain_truncate_ingest_check(
     else if (ret == WT_NOTFOUND) {
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * Ingest deletions are stored as special-value updates, never as real tombstones; if
-         * that invariant breaks, our absent-vs-deleted distinction is wrong, so fail loudly.
+         * Ingest deletions are stored as special-value updates, never as real tombstones; if that
+         * invariant breaks, our absent-vs-deleted distinction is wrong, so fail loudly.
          */
         WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)ingest_cursor;
-        WT_ASSERT(CUR2S(ingest_cursor),
-          cbt->compare != 0 || cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
+        WT_ASSERT(
+          CUR2S(ingest_cursor), cbt->compare != 0 || cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
 #endif
         ret = 0;
     }
@@ -401,9 +401,9 @@ __layered_drain_truncate_apply_tombstones(WT_SESSION_IMPL *session, WT_TRUNCATE 
 
 /*
  * __layered_drain_truncate_collect_keys --
- *     Walk the truncate's range on stable and collect the keys the ingest chain doesn't cover.
- *     We search at start_ts so the truncate is treated as already applied when deciding
- *     ownership of each key.
+ *     Walk the truncate's range on stable and collect the keys the ingest chain doesn't cover. We
+ *     search at start_ts so the truncate is treated as already applied when deciding ownership of
+ *     each key.
  */
 static int
 __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
@@ -413,10 +413,10 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
     WT_DECL_RET;
     WT_ITEM *keys, stable_key;
     WT_SESSION *wt_session;
-    void *key_data;
     int cmp;
     char read_ts_cfg[64];
     bool has_ingest, txn_active;
+    void *key_data;
 
     keys = *keysp;
     *key_count = 0;
@@ -424,12 +424,11 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
     wt_session = (WT_SESSION *)session;
 
     /*
-     * Read at start_ts. The truncate's own deletion is a special tombstone written through a
-     * file cursor, so it's visible like any other value at this snapshot.
+     * Read at start_ts. The truncate's own deletion is a special tombstone written through a file
+     * cursor, so it's visible like any other value at this snapshot.
      */
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
-    WT_ERR(
-      __wt_snprintf(read_ts_cfg, sizeof(read_ts_cfg), "read_timestamp=%" PRIx64, t->start_ts));
+    WT_ERR(__wt_snprintf(read_ts_cfg, sizeof(read_ts_cfg), "read_timestamp=%" PRIx64, t->start_ts));
     WT_ERR(wt_session->begin_transaction(wt_session, read_ts_cfg));
     txn_active = true;
 
@@ -440,13 +439,12 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
 
     while (ret == 0) {
         WT_ERR(iter_cursor->get_key(iter_cursor, &stable_key));
-        WT_ERR(__wt_compare(
-          session, CUR2BT(iter_cursor)->collator, &stable_key, &t->stop_key, &cmp));
+        WT_ERR(
+          __wt_compare(session, CUR2BT(iter_cursor)->collator, &stable_key, &t->stop_key, &cmp));
         if (cmp > 0)
             break;
 
-        WT_ERR(
-          __layered_drain_truncate_ingest_check(ingest_cursor, &stable_key, &has_ingest));
+        WT_ERR(__layered_drain_truncate_ingest_check(ingest_cursor, &stable_key, &has_ingest));
         if (!has_ingest) {
             WT_ERR(__wt_realloc_def(session, keys_alloc_bytes, *key_count + 1, &keys));
             WT_ERR(__wt_malloc(session, stable_key.size, &key_data));
@@ -505,9 +503,9 @@ err:
 
 /*
  * __layered_drain_pending_truncates --
- *     Replay all committed follower truncates onto stable for the given ingest URI's layered
- *     table. Run before the regular ingest-to-stable copy so the resulting stable chain has its
- *     truncate tombstones underneath any newer ingest-derived updates.
+ *     Replay all committed follower truncates onto stable for the given ingest URI's layered table.
+ *     Run before the regular ingest-to-stable copy so the resulting stable chain has its truncate
+ *     tombstones underneath any newer ingest-derived updates.
  */
 static int
 __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_uri)
@@ -548,8 +546,7 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
     WT_ERR(wt_session->open_cursor(
       wt_session, layered_table->stable_uri, NULL, "raw=true", &stable_raw_cursor));
     stable_cbt = (WT_CURSOR_BTREE *)stable_raw_cursor;
-    WT_ERR(
-      wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
+    WT_ERR(wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
 
     TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
         /* Skip uncommitted truncates. */
@@ -577,8 +574,7 @@ err:
      * would unlock whatever dhandle happens to be current and corrupt its rwlock state.
      */
     if (layered_dhandle != NULL)
-        WT_WITH_DHANDLE(
-          session, layered_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
+        WT_WITH_DHANDLE(session, layered_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
     __wt_scr_free(session, &layered_uri_buf);
     return (ret);
 }
@@ -844,9 +840,9 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     const char *ingest_uri = work_item->ingest_dhandle->name;
     /*
-     * Replay pending follower truncates onto stable before copying ingest. Running this first
-     * keeps the resulting stable chain ordered naturally -- newer ingest-derived updates layer
-     * on top of older truncate tombstones rather than the reverse.
+     * Replay pending follower truncates onto stable before copying ingest. Running this first keeps
+     * the resulting stable chain ordered naturally -- newer ingest-derived updates layer on top of
+     * older truncate tombstones rather than the reverse.
      */
     WT_ERR_MSG_CHK(session, __layered_drain_pending_truncates(session, ingest_uri),
       "Failed to replay pending truncates for \"%s\"", ingest_uri);
