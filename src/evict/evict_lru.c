@@ -148,13 +148,23 @@ __evict_lru_cmp(const void *a_arg, const void *b_arg)
 static WT_INLINE bool
 __evict_page_updates_candidate(WT_PAGE *page)
 {
+    if (page == NULL || page->modify == NULL)
+        return (false);
+
     /*
-     * Only queue the page if it has non-zero tracked update bytes. This applies to both regular and
-     * in-memory trees: bytes_updates is incremented on writes for all tree types, and freshly-split
-     * child pages start at zero just as they do for regular trees. Evicting a page with no tracked
-     * update bytes does not reduce updates cache pressure.
+     * Internal pages don't track bytes_updates, but still need to be evicted when updates pressure
+     * is active. Evicting and reconciling an internal page frees the underlying disk blocks of any
+     * fast-truncate children whose deletions have become globally visible.
      */
-    return (page != NULL && page->modify != NULL && page->modify->bytes_updates != 0);
+    if (WT_PAGE_IS_INTERNAL(page))
+        return (true);
+
+    /*
+     * For leaf pages, only queue the page if it has non-zero tracked update bytes. Freshly-split
+     * child pages start at zero, and evicting a page with no tracked update bytes does not reduce
+     * updates cache pressure.
+     */
+    return (page->modify->bytes_updates != 0);
 }
 
 /*
