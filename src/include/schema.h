@@ -70,7 +70,7 @@ struct __wt_table {
 
 /*
  * WT_TRUNCATE --
- *	Queue to track truncate entries in the layered table handle.
+ *	Augmented interval skip list node for the layered table fast-truncate range list.
  */
 struct __wt_truncate {
     /*
@@ -88,7 +88,16 @@ struct __wt_truncate {
     WT_ITEM start_key;
     WT_ITEM stop_key;
 
-    TAILQ_ENTRY(__wt_truncate) q;
+    /* Skip list tower. */
+    uint32_t ski_height;
+    struct __wt_truncate *ski_next[WT_SKIP_MAXDEPTH];
+
+    /*
+     * Per-level augmentation: fwd_max_stop[i] holds the maximum stop_key reachable from this node
+     * via ski_next[i], including this node's own stop_key. Used to prune stabbing searches without
+     * scanning the full list.
+     */
+    WT_ITEM fwd_max_stop[WT_SKIP_MAXDEPTH];
 };
 
 /*
@@ -113,12 +122,13 @@ struct __wt_layered_table {
     const char *ingest_uri, *stable_uri;
 
     /*
-     * Queue head for fast truncate logic.
-     *
-     * FIXME-WT-16789: Make list sorted by start key or start timestamp for performance
-     * optimization.
+     * Augmented interval skip list replacing the former TAILQ truncate list. Sorted by start_key
+     * ascending; fwd_max_stop[i] tracks the max stop_key reachable at each level for O(log N)
+     * stabbing queries.
      */
-    TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
+    struct __wt_truncate *truncate_ski[WT_SKIP_MAXDEPTH];
+    WT_ITEM truncate_ski_max_stop[WT_SKIP_MAXDEPTH];
+    uint32_t truncate_ski_height;
 
     WT_RWLOCK truncate_lock; /* R/W Lock used for managing changes to truncate list.*/
 
