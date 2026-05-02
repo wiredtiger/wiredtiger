@@ -425,6 +425,8 @@ struct __wt_time_window;
 typedef struct __wt_time_window WT_TIME_WINDOW;
 struct __wt_truncate;
 typedef struct __wt_truncate WT_TRUNCATE;
+struct __wt_truncate_head;
+typedef struct __wt_truncate_head WT_TRUNCATE_HEAD;
 struct __wt_truncate_info;
 typedef struct __wt_truncate_info WT_TRUNCATE_INFO;
 struct __wt_txn;

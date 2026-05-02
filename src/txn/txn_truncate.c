@@ -31,298 +31,133 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
     __wt_buf_free(session, &(*entry)->start_key);
     __wt_buf_free(session, &(*entry)->stop_key);
 
-    for (uint32_t i = 0; i < WT_SKIP_MAXDEPTH; i++)
-        __wt_buf_free(session, &(*entry)->fwd_max_stop[i]);
-
     __wt_free(session, *entry);
     *entry = NULL;
 }
 
 /*
- * __truncate_item_cmp --
- *     Compare two WT_ITEM values using the table collator. Returns negative/zero/positive.
- *     An empty item (size == 0) is treated as less than any non-empty item.
- */
-static int
-__truncate_item_cmp(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *a,
-  const WT_ITEM *b, int *cmpp)
-{
-    if (a->size == 0 && b->size == 0) {
-        *cmpp = 0;
-        return (0);
-    }
-    if (a->size == 0) {
-        *cmpp = -1;
-        return (0);
-    }
-    if (b->size == 0) {
-        *cmpp = 1;
-        return (0);
-    }
-    return (__wt_compare(session, collator, a, b, cmpp));
-}
-
-/*
- * __truncate_max_stop_item --
- *     Return a pointer to the larger of two WT_ITEM stop keys (treating empty as -infinity).
- */
-static const WT_ITEM *
-__truncate_max_stop_item(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *a,
-  const WT_ITEM *b)
-{
-    int cmp;
-
-    if (__truncate_item_cmp(session, collator, a, b, &cmp) != 0)
-        return (a->size >= b->size ? a : b); /* fallback on error */
-    return (cmp >= 0 ? a : b);
-}
-
-/*
  * __truncate_ski_insert --
- *     Insert a node into the augmented interval skip list, maintaining start_key order and
- *     updating fwd_max_stop augmentation at each level.
+ *     Insert a node into the truncate skip list, maintaining start_key sort order.
+ *     Mirrors the WT_INSERT insertion pattern.
  */
 static int
 __truncate_ski_insert(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE *t)
 {
     WT_COLLATOR *collator;
-    WT_TRUNCATE *update[WT_SKIP_MAXDEPTH];
-    WT_TRUNCATE *fwd;
-    const WT_ITEM *max_item;
+    WT_TRUNCATE *update[WT_SKIP_MAXDEPTH], *cur, *fwd;
     int cmp;
-    uint32_t i, new_height;
+    uint32_t i, lvl;
 
     collator = layered_table->collator;
+    cur = NULL; /* NULL == head sentinel */
 
-    /* Choose tower height for this node. */
-    t->ski_height = __wt_skip_choose_depth(session);
-    new_height = t->ski_height;
-
-    /* Grow the list height if needed. */
-    if (new_height > layered_table->truncate_ski_height)
-        layered_table->truncate_ski_height = new_height;
-
-    /*
-     * Standard skip list descent: track a current node (NULL = head sentinel). At each level,
-     * advance as far as possible while start_key < target, then record the stopping point as
-     * update[lvl]. Descending reuses the same node, so lower levels start where the upper level
-     * stopped.
-     */
-    {
-        WT_TRUNCATE *cur = NULL; /* NULL represents the head sentinel */
-
-        for (i = layered_table->truncate_ski_height; i > 0; i--) {
-            uint32_t lvl = i - 1;
-            fwd = (cur == NULL ? layered_table->truncate_ski[lvl] : cur->ski_next[lvl]);
-            while (fwd != NULL) {
-                WT_RET(__wt_compare(session, collator, &fwd->start_key, &t->start_key, &cmp));
-                if (cmp >= 0)
-                    break;
-                cur = fwd;
-                fwd = cur->ski_next[lvl];
-            }
-            update[lvl] = cur;
+    /* Standard O(log N) descent: find the predecessor at each level. */
+    for (i = WT_SKIP_MAXDEPTH; i > 0; i--) {
+        lvl = i - 1;
+        fwd = (cur == NULL ? layered_table->truncate_head.head[lvl] : cur->next[lvl]);
+        while (fwd != NULL) {
+            WT_RET(__wt_compare(session, collator, &fwd->start_key, &t->start_key, &cmp));
+            if (cmp >= 0)
+                break;
+            cur = fwd;
+            fwd = cur->next[lvl];
         }
-
-        /* Levels above the list height have no predecessors. */
-        for (i = layered_table->truncate_ski_height; i < WT_SKIP_MAXDEPTH; i++)
-            update[i] = NULL;
+        update[lvl] = cur;
     }
 
-    /* Splice t into the list at each level up to its height. */
-    for (i = 0; i < new_height; i++) {
+    /* Splice t into the list at each level of its tower. */
+    for (i = 0; i < t->next_depth; i++) {
         if (update[i] == NULL) {
-            t->ski_next[i] = layered_table->truncate_ski[i];
-            layered_table->truncate_ski[i] = t;
+            t->next[i] = layered_table->truncate_head.head[i];
+            layered_table->truncate_head.head[i] = t;
         } else {
-            t->ski_next[i] = update[i]->ski_next[i];
-            update[i]->ski_next[i] = t;
+            t->next[i] = update[i]->next[i];
+            update[i]->next[i] = t;
         }
     }
-
-    /*
-     * Set fwd_max_stop[i] on t: max of t->stop_key and the next node's fwd_max_stop[i].
-     * Walk bottom-up so higher levels can use lower-level values if needed.
-     */
-    for (i = 0; i < new_height; i++) {
-        fwd = t->ski_next[i];
-        if (fwd != NULL && fwd->fwd_max_stop[i].size > 0)
-            max_item = __truncate_max_stop_item(session, collator, &t->stop_key,
-              &fwd->fwd_max_stop[i]);
-        else
-            max_item = &t->stop_key;
-        WT_RET(__wt_buf_set(session, &t->fwd_max_stop[i], max_item->data, max_item->size));
-    }
-
-    /*
-     * Propagate t's stop_key up the update path: for each predecessor that now has t reachable,
-     * update their fwd_max_stop if t->stop_key is larger.
-     */
-    for (i = 0; i < layered_table->truncate_ski_height; i++) {
-        WT_ITEM *head_max = &layered_table->truncate_ski_max_stop[i];
-        max_item = __truncate_max_stop_item(session, collator, head_max, &t->stop_key);
-        if (max_item == &t->stop_key)
-            WT_RET(__wt_buf_set(session, head_max, t->stop_key.data, t->stop_key.size));
-
-        if (update[i] != NULL) {
-            WT_ITEM *pred_max = &update[i]->fwd_max_stop[i];
-            max_item = __truncate_max_stop_item(session, collator, pred_max, &t->stop_key);
-            if (max_item == &t->stop_key)
-                WT_RET(
-                  __wt_buf_set(session, pred_max, t->stop_key.data, t->stop_key.size));
-        }
-    }
-
-    return (0);
-}
-
-/*
- * __truncate_ski_recompute_max_stop --
- *     Recompute fwd_max_stop[level] for a node by scanning its forward chain at that level.
- *     Used after removal to restore the augmentation invariant.
- */
-static int
-__truncate_ski_recompute_max_stop(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-  WT_ITEM *result_item, WT_TRUNCATE *start_node, uint32_t level)
-{
-    WT_TRUNCATE *cur;
-    const WT_ITEM *running_max;
-    WT_ITEM empty;
-
-    WT_CLEAR(empty);
-
-    running_max = &empty;
-    for (cur = start_node; cur != NULL; cur = cur->ski_next[level]) {
-        running_max = __truncate_max_stop_item(session, collator, running_max, &cur->stop_key);
-    }
-
-    if (running_max->size == 0)
-        __wt_buf_free(session, result_item);
-    else
-        WT_RET(__wt_buf_set(session, result_item, running_max->data, running_max->size));
 
     return (0);
 }
 
 /*
  * __truncate_ski_remove --
- *     Remove a node from the augmented interval skip list and recompute augmentation.
+ *     Remove a node from the truncate skip list.
  */
 static int
 __truncate_ski_remove(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE *t)
 {
     WT_COLLATOR *collator;
-    WT_TRUNCATE *update[WT_SKIP_MAXDEPTH];
-    WT_TRUNCATE *fwd;
+    WT_TRUNCATE *update[WT_SKIP_MAXDEPTH], *cur, *fwd;
     int cmp;
-    uint32_t i;
+    uint32_t i, lvl;
 
     collator = layered_table->collator;
+    cur = NULL;
 
-    /* Find the predecessor at each level. */
-    for (i = 0; i < WT_SKIP_MAXDEPTH; i++)
-        update[i] = NULL;
-
-    for (i = layered_table->truncate_ski_height; i > 0; i--) {
-        uint32_t lvl = i - 1;
-
-        fwd = (update[lvl] == NULL ? layered_table->truncate_ski[lvl] :
-                                     update[lvl]->ski_next[lvl]);
-
+    /* Find the predecessor at each level using the same descent as insert. */
+    for (i = WT_SKIP_MAXDEPTH; i > 0; i--) {
+        lvl = i - 1;
+        fwd = (cur == NULL ? layered_table->truncate_head.head[lvl] : cur->next[lvl]);
         while (fwd != NULL && fwd != t) {
             WT_RET(__wt_compare(session, collator, &fwd->start_key, &t->start_key, &cmp));
             if (cmp > 0)
                 break;
-            update[lvl] = fwd;
-            fwd = fwd->ski_next[lvl];
+            cur = fwd;
+            fwd = cur->next[lvl];
         }
+        update[lvl] = cur;
     }
 
     /* Unlink t at each level where it appears. */
-    for (i = 0; i < t->ski_height; i++) {
+    for (i = 0; i < t->next_depth; i++) {
         WT_TRUNCATE **pred_next =
-          (update[i] == NULL ? &layered_table->truncate_ski[i] : &update[i]->ski_next[i]);
+          (update[i] == NULL ? &layered_table->truncate_head.head[i] : &update[i]->next[i]);
         if (*pred_next == t)
-            *pred_next = t->ski_next[i];
+            *pred_next = t->next[i];
     }
-
-    /* Recompute fwd_max_stop for each predecessor and head at affected levels. */
-    for (i = 0; i < layered_table->truncate_ski_height; i++) {
-        WT_ITEM *head_max = &layered_table->truncate_ski_max_stop[i];
-        WT_RET(__truncate_ski_recompute_max_stop(
-          session, collator, head_max, layered_table->truncate_ski[i], i));
-
-        if (update[i] != NULL) {
-            WT_RET(__truncate_ski_recompute_max_stop(
-              session, collator, &update[i]->fwd_max_stop[i], update[i]->ski_next[i], i));
-        }
-    }
-
-    /* Trim the list height if top levels are now empty. */
-    while (layered_table->truncate_ski_height > 0 &&
-      layered_table->truncate_ski[layered_table->truncate_ski_height - 1] == NULL)
-        layered_table->truncate_ski_height--;
 
     return (0);
 }
 
 /*
  * __truncate_ski_stab --
- *     Augmented stabbing search: find the first visible/not-visible truncate entry (per mode) whose
- *     range [start_key, stop_key] contains key. Uses fwd_max_stop pruning for O(log N + k).
+ *     Scan the truncate skip list for an entry (per mode) whose range [start_key, stop_key]
+ *     contains key.  Nodes are sorted by start_key ascending, so the scan stops as soon as
+ *     start_key exceeds key.
  */
 static int
 __truncate_ski_stab(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key,
   const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
 {
     WT_COLLATOR *collator;
-    WT_TRUNCATE *node, *fwd;
+    WT_TRUNCATE *t;
+    bool is_visible;
     int cmp;
 
     WT_ASSERT(session, is_foundp != NULL);
     *is_foundp = false;
 
-    if (layered_table->truncate_ski_height == 0)
-        return (0);
-
     collator = layered_table->collator;
-    node = NULL; /* current best predecessor */
 
-    for (int level = (int)layered_table->truncate_ski_height - 1; level >= 0; level--) {
-        fwd = (node == NULL ? layered_table->truncate_ski[level] : node->ski_next[level]);
+    WT_TRUNC_SKIP_FOREACH(t, &layered_table->truncate_head) {
+        /* Sorted by start_key: once start_key > key no further node can cover key. */
+        WT_RET(__wt_compare(session, collator, &t->start_key, key, &cmp));
+        if (cmp > 0)
+            break;
 
-        while (fwd != NULL) {
-            /* Pruning: if fwd's max reachable stop < key, no match possible at this level. */
-            if (fwd->fwd_max_stop[level].size > 0) {
-                WT_RET(
-                  __truncate_item_cmp(session, collator, &fwd->fwd_max_stop[level], key, &cmp));
-                if (cmp < 0)
-                    break;
-            }
+        /* start_key <= key; check if stop_key >= key. */
+        WT_RET(__wt_compare(session, collator, &t->stop_key, key, &cmp));
+        if (cmp < 0)
+            continue;
 
-            /* If start_key > key, all further nodes at this level are also past key. */
-            WT_RET(__wt_compare(session, collator, &fwd->start_key, key, &cmp));
-            if (cmp > 0)
-                break;
-
-            /* start_key <= key; advance node pointer to fwd. */
-            node = fwd;
-            fwd = node->ski_next[level];
-
-            /* Check whether this node's range actually covers key. */
-            WT_RET(__wt_compare(session, collator, &node->stop_key, key, &cmp));
-            if (cmp >= 0) {
-                /* node->start_key <= key <= node->stop_key — check visibility. */
-                const bool is_visible =
-                  __wt_txn_visible(session, node->txn_id, node->start_ts, node->durable_ts);
-                if ((mode == WT_TRUNCATE_SEARCH_VISIBLE && is_visible) ||
-                  (mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE && !is_visible)) {
-                    if (tp != NULL)
-                        *tp = node;
-                    *is_foundp = true;
-                    return (0);
-                }
-            }
+        /* start_key <= key <= stop_key — check visibility. */
+        is_visible = __wt_txn_visible(session, t->txn_id, t->start_ts, t->durable_ts);
+        if ((mode == WT_TRUNCATE_SEARCH_VISIBLE && is_visible) ||
+          (mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE && !is_visible)) {
+            if (tp != NULL)
+                *tp = t;
+            *is_foundp = true;
+            return (0);
         }
     }
 
@@ -331,26 +166,18 @@ __truncate_ski_stab(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, c
 
 /*
  * __truncate_ski_clear --
- *     Free all entries in the augmented interval skip list and reset head state.
+ *     Free all nodes in the truncate skip list and zero the head.
  */
 static void
 __truncate_ski_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table)
 {
-    WT_TRUNCATE *cur, *next;
-    uint32_t i;
+    WT_TRUNCATE *t, *next;
 
-    cur = layered_table->truncate_ski[0];
-    while (cur != NULL) {
-        next = cur->ski_next[0];
-        __disagg_truncate_free(session, &cur);
-        cur = next;
+    for (t = WT_TRUNC_SKIP_FIRST(&layered_table->truncate_head); t != NULL; t = next) {
+        next = WT_TRUNC_SKIP_NEXT(t);
+        __disagg_truncate_free(session, &t);
     }
-
-    for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-        layered_table->truncate_ski[i] = NULL;
-        __wt_buf_free(session, &layered_table->truncate_ski_max_stop[i]);
-    }
-    layered_table->truncate_ski_height = 0;
+    memset(&layered_table->truncate_head, 0, sizeof(layered_table->truncate_head));
 }
 
 /*
@@ -395,6 +222,7 @@ __wt_insert_truncate_entry(
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *t = NULL;
+    u_int skipdepth;
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
@@ -422,7 +250,11 @@ __wt_insert_truncate_entry(
       __wt_key_string(
         session, stop_key->data, stop_key->size, layered_table->key_format, stop_buf));
 
-    WT_ERR(__wt_calloc_one(session, &t));
+    /* Allocate the node with a flexible next[] array sized to the chosen tower height. */
+    skipdepth = __wt_skip_choose_depth(session);
+    WT_ERR(__wt_calloc(session, 1, sizeof(WT_TRUNCATE) + skipdepth * sizeof(WT_TRUNCATE *), &t));
+    t->next_depth = (uint8_t)skipdepth;
+
     WT_ERR(__wt_strdup(session, uri, &t->uri));
     WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
     WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));

@@ -70,7 +70,8 @@ struct __wt_table {
 
 /*
  * WT_TRUNCATE --
- *	Augmented interval skip list node for the layered table fast-truncate range list.
+ *	A node in the layered table fast-truncate skip list.  Mirrors the WT_INSERT layout:
+ *	fixed fields followed by a flexible next[] array sized to the node's tower height.
  */
 struct __wt_truncate {
     /*
@@ -88,17 +89,25 @@ struct __wt_truncate {
     WT_ITEM start_key;
     WT_ITEM stop_key;
 
-    /* Skip list tower. */
-    uint32_t ski_height;
-    struct __wt_truncate *ski_next[WT_SKIP_MAXDEPTH];
-
-    /*
-     * Per-level augmentation: fwd_max_stop[i] holds the maximum stop_key reachable from this node
-     * via ski_next[i], including this node's own stop_key. Used to prune stabbing searches without
-     * scanning the full list.
-     */
-    WT_ITEM fwd_max_stop[WT_SKIP_MAXDEPTH];
+    uint8_t next_depth;              /* number of valid next[] entries */
+    struct __wt_truncate *next[0];   /* forward-linked skip list, sized at alloc time */
 };
+
+/*
+ * WT_TRUNCATE_HEAD --
+ *	Head of a skip list of WT_TRUNCATE nodes.  Mirrors WT_INSERT_HEAD.
+ */
+struct __wt_truncate_head {
+    WT_TRUNCATE *head[WT_SKIP_MAXDEPTH]; /* first node at each level */
+};
+
+/*
+ * Skip list helpers for WT_TRUNCATE — typed equivalents of the WT_SKIP_* macros.
+ */
+#define WT_TRUNC_SKIP_FIRST(th) ((th)->head[0])
+#define WT_TRUNC_SKIP_NEXT(t) ((t)->next[0])
+#define WT_TRUNC_SKIP_FOREACH(t, th) \
+    for ((t) = WT_TRUNC_SKIP_FIRST(th); (t) != NULL; (t) = WT_TRUNC_SKIP_NEXT(t))
 
 /*
  * WT_LAYERED_TABLE --
@@ -121,14 +130,8 @@ struct __wt_layered_table {
     const char *key_format, *value_format;
     const char *ingest_uri, *stable_uri;
 
-    /*
-     * Augmented interval skip list replacing the former TAILQ truncate list. Sorted by start_key
-     * ascending; fwd_max_stop[i] tracks the max stop_key reachable at each level for O(log N)
-     * stabbing queries.
-     */
-    struct __wt_truncate *truncate_ski[WT_SKIP_MAXDEPTH];
-    WT_ITEM truncate_ski_max_stop[WT_SKIP_MAXDEPTH];
-    uint32_t truncate_ski_height;
+    /* Skip list of committed and in-flight truncate ranges, sorted by start_key. */
+    WT_TRUNCATE_HEAD truncate_head;
 
     WT_RWLOCK truncate_lock; /* R/W Lock used for managing changes to truncate list.*/
 
