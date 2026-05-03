@@ -1646,8 +1646,12 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
           __clayered_lookup_constituent(clayered->stable_cursor, clayered, value), true);
 
 err:
-    if (ret != 0 && ret != WT_PREPARE_CONFLICT)
+    if (ret != 0 && ret != WT_PREPARE_CONFLICT) {
         WT_TRET(__clayered_reset_cursors(clayered, false));
+        /* Reset the buffer if the key was deleted on the ingest table. */
+        value->data = NULL;
+        value->size = 0;
+    }
 
     return (ret);
 }
@@ -2768,6 +2772,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
         F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
+    __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
