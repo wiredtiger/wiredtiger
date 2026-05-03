@@ -7,10 +7,12 @@
  */
 
 // Standard include:
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string_view>
+#include <utility>
 
 // External include:
 #include <catch2/catch.hpp>
