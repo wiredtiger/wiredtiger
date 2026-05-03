@@ -82,23 +82,26 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     def get_prefetch_activity_stats(self, session_name):
         pages_queued = self.get_stat(wiredtiger.stat.conn.prefetch_pages_queued, session_name)
         prefetch_attempts = self.get_stat(wiredtiger.stat.conn.prefetch_attempts, session_name)
+        prefetch_attempts_succeeded = self.get_stat(wiredtiger.stat.conn.prefetch_attempts_succeeded, session_name)
         prefetch_pages_read = self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session_name)
-        return pages_queued, prefetch_attempts, prefetch_pages_read
+        return pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read
 
     # Checks for pre-fetching activity by asserting that relevant statistics have increased.
-    def check_prefetching_activity(self, session_name, pages_queued, prefetch_attempts, prefetch_pages_read):
-        new_pages_queued, new_prefetch_attempts, new_prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
+    def check_prefetching_activity(self, session_name, pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read):
+        new_pages_queued, new_prefetch_attempts, new_prefetch_attempts_succeeded, new_prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
 
         # FIXME-WT-12193 Change some of these statistic checks to use assertGreater instead if possible.
         self.assertGreaterEqual(new_pages_queued, pages_queued)
         self.assertGreaterEqual(new_prefetch_attempts, prefetch_attempts)
+        self.assertGreaterEqual(new_prefetch_attempts_succeeded, prefetch_attempts_succeeded)
         self.assertGreaterEqual(new_prefetch_pages_read, prefetch_pages_read)
 
     # Checks that the values of statistics related to pre-fetching activity are equal to zero.
     def check_no_prefetching_activity(self, session_name):
-        pages_queued, prefetch_attempts, prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
+        pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
         self.assertEqual(pages_queued, 0)
         self.assertEqual(prefetch_attempts, 0)
+        self.assertEqual(prefetch_attempts_succeeded, 0)
         self.assertEqual(prefetch_pages_read, 0)
 
     def test_prefetch_scenarios(self):
@@ -131,7 +134,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             # increased by the end. If pre-fetching is not available, check that we are skipping pages.
             for i in range(self.nrows // 2):
                 ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
-            pages_queued, prefetch_attempts, prefetch_pages_read = self.get_prefetch_activity_stats(s)
+            pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read = self.get_prefetch_activity_stats(s)
 
             while True:
                 ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
@@ -141,7 +144,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             c2.close()
 
             if self.prefetch:
-                self.check_prefetching_activity(s, pages_queued, prefetch_attempts, prefetch_pages_read)
+                self.check_prefetching_activity(s, pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read)
             else:
                 self.check_no_prefetching_activity(s)
 
@@ -149,7 +152,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             if self.prefetch:
                 verify_session = new_conn.open_session("prefetch=(enabled=true)")
                 self.verifyUntilSuccess(verify_session, self.uri)
-                self.check_prefetching_activity(verify_session, 0, 0, 0)
+                self.check_prefetching_activity(verify_session, 0, 0, 0, 0)
             else:
                 verify_session = new_conn.open_session("")
                 self.verifyUntilSuccess(verify_session, self.uri)
