@@ -50,8 +50,8 @@ class test_layered_fast_truncate13(wttest.WiredTigerTestCase):
     """
     Interactions with existing truncates.
 
-    Verify that subsequent operations — additional truncates, per-key removes,
-    and reinsertion — compose correctly with a prior committed truncate.
+    Verify that subsequent operations - additional truncates, per-key removes,
+    and reinsertion - compose correctly with a prior committed truncate.
     """
 
     uris = [
