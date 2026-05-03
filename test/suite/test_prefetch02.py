@@ -73,22 +73,22 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     def conn_cfg(self):
         return self.conn_base_cfg + self.prefetch_cfg
 
-    def get_stat(self, stat, session_name):
-        stat_cursor = session_name.open_cursor('statistics:')
+    def get_stat(self, stat, session):
+        stat_cursor = session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
 
-    def get_prefetch_activity_stats(self, session_name):
-        pages_queued = self.get_stat(wiredtiger.stat.conn.prefetch_pages_queued, session_name)
-        prefetch_attempts = self.get_stat(wiredtiger.stat.conn.prefetch_attempts, session_name)
-        prefetch_attempts_succeeded = self.get_stat(wiredtiger.stat.conn.prefetch_attempts_succeeded, session_name)
-        prefetch_pages_read = self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session_name)
+    def get_prefetch_activity_stats(self, session):
+        pages_queued = self.get_stat(wiredtiger.stat.conn.prefetch_pages_queued, session)
+        prefetch_attempts = self.get_stat(wiredtiger.stat.conn.prefetch_attempts, session)
+        prefetch_attempts_succeeded = self.get_stat(wiredtiger.stat.conn.prefetch_attempts_succeeded, session)
+        prefetch_pages_read = self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session)
         return pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read
 
     # Checks for pre-fetching activity by asserting that relevant statistics have increased.
-    def check_prefetching_activity(self, session_name, pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read):
-        new_pages_queued, new_prefetch_attempts, new_prefetch_attempts_succeeded, new_prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
+    def check_prefetching_activity(self, session, pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read):
+        new_pages_queued, new_prefetch_attempts, new_prefetch_attempts_succeeded, new_prefetch_pages_read = self.get_prefetch_activity_stats(session)
 
         # FIXME-WT-12193 Change some of these statistic checks to use assertGreater instead if possible.
         self.assertGreaterEqual(new_pages_queued, pages_queued)
@@ -97,8 +97,8 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertGreaterEqual(new_prefetch_pages_read, prefetch_pages_read)
 
     # Checks that the values of statistics related to pre-fetching activity are equal to zero.
-    def check_no_prefetching_activity(self, session_name):
-        pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read = self.get_prefetch_activity_stats(session_name)
+    def check_no_prefetching_activity(self, session):
+        pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read = self.get_prefetch_activity_stats(session)
         self.assertEqual(pages_queued, 0)
         self.assertEqual(prefetch_attempts, 0)
         self.assertEqual(prefetch_attempts_succeeded, 0)
