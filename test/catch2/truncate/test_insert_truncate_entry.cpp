@@ -233,10 +233,11 @@ SCENARIO("adding multiple entries stores them in insertion order", "[truncate_li
 
         WHEN("multiple entries are inserted in order")
         {
-            auto keys = std::array{
-              std::pair{make_item("a"), make_item("b")},
-              std::pair{make_item("c"), make_item("d")},
-              std::pair{make_item("e"), make_item("f")},
+            using key_pair = std::pair<WT_ITEM, WT_ITEM>;
+            std::array<key_pair, 3> keys = {
+              key_pair{make_item("a"), make_item("b")},
+              key_pair{make_item("c"), make_item("d")},
+              key_pair{make_item("e"), make_item("f")},
             };
 
             for (auto &[start_key, stop_key] : keys) {
