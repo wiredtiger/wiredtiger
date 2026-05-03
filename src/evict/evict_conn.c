@@ -300,6 +300,12 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction.two_phase_eviction", &cval));
+    if (cval.val != 0)
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_TWO_PHASE);
+    else
+        F_CLR_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_TWO_PHASE);
+
     WT_RET(__wt_config_gets(session, cfg, "eviction.app_eviction_min_cache_fill_ratio", &cval));
     __wt_atomic_store_uint8_relaxed(
       &cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);

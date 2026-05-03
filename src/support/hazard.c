@@ -377,26 +377,6 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
 }
 
 /*
- * __wt_hazard_count --
- *     Count how many hazard pointers this session has on the given page.
- */
-u_int
-__wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_HAZARD *hp;
-    uint32_t hazard_inuse, i;
-    u_int count;
-
-    hazard_get_reference(session, &hp, &hazard_inuse);
-
-    for (count = 0, i = 0; i < hazard_inuse; ++hp, ++i)
-        if (hp->ref == ref)
-            ++count;
-
-    return (count);
-}
-
-/*
  * __wt_hazard_check_assert --
  *     Assert there's no hazard pointer to the page.
  */

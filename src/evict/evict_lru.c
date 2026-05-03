@@ -213,7 +213,17 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
             }
         __wt_spin_unlock(session, &evict->evict_queues[q].evict_lock);
     }
-    WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
+    /*
+     * For pages evicted via the LRU queue, WT_PAGE_EVICT_TWO_PHASE is set in __evict_get_ref before
+     * LRU is cleared, so no walk thread can win the LRU CAS after that point. For force-evict paths
+     * (bt_read.c, bt_delete.c) TWO_PHASE is set later in __wt_evict; a walk thread may race in that
+     * narrow window and set LRU before TWO_PHASE is visible. Those walk threads will clear LRU in
+     * their post-CAS TWO_PHASE guard. Allow LRU=1 only when TWO_PHASE is also set (force-evict
+     * window still in progress).
+     */
+    WT_ASSERT(session,
+      !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU) ||
+        F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_TWO_PHASE));
 }
 
 /*
@@ -2005,12 +2015,33 @@ __evict_push_candidate(
     /*
      * Threads can race to queue a page (e.g., an ordinary LRU walk can race with a page being
      * queued for urgent eviction).
+     *
+     * Read flags_atomic once and use for both checks: the phase guard and the CAS. Skip queuing if
+     * TWO_PHASE is set: the page is being evicted (phase-1 reconcile in progress or ref is
+     * WT_REF_LOCKED). Even if the flag is not set in orig_flags, the CAS below will fail atomically
+     * if it is set between this read and the CAS (flags_atomic will have changed).
      */
     orig_flags = new_flags = ref->page->flags_atomic;
+    if (FLD_ISSET(orig_flags, WT_PAGE_EVICT_TWO_PHASE)) {
+        WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flagging);
+        return (false);
+    }
     FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
     if (orig_flags == new_flags ||
       !__wt_atomic_cas_uint16(&ref->page->flags_atomic, orig_flags, new_flags)) {
-        WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flaging);
+        WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flagging);
+        return (false);
+    }
+
+    /*
+     * Post-CAS guard: the LRU CAS succeeded, but an eviction thread may have set TWO_PHASE between
+     * our read of orig_flags and the CAS. The scan in __wti_evict_list_clear_page may have missed
+     * this entry because evict_entry->ref was not yet written. Clear LRU atomically and do NOT
+     * write evict_entry->ref.
+     */
+    if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_TWO_PHASE)) {
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU);
+        WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flagging);
         return (false);
     }
 
@@ -2629,6 +2660,13 @@ fast:
         return;
 
     WT_ASSERT(session, evict_entry->ref == NULL);
+    /*
+     * Re-check the ref state: the page may have transitioned out of WT_REF_MEM (e.g., a two-phase
+     * eviction thread performed its Phase-2 CAS) since the walk sampled the state. Avoid queuing a
+     * page that is being evicted; the Phase-2 loop in __wt_evict will catch any tight races.
+     */
+    if (WT_REF_GET_STATE(ref) != WT_REF_MEM)
+        return;
     if (!__evict_push_candidate(session, queue, evict_entry, ref))
         return;
 
@@ -2747,6 +2785,23 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         page = ref->page;
 
         /*
+         * Skip pages that were recently deferred due to phase-2 hazard pointer conflicts. On such
+         * failures, evict_page.c sets page->evict_pass_gen to (current_pass_gen +
+         * WT_EVICT_HP_COOLDOWN_PASSES) so it is "in the future." Re-selecting these pages
+         * immediately wastes a candidate slot: the readers that blocked phase-2 are likely still
+         * active. Skip until the global pass gen catches up, then re-evaluate.
+         *
+         * Must check before the gen_gap stat calculation below: if evict_pass_gen is in the future,
+         * the subtraction (current - page->evict_pass_gen) would underflow.
+         */
+        if (__wt_atomic_load_uint64_relaxed(&page->evict_pass_gen) >
+          __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen)) {
+            ++pages_already_queued;
+            WT_STAT_CONN_INCR(session, cache_eviction_hp_cooldown_skipped);
+            continue;
+        }
+
+        /*
          * Update the maximum evict pass generation gap seen at time of eviction. This helps track
          * how long it's been since a page was last queued for eviction. We need to update the
          * statistic here during the walk and not at __evict_page because the evict_pass_gen is
@@ -2784,6 +2839,17 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             pages_already_queued++;
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
                 internal_pages_already_queued++;
+            continue;
+        }
+
+        /*
+         * Skip pages currently being evicted via the two-phase path. TWO_PHASE is set (and LRU is
+         * clear) from phase-1 start until eviction completes or fails. Queuing such a page would
+         * fail immediately in __evict_push_candidate's pre-CAS check, wasting the call. Count it as
+         * already-queued so the walker's give-up heuristic doesn't penalize the tree.
+         */
+        if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_TWO_PHASE)) {
+            pages_already_queued++;
             continue;
         }
 
@@ -3022,11 +3088,10 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         }
 
         /*
-         * Lock the page while holding the eviction mutex to prevent multiple attempts to evict it.
-         * For pages that are already being evicted, this operation will fail and we will move on.
+         * Check the page is still in memory. The hazard pointer for the two-phase eviction model is
+         * acquired after releasing the queue lock, in __evict_page.
          */
-        if ((previous_state = WT_REF_GET_STATE(evict_entry->ref)) != WT_REF_MEM ||
-          !WT_REF_CAS_STATE(session, evict_entry->ref, previous_state, WT_REF_LOCKED)) {
+        if ((previous_state = WT_REF_GET_STATE(evict_entry->ref)) != WT_REF_MEM) {
             __evict_list_clear(session, evict_entry);
             continue;
         }
@@ -3041,8 +3106,15 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         *previous_statep = previous_state;
 
         /*
-         * Remove the entry so we never try to reconcile the same page on reconciliation error.
+         * Set TWO_PHASE before clearing LRU (still under evict_lock) so there is no window where a
+         * walk thread can read orig_flags with LRU=0 and TWO_PHASE=0 and then win the LRU CAS.
+         * After this point walk threads see TWO_PHASE in orig_flags and skip the page immediately.
+         * This must cover both single-phase and two-phase eviction paths: for single-phase,
+         * TWO_PHASE is never set in __wt_evict, so without this pre-clear set the walk thread's
+         * post-CAS check would see TWO_PHASE=0, keep LRU set, and the page would be freed with
+         * LRU=1, triggering the __wt_page_out assertion.
          */
+        F_SET_ATOMIC_16(evict_entry->ref->page, WT_PAGE_EVICT_TWO_PHASE);
         __evict_list_clear(session, evict_entry);
         break;
     }
@@ -3066,18 +3138,27 @@ static int
 __evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
     WT_BTREE *btree;
+    WT_DATA_HANDLE *saved_dhandle;
     WT_DECL_RET;
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TRACK_OP_DECL;
     uint64_t time_start, time_stop;
     uint32_t flags;
-    bool page_is_modified;
+    bool busy, page_is_modified;
 
     WT_TRACK_OP_INIT(session);
 
-    WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref, &previous_state));
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+    /*
+     * WT_NOTFOUND means the eviction queue was empty — a normal, expected condition. Do not use
+     * WT_RET_TRACK here because it calls __wt_error_log_add_helper for every non-zero return, which
+     * would log WT_NOTFOUND as a verbose error to stdout in test environments.
+     */
+    ret = __evict_get_ref(session, is_server, &btree, &ref, &previous_state);
+    if (ret != 0) {
+        WT_TRACK_OP_END(session);
+        return (ret);
+    }
 
     time_start = 0;
 
@@ -3085,7 +3166,33 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     page_is_modified = false;
 
     /*
-     * An internal session flags either the server itself or an eviction worker thread.
+     * Set the btree in the session before acquiring the hazard pointer, because __wt_hazard_set
+     * checks S2BT(session) for the WT_BTREE_NO_EVICT flag. Keep the btree set through the
+     * __wt_evict call — save and restore the dhandle around both operations.
+     */
+    saved_dhandle = session->dhandle;
+    session->dhandle = btree->dhandle;
+
+    /*
+     * Pin the page with a hazard pointer for the two-phase eviction model. The hazard pointer
+     * protects the page during phase-1 reconciliation; __wt_evict acquires the exclusive lock only
+     * for the phase-2 swap-out. If the ref state has changed since __evict_get_ref sampled it, the
+     * hazard set returns busy and we give up on this page.
+     */
+    ret = __wt_hazard_set(session, ref, &busy);
+    if (ret != 0 || busy) {
+        session->dhandle = saved_dhandle;
+        (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+        WT_TRACK_OP_END(session);
+        return (ret == 0 ? __wt_set_return(session, EBUSY) : ret);
+    }
+
+    /*
+     * After the hazard pointer is set, ref->page is guaranteed non-NULL for the duration of our
+     * hazard pointer. All stats and ref->page accesses are deferred to here: in two-phase eviction
+     * the ref stays WT_REF_MEM on the queue, so another thread can evict it (freeing the page)
+     * between __evict_get_ref and here. A NULL check is insufficient: the page can be freed while
+     * ref->page still holds a non-NULL stale value.
      */
     if (is_server)
         WT_STAT_CONN_INCR(session, eviction_server_evict_attempt);
@@ -3100,18 +3207,11 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
         __wt_tsan_suppress_add_uint64(&S2C(session)->evict->app_evicts, 1);
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
-
-    /*
-     * In case something goes wrong, don't pick the same set of pages every time.
-     *
-     * We used to bump the page's read generation only if eviction failed, but that isn't safe: at
-     * that point, eviction has already unlocked the page and some other thread may have evicted it
-     * by the time we look at it.
-     */
     __wti_evict_read_gen_bump(session, ref->page);
 
-    WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
+    ret = __wt_evict(session, ref, previous_state, flags);
 
+    session->dhandle = saved_dhandle;
     (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
 
     if (time_start != 0) {
@@ -3352,6 +3452,18 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Check again, in case we raced with another thread. */
     if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
+        goto done;
+
+    /*
+     * Don't queue a page that is currently being evicted. A two-phase eviction thread may have
+     * CAS'd the ref to WT_REF_LOCKED between our caller's state check and now. Queuing it would set
+     * WT_PAGE_EVICT_LRU on a page about to be freed, causing an assertion in __wt_page_out. The
+     * evict_queue_lock here provides the memory barrier needed to see the updated ref state.
+     *
+     * Also skip pages in phase-1: they are still WT_REF_MEM but already being reconciled. Re-adding
+     * them to the urgent queue wastes work — the phase-1 thread will move to phase-2 shortly.
+     */
+    if (WT_REF_GET_STATE(ref) != WT_REF_MEM || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_TWO_PHASE))
         goto done;
 
     /*

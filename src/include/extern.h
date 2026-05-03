@@ -1679,8 +1679,6 @@ extern size_t __wt_json_unpack_str(u_char *dest, size_t dest_len, const u_char *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern ssize_t __wt_json_strlen(const char *src, size_t srclen) WT_GCC_FUNC_DECL_ATTRIBUTE(
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern u_int __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_checksum_sw(const void *chunk, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)

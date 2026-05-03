@@ -811,6 +811,13 @@ connection_runtime_config = [
                 r'''Skip checking for obsolete updates whenever an update operation is
                 performed.''',
                 type='boolean'),
+            Config('two_phase_eviction', 'true',
+                r'''Perform eviction in two phases: reconcile the page under a hazard pointer
+                while it remains accessible to readers (phase 1), then acquire the exclusive
+                lock only for the fast swap-out (phase 2). Improves read concurrency during
+                eviction. Disable to revert to the original single-phase model where the
+                exclusive lock is held for the entire eviction.''',
+                type='boolean'),
         ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache

@@ -45,6 +45,7 @@ BLKCACHE
 BLmpRrSVv
 BOOL
 BSR
+BT
 BTREE
 BTree
 BUF
@@ -64,6 +65,7 @@ Bxxx
 C'd
 CACHEABLE
 CAS
+CAS'd
 CBT
 CCCCCCCCCCCCCCCCCC
 CDB
@@ -80,6 +82,7 @@ CMakeFiles
 CMakeLists
 CONF
 CONFIG
+COOLDOWN
 CPP
 CPUs
 CRC
@@ -176,6 +179,7 @@ FFFD
 FH
 FILEOPS
 FILETIME
+FIRSTCLEAN
 FIXME
 FLCS
 FLD
@@ -477,6 +481,7 @@ TESTUTIL
 TID
 TMP
 TODO
+TPCC
 TRET
 TRYLOCK
 TSAN
@@ -615,6 +620,7 @@ abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
 acqrel
+acquiredp
 addr
 addrs
 af
@@ -800,6 +806,7 @@ const
 constantp
 consts
 cookiep
+cooldown
 copydoc
 corruptpos
 countp
@@ -1145,6 +1152,7 @@ inlock
 inmem
 inmemory
 inorder
+inserter
 inserters
 instantiation
 instantiations
@@ -1228,6 +1236,7 @@ lifecycle
 lineno
 linenumber
 linux
+livelock
 lldb
 llll
 llu
@@ -1543,6 +1552,7 @@ rebalancing
 recency
 recno
 recnos
+reconciler
 reconfig
 reconfigurations
 reconfigures
