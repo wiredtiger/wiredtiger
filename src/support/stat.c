@@ -2480,6 +2480,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "layered: number of checkpoints picked up by a follower",
   "layered: the number of tables the layered table manager has open",
+  "layered: the number of times the truncate list was searched",
+  "layered: the number of truncate list entries walked during search",
   "live-restore: number of bytes copied from the source to the destination",
   "live-restore: number of files remaining for migration completion",
   "live-restore: number of reads from the source database",
@@ -3525,6 +3527,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_skip_lsn = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_follower = 0;
     stats->layered_table_manager_tables = 0;
+    stats->layered_truncate_list_search_calls = 0;
+    stats->layered_truncate_list_search_entries_walked = 0;
     stats->live_restore_bytes_copied = 0;
     /* not clearing live_restore_work_remaining */
     stats->live_restore_source_read_count = 0;
@@ -4689,6 +4693,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_checkpoints_disagg_pick_up_follower +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
+    to->layered_truncate_list_search_calls +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_search_calls);
+    to->layered_truncate_list_search_entries_walked +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_search_entries_walked);
     to->live_restore_bytes_copied += WT_STAT_CONN_READ(from, live_restore_bytes_copied);
     to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
     to->live_restore_source_read_count += WT_STAT_CONN_READ(from, live_restore_source_read_count);
