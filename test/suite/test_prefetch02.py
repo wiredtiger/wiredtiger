@@ -108,55 +108,60 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(stats.prefetch_attempts_succeeded, 0)
         self.assertEqual(stats.prefetch_pages_read, 0)
 
+    def _populate_table(self, session):
+        session.create(self.uri, 'allocation_size=512,leaf_page_max=512,'
+                        'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        cursor = session.open_cursor(self.uri)
+        session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[i] = i
+        cursor.close()
+        session.commit_transaction()
+        session.checkpoint()
+
+    def _run_traversal(self, session):
+        cursor = session.open_cursor(self.uri)
+        step = cursor.next if self.prefetch_scenario == 'forward-traversal' else cursor.prev
+
+        # Traverse half the key space, snapshot stats, then finish the traversal.
+        # If pre-fetching is unavailable, all stat counters should remain at zero.
+        for _ in range(self.nrows // 2):
+            step()
+        snapshot = self.get_prefetch_activity_stats(session)
+
+        ret = 0
+        while ret == 0:
+            ret = step()
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        cursor.close()
+
+        if self.prefetch:
+            self.assert_prefetch_activity_increased(session, snapshot)
+        else:
+            self.assert_no_prefetch_activity(session)
+
+    def _run_verify(self, conn):
+        session_cfg = self.session_cfg if self.session_cfg is not None else ''
+        session = conn.open_session(session_cfg)
+        self.verifyUntilSuccess(session, self.uri)
+        if self.prefetch:
+            self.assert_prefetch_activity_increased(session, PrefetchStats(0, 0, 0, 0))
+        else:
+            self.assert_no_prefetch_activity(session)
+
     def test_prefetch_scenarios(self):
         os.mkdir(self.new_dir)
         helper.copy_wiredtiger_home(self, '.', self.new_dir)
 
         setup_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg())
-        s = setup_conn.open_session(self.session_cfg)
-        s.create(self.uri, 'allocation_size=512,leaf_page_max=512,'
-                        'key_format={},value_format={}'.format(self.key_format, self.value_format))
-        c1 = s.open_cursor(self.uri)
-        s.begin_transaction()
-        for i in range(1, self.nrows):
-            c1[i] = i
-        c1.close()
-        s.commit_transaction()
-        s.checkpoint()
+        self._populate_table(setup_conn.open_session(self.session_cfg))
 
         # Close and reopen the connection to evict all cached pages, so the subsequent
         # traversal reads from disk and triggers pre-fetching rather than serving from cache.
         setup_conn.close()
         new_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg())
-        s = new_conn.open_session(self.session_cfg)
 
         if self.scenario_type == 'traversal':
-            c2 = s.open_cursor(self.uri)
-
-            # Traverse through half the key space and collect pre-fetching statistics. Then, traverse
-            # through the rest of the keys and check that the relevant pre-fetching statistics have
-            # increased by the end. If pre-fetching is not available, check that we are skipping pages.
-            step = c2.next if self.prefetch_scenario == 'forward-traversal' else c2.prev
-            for _ in range(self.nrows // 2):
-                step()
-            snapshot = self.get_prefetch_activity_stats(s)
-
-            ret = 0
-            while ret == 0:
-                ret = step()
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-            c2.close()
-
-            if self.prefetch:
-                self.assert_prefetch_activity_increased(s, snapshot)
-            else:
-                self.assert_no_prefetch_activity(s)
-
+            self._run_traversal(new_conn.open_session(self.session_cfg))
         elif self.scenario_type == 'verify':
-            session_cfg = self.session_cfg if self.session_cfg is not None else ''
-            verify_session = new_conn.open_session(session_cfg)
-            self.verifyUntilSuccess(verify_session, self.uri)
-            if self.prefetch:
-                self.assert_prefetch_activity_increased(verify_session, PrefetchStats(0, 0, 0, 0))
-            else:
-                self.assert_no_prefetch_activity(verify_session)
+            self._run_verify(new_conn)
