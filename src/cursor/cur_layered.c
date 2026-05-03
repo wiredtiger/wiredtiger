@@ -148,6 +148,11 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
         F_SET(clayered, WT_CLAYERED_ACTIVE);
     }
 
+    /* A leader must never operate with a read-only stable cursor. */
+    WT_ASSERT(session,
+      !S2C(session)->layered_table_manager.leader ||
+        (clayered->stable_cursor != NULL &&
+          !F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY)));
     return (0);
 }
 
@@ -179,6 +184,15 @@ static int
 __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 {
     WT_CURSOR *c;
+
+    /*
+     * Note: There is no need to close the constituent cursors if it has been already done during
+     * connection->close performing a close of all cursors in the session.
+     *
+     * FIXME-WT-17360: Consider removing this flag
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_CONSTITUENT_DEAD))
+        return (0);
 
     clayered->current_cursor = NULL;
     if ((c = clayered->ingest_cursor) != NULL) {
@@ -349,8 +363,12 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
 
     session = CUR2S(clayered);
 
+    /* A leader does not require advancing a stable table. */
+    if (S2C(session)->layered_table_manager.leader)
+        return (false);
+
     /* A random stable cursor shouldn't be reopened, it may have additional state. */
-    if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
+    if (F_ISSET(clayered, WT_CLAYERED_RANDOM))
         return (false);
 
     /*
@@ -484,12 +502,13 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session;
     uint64_t last_checkpoint_meta_lsn, snapshot_gen;
-    bool change_ingest, change_stable, current_leader;
+    bool change_ingest, change_stable, current_leader, role_change;
 
     *state_updated = false;
     session = CUR2S(clayered);
     conn = S2C(session);
     current_leader = conn->layered_table_manager.leader;
+    role_change = current_leader != clayered->leader;
 
     /* Get the current checkpoint LSN. This only matters if we are a follower. */
     if (!current_leader)
@@ -505,14 +524,13 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
      * any changes. FIXME-WT-14545.
      */
-    if (current_leader == clayered->leader &&
-      last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
+    if (!role_change && last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
         return (0);
 
     snapshot_gen = clayered->snapshot_gen;
 
     /* Is this a step up or step down? */
-    if (current_leader != clayered->leader) {
+    if (role_change) {
         /*
          * If we're stepping down, then we currently have a R/W stable cursor and all writes
          would
@@ -530,16 +548,17 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          * stable cursor whenever we can.
          *
          * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
-         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
-         as
+         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write, as
          * this request was kicked off on the follower, so it must be all reads. But we want to
          * discard the stable cursor when we can, as long as we're not breaking transactional
          * semantics for cursors.
          *
-         * For step down, we're currently using a R/W stable cursor. After the check above, we
-         know
+         * For step down, we're currently using a R/W stable cursor. After the check above, we know
          * we've done read operations to this point. So again, we should reopen if we can.
          */
+
+        WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
+          "All the cursors should be left unpositioned before changing the role.");
     }
 
     if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
@@ -556,10 +575,15 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     }
 
     /*
-     * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
-     * follower. And again, we'd like to reopen the stable cursor if we can.
+     * We should always reopen the stable table when stepping up or down. That should be fine, since
+     * in this case all the cursors should be unpositioned and no current transactions should be
+     * running.
+     *
+     * The second case of reopening the stable table is when we want to open a new checkpoint on a
+     * follower to evict more entries from the ingest table.
      */
-    if ((change_stable = __clayered_can_advance_stable(clayered, iteration))) {
+    if ((change_stable = (clayered->stable_cursor != NULL &&
+           (__clayered_can_advance_stable(clayered, iteration) || role_change)))) {
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
         WT_RET(__clayered_reopen_stable(session, clayered));
     }
@@ -2469,12 +2493,7 @@ __clayered_close_int(WT_CURSOR *cursor)
       "Valid layered dhandle is required to close a cursor");
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
-    /*
-     * No need to close the constituent cursors if it has been already done during connection->close
-     * performing a close of all cursors in the session.
-     */
-    if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
-        WT_TRET(__clayered_close_cursors(clayered));
+    WT_TRET(__clayered_close_cursors(clayered));
 
     __wt_cursor_close(cursor);
 
@@ -2524,12 +2543,8 @@ err:
             /*
              * If the cursor has been cached, try to cache the constituent cursors by evoking a
              * cursor close.
-             *
-             * Note: There no need to close the constituent cursors if it has been already done
-             * during connection->close performing a close of all cursors in the session.
              */
-            if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
-                WT_TRET(__clayered_close_cursors(clayered));
+            WT_TRET(__clayered_close_cursors(clayered));
 
             goto done;
         }

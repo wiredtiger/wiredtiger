@@ -982,8 +982,10 @@ struct __wt_connection_stats {
     int64_t dh_session_sweeps;
     int64_t disagg_abandon_checkpoint_failed;
     int64_t disagg_abandon_checkpoint_succeed;
+    int64_t disagg_apply_checkpoint_meta_time;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
+    int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_role_leader;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_time;
