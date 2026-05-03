@@ -59,6 +59,7 @@ else()
         sub_level_error/unit/test_sub_level_error_session_set_last_error.cpp
         truncate/test_truncate_visible_check.cpp
         truncate/test_layered_truncate_visibility.cpp
+        truncate/test_insert_truncate_entry.cpp
     )
 endif()
 
@@ -96,6 +97,7 @@ set(unittest_sources
     wrappers/item_wrapper.cpp
     wrappers/mock_connection.cpp
     wrappers/mock_session.cpp
+    truncate/truncate_list_helpers.cpp
     ${unittests}
     ${live_restore_sources}
 )
