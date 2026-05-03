@@ -154,10 +154,7 @@ SCENARIO("adding an entry inserts one entry into the truncate list", "[truncate_
 
             THEN("exactly one entry appears on the truncate list")
             {
-                const auto *const first = TAILQ_FIRST(&connection.layered_table().truncateqh);
-
-                REQUIRE(first != nullptr);
-                REQUIRE(TAILQ_NEXT(first, q) == nullptr);
+                REQUIRE(truncate_list_size(connection.layered_table()) == 1);
             }
         }
     }
@@ -249,6 +246,8 @@ SCENARIO("adding multiple entries stores them in insertion order", "[truncate_li
 
             THEN("the entries appear on the truncate list in insertion order")
             {
+                REQUIRE(truncate_list_size(connection.layered_table()) == keys.size());
+
                 const auto *entry = TAILQ_FIRST(&connection.layered_table().truncateqh);
                 for (const auto &[start_key, stop_key] : keys) {
                     REQUIRE(entry != nullptr);
@@ -256,7 +255,6 @@ SCENARIO("adding multiple entries stores them in insertion order", "[truncate_li
                     REQUIRE(as_view(entry->stop_key) == as_view(stop_key));
                     entry = TAILQ_NEXT(entry, q);
                 }
-                REQUIRE(entry == nullptr);
             }
         }
     }
