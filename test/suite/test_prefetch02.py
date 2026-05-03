@@ -136,14 +136,14 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             # Traverse through half the key space and collect pre-fetching statistics. Then, traverse
             # through the rest of the keys and check that the relevant pre-fetching statistics have
             # increased by the end. If pre-fetching is not available, check that we are skipping pages.
-            for i in range(self.nrows // 2):
-                ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
+            step = c2.next if self.prefetch_scenario == 'forward-traversal' else c2.prev
+            for _ in range(self.nrows // 2):
+                step()
             snapshot = self.get_prefetch_activity_stats(s)
 
-            while True:
-                ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
-                if ret != 0:
-                    break
+            ret = 0
+            while ret == 0:
+                ret = step()
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
             c2.close()
 
@@ -153,11 +153,10 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assert_no_prefetch_activity(s)
 
         elif self.scenario_type == 'verify':
+            session_cfg = self.session_cfg if self.session_cfg is not None else ''
+            verify_session = new_conn.open_session(session_cfg)
+            self.verifyUntilSuccess(verify_session, self.uri)
             if self.prefetch:
-                verify_session = new_conn.open_session("prefetch=(enabled=true)")
-                self.verifyUntilSuccess(verify_session, self.uri)
                 self.assert_prefetch_activity_increased(verify_session, PrefetchStats(0, 0, 0, 0))
             else:
-                verify_session = new_conn.open_session("")
-                self.verifyUntilSuccess(verify_session, self.uri)
                 self.assert_no_prefetch_activity(verify_session)
