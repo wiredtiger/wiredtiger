@@ -524,6 +524,7 @@ struct __wt_page_modify {
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
 #define WT_PM_REC_MULTIBLOCK 2 /* Reconciliation: multiple blocks */
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
+    bool rec_leave_dirty;      /* Last reconciliation used leave_dirty (update-restore). */
     uint8_t rec_result;        /* Reconciliation state */
 
 #define WT_PAGE_RS_RESTORED 0x1
@@ -739,13 +740,14 @@ struct __wt_page {
 #define WT_PAGE_EVICT_LRU 0x0010u         /* Page is on the LRU queue */
 #define WT_PAGE_EVICT_LRU_URGENT 0x0020u  /* Page is in the urgent queue */
 #define WT_PAGE_EVICT_NO_PROGRESS 0x0040u /* Eviction doesn't count as progress */
-#define WT_PAGE_INMEM_SPLIT 0x0080u
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0100u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_INTL_PINDEX_UPDATE 0x0200u /* Page index updated */
-#define WT_PAGE_PREFETCH 0x0400u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x0800u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x1000u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x2000u      /* Ignore updates on page discard */
+#define WT_PAGE_EVICT_TWO_PHASE 0x0080u   /* Page is being evicted via two-phase protocol */
+#define WT_PAGE_INMEM_SPLIT 0x0100u
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0200u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_INTL_PINDEX_UPDATE 0x0400u /* Page index updated */
+#define WT_PAGE_PREFETCH 0x0800u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x1000u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x2000u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x4000u      /* Ignore updates on page discard */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
@@ -807,10 +809,9 @@ struct __wt_page {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
+    uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
     uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
                                       but fails */
-    uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
-    /* 2 uint16_t hole expected. */
 
     WT_PAGE_DISAGG_INFO *disagg_info;
 

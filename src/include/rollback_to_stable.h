@@ -124,6 +124,13 @@ struct __wt_rollback_to_stable {
     TAILQ_HEAD(__wt_rts_qh, __wt_rts_work_unit) rtsqh;
     WT_SPINLOCK rts_lock; /* RTS work queue spinlock */
 
+    /*
+     * Active flag: set while RTS is modifying update chains. Two-phase eviction checks this to fall
+     * back to the old exclusive-lock-throughout model, avoiding races between phase-1
+     * reconciliation and concurrent RTS update-chain modifications.
+     */
+    wt_shared volatile bool active;
+
     /* Configuration. */
     bool dryrun;
 

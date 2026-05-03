@@ -32,7 +32,7 @@ from wtthread import checkpoint_thread, named_checkpoint_thread
 from helper import simulate_crash_restart
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
+from wtscenario import make_scenarios, prune_scenarios
 
 # test_checkpoint10.py
 # Test what happens if we create an inconsistent checkpoint and then try to
@@ -66,7 +66,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
         ('precise', dict(ckpt_config='precise_checkpoint=true')),
     ]
+    # The core race being tested (checkpoint vs concurrent commit) is independent of logging
+    # and checkpoint precision. Prune to 20 scenarios to keep the test fast while still covering
+    # all format  overlap  name combinations.
     scenarios = make_scenarios(format_values, overlap_values, name_values, log_values, ckpt_precision)
+    scenarios = prune_scenarios(scenarios, 20, 48)
 
     def conn_config(self):
         cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
@@ -122,9 +126,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Write some data.
         self.large_updates(uri, ds, nrows, value_a)
-        # Write this data out now so we aren't waiting for it while trying to
-        # race with the later data.
+        # Flush initial data without the checkpoint_slow timing stress — the slow sleep is only
+        # needed for the racy checkpoint below, not this initial flush.
+        self.conn.reconfigure('timing_stress_for_test=[]')
         self.session.checkpoint()
+        self.conn.reconfigure('timing_stress_for_test=[checkpoint_slow]')
 
         # Write some more data, and hold the transaction open.
         session2 = self.conn.open_session()

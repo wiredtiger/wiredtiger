@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static int __evict_child_check(WT_SESSION_IMPL *, WT_REF *);
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
@@ -27,7 +28,8 @@ __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE prev
 
 /*
  * __evict_exclusive --
- *     Acquire exclusive access to a page.
+ *     Acquire exclusive access to a page. Used only on the closing path where the tree is already
+ *     exclusively locked and the ref arrives pre-locked.
  */
 static WT_INLINE int
 __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -43,6 +45,44 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
     return (__wt_set_return(session, EBUSY));
+}
+
+/*
+ * __evict_acquire_exclusive --
+ *     Phase-2 of two-phase eviction: CAS the ref from WT_REF_MEM to WT_REF_LOCKED and clear the
+ *     calling session's own hazard pointer. Called after reconciliation completes under
+ *     hazard-pointer-only protection.
+ *
+ * On success, the ref is LOCKED, the caller's hazard pointer is cleared, and *acquiredp is set to
+ *     true. The caller must then check other sessions' hazard pointers and perform the dirty-gap
+ *     check before proceeding with swap-out.
+ *
+ * On CAS failure (EBUSY), the ref state is unchanged and the caller's hazard pointer is still set;
+ *     the caller must clear it on the error path.
+ */
+static int
+__evict_acquire_exclusive(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, bool *acquiredp)
+{
+    *acquiredp = false;
+
+    /*
+     * Atomically claim exclusive ownership of the ref. If this fails, another thread changed the
+     * state (e.g., split, another eviction thread, page re-read). Our hazard pointer is still set;
+     * the caller will clear it via the error path.
+     */
+    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+        return (__wt_set_return(session, EBUSY));
+
+    /*
+     * The ref is now LOCKED. No new hazard pointers can be set by other threads (hazard_set_func
+     * re-checks state after its memory barrier and returns busy if not WT_REF_MEM). Clear our own
+     * hazard pointer — we are now protected by the exclusive state and no longer need it.
+     */
+    WT_RET(__wt_hazard_clear(session, ref));
+    *acquiredp = true;
+
+    return (0);
 }
 
 #define WT_EVICT_STATS_CLEAN 0x01
@@ -302,6 +342,14 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
 }
 
+/*
+ * Number of eviction passes to skip a page after it fails two-phase eviction due to hazard pointer
+ * conflicts. Set page->evict_pass_gen to (current_pass_gen + this value) on HP timeout; the walk
+ * skips the page until the global pass gen catches up, preventing repeated wasted selection cycles
+ * on pages with active readers.
+ */
+#define WT_EVICT_HP_COOLDOWN_PASSES 2
+
 /* !!!
  * __wt_evict --
  *     Evict a page from memory by taking exclusive access to the page.
@@ -326,15 +374,33 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_SESSION_IMPL *hp_session;
     uint64_t page_size;
     uint8_t stats_flags;
-    bool evict_clean, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
+    bool acquired, app_thread_assist, closing, ebusy_only, evict_clean, inmem_split;
+    bool is_dirty, tree_dead, two_phase;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    evict_clean = ebusy_only = is_dirty = false;
+    acquired = ebusy_only = evict_clean = is_dirty = false;
+    app_thread_assist = !F_ISSET(session, WT_SESSION_INTERNAL) && !LF_ISSET(WT_EVICT_CALL_URGENT);
+
+    /*
+     * When RTS is active, skip phase-1 reconciliation entirely and defer all reconciliation to
+     * phase-2 (under WT_REF_LOCKED). RTS directly modifies update chains (setting txnid to
+     * WT_TXN_ABORTED) without acquiring WT_PAGE_LOCK. Phase-1 reconciliation under WT_REF_MEM would
+     * race with these modifications, causing assertion failures in rec_hs.c and rec_visibility.c.
+     * Under WT_REF_LOCKED, RTS sees the page as locked and skips it.
+     *
+     * Concurrent non-RTS transaction rollbacks (also setting txnid to WT_TXN_ABORTED) are handled
+     * in __wti_rec_upd_select, which detects the post-selection abort race and returns EBUSY. The
+     * phase-1 EBUSY handler below converts that to two_phase=false so phase-2 retries under the
+     * exclusive lock.
+     */
+    two_phase = !closing && !__wt_atomic_load_bool_v_acquire(&conn->rts->active) &&
+      F_ISSET_ATOMIC_32(&conn->cache->cache_eviction_controls, WT_CACHE_EVICT_TWO_PHASE);
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -378,16 +444,38 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     }
 
     /*
-     * Get exclusive access to the page if our caller doesn't have the tree locked down.
+     * Two-phase eviction: reconcile under hazard-pointer-only protection (phase 1), then acquire
+     * the exclusive lock only for the fast swap-out step (phase 2). This allows readers to continue
+     * accessing the page during potentially long reconciliation I/O.
+     *
+     * All non-closing callers must arrive with a hazard pointer already set on the ref. The closing
+     * path bypasses phase 1; the tree is already exclusively locked, so the ref arrives pre-locked
+     * and we use the old exclusive-throughout path.
+     *
      */
     if (!closing) {
-        WT_ERR(__evict_exclusive(session, ref));
+        /*
+         * Confirm the ref state hasn't changed since the caller sampled it. A concurrent split or
+         * another eviction thread could have changed it.
+         */
+        if (WT_REF_GET_STATE(ref) != previous_state) {
+            ret = __wt_set_return(session, EBUSY);
+            goto err;
+        }
 
         /*
-         * Now the page is locked, remove it from the LRU eviction queue. We have to do this before
-         * freeing the page memory or otherwise touching the reference because eviction paths assume
-         * a non-NULL reference on the queue is pointing at valid memory.
+         * We do not call __wti_evict_list_clear_page here because it asserts WT_REF_LOCKED and the
+         * ref is still WT_REF_MEM in phase 1. The LRU queue removal happens after acquiring the
+         * exclusive lock in phase 2.
          */
+    } else {
+        /*
+         * Closing path: the tree is exclusively locked so no concurrent eviction can race. Lock the
+         * ref directly then check for hazard pointers.
+         */
+        if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+            WT_ERR(__wt_set_return(session, EBUSY));
+        WT_ERR(__evict_exclusive(session, ref));
         __wti_evict_list_clear_page(session, ref);
     }
 
@@ -406,12 +494,101 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * stays in memory and the tree is left in the desired state: avoid the usual cleanup.
      */
     if (inmem_split) {
+        /*
+         * In-memory splits require WT_REF_LOCKED. On the non-closing path the ref is still
+         * WT_REF_MEM (phase 1), so acquire exclusive access before handing off to
+         * __wt_split_insert. Also clear the page from the LRU queue now that the ref is locked,
+         * matching what the normal eviction path does after phase-2 CAS.
+         */
+        if (!closing) {
+            WT_ERR(__evict_acquire_exclusive(session, ref, previous_state, &acquired));
+
+            /*
+             * Check for hazard pointers from other sessions before calling __wt_split_insert.
+             * __wt_split_insert modifies the insert skiplist (sets prev_ins->next[0] = NULL)
+             * without holding the leaf page lock. A concurrent inserter that set its hazard pointer
+             * before our MEM->LOCKED CAS may still be executing __insert_simple_func or
+             * __insert_serial_func with a stale ins_stack pointer; our skiplist modification would
+             * cause its level-0 CAS to fail with WT_RESTART repeatedly, causing a hang. Return
+             * EBUSY so the split is retried once all other hazard holders have released the page.
+             */
+            if (__wt_hazard_check(session, ref, NULL) != NULL) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
+                ret = __wt_set_return(session, EBUSY);
+                goto err;
+            }
+
+            __wti_evict_list_clear_page(session, ref);
+        }
         WT_ERR(__wt_split_insert(session, ref));
         goto done;
     }
 
     if (__wt_page_is_modified(page))
         is_dirty = true;
+
+    /*
+     * Pre-phase-1 hazard gate: if another session already holds a hazard pointer on this page,
+     * phase-2 may fail after the expensive phase-1 reconcile completes. Avoid wasted work where
+     * possible.
+     *
+     * All non-closing callers arrive with a hazard pointer already set on the ref (it is the
+     * phase-1 pin). We must not trigger the gate for our own hazard pointer — that HP will be
+     * cleared by __evict_acquire_exclusive before phase-2 runs and poses no conflict. We pass
+     * &hp_session to __wt_hazard_check and only fire the gate when the first HP found belongs to
+     * a different session. This is a "best-effort" check: if our own HP happens to be scanned
+     * before a concurrent reader's HP, the gate is a false negative and we proceed to phase-1,
+     * which may then fail at phase-2 (EBUSY). That is acceptable — the gate is an optimization to
+     * avoid wasted reconcile work, not a correctness mechanism.
+     *
+     * Run this check on every attempt, including the first. Under high-concurrency write workloads
+     * (bulk insert, find-one-and-update) app threads hold hazard pointers during B-tree traversal
+     * and update for tens to hundreds of microseconds -- far longer than the phase-2 spin-wait cap
+     * (WT_THOUSAND * WT_PAUSE approximately 1-4 us). Skipping the gate on the first attempt causes
+     * phase-1 reconciliation work to be discarded at a high rate: sys-perf data showed 79-116
+     * pages/s written and immediately restored in-memory, 89-98% forced-eviction failure rates, and
+     * write-ticket exhaustion in 78% of samples for insert workloads. __wt_hazard_check scans all
+     * sessions' hazard arrays but is cheap in practice (a few entries per call); the cost of one
+     * pre-check is negligible compared to a wasted page reconcile.
+     *
+     * Background eviction workers: apply a cooldown when an HP is found. Single-phase reconciles
+     * under WT_REF_LOCKED, blocking all readers for the full reconcile duration. A short cooldown
+     * is cheaper: the HP is often from a transient reader that will release within
+     * WT_EVICT_HP_COOLDOWN_PASSES passes.
+     *
+     * App-thread assist eviction: do NOT cooldown here. The HP gate fires at a point-in-time
+     * snapshot; in read-heavy workloads the HP is often from a transient reader that will release
+     * well before phase-1 reconcile completes. Falling to single-phase blocks all concurrent
+     * readers for the full reconcile duration, directly inflating read latency. Proceed with
+     * two-phase; phase-2 will retry if the HP persists.
+     *
+     * Urgent eviction bypasses the cooldown to avoid cache-pressure livelock.
+     */
+    if (two_phase && __wt_hazard_check(session, ref, &hp_session) != NULL &&
+      hp_session != session) {
+        if (!app_thread_assist) {
+            /* Background: cooldown, then retry two-phase on the next pass. */
+            __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
+              __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
+                WT_EVICT_HP_COOLDOWN_PASSES);
+            __wti_evict_read_gen_bump(session, page);
+            ret = __wt_set_return(session, EBUSY);
+            goto err;
+        }
+        /* App-thread assist: proceed with two-phase; phase-2 handles HP failure. */
+    }
+
+    /*
+     * For the LRU-worker path WT_PAGE_EVICT_TWO_PHASE was already set in __evict_get_ref before LRU
+     * was cleared, closing the race where a walk thread could re-queue the page between the LRU
+     * clear and this point. For force-evict callers (bt_read.c, bt_delete.c) the flag is not yet
+     * set; set it now so walk threads that race in that narrow window see TWO_PHASE in their
+     * post-CAS check and clear LRU themselves.
+     *
+     * The flag stays set through both phases; the ref state (MEM vs LOCKED) distinguishes them.
+     */
+    if (two_phase)
+        F_SET_ATOMIC_16(ref->page, WT_PAGE_EVICT_TWO_PHASE);
 
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
@@ -437,10 +614,318 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /*
      * No need to reconcile the page if it is from a dead tree or it is clean. Stable tables on the
      * follower are never modified, and should never be reconciled.
+     *
+     * Phase 1: the ref stays in WT_REF_MEM during reconciliation. The WT_PAGE_LOCK acquired inside
+     * __wt_reconcile prevents concurrent update-chain GC and in-memory child splits.
+     *
+     * Four page types are NOT reconciled in phase-1 (non-closing path) and are instead deferred
+     * to phase-2 under WT_REF_LOCKED:
+     *
+     * (1) Internal pages: while the parent ref is WT_REF_MEM, readers can navigate to children,
+     *     instantiate them from WT_REF_DISK into WT_REF_MEM, dirty them, and re-evict them.
+     *     Phase-1 reconcile captures each child's ref->addr into the disk image buffer; if a child
+     *     is then re-evicted, its old block is freed to the available list while the parent's
+     *     buffer still holds the stale address. With the parent LOCKED in phase-2,
+     *     __wt_page_in_func refuses to return a LOCKED ref, so child addresses are stable.
+     *
+     * (2) Garbage-collection (ingest) leaf pages: phase-1 reconciliation with a prune_timestamp
+     *     that cannot fully prune all data results in update-restore (leave_dirty). The subsequent
+     *     __wt_split_rewrite replaces the page with a reconciled disk image plus saved updates.
+     *     This transformed page structure prevents future reconciliation from making GC progress
+     *     even when the prune_timestamp advances. Deferring to phase-2 ensures the hazard check
+     *     runs first, matching the old exclusive-lock-throughout eviction behavior.
+     *
+     * (3) History store pages: while the page is WT_REF_MEM, any session can insert new history
+     *     entries onto it. Phase-1 reconcile captures rec_start_pinned_stable_ts at start; a
+     *     concurrent HS insert can add an entry with upd_durable_ts > stable_ts, which
+     *     rec_visibility.c asserts cannot exist on a HS page. Under WT_REF_LOCKED no new HS
+     *     writes can land on the page, so deferring to phase-2 eliminates the race.
+     *
+     * (4) Disaggregated leaf pages: phase-1 may write a delta to the page log with a given
+     *     backlink_lsn. If a dirty-gap is detected in phase-2 (a writer modified the page after
+     *     phase-1 released WT_PAGE_LOCK), phase-2 re-reconcile would write a second delta. If a
+     *     checkpoint ran between phase-1 and phase-2, that second delta has a different
+     *     backlink_lsn, leaving two overlapping deltas in the page log and corrupting the page
+     *     history. Deferring to phase-2 guarantees a single reconcile under WT_REF_LOCKED.
+     *
+     * (5) When RTS is active (two_phase == false): ALL page types skip phase-1 reconciliation to
+     *     avoid races with concurrent RTS update-chain modifications. Reconciliation is deferred
+     *     to phase-2 under WT_REF_LOCKED, where RTS will see the page as locked and skip it.
+     *
+     * The closing path already holds the tree exclusively (ref arrives pre-LOCKED), so neither
+     * race exists; all page types are reconciled here on the closing path.
      */
-    if (!tree_dead && is_dirty) {
+    if (!tree_dead && is_dirty &&
+      (closing ||
+        (two_phase && !F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+          !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) &&
+          !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+          !F_ISSET(session->dhandle, WT_DHANDLE_HS)))) {
         WT_ASSERT(session, ref->page->disagg_info == NULL || conn->layered_table_manager.leader);
-        WT_ERR(__evict_reconcile(session, ref, flags));
+        ret = __evict_reconcile(session, ref, flags);
+        /*
+         * If reconciliation returned EBUSY because RTS started during the reconcile setup (the
+         * safety check inside __evict_reconcile), fall back to phase-2 reconciliation under
+         * WT_REF_LOCKED. Do not go to err — the page is still valid and dirty.
+         */
+        if (ret == EBUSY) {
+            ret = 0;
+            two_phase = false;
+        } else
+            WT_ERR(ret);
+    }
+
+    /*
+     * Phase 2: acquire exclusive access for the swap-out. CAS the ref from WT_REF_MEM to
+     * WT_REF_LOCKED and clear our own hazard pointer. After this point the only allowed failure is
+     * EBUSY.
+     */
+    if (!closing) {
+        WT_ERR(__evict_acquire_exclusive(session, ref, previous_state, &acquired));
+
+        /*
+         * The ref is now LOCKED. WT_PAGE_EVICT_TWO_PHASE remains set — walk threads that read
+         * flags_atomic after the CAS will see it and bail out of __evict_push_candidate. A walk
+         * thread that read orig_flags before our CAS may have already set WT_PAGE_EVICT_LRU; it
+         * will clear LRU in its post-CAS TWO_PHASE guard before writing evict_entry->ref.
+         */
+
+        /*
+         * Now that the ref is LOCKED and TWO_PHASE is set, remove it from the LRU eviction queue.
+         * We have to do this before freeing the page memory or otherwise touching the reference
+         * because eviction paths assume a non-NULL reference on the queue is pointing at valid
+         * memory.
+         */
+        __wti_evict_list_clear_page(session, ref);
+
+        /*
+         * A walk thread may have set WT_PAGE_EVICT_LRU in the window between
+         * __evict_acquire_exclusive above. The scan in __wti_evict_list_clear_page may have
+         * missed the queue entry if evict_entry->ref was not yet written at the time of the scan.
+         * With TWO_PHASE set, __evict_push_candidate will clear LRU atomically once the walk
+         * thread resumes. Spin until it does so that
+         * __wt_page_out's assertion is satisfied.
+         */
+        while (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
+            WT_PAUSE();
+
+        /*
+         * Check for hazard pointers from other sessions. Readers that published their hazard
+         * pointer before our CAS may still hold it. Those readers are actively using the page and
+         * we cannot swap it out yet.
+         *
+         * The ref is already LOCKED, so no new hazard pointers can be published. Spin briefly
+         * waiting for existing holders to release their pointers; they will do so as soon as they
+         * finish their current operation. A short pause avoids discarding all phase-1
+         * reconciliation work for transient readers. Cap the spin to avoid burning CPU when a
+         * reader is slow (e.g. sleeping inside a cursor operation).
+         *
+         * App-thread assist eviction (non-internal, non-urgent): do not spin at all. The app
+         * thread must return to its caller promptly; a multi-microsecond spin per failed page
+         * compounds into large CPU overhead at high eviction rates (FTDC showed 243% of one core
+         * consumed by app-thread eviction on TPCC out-of-cache). Background eviction workers and
+         * urgent eviction spin up to WT_THOUSAND iterations to preserve phase-1 work for transient
+         * readers.
+         *
+         * On any cap-out (app-thread or worker): defer re-selection by advancing
+         * page->evict_pass_gen to a future generation (WT_EVICT_HP_COOLDOWN_PASSES ahead). The
+         * eviction walk skips pages whose evict_pass_gen exceeds the current pass, preventing the
+         * server from repeatedly selecting a page it cannot swap out. Also bump read_gen so the
+         * page sorts to the back of the LRU queue in clean-eviction mode.
+         *
+         * For urgent (force-evict) pages: reconciliation has already freed obsolete updates via
+         * __rec_save_delete_hs_upd_and_free_obs_updates, reducing the page's memory footprint
+         * below the threshold that triggered forced eviction. Re-set WT_READGEN_EVICT_SOON so the
+         * eviction server picks up the already-reconciled page as soon as hazard pointers drain,
+         * rather than waiting for normal LRU scoring.
+         */
+        for (uint32_t haz_spin = 0; __wt_hazard_check(session, ref, NULL) != NULL; ++haz_spin) {
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
+
+            if (haz_spin > WT_THOUSAND || app_thread_assist) {
+                if (app_thread_assist)
+                    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard_app_thread);
+                if (LF_ISSET(WT_EVICT_CALL_URGENT) && is_dirty)
+                    __wt_evict_page_soon(session, ref);
+                else {
+                    __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
+                      __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
+                        WT_EVICT_HP_COOLDOWN_PASSES);
+                    __wti_evict_read_gen_bump(session, page);
+                }
+                ret = __wt_set_return(session, EBUSY);
+                goto err;
+            }
+            WT_PAUSE();
+        }
+
+        /*
+         * When RTS is active, phase-1 reconciliation was skipped for ALL page types. Reconcile
+         * everything here under WT_REF_LOCKED. RTS will see the page as locked and skip it,
+         * avoiding races with concurrent update-chain modifications.
+         *
+         * Re-check whether the page is dirty: in the old single-phase model the CAS to LOCKED
+         * happened before __evict_review, so is_dirty was always read under the exclusive lock.
+         * In the two-phase model is_dirty is read while the ref is still WT_REF_MEM. RTS (or any
+         * other concurrent writer) can dirty a previously clean page in the window between the
+         * is_dirty read and the CAS above. Without this re-check, we would call
+         * __evict_page_dirty_update on a page with rec_result == 0, causing a panic.
+         */
+        if (!two_phase && !tree_dead) {
+            is_dirty = is_dirty || __wt_page_is_modified(page);
+            if (is_dirty) {
+                if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+                    ret = __evict_child_check(session, ref);
+                    if (ret != 0) {
+                        WT_STAT_CONN_INCR(
+                          session, eviction_fail_active_children_on_an_internal_page);
+                        goto err;
+                    }
+                }
+                WT_ERR(__evict_reconcile(session, ref, flags));
+            }
+        }
+
+        /*
+         * The remaining phase-2 checks are specific to two-phase eviction. When RTS is active
+         * (!two_phase), all reconciliation was already handled in the block above.
+         *
+         * For internal pages: re-run the child check now that we hold the exclusive lock.
+         *
+         * __evict_review (including __evict_child_check) ran during phase-1 while the ref was
+         * still WT_REF_MEM. Between that check and our phase-2 CAS above, a reader may have
+         * transitioned a child from WT_REF_DISK to WT_REF_MEM, setting a hazard pointer on that
+         * child's WT_REF struct. If we proceeded to evict the parent now, we would free the page
+         * index (which contains the child WT_REF structs) while that reader holds a live pointer
+         * to one of them.
+         *
+         * We now hold WT_REF_LOCKED, so no new readers can navigate to this page. Re-running the
+         * child check here is safe and ensures no in-memory children exist at swap-out time.
+         */
+        if (two_phase && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            /* __wt_evict already holds the split generation; call directly. */
+            ret = __evict_child_check(session, ref);
+            if (ret != 0) {
+                WT_STAT_CONN_INCR(session, eviction_fail_active_children_on_an_internal_page);
+                goto err;
+            }
+
+            /*
+             * Reconcile the dirty internal page now, under WT_REF_LOCKED. Phase-1 skipped this
+             * reconcile to avoid the child-address race (see the phase-1 comment above). Now that
+             * the parent is LOCKED and all children are WT_REF_DISK, no new reader can navigate
+             * here to instantiate a child, so child addresses captured into the disk image are
+             * stable for the life of this reconcile.
+             *
+             * Also handles the dirty-gap: if the internal page was clean at review time but was
+             * dirtied (e.g., by a concurrent page split whose new children were then evicted to
+             * DISK before __evict_child_check ran), reconcile it now under LOCKED.
+             */
+            is_dirty = is_dirty || __wt_page_is_modified(page);
+            if (!tree_dead && is_dirty) {
+                WT_ASSERT(
+                  session, ref->page->disagg_info == NULL || conn->layered_table_manager.leader);
+                WT_ERR(__evict_reconcile(session, ref, flags));
+            }
+        }
+
+        /*
+         * All four non-internal leaf-page cases share the outer guard. Skip entirely for dead
+         * trees: their pages are discarded without writing by __evict_page_clean_update, so
+         * reconciling here would produce I/O that is immediately thrown away.
+         */
+        if (two_phase && !F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !tree_dead) {
+            if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
+                /*
+                 * Garbage-collection (ingest) leaf pages: reconcile under WT_REF_LOCKED. Phase-1
+                 * skipped this to avoid the update-restore/split-rewrite cycle that prevents GC
+                 * progress (see the phase-1 comment). The hazard check above has already confirmed
+                 * no other session holds the page, so reconciliation with the current
+                 * prune_timestamp can proceed safely.
+                 *
+                 * Re-check whether the page is dirty to cover pages that became dirty between the
+                 * is_dirty read (under WT_REF_MEM) and our CAS above.
+                 */
+                is_dirty = is_dirty || __wt_page_is_modified(page);
+                if (is_dirty)
+                    WT_ERR(__evict_reconcile(session, ref, flags));
+            } else if (F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
+                /*
+                 * History store pages: reconcile under WT_REF_LOCKED. Phase-1 skipped this to avoid
+                 * a race with concurrent HS insertions (see the phase-1 comment). Under the
+                 * exclusive lock no new HS entries can be written to this page, so reconciliation
+                 * is safe.
+                 *
+                 * Re-check whether the page is dirty: it may have been clean at review time but had
+                 * new HS entries written to it between then and our CAS above.
+                 */
+                is_dirty = is_dirty || __wt_page_is_modified(page);
+                if (is_dirty)
+                    WT_ERR(__evict_reconcile(session, ref, flags));
+            } else if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+                /*
+                 * Disaggregated leaf pages: reconcile under WT_REF_LOCKED. Phase-1 skipped these to
+                 * avoid writing two conflicting deltas to the page log (see the phase-1 comment). A
+                 * single reconcile here under the exclusive lock produces exactly one delta.
+                 *
+                 * Re-check whether the page is dirty: a writer may have modified it between the
+                 * is_dirty read (under WT_REF_MEM) and our CAS above.
+                 */
+                is_dirty = is_dirty || __wt_page_is_modified(page);
+                if (is_dirty)
+                    WT_ERR(__evict_reconcile(session, ref, flags));
+            } else {
+                /*
+                 * Dirty-gap check for regular leaf pages: between the end of phase-1
+                 * reconciliation (WT_PAGE_LOCK released inside __wt_reconcile) and our CAS above,
+                 * a writer may have added new updates to the page. Those updates are not in the
+                 * reconciled on-disk image and not in the history store. Re-reconcile under the
+                 * exclusive lock so all updates are captured before the page is swapped out.
+                 *
+                 * Two cases require re-reconciliation:
+                 *
+                 * (a) Phase-1 ran. __wt_reconcile resets page_state to WT_PAGE_DIRTY_FIRST at
+                 *     the start and writers atomically increment it. After the CAS
+                 *     (DIRTY_FIRSTCLEAN) in __rec_write_page_status, a concurrent writer
+                 *     increments page_state from CLEAN (0) back to DIRTY_FIRST (1). Detect a
+                 *     genuine dirty-gap (writer incremented page_state above DIRTY_FIRST during
+                 *     phase-1, causing the CAS to fail) vs. a leave_dirty page (reconcile
+                 *     intentionally kept the page dirty for update-restore):
+                 *     - page_state > DIRTY_FIRST: a writer was concurrent with phase-1 (CAS
+                 *       failed). Their updates may not be in the disk image. Re-reconcile.
+                 *     - page_state == DIRTY_FIRST: use rec_leave_dirty to distinguish leave_dirty
+                 *       (true: skip re-reconcile, in-memory update chain is intentionally
+                 *       preserved) from a single post-CAS writer that incremented CLEAN to
+                 *       DIRTY_FIRST (false: re-reconcile).
+                 *
+                 * (b) Phase-1 was skipped entirely (is_dirty was false). Any current modification
+                 *     is a genuine dirty-gap: we must reconcile before calling
+                 *     __evict_page_dirty_update or it will assert ref->addr == NULL.
+                 *
+                 * Internal pages, GC leaf pages, and disaggregated leaf pages are reconciled in
+                 * the branches above; this dirty-gap check only runs for regular leaf pages
+                 * reconciled in phase-1.
+                 */
+                uint32_t pg_state = page->modify != NULL ?
+                  __wt_atomic_load_uint32_acquire(&page->modify->page_state) :
+                  WT_PAGE_CLEAN;
+                bool dirty_gap = false;
+                if (!is_dirty)
+                    dirty_gap = (pg_state != WT_PAGE_CLEAN);
+                else if (pg_state > WT_PAGE_DIRTY_FIRST)
+                    dirty_gap = true;
+                else if (pg_state == WT_PAGE_DIRTY_FIRST)
+                    /* Use rec_leave_dirty to distinguish leave_dirty from post-CAS single writer.
+                     */
+                    dirty_gap = (page->modify != NULL && !page->modify->rec_leave_dirty);
+
+                if (dirty_gap) {
+                    is_dirty = true;
+                    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_gap_rereconcile);
+                    WT_ERR(__evict_reconcile(session, ref, flags));
+                }
+            }
+        }
     }
 
     /* After this spot, the only recoverable failure is EBUSY. */
@@ -488,7 +973,19 @@ err:
         __wt_atomic_stats_max_uint16(
           &conn->evict->evict_max_evict_page_attempts, page->evict_page_attempts);
 
-        if (!closing)
+        /*
+         * Restore the ref state. We hold WT_REF_LOCKED in exactly two cases:
+         *   (a) closing path: the tree is exclusively locked so the CAS at entry always succeeds.
+         *   (b) non-closing path: __evict_acquire_exclusive succeeded (acquired == true).
+         * In all other non-closing failure paths (state changed, review failed before phase-2 CAS)
+         * the ref is still WT_REF_MEM and must NOT be unlocked here.
+         *
+         * Clear TWO_PHASE before restoring the ref state so the page is eligible for future
+         * eviction. The flag is set for any two-phase attempt; clearing it when two_phase was
+         * false is a safe no-op.
+         */
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_EVICT_TWO_PHASE);
+        if (closing || acquired)
             __evict_exclusive_clear(session, ref, previous_state);
 
         if (ebusy_only && ret != EBUSY)
@@ -496,6 +993,11 @@ err:
     }
 
 done:
+    /* On the non-closing path, clear our hazard pointer if phase-2 never claimed exclusive access.
+     */
+    if (!closing && !acquired)
+        WT_IGNORE_RET(__wt_hazard_clear(session, ref));
+
     if (ret == 0)
         FLD_SET(stats_flags, WT_EVICT_STATS_SUCCESS);
     __evict_stats_update(session, stats_flags);
@@ -633,8 +1135,6 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
 
     mod = ref->page->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-
-    WT_ASSERT(session, ref->addr == NULL || F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
 
     switch (mod->rec_result) {
     case WT_PM_REC_EMPTY:
@@ -1291,10 +1791,16 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     /*
      * Success: assert that the page is clean or reconciliation was configured to save updates.
+     *
+     * In the two-phase eviction model (non-closing) a concurrent reconciler may have already
+     * cleaned the page and we returned early from __wt_reconcile (no-op). A writer can then
+     * re-dirty the page between the lock release and this assertion. The dirty-gap check in
+     * __wt_evict handles that case, so we allow a dirty page here on the non-closing eviction path.
      */
     WT_ASSERT(session,
       !__wt_page_is_modified(ref->page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
-        WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle));
+        WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
+        (LF_ISSET(WT_REC_EVICT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING)));
 
     return (0);
 }

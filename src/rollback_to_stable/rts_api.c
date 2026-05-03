@@ -123,6 +123,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * entire table sequentially.
      */
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    __wt_atomic_store_bool_v_release(&conn->rts->active, true);
 
     WT_ERR(__rts_check(session));
 
@@ -189,6 +190,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
 err:
+    __wt_atomic_store_bool_v_release(&conn->rts->active, false);
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
     return (ret);
 }
