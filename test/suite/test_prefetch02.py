@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os
+from collections import namedtuple
 import helper, wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -36,6 +37,9 @@ from wtscenario import make_scenarios
 #    pre-fetching is running properly by checking various statistics. Additionally, run
 #    multiple scenarios which should not trigger pre-fetching and check that these pages are
 #    skipped when deciding whether to pre-fetch the pages.
+
+PrefetchStats = namedtuple('PrefetchStats',
+    ['pages_queued', 'prefetch_attempts', 'prefetch_attempts_succeeded', 'prefetch_pages_read'])
 
 class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     new_dir = 'new.dir'
@@ -80,29 +84,29 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         return val
 
     def get_prefetch_activity_stats(self, session):
-        pages_queued = self.get_stat(wiredtiger.stat.conn.prefetch_pages_queued, session)
-        prefetch_attempts = self.get_stat(wiredtiger.stat.conn.prefetch_attempts, session)
-        prefetch_attempts_succeeded = self.get_stat(wiredtiger.stat.conn.prefetch_attempts_succeeded, session)
-        prefetch_pages_read = self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session)
-        return pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read
+        return PrefetchStats(
+            pages_queued=self.get_stat(wiredtiger.stat.conn.prefetch_pages_queued, session),
+            prefetch_attempts=self.get_stat(wiredtiger.stat.conn.prefetch_attempts, session),
+            prefetch_attempts_succeeded=self.get_stat(wiredtiger.stat.conn.prefetch_attempts_succeeded, session),
+            prefetch_pages_read=self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session),
+        )
 
     # Checks for pre-fetching activity by asserting that relevant statistics have increased.
-    def check_prefetching_activity(self, session, pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read):
-        new_pages_queued, new_prefetch_attempts, new_prefetch_attempts_succeeded, new_prefetch_pages_read = self.get_prefetch_activity_stats(session)
-
+    def assert_prefetch_activity_increased(self, session, snapshot):
+        current = self.get_prefetch_activity_stats(session)
         # FIXME-WT-12193 Change some of these statistic checks to use assertGreater instead if possible.
-        self.assertGreaterEqual(new_pages_queued, pages_queued)
-        self.assertGreaterEqual(new_prefetch_attempts, prefetch_attempts)
-        self.assertGreaterEqual(new_prefetch_attempts_succeeded, prefetch_attempts_succeeded)
-        self.assertGreaterEqual(new_prefetch_pages_read, prefetch_pages_read)
+        self.assertGreaterEqual(current.pages_queued, snapshot.pages_queued)
+        self.assertGreaterEqual(current.prefetch_attempts, snapshot.prefetch_attempts)
+        self.assertGreaterEqual(current.prefetch_attempts_succeeded, snapshot.prefetch_attempts_succeeded)
+        self.assertGreaterEqual(current.prefetch_pages_read, snapshot.prefetch_pages_read)
 
     # Checks that the values of statistics related to pre-fetching activity are equal to zero.
-    def check_no_prefetching_activity(self, session):
-        pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read = self.get_prefetch_activity_stats(session)
-        self.assertEqual(pages_queued, 0)
-        self.assertEqual(prefetch_attempts, 0)
-        self.assertEqual(prefetch_attempts_succeeded, 0)
-        self.assertEqual(prefetch_pages_read, 0)
+    def assert_no_prefetch_activity(self, session):
+        stats = self.get_prefetch_activity_stats(session)
+        self.assertEqual(stats.pages_queued, 0)
+        self.assertEqual(stats.prefetch_attempts, 0)
+        self.assertEqual(stats.prefetch_attempts_succeeded, 0)
+        self.assertEqual(stats.prefetch_pages_read, 0)
 
     def test_prefetch_scenarios(self):
         os.mkdir(self.new_dir)
@@ -134,7 +138,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             # increased by the end. If pre-fetching is not available, check that we are skipping pages.
             for i in range(self.nrows // 2):
                 ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
-            pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read = self.get_prefetch_activity_stats(s)
+            snapshot = self.get_prefetch_activity_stats(s)
 
             while True:
                 ret = c2.next() if self.prefetch_scenario == 'forward-traversal' else c2.prev()
@@ -144,16 +148,16 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
             c2.close()
 
             if self.prefetch:
-                self.check_prefetching_activity(s, pages_queued, prefetch_attempts, prefetch_attempts_succeeded, prefetch_pages_read)
+                self.assert_prefetch_activity_increased(s, snapshot)
             else:
-                self.check_no_prefetching_activity(s)
+                self.assert_no_prefetch_activity(s)
 
         elif self.scenario_type == 'verify':
             if self.prefetch:
                 verify_session = new_conn.open_session("prefetch=(enabled=true)")
                 self.verifyUntilSuccess(verify_session, self.uri)
-                self.check_prefetching_activity(verify_session, 0, 0, 0, 0)
+                self.assert_prefetch_activity_increased(verify_session, PrefetchStats(0, 0, 0, 0))
             else:
                 verify_session = new_conn.open_session("")
                 self.verifyUntilSuccess(verify_session, self.uri)
-                self.check_no_prefetching_activity(verify_session)
+                self.assert_no_prefetch_activity(verify_session)
