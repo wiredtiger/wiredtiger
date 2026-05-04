@@ -6,8 +6,7 @@ WiredTiger is a high-performance, embedded key-value storage engine written in C
 
 ```bash
 # Configure (Ninja recommended)
-mkdir build && cd build
-cmake -G Ninja ..
+cmake -B build -G Ninja
 
 # Useful CMake options:
 #   -DHAVE_DIAGNOSTIC=1   diagnostic checks (default for non-Release)
@@ -15,9 +14,9 @@ cmake -G Ninja ..
 #   -DENABLE_PYTHON=1     Python API
 #   -DCMAKE_BUILD_TYPE=   Release | Debug | ASan | TSan | UBSan | MSan
 
-ninja                           # build
-ctest -j$(nproc)                # all C/C++ tests
-ctest -R <regex> -j$(nproc)     # subset by name
+cmake --build build                               # build
+ctest --test-dir build -j$(nproc)                 # all C/C++ tests
+ctest --test-dir build -R <regex> -j$(nproc)      # subset by name
 
 # Catch2 (run from build/, requires -DHAVE_UNITTEST=1)
 ./test/catch2/catch2-unittests              # all
@@ -75,21 +74,7 @@ Working code samples live in `examples/c/` and `examples/python/`.
 
 ## C Coding Conventions
 
-Full rules in `CONTRIBUTING.rst`. Highlights:
-
-- **Style**: K&R, 2-space indent, 100-char lines, `clang-format` enforced
-- **Comments**: C-style `/* ... */` only, full sentences. Use `FIXME-WT-NNNN` to reference open Jira tickets
-- **Function naming**:
-  - `__wt_<subsys>_*` — used across directories
-  - `__wti_<subsys>_*` — used within a single subsystem directory
-  - `__<subsys>_*` — file-local (static)
-- **Returns**: `return (value);` with parentheses; output params end in `p` and go last
-- **Variables**: `WT_SESSION_IMPL *session`, `WT_CONNECTION_IMPL *conn`. Declare in alphabetical order. `WT_DECL_RET` declares `ret`.
-- **Error handling** (`src/include/error.h`):
-  - `WT_RET(call)` — return on error
-  - `WT_ERR(call)` — set `ret`, jump to `err:` label
-  - `WT_TRET(call)` — accumulate without overwriting
-- **Misc**: `p == NULL` (not `!p`); `for (;;)` (not `while (true)`); single-statement blocks omit braces unless ambiguous
+Full rules in @CONTRIBUTING.md.
 
 ## Test Frameworks
 
