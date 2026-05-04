@@ -208,6 +208,7 @@ __wt_layered_table_truncate_detect_write_conflict(
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
+    /* FIXME-WT-17384: Use an atomic variable to skip the lock when the truncate list is empty. */
     __wt_readlock(session, &layered_table->truncate_lock);
 
     /*
@@ -246,6 +247,7 @@ __wt_truncate_delete_visible_check(
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
+    /* FIXME-WT-17384: Use an atomic variable to skip the lock when the truncate list is empty. */
     __wt_readlock(session, &layered_table->truncate_lock);
 
     /*
