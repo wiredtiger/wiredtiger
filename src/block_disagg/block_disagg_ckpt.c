@@ -19,7 +19,6 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
   WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, WT_CKPT *ckpt)
 {
     WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
-    WT_BTREE *btree;
     WT_DECL_RET;
     uint32_t checksum, size;
     uint8_t *endp;
