@@ -813,6 +813,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
           session_txnid != WT_TXN_NONE && txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
+            WT_ASSERT(session, prepare_rollback_tombstone == NULL);
             continue;
         }
         /*
@@ -853,16 +854,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
              * consideration so the fallback after the loop does not select it for write; we will
              * revisit this key in a later reconcile once the rollback becomes stable.
              */
-            if (prepare_rollback_tombstone != NULL)
-                prepare_rollback_tombstone = NULL;
+            prepare_rollback_tombstone = NULL;
 
-            /*
-             * The aborted prepared value we are skipping has no in-chain rollback fallback; the
-             * on-disk cell is the only one. Tell row reconciliation not to drop that cell when its
-             * stop becomes globally visible.
-             */
-            if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
-                upd_select->skip_rollback_prepared_value = true;
             continue;
         }
 
@@ -890,8 +883,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
                     /* We should write nothing to disk. */
-                    if (prepare_rollback_tombstone != NULL)
-                        prepare_rollback_tombstone = NULL;
+                    prepare_rollback_tombstone = NULL;
 
                     /*
                      * Same reason as the aborted-prepared skip earlier: this rolled-back prepared
