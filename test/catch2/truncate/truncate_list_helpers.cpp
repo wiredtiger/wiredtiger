@@ -79,13 +79,14 @@ truncate_list_fixture::~truncate_list_fixture()
 {
     WT_TRUNCATE *entry = nullptr;
 
-    const bool was_non_empty = !TAILQ_EMPTY(&_table.truncateqh);
+    const bool had_data = !TAILQ_EMPTY(&_table.truncateqh);
 
     while ((entry = TAILQ_FIRST(&_table.truncateqh)) != nullptr) {
         TAILQ_REMOVE(&_table.truncateqh, entry, q);
         __wt_free(_session, entry);
     }
-    if (was_non_empty)
+
+    if (had_data)
         WT_DHANDLE_RELEASE(&_table.iface);
 
     __wt_rwlock_destroy(_session, &_table.truncate_lock);
