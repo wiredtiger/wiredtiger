@@ -25,10 +25,8 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
+
 # test_layered101.py
-#   Regression test for WT-17379: layered cursor scan after prepared-key rollback.
-#
 #   After a prepared key triggers a conflict mid-scan and the prepared transaction is
 #   later rolled back, the ingest cursor is left unpositioned. A subsequent scan must
 #   skip the key comparison rather than asserting on the missing key.
@@ -64,10 +62,9 @@ class test_layered101(wttest.WiredTigerTestCase):
              advances to key 1, ingest hits prepared key 2 (WT_CURSTD_KEY_INT cleared,
              ref still set; current_cursor left NULL).
           4. The prepared transaction is rolled back.  Key 2 vanishes from the ingest.
-          5. cursor.next() again: current_cursor==NULL so c_current=c_ingest,
-             !WT_CURSTD_KEY_INT on c_current is true, the iter helper advances the ingest
-             past the rolled-back slot -> WT_NOTFOUND (swallowed), c_current is now
-             unpositioned while c_alternate (stable) is at key 1.
+          5. cursor.next() again: the ingest cursor advances past the rolled-back slot
+             and returns WT_NOTFOUND, leaving it unpositioned while the stable cursor
+             is at key 1.
         """
         # --- Phase 1: leader commits keys [1, 3, 5] and takes a checkpoint ----------
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
@@ -111,15 +108,10 @@ class test_layered101(wttest.WiredTigerTestCase):
 
         # First next(): fresh-start path positions stable at key 1 and advances ingest
         # to prepared key 2, returning WT_PREPARE_CONFLICT.
-        # Internal state after this call:
-        #   - stable cursor: KEY_INT set, positioned at key 1
-        #   - ingest cursor: KEY_INT cleared, ref set at the prepared page
-        #   - current_cursor: NULL  (never updated by __clayered_get_current)
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor_r.next())
 
         # --- Phase 5: roll back the prepared transaction ----------------------------
-        # Key 2 is now absent from the ingest btree.  The ingest cursor's ref is still
-        # set (pointing at the page where key 2 was), but WT_CURSTD_KEY_INT is cleared.
+        # Key 2 is now absent from the ingest btree.
         session_prep.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(30))
         session_prep.close()
