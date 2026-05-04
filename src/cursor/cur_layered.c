@@ -932,14 +932,13 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
      * there is nothing to remove from ingest. Still add the truncate-list entry so stable rows in
      * the range are hidden.
      */
-    if (ret_start == 0 && ret_stop == 0) {
-        WT_LAYERED_TABLE *dhandle = (WT_LAYERED_TABLE *)clayered_start->dhandle;
-        WT_RET(__clayered_range_truncate_ingest(
-          trunc_info->session, dhandle, ingest_start, ingest_stop));
-    }
+    WT_LAYERED_TABLE *layered_table = (WT_LAYERED_TABLE *)clayered_start->dhandle;
 
-    /* Add a truncate entry inside layered table truncate list. */
-    WT_RET(__wt_insert_truncate_entry(trunc_info->session, trunc_info->uri, &start_key, &stop_key));
+    if (ret_start == 0 && ret_stop == 0)
+        WT_RET(__clayered_range_truncate_ingest(
+          trunc_info->session, layered_table, ingest_start, ingest_stop));
+
+    WT_RET(__wt_insert_truncate_entry(trunc_info->session, layered_table, &start_key, &stop_key));
 
     return (0);
 }
@@ -1646,8 +1645,12 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
           __clayered_lookup_constituent(clayered->stable_cursor, clayered, value), true);
 
 err:
-    if (ret != 0 && ret != WT_PREPARE_CONFLICT)
+    if (ret != 0 && ret != WT_PREPARE_CONFLICT) {
         WT_TRET(__clayered_reset_cursors(clayered, false));
+        /* Reset the buffer if the key was deleted on the ingest table. */
+        value->data = NULL;
+        value->size = 0;
+    }
 
     return (ret);
 }
@@ -2768,6 +2771,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
         F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
+    __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
