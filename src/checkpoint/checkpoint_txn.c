@@ -1556,7 +1556,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch;
     uint64_t drop_size, generation;
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char schema_epoch_string[WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
 
     WT_CLEAR(ckpt_cfg);
@@ -1679,15 +1679,17 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
       __wt_atomic_load_uint64_acquire(&txn_global->checkpoint_disagg_schema_epoch);
 
     /*
-     * Save the checkpoint timestamp in the disaggregated storage struct, as we'll need it during
-     * the checkpoint resolve of the shared metadata table.
+     * Save the checkpoint timestamp and the schema epoch in the disaggregated storage struct, as
+     * we'll need them during the checkpoint resolve of the shared metadata table.
      */
     conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
     conn->disaggregated_storage.cur_schema_epoch = ckpt_disagg_schema_epoch;
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader)
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Starting disaggregated storage checkpoint with timestamp: %" PRIu64 " %s", ckpt_tmp_ts,
-          __wt_timestamp_to_string(ckpt_tmp_ts, ts_string));
+          "Starting disaggregated storage checkpoint with timestamp: %" PRIu64
+          " %s and schema epoch: %" PRIu64 " %s",
+          ckpt_tmp_ts, __wt_timestamp_to_string(ckpt_tmp_ts, ts_string), ckpt_disagg_schema_epoch,
+          __wt_timestamp_to_string(ckpt_disagg_schema_epoch, schema_epoch_string));
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
@@ -1835,11 +1837,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_stats(session);
 
     /*
-     * If timestamps defined the checkpoint's content, set the saved last checkpoint timestamp,
-     * otherwise clear it. We clear it for a couple of reasons: applications can query it and we
-     * don't want to lie, and we use it to decide if WT_CONNECTION.rollback_to_stable is an allowed
-     * operation. For the same reason, don't set it to WT_TS_NONE when the checkpoint timestamp is
-     * WT_TS_NONE, set it to 1 so we can tell the difference.
+     * If timestamps defined the checkpoint's content, set the saved last checkpoint timestamp and
+     * schema epoch, otherwise clear them. We clear the timestamp for a couple of reasons:
+     * applications can query it and we don't want to lie, and we use it to decide if
+     * WT_CONNECTION.rollback_to_stable is an allowed operation.
      */
     if (ckpt_cfg.use_timestamp) {
         conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_schema_epoch;
