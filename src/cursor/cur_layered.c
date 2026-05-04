@@ -853,8 +853,14 @@ __clayered_range_truncate_ingest(
 {
     WT_DECL_RET;
     WT_CURSOR *cursor = start;
-    int cmp = -1;
+    int cmp;
 
+    /* Early return if stop key is smaller than start key, nothing to truncate. */
+    WT_RET(start->compare(start, stop, &cmp));
+    if (cmp > 0)
+        return (0);
+
+    cmp = -1;
     do {
         /* Check the current position relative to the truncate end. */
         WT_RET(cursor->compare(cursor, stop, &cmp));
@@ -976,10 +982,17 @@ __clayered_position_alternate(
          * range.
          */
         if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
-            return (0);
+            break;
 
         WT_RET(__clayered_cursor_compare(clayered, alternate, current, &cmp));
     }
+
+    /*
+     * If the alternate cursor landed on the stable table, advance past the keys that falls inside a
+     * committed truncate range.
+     */
+    if (alternate == clayered->stable_cursor && F_ISSET(alternate, WT_CURSTD_KEY_INT))
+        WT_RET(__clayered_reposition_truncate_iterate(clayered, alternate, forward));
 
     return (0);
 }
