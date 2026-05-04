@@ -381,19 +381,19 @@ replay_prepare_ts(TINFO *tinfo)
 
     /*
      * A prepare timestamp must be strictly greater than all active read timestamps.
-     * replay_maximum_committed() is bounded from below by last_commit_ts for in-use lanes,
-     * so prepare_ts must be > last_commit_ts. We also need prepare_ts < commit_ts (replay_ts)
-     * to satisfy the durable > prepare invariant. If there is no integer in that range
-     * (replay_ts == last_commit_ts + 1), return WT_TS_NONE to signal that prepare must be
-     * skipped for this transaction.
+     * replay_maximum_committed() is bounded from below by last_commit_ts for in-use lanes, so
+     * prepare_ts must be > last_commit_ts. We also need prepare_ts < commit_ts (replay_ts) to
+     * satisfy the durable > prepare invariant. If there is no integer in that range (replay_ts ==
+     * last_commit_ts + 1), return WT_TS_NONE to signal that prepare must be skipped for this
+     * transaction.
      */
     if (tinfo->replay_ts <= last_commit_ts + 1)
         return (WT_TS_NONE);
 
     /*
-     * See if we're just starting a run (first LANE_COUNT timestamps after run-start).
-     * Use replay_ts - 1: since replay_ts > last_commit_ts + 1, replay_ts - 1 > last_commit_ts,
-     * and replay_ts - 1 < replay_ts (the commit timestamp).
+     * See if we're just starting a run (first LANE_COUNT timestamps after run-start). Use replay_ts
+     * - 1: since replay_ts > last_commit_ts + 1, replay_ts - 1 > last_commit_ts, and replay_ts - 1
+     * < replay_ts (the commit timestamp).
      */
     if (tinfo->replay_ts == WT_TS_NONE || tinfo->replay_ts <= g.replay_start_timestamp + LANE_COUNT)
         prepare_ts = tinfo->replay_ts - 1;

@@ -687,8 +687,8 @@ prepare_transaction(TINFO *tinfo)
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
         ts = replay_prepare_ts(tinfo);
         /*
-         * WT_TS_NONE signals that there is no valid prepare timestamp for this transaction
-         * (e.g., the lane's last commit is too close to the current replay_ts). Skip prepare.
+         * WT_TS_NONE signals that there is no valid prepare timestamp for this transaction (e.g.,
+         * the lane's last commit is too close to the current replay_ts). Skip prepare.
          */
         if (ts == WT_TS_NONE)
             return (ENOTSUP);
