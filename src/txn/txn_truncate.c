@@ -107,6 +107,7 @@ __wt_insert_truncate_entry(
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
     WT_ASSERT(session, layered_table != NULL);
+    WT_ASSERT(session, F_ISSET(&layered_table->iface, WT_DHANDLE_OPEN));
 
     /* Caller resolves open-ended ranges to concrete keys before reaching us. */
     WT_ASSERT(session, start_key != NULL && stop_key != NULL);
