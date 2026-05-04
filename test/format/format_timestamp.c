@@ -143,8 +143,8 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     }
 
     /*
-     * Never move timestamps backwards. This can happen after a disagg step-up sets g.stable_timestamp
-     * to g.timestamp (covering all in-memory follower commits).
+     * Never move timestamps backwards. This can happen after a disagg step-up sets
+     * g.stable_timestamp to g.timestamp (covering all in-memory follower commits).
      */
     stable_timestamp = WT_MAX(stable_timestamp, g.stable_timestamp);
 
