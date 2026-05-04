@@ -70,6 +70,31 @@ For each test file in `suite/`, `csuite/`, `cppsuite/`, and `catch2/`, read the 
 ### Pass 3 — Gap analysis (May 2026)
 Ten parallel analyses of specific subsystems and cross-cutting concerns, each reading source + test files and git history. Results in `03_gap_analysis/`. See `SUMMARY.md` for the consolidated findings.
 
+### Pass 4 — Scenario-based gap analysis (May 2026)
+Per-API scenario analysis: for each public API surface used by layered/disagg tables, systematically identified what scenarios are tested vs missing. Results in `05_scenario_analysis/`. Key additions:
+- `00_synthesis.md` — master priority-ranked gap list (~100 gaps across all APIs)
+- `01–06` — per-API detailed analyses (cursor reads/writes, timestamps, schema ops, checkpoints, connection/stats)
+- `07_verification.md` — source-level verification of top claims (2 refuted, 5 confirmed, 3 partial)
+
+**Critical inputs to Pass 4 that affect gap prioritization:**
+
+1. **"Unsupported WT Features in Disagg" spec (May 2026):** The product team maintains an explicit list of features that are not supported in disaggregated storage. Features marked "Never" or "No plan" should only have **negative tests** (confirm correct error behavior), not positive functionality tests. Key unsupported features:
+   - RTS: **Never** — addressed via roll-back-to-previous-checkpoint, not `rollback_to_stable()`
+   - session.alter(): **No plan**
+   - Named checkpoints: **No plan** (not used by server)
+   - session.compact(), session.salvage(), session.import(): **Never / No plan**
+   - Backup cursors: **Never** (backup uses different mechanism)
+   - key_format=r (RECNO / column store): **Never**
+   - Bulk cursors: **Not planned**
+
+2. **Elegant step-down constraint:** Step-down (`conn.reconfigure(role="follower")`) is currently only supported via **server restart**. "Elegant" step-down without restart is targeted for Public Preview. This means:
+   - Tests calling `reconfigure(role="follower")` in Python are untestable today
+   - The confirmed `WT_BTREE_READONLY` bug (FIXME-WT-14545) requires step-down via reconfigure to reproduce; it is **DEFERRED** to Public Preview
+   - `test_layered_double_role_swap` must wait for elegant step-down
+   - Step-up via `reconfigure(role="leader")` **IS** fully supported and testable
+
+3. **session.rename() does not exist as a WT_SESSION method** in this codebase (`schema_rename.c` does not exist, confirmed by source inspection). Any prior analysis referring to testing `session.rename()` on layered tables should be treated as an investigation item, not a test gap.
+
 ---
 
 ## Critical: Two Distinct Storage Modes

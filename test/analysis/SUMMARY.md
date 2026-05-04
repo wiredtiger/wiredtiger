@@ -1,7 +1,24 @@
 # WiredTiger Test Coverage Gap Analysis — Executive Summary
 
 > May 2026 · Covers: disaggregated storage (primary focus) + general WT subsystems  
-> Detailed findings: `03_gap_analysis/` · Methodology: `NOTES.md`
+> Detailed findings: `03_gap_analysis/` · Methodology: `NOTES.md`  
+> **Pass 4 update:** See `05_scenario_analysis/00_synthesis.md` for the current master gap list with corrections below applied.
+
+---
+
+## ⚠ Pass 4 Corrections (May 2026)
+
+The following items in this document (from Pass 3) have been corrected based on the official
+"Unsupported WT Features in Disagg" spec and source-level verification:
+
+| Pass 3 entry | Correction |
+|---|---|
+| "Two consecutive role swaps: `WT_BTREE_READONLY` set on step-down" listed as CRITICAL | **DEFERRED** — Step-down is only supported via server restart (elegant step-down targets Public Preview). `test_layered_double_role_swap` cannot be written until then. |
+| "RTS skip path for disagg connections … explicit `rollback_to_stable()` on disagg could incorrectly roll back ingest data" listed as CRITICAL | **Reclassified** — RTS is "Never" supported in disagg. The test goal is a **negative/behavior test** (what does `conn.rollback_to_stable()` do?), not an RTS correctness test. See UN-1 in `05_scenario_analysis/00_synthesis.md`. |
+| "`rename`/`alter` on `layered:` URI — falls through to `__wt_bad_object_type`" | **Partially correct** — `session.alter()` exists but is "No plan" for disagg; need a negative test. `session.rename()` does **not exist** as a `WT_SESSION` method in this codebase (`schema_rename.c` does not exist). |
+| P1 item 9: `test_layered_double_role_swap` | **DEFERRED** — see above |
+| P2 item 12: `test_layered_explicit_rts` | **Reclassified** — reframe as behavior test (UN-1), not correctness test |
+| P3 item 23: `test_layered_rts_correctness` | **Remove** — RTS is Never supported; no correctness test is appropriate |
 
 ---
 
