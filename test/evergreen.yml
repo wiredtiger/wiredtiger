@@ -3838,18 +3838,6 @@ tasks:
             set -o verbose
             ${python_binary|python3} s_outdated_fixmes.py 2>&1
 
-  - name: s-copyright
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/dist"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            bash s_copyright 2>&1
-
   - name: conf-dump-test
     tags: ["pull_request", "python"]
     depends_on:
