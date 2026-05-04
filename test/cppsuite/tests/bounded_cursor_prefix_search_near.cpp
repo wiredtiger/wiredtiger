@@ -178,9 +178,11 @@ public:
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
+             * Skip read_timestamp entirely when timestamps haven't been initialised yet (both
+             * oldest and stable are WT_TS_NONE), as WiredTiger rejects read_timestamp=0.
              */
-            tc->begin(
-              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+            tc->begin("roundup_timestamps=(read=true)" +
+              (ts != WT_TS_NONE ? ",read_timestamp=" + tc->tsm->decimal_to_hex(ts) : ""));
 
             while (tc->active() && tc->running()) {
                 /*
