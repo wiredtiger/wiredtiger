@@ -36,13 +36,8 @@ void
 __wti_block_disagg_decrease_size(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, uint64_t size)
 {
-    WT_UNUSED(session);
-
-    /* FIXME WT-16864: re-enable this assert once the disagg block size accounting bug is fixed. */
-    if (__wt_atomic_load_uint64(&block_disagg->size) < size)
-        __wt_atomic_store_uint64(&block_disagg->size, 0);
-    else
-        (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
+    WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->size) >= size);
+    (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
 }
 
 /*
