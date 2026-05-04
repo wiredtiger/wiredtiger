@@ -79,11 +79,14 @@ truncate_list_fixture::~truncate_list_fixture()
 {
     WT_TRUNCATE *entry = nullptr;
 
+    const bool was_non_empty = !TAILQ_EMPTY(&_table.truncateqh);
+
     while ((entry = TAILQ_FIRST(&_table.truncateqh)) != nullptr) {
         TAILQ_REMOVE(&_table.truncateqh, entry, q);
-        WT_DHANDLE_RELEASE(&_table.iface);
         __wt_free(_session, entry);
     }
+    if (was_non_empty)
+        WT_DHANDLE_RELEASE(&_table.iface);
 
     __wt_rwlock_destroy(_session, &_table.truncate_lock);
 }
@@ -95,7 +98,9 @@ truncate_list_fixture::add_entry(const WT_ITEM &start, const WT_ITEM &stop)
     REQUIRE(__wt_calloc_one(_session, &entry) == 0);
 
     entry->layered_table = &_table;
-    WT_DHANDLE_ACQUIRE(&_table.iface);
+
+    if (TAILQ_EMPTY(&_table.truncateqh))
+        WT_DHANDLE_ACQUIRE(&_table.iface);
 
     // This is a shallow copy. For the purposes of the tests, we are assuming that the WT_ITEMs are
     // constructed using string literals, which have static storage duration.

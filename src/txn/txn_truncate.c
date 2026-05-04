@@ -27,13 +27,6 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
     if (entry == NULL || *entry == NULL)
         return;
 
-    if ((*entry)->layered_table != NULL) {
-        WT_ASSERT(
-          session, __wt_atomic_load_uint32_relaxed(&(*entry)->layered_table->iface.references) > 0);
-
-        WT_DHANDLE_RELEASE(&(*entry)->layered_table->iface);
-    }
-
     __wt_buf_free(session, &(*entry)->start_key);
     __wt_buf_free(session, &(*entry)->stop_key);
     __wt_free(session, *entry);
@@ -81,7 +74,12 @@ __txn_insert_truncate_entry_helper(
     WT_ERR(__wt_txn_truncate(session, t));
 
     __wt_writelock(session, &layered_table->truncate_lock);
+
+    if (TAILQ_EMPTY(&layered_table->truncateqh))
+        WT_DHANDLE_ACQUIRE(&layered_table->iface);
+
     TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
+
     __wt_writeunlock(session, &layered_table->truncate_lock);
 
     /* Ownership transferred to the txn op and truncate queue. */
@@ -124,7 +122,7 @@ __wt_insert_truncate_entry(
 
     WT_ERR(__wt_calloc_one(session, &t));
     t->layered_table = layered_table;
-    WT_DHANDLE_ACQUIRE(&layered_table->iface);
+
     WT_ERR(__wt_buf_set(session, &t->start_key, start_key->data, start_key->size));
     WT_ERR(__wt_buf_set(session, &t->stop_key, stop_key->data, stop_key->size));
 
@@ -281,7 +279,6 @@ __disagg_truncate_apply(WT_SESSION_IMPL *session, WT_TXN_OP *op,
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
     WT_ASSERT(session, entry != NULL);
     WT_ASSERT(session, entry->layered_table != NULL);
-
     WT_ASSERT(
       session, __wt_atomic_load_uint32_relaxed(&entry->layered_table->iface.references) > 0);
 
@@ -322,6 +319,23 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
+ * __truncate_entry_remove --
+ *     Remove an entry from the truncate queue. Must be called under the truncate write lock.
+ */
+static void
+__truncate_entry_remove(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE *entry)
+{
+    WT_ASSERT(session, !TAILQ_EMPTY(&layered_table->truncateqh));
+    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&layered_table->iface.references) > 0);
+
+    TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
+
+    if (TAILQ_EMPTY(&layered_table->truncateqh))
+        WT_DHANDLE_RELEASE(&layered_table->iface);
+}
+
+/*
  * __wti_layered_table_truncate_rollback_apply --
  *     Remove a truncate entry from a layered table as part of rollback processing.
  */
@@ -332,12 +346,10 @@ __wti_layered_table_truncate_rollback_apply(
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
     __wt_writelock(session, &layered_table->truncate_lock);
-
-    WT_ASSERT(session, !TAILQ_EMPTY(&layered_table->truncateqh));
-    TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
+    __truncate_entry_remove(session, layered_table, entry);
     __wt_writeunlock(session, &layered_table->truncate_lock);
-    op->u.follower_truncate.t = NULL;
 
+    op->u.follower_truncate.t = NULL;
     __disagg_truncate_free(session, &entry);
 }
 
@@ -359,14 +371,17 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 void
 __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table)
 {
+    WT_ASSERT(session, layered_table != NULL);
+
     if (__wt_atomic_load_ptr_acquire(&layered_table->truncateqh.tqh_first) == NULL)
         return;
 
     WT_TRUNCATE *entry = NULL;
 
     __wt_writelock(session, &layered_table->truncate_lock);
+
     while ((entry = TAILQ_FIRST(&layered_table->truncateqh)) != NULL) {
-        TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
+        __truncate_entry_remove(session, layered_table, entry);
         __disagg_truncate_free(session, &entry);
     }
     __wt_writeunlock(session, &layered_table->truncate_lock);

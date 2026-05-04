@@ -245,7 +245,8 @@ SCENARIO("adding multiple entries stores them in insertion order", "[truncate_li
     }
 }
 
-SCENARIO("adding N entries increments the dhandle reference count by N", "[truncate_list][insert]")
+SCENARIO("adding multiple entries to an empty list increments the dhandle reference count by one",
+  "[truncate_list][insert]")
 {
     GIVEN("a follower with an empty truncate list")
     {
@@ -254,13 +255,32 @@ SCENARIO("adding N entries increments the dhandle reference count by N", "[trunc
 
         WHEN("multiple entries are inserted")
         {
-            const auto num_entries = 4u;
-            CHECK(insert_n_entries(connection, num_entries) == 0);
+            CHECK(insert_n_entries(connection, 4u) == 0);
 
-            THEN("the dhandle reference count is incremented by N")
+            THEN("the dhandle reference count is incremented by exactly one")
             {
-                const auto expected_count = reference_count + num_entries;
-                REQUIRE(connection.reference_count() == expected_count);
+                REQUIRE(connection.reference_count() == reference_count + 1u);
+            }
+        }
+    }
+}
+
+SCENARIO("adding an entry to a non-empty truncate list does not change the dhandle reference count",
+  "[truncate_list][insert]")
+{
+    GIVEN("a follower with one entry in the truncate list")
+    {
+        follower_connection connection;
+        CHECK(insert_one_entry(connection) == 0);
+        const auto reference_count = connection.reference_count();
+
+        WHEN("a second entry is inserted")
+        {
+            CHECK(insert_one_entry(connection) == 0);
+
+            THEN("the dhandle reference count is unchanged")
+            {
+                REQUIRE(connection.reference_count() == reference_count);
             }
         }
     }

@@ -156,9 +156,9 @@ SCENARIO("rolling back affects only the targeted entry in a multi-entry truncate
                 REQUIRE(last_op.u.follower_truncate.t == last_entry);
             }
 
-            THEN("the dhandle reference count drops by exactly one")
+            THEN("the dhandle reference count is unchanged")
             {
-                REQUIRE(fixture.reference_count() == reference_count - 1u);
+                REQUIRE(fixture.reference_count() == reference_count);
             }
 
             THEN("only one entry is removed")

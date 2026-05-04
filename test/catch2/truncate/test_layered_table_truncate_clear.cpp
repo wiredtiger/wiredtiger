@@ -36,7 +36,7 @@ SCENARIO("clearing empties the truncate list", "[truncate_list][clear]")
     }
 }
 
-SCENARIO("clearing the truncate list releases the dhandle references", "[truncate_list][clear]")
+SCENARIO("clearing the truncate list releases the dhandle reference", "[truncate_list][clear]")
 {
     GIVEN("a truncate list with two entries")
     {
@@ -51,10 +51,9 @@ SCENARIO("clearing the truncate list releases the dhandle references", "[truncat
         {
             __wt_layered_table_truncate_clear(&fixture.session(), &fixture.layered_table());
 
-            THEN("the dhandle references are released")
+            THEN("the dhandle reference is released exactly once")
             {
-                const auto expected_reference_count = reference_count - 2u;
-                REQUIRE(fixture.reference_count() == expected_reference_count);
+                REQUIRE(fixture.reference_count() == reference_count - 1u);
             }
         }
     }
