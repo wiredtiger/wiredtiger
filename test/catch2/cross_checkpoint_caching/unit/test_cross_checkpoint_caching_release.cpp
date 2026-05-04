@@ -81,6 +81,7 @@ TEST_CASE(
     // item_b is untouched.
     REQUIRE(item_b->ref_count == 1);
 
+    // Setting got_a to a fake value to ensure that it is set to nullptr.
     // item_b is still in the hash map; item_a is gone.
     WT_SHARED_DSK_ITEM *got_a = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
     WT_SHARED_DSK_ITEM *got_b = nullptr;
@@ -149,6 +150,7 @@ TEST_CASE(
     REQUIRE(got_b == item_b);
 
     // Switch to fid_a, the entry is gone.
+    // Setting got to a fake value to ensure that it is set to nullptr.
     S2BT(env.session())->id = fid_a;
     WT_SHARED_DSK_ITEM *got_a = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
     __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_a);
