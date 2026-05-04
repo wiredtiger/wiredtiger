@@ -855,7 +855,7 @@ __clayered_range_truncate_ingest(
     WT_CURSOR *cursor = start;
     int cmp;
 
-    /* Early return if stop key is smaller than start key, nothing to truncate. */
+    /* Early return if stop key is smaller than or equal to start key, nothing to truncate. */
     WT_RET(start->compare(start, stop, &cmp));
     if (cmp >= 0)
         return (0);
@@ -987,7 +987,7 @@ __clayered_position_alternate(
     }
 
     /*
-     * If the alternate is the stable table, advance past the keys that fall inside a
+     * If the alternate cursor points to stable cursor, advance past the keys that fall inside a
      * committed truncate range.
      */
     if (alternate == clayered->stable_cursor && F_ISSET(alternate, WT_CURSTD_KEY_INT))
