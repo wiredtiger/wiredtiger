@@ -62,6 +62,26 @@ timestamp_minimum_committed(void)
 }
 
 /*
+ * timestamp_sync_threads_commit_ts --
+ *     Advance each ops thread's recorded last-used commit timestamp to g.timestamp. Callers must
+ *     ensure ops threads are quiescent (e.g. between operations() runs); this is used during disagg
+ *     role switch so the next timestamp_once advances stable past all in-memory follower commits.
+ */
+void
+timestamp_sync_threads_commit_ts(void)
+{
+    TINFO **tlp;
+    wt_timestamp_t ts;
+
+    if (tinfo_list == NULL)
+        return;
+
+    WT_ACQUIRE_READ_WITH_BARRIER(ts, g.timestamp);
+    for (tlp = tinfo_list; *tlp != NULL; ++tlp)
+        WT_RELEASE_WRITE_WITH_BARRIER((*tlp)->commit_ts, ts);
+}
+
+/*
  * timestamp_query --
  *     Query a timestamp.
  */
@@ -141,12 +161,6 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
         if (allow_lag)
             oldest_timestamp -= (oldest_timestamp - g.oldest_timestamp) / 2;
     }
-
-    /*
-     * Never move timestamps backwards. This can happen after a disagg step-up sets
-     * g.stable_timestamp to g.timestamp (covering all in-memory follower commits).
-     */
-    stable_timestamp = WT_MAX(stable_timestamp, g.stable_timestamp);
 
     testutil_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
       oldest_timestamp, stable_timestamp_str, stable_timestamp);
