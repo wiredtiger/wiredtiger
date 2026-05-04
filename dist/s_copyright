@@ -33,6 +33,7 @@ check()
     { sed -e 3,5p -e 6q -e d $1 | diff -q - $c4 > /dev/null; } && return 0
     { sed -e 1,3p -e 4q -e d $1 | diff -q - $c4 > /dev/null; } && return 0
     { sed -e 2,7p -e 8q -e d $1 | diff -q - $c5 > /dev/null; } && return 0
+    { sed -e 5,7p -e 8q -e d $1 | diff -q - $c4 > /dev/null; } && return 0
     echo "$1: copyright information is incorrect"
     RET=1
 }
@@ -53,7 +54,7 @@ year='present'
 cat > $c1 <<ENDOFTEXT
  * Copyright (c) 2014-$year MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *    All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
 ENDOFTEXT
@@ -81,10 +82,12 @@ cat > $c4 <<ENDOFTEXT
 # This is free and unencumbered software released into the public domain.
 ENDOFTEXT
 
+# Do we have this format ???
+
 cat > $c5 <<ENDOFTEXT
  * Copyright (c) 2014-$year MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *    All rights reserved.
+ *	All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -106,6 +109,7 @@ find [a-z]* -name '*.[ch]' \
     -e '/checksum\/zseries\//d' \
     -e '/\/3rdparty\//d' \
     -e '/\/node_modules\//d' \
+    -e '/\/\.venv\//d' \
     -e '/dist\/__/d' \
     -e 's/^\.\///' |
     do_in_parallel || RET=1

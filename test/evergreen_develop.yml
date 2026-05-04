@@ -136,6 +136,8 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: s-outdated-fixmes
       batchtime: 1440 # 1 day
+    - name: s-copyright
+      batchtime: 1440 # 1 day
 
 - name: lazyfs-tests
   display_name: "~ LazyFS tests"
