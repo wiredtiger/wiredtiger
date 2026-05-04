@@ -52,6 +52,9 @@
 #define TABLE_CONFIG "key_format=S,value_format=S,block_manager=disagg"
 #define EXPECTED_PANIC_MSG "failed while processing shared metadata queue"
 
+/* File-scope so heap strings in opts stay reachable across the child's _exit and don't trip LSAN. */
+static TEST_OPTS _opts;
+
 /*
  * panic_event_handler --
  *     Event handler that exits cleanly on WT_PANIC so the parent can verify the panic.
@@ -164,14 +167,13 @@ int
 main(int argc, char *argv[])
 {
     FILE *fp;
-    TEST_OPTS *opts, _opts;
+    TEST_OPTS *opts;
     pid_t pid;
     int ch, status;
     char buf[1024], filename[512];
     bool found_panic_msg;
 
     opts = &_opts;
-    memset(opts, 0, sizeof(*opts));
     opts->table_type = TABLE_ROW;
 
     testutil_parse_begin_opt(argc, argv, GETOPTS, opts);
@@ -179,7 +181,6 @@ main(int argc, char *argv[])
         if (testutil_parse_single_opt(opts, ch) != 0)
             testutil_die(EINVAL, "unexpected option");
     testutil_parse_end_opt(opts);
-    testutil_deduce_build_dir(opts);
 
     testutil_recreate_dir(opts->home);
 
