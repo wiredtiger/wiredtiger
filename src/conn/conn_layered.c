@@ -1630,6 +1630,19 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_disagg_has_picked_up_checkpoint --
+ *     Return whether this connection has picked up a disaggregated checkpoint.
+ */
+bool
+__wti_disagg_has_picked_up_checkpoint(WT_SESSION_IMPL *session)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    return (
+      __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) != WT_DISAGG_LSN_NONE);
+}
+
+/*
  * __remove_or_fail_local_wt_file --
  *     Remove a local WiredTiger file or fail with EEXIST, depending on the configured action.
  */

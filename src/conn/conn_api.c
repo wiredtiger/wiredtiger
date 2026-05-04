@@ -3643,8 +3643,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * which is where disaggregated storage is initialized. The earlier metadata verify (above) does
      * not need to wait because it only verifies the local metadata file, which is not a shared
      * table and has no dependency on disagg initialization.
+     *
+     * Skip the check when no checkpoint has been picked up yet: the in-memory database size is
+     * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
+     * would otherwise see database size as 0 against a non-empty local metadata.
      */
-    if (verify_meta && __wt_conn_is_disagg(session))
+    if (verify_meta && __wt_conn_is_disagg(session) &&
+      __wti_disagg_has_picked_up_checkpoint(session))
         WT_ERR(__wt_verify_disagg_database_size(session));
 
     /*
