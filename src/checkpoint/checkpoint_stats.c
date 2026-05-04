@@ -20,6 +20,8 @@ __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session)
       ckpt->handle_stats.meta_check = ckpt->handle_stats.skip = 0;
     ckpt->handle_stats.apply_time = ckpt->handle_stats.drop_time = ckpt->handle_stats.lock_time =
       ckpt->handle_stats.meta_check_time = ckpt->handle_stats.skip_time = 0;
+
+    ckpt->reconcile_time_accum = ckpt->sync_time_accum = 0;
 }
 
 /*
@@ -60,6 +62,20 @@ __wt_checkpoint_handle_stats(WT_SESSION_IMPL *session, uint64_t gathering_handle
 }
 
 /*
+ * __wt_checkpoint_rec_time_stats --
+ *     Accumulate per-file reconciliation and sync wall-clock time into the per-checkpoint totals.
+ */
+void
+__wt_checkpoint_rec_time_stats(
+  WT_SESSION_IMPL *session, uint64_t reconcile_time, uint64_t sync_time)
+{
+    WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
+
+    (void)__wt_atomic_add_uint64(&ckpt->reconcile_time_accum, reconcile_time);
+    (void)__wt_atomic_add_uint64(&ckpt->sync_time_accum, sync_time);
+}
+
+/*
  * __wt_checkpoint_timer_stats --
  *     Update timer-related stats.
  */
@@ -67,7 +83,7 @@ void
 __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session)
 {
     WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
-    uint64_t min;
+    uint64_t min, rec, total;
 
     WT_STAT_CONN_SET(
       session, checkpoint_scrub_max, __wt_atomic_load_uint64_relaxed(&ckpt->scrub.max));
@@ -98,6 +114,10 @@ __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session)
       session, checkpoint_time_recent, __wt_atomic_load_uint64_relaxed(&ckpt->ckpt_api.recent));
     WT_STAT_CONN_SET(
       session, checkpoint_time_total, __wt_atomic_load_uint64_relaxed(&ckpt->ckpt_api.total));
+
+    rec = __wt_atomic_load_uint64_relaxed(&ckpt->reconcile_time_accum);
+    total = __wt_atomic_load_uint64_relaxed(&ckpt->sync_time_accum);
+    WT_STAT_CONN_SET(session, checkpoint_sync_rec_pct, total > 0 ? (rec * 100) / total : 0);
 }
 
 /*

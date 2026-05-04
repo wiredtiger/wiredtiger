@@ -81,9 +81,11 @@ class test_checkpoint38(wttest.WiredTigerTestCase):
 
         pages_reconciled = self.get_stat(stat.conn.checkpoint_pages_reconciled) - pages_reconciled_before
         parallel_pages_reconciled = self.get_stat(stat.conn.checkpoint_parallel_pages_reconciled) - parallel_pages_before
+        rec_pct = self.get_stat(stat.conn.checkpoint_sync_rec_pct)
 
         self.assertGreater(pages_reconciled, 0)
         self.assertGreater(parallel_pages_reconciled, 0, 'Parallel checkpoint threads were expected to reconcile pages')
+        self.assertGreater(rec_pct, 100, 'Checkpoint reconciliation percentage was expected to be greater than 100')
 
 if __name__ == '__main__':
     wttest.run()
