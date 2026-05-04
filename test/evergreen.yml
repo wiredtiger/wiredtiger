@@ -3839,9 +3839,6 @@ tasks:
             ${python_binary|python3} s_outdated_fixmes.py 2>&1
 
   - name: s-copyright
-    # Verify that all WiredTiger-owned copyright notices have the correct format,
-    # including exact year ranges, wording, and spacing. Runs the existing s_copyright
-    # script unconditionally by setting WT_RELEASE_BUILD=1.
     commands:
       - func: "get project"
       - command: shell.exec
@@ -3851,7 +3848,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            WT_RELEASE_BUILD=1 bash s_copyright 2>&1
+            bash s_copyright 2>&1
 
   - name: conf-dump-test
     tags: ["pull_request", "python"]

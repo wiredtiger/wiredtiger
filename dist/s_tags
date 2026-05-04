@@ -5,9 +5,6 @@
 cd_dist
 setup_trap 'rm -f tags'
 
-# Skip this when building release packages
-test -n "$WT_RELEASE_BUILD" && exit 0
-
 # We have to be in the dist directory to run.
 test -f s_tags || {
     echo "s_tags requires dist be the current working directory"
