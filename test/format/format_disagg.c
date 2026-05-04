@@ -252,9 +252,17 @@ disagg_switch_roles(void)
         track("[role change] follower -> leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
 
-        /* Advance timestamps and take a checkpoint immediately after becoming leader. */
+        /*
+         * Advance timestamps to cover all in-memory commits from the follower phase before. During
+         * the follower phase, ops threads write to cache with commit timestamps up to g.timestamp,
+         * but those pages can't be evicted. With stable lagging behind, eviction gets permanently
+         * stuck. Setting stable_timestamp = g.timestamp here causes the subsequent timestamp_once
+         * call to advance stable all the way to g.timestamp, so eviction and the step-up checkpoint
+         * can proceed cleanly.
+         */
         memset(&sap, 0, sizeof(sap));
         wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+        g.stable_timestamp = g.timestamp;
         timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
         wt_wrap_close_session(session);
