@@ -103,9 +103,10 @@
 - Scenario: Two sessions remove same key in overlapping transactions.
 - Suggested test: test_layered_conflict03.py
 
-**Gap 7 [MEDIUM]: Remove on prepared key (write-write conflict)**
+**Gap 7 [DEFERRED]: Remove on prepared key (write-write conflict)**
 - Scenario: Session A prepares write on K, session B removes K. Should conflict.
 - Suggested test: test_layered_remove_prepared01.py
+*(Prepared transactions not currently supported in disagg; see PT-1 through PT-5 in 08_unsupported_features.md.)*
 
 ---
 
@@ -136,10 +137,9 @@
 - *Currently blocked: `ops.pct.modify=0` in `CONFIG.disagg` (FIXME-WT-16479). These become the first tests to write once modify is re-enabled.*
 - Suggested test: test_layered_modify_oldts01.py
 
-**Gap 5 [MEDIUM]: Modify on prepared key (write-write conflict)**
+**Gap 5 [DEFERRED]: Modify on prepared key (write-write conflict)**
 - Scenario: Session A prepares write on K, session B modifies K. Should conflict.
-- *Currently blocked: `ops.pct.modify=0` in `CONFIG.disagg` (FIXME-WT-16479). These become the first tests to write once modify is re-enabled.*
-- Suggested test: test_layered_modify_prepared01.py
+*(Prepared transactions not currently supported in disagg; see 08_unsupported_features.md.)*
 
 **Gap 6 [MEDIUM]: Modify causing overflow pages**
 - Scenario: Modify large raw value repeatedly, causing overflow page transitions.
@@ -192,9 +192,10 @@
 - Scenario: Session A reserves K, session B removes K concurrently.
 - Suggested test: test_layered_reserve_conflict01.py
 
-**Gap 7 [MEDIUM]: reserve() on prepared key**
+**Gap 7 [DEFERRED]: reserve() on prepared key**
 - Scenario: Session A prepares write on K, session B reserves K. Should conflict.
 - Suggested test: test_layered_reserve_prepared01.py
+*(Prepared transactions not currently supported in disagg; see 08_unsupported_features.md.)*
 
 **Gap 8 [MEDIUM]: reserve() rollback, then re-reserve same key**
 - Scenario: reserve(K), rollback_txn, reserve(K) again in new txn. Lock must be released cleanly.

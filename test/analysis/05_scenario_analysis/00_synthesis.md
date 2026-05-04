@@ -8,11 +8,11 @@
 ## What Changed in Pass 4
 
 - Per-API scenario analysis completed for all six API groups (`01`–`06`).
-- All gaps for unsupported features removed from HIGH/MEDIUM/LOW tiers and moved to `08_unsupported_features.md`. Unsupported features include: elegant step-down, RTS, session.alter(), named checkpoints, salvage, compact, import, bulk cursors, backup cursors, RECNO/column store, index creation, **table drop** (targeted for Public Preview, WT-14503), **fast truncate** (targeted for Public Preview), and **prepared transactions** (disagg-specific behavior, targeted for Public Preview).
+- All gaps for unsupported features removed from HIGH/MEDIUM/LOW tiers and moved to `08_unsupported_features.md`. Unsupported features include: elegant step-down, RTS, session.alter(), named checkpoints, salvage, compact, import, bulk cursors, backup cursors, RECNO/column store, index creation, table drop (WT-14503), fast truncate, and prepared transactions (disagg-specific behavior).
 - cursor.modify() gaps remain HIGH/MEDIUM but annotated **BLOCKED** by `ops.pct.modify=0` in `CONFIG.disagg` (FIXME-WT-16479); first tests to write once that flag is removed.
 - Two gap claims refuted by source verification: read_timestamp + iteration *is* tested in `test_layered73.py`; atomic committed cross-table transactions *are* tested in `test_layered94.py` (prepared path only; regular committed path remains a CRITICAL gap).
 - `session.rename()` confirmed absent — `WT_SESSION` has no rename method in this codebase.
-- *Slow* truncate IS supported (Private Preview); the truncate gaps in `04_schema_session_ops.md` cover slow-truncate scenarios. The existing `test_layered_fast_truncate01-03` tests exercise an unsupported code path.
+- *Slow* truncate IS supported (Private Preview); truncate gaps cover slow-truncate scenarios. The existing `test_layered_fast_truncate01-03` tests exercise an unsupported code path.
 
 ---
 
@@ -24,14 +24,14 @@
 |----------|----|----|----|----|----|----|-------|
 | CRITICAL | 0 | 0 | 0 | 0 | 0 | 1 | **1** |
 | HIGH | 6 | 9 | 3 | 6 | 5 | 7 | **36** |
-| MEDIUM | 14 | 11 | 9 | 5 | 6 | 11 | **56** |
-| LOW | 7 | 2 | 1 | 1 | 5 | 4 | **20** |
-| **Total** | **27** | **22** | **13** | **12** | **16** | **23** | **113** |
+| MEDIUM | 13 | 11 | 9 | 5 | 5 | 11 | **54** |
+| LOW | 7 | 2 | 1 | 1 | 4 | 4 | **19** |
+| **Total** | **26** | **22** | **13** | **12** | **14** | **23** | **110** |
 
 **Column keys:** CR = cursor reads, CW = cursor writes, TT = transactions/timestamps,
 SO = schema/session ops, CP = checkpoint/roles, CS = connection/concurrency/stats
 
-Unsupported-feature gaps (drop, fast truncate, prepared txn, step-down, RTS, alter, etc.) are listed in `08_unsupported_features.md` and are **not** counted above.
+Unsupported-feature gaps are listed in `08_unsupported_features.md` and are **not** counted above.
 
 ---
 
@@ -49,8 +49,8 @@ when the feature lands). Key items:
 | Table drop (`session.drop()`) | DEFERRED — Public Preview, WT-14503 | DRP-1–DRP-5 |
 | Fast truncate | DEFERRED — Public Preview | FT-1 |
 | RTS (`rollback_to_stable`) | Never | RTS-1–RTS-5 |
-| session.alter() | No plan | ALT-1–ALT-2 |
 | Named checkpoints | No plan | NC-1 |
+| session.alter() | No plan | ALT-1–ALT-2 |
 | session.salvage(), compact(), import() | No plan / Never | SAL-1, CMP-1, IMP-1 |
 | Bulk cursors, backup cursors | Not planned / Never | BLK-1, BAK-1 |
 | key_format=r (RECNO/column store) | Never | REC-1 |
@@ -60,7 +60,7 @@ when the feature lands). Key items:
 
 ## CRITICAL Gaps
 
-Only one CRITICAL gap remains after removing unsupported-feature items.
+Only one CRITICAL gap remains after removing all unsupported-feature items.
 
 ### CS-C1 — Atomic committed (non-prepared) transaction spanning two layered tables
 `test_layered94` covers *prepared* cross-table transactions, but no test covers a plain
@@ -82,7 +82,7 @@ Full descriptions are in the per-API files; brief summaries below.
 3. `search_near()` on exact match covered by tombstone in both layers
 4. `cursor.bound()` + `read_timestamp` combined (MongoDB range-query-in-snapshot pattern)
 5. `next()`/`prev()` concurrent with a writer session (snapshot isolation of merge cursor)
-6. `cursor.bound()` + role transition (`__clayered_adjust_state` bounds interaction)
+6. `cursor.bound()` + step_up role transition (`__clayered_adjust_state` bounds interaction)
 
 ### Cursor Writes (02)
 7. `update()` on key that exists only in stable (core disagg mutation pattern)
@@ -104,7 +104,7 @@ Full descriptions are in the per-API files; brief summaries below.
 19. Truncate full-table URI form `session.truncate('layered:X', None, None, None)` — zero coverage
 20. Truncate on leader (all existing truncate tests run on follower)
 21. Truncate of stable-only data (existing tests only truncate ingest data)
-22. `verify()` after role step_down — READONLY btree behavior under verify
+22. `verify()` on a follower connection (READONLY stable btrees — correct behavior under verify)
 23. `verify()` on table with only ingest data (stable btree empty or non-existent)
 24. `session.create()` during active drain (`manager->entries` race; FIXME-WT-14734)
 
@@ -145,7 +145,7 @@ Ranked by production risk and implementation urgency. All are testable today exc
 | 11 | CS-H5 | Concurrent reader + active writer on same layered table | `test_layered_concurrent01.py` |
 | 12 | CS-H8 | Concurrent write conflict (WT_ROLLBACK) on layered table | `test_layered_concurrent02.py` |
 | 13 | SO-H1 | Truncate full-table URI form (non-cursor, slow truncate) | `test_layered_truncate_full_table.py` |
-| 14 | SO-H4 | `verify()` after step_down (READONLY btrees) | `test_layered_verify_after_stepdown.py` |
+| 14 | SO-H4 | `verify()` on a follower connection (READONLY stable btrees) | `test_layered_verify_on_follower.py` |
 | 15 | CS-H6 | `cursor.dup()` on positioned layered cursor | `test_layered_cursor_dup01.py` |
 | 16 | CW-H7 | `reserve()` end-to-end: reserve + write + commit | `test_layered_reserve_update01.py` |
 | 17 | CS-H2 | `disagg_block_get` and `disagg_block_put` counters never asserted | extend `test_layered02` or `test_layered04` |
@@ -159,11 +159,11 @@ Ranked by production risk and implementation urgency. All are testable today exc
 
 | API Group | CRITICAL | HIGH | MEDIUM | LOW | Overall Level |
 |-----------|----------|------|--------|-----|---------------|
-| [Cursor Reads (01)](01_cursor_reads.md) | 0 | 6 | 14 | 7 | **MODERATE** — basic paths covered; adversarial/concurrent cases missing |
+| [Cursor Reads (01)](01_cursor_reads.md) | 0 | 6 | 13 | 7 | **MODERATE** — basic paths covered; adversarial/concurrent cases missing |
 | [Cursor Writes (02)](02_cursor_writes.md) | 0 | 9 | 11 | 2 | **PARTIAL** — stable-only key mutations untested; modify fully disabled |
 | [Transactions/Timestamps (03)](03_transactions_timestamps.md) | 0 | 3 | 9 | 1 | **PARTIAL** — basic timestamps covered; GC edge cases missing |
 | [Schema/Session Ops (04)](04_schema_session_ops.md) | 0 | 6 | 5 | 1 | **PARTIAL** — truncate and verify edge cases missing; drop/fast-truncate deferred |
-| [Checkpoint/Roles (05)](05_checkpoint_roles.md) | 0 | 5 | 6 | 5 | **MODERATE** — happy path good; multithreaded drain and startup race missing |
+| [Checkpoint/Roles (05)](05_checkpoint_roles.md) | 0 | 5 | 5 | 4 | **MODERATE** — happy path good; multithreaded drain and startup race missing |
 | [Connection/Concurrency/Stats (06)](06_connection_concurrency_stats.md) | 1 | 7 | 11 | 4 | **PARTIAL** — multi-table atomicity unverified; most stats dark; cursor.dup absent |
 
 ---
@@ -188,7 +188,7 @@ Ranked by production risk and implementation urgency. All are testable today exc
 11. `test_layered_concurrent01.py` — concurrent reader + writer
 12. `test_layered_concurrent02.py` — concurrent write conflict (WT_ROLLBACK)
 13. `test_layered_truncate_full_table.py` — table-URI slow truncate
-14. `test_layered_verify_after_stepdown.py` — verify after step_down
+14. `test_layered_verify_on_follower.py` — verify() on follower with READONLY btrees
 15. `test_layered_cursor_dup01.py` — cursor.dup on layered cursor
 16. `test_layered_reserve_update01.py` — reserve end-to-end
 17. stat assertions: `disagg_block_get`, `disagg_block_put`, `disagg_role_leader`, `disagg_conn_reconfig`
@@ -197,10 +197,10 @@ Ranked by production risk and implementation urgency. All are testable today exc
 
 ### Batch 3 — MEDIUM: following sprint
 
-Remaining 56 MEDIUM gaps, prioritized by API group:
-- Checkpoint/roles: step_up with uncommitted ingest data, step_up `__wt_panic` failure path, named checkpoint negative test
+Remaining 54 MEDIUM gaps, prioritized by API group:
+- Checkpoint/roles: step_up with uncommitted ingest data, step_up `__wt_panic` failure path, concurrent checkpoint advance with multiple reader snapshots
 - Transactions: durable_ts vs commit_ts in drain filtering, concurrency and isolation scenarios
-- Connection/stats: timing stats, abandon-checkpoint stats, database-size stat, 10+ session stress
+- Connection/stats: timing stat for step_up, abandon-checkpoint stats, database-size stat, 10+ session stress
 - Schema ops: truncate scenarios (concurrent drain, unbounded range, re-insert), verify with config options
 - Cursor reads: boundary/sparse/concurrency cases
 - Cursor writes: concurrent conflict variants, remove/update ingest-only scenarios
@@ -211,11 +211,11 @@ Remaining 56 MEDIUM gaps, prioritized by API group:
 
 | File | API Group | Supported Gaps | Unsupported (see 08) |
 |------|-----------|---------------|----------------------|
-| [01_cursor_reads.md](01_cursor_reads.md) | cursor.search, search_near, next/prev, bound, reset | 27 | — |
-| [02_cursor_writes.md](02_cursor_writes.md) | cursor.insert, update, remove, modify, reserve | 22 | — |
+| [01_cursor_reads.md](01_cursor_reads.md) | cursor.search, search_near, next/prev, bound, reset | 26 | PT-2 (prepared txn) |
+| [02_cursor_writes.md](02_cursor_writes.md) | cursor.insert, update, remove, modify, reserve | 22 | PT-3–PT-5 (prepared key conflicts) |
 | [03_transactions_timestamps.md](03_transactions_timestamps.md) | timestamps, isolation/concurrency | 13 | PT-1–PT-5 (prepared txn) |
-| [04_schema_session_ops.md](04_schema_session_ops.md) | create, truncate, verify, alter, rename | 12 | DRP-1–DRP-5 (drop), FT-1 (fast truncate) |
-| [05_checkpoint_roles.md](05_checkpoint_roles.md) | checkpoint, step_up/step_down, follower advance, crashes | 16 | SD-1–SD-3 (step-down) |
-| [06_connection_concurrency_stats.md](06_connection_concurrency_stats.md) | multi-table txns, stats, concurrency, cursor.dup, errors | 23 | — |
+| [04_schema_session_ops.md](04_schema_session_ops.md) | create, truncate, verify, alter, rename | 12 | DRP-1–DRP-5 (drop), FT-1 (fast truncate), SAL-1, CMP-1, IMP-1 |
+| [05_checkpoint_roles.md](05_checkpoint_roles.md) | checkpoint, step_up/step_down, follower advance, crashes | 14 | SD-1–SD-3 (step-down), NC-1 (named ckpt) |
+| [06_connection_concurrency_stats.md](06_connection_concurrency_stats.md) | multi-table txns, stats, concurrency, cursor.dup, errors | 23 | SD-4–SD-5 (step-down) |
 | [07_verification.md](07_verification.md) | Source-level verification of 10 top claims | — | — |
-| [08_unsupported_features.md](08_unsupported_features.md) | Unsupported: drop, fast truncate, prepared txn, step-down, RTS, alter, compact, etc. | — | ~26 DEFERRED + ~13 MEDIUM/LOW |
+| [08_unsupported_features.md](08_unsupported_features.md) | Unsupported: drop, fast truncate, prepared txn, step-down, RTS, alter, compact, etc. | — | ~28 DEFERRED + ~13 MEDIUM/LOW |

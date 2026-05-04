@@ -37,10 +37,11 @@
 - Why: Timestamp-based isolation is critical for correctness. Basic path covered by `test_layered73.py`; adversarial case (key at T2 > T1 must not be visible) is missing.
 - Suggested test: Extend test_layered81
 
-**Gap 3 [MEDIUM]: Search after follower role transition with prepared transactions**
+**Gap 3 [DEFERRED]: Search after follower role transition with prepared transactions**
 - Scenario: Cursor repositions via search() after follower→leader transition with in-flight prepared transactions.
 - Why: Production scenario; test_layered73 has prepared tests but not combined with search().
 - Suggested test: Extend test_layered73
+*(Prepared transactions not currently supported in disagg; see PT-2 in 08_unsupported_features.md.)*
 
 **Gap 4 [MEDIUM]: Search for keys with binary or special-character format**
 - Scenario: key_format=u (raw binary), null bytes, very long keys (near WT_KEY_MAX).
@@ -94,9 +95,10 @@
 - Scenario: search_near(key), then apply bounds and iterate. test_layered05 applies bounds before search_near, not after.
 - Suggested test: Extend test_layered05
 
-**Gap 6 [MEDIUM]: search_near with unresolved prepared transactions in ingest**
+**Gap 6 [DEFERRED]: search_near with unresolved prepared transactions in ingest**
 - Scenario: Ingest has a prepared (uncommitted) write or delete. search_near must handle visibility correctly.
 - Suggested test: Extend test_layered73
+*(Prepared transactions not currently supported in disagg; see PT-2 in 08_unsupported_features.md.)*
 
 **Gap 7 [LOW]: search_near at btree page boundaries**
 - Scenario: Keys positioned exactly at internal page splits in one or both btrees.
@@ -238,18 +240,20 @@
 12. next() after failed search → new test
 13. next/prev across large tombstone range → extend test_layered85
 14. search_near + dynamic bounds after positioning → extend test_layered05
-15. search_near + prepared transactions → extend test_layered73
-16. Dynamic bound rebinding during iteration → new test
-17. Bounds + truncate → extend fast_truncate tests
-18. Reset mid-iteration → new test
-19. Reset search_near idempotence → new test
-20. Reset within snapshot transaction → extend timestamp tests
+15. Dynamic bound rebinding during iteration → new test
+16. Bounds + slow truncate → test_layered_truncate_bounds
+17. Reset mid-iteration → new test
+18. Reset search_near idempotence → new test
+19. Reset within snapshot transaction → extend timestamp tests
 
 ### LOW
-21. Invalid bounds (lower > upper) → new test
-22. search() binary/encoded keys → new test
-23. Overlapping bound sets → minor addition
-24. Unpositioned prev() → minor addition
-25. Reset after tombstone skip → minor addition
-26. search_near page boundaries → new test
-27. Cursor statistics accuracy → add assertions to existing tests
+20. Invalid bounds (lower > upper) → new test
+21. search() binary/encoded keys → new test
+22. Overlapping bound sets → minor addition
+23. Unpositioned prev() → minor addition
+24. Reset after tombstone skip → minor addition
+25. search_near page boundaries → new test
+26. Cursor statistics accuracy → add assertions to existing tests
+
+### Deferred — Prepared Transactions (Target: Public Preview)
+*search + prepared transactions (Gap 3), search_near + prepared transactions (Gap 6) — see `08_unsupported_features.md` (PT-1 through PT-5).*

@@ -76,11 +76,12 @@ The following `WT_STAT_CONN_DISAGG_*` counters are asserted in tests:
 - Risk: Counter may never be incremented (dead code path) and the miss goes undetected.
 - Suggested test: Loop reconfigures and assert the counter value.
 
-**Gap 7 [MEDIUM]: `disagg_step_up_time` and `disagg_step_down_time` are never asserted**
+**Gap 7 [MEDIUM]: `disagg_step_up_time` is never asserted**
 
-- Scenario: Perform a step-up and step-down, then assert both timing stats are greater than zero.
-- Risk: If the timing instrumentation is accidentally removed, the metrics used for operational monitoring (SLO compliance) silently disappear.
-- Suggested test: Add stat assertions alongside existing reconfigure tests (e.g., `test_layered25`, `test_layered30`).
+- Scenario: Perform a step-up, then assert `stat.conn.disagg_step_up_time > 0`.
+- Risk: If the step-up timing instrumentation is accidentally removed, the SLO monitoring metric silently disappears.
+- Suggested test: Add stat assertion alongside existing step-up reconfigure tests (e.g., `test_layered25`, `test_layered30`).
+- Note: `disagg_step_down_time` is not asserted here as it requires elegant step-down (see SD-4 in `08_unsupported_features.md`).
 
 **Gap 8 [MEDIUM]: `disagg_abandon_checkpoint_failed` and `disagg_abandon_checkpoint_succeed` are never asserted**
 

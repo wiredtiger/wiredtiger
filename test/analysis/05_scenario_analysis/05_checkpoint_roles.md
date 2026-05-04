@@ -71,7 +71,8 @@
 
 ---
 
-**Gap 4 [MEDIUM]: Named checkpoints — no negative test confirming correct error**
+**Gap 4 [DEFERRED]: Named checkpoints — no negative test confirming correct error**
+*(Named checkpoints are not supported in disagg; negative test tracked as NC-1 in 08_unsupported_features.md.)*
 
 - Scenario: Call `session.checkpoint('name=my_ckpt')` on a disaggregated connection. The hook (`hook_disagg.py` line 249–250) skips any test that calls this, so no test ever reaches the actual implementation path. There is no test confirming the precise error code or message that the implementation returns when a named checkpoint is attempted.
 - Risk: If the skip is ever removed or the hook logic changes, a named checkpoint could silently succeed in a way that is not safe for the two-btree architecture (e.g., it could write a named checkpoint to only the ingest btree and not the stable btree, producing a partially-named checkpoint). The absence of a negative test means this is an invisible gap.
@@ -178,7 +179,8 @@
 
 ---
 
-**Gap 13 [MEDIUM]: No negative test for named checkpoints**
+**Gap 13 [DEFERRED]: No negative test for named checkpoints**
+*(Tracked as NC-1 in 08_unsupported_features.md.)*
 
 - Scenario: Open a disagg connection directly (not through the hook). Call `session.checkpoint('name=my_checkpoint')`. Assert the call returns a specific error code and that no partial data is written.
 - Risk: Without a negative test, the behavior of the implementation when a named checkpoint is requested is entirely unspecified from a test perspective. The hook skip prevents any named-checkpoint path from being exercised, meaning that if the skip logic is ever removed or the underlying implementation is changed, there is no regression protection.
@@ -249,19 +251,20 @@ _(No currently actionable CRITICAL items — step-down-dependent gaps are DEFERR
 
 10. **Gap 11** — Two threads on same follower connection both call `disagg_advance_checkpoint` simultaneously — checkpoint lock serialisation under concurrency.
 
-11. **Gap 13** — Named checkpoint negative test — no direct test confirms the error code or message when `name=` is used on a disagg connection.
-
 ### LOW
 
-12. **Gap 4** — Named checkpoints — full absence of coverage; but since the hook skip is intentional and well-documented, the main risk is regressions in the skip logic itself.
+11. **Gap 5** — `force_stop` checkpoint on a disagg leader — interaction with page-log checkpoint epoch not tested.
 
-13. **Gap 5** — `force_stop` checkpoint on a disagg leader — interaction with page-log checkpoint epoch not tested.
+12. **Gap 8** — Two simultaneous leader connections on the same page log — no test for the dual-leader error path; behavior depends on page-log exclusivity guarantees that are currently implicit.
 
-14. **Gap 8** — Two simultaneous leader connections on the same page log — no test for the dual-leader error path; behavior depends on page-log exclusivity guarantees that are currently implicit.
+13. **Gap 12** — Follower `disagg_advance_checkpoint` with a checkpoint at a lower stable timestamp than the current follower stable timestamp — LSN ordering check is tested, but stable timestamp regression is not.
 
-15. **Gap 12** — Follower `disagg_advance_checkpoint` with a checkpoint at a lower stable timestamp than the current follower stable timestamp — LSN ordering check is tested, but stable timestamp regression is not.
+14. **Gap 16** — Crash mid-drain (abrupt process termination after partial drain completes) — requires fault injection infrastructure not currently present in the Python test suite.
 
-16. **Gap 16** — Crash mid-drain (abrupt process termination after partial drain completes) — requires fault injection infrastructure not currently present in the Python test suite.
+### Deferred — Named Checkpoints and Step-Down (Target: Public Preview)
+
+*(Gap 4 and Gap 13 — named checkpoint negative tests — are tracked as NC-1 in `08_unsupported_features.md`.)_
+*(CP-1 (SD-1), CP-2 (SD-2), CP-3 (SD-3) — step_down → step_up without pickup, rapid step_down + step_up, and multi-hop transitions — are DEFERRED; see `08_unsupported_features.md` for details.)*
 
 ### DEFERRED — Requires Elegant Step-Down (Target: Public Preview)
 

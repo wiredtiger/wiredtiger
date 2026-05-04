@@ -29,8 +29,8 @@
 - Risk: The drain reads `manager->entries` after releasing the lock early (FIXME-WT-14734). Adding a new table during drain could corrupt the entry array.
 - Suggested test: test_layered_create_concurrent_drain.py
 
-**Gap 2 [HIGH]: Create + immediate step_down before any writes**
-- Scenario: Leader creates a table, immediately steps down before any data is written or checkpointed. What state is the stable btree in?
+**Gap 2 [MEDIUM]: Create table then switch to follower before any checkpoint**
+- Scenario: Leader creates a layered table but never writes data or calls checkpoint. Connection is closed and reopened as follower. What state is the stable btree in — empty or non-existent?
 - Suggested test: Extend test_layered60.py (already tests empty table creation during checkpoint)
 
 **Gap 3 [DEFERRED]: Create-drop-recreate with same URI**
@@ -117,10 +117,10 @@
 
 **Covered:** verify() called after happy-path operations (writes + checkpoint). No failures, no role transitions, no edge states.
 
-**Gap 1 [HIGH]: verify() after role transition (step_down)**
-- Scenario: Leader writes and checkpoints. Connection steps down. verify() called while stable btrees are READONLY.
+**Gap 1 [HIGH]: verify() on a follower connection (READONLY stable btrees)**
+- Scenario: Leader writes and checkpoints. A follower connection is opened. verify() called on a table whose stable btree is READONLY.
 - Does verify() correctly handle READONLY btrees? Is it blocked or runs normally?
-- Suggested test: test_layered_verify_after_stepdown.py
+- Suggested test: test_layered_verify_on_follower.py
 
 **Gap 2 [HIGH]: verify() on table with only ingest data (pre-checkpoint)**
 - Scenario: Leader creates table, writes 100 keys, does NOT checkpoint. verify() on the table.
@@ -163,17 +163,20 @@
 
 All disabled operations lack even a negative test confirming the correct error is returned.
 
-**Gap 1 [MEDIUM]: salvage() returns correct error**
+**Gap 1 [DEFERRED]: salvage() returns correct error**
 - hook_disagg.py skip says "not yet implemented" (FIXME-WT-14740). No test confirms what error code is returned.
 - Suggested test: test_layered_salvage_negative.py — call salvage, assert WT_ERROR or ENOTSUP
+*(Tracked as SAL-1 in 08_unsupported_features.md.)*
 
-**Gap 2 [MEDIUM]: compact() behavior**
+**Gap 2 [DEFERRED]: compact() behavior**
 - hook_disagg.py skips test_compact* tests. Is compact a no-op, unsupported, or silently ignored?
 - Suggested test: test_layered_compact_behavior.py — call compact, assert behavior is documented and consistent
+*(Tracked as CMP-1 in 08_unsupported_features.md.)*
 
-**Gap 3 [MEDIUM]: import() returns correct error**
+**Gap 3 [DEFERRED]: import() returns correct error**
 - `session.create(uri, 'import=(enabled=true,...)')` is skipped. No negative test.
 - Suggested test: test_layered_import_negative.py
+*(Tracked as IMP-1 in 08_unsupported_features.md.)*
 
 **Gap 4 [LOW]: bulk cursor returns correct error**
 - `open_cursor(uri, 'bulk')` is skipped. No negative test.
@@ -196,13 +199,13 @@ _(No currently actionable CRITICAL items — drop gaps are DEFERRED pending WT-1
 1. Truncate table-URI (full table form, slow truncate) → test_layered_truncate_full_table.py
 2. Truncate on leader → test_layered_truncate_leader.py
 3. Truncate of stable-only data → test_layered_truncate_stable.py
-4. verify() after step_down → test_layered_verify_after_stepdown.py
+4. verify() on follower connection (READONLY stable btrees) → test_layered_verify_on_follower.py
 5. verify() on ingest-only table → test_layered_verify_ingest_only.py
 6. Create during active drain → test_layered_create_concurrent_drain.py
 
 ### MEDIUM
 
-7. Create + immediate step_down → extend test_layered60.py
+7. Create table then switch to follower before any checkpoint → extend test_layered60.py
 8. Truncate while drain in flight → test_layered_truncate_concurrent_drain.py
 9. Truncate unbounded range (one-sided) → test_layered_truncate_unbounded.py
 10. Truncate + re-insert same keys → test_layered_truncate_reinsert.py
