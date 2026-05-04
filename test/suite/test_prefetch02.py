@@ -29,6 +29,7 @@
 import os
 from collections import namedtuple
 import helper, wiredtiger, wttest
+from helper import WiredTigerCursor, statistic_uri
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
@@ -77,19 +78,14 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     def conn_cfg(self):
         return self.conn_base_cfg + self.prefetch_cfg
 
-    def get_stat(self, stat, session):
-        stat_cursor = session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def get_prefetch_activity_stats(self, session):
-        return PrefetchStats(
-            pages_queued=self.get_stat(wiredtiger.stat.conn.prefetch_pages_queued, session),
-            prefetch_attempts=self.get_stat(wiredtiger.stat.conn.prefetch_attempts, session),
-            prefetch_attempts_succeeded=self.get_stat(wiredtiger.stat.conn.prefetch_attempts_succeeded, session),
-            prefetch_pages_read=self.get_stat(wiredtiger.stat.conn.prefetch_pages_read, session),
-        )
+        with WiredTigerCursor(session, statistic_uri()) as cursor:
+            return PrefetchStats(
+                pages_queued=cursor[wiredtiger.stat.conn.prefetch_pages_queued][2],
+                prefetch_attempts=cursor[wiredtiger.stat.conn.prefetch_attempts][2],
+                prefetch_attempts_succeeded=cursor[wiredtiger.stat.conn.prefetch_attempts_succeeded][2],
+                prefetch_pages_read=cursor[wiredtiger.stat.conn.prefetch_pages_read][2],
+            )
 
     # Checks for pre-fetching activity by asserting that relevant statistics have increased.
     def assert_prefetch_activity_increased(self, session, snapshot):
