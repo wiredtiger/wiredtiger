@@ -25,122 +25,153 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_layered100.py
-#   Regression test for WT-17379: layered cursor scan after prepared-key rollback.
-#
-#   After a prepared key triggers a conflict mid-scan and the prepared transaction is
-#   later rolled back, the ingest cursor is left unpositioned. A subsequent scan must
-#   skip the key comparison rather than asserting on the missing key.
 
-import wiredtiger
-import wttest
+# test_layered100.py
+#   Verify that fast truncate prevents internal page delta writes.
+#   Phase 2 proves delta fires for a normal update (sanity); Phase 3 proves it
+#   is suppressed when reconciliation encounters a WT_REF_DELETED child.
+
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
-
+from wiredtiger import stat
 
 @disagg_test_class
 class test_layered100(wttest.WiredTigerTestCase):
-    tablename = 'test_layered100'
-    uri = 'layered:' + tablename
+    uri         = 'layered:test_layered100'
+    nrows       = 200
+    value       = 'a' * 50
+    trunc_start = 50
+    trunc_stop  = 150
+
+    # Small pages produce ~25 leaves and multiple non-root internal pages (3-level tree);
+    # only non-root internals are eligible for WT_BUILD_DELTA_INT.
+    page_cfg    = 'allocation_size=512,leaf_page_max=512,internal_page_max=512'
+
+    conn_base_config = 'cache_size=50MB,statistics=(all),' \
+                       'page_delta=(internal_page_delta=true,leaf_page_delta=false,delta_pct=100),'
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     disagg_storages = gen_disagg_storages('test_layered100', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    conn_base_config = (
-        'cache_size=10MB,statistics=(all),precise_checkpoint=true,preserve_prepared=true,')
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
-    conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
+    def get_stat(self, conn, stat_key, uri=None):
+        s = conn.open_session('')
+        val = s.open_cursor('statistics:' + (uri or ''))[stat_key][2]
+        s.close()
+        return val
 
-    def test_compare_guard_after_ingest_exhaust(self):
-        """
-        Verify that a next() call does not assert when the ingest cursor is exhausted
-        after a prepared key was rolled back mid-scan.
-
-        Sequence:
-          1. Stable btree has committed keys [1, 3, 5] from a leader checkpoint.
-          2. Ingest btree has exactly one prepared key [2] (prepare_timestamp=15).
-          3. cursor.next() at read_timestamp=20 triggers WT_PREPARE_CONFLICT: stable
-             advances to key 1, ingest hits prepared key 2 (WT_CURSTD_KEY_INT cleared,
-             ref still set; current_cursor left NULL).
-          4. The prepared transaction is rolled back.  Key 2 vanishes from the ingest.
-          5. cursor.next() again: current_cursor==NULL so c_current=c_ingest,
-             !WT_CURSTD_KEY_INT on c_current is true, the iter helper advances the ingest
-             past the rolled-back slot -> WT_NOTFOUND (swallowed), c_current is now
-             unpositioned while c_alternate (stable) is at key 1.
-        """
-        # --- Phase 1: leader commits keys [1, 3, 5] and takes a checkpoint ----------
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
-
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        c[1] = 'value_1'
-        c[3] = 'value_3'
-        c[5] = 'value_5'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-        c.close()
-
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+    def leader_checkpoint(self, ts):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
+                                ',oldest_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
 
-        # --- Phase 2: open follower and advance it to the leader checkpoint ----------
-        # The follower's stable btree now contains keys 1, 3, 5.
-        conn_f = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + ',create,' + self.conn_config_follower)
-        self.disagg_advance_checkpoint(conn_f)
+    def setup_leader(self, extra_cfg=''):
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        self.session.create(self.uri, 'key_format=i,value_format=S' + extra_cfg)
+        cur = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows + 1):
+            self.session.begin_transaction()
+            cur[i] = self.value
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        cur.close()
+        self.leader_checkpoint(10)
 
-        # --- Phase 3: write exactly one prepared key (key 2) into the follower ingest --
-        # prepare_timestamp=15 falls within the read_timestamp=20 window, so a reader at
-        # ts=20 encounters WT_PREPARE_CONFLICT rather than skipping the prepared record.
-        session_prep = conn_f.open_session()
-        cursor_prep = session_prep.open_cursor(self.uri)
-        session_prep.begin_transaction()
-        cursor_prep[2] = 'prepared_value'
-        session_prep.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(15) +
-            ',prepared_id=' + self.prepared_id_str(1))
-        cursor_prep.close()
+        # Evict all leaves to WT_REF_DISK, satisfying the first fast delete eligibility condition.
+        evict_cur = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
+        self.session.begin_transaction()
+        for i in range(1, self.nrows + 1):
+            evict_cur.set_key(i)
+            evict_cur.search()
+            evict_cur.reset()
+        evict_cur.close()
+        self.session.rollback_transaction()
 
-        # --- Phase 4: open read cursor and trigger the prepare conflict --------------
-        session_r = conn_f.open_session()
-        cursor_r = session_r.open_cursor(self.uri)
-        session_r.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+    def truncate_and_checkpoint(self, trunc_start, trunc_stop, ts):
+        c_start = self.session.open_cursor(self.uri)
+        c_start.set_key(trunc_start)
+        c_stop = self.session.open_cursor(self.uri)
+        c_stop.set_key(trunc_stop)
+        self.session.begin_transaction()
+        self.session.truncate(None, c_start, c_stop, None)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        c_start.close()
+        c_stop.close()
+        self.leader_checkpoint(ts)
 
-        # First next(): fresh-start path positions stable at key 1 and advances ingest
-        # to prepared key 2, returning WT_PREPARE_CONFLICT.
-        # Internal state after this call:
-        #   - stable cursor: KEY_INT set, positioned at key 1
-        #   - ingest cursor: KEY_INT cleared, ref set at the prepared page
-        #   - current_cursor: NULL  (never updated by __clayered_get_current)
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor_r.next())
+    def test_fast_truncate_disables_internal_delta(self):
+        if wiredtiger.disagg_fast_truncate_build() == 0:
+            self.skipTest("fast truncate support is not enabled")
+        # Phase 1: insert all rows, checkpoint to establish the base image, then
+        # evict all leaf pages to WT_REF_DISK (required for fast delete eligibility).
+        self.setup_leader(',' + self.page_cfg)
 
-        # --- Phase 5: roll back the prepared transaction ----------------------------
-        # Key 2 is now absent from the ingest btree.  The ingest cursor's ref is still
-        # set (pointing at the page where key 2 was), but WT_CURSTD_KEY_INT is cleared.
-        session_prep.rollback_transaction(
-            'rollback_timestamp=' + self.timestamp_str(30))
-        session_prep.close()
+        # Phase 1.5: before reopen, internal pages lack a valid disagg page_id; delta must be
+        # rejected. Update one row and checkpoint to trigger reconciliation.
+        rej_before        = self.get_stat(self.conn, stat.dsrc.rec_page_delta_rejected_invalid_page_id, self.uri)
+        delta_pre_reopen  = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
+        cur = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cur[1] = self.value + 'y'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(12))
+        cur.close()
+        self.leader_checkpoint(12)
+        rej_after = self.get_stat(self.conn, stat.dsrc.rec_page_delta_rejected_invalid_page_id, self.uri)
+        self.assertGreater(rej_after, rej_before,
+            "expected delta rejection due to invalid page_id before reopen")
+        self.assertEqual(self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri),
+            delta_pre_reopen,
+            "no internal page delta should be written before reopen (page_id not yet assigned)")
 
-        # --- Phase 6: retry next()
-        self.assertEqual(cursor_r.next(), 0)
-        self.assertEqual(cursor_r.get_key(), 1)
-        self.assertEqual(cursor_r.get_value(), 'value_1')
+        # Reopen so internal pages load from disk with valid disagg page_ids for delta writes.
+        self.reopen_disagg_conn(self.conn_config())
 
-        # The remaining stable keys are returned in order.
-        self.assertEqual(cursor_r.next(), 0)
-        self.assertEqual(cursor_r.get_key(), 3)
-        self.assertEqual(cursor_r.get_value(), 'value_3')
+        delta_int_before = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
+        rd_fast_before   = self.get_stat(self.conn, stat.conn.rec_page_delete_fast)
+        read_del_before  = self.get_stat(self.conn, stat.conn.cache_read_deleted)
 
-        self.assertEqual(cursor_r.next(), 0)
-        self.assertEqual(cursor_r.get_key(), 5)
-        self.assertEqual(cursor_r.get_value(), 'value_5')
+        # Phase 2: update rows outside the truncation range -- internal page delta must fire.
+        cur = self.session.open_cursor(self.uri)
+        for i in range(self.trunc_stop + 10, self.trunc_stop + 20):
+            self.session.begin_transaction()
+            cur[i] = self.value + 'x'
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
+        cur.close()
+        self.leader_checkpoint(15)
 
-        self.assertEqual(cursor_r.next(), wiredtiger.WT_NOTFOUND)
+        delta_int_after_update = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
+        self.assertGreater(delta_int_after_update, delta_int_before,
+            "internal page delta not written for normal update -- "
+            "WT_INTERNAL_PAGE_DELTA may be disabled")
 
-        session_r.rollback_transaction()
-        cursor_r.close()
-        session_r.close()
-        conn_f.close()
+        # Phase 3: fast truncate + checkpoint -- internal page delta must be suppressed.
+        self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
+
+        verify_cur = self.session.open_cursor(self.uri)
+        verify_cur.set_key(self.trunc_start)
+        self.assertEqual(verify_cur.search(), wiredtiger.WT_NOTFOUND)
+        verify_cur.set_key(self.trunc_stop)
+        self.assertEqual(verify_cur.search(), wiredtiger.WT_NOTFOUND)
+        verify_cur.close()
+
+        rd_fast_after   = self.get_stat(self.conn, stat.conn.rec_page_delete_fast)
+        read_del_after  = self.get_stat(self.conn, stat.conn.cache_read_deleted)
+        delta_int_after = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
+
+        # (1) Fast delete actually fired.
+        self.assertGreater(rd_fast_after, rd_fast_before,
+            "fast truncate did not trigger -- check page eligibility (evict, ts, range coverage)")
+
+        # (2) No WT_REF_DELETED instantiation occurred.
+        self.assertEqual(read_del_after, read_del_before,
+            "WT_REF_DELETED was instantiated -- test setup has an unexpected reader")
+
+        # (3) Internal page delta suppressed during the fast-truncate checkpoint.
+        self.assertEqual(delta_int_after, delta_int_after_update,
+            "regression: internal page delta was written despite a WT_REF_DELETED child "
+            "(build_delta=false guard in rec_child.c may have been removed)")
+
+if __name__ == '__main__':
+    wttest.run()

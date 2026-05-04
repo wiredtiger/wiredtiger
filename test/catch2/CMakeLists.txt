@@ -59,10 +59,13 @@ else()
         sub_level_error/unit/test_sub_level_error_session_set_last_error.cpp
         truncate/test_truncate_visible_check.cpp
         truncate/test_layered_truncate_visibility.cpp
+        truncate/test_layered_table_truncate_clear.cpp
+        truncate/test_layered_table_truncate_rollback.cpp
     )
 endif()
 
 # FIXME-WT-14051: Live restore is not supported on Windows
+# Palite extension tests require shared library loading not supported on Windows
 if(NOT WT_WIN)
     set(live_restore_sources
         live_restore/live_restore_test_env.cpp
@@ -81,6 +84,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_compute_read_end_bit.cpp
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
+        truncate/test_insert_truncate_entry.cpp
     )
 endif()
 
@@ -96,6 +100,7 @@ set(unittest_sources
     wrappers/item_wrapper.cpp
     wrappers/mock_connection.cpp
     wrappers/mock_session.cpp
+    truncate/truncate_list_helpers.cpp
     ${unittests}
     ${live_restore_sources}
 )
