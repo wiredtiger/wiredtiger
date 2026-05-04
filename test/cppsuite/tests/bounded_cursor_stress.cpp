@@ -510,7 +510,7 @@ public:
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value. Skip
-             * read_timestamp entirely when timestamps haven't been initialised yet (both oldest and
+             * read_timestamp entirely when timestamps haven't been initialized yet (both oldest and
              * stable are WT_TS_NONE), as WiredTiger rejects read_timestamp=0.
              */
             tc->try_begin("roundup_timestamps=(read=true)" +
@@ -746,7 +746,7 @@ public:
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
-             * Skip read_timestamp entirely when timestamps haven't been initialised yet (both
+             * Skip read_timestamp entirely when timestamps haven't been initialized yet (both
              * oldest and stable are WT_TS_NONE), as WiredTiger rejects read_timestamp=0.
              */
             tc->begin("roundup_timestamps=(read=true)" +
