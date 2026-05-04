@@ -3648,8 +3648,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
      * would otherwise see database size as 0 against a non-empty local metadata.
      */
-    if (verify_meta && __wt_conn_is_disagg(session) &&
-      __wti_disagg_has_picked_up_checkpoint(session))
+    if (verify_meta && __wti_disagg_has_picked_up_checkpoint(session))
         WT_ERR(__wt_verify_disagg_database_size(session));
 
     /*
