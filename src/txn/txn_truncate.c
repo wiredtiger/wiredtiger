@@ -163,6 +163,23 @@ err:
 }
 
 /*
+ * __truncate_read_entry_timestamps --
+ *     Read a stable snapshot of truncate entry's commit timestamps.
+ */
+static void
+__truncate_read_entry_timestamps(
+  WT_TRUNCATE *entry, wt_timestamp_t *start_tsp, wt_timestamp_t *durable_tsp)
+{
+    const bool committed = __wt_atomic_load_bool_acquire(&entry->committed);
+
+    if (committed) {
+        *start_tsp = entry->start_ts;
+        *durable_tsp = entry->durable_ts;
+    } else
+        *start_tsp = *durable_tsp = WT_TS_NONE;
+}
+
+/*
  * __truncate_search --
  *     Walk the layered table truncate list looking for a committed or uncommitted entry (depending
  *     on the search mode) whose range covers the given key. The matched entry is returned through
@@ -173,6 +190,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
   const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
 {
     WT_ASSERT(session, is_foundp != NULL);
+    WT_ASSERT(session, __wt_rwlock_islocked(session, &layered_table->truncate_lock));
     *is_foundp = false;
 
     WT_STAT_CONN_INCR(session, layered_truncate_list_search_calls);
@@ -181,8 +199,10 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
     WT_TRUNCATE *entry = NULL;
 
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
+        wt_timestamp_t start_ts, durable_ts;
         WT_STAT_CONN_INCR(session, layered_truncate_list_search_entries_walked);
 
+        __truncate_read_entry_timestamps(entry, &start_ts, &durable_ts);
         const bool is_visible =
           __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
 
@@ -302,9 +322,7 @@ __disagg_truncate_apply(WT_SESSION_IMPL *session, WT_TXN_OP *op,
 
 /*
  * __wti_mark_committed_truncate_table_apply --
- *     Stamp commit metadata onto a truncate entry in the provided layered table. The write lock
- *     serializes readers that walk the truncate list under truncate_lock while checking the entry's
- *     plain txn/timestamp fields for visibility.
+ *     Mark the entry as committed so it becomes visible to other transactions.
  */
 void
 __wti_mark_committed_truncate_table_apply(
@@ -312,15 +330,25 @@ __wti_mark_committed_truncate_table_apply(
 {
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
-    /*
-     * FIXME-WT-17347 Remove the queue-wide write lock when applying commit metadata to truncate
-     * entry
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    WT_ASSERT(session, layered_table != NULL);
+    WT_ASSERT(session, entry != NULL);
+    WT_ASSERT(session, entry->txn_id == session->txn->time_point.id);
+    WT_UNUSED(layered_table);
+
+    WT_ASSERT(session, __wt_atomic_load_bool_relaxed(&entry->committed) == false);
+
+    /*-
+     * The transition to committed uses `release` ordering to:
+     * - fence the timestamp writes before the state change,
+     * - signal readers waiting on the state change that the entry is now committed.
+     *
+     * Readers must use `acquire` ordering when loading the committed flag to ensure they see
+     * the committed timestamps.
      */
-    __wt_writelock(session, &layered_table->truncate_lock);
-    entry->txn_id = session->txn->time_point.id;
     entry->start_ts = session->txn->time_point.commit_timestamp;
     entry->durable_ts = session->txn->time_point.durable_timestamp;
-    __wt_writeunlock(session, &layered_table->truncate_lock);
+    __wt_atomic_store_bool_release(&entry->committed, true);
 }
 
 /*
