@@ -80,9 +80,9 @@ class test_layered100(wttest.WiredTigerTestCase):
              advances to key 1, ingest hits prepared key 2 (WT_CURSTD_KEY_INT cleared,
              ref still set; current_cursor left NULL).
           4. The prepared transaction is rolled back.  Key 2 vanishes from the ingest.
-          5. cursor.next() again: current_cursor==NULL so c_current=c_ingest;
-             !WT_CURSTD_KEY_INT on c_current is true; the iter helper advances the ingest
-             past the rolled-back slot -> WT_NOTFOUND (swallowed); c_current is now
+          5. cursor.next() again: current_cursor==NULL so c_current=c_ingest,
+             !WT_CURSTD_KEY_INT on c_current is true, the iter helper advances the ingest
+             past the rolled-back slot -> WT_NOTFOUND (swallowed), c_current is now
              unpositioned while c_alternate (stable) is at key 1.
         """
         # --- Phase 1: leader commits keys [1, 3, 5] and takes a checkpoint ----------
