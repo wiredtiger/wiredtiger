@@ -1160,9 +1160,8 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * If the alternate cursor's key is equal to the current one, we should move it as well. In that
      * case, the alternate must be the stable cursor.
      *
-     * Check c_current before comparing the cursors: __clayered_constituent_iter_helper above may
-     * have returned WT_NOTFOUND (swallowed by WT_ERR_NOTFOUND_OK) when the ingest cursor is
-     * exhausted, leaving c_current unpositioned.
+     * Skip the key comparison if the current cursor is unpositioned: the ingest cursor may have
+     * been exhausted and silently ignored by WT_ERR_NOTFOUND_OK.
      */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT) && F_ISSET(c_current, WT_CURSTD_KEY_INT) &&
       c_current == c_ingest) {

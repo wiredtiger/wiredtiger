@@ -27,27 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_layered100.py
-#   Regression test for WT-17379: Guard __clayered_cursor_compare against an unpositioned
-#   cursor.
+#   Regression test for WT-17379: layered cursor scan after prepared-key rollback.
 #
-#   The WT_ASSERT_ALWAYS "Can only compare cursors with keys available in layered tree" in
-#   __clayered_cursor_compare (cur_layered.c) fires via the following sequence:
-#
-#     1. Follower's stable btree has committed keys [1, 3, 5] from a leader checkpoint.
-#     2. Follower's ingest btree has exactly one prepared key (key 2).
-#     3. First next() (fresh-start path): stable advances to key 1; ingest reaches
-#        prepared key 2 and returns WT_PREPARE_CONFLICT.  Internally: WT_CURSTD_KEY_INT is
-#        cleared on the ingest cursor (ref still set at the prepared page);
-#        current_cursor is left NULL because __clayered_get_current was never called.
-#     4. The prepared transaction is rolled back.  Key 2 disappears from the ingest btree.
-#     5. Second next(): current_cursor==NULL so c_current=c_ingest;
-#        !F_ISSET(c_current, WT_CURSTD_KEY_INT) is true; the iter helper advances the ingest
-#        cursor past the rolled-back key -> WT_NOTFOUND (swallowed); c_current is now
-#        unpositioned while c_alternate (stable) is still positioned at key 1.
-#        Without the fix: __clayered_cursor_compare is called with the unpositioned c_current,
-#        firing the assertion.
-#        With the fix: the F_ISSET(c_current, WT_CURSTD_KEY_INT) guard skips the compare and
-#        the scan resumes from stable key 1.
+#   After a prepared key triggers a conflict mid-scan and the prepared transaction is
+#   later rolled back, the ingest cursor is left unpositioned. A subsequent scan must
+#   skip the key comparison rather than asserting on the missing key.
 
 import wiredtiger
 import wttest
