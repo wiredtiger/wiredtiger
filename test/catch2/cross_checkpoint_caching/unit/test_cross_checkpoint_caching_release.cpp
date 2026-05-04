@@ -31,7 +31,7 @@ TEST_CASE("cross_checkpoint_caching_release: decrementing non-zero ref_count kee
     REQUIRE(put_item->ref_count == 1);
     REQUIRE(env.bucket_size(0) == 1);
 
-    // The item should still be findable.
+    // The item should still be there.
     WT_SHARED_DSK_ITEM *got_again = nullptr;
     __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_again);
     REQUIRE(got_again == put_item);
@@ -81,7 +81,7 @@ TEST_CASE(
     // item_b is untouched.
     REQUIRE(item_b->ref_count == 1);
 
-    // item_b is still findable; item_a is gone.
+    // item_b is still in the hash map; item_a is gone.
     WT_SHARED_DSK_ITEM *got_a = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
     WT_SHARED_DSK_ITEM *got_b = nullptr;
     __wt_shared_dsk_cache_get(env.session(), addr_a, sizeof(addr_a), &got_a);
@@ -90,7 +90,8 @@ TEST_CASE(
     REQUIRE(got_b == item_b);
 }
 
-TEST_CASE("cross_checkpoint_caching_release: repeated releases mirror repeated gets",
+TEST_CASE(
+  "cross_checkpoint_caching_release: N releases undo N gets, and one more removes the entry",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_release]")
 {
     cross_checkpoint_caching_test_env env(1);
