@@ -31,6 +31,12 @@ as_view(const WT_ITEM &item)
     return {static_cast<const char *>(item.data), item.size};
 }
 
+WT_TRUNCATE *
+truncate_list_head(WT_LAYERED_TABLE &table)
+{
+    return TAILQ_FIRST(&table.truncateqh);
+}
+
 size_t
 truncate_list_size(const WT_LAYERED_TABLE &table)
 {
@@ -42,6 +48,23 @@ truncate_list_size(const WT_LAYERED_TABLE &table)
     }
 
     return count;
+}
+
+bool
+lock_is_released(WT_SESSION_IMPL &session, WT_LAYERED_TABLE &table)
+{
+    if (__wt_try_writelock(&session, &table.truncate_lock) != 0)
+        return false;
+
+    __wt_writeunlock(&session, &table.truncate_lock);
+    return true;
+}
+
+WT_TXN_OP *
+last_txn_op(WT_SESSION_IMPL &session)
+{
+    auto *txn = session.txn;
+    return &txn->mod[txn->mod_count - 1];
 }
 
 truncate_list_fixture::truncate_list_fixture()
@@ -65,18 +88,6 @@ truncate_list_fixture::~truncate_list_fixture()
     __wt_rwlock_destroy(_session, &_table.truncate_lock);
 }
 
-WT_SESSION_IMPL &
-truncate_list_fixture::session() const
-{
-    return *_session;
-}
-
-WT_LAYERED_TABLE &
-truncate_list_fixture::layered_table()
-{
-    return _table;
-}
-
 WT_TRUNCATE *
 truncate_list_fixture::add_entry(const WT_ITEM &start, const WT_ITEM &stop)
 {
@@ -93,12 +104,6 @@ truncate_list_fixture::add_entry(const WT_ITEM &start, const WT_ITEM &stop)
 
     TAILQ_INSERT_TAIL(&_table.truncateqh, entry, q);
     return entry;
-}
-
-uint32_t
-truncate_list_fixture::reference_count() const
-{
-    return __wt_atomic_load_uint32_relaxed(&_table.iface.references);
 }
 
 } // namespace truncate_list_helpers
