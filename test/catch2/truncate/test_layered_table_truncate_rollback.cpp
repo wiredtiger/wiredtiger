@@ -26,26 +26,31 @@ make_op(WT_TRUNCATE *entry)
     return op;
 }
 
+void
+rollback_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *entry)
+{
+    auto op = make_op(entry);
+    __wti_layered_table_truncate_rollback(session, &op);
+}
+
 } // namespace
 
 SCENARIO(
   "rolling back a truncate entry removes it from the truncate list", "[truncate_list][rollback]")
 {
-    GIVEN("a fixture with one truncate entry")
+    GIVEN("a truncate list with one entry")
     {
         truncate_list_fixture fixture;
         fixture.add_entry(make_item("a"), make_item("z"));
-        auto op = make_op(TAILQ_FIRST(&fixture.layered_table().truncateqh));
-        const auto size = truncate_list_size(fixture.layered_table());
+        CHECK(truncate_list_size(fixture.layered_table()) == 1);
 
         WHEN("the truncate is rolled back")
         {
-            __wti_layered_table_truncate_rollback(&fixture.session(), &op);
+            rollback_truncate(&fixture.session(), truncate_list_head(fixture.layered_table()));
 
             THEN("the truncate list entry is removed")
             {
-                const auto expected_size = size - 1;
-                REQUIRE(truncate_list_size(fixture.layered_table()) == expected_size);
+                REQUIRE(truncate_list_size(fixture.layered_table()) == 0);
             }
         }
     }
@@ -53,14 +58,15 @@ SCENARIO(
 
 SCENARIO("rolling back a truncate entry clears the op pointer", "[truncate_list][rollback]")
 {
-    GIVEN("a fixture with one truncate entry")
+    GIVEN("a truncate list with one entry")
     {
         truncate_list_fixture fixture;
         fixture.add_entry(make_item("a"), make_item("z"));
-        auto op = make_op(TAILQ_FIRST(&fixture.layered_table().truncateqh));
+        CHECK(truncate_list_size(fixture.layered_table()) == 1);
 
         WHEN("the truncate is rolled back")
         {
+            auto op = make_op(truncate_list_head(fixture.layered_table()));
             __wti_layered_table_truncate_rollback(&fixture.session(), &op);
 
             THEN("the op pointer is null")
@@ -74,20 +80,21 @@ SCENARIO("rolling back a truncate entry clears the op pointer", "[truncate_list]
 SCENARIO(
   "rolling back a truncate entry releases the dhandle reference", "[truncate_list][rollback]")
 {
-    GIVEN("a fixture with one truncate entry")
+    GIVEN("a truncate list with one entry")
     {
         truncate_list_fixture fixture;
         fixture.add_entry(make_item("a"), make_item("z"));
+        CHECK(truncate_list_size(fixture.layered_table()) == 1);
+
         const auto reference_count = fixture.reference_count();
-        auto op = make_op(TAILQ_FIRST(&fixture.layered_table().truncateqh));
 
         WHEN("the truncate is rolled back")
         {
-            __wti_layered_table_truncate_rollback(&fixture.session(), &op);
+            rollback_truncate(&fixture.session(), truncate_list_head(fixture.layered_table()));
 
             THEN("the dhandle reference is released")
             {
-                REQUIRE(fixture.reference_count() == reference_count - 1);
+                REQUIRE(fixture.reference_count() == reference_count - 1u);
             }
         }
     }
@@ -95,21 +102,19 @@ SCENARIO(
 
 SCENARIO("rolling back a truncate entry releases the truncate lock", "[truncate_list][rollback]")
 {
-    GIVEN("a fixture with one truncate entry")
+    GIVEN("a truncate list with one entry")
     {
         truncate_list_fixture fixture;
         fixture.add_entry(make_item("a"), make_item("z"));
-        auto op = make_op(TAILQ_FIRST(&fixture.layered_table().truncateqh));
+        CHECK(truncate_list_size(fixture.layered_table()) == 1);
 
         WHEN("the truncate is rolled back")
         {
-            __wti_layered_table_truncate_rollback(&fixture.session(), &op);
+            rollback_truncate(&fixture.session(), truncate_list_head(fixture.layered_table()));
 
             THEN("the truncate lock is not held")
             {
-                auto &lock = fixture.layered_table().truncate_lock;
-                REQUIRE(__wt_try_writelock(&fixture.session(), &lock) == 0);
-                __wt_writeunlock(&fixture.session(), &lock);
+                REQUIRE(lock_is_released(fixture.session(), fixture.layered_table()));
             }
         }
     }
@@ -118,40 +123,48 @@ SCENARIO("rolling back a truncate entry releases the truncate lock", "[truncate_
 SCENARIO("rolling back affects only the targeted entry in a multi-entry truncate list",
   "[truncate_list][rollback]")
 {
-    GIVEN("a fixture with three truncate entries")
+    GIVEN("a truncate list with three entries")
     {
         truncate_list_fixture fixture;
-        const auto *first_entry = fixture.add_entry(make_item("a"), make_item("b"));
-        const auto *middle_entry = fixture.add_entry(make_item("c"), make_item("d"));
-        const auto *last_entry = fixture.add_entry(make_item("e"), make_item("f"));
+        auto *first_entry = fixture.add_entry(make_item("a"), make_item("b"));
+        auto *middle_entry = fixture.add_entry(make_item("c"), make_item("d"));
+        auto *last_entry = fixture.add_entry(make_item("e"), make_item("f"));
+
+        const auto size = truncate_list_size(fixture.layered_table());
+        CHECK(size == 3);
+
         const auto reference_count = fixture.reference_count();
 
-        auto first_op = make_op(const_cast<WT_TRUNCATE *>(first_entry));
-        auto middle_op = make_op(const_cast<WT_TRUNCATE *>(middle_entry));
-        auto last_op = make_op(const_cast<WT_TRUNCATE *>(last_entry));
+        auto first_op = make_op(first_entry);
+        auto last_op = make_op(last_entry);
 
         WHEN("the middle truncate is rolled back")
         {
-            __wti_layered_table_truncate_rollback(&fixture.session(), &middle_op);
+            rollback_truncate(&fixture.session(), middle_entry);
 
             THEN("only the middle entry is removed and the others remain in order")
             {
-                const auto *const head = TAILQ_FIRST(&fixture.layered_table().truncateqh);
+                const auto *const head = truncate_list_head(fixture.layered_table());
                 REQUIRE(head == first_entry);
                 REQUIRE(TAILQ_NEXT(head, q) == last_entry);
                 REQUIRE(TAILQ_NEXT(last_entry, q) == nullptr);
             }
 
-            THEN("only the rolled-back op pointer is cleared")
+            THEN("the other op pointers are not cleared")
             {
-                REQUIRE(middle_op.u.follower_truncate.t == nullptr);
                 REQUIRE(first_op.u.follower_truncate.t == first_entry);
                 REQUIRE(last_op.u.follower_truncate.t == last_entry);
             }
 
             THEN("the dhandle reference count drops by exactly one")
             {
-                REQUIRE(fixture.reference_count() == reference_count - 1);
+                REQUIRE(fixture.reference_count() == reference_count - 1u);
+            }
+
+            THEN("only one entry is removed")
+            {
+                const auto expected_size = size - 1u;
+                REQUIRE(truncate_list_size(fixture.layered_table()) == expected_size);
             }
         }
     }

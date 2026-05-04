@@ -17,12 +17,12 @@ using namespace truncate_list_helpers;
 
 SCENARIO("clearing empties the truncate list", "[truncate_list][clear]")
 {
-    GIVEN("a fixture with two truncate entries")
+    GIVEN("a truncate list with two entries")
     {
         truncate_list_fixture fixture;
         fixture.add_entry(make_item("a"), make_item("z"));
         fixture.add_entry(make_item("b"), make_item("y"));
-        const auto size = truncate_list_size(fixture.layered_table());
+        CHECK(truncate_list_size(fixture.layered_table()) == 2);
 
         WHEN("the truncate list is cleared")
         {
@@ -30,8 +30,7 @@ SCENARIO("clearing empties the truncate list", "[truncate_list][clear]")
 
             THEN("the truncate list entries are removed")
             {
-                const auto expected_size = size - 2;
-                REQUIRE(truncate_list_size(fixture.layered_table()) == expected_size);
+                REQUIRE(truncate_list_size(fixture.layered_table()) == 0);
             }
         }
     }
@@ -39,11 +38,13 @@ SCENARIO("clearing empties the truncate list", "[truncate_list][clear]")
 
 SCENARIO("clearing the truncate list releases the dhandle references", "[truncate_list][clear]")
 {
-    GIVEN("a fixture with two truncate entries")
+    GIVEN("a truncate list with two entries")
     {
         truncate_list_fixture fixture;
         fixture.add_entry(make_item("a"), make_item("z"));
         fixture.add_entry(make_item("b"), make_item("y"));
+        CHECK(truncate_list_size(fixture.layered_table()) == 2);
+
         const auto reference_count = fixture.reference_count();
 
         WHEN("the truncate list is cleared")
@@ -52,7 +53,7 @@ SCENARIO("clearing the truncate list releases the dhandle references", "[truncat
 
             THEN("the dhandle references are released")
             {
-                const auto expected_reference_count = reference_count - 2;
+                const auto expected_reference_count = reference_count - 2u;
                 REQUIRE(fixture.reference_count() == expected_reference_count);
             }
         }
@@ -61,10 +62,11 @@ SCENARIO("clearing the truncate list releases the dhandle references", "[truncat
 
 SCENARIO("clearing an empty truncate list is a no-op", "[truncate_list][clear]")
 {
-    GIVEN("a fixture with an empty truncate list")
+    GIVEN("an empty truncate list")
     {
         truncate_list_fixture fixture;
         const auto reference_count = fixture.reference_count();
+        CHECK(truncate_list_size(fixture.layered_table()) == 0);
 
         WHEN("the truncate list is cleared")
         {
@@ -81,11 +83,12 @@ SCENARIO("clearing an empty truncate list is a no-op", "[truncate_list][clear]")
 
 SCENARIO("clearing the truncate list releases the truncate lock", "[truncate_list][clear]")
 {
-    GIVEN("a fixture with two truncate entries")
+    GIVEN("a truncate list with two entries")
     {
         truncate_list_fixture fixture;
         fixture.add_entry(make_item("a"), make_item("z"));
         fixture.add_entry(make_item("b"), make_item("y"));
+        CHECK(truncate_list_size(fixture.layered_table()) == 2);
 
         WHEN("the truncate list is cleared")
         {
@@ -93,9 +96,7 @@ SCENARIO("clearing the truncate list releases the truncate lock", "[truncate_lis
 
             THEN("the truncate lock is not held")
             {
-                auto &lock = fixture.layered_table().truncate_lock;
-                REQUIRE(__wt_try_writelock(&fixture.session(), &lock) == 0);
-                __wt_writeunlock(&fixture.session(), &lock);
+                REQUIRE(lock_is_released(fixture.session(), fixture.layered_table()));
             }
         }
     }

@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 // External include:
 #include <catch2/catch.hpp>
@@ -21,6 +22,8 @@
 #include "wrappers/mock_session.h"
 
 namespace truncate_list_helpers {
+
+using truncate_range = std::pair<WT_ITEM, WT_ITEM>;
 
 class scoped_fast_truncate_enable {
 public:
@@ -34,12 +37,6 @@ public:
         __wt_process.disagg_fast_truncate_2026 = _previous;
     }
 
-    scoped_fast_truncate_enable(const scoped_fast_truncate_enable &) = delete;
-    scoped_fast_truncate_enable &operator=(const scoped_fast_truncate_enable &) = delete;
-
-    scoped_fast_truncate_enable(scoped_fast_truncate_enable &&) = delete;
-    scoped_fast_truncate_enable &operator=(scoped_fast_truncate_enable &&) = delete;
-
 private:
     bool _previous;
 };
@@ -48,28 +45,43 @@ private:
 
 [[nodiscard]] std::string_view as_view(const WT_ITEM &item);
 
+[[nodiscard]] WT_TRUNCATE *truncate_list_head(WT_LAYERED_TABLE &table);
+
 [[nodiscard]] size_t truncate_list_size(const WT_LAYERED_TABLE &table);
+
+[[nodiscard]] bool lock_is_released(WT_SESSION_IMPL &session, WT_LAYERED_TABLE &table);
+
+[[nodiscard]] WT_TXN_OP *last_txn_op(WT_SESSION_IMPL &session);
 
 class truncate_list_fixture {
 public:
     truncate_list_fixture();
     ~truncate_list_fixture();
 
-    truncate_list_fixture(const truncate_list_fixture &) = delete;
-    truncate_list_fixture &operator=(const truncate_list_fixture &) = delete;
+    [[nodiscard]] WT_SESSION_IMPL &
+    session() const
+    {
+        return *_session;
+    }
 
-    truncate_list_fixture(truncate_list_fixture &&) = delete;
-    truncate_list_fixture &operator=(truncate_list_fixture &&) = delete;
+    [[nodiscard]] WT_LAYERED_TABLE &
+    layered_table()
+    {
+        return _table;
+    }
 
-    [[nodiscard]] WT_SESSION_IMPL &session() const;
-    [[nodiscard]] WT_LAYERED_TABLE &layered_table();
+    [[nodiscard]] uint32_t
+    reference_count() const
+    {
+        return __wt_atomic_load_uint32_relaxed(&_table.iface.references);
+    }
+
     WT_TRUNCATE *add_entry(const WT_ITEM &start, const WT_ITEM &stop);
-    [[nodiscard]] uint32_t reference_count() const;
 
 private:
     scoped_fast_truncate_enable _enable;
     std::shared_ptr<mock_session> _mock;
-    WT_SESSION_IMPL *_session;
+    WT_SESSION_IMPL *_session{};
     mutable WT_LAYERED_TABLE _table{};
 };
 
