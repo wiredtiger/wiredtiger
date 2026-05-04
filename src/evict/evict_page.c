@@ -556,26 +556,23 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * is cheaper: the HP is often from a transient reader that will release within
      * WT_EVICT_HP_COOLDOWN_PASSES passes.
      *
-     * App-thread assist eviction: do NOT cooldown here. The HP gate fires at a point-in-time
-     * snapshot; in read-heavy workloads the HP is often from a transient reader that will release
-     * well before phase-1 reconcile completes. Falling to single-phase blocks all concurrent
-     * readers for the full reconcile duration, directly inflating read latency. Proceed with
-     * two-phase; phase-2 will retry if the HP persists.
+     * App-thread assist eviction: skip this gate entirely. Even when a concurrent reader holds an
+     * HP, phase-1 reconcile proceeds and phase-2 handles any HP that persists. The scan cost is
+     * wasted work on a path that must return to its caller promptly; phase-2 already has its own
+     * single-iteration HP check. Falling to single-phase blocks all concurrent readers for the
+     * full reconcile duration, directly inflating read latency.
      *
      * Urgent eviction bypasses the cooldown to avoid cache-pressure livelock.
      */
-    if (two_phase && __wt_hazard_check(session, ref, &hp_session) != NULL &&
+    if (two_phase && !app_thread_assist && __wt_hazard_check(session, ref, &hp_session) != NULL &&
       hp_session != session) {
-        if (!app_thread_assist) {
-            /* Background: cooldown, then retry two-phase on the next pass. */
-            __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
-              __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
-                WT_EVICT_HP_COOLDOWN_PASSES);
-            __wti_evict_read_gen_bump(session, page);
-            ret = __wt_set_return(session, EBUSY);
-            goto err;
-        }
-        /* App-thread assist: proceed with two-phase; phase-2 handles HP failure. */
+        /* Background: cooldown, then retry two-phase on the next pass. */
+        __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
+          __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
+            WT_EVICT_HP_COOLDOWN_PASSES);
+        __wti_evict_read_gen_bump(session, page);
+        ret = __wt_set_return(session, EBUSY);
+        goto err;
     }
 
     /*
@@ -706,8 +703,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * thread resumes. Spin until it does so that
          * __wt_page_out's assertion is satisfied.
          */
-        while (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
+        for (uint32_t lru_spin = 0; F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU); ++lru_spin) {
+            if (lru_spin > WT_THOUSAND * 10) {
+                ret = __wt_set_return(session, EBUSY);
+                goto err;
+            }
             WT_PAUSE();
+        }
 
         /*
          * Check for hazard pointers from other sessions. Readers that published their hazard
@@ -739,12 +741,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * eviction server picks up the already-reconciled page as soon as hazard pointers drain,
          * rather than waiting for normal LRU scoring.
          */
-        for (uint32_t haz_spin = 0; __wt_hazard_check(session, ref, NULL) != NULL; ++haz_spin) {
+        if (__wt_hazard_check(session, ref, NULL) != NULL) {
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
-
-            if (haz_spin > WT_THOUSAND || app_thread_assist) {
-                if (app_thread_assist)
-                    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard_app_thread);
+            if (app_thread_assist) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard_app_thread);
                 if (LF_ISSET(WT_EVICT_CALL_URGENT) && is_dirty)
                     __wt_evict_page_soon(session, ref);
                 else {
@@ -756,7 +756,21 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                 ret = __wt_set_return(session, EBUSY);
                 goto err;
             }
-            WT_PAUSE();
+            for (uint32_t haz_spin = 0; __wt_hazard_check(session, ref, NULL) != NULL; ++haz_spin) {
+                if (haz_spin > WT_THOUSAND) {
+                    if (LF_ISSET(WT_EVICT_CALL_URGENT) && is_dirty)
+                        __wt_evict_page_soon(session, ref);
+                    else {
+                        __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
+                          __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
+                            WT_EVICT_HP_COOLDOWN_PASSES);
+                        __wti_evict_read_gen_bump(session, page);
+                    }
+                    ret = __wt_set_return(session, EBUSY);
+                    goto err;
+                }
+                WT_PAUSE();
+            }
         }
 
         /*
@@ -772,7 +786,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * __evict_page_dirty_update on a page with rec_result == 0, causing a panic.
          */
         if (!two_phase && !tree_dead) {
-            is_dirty = is_dirty || __wt_page_is_modified(page);
+            if (!is_dirty)
+                is_dirty = __wt_page_is_modified(page);
             if (is_dirty) {
                 if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
                     ret = __evict_child_check(session, ref);
@@ -821,7 +836,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
              * dirtied (e.g., by a concurrent page split whose new children were then evicted to
              * DISK before __evict_child_check ran), reconcile it now under LOCKED.
              */
-            is_dirty = is_dirty || __wt_page_is_modified(page);
+            if (!is_dirty)
+                is_dirty = __wt_page_is_modified(page);
             if (!tree_dead && is_dirty) {
                 WT_ASSERT(
                   session, ref->page->disagg_info == NULL || conn->layered_table_manager.leader);
@@ -846,7 +862,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                  * Re-check whether the page is dirty to cover pages that became dirty between the
                  * is_dirty read (under WT_REF_MEM) and our CAS above.
                  */
-                is_dirty = is_dirty || __wt_page_is_modified(page);
+                if (!is_dirty)
+                    is_dirty = __wt_page_is_modified(page);
                 if (is_dirty)
                     WT_ERR(__evict_reconcile(session, ref, flags));
             } else if (F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
@@ -859,7 +876,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                  * Re-check whether the page is dirty: it may have been clean at review time but had
                  * new HS entries written to it between then and our CAS above.
                  */
-                is_dirty = is_dirty || __wt_page_is_modified(page);
+                if (!is_dirty)
+                    is_dirty = __wt_page_is_modified(page);
                 if (is_dirty)
                     WT_ERR(__evict_reconcile(session, ref, flags));
             } else if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
@@ -871,7 +889,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                  * Re-check whether the page is dirty: a writer may have modified it between the
                  * is_dirty read (under WT_REF_MEM) and our CAS above.
                  */
-                is_dirty = is_dirty || __wt_page_is_modified(page);
+                if (!is_dirty)
+                    is_dirty = __wt_page_is_modified(page);
                 if (is_dirty)
                     WT_ERR(__evict_reconcile(session, ref, flags));
             } else {
@@ -906,9 +925,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                  * the branches above; this dirty-gap check only runs for regular leaf pages
                  * reconciled in phase-1.
                  */
-                uint32_t pg_state = page->modify != NULL ?
-                  __wt_atomic_load_uint32_acquire(&page->modify->page_state) :
-                  WT_PAGE_CLEAN;
+                WT_PAGE_MODIFY *mod = page->modify;
+                uint32_t pg_state =
+                  mod != NULL ? __wt_atomic_load_uint32_acquire(&mod->page_state) : WT_PAGE_CLEAN;
                 bool dirty_gap = false;
                 if (!is_dirty)
                     dirty_gap = (pg_state != WT_PAGE_CLEAN);
@@ -917,7 +936,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                 else if (pg_state == WT_PAGE_DIRTY_FIRST)
                     /* Use rec_leave_dirty to distinguish leave_dirty from post-CAS single writer.
                      */
-                    dirty_gap = (page->modify != NULL && !page->modify->rec_leave_dirty);
+                    dirty_gap = (mod != NULL && !mod->rec_leave_dirty);
 
                 if (dirty_gap) {
                     is_dirty = true;
