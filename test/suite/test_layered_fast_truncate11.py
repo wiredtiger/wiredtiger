@@ -26,6 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+# test_layered_fast_truncate11.py
+#   Range specification (start / end / open-ended).
+#
+#   Verify that follower fast-truncate handles all range-bound variations
+#   correctly: open ends, single keys, empty gaps, and invalid ordering.
+#   Open-ended truncates should not apply to keys written after the truncate
+#   commits.
+
 from contextlib import closing, nullcontext
 from itertools import chain
 from typing import Iterable

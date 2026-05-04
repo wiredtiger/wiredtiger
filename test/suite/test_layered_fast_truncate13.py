@@ -26,6 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+# test_layered_fast_truncate13.py
+#   Interactions with existing truncates.
+#
+#   Verify that subsequent operations - additional truncates, per-key removes,
+#   and reinsertion - compose correctly with a prior committed truncate.
+
 from contextlib import closing, nullcontext
 from itertools import chain
 from typing import Iterable

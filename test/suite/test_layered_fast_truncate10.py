@@ -26,6 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+# test_layered_fast_truncate10.py
+#   Data location semantics (stable vs ingest).
+#
+#   Verify that fast-truncate on a follower behaves as a single operation over
+#   the logical union of the stable and ingest tables, independent of which
+#   table any given key actually lives in.
+
 from contextlib import closing
 from itertools import chain
 from typing import Iterable
