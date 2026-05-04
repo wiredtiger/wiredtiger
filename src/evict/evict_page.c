@@ -547,9 +547,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     /*
      * If the page was queued for clean-scrub, attempt to re-instantiate it from its saved disk
-     * image. The flag is cleared if the page has been re-dirtied (scrub no longer applicable) or
-     * if the saved image is missing; otherwise it stays set so a later eviction pass can pick the
-     * page up again on retry.
+     * image. The flag is cleared if the page has been re-dirtied (scrub no longer applicable) or if
+     * the saved image is missing; otherwise it stays set so a later eviction pass can pick the page
+     * up again on retry.
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_CLEAN_SCRUB)) {
         if (!is_dirty && __wti_evict_page_has_clean_scrub_image(session, page)) {
