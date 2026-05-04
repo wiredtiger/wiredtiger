@@ -1779,6 +1779,56 @@ variables:
           format_args: disagg.mode=follower runs.ops=500000:2000000
           times: 5
 
+  - &format-stress-test-disagg-switch
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_args: disagg.mode=switch ops.prepare=0 runs.timer=5:10
+          times: 5
+
+  # FIXME-WT-16113: Consolidate this logic in test/format itself.
+  - &format-stress-test-disagg-switch-data-validation
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_args: disagg.mode=switch ops.prepare=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          times: 5
+
+  - &format-stress-test-disagg-switch-pull-request
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes.
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=switch ops.prepare=0 runs.rows=10000 runs.ops=50000
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_args: disagg.mode=switch ops.prepare=0 runs.timer=5:10
+          times: 1
+
 #######################################
 #               Tasks                 #
 #######################################
@@ -5392,6 +5442,25 @@ tasks:
     name: format-stress-test-disagg-follower-2
     tags: ["stress-test-disagg"]
 
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-data-validation
+    name: format-stress-test-disagg-switch-data-validation-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-data-validation
+    name: format-stress-test-disagg-switch-data-validation-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-pull-request
+    name: format-stress-test-disagg-switch-pull-request-1
+    tags: ["pull_request"]
+  - <<: *format-stress-test-disagg-switch-pull-request
+    name: format-stress-test-disagg-switch-pull-request-2
+    tags: ["pull_request"]
+
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
     depends_on:
@@ -7042,8 +7111,9 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: make-check-test
       distros: ubuntu2004-large
     - name: cppsuite-default-all
@@ -7247,8 +7317,9 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: long-test
       distros: ubuntu2004-arm64-large
     - name: make-check-test
@@ -7600,8 +7671,9 @@ buildvariants:
       distros: amazon2023.3-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: long-test
       distros: amazon2023.3-arm64-large
     - name: make-check-test
@@ -7787,8 +7859,9 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: make-check-test
       distros: amazon2023.3-arm64-large
     - name: cppsuite-default-all
