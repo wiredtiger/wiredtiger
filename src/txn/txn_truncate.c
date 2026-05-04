@@ -206,9 +206,7 @@ __wt_layered_table_truncate_detect_write_conflict(
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    if (__wt_atomic_load_ptr_acquire(&layered_table->truncateqh.tqh_first) == NULL)
-        return (0);
-
+    /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
     __wt_readlock(session, &layered_table->truncate_lock);
 
     /*
@@ -247,9 +245,7 @@ __wt_truncate_delete_visible_check(
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    if (__wt_atomic_load_ptr_acquire(&layered_table->truncateqh.tqh_first) == NULL)
-        return (WT_NOTFOUND);
-
+    /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
     __wt_readlock(session, &layered_table->truncate_lock);
 
     /*
@@ -372,9 +368,6 @@ void
 __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table)
 {
     WT_ASSERT(session, layered_table != NULL);
-
-    if (__wt_atomic_load_ptr_acquire(&layered_table->truncateqh.tqh_first) == NULL)
-        return;
 
     WT_TRUNCATE *entry = NULL;
 
