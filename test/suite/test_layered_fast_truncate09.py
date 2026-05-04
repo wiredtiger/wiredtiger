@@ -27,11 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate09.py
-#   Cursor iteration after search_near is consistent with fast truncate.
-#
-#   Verify that stable keys inside a committed truncate range are never returned
-#   when iterating forward or backward after a search_near that positioned the
-#   cursor on an ingest key.
+#   next() skips truncated stable keys after search_near lands on an ingest key.
+#   Covers edge scenarios: single truncated key, consecutive truncated keys,
+#   ingest key adjacent to the range boundary, and ingest keys before a gap.
 
 from contextlib import closing
 from typing import Iterable
@@ -43,12 +41,7 @@ import wttest
 
 @disagg_test_class
 class test_layered_fast_truncate09(wttest.WiredTigerTestCase):
-    """
-    Cursor iteration after search_near is consistent with fast truncate.
-
-    Verify that stable keys inside a committed truncate range are never returned
-    when iterating after a search_near that positioned the cursor on an ingest key.
-    """
+    """next() skips truncated stable keys after search_near lands on an ingest key."""
 
     uris = [
         ("layered", {"uri": "layered:fast_truncate"}),
@@ -111,8 +104,7 @@ class test_layered_fast_truncate09(wttest.WiredTigerTestCase):
         return result
 
     def test_next_after_search_near_skips_truncated_stable_key(self):
-        # Stable [0,10,20,30], ingest [5], truncate [10,15].
-        # search_near(5) positions on ingest; next() must skip stable key 10.
+        # The first stable key after the ingest landing point is truncated.
         self.setup_leader(keys=[0, 10, 20, 30])
         self.setup_follower(keys=[5])
         self.truncate(10, 15)
@@ -123,8 +115,7 @@ class test_layered_fast_truncate09(wttest.WiredTigerTestCase):
         self.assertEqual(keys, [20, 30])
 
     def test_next_skips_multiple_consecutive_truncated_stable_keys(self):
-        # Truncate range covers two consecutive stable keys (5 and 10).
-        # stable [0,5,10,15,20], ingest [3], truncate [5,10].
+        # The truncate range spans two consecutive stable keys.
         self.setup_leader(keys=[0, 5, 10, 15, 20])
         self.setup_follower(keys=[3])
         self.truncate(5, 10)
@@ -136,8 +127,7 @@ class test_layered_fast_truncate09(wttest.WiredTigerTestCase):
         self.assertEqual(keys, [15, 20])
 
     def test_next_skips_truncated_stable_key_when_ingest_key_is_adjacent(self):
-        # Ingest key sits just below the truncate range boundary.
-        # stable [0,10,20,30], ingest [7], truncate [10,15].
+        # The ingest key sits just below the truncate range start.
         self.setup_leader(keys=[0, 10, 20, 30])
         self.setup_follower(keys=[7])
         self.truncate(10, 15)
@@ -148,8 +138,7 @@ class test_layered_fast_truncate09(wttest.WiredTigerTestCase):
         self.assertEqual(keys, [20, 30])
 
     def test_next_skips_truncated_gap_past_multiple_ingest_keys(self):
-        # Two ingest keys appear before the truncated gap.
-        # stable [0,10,20,30,40], ingest [5,15], truncate [20,25].
+        # Multiple ingest keys are visited before reaching the truncated gap.
         self.setup_leader(keys=[0, 10, 20, 30, 40])
         self.setup_follower(keys=[5, 15])
         self.truncate(20, 25)

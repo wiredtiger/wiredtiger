@@ -27,11 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate10.py
-#   Follower truncate respects range boundaries for ingest keys.
-#
-#   Verify that a committed follower truncate writes tombstones only for ingest
-#   keys that fall inside the truncate range, and leaves ingest keys outside the
-#   range fully visible regardless of their position relative to the range.
+#   Follower truncate tombstones only ingest keys inside the range.
+#   Covers edge scenarios: ingest keys flanking the range, only below, only
+#   above, and multiple keys on both sides with none inside.
 
 from contextlib import closing
 from typing import Iterable
@@ -43,13 +41,7 @@ import wttest
 
 @disagg_test_class
 class test_layered_fast_truncate10(wttest.WiredTigerTestCase):
-    """
-    Follower truncate respects range boundaries for ingest keys.
-
-    Verify that a committed follower truncate writes tombstones only for ingest
-    keys that fall inside the truncate range, and leaves ingest keys outside the
-    range fully visible.
-    """
+    """Follower truncate tombstones only ingest keys inside the range."""
 
     uris = [
         ("layered", {"uri": "layered:fast_truncate"}),
@@ -110,11 +102,7 @@ class test_layered_fast_truncate10(wttest.WiredTigerTestCase):
         return result
 
     def test_ingest_keys_flanking_range_not_tombstoned(self):
-        # Edge scenario: ingest keys 5 and 25 flank truncate range [10,20] with
-        # no ingest key inside. ingest_start advances to 25; ingest_stop retreats
-        # to 5 — cursors cross. Key 25 must remain visible; keys 10 and 20
-        # (stable-only) must be deleted.
-        # stable [0,10,20,30], ingest [5,25], truncate [10,20].
+        # Ingest keys flank the range on both sides with none inside; neither should be tombstoned.
         self.setup_leader(keys=[0, 10, 20, 30])
         self.setup_follower(keys=[5, 25])
         self.truncate(10, 20)
@@ -125,8 +113,7 @@ class test_layered_fast_truncate10(wttest.WiredTigerTestCase):
             "key 25 must be visible (ingest key, outside truncate range)")
 
     def test_scan_correct_when_ingest_keys_flank_range(self):
-        # Edge scenario: full scan with flanking ingest keys must skip [10,20]
-        # and include both outer ingest keys.
+        # Full scan with flanking ingest keys returns only keys outside the range.
         self.setup_leader(keys=[0, 10, 20, 30])
         self.setup_follower(keys=[5, 25])
         self.truncate(10, 20)
@@ -134,9 +121,7 @@ class test_layered_fast_truncate10(wttest.WiredTigerTestCase):
         self.assertEqual(self.visible_keys(), [0, 5, 25, 30])
 
     def test_ingest_key_only_below_range(self):
-        # Only an ingest key below the range; ingest_start gets WT_NOTFOUND
-        # (no ingest key >= start), so the ingest loop is skipped entirely.
-        # stable [0,5,10,15,20], ingest [5], truncate [10,15].
+        # All ingest keys are below the range; none should be tombstoned.
         self.setup_leader(keys=[0, 5, 10, 15, 20])
         self.setup_follower(keys=[5])
         self.truncate(10, 15)
@@ -147,9 +132,7 @@ class test_layered_fast_truncate10(wttest.WiredTigerTestCase):
             "key 5 must be visible")
 
     def test_ingest_key_only_above_range(self):
-        # Only an ingest key above the range; ingest_stop gets WT_NOTFOUND
-        # (no ingest key <= stop), so the ingest loop is skipped entirely.
-        # stable [0,5,10,15,20], ingest [15], truncate [5,10].
+        # All ingest keys are above the range; none should be tombstoned.
         self.setup_leader(keys=[0, 5, 10, 15, 20])
         self.setup_follower(keys=[15])
         self.truncate(5, 10)
@@ -160,8 +143,7 @@ class test_layered_fast_truncate10(wttest.WiredTigerTestCase):
             "key 15 must be visible")
 
     def test_multiple_ingest_keys_both_sides_no_ingest_in_range(self):
-        # Multiple ingest keys outside the range on both sides; none inside.
-        # stable [0,5,10,15,20,25], ingest [3,7,18,22], truncate [10,15].
+        # Multiple ingest keys on both sides of the range; none inside; all should stay visible.
         self.setup_leader(keys=[0, 5, 10, 15, 20, 25])
         self.setup_follower(keys=[3, 7, 18, 22])
         self.truncate(10, 15)
