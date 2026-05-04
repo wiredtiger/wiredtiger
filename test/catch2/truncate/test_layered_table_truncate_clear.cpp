@@ -77,6 +77,11 @@ SCENARIO("clearing an empty truncate list is a no-op", "[truncate_list][clear]")
                 REQUIRE(truncate_list_size(fixture.layered_table()) == 0);
                 REQUIRE(fixture.reference_count() == reference_count);
             }
+
+            THEN("the truncate lock is not held")
+            {
+                REQUIRE(lock_is_released(fixture.session(), fixture.layered_table()));
+            }
         }
     }
 }

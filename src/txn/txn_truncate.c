@@ -208,7 +208,9 @@ __wt_layered_table_truncate_detect_write_conflict(
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    /* FIXME-WT-17384: Use an atomic variable to skip the lock when the truncate list is empty. */
+    if (__wt_atomic_load_ptr_acquire(&layered_table->truncateqh.tqh_first) == NULL)
+        return (0);
+
     __wt_readlock(session, &layered_table->truncate_lock);
 
     /*
@@ -247,7 +249,9 @@ __wt_truncate_delete_visible_check(
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
-    /* FIXME-WT-17384: Use an atomic variable to skip the lock when the truncate list is empty. */
+    if (__wt_atomic_load_ptr_acquire(&layered_table->truncateqh.tqh_first) == NULL)
+        return (WT_NOTFOUND);
+
     __wt_readlock(session, &layered_table->truncate_lock);
 
     /*
@@ -328,9 +332,12 @@ __wti_layered_table_truncate_rollback_apply(
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
     __wt_writelock(session, &layered_table->truncate_lock);
+
+    WT_ASSERT(session, !TAILQ_EMPTY(&layered_table->truncateqh));
     TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
     __wt_writeunlock(session, &layered_table->truncate_lock);
     op->u.follower_truncate.t = NULL;
+
     __disagg_truncate_free(session, &entry);
 }
 
@@ -352,9 +359,10 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 void
 __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table)
 {
-    WT_TRUNCATE *entry;
+    if (__wt_atomic_load_ptr_acquire(&layered_table->truncateqh.tqh_first) == NULL)
+        return;
 
-    entry = NULL;
+    WT_TRUNCATE *entry = NULL;
 
     __wt_writelock(session, &layered_table->truncate_lock);
     while ((entry = TAILQ_FIRST(&layered_table->truncateqh)) != NULL) {
