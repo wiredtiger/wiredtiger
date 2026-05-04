@@ -27,9 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate10.py
-#   Follower truncate tombstones only ingest keys inside the range.
-#   Covers edge scenarios: ingest keys flanking the range, only below, only
-#   above, and multiple keys on both sides with none inside.
+#   Validate edge scenario where no tombstones are written when ingest keys sit outside
+#   the range. Follower truncate tombstones ingest keys only inside the range.
 
 from contextlib import closing
 from typing import Iterable

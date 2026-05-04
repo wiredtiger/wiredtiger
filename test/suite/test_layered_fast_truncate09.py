@@ -27,10 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate09.py
-#   next() skips truncated stable keys after search_near lands on an ingest key.
-#   Covers edge scenarios: single truncated key, consecutive truncated keys,
-#   ingest key adjacent to the range boundary, and ingest keys before a gap.
-
+#   Ensure next() skips truncated stable keys after search_near lands on an ingest key.
 from contextlib import closing
 from typing import Iterable
 from helper_disagg import disagg_test_class, gen_disagg_storages
