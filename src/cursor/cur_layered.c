@@ -857,10 +857,9 @@ __clayered_range_truncate_ingest(
 
     /* Early return if stop key is smaller than start key, nothing to truncate. */
     WT_RET(start->compare(start, stop, &cmp));
-    if (cmp > 0)
+    if (cmp >= 0)
         return (0);
 
-    cmp = -1;
     do {
         /* Check the current position relative to the truncate end. */
         WT_RET(cursor->compare(cursor, stop, &cmp));
@@ -974,8 +973,8 @@ __clayered_position_alternate(
         WT_RET(forward ? alternate->next(alternate) : alternate->prev(alternate));
 
         /*
-         * With higher isolation levels, where we have stable reads, we're done: the cursor is now
-         * positioned as expected.
+         * With higher isolation levels, the cursor is now positioned as expected; break out to
+         * check for committed truncate ranges before returning.
          *
          * With read-uncommitted isolation, a new record could have appeared in between the search
          * and stepping forward / back. In that case, keep going until we see a key in the expected
@@ -988,7 +987,7 @@ __clayered_position_alternate(
     }
 
     /*
-     * If the alternate cursor landed on the stable table, advance past the keys that falls inside a
+     * If the alternate is the stable table, advance past the keys that fall inside a
      * committed truncate range.
      */
     if (alternate == clayered->stable_cursor && F_ISSET(alternate, WT_CURSTD_KEY_INT))

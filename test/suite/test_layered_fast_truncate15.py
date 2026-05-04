@@ -26,8 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate09.py
-#   Ensure next() skips truncated stable keys after search_near lands on an ingest key.
+# test_layered_fast_truncate15.py
+#   Validate edge scenario where no tombstones are written when ingest keys sit outside
+#   the range. Follower truncate tombstones ingest keys only inside the range.
+
 from contextlib import closing
 from typing import Iterable
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -37,8 +39,8 @@ import wttest
 
 
 @disagg_test_class
-class test_layered_fast_truncate09(wttest.WiredTigerTestCase):
-    """next() skips truncated stable keys after search_near lands on an ingest key."""
+class test_layered_fast_truncate15(wttest.WiredTigerTestCase):
+    """Follower truncate tombstones only ingest keys inside the range."""
 
     uris = [
         ("layered", {"uri": "layered:fast_truncate"}),
@@ -84,67 +86,73 @@ class test_layered_fast_truncate09(wttest.WiredTigerTestCase):
             with self.transaction():
                 self.session.truncate(None, start, stop, None)
 
-    def keys_after_search_near(self, search_key: int) -> list[int]:
-        """
-        Position on search_key via search_near (must be an exact match), then
-        return all keys yielded by subsequent next() calls.
-        """
+    def search_key(self, key: int) -> int:
+        with self.auto_closing_cursor() as cursor:
+            with self.transaction(rollback=True):
+                cursor.set_key(key)
+                return cursor.search()
+
+    def visible_keys(self) -> list[int]:
         result = []
         with self.auto_closing_cursor() as cursor:
             with self.transaction(rollback=True):
-                cursor.set_key(search_key)
-                exact = cursor.search_near()
-                self.assertEqual(exact, 0,
-                    f"search_near({search_key}) must find an exact match")
                 while cursor.next() == 0:
                     result.append(cursor.get_key())
         return result
 
-    def test_next_after_search_near_skips_truncated_stable_key(self):
-        # The first stable key after the ingest landing point is truncated.
+    def test_ingest_keys_flanking_range_not_tombstoned(self):
+        # Ingest keys flank the range on both sides with none inside; neither should be tombstoned.
         self.setup_leader(keys=[0, 10, 20, 30])
+        self.setup_follower(keys=[5, 25])
+        self.truncate(10, 20)
+
+        self.assertEqual(self.search_key(10), WT_NOTFOUND,
+            "key 10 must be deleted (stable-only, inside truncate range)")
+        self.assertEqual(self.search_key(25), 0,
+            "key 25 must be visible (ingest key, outside truncate range)")
+
+    def test_scan_correct_when_ingest_keys_flank_range(self):
+        # Full scan with flanking ingest keys returns only keys outside the range.
+        self.setup_leader(keys=[0, 10, 20, 30])
+        self.setup_follower(keys=[5, 25])
+        self.truncate(10, 20)
+
+        self.assertEqual(self.visible_keys(), [0, 5, 25, 30])
+
+    def test_ingest_key_only_below_range(self):
+        # All ingest keys are below the range; none should be tombstoned.
+        self.setup_leader(keys=[0, 5, 10, 15, 20])
         self.setup_follower(keys=[5])
         self.truncate(10, 15)
 
-        keys = self.keys_after_search_near(5)
-        self.assertNotIn(10, keys,
-            "truncated stable key 10 must not appear after search_near + next")
-        self.assertEqual(keys, [20, 30])
+        self.assertEqual(self.search_key(10), WT_NOTFOUND,
+            "key 10 must be deleted")
+        self.assertEqual(self.search_key(5), 0,
+            "key 5 must be visible")
 
-    def test_next_skips_multiple_consecutive_truncated_stable_keys(self):
-        # The truncate range spans two consecutive stable keys.
+    def test_ingest_key_only_above_range(self):
+        # All ingest keys are above the range; none should be tombstoned.
         self.setup_leader(keys=[0, 5, 10, 15, 20])
-        self.setup_follower(keys=[3])
+        self.setup_follower(keys=[15])
         self.truncate(5, 10)
 
-        keys = self.keys_after_search_near(3)
-        for k in [5, 10]:
-            self.assertNotIn(k, keys,
-                f"truncated stable key {k} must not appear after search_near + next")
-        self.assertEqual(keys, [15, 20])
+        self.assertEqual(self.search_key(10), WT_NOTFOUND,
+            "key 10 must be deleted")
+        self.assertEqual(self.search_key(15), 0,
+            "key 15 must be visible")
 
-    def test_next_skips_truncated_stable_key_when_ingest_key_is_adjacent(self):
-        # The ingest key sits just below the truncate range start.
-        self.setup_leader(keys=[0, 10, 20, 30])
-        self.setup_follower(keys=[7])
+    def test_multiple_ingest_keys_both_sides_no_ingest_in_range(self):
+        # Multiple ingest keys on both sides of the range; none inside; all should stay visible.
+        self.setup_leader(keys=[0, 5, 10, 15, 20, 25])
+        self.setup_follower(keys=[3, 7, 18, 22])
         self.truncate(10, 15)
 
-        keys = self.keys_after_search_near(7)
-        self.assertNotIn(10, keys,
-            "truncated stable key 10 must not appear after search_near + next")
-        self.assertEqual(keys, [20, 30])
-
-    def test_next_skips_truncated_gap_past_multiple_ingest_keys(self):
-        # Multiple ingest keys are visited before reaching the truncated gap.
-        self.setup_leader(keys=[0, 10, 20, 30, 40])
-        self.setup_follower(keys=[5, 15])
-        self.truncate(20, 25)
-
-        keys = self.keys_after_search_near(5)
-        self.assertNotIn(20, keys,
-            "truncated stable key 20 must not appear after search_near + next")
-        self.assertEqual(keys, [10, 15, 30, 40])
-
+        for k in [10, 15]:
+            self.assertEqual(self.search_key(k), WT_NOTFOUND,
+                f"key {k} must be deleted (stable-only, inside truncate range)")
+        for k in [3, 7, 18, 22]:
+            self.assertEqual(self.search_key(k), 0,
+                f"key {k} must be visible (ingest key, outside truncate range)")
 
 if __name__ == "__main__":
     wttest.run()
