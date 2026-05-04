@@ -33,7 +33,7 @@
 # Update chain for the key under test:
 #   [rollback_tombstone] -> [aborted_prepare(rollback_ts=50)] -> [committed_value(ts=20)]
 #
-# When stable_ts < rollback_ts, reconciliation must skip both the tombstone and the aborted
+# When stable_ts < prepare_ts, reconciliation must skip both the tombstone and the aborted
 # prepare and select the committed value instead.  Without the fix, prepare_rollback_tombstone
 # remained set after skipping the aborted prepared update, causing an assertion failure (in
 # diagnostic builds) when reconciliation tried to select the following committed value.
