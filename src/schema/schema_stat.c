@@ -67,11 +67,13 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
     WT_CONFIG_ITEM ckey, colconf, cval;
     WT_DECL_RET;
     WT_ITEM namebuf;
-    wt_off_t filesize;
+    int64_t size;
     char *tableconf;
-    bool exist;
+    bool disagg;
 
     WT_CLEAR(namebuf);
+    disagg = false;
+    size = 0;
     *was_fast = false;
 
     /* Retrieve the metadata for this table. */
@@ -87,24 +89,36 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
     if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
         goto err;
 
-    /* Build up the file name from the table URI. */
-    WT_ERR(__wt_buf_fmt(session, &namebuf, "%s.wt", uri + strlen("table:")));
+    /*
+     * Layered tables use a .wt_stable file in the metadata rather than a local .wt file. Detect
+     * them so we can build the correct filename and use the disagg size path.
+     */
+    ret = __wt_config_getones(session, tableconf, "type", &cval);
+    WT_ERR_NOTFOUND_OK(ret, false);
+    if (ret == 0 && WT_CONFIG_LIT_MATCH("layered", cval))
+        disagg = true;
+
+    /*
+     * Build up the file name from the table URI using the appropriate extension. For disagg the
+     * helper expects a file: URI; for local it expects a bare filename.
+     */
+    WT_ERR(__wt_buf_fmt(session, &namebuf, "%s%s.%s", disagg ? "file:" : "", uri + strlen("table:"),
+      disagg ? "wt_stable" : "wt"));
 
     /*
      * Get the size of the underlying file. This will fail for anything other than simple tables and
      * will fail if there are concurrent schema level operations (for example drop). That is fine -
      * failing here results in falling back to the slow path of opening the handle.
      */
-    WT_ERR(__wt_fs_exist(session, namebuf.data, &exist));
-    if (exist) {
-        WT_ERR(__wt_fs_size(session, namebuf.data, &filesize));
+    if (disagg)
+        WT_ERR(__wt_curstat_size_disagg(session, namebuf.data, was_fast, &size));
+    else
+        WT_ERR(__wt_curstat_size_local(session, namebuf.data, was_fast, &size));
 
-        /* Setup and populate the statistics structure */
+    if (*was_fast) {
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-        cst->u.dsrc_stats.block_size = filesize;
+        cst->u.dsrc_stats.block_size = size;
         __wt_curstat_dsrc_final(cst);
-
-        *was_fast = true;
     }
 
 err:

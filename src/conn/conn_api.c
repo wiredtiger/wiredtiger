@@ -1102,11 +1102,6 @@ __conn_rollback_transaction_callback(
 
     if (F_ISSET(array_session->txn, WT_TXN_RUNNING)) {
         wt_session = &array_session->iface;
-        /*
-         * Connection close has no opportunity to provide configuration. Mark this rollback as
-         * forced so rollback timestamp enforcement is bypassed.
-         */
-        F_SET(array_session->txn, WT_TXN_FORCE_ROLLBACK);
         return (wt_session->rollback_transaction(wt_session, NULL));
     }
     return (0);
@@ -3166,7 +3161,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
-    WT_SESSION_IMPL *session, *verify_session;
+    WT_SESSION_IMPL *chunk_cache_cleanup_session, *session, *verify_session;
     bool config_base_set, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
@@ -3626,7 +3621,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wti_connection_workers(session, cfg));
 
     /* The chunk cache metadata table may exist on upgrade. Discard it. */
-    WT_ERR(__conn_cleanup_chunk_cache(session));
+    WT_ERR(__wt_open_internal_session(
+      conn, "chunk-cache-cleanup", false, 0, 0, &chunk_cache_cleanup_session));
+    ret = __conn_cleanup_chunk_cache(chunk_cache_cleanup_session);
+    WT_TRET(__wt_session_close_internal(chunk_cache_cleanup_session));
+    WT_ERR(ret);
 
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
@@ -3638,6 +3637,15 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_TRET(__wt_session_close_internal(verify_session));
         WT_ERR(ret);
     }
+
+    /*
+     * Verify the disaggregated database size. This must happen after __wti_connection_workers,
+     * which is where disaggregated storage is initialized. The earlier metadata verify (above) does
+     * not need to wait because it only verifies the local metadata file, which is not a shared
+     * table and has no dependency on disagg initialization.
+     */
+    if (verify_meta && __wt_conn_is_disagg(session))
+        WT_ERR(__wt_verify_disagg_database_size(session));
 
     /*
      * The hash array sizes needed to be set up very early. Set them in the statistics here. Setting

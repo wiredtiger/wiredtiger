@@ -2950,7 +2950,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         if (disagg_page_is_valid && !disagg_page_free_required &&
           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
+            __wt_block_disagg_obsolete_delta_chain(
+              session, ref->page->disagg_info->block_meta.cumulative_size);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2998,7 +2999,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         if (disagg_page_is_valid && !disagg_page_free_required &&
                           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
                           r->multi->block_meta->delta_count == 0)
-                            __wt_btree_decrease_size(
+                            __wt_block_disagg_obsolete_delta_chain(
                               session, ref->page->disagg_info->block_meta.cumulative_size);
                     }
                 }
@@ -3041,7 +3042,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         WT_ASSERT(
                           session, cookie.size == page->disagg_info->block_meta.cumulative_size);
 #endif
-                        __wt_btree_decrease_size(
+                        __wt_block_disagg_obsolete_delta_chain(
                           session, page->disagg_info->block_meta.cumulative_size);
                     }
                 }
@@ -3324,12 +3325,16 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * Delete the updates left in the history store by prepared rollback first before moving updates
      * to the history store.
      */
-    WT_ERR(__wti_rec_hs_delete_updates(session, r));
+    WT_ERR_MSG_CHK(session, __wti_rec_hs_delete_updates(session, r),
+      "failed to delete updates from history store during wrapup: btree=%" PRIu32, btree->id);
 
     is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
-            WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
+            WT_ERR_MSG_CHK(session, __wti_rec_hs_insert_updates(session, r, multi),
+              "failed to insert updates into history store during wrapup: btree=%" PRIu32
+              " supd_entries=%" PRIu32,
+              btree->id, multi->supd_entries);
             /* FIXME-WT-15709: build delta for split pages. */
             if (!is_disagg && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
                 __wt_free(session, multi->supd);
