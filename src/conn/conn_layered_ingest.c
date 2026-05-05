@@ -370,6 +370,25 @@ __layered_drain_truncate_ingest_check(
 }
 
 /*
+ * __layered_save_window --
+ *     Append a (start, stop) key pair to the window arrays, growing them as needed.
+ */
+static int
+__layered_save_window(WT_SESSION_IMPL *session, WT_ITEM *start, WT_ITEM *stop,
+  WT_ITEM **win_startsp, WT_ITEM **win_stopsp, size_t *starts_allocp, size_t *stops_allocp,
+  size_t n)
+{
+    WT_DECL_RET;
+
+    WT_ERR(__wt_realloc_def(session, starts_allocp, n + 1, win_startsp));
+    WT_ERR(__wt_realloc_def(session, stops_allocp, n + 1, win_stopsp));
+    WT_ERR(__wt_buf_set(session, *win_startsp + n, start->data, start->size));
+    WT_ERR(__wt_buf_set(session, *win_stopsp + n, stop->data, stop->size));
+err:
+    return (ret);
+}
+
+/*
  * __layered_collect_truncate_windows --
  *     Walk stable at start_ts over the truncate range and collect contiguous runs of keys that
  *     ingest doesn't own into (start, stop) window pairs. Ingest-owned keys break the current run;
@@ -416,14 +435,9 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
             }
             WT_ERR(__wt_buf_set(session, &cur_win_stop, stable_key.data, stable_key.size));
         } else if (in_window) {
-            /* Ingest owns this key, so the run is broken — save the completed window. */
-            WT_ERR(__wt_realloc_def(session, &starts_alloc, nwindows + 1, win_startsp));
-            WT_ERR(__wt_realloc_def(session, &stops_alloc, nwindows + 1, win_stopsp));
-            WT_ERR(__wt_buf_set(
-              session, &(*win_startsp)[nwindows], cur_win_start.data, cur_win_start.size));
-            WT_ERR(__wt_buf_set(
-              session, &(*win_stopsp)[nwindows], cur_win_stop.data, cur_win_stop.size));
-            ++nwindows;
+            /* Ingest owns this key — save the completed run and reset. */
+            WT_ERR(__layered_save_window(session, &cur_win_start, &cur_win_stop, win_startsp,
+              win_stopsp, &starts_alloc, &stops_alloc, nwindows++));
             in_window = false;
         }
         WT_ERR_NOTFOUND_OK(iter_cursor->next(iter_cursor), true);
@@ -432,15 +446,9 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
         ret = 0;
 
     /* Save any run still open when we hit the end of the range. */
-    if (in_window) {
-        WT_ERR(__wt_realloc_def(session, &starts_alloc, nwindows + 1, win_startsp));
-        WT_ERR(__wt_realloc_def(session, &stops_alloc, nwindows + 1, win_stopsp));
-        WT_ERR(__wt_buf_set(
-          session, &(*win_startsp)[nwindows], cur_win_start.data, cur_win_start.size));
-        WT_ERR(__wt_buf_set(
-          session, &(*win_stopsp)[nwindows], cur_win_stop.data, cur_win_stop.size));
-        ++nwindows;
-    }
+    if (in_window)
+        WT_ERR(__layered_save_window(session, &cur_win_start, &cur_win_stop, win_startsp,
+          win_stopsp, &starts_alloc, &stops_alloc, nwindows++));
 
     WT_ERR(__wt_txn_rollback(session, NULL, false));
     *nwindowsp = nwindows;
@@ -543,15 +551,14 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
-    WT_SESSION *wt_session;
     WT_TRUNCATE *t;
     bool truncate_locked;
+    const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
 
     ingest_raw_cursor = stable_raw_cursor = NULL;
     layered_dhandle = NULL;
     layered_table = NULL;
     truncate_locked = false;
-    wt_session = (WT_SESSION *)session;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
@@ -570,9 +577,8 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
     if (TAILQ_EMPTY(&layered_table->truncateqh))
         goto err;
 
-    WT_ERR(wt_session->open_cursor(
-      wt_session, layered_table->stable_uri, NULL, "raw=true", &stable_raw_cursor));
-    WT_ERR(wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
+    WT_ERR(__wt_open_cursor(session, layered_table->stable_uri, NULL, open_cfg, &stable_raw_cursor));
+    WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, open_cfg, &ingest_raw_cursor));
 
     TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
         /* Skip uncommitted truncates. */
