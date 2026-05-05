@@ -548,7 +548,7 @@ test_transaction_prepared(void)
     txn2->prepare(5);
     testutil_assert(txn1->state() == model::kv_transaction_state::prepared);
     testutil_assert(txn2->state() == model::kv_transaction_state::prepared);
-    txn1->commit(10, 11);
+    txn1->commit(10, 10);
     txn2->commit(10, 15);
     testutil_assert(table->get(key1) == value1);
     testutil_assert(table->get(key2) == value2);
