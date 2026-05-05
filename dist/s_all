@@ -115,8 +115,12 @@ run()
     local t="${t_pfx}-${name}-$$"
     [[ "$name" =~ .*\.py$ ]] && cmd="python3 $cmd" || cmd="/bin/bash $cmd"
     [[ -z "$bg" ]] && status "Running: $name"
+    local _start=$SECONDS
     $cmd > $t 2>&1
+    local _elapsed=$(( SECONDS - _start ))
     [[ -z "$bg" ]] && status ""
+    [[ -z "$bg" ]] && echo "  [${_elapsed}s] $name"
+    printf "%d\t%s\n" $_elapsed "$name" >> "${t_pfx}_timings"
     errchk "$name" "$t" "$flags"
 }
 
@@ -138,7 +142,6 @@ run "verbose.py"
 run "s_format_config"
 run "s_copyright"
 run "s_style"
-run "s_clang_format"
 run "prototypes.py"
 run "s_typedef -b"
 run "test_tag.py"
@@ -148,6 +151,7 @@ run "s_mentions" "--warning-only"
 run "ruff_check.py"
 
 # Run in parallel.
+run --bg "s_clang_format" &
 run --bg "s_define" &
 run --bg "s_docs" &
 run --bg "s_evergreen" &
@@ -183,6 +187,9 @@ if [[ -n "$ISTTY" ]]; then
 fi
 status ""  # Clear any remaining status.
 wait       # Call "wait" in any case even if the jobs are done to clear their state.
+
+echo "=== All script timings (sorted) ==="
+sort -n "${t_pfx}_timings" 2>/dev/null | awk -F'\t' '{printf "  [%ds] %s\n", $1, $2}'
 
 # Collect errors and compute the exit status.
 

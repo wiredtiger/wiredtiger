@@ -65,17 +65,16 @@ check() {
     }
 }
 
-# List of files to spellcheck.
-l=$(
-  {
-    cd ..
-    find bench dist examples ext src test tools/checksum_bitflip -name '*.[chsy]' | grep -v 'test/3rdparty'
-    find src -name '*.in'
-    find test -name '*.cpp' | grep -v 'test/3rdparty'
-    find test -name '*.py' | grep -v 'test/3rdparty'
-    find test -name '*.yml' | grep -v 'test/3rdparty'
-  } | filter_if_fast
-)
+# When called from do_in_parallel with file arguments, just spell-check them.
+! is_main_run && {
+    exit_val=0
+    for f in "$@"; do
+        check $f
+    done
+    exit $exit_val
+}
+
+exit_val=0
 
 usage()
 {
@@ -83,10 +82,19 @@ usage()
     exit 1
 }
 
-exit_val=0
 while :
     do case "$1" in
     -r)            # -r builds replacement list of OK words
+        l=$(
+          {
+            cd ..
+            find bench dist examples ext src test tools/checksum_bitflip -name '*.[chsy]' | grep -v 'test/3rdparty'
+            find src -name '*.in'
+            find test -name '*.cpp' | grep -v 'test/3rdparty'
+            find test -name '*.py' | grep -v 'test/3rdparty'
+            find test -name '*.yml' | grep -v 'test/3rdparty'
+          } | filter_if_fast
+        )
         for f in $l; do
             replace $f
         done | sort -u > $t
@@ -123,9 +131,13 @@ if ! sort -c $custom_words; then
     sort -u -o $custom_words $custom_words
 fi
 
-# Check source files.
-for f in $l; do
-    check $f
-done
-
-exit $exit_val
+# Check source files in parallel.
+(
+    cd ..
+    find bench dist examples ext src test tools/checksum_bitflip -name '*.[chsy]' | grep -v 'test/3rdparty'
+    find src -name '*.in'
+    find test -name '*.cpp' | grep -v 'test/3rdparty'
+    find test -name '*.py' | grep -v 'test/3rdparty'
+    find test -name '*.yml' | grep -v 'test/3rdparty'
+) | do_in_parallel
+exit $?
