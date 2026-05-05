@@ -246,9 +246,9 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
 err:
     __wt_scr_free(session, &buf);
     __wt_scr_free(session, &ds_uri_buf);
-    __wt_free(session, uri_data);
-    __wt_free(session, hs_checkpoint_name);
     __wt_free(session, ds_checkpoint_name);
+    __wt_free(session, hs_checkpoint_name);
+    __wt_free(session, uri_data);
     if (ds_cursor != NULL)
         WT_TRET(ds_cursor->close(ds_cursor));
     if (hs_cursor != NULL)
