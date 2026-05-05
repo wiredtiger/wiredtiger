@@ -170,12 +170,12 @@ class test_layered91(wttest.WiredTigerTestCase):
         c.close()
         self.assertEqual(list(reversed(expect)), got_rev)
 
-        # zig-zag forward iteration
+        # zigzag forward iteration
         c = session.open_cursor(uri)
         self._verify_zigzag(c, True, expect)
         c.close()
 
-        # zig-zag backward iteration
+        # zigzag backward iteration
         c = session.open_cursor(uri)
         self._verify_zigzag(c, False, expect)
         c.close()
