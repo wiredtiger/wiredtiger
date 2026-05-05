@@ -969,7 +969,7 @@ run_workload(uint32_t workload_iteration)
      * In disaggregated mode, discard local-only WT files (turtle, WiredTiger.wt, log) on every
      * open. The disaggregated tables are reconstructed from the shared page log, which is the
      * source of truth for a leader; the local turtle file can lag behind after a crash between the
-     * metadata btree checkpoint and the page-log checkpoint commit (see WT-16711).
+     * metadata btree checkpoint and the page-log checkpoint commit.
      */
     if (opts->disagg.is_enabled)
         strcat(envconf, ",disaggregated=(lose_all_my_data=true)");
