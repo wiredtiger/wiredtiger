@@ -182,13 +182,15 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
     if (is_follower) {
         WT_HS_ID_TO_URI(session, hs_id, hs_uri);
         if (WT_URI_IS_STABLE(hs_uri)) {
-            ret = __wt_meta_checkpoint_last_name(session, hs_uri, &hs_checkpoint_name, NULL, NULL);
-            WT_ERR_NOTFOUND_OK(ret, false);
+            WT_ERR_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, hs_uri, &hs_checkpoint_name, NULL, NULL),
+              true);
             /* No checkpoint yet means the history store is empty; nothing to verify. */
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 goto err;
             }
+            /* Only needed when verifying the shared history store on the follower. */
             WT_ERR(__wt_scr_alloc(session, 0, &ds_uri_buf));
         }
     }

@@ -30,18 +30,18 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_hs_verify_disagg_follower.py
+# test_verify_disagg03.py
 #    Opening a disaggregated follower with verify_metadata=true must succeed when
 #    the database contains keys whose deletion was committed at a later timestamp
 #    than an earlier write.
 
 @disagg_test_class
-class test_hs_verify_disagg_follower(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_hs_verify_disagg_follower', disagg_only=True)
+class test_verify_disagg03(wttest.WiredTigerTestCase):
+    disagg_storages = gen_disagg_storages('test_verify_disagg03', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'disaggregated=(role="leader")'
-    uri = 'layered:test_hs_verify_disagg_follower'
+    uri = 'layered:test_verify_disagg03'
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
     nitems = 100
 
