@@ -35,8 +35,8 @@ static_assert(
  * WT_BLOCK_DISAGG shares its leading prefix with WT_BLOCK because instances of both are inserted
  * into conn->blockhash / conn->blockqh and traversed there through a WT_BLOCK * pointer. The shared
  * prefix ends at hashq; private disaggregated fields follow. Mismatched offsets in this prefix lead
- * to silent struct-aliasing bugs (see WT-17350). The asserts below pin the offsets of every shared
- * field so any reordering or insertion in either struct breaks the build.
+ * to silent struct-aliasing bugs. The asserts below pin the offsets of every shared field so any
+ * reordering or insertion in either struct breaks the build.
  */
 static_assert(offsetof(WT_BLOCK_DISAGG, name) == offsetof(WT_BLOCK, name),
   "WT_BLOCK_DISAGG::name must alias WT_BLOCK::name");
