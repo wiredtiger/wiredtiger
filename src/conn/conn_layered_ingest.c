@@ -209,14 +209,13 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __wt_layered_verify_gc_update --
- *     Diagnostic check: before an update on an ingest btree is pruned by garbage collection, verify
- *     the most recent update in the chain against the latest stable-table checkpoint. If the update
- *     is a tombstone the key must not exist on the stable table; if it is a data value the key must
- *     exist.
+ *     Diagnostic check: during checkpoint reconciliation of an ingest btree, before a key is
+ *     dropped by garbage collection, verify its state against the latest stable-table checkpoint.
+ *     If is_tombstone is true the key must not exist in the stable table; otherwise the key must
+ *     exist. Called from reconciliation only, where stable pages are guaranteed to be materialized.
  */
 int
-__wt_layered_verify_gc_update(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd_to_prune)
+__wt_layered_verify_gc_update(WT_SESSION_IMPL *session, const WT_ITEM *key, bool is_tombstone)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *stable_cursor;
@@ -230,18 +229,20 @@ __wt_layered_verify_gc_update(
     stable_cursor = NULL;
     checkpoint_name = NULL;
 
-    if (upd_to_prune == NULL || !WT_UPDATE_DATA_VALUE(upd_to_prune))
+    conn = S2C(session);
+
+    /*
+     * When preserve_prepared is active the stable table may contain unresolved prepared cells that
+     * a non-prepare-aware reader cannot see past; skip the check to avoid false positives.
+     */
+    if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
         return (0);
 
-    conn = S2C(session);
     WT_ASSERT(session, conn->layered_table_manager.init);
 
     ingest_id = S2BT(session)->id;
     entry = conn->layered_table_manager.entries[ingest_id];
     WT_ASSERT(session, entry != NULL);
-
-    /* Materialize the key for this cursor position into cbt->iface.key. */
-    WT_RET(__wt_key_return(cbt));
 
 retry:
     /*
@@ -257,8 +258,8 @@ retry:
     }
 
     /*
-     * Build a URI with a "/<checkpoint name>" suffix. This reads from the stable checkpoint
-     * without going through the traditional checkpoint-cursor path.
+     * Build a URI with a "/<checkpoint name>" suffix. This reads from the stable checkpoint without
+     * going through the traditional checkpoint-cursor path.
      */
     if (stable_uri_buf == NULL)
         WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
@@ -268,8 +269,8 @@ retry:
     if (ret == EBUSY) {
         /*
          * The named checkpoint we picked may have been replaced by a concurrent checkpoint. Drop
-         * the stale name and look up the latest one again before retrying. FIXME-WT-16476: no
-         * need to yield if we no longer take the checkpoint lock.
+         * the stale name and look up the latest one again before retrying. FIXME-WT-16476: no need
+         * to yield if we no longer take the checkpoint lock.
          */
         __wt_free(session, checkpoint_name);
         __wt_yield();
@@ -277,11 +278,11 @@ retry:
     }
     WT_ERR(ret);
 
-    stable_cursor->set_key(stable_cursor, &cbt->iface.key);
+    stable_cursor->set_key(stable_cursor, key);
     ret = stable_cursor->search(stable_cursor);
     WT_ERR_NOTFOUND_OK(ret, true);
 
-    if (upd_to_prune->type == WT_UPDATE_TOMBSTONE) {
+    if (is_tombstone) {
         if (ret != WT_NOTFOUND)
             WT_ERR_MSG(session, WT_ERROR,
               "GC verify: last update is a tombstone but key still exists on the stable table");
