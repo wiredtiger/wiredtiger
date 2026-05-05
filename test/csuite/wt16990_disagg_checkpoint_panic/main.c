@@ -52,7 +52,9 @@
 #define TABLE_CONFIG "key_format=S,value_format=S,block_manager=disagg"
 #define EXPECTED_PANIC_MSG "failed while processing shared metadata queue"
 
-/* File-scope so heap strings in opts stay reachable across the child's _exit and don't trip LSAN. */
+/*
+ * File-scope so heap strings in opts stay reachable across the child's _exit and don't trip LSAN.
+ */
 static TEST_OPTS _opts;
 
 /*
