@@ -1269,12 +1269,14 @@ __verify_key_hs(
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
-    wt_timestamp_t older_start_ts, older_stop_ts;
+    WT_TIME_WINDOW *tw;
+    wt_timestamp_t older_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    tw = NULL;
     btree = S2BT(session);
     hs_btree_id = btree->id;
     WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
@@ -1297,20 +1299,19 @@ __verify_key_hs(
         if (cmp != 0)
             break;
 
-        WT_ERR(hs_cursor->get_value(hs_cursor, &older_stop_ts, NULL, NULL, NULL));
+        __wt_hs_upd_time_window(hs_cursor, &tw);
 
         /*
          * Verify the newer record's start is later than the older record's stop. Skip for
          * non-timestamped DS writes and stale HS entries (from RTS lazy cleanup).
          */
-        if (newer_start_ts != WT_TS_NONE && newer_start_ts > older_start_ts &&
-          newer_start_ts < older_stop_ts) {
+        if (newer_start_ts > older_start_ts && newer_start_ts < tw->stop_ts) {
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
               __wt_buf_set_printable_format(
                 session, tmp1->data, tmp1->size, btree->key_format, false, vs->tmp2),
-              __wt_timestamp_to_string(older_stop_ts, ts_string[0]),
+              __wt_timestamp_to_string(tw->stop_ts, ts_string[0]),
               __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
         }
 
@@ -1319,8 +1320,7 @@ __verify_key_hs(
          * HS entries.
          */
         if (newer_start_ts > older_start_ts && vs->stable_timestamp != WT_TS_NONE)
-            WT_ERR(
-              __verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, older_stop_ts, vs));
+            WT_ERR(__verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, tw->stop_ts, vs));
 
         /*
          * Since we are iterating from newer to older, the current older record becomes the newer
