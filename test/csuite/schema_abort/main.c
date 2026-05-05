@@ -894,7 +894,7 @@ thread_run(void *arg)
         /*
          * Save the timestamp and key separately for checking later.
          */
-        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", stable_ts + 1, i) < 0)
+        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", use_ts ? stable_ts + 1 : WT_TS_NONE, i) < 0)
             testutil_die(EIO, "fprintf");
 
         if (0) {
