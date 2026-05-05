@@ -67,8 +67,8 @@ struct __wt_ckpt_connection {
     WTI_CKPT_TIMER scrub;
 
     /* Per-checkpoint reconciliation time accumulators (clock ticks, across all files). */
-    wt_shared uint64_t reconcile_time_accum;
-    wt_shared uint64_t sync_time_accum;
+    uint64_t reconcile_time_ticks;
+    uint64_t sync_time_ticks;
 
     /* Clock value of most recent checkpoint. */
     wt_shared uint64_t most_recent;
@@ -276,7 +276,7 @@ extern void __wt_checkpoint_handle_stats(
 extern void __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes);
 extern void __wt_checkpoint_rec_time_stats(
-  WT_SESSION_IMPL *session, uint64_t reconcile_time, uint64_t sync_time);
+  WT_SESSION_IMPL *session, uint64_t reconcile_time_ticks, uint64_t sync_time_ticks);
 extern void __wt_checkpoint_reset_stats(WT_CONNECTION_IMPL *conn);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern void __wt_checkpoint_snapshot_clear(WT_CKPT_SNAPSHOT *snapshot);

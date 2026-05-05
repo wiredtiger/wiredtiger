@@ -2323,8 +2323,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: scrub most recent time (msecs)",
   "checkpoint: scrub total time (msecs)",
   "checkpoint: stop timing stress active",
-  "checkpoint: the percentage of time syncing spent writing pages to stable storage across all "
-  "threads",
+  "checkpoint: the percentage of checkpoint sync time spent in reconciliation across all threads",
   "checkpoint: time spent on per-tree checkpoint work (usecs)",
   "checkpoint: total failed number of checkpoints",
   "checkpoint: total succeed number of checkpoints",

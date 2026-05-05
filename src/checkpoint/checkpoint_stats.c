@@ -65,12 +65,12 @@ __wt_checkpoint_handle_stats(WT_SESSION_IMPL *session, uint64_t gathering_handle
  */
 void
 __wt_checkpoint_rec_time_stats(
-  WT_SESSION_IMPL *session, uint64_t reconcile_time, uint64_t sync_time)
+  WT_SESSION_IMPL *session, uint64_t reconcile_time_ticks, uint64_t sync_time_ticks)
 {
     WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
-    (void)__wt_atomic_add_uint64(&ckpt->reconcile_time_accum, reconcile_time);
-    (void)__wt_atomic_add_uint64(&ckpt->sync_time_accum, sync_time);
+    ckpt->reconcile_time_ticks += reconcile_time_ticks;
+    ckpt->sync_time_ticks += sync_time_ticks;
 }
 
 /*
@@ -81,7 +81,7 @@ void
 __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session)
 {
     WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
-    uint64_t min, rec, total;
+    uint64_t min;
 
     WT_STAT_CONN_SET(
       session, checkpoint_scrub_max, __wt_atomic_load_uint64_relaxed(&ckpt->scrub.max));
@@ -113,9 +113,8 @@ __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(
       session, checkpoint_time_total, __wt_atomic_load_uint64_relaxed(&ckpt->ckpt_api.total));
 
-    rec = __wt_atomic_load_uint64_relaxed(&ckpt->reconcile_time_accum);
-    total = __wt_atomic_load_uint64_relaxed(&ckpt->sync_time_accum);
-    WT_STAT_CONN_SET(session, checkpoint_sync_rec_pct, total > 0 ? (rec * 100) / total : 0);
+    WT_STAT_CONN_SET(session, checkpoint_sync_rec_pct,
+      ckpt->sync_time_ticks > 0 ? (ckpt->reconcile_time_ticks * 100) / ckpt->sync_time_ticks : 0);
 }
 
 /*

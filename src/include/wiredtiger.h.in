@@ -7401,8 +7401,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: stop timing stress active */
 #define	WT_STAT_CONN_CHECKPOINT_STOP_STRESS_ACTIVE	1433
 /*!
- * checkpoint: the percentage of time syncing spent writing pages to
- * stable storage across all threads
+ * checkpoint: the percentage of checkpoint sync time spent in
+ * reconciliation across all threads
  */
 #define	WT_STAT_CONN_CHECKPOINT_SYNC_REC_PCT		1434
 /*! checkpoint: time spent on per-tree checkpoint work (usecs) */

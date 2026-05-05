@@ -460,24 +460,26 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         break;
     }
 
-    /* Calculate and log sync efficiency statistics. */
-    time_stop = __wt_clock(session);
-    if (time_stop != time_start)
-        reconcile_time_pct = (reconcile_time * 100) / (time_stop - time_start);
-    else
-        reconcile_time_pct = 0;
-    __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
-      "__sync_file WT_SYNC_%s wrote: %" PRIu64 " leaf pages (%" PRIu64 "B), %" PRIu64
-      " internal pages (%" PRIu64 "B), and took %" PRIu64 "ms",
-      syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT", leaf_pages, leaf_bytes,
-      internal_pages, internal_bytes, WT_CLOCKDIFF_MS(time_stop, time_start));
-    __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
-      "__sync_file WT_SYNC_%s spent %" PRIu64 "ms in reconciliation across %" PRIu32
-      " threads (%" PRIu64 "%% of the wall-clock time)",
-      syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT",
-      WT_CLOCKDIFF_MS(reconcile_time, 0), WT_PARALLEL_CHECKPOINTS_NUM_THREADS(session),
-      reconcile_time_pct);
-    __wt_checkpoint_rec_time_stats(session, reconcile_time, time_stop - time_start);
+    /* Calculate and log sync efficiency statistics for checkpoints. */
+    if (WT_SESSION_IS_CHECKPOINT(session)) {
+        time_stop = __wt_clock(session);
+        if (time_stop != time_start)
+            reconcile_time_pct = (reconcile_time * 100) / (time_stop - time_start);
+        else
+            reconcile_time_pct = 0;
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
+          "__sync_file WT_SYNC_%s wrote: %" PRIu64 " leaf pages (%" PRIu64 "B), %" PRIu64
+          " internal pages (%" PRIu64 "B), and took %" PRIu64 "ms",
+          syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT", leaf_pages, leaf_bytes,
+          internal_pages, internal_bytes, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
+          "__sync_file WT_SYNC_%s spent %" PRIu64 "ms in reconciliation across %" PRIu32
+          " threads (%" PRIu64 "%% of the wall-clock time)",
+          syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT",
+          WT_CLOCKDIFF_MS(reconcile_time, 0), WT_PARALLEL_CHECKPOINTS_NUM_THREADS(session),
+          reconcile_time_pct);
+        __wt_checkpoint_rec_time_stats(session, reconcile_time, time_stop - time_start);
+    }
 
 err:
     /* On error, clear any left-over tree walk. */
