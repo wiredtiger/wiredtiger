@@ -279,9 +279,7 @@ struct __wt_bm {
  */
 struct __wt_block {
     /*
-     * The fields up to and including hashq must match the layout of WT_BLOCK_DISAGG exactly: a
-     * WT_BLOCK_DISAGG is inserted into conn->blockhash / conn->blockqh and traversed there as a
-     * WT_BLOCK * (see WT_CONN_BLOCK_INSERT and the TAILQ_FOREACH on conn->blockhash). The
+     * The fields up to and including hashq must match the layout of WT_BLOCK_DISAGG exactly. The
      * shared-prefix invariant is enforced by static_asserts in verify_build.h.
      *
      * Ideally we would split this into a public/private structure, similar to session handles, and
@@ -472,9 +470,7 @@ struct __wt_block_header {
  */
 struct __wt_block_disagg {
     /*
-     * The fields up to and including hashq must match the layout of WT_BLOCK exactly: a
-     * WT_BLOCK_DISAGG is inserted into conn->blockhash / conn->blockqh and traversed there as a
-     * WT_BLOCK * (see WT_CONN_BLOCK_INSERT and the TAILQ_FOREACH on conn->blockhash). The
+     * The fields up to and including hashq must match the layout of WT_BLOCK exactly. The
      * shared-prefix invariant is enforced by static_asserts in verify_build.h.
      *
      * Ideally we would split this into a public/private structure, similar to session handles, and
