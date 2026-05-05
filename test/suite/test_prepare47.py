@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare49.py
+# test_prepare47.py
 #   Prepared insert on top of an existing tombstone, rolled back with the rollback
 #   timestamp ahead of stable. The chain ends up with an unresolved aborted prepared
 #   update at the head and the committed tombstone behind it. Reconcile must keep the
@@ -36,10 +36,10 @@
 import wttest
 from wtscenario import make_scenarios
 
-class test_prepare49(wttest.WiredTigerTestCase):
+class test_prepare47(wttest.WiredTigerTestCase):
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
 
-    uri = 'table:test_prepare49'
+    uri = 'table:test_prepare47'
 
     format_values = [
         ('row', dict(key_format='i')),
