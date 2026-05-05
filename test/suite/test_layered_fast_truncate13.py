@@ -61,8 +61,8 @@ class test_layered_fast_truncate13(wttest.WiredTigerTestCase):
     """
 
     uris = [
-        ("layered", {"uri": "layered:fast_truncate", "extra_config": ""}),
-        ("table", {"uri": "table:fast_truncate", "extra_config": ",block_manager=disagg,type=layered"}),
+        ("layered", {"uri": "layered:fast_truncate"}),
+        ("table", {"uri": "table:fast_truncate"}),
     ]
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
@@ -73,6 +73,12 @@ class test_layered_fast_truncate13(wttest.WiredTigerTestCase):
         if disagg_fast_truncate_build() == 0:
             self.skipTest("fast truncate support is not enabled")
         super().setUp()
+
+    def session_create_config(self):
+        cfg = "key_format=i,value_format=S"
+        if self.uri.startswith("table"):
+            cfg += ",block_manager=disagg,type=layered"
+        return cfg
 
     def auto_closing_cursor(self, config: str | None = None) -> closing:
         """Return a cursor that auto-closes as it goes out of scope."""
@@ -90,7 +96,7 @@ class test_layered_fast_truncate13(wttest.WiredTigerTestCase):
         Create the table on the leader and optionally pre-populate stable. The
         follower will pick up these keys via the initial checkpoint.
         """
-        self.session.create(self.uri, "key_format=i,value_format=S" + self.extra_config)
+        self.session.create(self.uri, self.session_create_config())
         if keys is not None:
             self.populate(keys)
         self.session.checkpoint()
