@@ -137,7 +137,8 @@ find [a-z]* -name '*.[ch]' \
     -e '/checksum\/zseries\//d' \
     -e '/\/3rdparty\//d' \
     -e '/\/node_modules\//d' \
-    -e '/\/\.venv\//d' \
+    -e '/^tools\/wt-mcp\/\.venv\//d' \
+    -e '/^venv\//d' \
     -e '/dist\/__/d' \
     -e 's/^\.\///' |
     do_in_parallel || RET=1
