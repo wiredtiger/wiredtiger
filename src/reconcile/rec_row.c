@@ -1171,7 +1171,7 @@ __wti_rec_row_leaf(
                  * a later reconciliation.
                  */
                 if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
-                  !upd_select.skip_rollback_prepared_value) {
+                  !upd_select.skip_aborted_prepared_value) {
                     upd = &upd_tombstone;
                     r->key_removed_from_disk_image = true;
                 }

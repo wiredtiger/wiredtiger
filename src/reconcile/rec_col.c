@@ -450,7 +450,7 @@ record_loop:
                 upd = upd_select.upd;
                 ins = WT_SKIP_NEXT(ins);
             } else
-                upd_select.skip_rollback_prepared_value = false;
+                upd_select.skip_aborted_prepared_value = false;
 
             update_no_copy = true; /* No data copy */
             repeat_count = 1;      /* Single record */
@@ -458,7 +458,7 @@ record_loop:
 
             if (upd == NULL && orig_stale &&
               (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
-                !upd_select.skip_rollback_prepared_value)) {
+                !upd_select.skip_aborted_prepared_value)) {
                 /*
                  * The on-disk value is stale and there was no update. Treat it as deleted.
                  *

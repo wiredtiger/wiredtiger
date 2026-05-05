@@ -891,7 +891,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                      * this reconciliation.
                      */
                     if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
-                        upd_select->skip_rollback_prepared_value = true;
+                        upd_select->skip_aborted_prepared_value = true;
                     continue;
                 }
 
