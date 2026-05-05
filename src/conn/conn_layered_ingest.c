@@ -452,7 +452,7 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
     in_window = false;
     WT_CLEAR(win_start);
 
-    /* Separate read txn: WT requires commit_ts > read_ts, so collect and apply run in two passessss. */
+    /* Collect windows in a read txn; apply them in a separate write txn. */
     WT_ERR(__wt_txn_begin(session, NULL));
     /* start_ts may predate oldest/stable; bypass timestamp ordering for this internal replay. */
     F_SET(session->txn, WT_TXN_TS_INTERNAL_REPLAY);
