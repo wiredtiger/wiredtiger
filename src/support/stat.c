@@ -2662,19 +2662,20 @@ static const char *const __stats_connection_desc[] = {
   "perf: operation write latency histogram total (usecs)",
   "prefetch: could not perform pre-fetch on internal page",
   "prefetch: could not perform pre-fetch on ref without the pre-fetch flag set",
-  "prefetch: number of times pre-fetch failed to start",
+  "prefetch: pre-fetch attempted, session has pre-fetching enabled",
   "prefetch: pre-fetch not repeating for recently pre-fetched ref",
   "prefetch: pre-fetch not triggered after single disk read",
   "prefetch: pre-fetch not triggered as there is no valid dhandle",
-  "prefetch: pre-fetch not triggered by page read",
   "prefetch: pre-fetch not triggered due to disk read count",
   "prefetch: pre-fetch not triggered due to internal session",
   "prefetch: pre-fetch not triggered due to special btree handle",
+  "prefetch: pre-fetch not triggered, pre-fetch queue is full",
   "prefetch: pre-fetch page not on disk when reading",
   "prefetch: pre-fetch pages queued",
   "prefetch: pre-fetch pages read in background",
+  "prefetch: pre-fetch session check passed, pre-fetch work issued to btree",
   "prefetch: pre-fetch skipped reading in a page due to harmless error",
-  "prefetch: pre-fetch triggered by page read",
+  "prefetch: pre-fetch skipped traversal of internal page due to active split generation",
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
@@ -3709,19 +3710,20 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_opwrite_latency_total_usecs = 0;
     stats->prefetch_skipped_internal_page = 0;
     stats->prefetch_skipped_no_flag_set = 0;
-    stats->prefetch_failed_start = 0;
+    stats->prefetch_attempts = 0;
     stats->prefetch_skipped_same_ref = 0;
     stats->prefetch_disk_one = 0;
     stats->prefetch_skipped_no_valid_dhandle = 0;
-    stats->prefetch_skipped = 0;
     stats->prefetch_skipped_disk_read_count = 0;
     stats->prefetch_skipped_internal_session = 0;
     stats->prefetch_skipped_special_handle = 0;
+    stats->prefetch_skipped_queue_full = 0;
     stats->prefetch_pages_fail = 0;
     stats->prefetch_pages_queued = 0;
     stats->prefetch_pages_read = 0;
+    stats->prefetch_attempts_succeeded = 0;
     stats->prefetch_skipped_error_ok = 0;
-    stats->prefetch_attempts = 0;
+    stats->prefetch_skipped_internal_split_gen = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -4943,22 +4945,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, perf_hist_opwrite_latency_total_usecs);
     to->prefetch_skipped_internal_page += WT_STAT_CONN_READ(from, prefetch_skipped_internal_page);
     to->prefetch_skipped_no_flag_set += WT_STAT_CONN_READ(from, prefetch_skipped_no_flag_set);
-    to->prefetch_failed_start += WT_STAT_CONN_READ(from, prefetch_failed_start);
+    to->prefetch_attempts += WT_STAT_CONN_READ(from, prefetch_attempts);
     to->prefetch_skipped_same_ref += WT_STAT_CONN_READ(from, prefetch_skipped_same_ref);
     to->prefetch_disk_one += WT_STAT_CONN_READ(from, prefetch_disk_one);
     to->prefetch_skipped_no_valid_dhandle +=
       WT_STAT_CONN_READ(from, prefetch_skipped_no_valid_dhandle);
-    to->prefetch_skipped += WT_STAT_CONN_READ(from, prefetch_skipped);
     to->prefetch_skipped_disk_read_count +=
       WT_STAT_CONN_READ(from, prefetch_skipped_disk_read_count);
     to->prefetch_skipped_internal_session +=
       WT_STAT_CONN_READ(from, prefetch_skipped_internal_session);
     to->prefetch_skipped_special_handle += WT_STAT_CONN_READ(from, prefetch_skipped_special_handle);
+    to->prefetch_skipped_queue_full += WT_STAT_CONN_READ(from, prefetch_skipped_queue_full);
     to->prefetch_pages_fail += WT_STAT_CONN_READ(from, prefetch_pages_fail);
     to->prefetch_pages_queued += WT_STAT_CONN_READ(from, prefetch_pages_queued);
     to->prefetch_pages_read += WT_STAT_CONN_READ(from, prefetch_pages_read);
+    to->prefetch_attempts_succeeded += WT_STAT_CONN_READ(from, prefetch_attempts_succeeded);
     to->prefetch_skipped_error_ok += WT_STAT_CONN_READ(from, prefetch_skipped_error_ok);
-    to->prefetch_attempts += WT_STAT_CONN_READ(from, prefetch_attempts);
+    to->prefetch_skipped_internal_split_gen +=
+      WT_STAT_CONN_READ(from, prefetch_skipped_internal_split_gen);
     to->rec_vlcs_emptied_pages += WT_STAT_CONN_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_CONN_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);
