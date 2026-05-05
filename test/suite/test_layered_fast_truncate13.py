@@ -61,8 +61,8 @@ class test_layered_fast_truncate13(wttest.WiredTigerTestCase):
     """
 
     uris = [
-        ("layered", {"uri": "layered:fast_truncate"}),
-        ("table", {"uri": "table:fast_truncate"}),
+        ("layered", {"uri": "layered:fast_truncate", "extra_config": ""}),
+        ("table", {"uri": "table:fast_truncate", "extra_config": ",block_manager=disagg,type=layered"}),
     ]
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
@@ -90,7 +90,7 @@ class test_layered_fast_truncate13(wttest.WiredTigerTestCase):
         Create the table on the leader and optionally pre-populate stable. The
         follower will pick up these keys via the initial checkpoint.
         """
-        self.session.create(self.uri, "key_format=i,value_format=S")
+        self.session.create(self.uri, "key_format=i,value_format=S" + self.extra_config)
         if keys is not None:
             self.populate(keys)
         self.session.checkpoint()
