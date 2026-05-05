@@ -1102,6 +1102,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     if (ckpt_cfg->use_timestamp && !F_ISSET(conn, WT_CONN_RECOVERING))
         __wt_atomic_store_uint64_release(&txn_global->checkpoint_disagg_schema_epoch,
           __wt_get_stable_disaggregated_schema_epoch(session));
+    else
+        __wt_atomic_store_uint64_release(&txn_global->checkpoint_disagg_schema_epoch, WT_TS_NONE);
 
     __wt_writeunlock(session, &txn_global->rwlock);
 
