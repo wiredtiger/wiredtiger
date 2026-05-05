@@ -191,8 +191,9 @@ struct __wt_block_ckpt {
     WT_EXTLIST ckpt_discard; /* Checkpoint archive */
 };
 
-#define WT_BLOCK_INVALID_PAGE_ID 0 /* Invalid page ID, e.g., if it's not allocated. */
-#define WT_BLOCK_MIN_PAGE_ID 100   /* Minimum page ID that can be used for user data. */
+#define WT_BLOCK_INVALID_PAGE_ID 0              /* Invalid page ID, e.g., if it's not allocated. */
+#define WT_BLOCK_INVALID_PAGE_ID_MAX UINT64_MAX /* Sentinel value, not a valid page ID. */
+#define WT_BLOCK_MIN_PAGE_ID 100 /* Minimum page ID that can be used for user data. */
 
 /*
  * WT_BM --
@@ -473,6 +474,14 @@ struct __wt_block_disagg {
     /* Custom disaggregated fields. */
     uint64_t tableid;
     WT_PAGE_LOG_HANDLE *plhandle;
+
+    /* Total bytes across all pages. */
+    wt_shared uint64_t size;
+
+    /* Root page size tracking for checkpoint size accounting. */
+    uint64_t current_root_size;  /* Size of current root page */
+    uint64_t previous_root_size; /* Size of previous root page */
+    uint64_t root_size_gen;      /* Checkpoint generation of the last root size update */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLOCK_DISAGG_HS 0x1u

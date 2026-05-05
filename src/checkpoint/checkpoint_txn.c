@@ -948,12 +948,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
     btree->modified = true;
 
     /* Revert the in-memory root page accounting as we have failed during checkpointing. */
-    if (btree->root_size_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
-        __wt_btree_decrease_size(session, btree->current_root_size);
-        __wt_btree_increase_size(session, btree->previous_root_size);
-
-        btree->current_root_size = btree->previous_root_size;
-    }
+    __wt_block_disagg_checkpoint_rollback(session);
     __wt_ckptlist_free(session, &btree->ckpt);
 }
 

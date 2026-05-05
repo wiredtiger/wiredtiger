@@ -2447,8 +2447,10 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: session sweep attempts",
   "disagg: abandon checkpoints failed",
   "disagg: abandon checkpoints succeeded",
+  "disagg: apply checkpoint metadata most recent time (msecs)",
   "disagg: connection reconfiguration",
   "disagg: database size",
+  "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
@@ -2478,6 +2480,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "layered: number of checkpoints picked up by a follower",
   "layered: the number of tables the layered table manager has open",
+  "layered: the number of times the truncate list was searched",
+  "layered: the number of truncate list entries walked during search",
   "live-restore: number of bytes copied from the source to the destination",
   "live-restore: number of files remaining for migration completion",
   "live-restore: number of reads from the source database",
@@ -2868,6 +2872,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp oldest calls",
   "transaction: set timestamp oldest updates",
   "transaction: set timestamp stable calls",
+  "transaction: set timestamp stable disaggregated schema epoch calls",
+  "transaction: set timestamp stable disaggregated schema epoch updates",
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
@@ -3488,8 +3494,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_session_sweeps = 0;
     stats->disagg_abandon_checkpoint_failed = 0;
     stats->disagg_abandon_checkpoint_succeed = 0;
+    stats->disagg_apply_checkpoint_meta_time = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
+    stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_role_leader = 0;
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
@@ -3519,6 +3527,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_skip_lsn = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_follower = 0;
     stats->layered_table_manager_tables = 0;
+    stats->layered_truncate_list_search_calls = 0;
+    stats->layered_truncate_list_search_entries_walked = 0;
     stats->live_restore_bytes_copied = 0;
     /* not clearing live_restore_work_remaining */
     stats->live_restore_source_read_count = 0;
@@ -3898,6 +3908,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_oldest = 0;
     stats->txn_set_ts_oldest_upd = 0;
     stats->txn_set_ts_stable = 0;
+    stats->txn_set_ts_stable_disagg_epoch = 0;
+    stats->txn_set_ts_stable_disagg_epoch_upd = 0;
     stats->txn_set_ts_stable_upd = 0;
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
@@ -4641,8 +4653,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_failed);
     to->disagg_abandon_checkpoint_succeed +=
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_succeed);
+    to->disagg_apply_checkpoint_meta_time +=
+      WT_STAT_CONN_READ(from, disagg_apply_checkpoint_meta_time);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
+    to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
@@ -4678,6 +4693,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_checkpoints_disagg_pick_up_follower +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
+    to->layered_truncate_list_search_calls +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_search_calls);
+    to->layered_truncate_list_search_entries_walked +=
+      WT_STAT_CONN_READ(from, layered_truncate_list_search_entries_walked);
     to->live_restore_bytes_copied += WT_STAT_CONN_READ(from, live_restore_bytes_copied);
     to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
     to->live_restore_source_read_count += WT_STAT_CONN_READ(from, live_restore_source_read_count);
@@ -5165,6 +5184,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_oldest += WT_STAT_CONN_READ(from, txn_set_ts_oldest);
     to->txn_set_ts_oldest_upd += WT_STAT_CONN_READ(from, txn_set_ts_oldest_upd);
     to->txn_set_ts_stable += WT_STAT_CONN_READ(from, txn_set_ts_stable);
+    to->txn_set_ts_stable_disagg_epoch += WT_STAT_CONN_READ(from, txn_set_ts_stable_disagg_epoch);
+    to->txn_set_ts_stable_disagg_epoch_upd +=
+      WT_STAT_CONN_READ(from, txn_set_ts_stable_disagg_epoch_upd);
     to->txn_set_ts_stable_upd += WT_STAT_CONN_READ(from, txn_set_ts_stable_upd);
     to->txn_begin += WT_STAT_CONN_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_CONN_READ(from, txn_hs_ckpt_duration);

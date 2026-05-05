@@ -587,8 +587,10 @@ conn_stats = [
     ##########################################
     DisaggStat('disagg_abandon_checkpoint_failed', 'abandon checkpoints failed'),
     DisaggStat('disagg_abandon_checkpoint_succeed', 'abandon checkpoints succeeded'),
+    DisaggStat('disagg_apply_checkpoint_meta_time', 'apply checkpoint metadata most recent time (msecs)'),
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
+    DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
@@ -622,6 +624,8 @@ conn_stats = [
     ##########################################
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
+    LayeredStat('layered_truncate_list_search_calls', 'the number of times the truncate list was searched'),
+    LayeredStat('layered_truncate_list_search_entries_walked', 'the number of truncate list entries walked during search'),
 
     ##########################################
     # Live Restore statistics
@@ -950,6 +954,8 @@ conn_stats = [
     TxnStat('txn_set_ts_oldest_upd', 'set timestamp oldest updates'),
     TxnStat('txn_set_ts_out_of_order', 'set timestamp global oldest timestamp set to be more recent than the global stable timestamp'),
     TxnStat('txn_set_ts_stable', 'set timestamp stable calls'),
+    TxnStat('txn_set_ts_stable_disagg_epoch', 'set timestamp stable disaggregated schema epoch calls'),
+    TxnStat('txn_set_ts_stable_disagg_epoch_upd', 'set timestamp stable disaggregated schema epoch updates'),
     TxnStat('txn_set_ts_stable_upd', 'set timestamp stable updates'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
     TxnStat('txn_walk_sessions', 'transaction walk of concurrent sessions'),

@@ -1645,7 +1645,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_ERR(__wti_mark_committed_truncate_table(session, op));
+            __wti_mark_committed_truncate_table(session, op);
             break;
         }
 
@@ -1884,7 +1884,6 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
-    F_SET(txn, WT_TXN_FORCE_ROLLBACK);
     WT_TRET(__wt_txn_rollback(session, cfg, false));
     return (ret);
 }
@@ -2097,14 +2096,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     if (api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
-    /* Rolling back a prepared transaction under preserve_prepared requires a rollback timestamp. */
-    if (prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      !F_ISSET(txn, WT_TXN_FORCE_ROLLBACK) &&
-      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
-        WT_RET_MSG(session, EINVAL,
-          "rollback_timestamp must be set when rolling back a prepared transaction under "
-          "preserve_prepared");
-
     /*
      * Release our snapshot in case it is keeping data pinned. This will not make the updates
      * visible to other threads because we haven't removed the transaction id from the global
@@ -2165,7 +2156,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             WT_TRET(__wt_delete_page_rollback(session, op));
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_RET(__wti_layered_table_truncate_rollback(session, op));
+            __wti_layered_table_truncate_rollback(session, op);
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:

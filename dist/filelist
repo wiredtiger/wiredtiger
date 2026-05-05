@@ -21,6 +21,7 @@ src/block_disagg/block_disagg_addr.c
 src/block_disagg/block_disagg_ckpt.c
 src/block_disagg/block_disagg_mgr.c
 src/block_disagg/block_disagg_open.c
+src/block_disagg/block_disagg_size.c
 src/block_disagg/block_disagg_read.c
 src/block_disagg/block_disagg_unsup.c
 src/block_disagg/block_disagg_write.c

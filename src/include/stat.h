@@ -982,8 +982,10 @@ struct __wt_connection_stats {
     int64_t dh_session_sweeps;
     int64_t disagg_abandon_checkpoint_failed;
     int64_t disagg_abandon_checkpoint_succeed;
+    int64_t disagg_apply_checkpoint_meta_time;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
+    int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_role_leader;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_time;
@@ -1013,6 +1015,8 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_skip_lsn;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_follower;
     int64_t layered_table_manager_tables;
+    int64_t layered_truncate_list_search_calls;
+    int64_t layered_truncate_list_search_entries_walked;
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
     int64_t live_restore_source_read_count;
@@ -1392,6 +1396,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_oldest;
     int64_t txn_set_ts_oldest_upd;
     int64_t txn_set_ts_stable;
+    int64_t txn_set_ts_stable_disagg_epoch;
+    int64_t txn_set_ts_stable_disagg_epoch_upd;
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
