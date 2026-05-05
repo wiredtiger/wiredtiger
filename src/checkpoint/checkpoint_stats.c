@@ -20,8 +20,6 @@ __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session)
       ckpt->handle_stats.meta_check = ckpt->handle_stats.skip = 0;
     ckpt->handle_stats.apply_time = ckpt->handle_stats.drop_time = ckpt->handle_stats.lock_time =
       ckpt->handle_stats.meta_check_time = ckpt->handle_stats.skip_time = 0;
-
-    ckpt->reconcile_time_accum = ckpt->sync_time_accum = 0;
 }
 
 /*

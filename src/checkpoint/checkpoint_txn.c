@@ -292,11 +292,15 @@ __checkpoint_init(WT_SESSION_IMPL *session)
 
     __wt_checkpoint_reset_stats(conn);
 
-    /* Initialize the verbose tracking timer */
+    /* Initialize the verbose tracking timer. */
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
 
-    /* Initialize the checkpoint progress tracking data */
+    /* Initialize the checkpoint progress tracking data. */
     WT_CLEAR(conn->ckpt.progress);
+
+    /* Initialize the checkpoint reconciliation and sync time accumulators. */
+    __wt_atomic_store_uint64_relaxed(&conn->ckpt.reconcile_time_accum, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->ckpt.sync_time_accum, 0);
 }
 
 /*
