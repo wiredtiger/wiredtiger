@@ -45,25 +45,32 @@ Both tests assert that `conn.query_timestamp('get=last_checkpoint')` on the foll
 
 ## Missing Coverage
 
-### [CRITICAL] RTS applied to ingest btrees — silent no-op masks potential data loss
+### [MEDIUM] RTS applied to ingest btrees — behavior test (RTS-1 in `08_unsupported_features.md`)
 
-**What is not tested:**
-No test runs an explicit `rollback_to_stable` call (or triggers a recovery RTS) in a disaggregated setup and then verifies that ingest-table data is correctly handled. There is no test that confirms ingest btrees are definitively excluded from RTS processing, and no test that verifies data that entered the stable btree via drain is treated correctly by RTS after an RTS event.
+**Classification: `rollback_to_stable` is NEVER supported on disagg connections.**
 
-**Risk:**
-The ingest btree has `log=(enabled=false)` and does NOT have `WT_BTREE_LOGGED` set. However, it also does NOT have `WT_BTREE_DISAGGREGATED` set — it only has `WT_BTREE_GARBAGE_COLLECT`. In `rts_btree_walk.c:__wti_rts_btree_walk_btree`, the first guard is `if (F_ISSET(btree, WT_BTREE_LOGGED)) return (0)` — this guard will NOT skip the ingest btree because it is not logged. The second guard is `if (btree->root.page == NULL) return (0)`. If the ingest btree has a non-null root (i.e. any data has arrived since the last drain), RTS will walk it and attempt to abort updates with timestamps above the rollback timestamp. Because recovery RTS is completely bypassed for disagg connections (txn_recover.c:1355-1398 and txn.c:2593-2594 both skip RTS when `disagg` is true), this specific path is never hit in production today — but it means that if RTS is ever called on a disagg leader (e.g. via the explicit API), ingest btree data could be incorrectly rolled back. Furthermore, this entire skip-due-to-disagg path has zero test coverage, making it invisible to regressions in the skip condition itself.
+RTS is classified as NEVER for disaggregated storage: disagg connections skip recovery RTS globally
+(`txn_recover.c:1355-1398` and `txn.c:2593-2594` both short-circuit when `disagg=true`), and
+explicit `session.rollback_to_stable()` calls are also unsupported. This is tracked as RTS-1
+through RTS-5 in `05_scenario_analysis/08_unsupported_features.md`.
 
-**Code path analysis:**
-- `src/btree/bt_handle.c:621-623`: `.wt_ingest` btrees set `WT_BTREE_GARBAGE_COLLECT` only; they do not set `WT_BTREE_DISAGGREGATED` and do not clear `WT_BTREE_LOGGED` explicitly (they inherit whatever the logging configuration provides — but the ingest table has `log=(enabled=false)` from `conn_layered.c:59`, so `WT_BTREE_LOGGED` ends up clear).
-- `src/rollback_to_stable/rts_btree_walk.c:486`: `if (F_ISSET(btree, WT_BTREE_LOGGED)) return (0)` — ingest btree is NOT logged, so this guard does not protect it.
-- `src/rollback_to_stable/rts_btree.c:792`: `if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) F_SET(upd, WT_UPDATE_DURABLE)` — only the stable btree (`.wt_stable`) gets this flag; the ingest btree does not get the `WT_UPDATE_DURABLE` mark on restored updates.
-- `src/txn/txn_recover.c:1355-1356` and `src/txn/txn.c:2593-2594`: both skip RTS entirely when `disagg=true`, masking the missing per-btree guard.
-- Why existing tests miss it: all existing layered tests use disagg connections where recovery/shutdown RTS is skipped globally. No test calls `session.rollback_to_stable()` explicitly on a disagg connection.
+The test goal is a **negative/behavior test**: call `session.rollback_to_stable()` on a disagg
+connection and confirm the correct error is returned (or that the call is cleanly skipped without
+corrupting data). This is a MEDIUM priority behavior test, not a CRITICAL safety gap.
 
-**Proposed test design:**
-- Setup: open a disagg leader, create a layered table, insert data at ts=10, set stable=10, checkpoint. Insert more data at ts=20 (do not checkpoint). Set stable=5 and call `session.rollback_to_stable()` explicitly.
-- Assertions: (a) the call should not corrupt the ingest btree (data at ts=10 should survive); (b) stat `txn_rts_btrees_applied` should show ingest URIs were either skipped or handled correctly; (c) after drain/step-up, data visible in the stable btree matches expectations.
-- Alternative: test that the skip-due-to-disagg paths in txn.c and txn_recover.c are exercised by a scenario that triggers recovery (crash-restart) on a disagg leader and verifies the skip log message appears.
+**What to test (behavior test):**
+- Setup: open a disagg leader, insert data at ts=10, checkpoint. Insert more data at ts=20.
+  Call `session.rollback_to_stable()` explicitly.
+- Assertions: either the call returns an error (expected behavior — RTS is unsupported on disagg),
+  or if the call is silently skipped, verify data is not corrupted and `txn_rts_btrees_applied`
+  shows zero btrees were walked.
+
+**Code path reference (for implementation context):**
+- `src/btree/bt_handle.c:621-623`: ingest btrees carry `WT_BTREE_GARBAGE_COLLECT` but not
+  `WT_BTREE_DISAGGREGATED`; the `WT_BTREE_LOGGED` guard in `rts_btree_walk.c:486` does not
+  protect them.
+- `src/txn/txn_recover.c:1355-1356` and `src/txn/txn.c:2593-2594`: global disagg skip paths
+  that must be verified to fire correctly.
 
 ---
 
@@ -109,22 +116,25 @@ After crash-recovery on the leader, the local metadata is at checkpoint N. The p
 
 ---
 
-### [HIGH] RTS on the stable btree with `WT_UPDATE_DURABLE` — no disagg-specific RTS test
+### [MEDIUM] RTS on the stable btree with `WT_UPDATE_DURABLE` — behavior test (RTS-2 in `08_unsupported_features.md`)
 
-**What is not tested:**
-`rts_btree.c:792` has a disagg-specific code path: when restoring a key that was deleted after the stable timestamp, if the btree is `WT_BTREE_DISAGGREGATED`, the restored update is marked `WT_UPDATE_DURABLE`. This flag affects update visibility and eviction behavior. There is no test that runs RTS on a disaggregated stable btree (`.wt_stable` file) and verifies: (a) the restored updates are correctly visible; (b) the `WT_UPDATE_DURABLE` flag does not interfere with subsequent checkpoints or drain.
+**Classification: `rollback_to_stable` is NEVER supported on disagg connections.**
 
-**Risk:**
-If `WT_UPDATE_DURABLE` interacts incorrectly with the ingest drain logic (which copies updates from ingest to stable btree using the version cursor), a restored update in the stable btree could be double-applied or overwritten during drain. Since recovery RTS is skipped globally for disagg (see gap 1), the only way this path is exercised is via explicit API call — which is never done in any existing test.
+Same classification as the RTS-1 gap above. The `WT_UPDATE_DURABLE` code path in `rts_btree.c:792`
+is dead code from the perspective of production disagg workloads — RTS is globally skipped for
+disagg connections before any btree-level RTS code is reached. This is tracked as RTS-2 in
+`05_scenario_analysis/08_unsupported_features.md`.
 
-**Code path analysis:**
-- `src/rollback_to_stable/rts_btree.c:792-793`: `if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) F_SET(upd, WT_UPDATE_DURABLE)` — applied only to `.wt_stable` btrees, not ingest btrees.
-- The `WT_UPDATE_DURABLE` semantics affect whether the update is considered durable even without a separate durable timestamp. This interacts with the drain path in `conn_layered_ingest.c:404` which checks `durable_start_ts > last_checkpoint_timestamp` — a `WT_UPDATE_DURABLE`-marked update in the stable btree is not the same as a normal update on the ingest btree, but the drain does not know about stable-btree updates that were placed there by RTS.
-- Why existing tests miss it: no test calls explicit RTS on a disagg connection.
+The test goal is a **behavior test**: verify the `WT_BTREE_DISAGGREGATED` flag guard in
+`rts_btree.c:792` either fires correctly or is not reached due to the earlier global skip.
 
-**Proposed test design:**
-- Setup: disagg leader, layered table, insert at ts=10, checkpoint (stable=10). Insert at ts=20 (do not checkpoint), then explicitly call `session.rollback_to_stable()` with stable still at 10 — data at ts=20 should be rolled back.
-- Assertions: after RTS, the key's value is the ts=10 version; `txn_rts_keys_removed` or `txn_rts_upd_aborted` stat is non-zero for the stable btree; subsequent checkpoint does not corrupt the stable btree; follower picks up the post-RTS checkpoint correctly.
+**What to test (behavior test):**
+- The disagg-specific path `if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) F_SET(upd, WT_UPDATE_DURABLE)` in `src/rollback_to_stable/rts_btree.c:792-793` should never be reached in a production disagg connection because the global skip fires first.
+- Confirm with a test that verifies `txn_rts_btrees_applied` is 0 (or the call returns an error) when RTS is invoked on a disagg connection — regardless of whether `.wt_stable` btrees have data.
+
+**Code path reference:**
+- `src/rollback_to_stable/rts_btree.c:792-793`: disagg-specific `WT_UPDATE_DURABLE` mark on restored updates — only reachable if global skip fails.
+- `src/txn/txn.c:2593-2594`: global disagg skip that should prevent this path from being reached.
 
 ---
 
@@ -249,10 +259,10 @@ The drain comment at conn_layered_ingest.c:286 states: "This is a temporary solu
 
 | Priority | Gap | Risk |
 |---|---|---|
-| CRITICAL | RTS applied to ingest btrees — silent no-op masks potential data loss | Ingest data could be incorrectly rolled back if explicit RTS is ever called on a disagg connection; the global skip has no per-btree guard for ingest tables |
+| MEDIUM | RTS applied to ingest btrees — behavior test (RTS-1; RTS is NEVER on disagg) | Verify global skip fires; confirm ingest btrees are not walked when RTS is called on disagg |
 | CRITICAL | Prepared transaction spanning two checkpoint boundaries | Drain filtering on `last_checkpoint_timestamp` may miss a prepared transaction that was committed between checkpoint N and N+1 |
 | HIGH | Crash between page-log metadata write and local metadata update | Leader recovery may diverge from follower's view; inconsistent LSN between page log and local metadata |
-| HIGH | RTS on stable btree with `WT_UPDATE_DURABLE` flag — no disagg-specific RTS test | The disagg-specific path in `rts_btree.c:792` has no test; interaction with subsequent drain is unknown |
+| MEDIUM | RTS on stable btree `WT_UPDATE_DURABLE` flag — behavior test (RTS-2; RTS is NEVER on disagg) | Verify disagg-specific path in `rts_btree.c:792` is not reached due to global skip |
 | HIGH | Follower checkpoint pickup with mismatched local oldest/stable timestamps | Follower may serve reads below the checkpoint's oldest, or step-up may produce incorrect drain behavior |
 | HIGH | Concurrent eviction during checkpoint — size accounting race | `bytes_total` may be double-counted or incorrectly freed when eviction races with checkpoint reconciliation |
 | MEDIUM | Multiple consecutive empty checkpoints — ingest GC prune timestamp stall | Prune timestamp may stall on empty checkpoints, causing ingest GC to retain pages that should be evicted |

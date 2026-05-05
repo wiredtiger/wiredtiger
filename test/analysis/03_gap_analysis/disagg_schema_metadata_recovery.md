@@ -103,24 +103,28 @@ If the abandon-checkpoint path (`__disagg_abandon_checkpoint`) is incorrectly in
 - Assertions: Data visible post-recovery matches exactly the last complete checkpoint. Page log has no entries referencing the abandoned checkpoint's LSN range. The `disagg_abandon_checkpoint_succeed` stat is incremented.
 
 
-### [CRITICAL] Gap 4: `rename` of a layered table is silently unsupported
+### [MEDIUM] Gap 4: `session.alter()` on a layered table — behavior test (ALT-1/ALT-2 in `08_unsupported_features.md`)
 
-**What is not tested:**
-`__schema_alter` in `src/schema/schema_alter.c` (line 389–431) has explicit handlers for `file:`, `colgroup:`, `index:`, `object:`, `table:`, `tier:`, and `tiered:`, but no handler for `layered:`. Calling `session->alter` on a `layered:` URI falls through to `__wt_bad_object_type`. Similarly, there is no `schema_rename.c` file (the schema directory contains no rename source), and the rename entry point in `session_api.c` routes through the schema dispatch which has the same gap. No test verifies what happens when you try to alter or rename a layered table.
+**Classification: `session.alter()` is unsupported for disagg, tracked as ALT-1/ALT-2 in
+`05_scenario_analysis/08_unsupported_features.md` with no current plan.**
 
-**Risk:**
-- `alter` on `layered:T` returns `EINVAL` ("unexpected object type") without touching shared metadata. If the caller retries on the underlying `file:T.wt_stable` URI directly and succeeds, the shared metadata and local metadata are now inconsistent.
-- If `rename` is ever called on a layered table (e.g., during a live migration), the `layered:` metadata entry is not found by the rename dispatcher, so it returns an error — but the error message may be confusing and the correct behavior (rejecting with a clear "unsupported" error vs. transparently renaming all sub-components) is not documented or tested.
+Note: `session.rename()` does NOT exist in the WiredTiger `WT_SESSION` API in this codebase — there
+is no rename entry point in `session_api.c` and no `schema_rename.c`. Any prior references to
+`session.rename()` were incorrect. This is confirmed in the scenario analysis synthesis.
+
+The test goal is a **negative/behavior test**: confirm that calling `session.alter()` on a
+`layered:` URI returns a clean, documented error (not a crash, not a silent no-op that leaves
+metadata inconsistent).
+
+**What to test (behavior test):**
+- `session.alter("layered:T", "cache_resident=true")` — must return `EINVAL` ("unexpected object
+  type") with a useful message and leave shared metadata unchanged.
+- `session.alter("layered:T", "log=(enabled=true)")` — same: clean error, no silent no-op.
 
 **Code path analysis:**
-- Source: `src/schema/schema_alter.c`, `__schema_alter`, line 430: `return (__wt_bad_object_type(session, uri))`
-- Source: `src/schema/schema_worker.c`, `__wt_schema_worker`, line 270: `layered:` is only handled when `file_func == __wt_verify`. For `__wt_salvage` or any other worker op the code falls through to `__wt_bad_object_type`.
-- Why tests miss it: All layered schema tests (test_layered28, 24, etc.) only call `create` and `drop`. No test calls `session.alter` or `session.rename` on a `layered:` URI.
-
-**Proposed test design:**
-- Setup: Create a layered table with a specific collation or format config.
-- Operations: (1) `session.alter("layered:T", "cache_resident=true")` — assert returns `EINVAL` with a useful message, not a crash. (2) `session.alter("layered:T", "log=(enabled=true)")` — assert returns `EINVAL` (not a silent no-op). (3) Attempt `session.rename("layered:T", "layered:T2")` — assert returns `EINVAL` (not a crash, not silent success leaving orphaned metadata).
-- Assertions: No crash. Shared metadata unchanged after failed alter/rename. Local metadata unchanged.
+- `src/schema/schema_alter.c:__schema_alter` line 430: `layered:` falls through to `__wt_bad_object_type`
+- `src/schema/schema_worker.c:__wt_schema_worker` line 270: `layered:` is only dispatched for `__wt_verify`; all other operations fall through to `__wt_bad_object_type`
+- Why tests miss it: all layered schema tests only call `create` and `drop`; no test calls `session.alter` on a `layered:` URI.
 
 
 ### [HIGH] Gap 5: Schema operations during active drain
@@ -199,23 +203,20 @@ A corrupted or truncated delta chain would not be detected by `verify`. The corr
 - Assertions: `verify` should return an error (not silent success) when the stable file's checkpoint LSNs are not resolvable from the current page log.
 
 
-### [HIGH] Gap 9: `alter` of a layered table — config not propagated to constituents
+### [MEDIUM/DEFERRED] Gap 9: `alter` of a layered table — unsupported, behavior test only (ALT-1/ALT-2)
 
-**What is not tested:**
-Even if `session.alter` on `layered:T` were to succeed (it currently hits `__wt_bad_object_type`), there is no test verifying that a config change (e.g., `cache_resident`) is propagated to both `file:T.wt_ingest` and `file:T.wt_stable`. For the `table:` prefix form of a layered table, `session.alter("table:T")` hits `__alter_table` which iterates column groups — the column group source for a layered table is the layered handle itself, not the stable file directly, so the propagation chain is different from a regular table. This is untested.
+**Classification: `session.alter()` is unsupported for disagg (ALT-1/ALT-2 in
+`08_unsupported_features.md`, no current plan). Test goal is a behavior test, not correctness
+verification. See Gap 4 above for the primary alter behavior test description.**
 
-**Risk:**
-Config changes silently apply to the `table:` metadata entry but not to the underlying `file:T.wt_stable` constituent, leaving the two metadata records inconsistent. After a reopen, the merged config produces unexpected behavior (e.g., `cache_resident` set at the table level but not at the file level).
+The additional question of whether `session.alter("table:T")` (table-prefix form) silently
+diverges from the `layered:` constituent's metadata is only relevant if alter is eventually
+supported. Until then, this is DEFERRED.
 
-**Code path analysis:**
-- Source: `src/schema/schema_alter.c`, `__alter_table`, lines 330–383
-- Source: `src/schema/schema_alter.c`, `__schema_alter`, line 424: routes `table:` through `__alter_table`, but for `layered:` falls through to `__wt_bad_object_type` (line 430)
-- Why tests miss it: No test calls `session.alter` on any layered table URI.
-
-**Proposed test design:**
-- Setup: Create a layered table via both `layered:` and `table:` prefixes.
-- Operations: (1) `session.alter("table:T", "cache_resident=true")` — check that metadata entries for `table:T`, `layered:T` (if present), `colgroup:T`, `file:T.wt_stable`, and `file:T.wt_ingest` all reflect the new config. (2) `session.alter("layered:T2", "cache_resident=true")` — assert this returns a clear, documented error (either `EINVAL` or `ENOTSUP`).
-- Assertions: No silent config divergence between the layered handle and its constituents. Shared metadata updated if applicable.
+**Code path note:**
+- `src/schema/schema_alter.c:__schema_alter` line 424: routes `table:` through `__alter_table`
+  (iterates column groups); for `layered:` prefix falls through to `__wt_bad_object_type` (line 430)
+- The config-propagation concern is a future implementation consideration, not a current testable gap.
 
 
 ### [MEDIUM] Gap 10: `schema_abort`-style crash recovery for disagg schema operations
@@ -280,12 +281,12 @@ There is no test that runs `verify` immediately after `conn.reconfigure(disaggre
 | CRITICAL | Partial `__create_layered` failure leaves orphaned metadata | Unrecoverable database state (assert-abort on reopen) |
 | CRITICAL | Leader crash mid-drain during step-up | Silent data loss — ingest data lost permanently |
 | CRITICAL | Leader crash during page-log write (mid-checkpoint) | Silent data corruption — partial checkpoint visible post-recovery |
-| CRITICAL | `rename`/`alter` of `layered:` URI silently unsupported — no test documents behavior | Potential metadata inconsistency or crash if callers assume support |
+| MEDIUM | `session.alter()` on `layered:` URI — behavior test (ALT-1/ALT-2; unsupported, no plan) | Confirm clean error returned; no metadata inconsistency or crash |
 | HIGH | Schema operations (drop/create) concurrent with active drain | Use-after-free (drop) or silent ingest data skip (create) |
 | HIGH | `import` into a disagg connection — `.wt_stable` file not blocked | Silent data corruption from cross-database page-log LSN mismatch |
 | HIGH | `verify` does not check delta-chain consistency | Corrupted deltas undetected; only surface during read (too late) |
 | HIGH | `verify` on follower with stale/truncated page log returns silent success | False positive verify; data unreadable but not detected until read |
-| HIGH | `alter` config change not propagated to both stable and ingest constituents | Silent config divergence after reopen |
+| MEDIUM/DEFERRED | `alter` config propagation to constituents (ALT-1/ALT-2; DEFERRED until alter is supported) | Config divergence between layered handle and constituents — future concern |
 | MEDIUM | No disagg equivalent of `schema_abort` (concurrent DDL + SIGKILL) | Ghost tables visible on followers after crash mid-drop |
 | MEDIUM | `timestamp_abort -G` skips schema-operations thread | Unexercised orphaned-table recovery path after SIGKILL |
 | LOW | `verify` immediately post step-up (pre-checkpoint) — behavior undocumented | False positive or spurious error in a valid operational window |

@@ -1,6 +1,6 @@
 # Scenario Gap Analysis — Master Synthesis
 
-> Pass 4 (May 2026) · Scenario-based analysis of all public APIs on layered/disagg tables  
+> Pass 4 (May 2026) · Scenario-based analysis of all public APIs on layered/disagg tables
 > Covers supported features only. Unsupported feature gaps are tracked separately in `08_unsupported_features.md`.
 
 ---
@@ -8,7 +8,7 @@
 ## What Changed in Pass 4
 
 - Per-API scenario analysis completed for all six API groups (`01`–`06`).
-- All gaps for unsupported features removed from HIGH/MEDIUM/LOW tiers and moved to `08_unsupported_features.md`. Unsupported features include: elegant step-down, RTS, session.alter(), named checkpoints, salvage, compact, import, bulk cursors, backup cursors, RECNO/column store, index creation, table drop (WT-14503), fast truncate, and prepared transactions (disagg-specific behavior).
+- All gaps for unsupported features removed from HIGH/MEDIUM/LOW tiers and moved to `08_unsupported_features.md`. Unsupported features include: elegant step-down, RTS, session.alter(), named checkpoints, salvage, compact, import, bulk cursors, backup cursors, RECNO/column store, index creation, table  (WT-14503), fast truncate, and prepared transactions (disagg-specific behavior).
 - cursor.modify() gaps remain HIGH/MEDIUM but annotated **BLOCKED** by `ops.pct.modify=0` in `CONFIG.disagg` (FIXME-WT-16479); first tests to write once that flag is removed.
 - Two gap claims refuted by source verification: read_timestamp + iteration *is* tested in `test_layered73.py`; atomic committed cross-table transactions *are* tested in `test_layered94.py` (prepared path only; regular committed path remains a CRITICAL gap).
 - `session.rename()` confirmed absent — `WT_SESSION` has no rename method in this codebase.
@@ -67,7 +67,7 @@ Only one CRITICAL gap remains after removing all unsupported-feature items.
 `begin_transaction() → write table_a → write table_b → commit_transaction()`. The two
 `*.wt_ingest` btrees are physically separate objects. Cross-table durability atomicity for
 regular committed transactions is entirely unverified: a crash between the two ingest writes
-could produce a checkpoint where one table has the key but the other does not.  
+could produce a checkpoint where one table has the key but the other does not.
 **Suggested test:** `test_layered_multi_txn01.py`
 
 ---

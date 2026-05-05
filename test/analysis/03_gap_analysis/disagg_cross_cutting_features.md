@@ -20,8 +20,8 @@
 | Concurrency (multi-session/thread on layered) | cppsuite tests, format CONFIG.stress | test_layered60 (table create vs checkpoint), test_layered62 (step-down vs checkpoint), test_layered71 (drop vs checkpoint) — all use single writer thread | format CONFIG.disagg has multi-table but no explicit concurrency stress | `evict_lru.c:1885`: btree walk flags race path | PARTIAL GAP — concurrent multi-session insert + checkpoint + drain not tested; no Python-level insert-concurrency stress |
 | Large values / overflow pages | general tests assume overflow works | test_layered48 (overflow stat == 0 for 1000-char keys/values) | hook does not address overflow | reconcile: overflow suppression for disagg btrees | COVERED — rejection path tested; but boundary values (values exactly at leaf_key_max/leaf_value_max) not covered |
 | Secondary indexes | test_index01–03, cursor tests | none | hook skips all index: creates on layered tables | no index support in disagg | KNOWN UNSUPPORTED — rejection path tested only in hook; no dedicated test asserting error |
-| Cursor bounds | test_cursor_bound* | test_layered05 (search_near with bounds) | hook skips test_cursor_bound* tests | no disagg-specific bound code | PARTIAL — basic bound + search_near tested in layered05; sustained bound iteration stress not tested |
-| Rollback to Stable | test_rollback_to_stable01–46 | test_layered05 (RTS reference), test_layered21, test_layered23, test_layered38, test_layered80, test_layered83, test_layered84, test_layered87, test_layered91 (all use RTS in setup/teardown) | hook skips `rollback_to_stable` named tests | `rollback_to_stable/`: no disagg-specific code found | PARTIAL GAP — RTS used as setup step but correctness of RTS on layered data (stable-btree pages post-RTS, HS entries rolled back) not independently verified |
+| Cursor bounds | test_cursor_bound* | test_layered05 (search_near+bounds), test_layered82 (comprehensive) | hook skips test_cursor_bound* tests | no disagg-specific bound code | MOSTLY COVERED — test_layered82 provides comprehensive bound testing (inclusive/exclusive, all key locations, tombstones, checkpoint mid-iteration, search+bound, reset+bound); remaining gaps are bounds+read_timestamp and bounds+role_transition (CR-H1, CR-H6 in scenario analysis) |
+| Rollback to Stable | test_rollback_to_stable01–46 | test_layered05 (RTS reference), test_layered21, test_layered23, test_layered38, test_layered80, test_layered83, test_layered84, test_layered87, test_layered91 (all use RTS in setup/teardown) | hook skips `rollback_to_stable` named tests | `rollback_to_stable/`: no disagg-specific code found | KNOWN UNSUPPORTED (NEVER) — RTS is globally skipped for disagg connections (txn_recover.c:1355-1398, txn.c:2593-2594); the test goal is a negative/behavior test (confirm clean skip or error), not a correctness verification. See RTS-1–RTS-5 in 08_unsupported_features.md |
 | Named checkpoints | test_checkpoint* | none | hook skips all `name=` checkpoint calls | no named checkpoint support in disagg | KNOWN UNSUPPORTED — hook skips cleanly; no dedicated rejection test |
 | Column-store on layered | many column-store tests | none | hook skips `key_format=r` creates | no column-store in disagg (FIXME-WT-14738) | KNOWN UNSUPPORTED — no rejection test |
 | Salvage | test_salvage* | none | hook skips all salvage | `block_disagg_unsup.c`: salvage stubs return ENOTSUP | KNOWN UNSUPPORTED — FIXME-WT-14740 |
@@ -71,23 +71,30 @@
 
 ---
 
-### [HIGH] Rollback to Stable: RTS correctness on layered tables never independently verified
+### [MEDIUM] Rollback to Stable: Behavior test only — RTS is NEVER supported on disagg (RTS-1–RTS-5)
 
 **Feature:** Rollback to Stable
 
-**What is not tested:** RTS specifically on layered tables. Many `test_layered*` tests call `rollback_to_stable` as part of their teardown, but none independently verify that: (a) RTS correctly removes updates committed above the stable timestamp from the stable btree or shared HS, (b) RTS on a follower does not corrupt data, (c) RTS interacts correctly with the materialization frontier. The `format CONFIG.disagg` profile does include RTS at the end of each round, but the Python test suite has no layered equivalent of `test_rollback_to_stable01–46`.
+**Classification: NEVER supported on disagg connections.** Recovery RTS is globally skipped
+(`txn_recover.c:1355-1398` and `txn.c:2593-2594` short-circuit when `disagg=true`). Explicit
+`session.rollback_to_stable()` calls are also unsupported. This is tracked as RTS-1 through RTS-5
+in `05_scenario_analysis/08_unsupported_features.md`.
 
-**Risk:** RTS on a layered database must interact with both the stable btree (read-only after checkpoint) and the shared HS. If RTS modifies stable btree pages without going through the page log write path, or if it fails to clean up shared HS entries, historical reads at the stable timestamp will be wrong after a step-up.
+The many `test_layered*` tests that call `rollback_to_stable` in their setup/teardown succeed only
+because those calls run on non-disagg connections used for setup scaffolding — not on the layered
+connection itself. The `format CONFIG.disagg` profile RTS call is also skipped at the global level.
 
-**Disagg-specific code path:**
-- Source: `src/rollback_to_stable/` — no disagg-specific code found (zero hits for `disagg`, `layered`, `page_log`)
-- Path: RTS treats stable btree files as regular btree files. Writes to the stable btree during RTS go through the standard block manager, which for disagg btrees routes to `block_disagg_write.c`. This path is exercised, but only incidentally through format.
-- Why tests miss it: `hook_disagg.py:should_skip` skips every test whose name contains `"rollback_to_stable"`, so the full `test_rollback_to_stable*` suite is excluded.
+**Test goal (behavior test, not correctness verification):**
+- Confirm that calling `session.rollback_to_stable()` on a disagg connection either returns a
+  clean error or is safely skipped — without corrupting data or crashing.
+- Verify that `txn_rts_btrees_applied == 0` (no btrees were walked).
+- Confirm the global skip paths in `txn_recover.c:1355-1398` and `txn.c:2593-2594` are hit.
 
-**Proposed test:**
-- Setup: Leader inserts rows at ts=10 (stable=10), updates all rows at ts=20 (above stable). Checkpoints with stable=10. RTS called.
-- Operations: Verify rows visible at ts=10 with original values. Reopen as follower, advance checkpoint, re-read rows.
-- Assertions: Follower sees ts=10 values, not ts=20 updates (which should have been rolled back). Verify `txn_rts_keys_removed > 0` stat on leader.
+**Why the original PARTIAL GAP assessment was incorrect:**
+RTS is not a correctness gap; it is an unsupported feature. The disagg-global skip fires before
+any btree-level RTS code runs, so there is no "RTS on stable btree page" correctness concern to
+verify. The `WT_UPDATE_DURABLE` flag in `rts_btree.c:792` is dead code from the perspective of
+production disagg workloads.
 
 ---
 
@@ -223,16 +230,16 @@
 
 2. **[CRITICAL] History Store correctness** — The shared HS (`WiredTigerSharedHS.wt_stable`) is a new disagg-specific entity. Its write/read/eviction paths are covered only by a single incidental test (`test_layered25`). The 33 dedicated `test_hs*` tests do not exercise the shared HS. Bugs here silently produce wrong historical reads.
 
-3. **[HIGH] Rollback to Stable** — All `test_rollback_to_stable*` tests are skipped by the hook. RTS on layered tables is only exercised indirectly via `format CONFIG.disagg`. A bug in RTS-meets-page-log interaction (e.g., RTS modifying stable btree pages that have unmaterilaized deltas ahead) would produce silent data corruption.
+3. **[HIGH] Concurrent multi-session insert stress** — No Python-level test runs parallel writers on a layered table. The disagg-specific eviction walk flag race (`evict_lru.c:1885`) and the ingest truncate list lock (`txn_truncate.c`) are never stressed by concurrent sessions.
 
-4. **[HIGH] Concurrent multi-session insert stress** — No Python-level test runs parallel writers on a layered table. The disagg-specific eviction walk flag race (`evict_lru.c:1885`) and the ingest truncate list lock (`txn_truncate.c`) are never stressed by concurrent sessions.
+4. **[HIGH] Compaction behavior** — All compact stubs silently return 0. No test verifies the caller receives any indication that compaction is a no-op. Background compaction is disabled in `CONFIG.disagg` but the disabling is not itself tested.
 
-5. **[HIGH] Compaction behavior** — All compact stubs silently return 0. No test verifies the caller receives any indication that compaction is a no-op. Background compaction is disabled in `CONFIG.disagg` but the disabling is not itself tested.
+5. **[MEDIUM] Disagg statistics coverage** — 13 of the 17 disagg-specific connection statistics are never asserted in Python tests. These include `step_up_time`, `database_size`, `role_leader`, `abandon_checkpoint_*`, and all shared HS I/O stats.
 
-6. **[MEDIUM] Disagg statistics coverage** — 13 of the 17 disagg-specific connection statistics are never asserted in Python tests. These include `step_up_time`, `database_size`, `role_leader`, `abandon_checkpoint_*`, and all shared HS I/O stats.
+6. **[MEDIUM] Prepared transactions across drain boundary** — The single most dangerous prepare+drain race (prepared update on a page being drained to stable btree concurrently) is not tested.
 
-7. **[MEDIUM] Prepared transactions across drain boundary** — The single most dangerous prepare+drain race (prepared update on a page being drained to stable btree concurrently) is not tested.
+7. **[MEDIUM] Key rotation with encryption** — The `block_disagg_ckpt.c` key-rotation metadata path is never covered by any test.
 
-8. **[MEDIUM] Key rotation with encryption** — The `block_disagg_ckpt.c` key-rotation metadata path is never covered by any test.
+8. **[MEDIUM] Rollback to Stable** — RTS is NEVER supported on disagg; the test goal is a negative/behavior test (confirm clean skip or error). See RTS-1–RTS-5 in `05_scenario_analysis/08_unsupported_features.md`.
 
 9. **[LOW] Secondary index rejection** — No C-level test for clean error on index creation. Hook masks the issue at the Python layer.

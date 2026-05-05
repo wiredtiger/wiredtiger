@@ -21,10 +21,10 @@
 | `remove` | Yes (cursor01) | Yes (cursor01) | Partial (20–70%) removal density |
 | `modify` (follower) | No | Yes (layered22, modify01) | stable-sourced base value tested |
 | `modify` (leader) | No direct test | No | Not directly exercised in isolation |
-| `reserve` | No | No | No test at all |
+| `reserve` | Yes (layered92/93) | Yes (layered92/93) | State matrix covered; commit path (reserve+write+commit) untested (CW-H7) |
 | `largest_key` | No | Yes (layered22) | ingest-only; stable+ingest merge not tested |
-| `bound` | Partial (layered05) | Partial (layered05) | Only search_near+bound; walk+bound limited |
-| `reset` | Implicit | Implicit | No explicit cursor state-after-reset test |
+| `bound` | Yes (layered82) | Yes (layered82) | Comprehensive: inclusive/exclusive, all key locations, tombstones, checkpoint, search+bound, reset+bound |
+| `reset` | Yes (layered82) | Yes (layered82) | Reset clears bounds verified; reset+iteration restart verified |
 | `close` / `reopen` | Implicit | Implicit | Cache/reopen paths not directly tested |
 | `next_random` | No | Yes (layered22) | Only ingest-only tested |
 | `compare` | No | No | No dedicated test |
@@ -57,27 +57,39 @@ The analysis markdown notes two definitions of `test_populated_tables_with_updat
 
 ---
 
-### [CRITICAL] Gap 1: `cursor->reserve()` is entirely untested on layered tables
+### [HIGH] Gap 1: `cursor->reserve()` commit path is untested on layered tables
 
-**What is not tested:**
-`cursor.reserve()` has a non-trivial layered-specific implementation (`__clayered_reserve`). On a follower it calls `__clayered_reserve_constituent` with `overwrite=true` on the ingest cursor because the key may not exist in the ingest btree (it may exist only in stable). After the reserve it re-runs `cursor->search()` to position for a subsequent `get_value()`. On a leader it routes through `__clayered_put` to the stable cursor. No test in the suite exercises this path.
+**What is covered:**
+`test_layered92.py` and `test_layered93.py` cover `cursor.reserve()` across all key-location
+states × {leader, follower}: stable-only key, ingest-only key, key in both btrees, and missing
+key. Both tests verify that reserve correctly positions the cursor and that `cursor.get_value()`
+returns the pre-reserve value. These tests exercise `__clayered_reserve`, `__clayered_lookup`,
+`__clayered_reserve_constituent`, and `__clayered_put(WT_CLAYERED_PUT_RESERVE)`.
+
+**What is still not tested:**
+Every existing reserve test rolls back the transaction after the reserve. No test completes the
+round-trip: `reserve → write the new value → commit`. The full write path after a reserve —
+where `cursor.update()` or `cursor[key] = newval` is called while the reserve is held and then
+committed — is entirely absent. This is the production use-case: reserve is used for optimistic
+locking and the lock is only useful if a write can follow.
 
 **Risk:**
-`cursor.reserve()` is used in MongoDB's write path for optimistic locking patterns. A bug in the follower path — for example, mishandling of a key that exists only in stable, or incorrect cursor repositioning after the ingest reserve — would cause silent corruption (a write locking a key it never actually found) or an assertion failure in `__wt_btcur_reserve`. The FIXME comment at line 2271 ("any previous value in the cursor might race with WT_CURSOR.reserve") signals that this path is known to have subtle semantics.
+A bug in the write-after-reserve path (e.g., the update uses the wrong btree target, or the
+write-lock from the reserve is not correctly respected by a concurrent write) would cause silent
+data corruption or false `WT_ROLLBACK` under concurrency. The FIXME comment at line 2271
+("any previous value in the cursor might race with WT_CURSOR.reserve") signals this path has
+known subtle semantics.
 
 **Code path analysis:**
-- `src/cursor/cur_layered.c:__clayered_reserve()` — lines 2238–2279, always calls `__clayered_lookup` first, then `__clayered_put(WT_CLAYERED_PUT_RESERVE)`, then re-searches
-- `src/cursor/cur_layered.c:__clayered_reserve_constituent()` — lines 1868–1885, `overwrite=true` for followers, meaning the ingest btree gets a reserve even if the key is absent there
-- `src/cursor/cur_layered.c:__clayered_put()` — lines 1892–1937, routes to stable on leader, ingest on follower
-- Triggered when: application calls `cursor.reserve()` inside a transaction on a layered table
-- Existing tests miss it because: `reserve()` is not a standard CRUD operation used in the existing Oplog-based test harness
+- `src/cursor/cur_layered.c:__clayered_reserve()` — lines 2238–2279
+- `src/cursor/cur_layered.c:__clayered_put()` — lines 1892–1937, the update-after-reserve write
+- Triggered when: `cursor.reserve()` followed by `cursor.update()` or value-set and commit
 
 **Proposed test design:**
-- Setup: Leader writes keys 1–100, checkpoints; follower picks up checkpoint; follower opens a transaction
-- Operations (follower): `cursor.reserve(key=50)` — key exists only in stable; `cursor.get_value()` must succeed and return the stable value; commit
-- Operations (follower, key only in ingest): Write key=200 to ingest (not checkpointed); `cursor.reserve(key=200)`; verify value returned
-- Operations (leader): Leader reserve of an existing key; verify value is correct
-- Assertions: Return code is 0; `cursor.get_value()` returns correct pre-reserve value; subsequent `cursor.update()` in the same transaction succeeds; concurrent update from another session after reserve returns `WT_ROLLBACK`
+- Operations: `reserve(K)` → `cursor[K] = newval` → `commit_transaction()`
+- Assertions: After commit, `cursor.search(K)` returns newval. A concurrent update started after
+  the reserve (before commit) returns `WT_ROLLBACK`.
+- Suggested test: `test_layered_reserve_update01.py` (CW-H7 in the scenario analysis)
 
 ---
 
@@ -229,7 +241,14 @@ If the cursor position is not correctly maintained after a positioned remove fro
 
 ---
 
-### [MEDIUM] Gap 9: `__clayered_adjust_state` race: step-down during an active explicit transaction
+### [MEDIUM/DEFERRED] Gap 9: `__clayered_adjust_state` race: step-down during an active explicit transaction
+
+**Status: DEFERRED — requires elegant step-down (SD-4 in `08_unsupported_features.md`)**
+
+Elegant step-down (`conn.reconfigure(role="follower")`) is not yet supported in disagg (Public Preview
+target). Testing this gap requires the ability to reconfigure a running leader to follower while an
+in-flight transaction is open, which is precisely the SD-4 scenario. Implement when elegant step-down
+is available.
 
 **What is not tested:**
 `__clayered_adjust_state` (lines 489–583) checks for leadership changes. If the node steps down from leader to follower while `session->txn->mod_count != 0` (modifications in flight), it sets `WT_ROLLBACK` and returns that error. This path is important for correctness but has no test. The FIXME at line 515 (`FIXME-WT-14545`) explicitly acknowledges the risk of undetectable step-down-then-step-up sequences.
@@ -243,50 +262,45 @@ If the step-down check is wrong (for example, `mod_count` is 0 but there are pre
 - Existing tests miss it because: all leadership-change tests run to completion before any state check; no test deliberately changes role mid-transaction
 
 **Proposed test design:**
-- Setup: Leader opens a transaction, inserts key=1 (mod_count becomes non-zero); simulate step-down by reconfiguring role
+- Setup: Leader opens a transaction, inserts key=1 (mod_count becomes non-zero); simulate step-down by reconfiguring role (`conn.reconfigure("role=follower")`)
 - Operations: Attempt any cursor operation on the layered table (triggers `__clayered_enter` → `__clayered_adjust_state`)
 - Assertions: The operation returns `WT_ROLLBACK`; no data from the aborted transaction appears in the stable btree
 
 ---
 
-### [MEDIUM] Gap 10: Bounds on `search` (not `search_near`) on a layered cursor
+### [SUPERSEDED] Gap 10: Bounds on `search` (not `search_near`) on a layered cursor
 
-**What is not tested:**
-`__clayered_search` (lines 1562–1595) calls `__clayered_lookup`, which searches both ingest and stable without any bounds check at the layered level. Bounds are copied to constituent cursors via `__clayered_copy_bounds`. If bounds are set and `cursor.search(key)` is called for a key outside those bounds, the constituent's file cursor will enforce the bound and return `WT_NOTFOUND`. But this interaction — bounds set, then `cursor.search()` for an in-bounds key and for an out-of-bounds key — is not tested. The single bounds test in `test_layered05` only exercises `search_near` with bounds.
+**Status: SUPERSEDED by `test_layered82.py`**
 
-**Risk:**
-If a constituent cursor enforces bounds inconsistently between ingest and stable (e.g., bound copied only to one), a key outside the declared range could be returned by the unlocked constituent.
+`test_layered82.py` provides comprehensive `cursor.bound()` coverage including `search()` with
+bounds set (both in-bounds and out-of-bounds keys, across stable-only / ingest-only / interleaved
+data, with inclusive and exclusive bounds). The original claim that all bounds tests go through
+`search_near` only was based on `test_layered05`; `test_layered82` was added later and fills
+this gap.
 
-**Code path analysis:**
-- `src/cursor/cur_layered.c:__clayered_search()` — lines 1562–1595, no direct bound check; relies on constituent enforcement
-- `src/cursor/cur_layered.c:__clayered_copy_bounds()` — lines 1313–1318, copies bounds to both constituents; called at open, bound set, and advance_stable
-- Triggered when: `cursor.bound()` set, then `cursor.search()`
-- Existing tests miss it because: all `cursor.bound()` tests go through `search_near`, never `search`
+The remaining bound-related gaps (tracked in the scenario analysis) are:
+- **CR-H1**: `cursor.bound()` + `read_timestamp` combined (snapshot range query pattern) — no test combines both filters
+- **CR-H6**: `cursor.bound()` + role transition — bounds interaction with `__clayered_adjust_state` during step_up is untested
 
-**Proposed test design:**
-- Setup: Stable has keys 1–1000; ingest has keys 1001–2000; set bound [lower=400, upper=600]
-- Operations: `cursor.search(key=500)` — must succeed (in bounds); `cursor.search(key=100)` — must return `WT_NOTFOUND` (out of bounds on lower side); `cursor.search(key=900)` — must return `WT_NOTFOUND` (out of bounds on upper side)
-- Assertions: Correct return codes; no key outside [400, 600] is returned
+These are tracked in `05_scenario_analysis/01_cursor_reads.md` as HIGH gaps.
 
 ---
 
-### [MEDIUM] Gap 11: `cursor.reset()` clears bounds — subsequent iteration without re-setting bounds
+### [SUPERSEDED] Gap 11: `cursor.reset()` clears bounds — subsequent iteration without re-setting bounds
 
-**What is not tested:**
-`__clayered_reset` (lines 1238–1265) at line 1258–1259 calls `__wt_cursor_bound_reset(cursor)` and then `__clayered_copy_bounds(clayered)` when invoked as a user API call. This clears all bounds from both the layered cursor and its constituents. If a test sets bounds, iterates, resets, and then iterates again (expecting no bounds), this is a straightforward test of the reset-clears-bounds contract. No existing test verifies that after `reset()` the cursor is truly unbounded.
+**Status: SUPERSEDED by `test_layered82.py`**
 
-**Risk:**
-If `__clayered_copy_bounds` fails to clear bounds on one of the constituents after `reset()`, subsequent iteration could miss keys outside the previously-bounded range. For an ingest constituent that was bounded and then missed a truncate-list entry during iteration, this could suppress visible data silently.
+`test_layered82.py` explicitly tests that `cursor.reset()` with `action=clear` removes bounds and
+that subsequent iteration is unbounded — keys outside the previously declared range are returned
+after reset. The original claim that no test verifies the reset-clears-bounds contract was based
+on `test_layered05`; `test_layered82` was added later and fills this gap.
 
-**Code path analysis:**
-- `src/cursor/cur_layered.c:__clayered_reset()` — lines 1238–1265, lines 1257–1259 only clear bounds when `API_USER_ENTRY(session)` is true
-- `src/cursor/cur_layered.c:__clayered_copy_bounds()` — lines 1313–1318, calls `__clayered_copy_constituent_bound` on both, which in the absence of bounds sets will free and clear the constituent bounds
-- Triggered when: user calls `cursor.reset()` after having set bounds
+The remaining reset-related gaps (tracked in the scenario analysis as MEDIUM) are:
+- Reset mid-iteration then restart from beginning (no duplicate/skipped keys)
+- Reset `search_near` idempotence (`search_near(key)`, `reset()`, `search_near(key)` — same result)
+- Reset within a snapshot transaction preserves isolation
 
-**Proposed test design:**
-- Setup: Data in both stable and ingest; set bound [lower=300, upper=700]; call `search_near(500)`, iterate forward 3 steps; call `cursor.reset()`
-- Operations: Call `cursor.next()` from start to end; collect all keys
-- Assertions: Keys outside [300, 700] (e.g., key=100 and key=900) appear in the post-reset scan; bound was fully cleared
+These are tracked in `05_scenario_analysis/01_cursor_reads.md`.
 
 ---
 
@@ -366,7 +380,7 @@ Medium — the MVCC snapshot should prevent a newly committed tombstone from bei
 
 | Priority | Gap | Risk |
 |---|---|---|
-| CRITICAL | `cursor.reserve()` entirely untested | Silent write-lock failure, ingest btree corruption, assertion failure |
+| HIGH | `cursor.reserve()` commit path (reserve+write+commit) untested (CW-H7) | Write-after-reserve unverified; concurrent lock semantics not validated |
 | CRITICAL | `search_near` dual-iterate recovery (NEXT→PREV both exhausted) cursor state correctness | Wrong neighbor returned, violates `search_near` contract |
 | CRITICAL | `cursor.modify()` on ingest tombstone path | Data corruption: delta applied to tombstone bytes instead of empty base |
 | HIGH | `cursor.update()` with `overwrite=false` on tombstoned or stable-only key | Phantom re-insertion or false `WT_NOTFOUND` |
@@ -374,9 +388,9 @@ Medium — the MVCC snapshot should prevent a newly committed tombstone from bei
 | HIGH | `cursor.bound()` propagation to new stable cursor after checkpoint advance mid-iteration | Keys outside declared range returned; range scan produces incorrect results |
 | HIGH | `next_random` with combined stable+ingest data (tombstone resolution path) | Random cursor returns deleted key or fails assertion |
 | HIGH | Positioned `cursor.remove()` during active `next/prev` iteration | Iterator skips a key or revisits removed key |
-| MEDIUM | Step-down mid-transaction `WT_ROLLBACK` enforcement | Leader transaction proceeds as follower, stable btree corrupted |
-| MEDIUM | `cursor.bound()` + `cursor.search()` (not `search_near`) interaction | Out-of-bounds key returned if one constituent misses the bound |
-| MEDIUM | `cursor.reset()` clears bounds — unbound post-reset iteration | Stale bound on one constituent silently filters visible data |
+| MEDIUM/DEFERRED | Step-down mid-transaction `WT_ROLLBACK` enforcement (SD-4; requires elegant step-down) | Leader transaction proceeds as follower, stable btree corrupted |
+| SUPERSEDED | `cursor.bound()` + `cursor.search()` interaction — covered by `test_layered82.py` | — |
+| SUPERSEDED | `cursor.reset()` clears bounds — covered by `test_layered82.py` | — |
 | MEDIUM | Concurrent cursors: one mid-scan, one modifying (read-committed) | Non-repeatable read or missed key at read-committed isolation |
 | MEDIUM | Tombstone added to ingest mid-iteration covering stable key (read-committed) | Deleted key returned in scan results |
 | LOW | `cursor.compare()` with custom collators, and cross-cursor EINVAL path | Incorrect sort order comparison, no test validates error path |
