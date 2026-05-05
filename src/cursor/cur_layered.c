@@ -932,14 +932,13 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
      * there is nothing to remove from ingest. Still add the truncate-list entry so stable rows in
      * the range are hidden.
      */
-    if (ret_start == 0 && ret_stop == 0) {
-        WT_LAYERED_TABLE *dhandle = (WT_LAYERED_TABLE *)clayered_start->dhandle;
-        WT_RET(__clayered_range_truncate_ingest(
-          trunc_info->session, dhandle, ingest_start, ingest_stop));
-    }
+    WT_LAYERED_TABLE *layered_table = (WT_LAYERED_TABLE *)clayered_start->dhandle;
 
-    /* Add a truncate entry inside layered table truncate list. */
-    WT_RET(__wt_insert_truncate_entry(trunc_info->session, trunc_info->uri, &start_key, &stop_key));
+    if (ret_start == 0 && ret_stop == 0)
+        WT_RET(__clayered_range_truncate_ingest(
+          trunc_info->session, layered_table, ingest_start, ingest_stop));
+
+    WT_RET(__wt_insert_truncate_entry(trunc_info->session, layered_table, &start_key, &stop_key));
 
     return (0);
 }
