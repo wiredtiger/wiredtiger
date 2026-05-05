@@ -181,7 +181,7 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
      */
     if (is_follower) {
         WT_HS_ID_TO_URI(session, hs_id, hs_uri);
-        /* Only the shared history store require checkpoint-based access on follower. */
+        /* The local history store does not require checkpoint-based access on follower. */
         if (WT_URI_IS_STABLE(hs_uri)) {
             WT_ERR_NOTFOUND_OK(
               __wt_meta_checkpoint_last_name(session, hs_uri, &hs_checkpoint_name, NULL, NULL),
