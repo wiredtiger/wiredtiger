@@ -1630,11 +1630,11 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wti_disagg_has_picked_up_checkpoint --
+ * __wt_disagg_has_picked_up_checkpoint --
  *     Return whether this connection is using disaggregated storage and has picked up a checkpoint.
  */
 bool
-__wti_disagg_has_picked_up_checkpoint(WT_SESSION_IMPL *session)
+__wt_disagg_has_picked_up_checkpoint(WT_SESSION_IMPL *session)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
