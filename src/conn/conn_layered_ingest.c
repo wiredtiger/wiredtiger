@@ -395,9 +395,8 @@ err:
  *     their deletion is handled by the regular ingest drain.
  */
 static int
-__layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
-  WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor, WT_ITEM **win_startsp, WT_ITEM **win_stopsp,
-  size_t *nwindowsp)
+__layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_CURSOR *iter_cursor,
+  WT_CURSOR *ingest_cursor, WT_ITEM **win_startsp, WT_ITEM **win_stopsp, size_t *nwindowsp)
 {
     WT_DECL_RET;
     WT_ITEM cur_win_start, cur_win_stop, stable_key;
@@ -412,7 +411,7 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
 
     WT_ERR(__wt_txn_begin(session, NULL));
     F_SET(session->txn, WT_TXN_TS_ROUND_READ);
-    WT_ERR(__wti_txn_set_read_timestamp(session, t->start_ts));
+    WT_ERR(__wt_txn_set_read_timestamp(session, t->start_ts));
 
     iter_cursor->set_key(iter_cursor, &t->start_key);
     WT_ERR_NOTFOUND_OK(iter_cursor->search_near(iter_cursor, &cmp), true);
@@ -427,18 +426,20 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
             break;
 
         WT_ERR(__layered_drain_truncate_ingest_check(ingest_cursor, &stable_key, &has_ingest));
-        if (!has_ingest) {
-            /* Key belongs to stable only — extend or open the current contiguous run. */
-            if (!in_window) {
-                WT_ERR(__wt_buf_set(session, &cur_win_start, stable_key.data, stable_key.size));
-                in_window = true;
-            }
+        if (in_window) {
+            if (has_ingest) {
+                /* Ingest owns this key  save the completed window. */
+                WT_ERR(__layered_save_window(session, &cur_win_start, &cur_win_stop, win_startsp,
+                  win_stopsp, &starts_alloc, &stops_alloc, nwindows++));
+                in_window = false;
+            } else
+                /* Stable-only key  extend the stop window. */
+                WT_ERR(__wt_buf_set(session, &cur_win_stop, stable_key.data, stable_key.size));
+        } else if (!has_ingest) {
+            /* First stable-only key after a gap  open a new run. */
+            WT_ERR(__wt_buf_set(session, &cur_win_start, stable_key.data, stable_key.size));
             WT_ERR(__wt_buf_set(session, &cur_win_stop, stable_key.data, stable_key.size));
-        } else if (in_window) {
-            /* Ingest owns this key — save the completed run and reset. */
-            WT_ERR(__layered_save_window(session, &cur_win_start, &cur_win_stop, win_startsp,
-              win_stopsp, &starts_alloc, &stops_alloc, nwindows++));
-            in_window = false;
+            in_window = true;
         }
         WT_ERR_NOTFOUND_OK(iter_cursor->next(iter_cursor), true);
     }
@@ -577,15 +578,16 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
     if (TAILQ_EMPTY(&layered_table->truncateqh))
         goto err;
 
-    WT_ERR(__wt_open_cursor(session, layered_table->stable_uri, NULL, open_cfg, &stable_raw_cursor));
+    WT_ERR(
+      __wt_open_cursor(session, layered_table->stable_uri, NULL, open_cfg, &stable_raw_cursor));
     WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, open_cfg, &ingest_raw_cursor));
 
     TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
         /* Skip uncommitted truncates. */
         if (t->txn_id == WT_TXN_NONE)
             continue;
-        WT_ERR(__layered_drain_truncate_to_stable(
-          session, t, stable_raw_cursor, ingest_raw_cursor));
+        WT_ERR(
+          __layered_drain_truncate_to_stable(session, t, stable_raw_cursor, ingest_raw_cursor));
     }
     __wt_readunlock(session, &layered_table->truncate_lock);
     truncate_locked = false;

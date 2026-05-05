@@ -876,11 +876,11 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 }
 
 /*
- * __wti_txn_set_read_timestamp --
+ * __wt_txn_set_read_timestamp --
  *     Parse a request to set a transaction's read_timestamp.
  */
 int
-__wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
+__wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -1131,7 +1131,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
 
     /* Look for a read timestamp. */
     if (read_ts != WT_TS_NONE)
-        WT_RET(__wti_txn_set_read_timestamp(session, read_ts));
+        WT_RET(__wt_txn_set_read_timestamp(session, read_ts));
 
     /* Look for a prepare timestamp. */
     if (prepare_ts != WT_TS_NONE)
@@ -1197,7 +1197,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
         WT_RET(__txn_set_prepare_timestamp(session, ts));
         break;
     case WT_TS_TXN_TYPE_READ:
-        WT_RET(__wti_txn_set_read_timestamp(session, ts));
+        WT_RET(__wt_txn_set_read_timestamp(session, ts));
         break;
     case WT_TS_TXN_TYPE_ROLLBACK:
         WT_RET(__txn_set_rollback_timestamp(session, ts));
