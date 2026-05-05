@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 
 # test_layered_fast_truncate09.py
 #   Verify that pending follower truncates land on stable when the follower steps up,
-#   across the variety of per-key shapes the truncated range can carry.
+#   across the variety of per-key shapes and edge cases.
 @disagg_test_class
 class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
 
@@ -292,6 +292,32 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         self.write_kv(300, "after-stepup", 30)
         self.assert_visible([300], "after-stepup", ts=100)
 
+    # Ingest key sits at the exact start bound of the truncate range. The sliding window
+    # algorithm must not include the start key in a stable window; the ingest drain owns it.
+    def test_ingest_key_at_start_bound(self):
+        self.setup_follower()
+        self.write_kv(100, "ingest-at-start", 15)
+        self.truncate_range(100, 700, 20)
+        self.step_up()
+        self.assert_keys_gone([(100, 700)])
+
+    # Ingest key sits at the exact stop bound of the truncate range.
+    def test_ingest_key_at_stop_bound(self):
+        self.setup_follower()
+        self.write_kv(700, "ingest-at-stop", 15)
+        self.truncate_range(100, 700, 20)
+        self.step_up()
+        self.assert_keys_gone([(100, 700)])
+
+    # Ingest keys at both start and stop bounds, with stable-only keys in between.
+    def test_ingest_keys_at_both_bounds(self):
+        self.setup_follower()
+        self.write_kv(100, "ingest-at-start", 15)
+        self.write_kv(700, "ingest-at-stop", 15)
+        self.truncate_range(100, 700, 20)
+        self.step_up()
+        self.assert_keys_gone([(100, 700)])
+
     # --- Layered remove + truncate (special ingest tombstones) ---
 
     # Follower remove with no follower truncate.
@@ -334,3 +360,49 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         for ts in [15, 20, 30, 40]:
             self.assert_deleted([300], ts=ts)
         self.assert_visible([300], "v300", ts=12)
+
+    # --- Drain truncates bypassing oldest and stable timestamp checks ---
+
+    # Step-up bypasses commit timestamp ordering checks when draining a past truncate.
+    def test_drain_truncate_below_stable_timestamp(self):
+        self.setup_follower()
+        self.truncate_range(100, 700, 20)
+        # Advance the follower's stable timestamp past the truncate's commit ts.
+        self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.step_up()
+        # The drain succeeded; truncated keys are deleted at any post-stable read.
+        self.assert_deleted([100, 250, 500, 700], ts=35)
+        self.assert_visible([50, 800], lambda k: f"v{k}", ts=35)
+
+    # Step-up bypasses oldest timestamp checks when draining a past truncate.
+    def test_drain_truncate_below_oldest_timestamp(self):
+        self.setup_follower()
+        self.truncate_range(100, 700, 20)
+        # Advance the follower's oldest timestamp past the truncate's commit ts. Stable must
+        # be advanced too because oldest_ts cannot exceed stable_ts.
+        self.conn_follow.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(30) +
+            ',oldest_timestamp=' + self.timestamp_str(25))
+        self.step_up()
+        # The drain succeeded; truncated keys are deleted at any post-oldest read.
+        self.assert_deleted([100, 250, 500, 700], ts=30)
+        self.assert_visible([50, 800], lambda k: f"v{k}", ts=30)
+    
+    
+    # Both oldest and stable timestamps have advanced past the truncate's commit ts.
+    def test_drain_truncate_below_oldest_and_stable(self):
+        self.setup_follower()
+        # Pre-truncate ingest write and post-truncate reinsert flank the truncate ts.
+        self.write_kv(200, "follower-pre", 15)
+        self.truncate_range(100, 700, 20)
+        self.write_kv(300, "reinsert", 30)
+        # Advance both stable and oldest past the truncate's commit ts.
+        self.conn_follow.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(40) +
+            ',oldest_timestamp=' + self.timestamp_str(35))
+        self.step_up()
+        # The reinsert at TS=30 is now globally visible (above oldest); the truncate effect
+        # at TS=20 should hide the original stable values for keys not reinserted.
+        self.assert_deleted([100, 200, 250, 500, 700], ts=40)
+        self.assert_visible([300], "reinsert", ts=40)
+        self.assert_visible([50, 800], lambda k: f"v{k}", ts=40)

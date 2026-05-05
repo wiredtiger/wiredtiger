@@ -1485,7 +1485,8 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
     txn = session->txn;
 
     if (txn->first_commit_timestamp != WT_TS_NONE &&
-      __wt_get_stable_timestamp(session) >= txn->first_commit_timestamp)
+      __wt_get_stable_timestamp(session) >= txn->first_commit_timestamp &&
+      !F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY))
         WT_RET_MSG(session, EINVAL,
           "Rollback the transaction because the stable timestamp has moved ahead of the commit "
           "timestamp.");

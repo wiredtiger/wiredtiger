@@ -600,14 +600,17 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
 
         /*
          * For a non-prepared transactions the commit timestamp should not be less or equal to the
-         * stable timestamp.
+         * stable timestamp. WT_TXN_TS_INTERNAL_REPLAY allows internal callers (e.g. layered
+         * follower truncate replay at step-up) to commit at a historical timestamp that may have
+         * fallen behind the current oldest/stable.
          */
-        if (commit_ts < oldest_ts)
+        if (commit_ts < oldest_ts && !F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY))
             WT_RET_MSG(session, EINVAL, "commit timestamp %s is less than the oldest timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(oldest_ts, ts_string[1]));
 
-        if (stable_ts != WT_TS_NONE && commit_ts <= stable_ts)
+        if (stable_ts != WT_TS_NONE && commit_ts <= stable_ts &&
+          !F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY))
             WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the stable timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
@@ -925,9 +928,13 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
     if (read_ts < oldest_ts) {
         /*
          * If given read timestamp is earlier than oldest timestamp then round the read timestamp to
-         * oldest timestamp.
+         * oldest timestamp. WT_TXN_TS_INTERNAL_REPLAY accepts a read timestamp older than oldest
+         * verbatim, for internal callers (e.g. layered follower truncate replay at step-up) that
+         * intentionally read at a historical timestamp.
          */
-        if (F_ISSET(txn, WT_TXN_TS_ROUND_READ)) {
+        if (F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY))
+            __wt_tsan_suppress_store_uint64(&txn_shared->read_timestamp, read_ts);
+        else if (F_ISSET(txn, WT_TXN_TS_ROUND_READ)) {
             txn_shared->read_timestamp = oldest_ts;
             did_roundup_to_oldest = true;
         } else {

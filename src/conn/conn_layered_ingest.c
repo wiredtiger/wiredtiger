@@ -337,36 +337,23 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 }
 
 /*
- * __layered_drain_truncate_ingest_check --
- *     Decide who is responsible for landing the truncate's deletion: the regular ingest drain, or
- *     this replay path. If ingest already has a chain for the key, the drain owns it; otherwise
- *     stable still needs a replay tombstone here to cover the deleted window.
+ * __layered_position_near --
+ *     Position cursor at the nearest key in the given direction. If not inclusive, the result must
+ *     be strictly past key. Returns WT_NOTFOUND if no qualifying key exists.
  */
 static int
-__layered_drain_truncate_ingest_check(
-  WT_CURSOR *ingest_cursor, const WT_ITEM *key, bool *has_ingest)
+__layered_position_near(WT_CURSOR *cursor, const WT_ITEM *key, bool forward, bool inclusive)
 {
-    WT_DECL_RET;
+    int cmp, ret;
 
-    *has_ingest = false;
-    ingest_cursor->set_key(ingest_cursor, key);
-    ret = ingest_cursor->search(ingest_cursor);
-    if (ret == 0)
-        *has_ingest = true;
-    else if (ret == WT_NOTFOUND) {
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * Ingest deletions are stored as special-value updates, never as real tombstones; if that
-         * invariant breaks, our absent-vs-deleted distinction is wrong, so fail loudly.
-         */
-        WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)ingest_cursor;
-        WT_ASSERT(
-          CUR2S(ingest_cursor), cbt->compare != 0 || cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
-#endif
-        ret = 0;
-    }
-    WT_TRET(ingest_cursor->reset(ingest_cursor));
-    return (ret);
+    cursor->set_key(cursor, key);
+    if ((ret = cursor->search_near(cursor, &cmp)) != 0)
+        return (ret);
+    if (forward && (cmp < 0 || (!inclusive && cmp == 0)))
+        return (cursor->next(cursor));
+    if (!forward && (cmp > 0 || (!inclusive && cmp == 0)))
+        return (cursor->prev(cursor));
+    return (0);
 }
 
 /*
@@ -389,67 +376,119 @@ err:
 }
 
 /*
- * __layered_collect_truncate_windows --
- *     Walk stable at start_ts over the truncate range and collect contiguous runs of keys that
- *     ingest doesn't own into (start, stop) window pairs. Ingest-owned keys break the current run;
- *     their deletion is handled by the regular ingest drain.
+ * __layered_window_open --
+ *     Position stable at the first key >= key (> if not inclusive) and record it as the window
+ *     start.
  */
 static int
-__layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_CURSOR *iter_cursor,
-  WT_CURSOR *ingest_cursor, WT_ITEM **win_startsp, WT_ITEM **win_stopsp, size_t *nwindowsp)
+__layered_window_open(WT_SESSION_IMPL *session, WT_CURSOR *stable_cursor, const WT_ITEM *key,
+  bool inclusive, WT_ITEM *win_start, bool *in_windowp)
+{
+    WT_ITEM stable_key;
+    int ret;
+
+    *in_windowp = false;
+    /* Scan forward to find the first stable key at or after this split point. */
+    ret = __layered_position_near(stable_cursor, key, true, inclusive);
+    /* No stable keys exist after the split point; nothing to open. */
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+
+    WT_RET(stable_cursor->get_key(stable_cursor, &stable_key));
+    WT_RET(__wt_buf_set(session, win_start, stable_key.data, stable_key.size));
+    *in_windowp = true;
+    return (0);
+}
+
+/*
+ * __layered_window_close --
+ *     Position stable at the last key <= key (< if not inclusive) and, if it falls at or after the
+ *     window start, save the completed window.
+ */
+static int
+__layered_window_close(WT_SESSION_IMPL *session, WT_CURSOR *stable_cursor, const WT_ITEM *key,
+  bool inclusive, WT_ITEM *win_start, WT_ITEM **win_startsp, WT_ITEM **win_stopsp,
+  size_t *starts_allocp, size_t *stops_allocp, size_t *nwindowsp)
+{
+    WT_ITEM stable_key;
+    int cmp, ret;
+
+    /* Scan backward to find the last stable key at or before this split point. */
+    ret = __layered_position_near(stable_cursor, key, false, inclusive);
+    /* No stable keys exist before the split point; nothing to close. */
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+    
+    WT_RET(stable_cursor->get_key(stable_cursor, &stable_key));
+    WT_RET(__wt_compare(
+      session, CUR2BT(stable_cursor)->collator, &stable_key, win_start, &cmp));
+
+    /* Skip if the close landed before or is equal to the window start. */
+    if (cmp >= 0)
+        WT_RET(__layered_save_window(session, win_start, &stable_key, win_startsp, win_stopsp,
+          starts_allocp, stops_allocp, (*nwindowsp)++));
+    return (0);
+}
+
+/*
+ * __layered_collect_truncate_windows --
+ *     Walk ingest over the truncate range; each ingest key is a split point. Between split points,
+ *     probe stable to find the stable-only span and emit it as a (start, stop) window pair.
+ */
+static int
+__layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
+  WT_CURSOR *ingest_cursor, WT_CURSOR *stable_cursor, WT_ITEM **win_startsp,
+  WT_ITEM **win_stopsp, size_t *nwindowsp)
 {
     WT_DECL_RET;
-    WT_ITEM cur_win_start, cur_win_stop, stable_key;
+    WT_ITEM win_start, ingest_key;
     size_t nwindows, starts_alloc, stops_alloc;
     int cmp;
-    bool has_ingest, in_window;
+    bool in_window;
 
     nwindows = starts_alloc = stops_alloc = 0;
     in_window = false;
-    WT_CLEAR(cur_win_start);
-    WT_CLEAR(cur_win_stop);
+    WT_CLEAR(win_start);
 
+    /* Separate read txn: WT requires commit_ts > read_ts, so collect and apply run in two passessss. */
     WT_ERR(__wt_txn_begin(session, NULL));
-    F_SET(session->txn, WT_TXN_TS_ROUND_READ);
+    /* start_ts may predate oldest/stable; bypass timestamp ordering for this internal replay. */
+    F_SET(session->txn, WT_TXN_TS_INTERNAL_REPLAY);
     WT_ERR(__wt_txn_set_read_timestamp(session, t->start_ts));
 
-    iter_cursor->set_key(iter_cursor, &t->start_key);
-    WT_ERR_NOTFOUND_OK(iter_cursor->search_near(iter_cursor, &cmp), true);
-    if (ret == 0 && cmp < 0)
-        WT_ERR_NOTFOUND_OK(iter_cursor->next(iter_cursor), true);
+    /* Pin our low read_ts globally so the read-timestamp-clear assertion holds. */
+    __wt_atomic_store_bool_relaxed(&S2C(session)->txn_global.oldest_is_pinned, false);
+    __wti_txn_update_pinned_timestamp(session, true);
 
+    WT_ERR(__layered_window_open(
+      session, stable_cursor, &t->start_key, true, &win_start, &in_window));
+
+    /* Scan forward to position ingest at the first key in the truncate range. */
+    WT_ERR_NOTFOUND_OK(__layered_position_near(ingest_cursor, &t->start_key, true, true), true);
+
+    /* Walk ingest: each key is a split point that closes and reopens the stable window. */
     while (ret == 0) {
-        WT_ERR(iter_cursor->get_key(iter_cursor, &stable_key));
-        WT_ERR(
-          __wt_compare(session, CUR2BT(iter_cursor)->collator, &stable_key, &t->stop_key, &cmp));
+        WT_ERR(ingest_cursor->get_key(ingest_cursor, &ingest_key));
+        WT_ERR(__wt_compare(
+          session, CUR2BT(stable_cursor)->collator, &ingest_key, &t->stop_key, &cmp));
         if (cmp > 0)
             break;
 
-        WT_ERR(__layered_drain_truncate_ingest_check(ingest_cursor, &stable_key, &has_ingest));
-        if (in_window) {
-            if (has_ingest) {
-                /* Ingest owns this key  save the completed window. */
-                WT_ERR(__layered_save_window(session, &cur_win_start, &cur_win_stop, win_startsp,
-                  win_stopsp, &starts_alloc, &stops_alloc, nwindows++));
-                in_window = false;
-            } else
-                /* Stable-only key  extend the stop window. */
-                WT_ERR(__wt_buf_set(session, &cur_win_stop, stable_key.data, stable_key.size));
-        } else if (!has_ingest) {
-            /* First stable-only key after a gap  open a new run. */
-            WT_ERR(__wt_buf_set(session, &cur_win_start, stable_key.data, stable_key.size));
-            WT_ERR(__wt_buf_set(session, &cur_win_stop, stable_key.data, stable_key.size));
-            in_window = true;
-        }
-        WT_ERR_NOTFOUND_OK(iter_cursor->next(iter_cursor), true);
-    }
-    if (ret == WT_NOTFOUND)
-        ret = 0;
+        if (in_window)
+            WT_ERR(__layered_window_close(session, stable_cursor, &ingest_key, false,
+              &win_start, win_startsp, win_stopsp, &starts_alloc, &stops_alloc, &nwindows));
+        WT_ERR(__layered_window_open(
+          session, stable_cursor, &ingest_key, false, &win_start, &in_window));
 
-    /* Save any run still open when we hit the end of the range. */
+        WT_ERR_NOTFOUND_OK(ingest_cursor->next(ingest_cursor), true);
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
     if (in_window)
-        WT_ERR(__layered_save_window(session, &cur_win_start, &cur_win_stop, win_startsp,
-          win_stopsp, &starts_alloc, &stops_alloc, nwindows++));
+        WT_ERR(__layered_window_close(session, stable_cursor, &t->stop_key, true,
+          &win_start, win_startsp, win_stopsp, &starts_alloc, &stops_alloc, &nwindows));
 
     WT_ERR(__wt_txn_rollback(session, NULL, false));
     *nwindowsp = nwindows;
@@ -457,9 +496,8 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_
 err:
     if (F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_TRET(__wt_txn_rollback(session, NULL, false));
-    __wt_buf_free(session, &cur_win_start);
-    __wt_buf_free(session, &cur_win_stop);
-    WT_TRET(iter_cursor->reset(iter_cursor));
+    __wt_buf_free(session, &win_start);
+    WT_TRET(stable_cursor->reset(stable_cursor));
     WT_TRET(ingest_cursor->reset(ingest_cursor));
     return (ret);
 }
@@ -484,6 +522,8 @@ __layered_apply_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_IT
     WT_ERR(__wt_open_cursor(session, t->uri, NULL, open_cfg, &trunc_stop));
 
     WT_ERR(__wt_txn_begin(session, NULL));
+    /* Replay commit timestamp predates stable; bypass timestamp ordering checks. */
+    F_SET(session->txn, WT_TXN_TS_INTERNAL_REPLAY);
 
     for (i = 0; i < nwindows; i++) {
         trunc_start->set_key(trunc_start, &win_starts[i]);
@@ -506,11 +546,13 @@ err:
 
 /*
  * __layered_drain_truncate_to_stable --
- *     Apply a single follower-recorded truncate to stable at step-up.
+ *     Apply a single follower-recorded truncate to stable at step-up: walk ingest as split points,
+ *     probe stable for the stable-only spans between them, then replay each span as a fast range
+ *     truncate.
  */
 static int
 __layered_drain_truncate_to_stable(
-  WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor)
+  WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_CURSOR *ingest_cursor, WT_CURSOR *stable_cursor)
 {
     WT_DECL_RET;
     WT_ITEM *win_starts, *win_stops;
@@ -523,7 +565,7 @@ __layered_drain_truncate_to_stable(
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
 
     WT_ERR(__layered_collect_truncate_windows(
-      session, t, iter_cursor, ingest_cursor, &win_starts, &win_stops, &nwindows));
+      session, t, ingest_cursor, stable_cursor, &win_starts, &win_stops, &nwindows));
 
     if (nwindows > 0)
         WT_ERR(__layered_apply_truncate_windows(session, t, win_starts, win_stops, nwindows));
@@ -587,7 +629,7 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
         if (t->txn_id == WT_TXN_NONE)
             continue;
         WT_ERR(
-          __layered_drain_truncate_to_stable(session, t, stable_raw_cursor, ingest_raw_cursor));
+          __layered_drain_truncate_to_stable(session, t, ingest_raw_cursor, stable_raw_cursor));
     }
     __wt_readunlock(session, &layered_table->truncate_lock);
     truncate_locked = false;
