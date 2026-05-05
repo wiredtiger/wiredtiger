@@ -1268,6 +1268,10 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     if (page->disagg_info != NULL)
         page->disagg_info->shared_dsk_item = shared_dsk_item;
 
+    /* Update image stats early so it's balanced with __wt_page_out decr if an error fires below. */
+    if (LF_ISSET(WT_PAGE_DISK_ALLOC))
+        __wt_cache_page_image_incr(session, page);
+
     /*
      * Track the memory allocated to build this page so we can update the cache statistics in a
      * single call. If the disk image is in allocated memory, start with that.
@@ -1301,9 +1305,6 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 
     /* Update the page's cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size, false);
-
-    if (LF_ISSET(WT_PAGE_DISK_ALLOC))
-        __wt_cache_page_image_incr(session, page);
 
     /* Link the new internal page to the parent. */
     if (ref != NULL) {
