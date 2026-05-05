@@ -1078,13 +1078,6 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
             continue;
         }
 
-        /* Failpoint: inject error to test panic handling during queue processing. */
-        if (FLD_ISSET(conn->timing_stress_flags,
-              WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN)) {
-            ret = __wt_set_return(session, WT_ERROR);
-            goto err;
-        }
-
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
