@@ -370,70 +370,30 @@ __layered_drain_truncate_ingest_check(
 }
 
 /*
- * __layered_drain_truncate_apply_tombstones --
- *     Stamp the truncate's deletion onto the stable chain for each collected key. Each tombstone
- *     carries the truncate's commit identity so reads at and after start_ts see the deletion.
+ * __layered_collect_truncate_windows --
+ *     Walk stable at start_ts over the truncate range and collect contiguous runs of keys that
+ *     ingest doesn't own into (start, stop) window pairs. Ingest-owned keys break the current run;
+ *     their deletion is handled by the regular ingest drain.
  */
 static int
-__layered_drain_truncate_apply_tombstones(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
-  WT_CURSOR_BTREE *stable_cbt, const WT_ITEM *keys, size_t key_count)
+__layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
+  WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor, WT_ITEM **win_startsp, WT_ITEM **win_stopsp,
+  size_t *nwindowsp)
 {
     WT_DECL_RET;
-    WT_UPDATE *tombstone;
-    size_t i;
-
-    for (i = 0; i < key_count; ++i) {
-        WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        tombstone->txnid = t->txn_id;
-        tombstone->upd_start_ts = t->start_ts;
-        tombstone->upd_durable_ts = t->durable_ts;
-
-        WT_WITH_DHANDLE(session, stable_cbt->dhandle,
-          ret =
-            __layered_move_updates(session, stable_cbt, (WT_ITEM *)&keys[i], tombstone, tombstone));
-        if (ret != 0) {
-            __wt_free(session, tombstone);
-            return (ret);
-        }
-    }
-    return (0);
-}
-
-/*
- * __layered_drain_truncate_collect_keys --
- *     Walk the truncate's range on stable and collect the keys the ingest chain doesn't cover. We
- *     search at start_ts so the truncate is treated as already applied when deciding ownership of
- *     each key.
- */
-static int
-__layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
-  WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor, WT_ITEM **keysp, size_t *keys_alloc_bytes,
-  size_t *key_count)
-{
-    WT_DECL_RET;
-    WT_ITEM *keys, stable_key;
-    WT_SESSION *wt_session;
+    WT_ITEM cur_win_start, cur_win_stop, stable_key;
+    size_t nwindows, starts_alloc, stops_alloc;
     int cmp;
-    char read_ts_cfg[96];
-    bool has_ingest, txn_active;
-    void *key_data;
+    bool has_ingest, in_window;
 
-    keys = *keysp;
-    *key_count = 0;
-    txn_active = false;
-    wt_session = (WT_SESSION *)session;
+    nwindows = starts_alloc = stops_alloc = 0;
+    in_window = false;
+    WT_CLEAR(cur_win_start);
+    WT_CLEAR(cur_win_stop);
 
-    /*
-     * Read at start_ts. The truncate's own deletion is a special tombstone written through a file
-     * cursor, so it's visible like any other value at this snapshot. Round up to oldest if
-     * start_ts has aged below it; the truncate's effects are stable by then and reading at oldest
-     * gives the same ownership decision.
-     */
-    WT_ASSERT(session, t->start_ts > WT_TS_NONE);
-    WT_ERR(__wt_snprintf(read_ts_cfg, sizeof(read_ts_cfg),
-      "read_timestamp=%" PRIx64 ",roundup_timestamps=(read=true)", t->start_ts));
-    WT_ERR(wt_session->begin_transaction(wt_session, read_ts_cfg));
-    txn_active = true;
+    WT_ERR(__wt_txn_begin(session, NULL));
+    F_SET(session->txn, WT_TXN_TS_ROUND_READ);
+    WT_ERR(__wti_txn_set_read_timestamp(session, t->start_ts));
 
     iter_cursor->set_key(iter_cursor, &t->start_key);
     WT_ERR_NOTFOUND_OK(iter_cursor->search_near(iter_cursor, &cmp), true);
@@ -449,23 +409,89 @@ __layered_drain_truncate_collect_keys(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
 
         WT_ERR(__layered_drain_truncate_ingest_check(ingest_cursor, &stable_key, &has_ingest));
         if (!has_ingest) {
-            WT_ERR(__wt_realloc_def(session, keys_alloc_bytes, *key_count + 1, &keys));
-            WT_ERR(__wt_malloc(session, stable_key.size, &key_data));
-            memcpy(key_data, stable_key.data, stable_key.size);
-            keys[*key_count].data = key_data;
-            keys[*key_count].size = stable_key.size;
-            ++*key_count;
+            /* Key belongs to stable only — extend or open the current contiguous run. */
+            if (!in_window) {
+                WT_ERR(__wt_buf_set(session, &cur_win_start, stable_key.data, stable_key.size));
+                in_window = true;
+            }
+            WT_ERR(__wt_buf_set(session, &cur_win_stop, stable_key.data, stable_key.size));
+        } else if (in_window) {
+            /* Ingest owns this key, so the run is broken — save the completed window. */
+            WT_ERR(__wt_realloc_def(session, &starts_alloc, nwindows + 1, win_startsp));
+            WT_ERR(__wt_realloc_def(session, &stops_alloc, nwindows + 1, win_stopsp));
+            WT_ERR(__wt_buf_set(
+              session, &(*win_startsp)[nwindows], cur_win_start.data, cur_win_start.size));
+            WT_ERR(__wt_buf_set(
+              session, &(*win_stopsp)[nwindows], cur_win_stop.data, cur_win_stop.size));
+            ++nwindows;
+            in_window = false;
         }
-
         WT_ERR_NOTFOUND_OK(iter_cursor->next(iter_cursor), true);
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
 
+    /* Save any run still open when we hit the end of the range. */
+    if (in_window) {
+        WT_ERR(__wt_realloc_def(session, &starts_alloc, nwindows + 1, win_startsp));
+        WT_ERR(__wt_realloc_def(session, &stops_alloc, nwindows + 1, win_stopsp));
+        WT_ERR(__wt_buf_set(
+          session, &(*win_startsp)[nwindows], cur_win_start.data, cur_win_start.size));
+        WT_ERR(__wt_buf_set(
+          session, &(*win_stopsp)[nwindows], cur_win_stop.data, cur_win_stop.size));
+        ++nwindows;
+    }
+
+    WT_ERR(__wt_txn_rollback(session, NULL, false));
+    *nwindowsp = nwindows;
+
 err:
-    if (txn_active)
-        WT_TRET(wt_session->rollback_transaction(wt_session, NULL));
-    *keysp = keys;
+    if (F_ISSET(session->txn, WT_TXN_RUNNING))
+        WT_TRET(__wt_txn_rollback(session, NULL, false));
+    __wt_buf_free(session, &cur_win_start);
+    __wt_buf_free(session, &cur_win_stop);
+    WT_TRET(iter_cursor->reset(iter_cursor));
+    WT_TRET(ingest_cursor->reset(ingest_cursor));
+    return (ret);
+}
+
+/*
+ * __layered_apply_truncate_windows --
+ *     Apply each (start, stop) window as a fast range truncate on stable under a single write
+ *     transaction timestamped at the original follower truncate's commit timestamp.
+ */
+static int
+__layered_apply_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_ITEM *win_starts,
+  WT_ITEM *win_stops, size_t nwindows)
+{
+    WT_CURSOR *trunc_start, *trunc_stop;
+    WT_DECL_RET;
+    size_t i;
+    const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
+
+    trunc_start = trunc_stop = NULL;
+
+    WT_ERR(__wt_open_cursor(session, t->uri, NULL, open_cfg, &trunc_start));
+    WT_ERR(__wt_open_cursor(session, t->uri, NULL, open_cfg, &trunc_stop));
+
+    WT_ERR(__wt_txn_begin(session, NULL));
+
+    for (i = 0; i < nwindows; i++) {
+        trunc_start->set_key(trunc_start, &win_starts[i]);
+        trunc_stop->set_key(trunc_stop, &win_stops[i]);
+        WT_ERR(__wt_session_range_truncate(session, NULL, trunc_start, trunc_stop));
+    }
+
+    WT_ERR(__wt_txn_set_timestamp_uint(session, WT_TS_TXN_TYPE_COMMIT, t->start_ts));
+    WT_ERR(__wt_txn_commit(session, NULL));
+
+err:
+    if (F_ISSET(session->txn, WT_TXN_RUNNING))
+        WT_TRET(__wt_txn_rollback(session, NULL, false));
+    if (trunc_start != NULL)
+        WT_TRET(trunc_start->close(trunc_start));
+    if (trunc_stop != NULL)
+        WT_TRET(trunc_stop->close(trunc_stop));
     return (ret);
 }
 
@@ -474,33 +500,32 @@ err:
  *     Apply a single follower-recorded truncate to stable at step-up.
  */
 static int
-__layered_drain_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
-  WT_CURSOR_BTREE *stable_cbt, WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor)
+__layered_drain_truncate_to_stable(
+  WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_CURSOR *iter_cursor, WT_CURSOR *ingest_cursor)
 {
     WT_DECL_RET;
-    WT_ITEM *keys;
-    size_t i, key_count, keys_alloc_bytes;
+    WT_ITEM *win_starts, *win_stops;
+    size_t i, nwindows;
 
-    keys = NULL;
-    key_count = keys_alloc_bytes = 0;
+    win_starts = win_stops = NULL;
+    nwindows = 0;
 
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
+    WT_ASSERT(session, t->start_ts > WT_TS_NONE);
 
-    /* Pass 1: collect keys that need a stable tombstone (under a snapshot at start_ts). */
-    WT_ERR(__layered_drain_truncate_collect_keys(
-      session, t, iter_cursor, ingest_cursor, &keys, &keys_alloc_bytes, &key_count));
+    WT_ERR(__layered_collect_truncate_windows(
+      session, t, iter_cursor, ingest_cursor, &win_starts, &win_stops, &nwindows));
 
-    /* Pass 2: apply a tombstone for each collected key. */
-    WT_ERR(__layered_drain_truncate_apply_tombstones(session, t, stable_cbt, keys, key_count));
+    if (nwindows > 0)
+        WT_ERR(__layered_apply_truncate_windows(session, t, win_starts, win_stops, nwindows));
 
 err:
-    WT_TRET(iter_cursor->reset(iter_cursor));
-    WT_TRET(ingest_cursor->reset(ingest_cursor));
-    if (keys != NULL) {
-        for (i = 0; i < key_count; ++i)
-            __wt_free(session, keys[i].data);
-        __wt_free(session, keys);
+    for (i = 0; i < nwindows; i++) {
+        __wt_buf_free(session, &win_starts[i]);
+        __wt_buf_free(session, &win_stops[i]);
     }
+    __wt_free(session, win_starts);
+    __wt_free(session, win_stops);
     return (ret);
 }
 
@@ -514,7 +539,6 @@ static int
 __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_uri)
 {
     WT_CURSOR *ingest_raw_cursor, *stable_raw_cursor;
-    WT_CURSOR_BTREE *stable_cbt;
     WT_DATA_HANDLE *layered_dhandle;
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
@@ -548,7 +572,6 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
 
     WT_ERR(wt_session->open_cursor(
       wt_session, layered_table->stable_uri, NULL, "raw=true", &stable_raw_cursor));
-    stable_cbt = (WT_CURSOR_BTREE *)stable_raw_cursor;
     WT_ERR(wt_session->open_cursor(wt_session, ingest_uri, NULL, "raw=true", &ingest_raw_cursor));
 
     TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
@@ -556,7 +579,7 @@ __layered_drain_pending_truncates(WT_SESSION_IMPL *session, const char *ingest_u
         if (t->txn_id == WT_TXN_NONE)
             continue;
         WT_ERR(__layered_drain_truncate_to_stable(
-          session, t, stable_cbt, stable_raw_cursor, ingest_raw_cursor));
+          session, t, stable_raw_cursor, ingest_raw_cursor));
     }
     __wt_readunlock(session, &layered_table->truncate_lock);
     truncate_locked = false;
