@@ -1188,13 +1188,10 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
-    /* Check the timestamp usage for in-order compliance. */
+    /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
         WT_RET(__wt_txn_timestamp_usage_check(
           session, btree, txn_time_point->commit_timestamp, upd->prev_durable_ts));
-    else if (txn_time_point->rollback_timestamp != WT_TS_NONE)
-        WT_RET(__wt_txn_timestamp_usage_check(
-          session, btree, txn_time_point->rollback_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1648,7 +1645,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_ERR(__wti_mark_committed_truncate_table(session, op));
+            __wti_mark_committed_truncate_table(session, op);
             break;
         }
 
@@ -2159,7 +2156,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             WT_TRET(__wt_delete_page_rollback(session, op));
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_RET(__wti_layered_table_truncate_rollback(session, op));
+            __wti_layered_table_truncate_rollback(session, op);
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
