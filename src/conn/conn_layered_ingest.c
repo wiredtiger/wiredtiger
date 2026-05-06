@@ -387,58 +387,15 @@ err:
     return (ret);
 }
 
-/*
- * __layered_flush_pending_updates --
- *     Flush the accumulated update chain for the current key to stable and clear *updsp.
- *
- *     When skip_t is non-NULL, a key inside [skip_t->start_key, skip_t->stop_key] that carries
- *     only a single tombstone does not need to be moved: the follower wrote this tombstone as its
- *     in-memory representation of the pending truncate, which will be applied to stable immediately
- *     after this copy pass. Moving it would assert because there is no underlying stable value for
- *     the tombstone to overwrite.
- *
- *     The guard `upds == last_upd` ensures the chain holds exactly one update. Chains with
- *     additional updates (e.g. a value resurrected above the truncate) are moved normally.
- */
-static int
-__layered_flush_pending_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE **updsp, WT_UPDATE *last_upd, WT_TRUNCATE *skip_t, wt_timestamp_t from_ts)
-{
-    WT_DECL_RET;
-    int cmp;
-    bool skip_key;
-
-    skip_key = false;
-    if (skip_t != NULL && *updsp == last_upd && (*updsp)->type == WT_UPDATE_TOMBSTONE) {
-        WT_RET(__wt_compare(session, CUR2BT(cbt)->collator, key, &skip_t->start_key, &cmp));
-        if (cmp >= 0) {
-            WT_RET(__wt_compare(session, CUR2BT(cbt)->collator, key, &skip_t->stop_key, &cmp));
-            skip_key = (cmp <= 0);
-        }
-    }
-
-    if (skip_key)
-        /* Discard the locally-allocated update objects; they were never placed on stable. */
-        __wt_free_update_list(session, updsp);
-    else {
-        WT_WITH_DHANDLE(session, cbt->dhandle,
-          ret = __layered_move_updates(session, cbt, key, *updsp, last_upd, from_ts));
-        if (ret == 0)
-            *updsp = NULL;
-        WT_RET(ret);
-    }
-    return (0);
-}
 
 /*
  * __layered_copy_ingest_table --
  *     Move ingest updates whose durable timestamp falls in (from_ts, to_ts] to the corresponding
- *     stable table. When skip_t is non-NULL, single-tombstone chains for keys inside
- *     [skip_t->start_key, skip_t->stop_key] are dropped rather than moved to stable.
+ *     stable table.
  */
 static int
 __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts,
-  wt_timestamp_t to_ts, WT_TRUNCATE *skip_t)
+  wt_timestamp_t to_ts)
 {
     WT_BTREE *ingest_btree, *stable_btree;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
@@ -504,9 +461,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
         WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
         if (ret == WT_NOTFOUND) {
             ret = 0;
-            if (key->size > 0 && upds != NULL)
-                WT_ERR(__layered_flush_pending_updates(
-                  session, cbt, key, &upds, last_upd, skip_t, from_ts));
+            if (key->size > 0 && upds != NULL) {
+                WT_WITH_DHANDLE(session, cbt->dhandle,
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                WT_ERR(ret);
+                upds = NULL;
+            }
             break;
         }
 
@@ -519,10 +479,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
              */
             WT_ASSERT(session, key->size == 0 || cmp <= 0);
 
-            if (upds != NULL)
-                WT_ERR(__layered_flush_pending_updates(
-                  session, cbt, key, &upds, last_upd, skip_t, from_ts));
-            upds = NULL;
+            if (upds != NULL) {
+                WT_WITH_DHANDLE(session, cbt->dhandle,
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                WT_ERR(ret);
+                upds = NULL;
+            }
             prev_upd = NULL;
             prepare_txn_fixed = false;
             prepare_resolved = false;
@@ -767,7 +729,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "No layered handle found for ingest table \"%s\" only performing ingest drain",
           ingest_uri);
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX, NULL));
+        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX));
         ret = 0;
         goto err;
     }
@@ -778,11 +740,11 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     prev_ts = WT_TS_NONE;
     for (i = 0; i < ntruncates; i++) {
         t = sorted[i];
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts, t));
+        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
         prev_ts = t->start_ts;
     }
-    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX, NULL));
+    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX));
 
 err:
     if (layered_table != NULL)
