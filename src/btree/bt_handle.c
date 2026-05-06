@@ -266,6 +266,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     bm = btree->bm;
 
+    /* Initialize the block manager's size from the checkpoint metadata. */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        __wt_block_disagg_set_size(session, ckpt.size);
+
     /*
      * !!!
      * As part of block-manager configuration, we need to return the maximum
@@ -814,10 +818,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         btree->next_page_id = WT_BLOCK_MIN_PAGE_ID; /* Should this be in create? */
     else
         btree->next_page_id = ckpt->next_page_id;
-
-    /* Load the total bytes for disaggregated storage. */
-    if (__wt_conn_is_disagg(session))
-        __wt_btree_set_size(session, ckpt->size);
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're

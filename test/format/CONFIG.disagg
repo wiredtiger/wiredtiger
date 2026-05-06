@@ -17,8 +17,6 @@ runs.type=row-store
 runs.tables=3
 import=0
 ops.alter=0
-# FIXME-WT-16479 Extend testing for cursor->modify.
-ops.pct.modify=0
 ops.compaction=0
 ops.salvage=0
 ops.throttle=0

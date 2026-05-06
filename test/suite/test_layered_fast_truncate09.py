@@ -26,383 +26,188 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest, wiredtiger
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_fast_truncate09.py
-#   Verify that pending follower truncates land on stable when the follower steps up,
-#   across the variety of per-key shapes and edge cases.
+# test_layered_fast_truncate07.py
+#   Follower truncate-list visibility coverage.
 @disagg_test_class
-class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate07(wttest.WiredTigerTestCase):
 
-    conn_config = 'disaggregated=(role="leader")'
-    uri = 'layered:test_layered_fast_truncate_stepup'
+    conn_config = 'disaggregated=(role="leader"),'
+
+    uris = [
+        ('layered', dict(uri='layered:test_layered_fast_truncate07')),
+        ('table', dict(uri='table:test_layered_fast_truncate07')),
+    ]
+
+    disagg_storages = gen_disagg_storages('test_layered_fast_truncate07', disagg_only=True)
+    scenarios = make_scenarios(disagg_storages, uris)
+
     nitems = 1000
-
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate_stepup', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
 
     def setUp(self):
         if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled.")
+            self.skipTest(
+                "fast truncate support is not enabled"
+                " - check if WT_DISAGG_FAST_TRUNCATE_BUILD is enabled in the build configuration")
         super().setUp()
 
-    def populate_on_leader(self, ts=10):
+        self.setup_follower()
+
+    def session_create_config(self):
+        cfg = 'key_format=i,value_format=S'
+        if self.uri.startswith('table:'):
+            cfg += ',block_manager=disagg,type=layered'
+        return cfg
+
+    def setup_follower(self):
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        self.session.create(self.uri, self.session_create_config())
+
         cursor = self.session.open_cursor(self.uri)
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[i] = "v" + str(i)
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        with self.transaction(session=self.session, commit_timestamp=10):
+            for key in range(1, self.nitems + 1):
+                cursor[key] = 'value'
         cursor.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
 
-    # Open a separate follower connection, create the table on both sides, leader populates,
-    # follower picks up the checkpoint. After this, follower-side ops run on session_follow.
-    def setup_follower(self):
-        self.conn_follow = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + ',create,disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.session_follow.create(self.uri, 'key_format=i,value_format=S')
-        self.populate_on_leader()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        follower_config = (
+            'disaggregated=(role="follower",'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
+        self.reopen_conn(config=follower_config)
 
-    # Step up the follower (which becomes the new leader) and step the original leader down.
-    def step_up(self):
-        self.ignoreStdoutPattern('Picking up the same checkpoint')
-        self.disagg_switch_follower_and_leader(self.conn_follow)
-
-    def write_kv(self, key, value, ts):
-        cursor = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction()
-        cursor[key] = value
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        cursor.close()
-
-    def remove_kv(self, key, ts):
-        cursor = self.session_follow.open_cursor(self.uri)
-        cursor.set_key(key)
-        self.session_follow.begin_transaction()
-        cursor.remove()
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        cursor.close()
-
-    def truncate_range(self, start_key, stop_key, ts):
-        c_start = self.session_follow.open_cursor(self.uri)
-        c_start.set_key(start_key)
-        c_stop = self.session_follow.open_cursor(self.uri)
-        c_stop.set_key(stop_key)
-        self.session_follow.begin_transaction()
-        self.session_follow.truncate(None, c_start, c_stop, None)
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+    def truncate_range(self, session, start, stop):
+        c_start = session.open_cursor(self.uri)
+        c_start.set_key(start)
+        c_stop = session.open_cursor(self.uri)
+        c_stop.set_key(stop)
+        session.truncate(None, c_start, c_stop, None)
         c_start.close()
         c_stop.close()
 
-    def assert_visible(self, keys, value=None, ts=None):
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
-        cursor = self.session_follow.open_cursor(self.uri)
-        for k in keys:
-            cursor.set_key(k)
-            self.assertEqual(cursor.search(), 0, f"key {k} should be visible at ts={ts}")
-            if value is not None:
-                expected = value(k) if callable(value) else value
-                self.assertEqual(cursor.get_value(), expected)
+    def search_key(self, session, key):
+        cursor = session.open_cursor(self.uri)
+        cursor.set_key(key)
+        ret = cursor.search()
+        value = cursor.get_value() if ret == 0 else None
         cursor.close()
-        self.session_follow.rollback_transaction()
+        return ret, value
 
-    def assert_deleted(self, keys, ts):
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
-        cursor = self.session_follow.open_cursor(self.uri)
-        for k in keys:
-            cursor.set_key(k)
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND,
-                f"key {k} should be deleted at ts={ts}")
+    def search_near_key(self, session, key):
+        cursor = session.open_cursor(self.uri)
+        cursor.set_key(key)
+        exact = cursor.search_near()
+        landed = cursor.get_key()
         cursor.close()
-        self.session_follow.rollback_transaction()
+        return exact, landed
 
-    def assert_keys_gone(self, ranges):
-        # Sweep the populated key space: keys inside any (lo, hi) inclusive range must be
-        # deleted, keys outside must remain visible.
-        cursor = self.session_follow.open_cursor(self.uri)
-        for i in range(self.nitems):
-            cursor.set_key(i)
-            ret = cursor.search()
-            in_range = any(lo <= i <= hi for lo, hi in ranges)
-            if in_range:
-                self.assertEqual(ret, wiredtiger.WT_NOTFOUND, f"key {i} should be deleted")
+    def next_key_after(self, session, key):
+        cursor = session.open_cursor(self.uri)
+        cursor.set_key(key)
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.next(), 0)
+        landed = cursor.get_key()
+        cursor.close()
+        return landed
+
+    def commit_truncate(self, session, start, stop, commit_ts):
+        with self.transaction(session=session, commit_timestamp=commit_ts):
+            self.truncate_range(session, start, stop)
+
+    def test_same_transaction_reads_own_uncommitted_truncate(self):
+        with self.transaction(session=self.session, rollback=True):
+            self.truncate_range(self.session, 100, 700)
+
+            ret = self.search_key(self.session, 150)[0]
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+            exact, landed = self.search_near_key(self.session, 150)
+            self.assertNotEqual(exact, 0)
+            if exact < 0:
+                self.assertEqual(landed, 99)
+                self.assertEqual(self.next_key_after(self.session, 98), 99)
             else:
-                self.assertEqual(ret, 0, f"key {i} should remain visible")
-        cursor.close()
+                self.assertEqual(landed, 701)
+                self.assertEqual(self.next_key_after(self.session, 99), 701)
 
-    # Single truncate, stable-only keys: the simplest case.
-    def test_stable_only_keys(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.assert_keys_gone([(100, 700)])
+    def test_other_transaction_ignores_uncommitted_truncate(self):
+        with self.transaction(session=self.session, rollback=True):
+            self.truncate_range(self.session, 100, 700)
 
-    # Truncated range mixes follower-updated keys and stable-only keys.
-    def test_mixed_keys(self):
-        self.setup_follower()
-        for i in [200, 300, 400, 500, 600]:
-            self.write_kv(i, "follower-update", 15)
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.assert_keys_gone([(100, 700)])
+            session2 = self.conn.open_session()
+            try:
+                with self.transaction(session=session2, rollback=True):
+                    self.assertEqual(self.search_key(session2, 150), (0, 'value'))
+                    self.assertEqual(self.search_near_key(session2, 150), (0, 150))
+                    self.assertEqual(self.next_key_after(session2, 149), 150)
+            finally:
+                session2.close()
 
-    # Reinsert after the truncate must survive step-up.
-    def test_truncate_then_reinsert(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        self.write_kv(300, "reinserted", 25)
-        self.step_up()
-        self.assert_visible([300], "reinserted", ts=100)
-        self.assert_deleted([100, 150, 250, 400, 500, 700], ts=100)
+    def test_rollback_restores_visibility(self):
+        with self.transaction(session=self.session, rollback=True):
+            self.truncate_range(self.session, 100, 700)
+            ret = self.search_key(self.session, 150)[0]
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
 
-    # --- Range boundaries ---
+        session2 = self.conn.open_session()
+        try:
+            with self.transaction(session=session2, rollback=True):
+                self.assertEqual(self.search_key(session2, 150), (0, 'value'))
+                self.assertEqual(self.search_near_key(session2, 150), (0, 150))
+                self.assertEqual(self.next_key_after(session2, 149), 150)
+        finally:
+            session2.close()
 
-    def test_single_key_truncate(self):
-        self.setup_follower()
-        self.truncate_range(500, 500, 20)
-        self.step_up()
-        self.assert_keys_gone([(500, 500)])
+    def test_committed_truncate_respects_read_timestamp(self):
+        self.commit_truncate(self.session, 100, 700, 30)
 
-    def test_truncate_at_table_start(self):
-        self.setup_follower()
-        self.truncate_range(0, 50, 20)
-        self.step_up()
-        self.assert_keys_gone([(0, 50)])
+        session2 = self.conn.open_session()
+        try:
+            with self.transaction(session=session2, read_timestamp=20, rollback=True):
+                self.assertEqual(self.search_key(session2, 150), (0, 'value'))
+                self.assertEqual(self.search_near_key(session2, 150), (0, 150))
+                self.assertEqual(self.next_key_after(session2, 149), 150)
 
-    def test_truncate_at_table_end(self):
-        self.setup_follower()
-        self.truncate_range(950, 999, 20)
-        self.step_up()
-        self.assert_keys_gone([(950, 999)])
+            with self.transaction(session=session2, read_timestamp=30, rollback=True):
+                ret = self.search_key(session2, 150)[0]
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+                exact, landed = self.search_near_key(session2, 150)
+                self.assertNotEqual(exact, 0)
+                if exact < 0:
+                    self.assertEqual(landed, 99)
+                    self.assertEqual(self.next_key_after(session2, 98), 99)
+                else:
+                    self.assertEqual(landed, 701)
+                    self.assertEqual(self.next_key_after(session2, 99), 701)
+        finally:
+            session2.close()
 
-    def test_truncate_full_table(self):
-        self.setup_follower()
-        self.truncate_range(0, 999, 20)
-        self.step_up()
-        self.assert_keys_gone([(0, 999)])
+    def test_overlapping_truncates_respect_timestamp_visibility(self):
+        self.commit_truncate(self.session, 100, 400, 20)
+        self.commit_truncate(self.session, 300, 700, 40)
 
-    # Range fully outside the populated key space.
-    def test_truncate_empty_range(self):
-        self.setup_follower()
-        self.truncate_range(2000, 3000, 20)
-        self.step_up()
-        self.assert_visible([0, 100, 500, 999], lambda k: f"v{k}", ts=100)
+        session2 = self.conn.open_session()
+        try:
+            with self.transaction(session=session2, read_timestamp=30, rollback=True):
+                ret = self.search_key(session2, 350)[0]
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+                self.assertEqual(self.search_key(session2, 500), (0, 'value'))
 
-    # --- Multiple truncates ---
-
-    # Multiple non-overlapping truncates.
-    def test_multiple_truncates(self):
-        self.setup_follower()
-        self.truncate_range(100, 200, 20)
-        self.truncate_range(400, 500, 25)
-        self.truncate_range(800, 900, 30)
-        self.step_up()
-        self.assert_keys_gone([(100, 200), (400, 500), (800, 900)])
-
-    # Same range truncated twice.
-    def test_duplicate_truncates(self):
-        self.setup_follower()
-        self.truncate_range(200, 500, 20)
-        self.truncate_range(200, 500, 25)
-        self.step_up()
-        self.assert_keys_gone([(200, 500)])
-
-    # Truncate, reinsert, then re-truncate. Each layer's effect must hold at its own ts.
-    def test_truncate_reinsert_truncate(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        self.write_kv(300, "reinserted", 25)
-        self.truncate_range(100, 700, 30)
-        self.step_up()
-        self.assert_deleted([100, 300, 500, 700], ts=100)
-        self.assert_deleted([300], ts=22)
-        self.assert_visible([300], "reinserted", ts=27)
-
-    # --- Snapshot reads at intermediate timestamps ---
-
-    # Reads before vs after a single truncate's commit ts.
-    def test_snapshot_read_around_truncate(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.assert_visible([100, 250, 500, 700], lambda k: f"v{k}", ts=15)
-        self.assert_deleted([100, 250, 500, 700], ts=30)
-        self.assert_visible([50, 800], ts=30)
-
-    # Read at exactly the truncate's commit timestamp.
-    def test_read_at_truncate_timestamp(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.assert_deleted([100, 250, 500, 700], ts=20)
-
-    # Stable-only key truncated then reinserted: gap read must show deleted.
-    def test_intermediate_read_truncate_then_reinsert(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        self.write_kv(300, "reinserted", 25)
-        self.step_up()
-        self.assert_deleted([300], ts=22)
-
-    # Overlapping truncates at distinct timestamps: gap read sees only the first.
-    def test_intermediate_read_overlapping_truncates(self):
-        self.setup_follower()
-        self.truncate_range(100, 400, 20)
-        self.truncate_range(300, 600, 30)
-        self.step_up()
-        self.assert_deleted([100, 200, 350, 400], ts=25)
-        self.assert_visible([450, 500, 600], ts=25)
-        self.assert_deleted([100, 250, 350, 450, 600], ts=35)
-
-    # Mixed per-key history (stable-only, follower-updated, with and without reinsert) in
-    # one truncate range.
-    def test_intermediate_read_mixed_per_key_history(self):
-        self.setup_follower()
-        for i in [200, 400]:
-            self.write_kv(i, "follower-pre", 15)
-        self.truncate_range(100, 700, 20)
-        self.write_kv(300, "reinserted-stable-only", 25)
-        self.write_kv(400, "reinserted-follower-updated", 25)
-        self.step_up()
-        self.assert_deleted([100, 200, 300, 400, 500, 700], ts=22)
-        self.assert_visible([300], "reinserted-stable-only", ts=30)
-        self.assert_visible([400], "reinserted-follower-updated", ts=30)
-        self.assert_deleted([100, 200, 500, 700], ts=30)
-
-    # --- Step-up edge cases ---
-
-    # No follower truncates: replay must be a no-op.
-    def test_stepup_with_empty_truncate_list(self):
-        self.setup_follower()
-        self.step_up()
-        self.assert_visible([0, 100, 500, 999], lambda k: f"v{k}", ts=100)
-
-    # New leader writes to the freshly-truncated range.
-    def test_post_stepup_writes_to_truncated_range(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.write_kv(300, "after-stepup", 30)
-        self.assert_visible([300], "after-stepup", ts=100)
-
-    # Ingest key sits at the exact start bound of the truncate range. The sliding window
-    # algorithm must not include the start key in a stable window; the ingest drain owns it.
-    def test_ingest_key_at_start_bound(self):
-        self.setup_follower()
-        self.write_kv(100, "ingest-at-start", 15)
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.assert_keys_gone([(100, 700)])
-
-    # Ingest key sits at the exact stop bound of the truncate range.
-    def test_ingest_key_at_stop_bound(self):
-        self.setup_follower()
-        self.write_kv(700, "ingest-at-stop", 15)
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.assert_keys_gone([(100, 700)])
-
-    # Ingest keys at both start and stop bounds, with stable-only keys in between.
-    def test_ingest_keys_at_both_bounds(self):
-        self.setup_follower()
-        self.write_kv(100, "ingest-at-start", 15)
-        self.write_kv(700, "ingest-at-stop", 15)
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        self.assert_keys_gone([(100, 700)])
-
-    # --- Layered remove + truncate (special ingest tombstones) ---
-
-    # Follower remove with no follower truncate.
-    def test_layered_remove_only(self):
-        self.setup_follower()
-        self.remove_kv(300, 20)
-        self.step_up()
-        self.assert_deleted([300], ts=100)
-        self.assert_visible([300], "v300", ts=15)
-
-    # Staggered remove then truncate.
-    def test_layered_remove_then_truncate(self):
-        self.setup_follower()
-        self.remove_kv(300, 20)
-        self.truncate_range(100, 700, 25)
-        self.step_up()
-        for ts in [20, 22, 25, 30]:
-            self.assert_deleted([300], ts=ts)
-        self.assert_visible([300], "v300", ts=15)
-        self.assert_deleted([100, 250, 500, 700], ts=100)
-
-    # Remove and truncate at the same commit ts: replay's snapshot must include start_ts
-    # to see the remove's ingest tombstone and not stack a redundant stable tombstone.
-    def test_layered_remove_and_truncate_same_ts(self):
-        self.setup_follower()
-        self.remove_kv(300, 20)
-        self.truncate_range(100, 700, 20)
-        self.step_up()
-        for ts in [20, 22, 30]:
-            self.assert_deleted([300], ts=ts)
-        self.assert_visible([300], "v300", ts=19)
-        self.assert_deleted([100, 250, 500, 700], ts=100)
-
-    # Truncate covers a key whose only ingest entry is a tombstone from an earlier remove.
-    def test_truncate_over_pre_existing_remove(self):
-        self.setup_follower()
-        self.remove_kv(300, 15)
-        self.truncate_range(100, 700, 30)
-        self.step_up()
-        for ts in [15, 20, 30, 40]:
-            self.assert_deleted([300], ts=ts)
-        self.assert_visible([300], "v300", ts=12)
-
-    # --- Drain truncates bypassing oldest and stable timestamp checks ---
-
-    # Step-up bypasses commit timestamp ordering checks when draining a past truncate.
-    def test_drain_truncate_below_stable_timestamp(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        # Advance the follower's stable timestamp past the truncate's commit ts.
-        self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
-        self.step_up()
-        # The drain succeeded; truncated keys are deleted at any post-stable read.
-        self.assert_deleted([100, 250, 500, 700], ts=35)
-        self.assert_visible([50, 800], lambda k: f"v{k}", ts=35)
-
-    # Step-up bypasses oldest timestamp checks when draining a past truncate.
-    def test_drain_truncate_below_oldest_timestamp(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        # Advance the follower's oldest timestamp past the truncate's commit ts. Stable must
-        # be advanced too because oldest_ts cannot exceed stable_ts.
-        self.conn_follow.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(30) +
-            ',oldest_timestamp=' + self.timestamp_str(25))
-        self.step_up()
-        # The drain succeeded; truncated keys are deleted at any post-oldest read.
-        self.assert_deleted([100, 250, 500, 700], ts=30)
-        self.assert_visible([50, 800], lambda k: f"v{k}", ts=30)
-    
-    
-    # Both oldest and stable timestamps have advanced past the truncate's commit ts.
-    def test_drain_truncate_below_oldest_and_stable(self):
-        self.setup_follower()
-        # Pre-truncate ingest write and post-truncate reinsert flank the truncate ts.
-        self.write_kv(200, "follower-pre", 15)
-        self.truncate_range(100, 700, 20)
-        self.write_kv(300, "reinsert", 30)
-        # Advance both stable and oldest past the truncate's commit ts.
-        self.conn_follow.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(40) +
-            ',oldest_timestamp=' + self.timestamp_str(35))
-        self.step_up()
-        # The reinsert at TS=30 is now globally visible (above oldest); the truncate effect
-        # at TS=20 should hide the original stable values for keys not reinserted.
-        self.assert_deleted([100, 200, 250, 500, 700], ts=40)
-        self.assert_visible([300], "reinsert", ts=40)
-        self.assert_visible([50, 800], lambda k: f"v{k}", ts=40)
+            with self.transaction(session=session2, read_timestamp=40, rollback=True):
+                ret = self.search_key(session2, 350)[0]
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+                ret = self.search_key(session2, 500)[0]
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+                exact, landed = self.search_near_key(session2, 150)
+                self.assertNotEqual(exact, 0)
+                if exact < 0:
+                    self.assertEqual(landed, 99)
+                    self.assertEqual(self.next_key_after(session2, 98), 99)
+                else:
+                    self.assertEqual(landed, 701)
+                    self.assertEqual(self.next_key_after(session2, 99), 701)
+        finally:
+            session2.close()
