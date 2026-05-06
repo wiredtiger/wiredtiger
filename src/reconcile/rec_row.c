@@ -1158,19 +1158,15 @@ __wti_rec_row_leaf(
          * the table, and the value has become obsolete.
          */
         if (upd == NULL) {
-            /*
-             * Prepared updates are never written to the disk image for the ingest btree. Therefore,
-             * we can safely discard the key if the delete operation is globally visible, even if it
-             * hasn't been included in the oldest checkpoint currently in use.
-             */
-            if (__wt_txn_tw_stop_visible_all(session, twp)) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                if (__rec_row_garbage_collect_tw_eligible(r, twp)) {
+                    upd = &upd_tombstone;
+                    r->key_removed_from_disk_image = true;
+                    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
+                }
+            } else if (__wt_txn_tw_stop_visible_all(session, twp)) {
                 upd = &upd_tombstone;
                 r->key_removed_from_disk_image = true;
-            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              __rec_row_garbage_collect_tw_eligible(r, twp)) {
-                upd = &upd_tombstone;
-                r->key_removed_from_disk_image = true;
-                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
             }
         }
 

@@ -425,13 +425,15 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
          * If a table has garbage collection enabled, then trim updates as possible. We should check
          * the logic here - it might be possible to do something more aggressive?
          */
-        if (__wt_txn_upd_visible_all(session, upd) ||
-          (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
-            (txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
-              upd->upd_durable_ts <= prune_timestamp))) {
-            if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+        if (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT)) {
+            if (txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
+              upd->upd_durable_ts <= prune_timestamp)
                 first = upd;
-        } else
+            else
+                first = NULL;
+        } else if (__wt_txn_upd_visible_all(session, upd))
+            first = upd;
+        else
             first = NULL;
     }
 
