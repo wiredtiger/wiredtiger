@@ -43,7 +43,7 @@ class test_hs01(wttest.WiredTigerTestCase):
     ]
     precise_checkpoint_values = [
         ('precise_checkpoint', dict(precise_checkpoint=True)),
-        ('no_precise_checkpoint', dict(precise_checkpoint=False)),
+        ('fuzzy_checkpoint', dict(precise_checkpoint=False)),
     ]
     value_format='u'
     scenarios = make_scenarios(format_values, precise_checkpoint_values)
