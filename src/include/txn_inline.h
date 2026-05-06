@@ -204,7 +204,15 @@ __txn_apply_prepare_state_update(
          *
          * As updating timestamp might not be an atomic operation, we will manage using state.
          */
-        __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_LOCKED);
+        __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
+        /*
+         * A release store would only prevent prior writes from being reordered after it; it would
+         * not prevent the subsequent timestamp writes from being reordered before it on
+         * weakly-ordered architectures. The explicit release barrier ensures this prepare state
+         * write is ordered before any timestamp field is modified, so a concurrent reader can never
+         * observe updated timestamps while the prepare state appears unchanged.
+         */
+        WT_RELEASE_BARRIER();
         /*
          * Ensure the transaction id from the prepared update in the ingest btree is propagated
          * during step-up in disagg to maintain correct transaction visibility both during and after
@@ -959,7 +967,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     }
 
     /* If we have a version cursor open, use the pinned timestamp when it is opened. */
-    if (S2C(session)->version_cursor_count > 0) {
+    if (__wt_atomic_load_uint32_acquire(&S2C(session)->version_cursor_count) > 0) {
         *pinned_tsp = txn_global->version_cursor_pinned_timestamp;
         return;
     }
