@@ -133,6 +133,9 @@ class test_hs01(wttest.WiredTigerTestCase):
             cursor.set_value(bigvalue)
             self.assertEqual(cursor.insert(), 0)
         cursor.close()
+        # precise_checkpoint requires stable_timestamp to be set before any checkpoint.
+        # All writes above are no-timestamp so stable=1 is safe here.
+        self.conn.set_timestamp('stable_timestamp=1')
         self.session.checkpoint()
 
         # Scenario: 1
