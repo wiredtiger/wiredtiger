@@ -73,6 +73,9 @@
  * form). Don't use when strict-suffix semantics are required. */
 #define WT_URI_IS_STABLE(uri) (strstr(uri, ".wt_stable") != NULL)
 
+/* Check whether a URI refers to the ingest constituent of a layered table. */
+#define WT_URI_IS_INGEST(uri) WT_SUFFIX_MATCH(uri, ".wt_ingest")
+
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */
@@ -149,6 +152,7 @@ typedef struct __wt_disagg_metadata {
     size_t checkpoint_len;               /* Length of checkpoint metadata string */
     wt_timestamp_t checkpoint_timestamp; /* Checkpoint timestamp */
     wt_timestamp_t oldest_timestamp;     /* Oldest timestamp */
+    wt_timestamp_t schema_epoch;         /* Disaggregated schema epoch at the time of checkpoint */
     uint32_t largest_file_id;            /* High water mark of allocated file IDs */
 
     const char *key_provider; /* Key provider metadata string */

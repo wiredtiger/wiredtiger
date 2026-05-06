@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wiredtiger import disagg_fast_truncate_build
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
@@ -42,11 +41,6 @@ class test_truncate22(wttest.WiredTigerTestCase):
     )
     scenarios = make_scenarios(key_format_values)
     nrows = 10000
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     def test_truncate22(self):
         # Create a table.

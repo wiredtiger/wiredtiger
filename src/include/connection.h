@@ -124,8 +124,6 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
-
-    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -168,7 +166,7 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 2
+#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 3
 #define WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION 1
 
 /*
@@ -263,8 +261,11 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
+    wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
+    wt_shared wt_timestamp_t
+      last_checkpoint_schema_epoch; /* The schema epoch of the last checkpoint. */
 
     /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
@@ -524,10 +525,11 @@ struct __wt_name_flag {
 
 /*
  * WT_LAYERED_DRAIN_ENTRY --
- *	Queue entry for layered table drain threads.
+ *	Queue entry for layered table drain threads. Holds a pinned ingest btree dhandle
+ *	(via session_inuse) so the dhandle stays open while the work item is processed.
  */
 struct __wt_layered_drain_entry {
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_DATA_HANDLE *ingest_dhandle;
     TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 

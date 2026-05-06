@@ -1188,13 +1188,10 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
-    /* Check the timestamp usage for in-order compliance. */
+    /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
         WT_RET(__wt_txn_timestamp_usage_check(
           session, btree, txn_time_point->commit_timestamp, upd->prev_durable_ts));
-    else if (txn_time_point->rollback_timestamp != WT_TS_NONE)
-        WT_RET(__wt_txn_timestamp_usage_check(
-          session, btree, txn_time_point->rollback_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1648,7 +1645,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_ERR(__wti_mark_committed_truncate_table(session, op));
+            __wti_mark_committed_truncate_table(session, op);
             break;
         }
 
@@ -1887,7 +1884,6 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
-    F_SET(txn, WT_TXN_FORCE_ROLLBACK);
     WT_TRET(__wt_txn_rollback(session, cfg, false));
     return (ret);
 }
@@ -2100,14 +2096,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     if (api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
-    /* Rolling back a prepared transaction under preserve_prepared requires a rollback timestamp. */
-    if (prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      !F_ISSET(txn, WT_TXN_FORCE_ROLLBACK) &&
-      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
-        WT_RET_MSG(session, EINVAL,
-          "rollback_timestamp must be set when rolling back a prepared transaction under "
-          "preserve_prepared");
-
     /*
      * Release our snapshot in case it is keeping data pinned. This will not make the updates
      * visible to other threads because we haven't removed the transaction id from the global
@@ -2168,7 +2156,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             WT_TRET(__wt_delete_page_rollback(session, op));
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_RET(__wti_layered_table_truncate_rollback(session, op));
+            __wti_layered_table_truncate_rollback(session, op);
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2905,6 +2893,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "stable timestamp: %s",
       __wt_timestamp_to_string(
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp), ts_string)));
+    WT_RET(__wt_msg(session, "stable disaggregated schema epoch: %s",
+      __wt_timestamp_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch),
+        ts_string)));
     WT_RET(__wt_msg(
       session, "has_durable_timestamp: %s", txn_global->has_durable_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
@@ -2913,6 +2905,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "has_stable_disaggregated_schema_epoch: %s",
+      __wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) ? "yes" :
+                                                                                          "no"));
     WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->oldest_is_pinned) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "stable_is_pinned: %s",

@@ -2243,17 +2243,22 @@ methods = {
         that all timestamps up to and including that value have been committed (possibly
         bounded by the application-set \c durable timestamp); \c backup_checkpoint returns
         the stable timestamp of the checkpoint pinned for an open backup cursor; \c last_checkpoint
-        returns the timestamp of the most recent stable checkpoint; \c oldest_timestamp returns the
+        returns the timestamp of the most recent stable checkpoint;
+        \c last_disaggregated_schema_epoch returns the schema epoch from the most recent
+        disaggregated storage checkpoint; \c oldest_timestamp returns the
         most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader
         returns the minimum of the read timestamps of all active readers; \c pinned returns
         the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
         \c recovery returns the timestamp of the most recent stable checkpoint taken prior to
-        a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
+        a shutdown; \c stable_disaggregated_schema_epoch returns the most recent
+        \c stable_disaggregated_schema_epoch set with WT_CONNECTION::set_timestamp;
+        \c stable_timestamp returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         timestamp_global_api''',
-        choices=['all_durable','backup_checkpoint','last_checkpoint','oldest',
-            'oldest_reader','oldest_timestamp','pinned','recovery','stable','stable_timestamp']),
+        choices=['all_durable','backup_checkpoint','last_checkpoint',
+            'last_disaggregated_schema_epoch','oldest','oldest_reader','oldest_timestamp',
+            'pinned','recovery','stable','stable_disaggregated_schema_epoch','stable_timestamp']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
@@ -2270,6 +2275,10 @@ methods = {
         future commits and queries will be no earlier than the specified timestamp. Values must
         be monotonically increasing. The value must not be newer than the current stable timestamp.
         See @ref timestamp_global_api'''),
+    Config('stable_disaggregated_schema_epoch', '', r'''
+        set the stable schema epoch for disaggregated storage; the shared metadata included in the
+        disaggregated storage checkpoint will not include the effects of schema operations with
+        higher epochs. Values must be monotonically increasing. See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
