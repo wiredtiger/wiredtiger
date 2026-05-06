@@ -383,9 +383,14 @@ replay_prepare_ts(TINFO *tinfo)
      * A prepare timestamp must be strictly greater than all active read timestamps.
      * replay_maximum_committed() is bounded from below by last_commit_ts for in-use lanes, so
      * prepare_ts must be > last_commit_ts. We also need prepare_ts < commit_ts (replay_ts) to
-     * satisfy the durable > prepare invariant. If there is no integer in that range (replay_ts ==
-     * last_commit_ts + 1), return WT_TS_NONE to signal that prepare must be skipped for this
-     * transaction.
+     * satisfy the durable > prepare invariant. If replay_ts is only 1 more than last_commit_ts,
+     * then we can only choose one timestamp for both prepare and commit/rollback, which violates
+     * the durable > prepare invariant. If replay_ts is not more than last_commit_ts, then we cannot
+     * even prepare this transaction. So in either of those cases, we return WT_TS_NONE to signal
+     * that we should skip preparing this transaction. The transaction will still be committed with
+     * replay_ts as its commit timestamp, but it won't be a prepared transaction. This is a safe
+     * fallback that allows the run to continue with some prepared transactions, rather than failing
+     * or having no prepared transactions at all.
      */
     if (tinfo->replay_ts <= last_commit_ts + 1)
         return (WT_TS_NONE);
