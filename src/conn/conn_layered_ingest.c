@@ -42,18 +42,7 @@ __layered_assert_tombstone_has_value_on_stable_btree(
         if (upd != NULL) {
             WT_ASSERT_ALWAYS(session, upd->txnid != WT_TXN_ABORTED,
               "The stable btree should not contain aborted updates prior to draining");
-            if (upd->type != WT_UPDATE_TOMBSTONE)
-                has_value = true;
-            else {
-                /*
-                 * A newer tombstone already sits at the head of stable's update chain (e.g. from
-                 * drain_pending_truncates). The ingest tombstone being placed targets the on-disk
-                 * value underneath it, so check the on-disk cell directly.
-                 */
-                WT_TIME_WINDOW tw;
-                bool tw_found = __wt_read_cell_time_window(cbt, &tw);
-                has_value = tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw);
-            }
+            has_value = upd->type != WT_UPDATE_TOMBSTONE;
         } else {
             WT_TIME_WINDOW tw;
             bool tw_found = __wt_read_cell_time_window(cbt, &tw);
@@ -76,7 +65,7 @@ __layered_assert_tombstone_has_value_on_stable_btree(
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, WT_UPDATE *last_upd)
+  WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts)
 {
     WT_DECL_RET;
 
@@ -90,7 +79,13 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
+    /*
+     * Only check on the first pass (from_ts == WT_TS_NONE). On subsequent passes a prior pass may
+     * have placed the key in stable's insert list, which would trip the cbt->ins == NULL assertion
+     * inside the check.
+     */
+    if (from_ts == WT_TS_NONE)
+        __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
 
     /* Apply the modification. */
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
@@ -228,6 +223,7 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
+
 #endif
 
 /*
@@ -406,7 +402,7 @@ err:
  */
 static int
 __layered_flush_pending_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE **updsp, WT_UPDATE *last_upd, WT_TRUNCATE *skip_t)
+  WT_UPDATE **updsp, WT_UPDATE *last_upd, WT_TRUNCATE *skip_t, wt_timestamp_t from_ts)
 {
     WT_DECL_RET;
     int cmp;
@@ -426,7 +422,7 @@ __layered_flush_pending_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         __wt_free_update_list(session, updsp);
     else {
         WT_WITH_DHANDLE(session, cbt->dhandle,
-          ret = __layered_move_updates(session, cbt, key, *updsp, last_upd));
+          ret = __layered_move_updates(session, cbt, key, *updsp, last_upd, from_ts));
         if (ret == 0)
             *updsp = NULL;
         WT_RET(ret);
@@ -510,7 +506,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
             ret = 0;
             if (key->size > 0 && upds != NULL)
                 WT_ERR(__layered_flush_pending_updates(
-                  session, cbt, key, &upds, last_upd, skip_t));
+                  session, cbt, key, &upds, last_upd, skip_t, from_ts));
             break;
         }
 
@@ -525,7 +521,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
 
             if (upds != NULL)
                 WT_ERR(__layered_flush_pending_updates(
-                  session, cbt, key, &upds, last_upd, skip_t));
+                  session, cbt, key, &upds, last_upd, skip_t, from_ts));
             upds = NULL;
             prev_upd = NULL;
             prepare_txn_fixed = false;
@@ -544,8 +540,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
          * Prepared updates (durable_ts == WT_TS_NONE) are included only in the final pass where
          * to_ts == WT_TS_MAX, since their commit timestamp is not yet resolved.
          */
-        in_ts_range = prepare ? (to_ts == WT_TS_MAX) :
-                                (to_ts == WT_TS_MAX || durable_start_ts <= to_ts);
+        in_ts_range = to_ts == WT_TS_MAX || (!prepare && durable_start_ts <= to_ts);
         if (in_ts_range) {
             /*
              * If the "preserve prepared" option is enabled and the ingest btree contains a resolved
@@ -764,6 +759,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
+
 
     WT_ERR_NOTFOUND_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
