@@ -158,4 +158,3 @@ struct __wt_cache_pool {
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
-
