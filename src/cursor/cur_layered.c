@@ -523,10 +523,6 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      * up have both occurred since the last check. We don't have a way to detect that (or its
      * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
      * any changes. FIXME-WT-14545.
-     *
-     * Always fall through to the done label so that snapshot_gen and read_timestamp are refreshed
-     * on every call; __clayered_iterate depends on these being current to detect transaction
-     * context changes between consecutive next()/prev() calls.
      */
     if (!role_change && last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
         goto done;
@@ -1245,7 +1241,7 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * flag to force a re-search under the new context.
      */
     if (prev_snapshot != clayered->snapshot_gen || prev_read_ts != clayered->read_timestamp)
-        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
+        F_CLR(clayered, iter_flag);
 
     WT_ERR(__clayered_iterate_int(clayered, iter_flag));
 
