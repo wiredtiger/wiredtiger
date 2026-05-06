@@ -50,9 +50,7 @@ class test_layered_prepare01(wttest.WiredTigerTestCase):
         ('outer_two', dict(stable_keys=['1','2','3'], prepared_keys=['1','3'])),
     ])
 
-    conn_base_config = ('statistics=(all),'
-                        'statistics_log=(wait=1,json=true,on_close=true),'
-                        'precise_checkpoint=true,')
+    conn_base_config = ('precise_checkpoint=true,')
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     def safe_next(self, cursor):
