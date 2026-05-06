@@ -418,6 +418,8 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     if (btree->type == BTREE_COL_FIX)
         goto err;
 
+    WT_STAT_CONN_INCR(session, cc_handle_processed);
+
     /* Walk the tree. */
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
