@@ -89,7 +89,7 @@ class test_layered96(wttest.WiredTigerTestCase):
     #   T1 (read_timestamp=3): next() -> key=1, value=3.
     #   T2 (read_timestamp=1): next() -> key=2, value=1.
     # --------------------------------------------------------------------------
-    def test_talbe_scan_with_different_read_ts_stable_next(self):
+    def test_table_scan_with_different_read_ts_stable_next(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
 
@@ -134,7 +134,7 @@ class test_layered96(wttest.WiredTigerTestCase):
     #   T1 (read_timestamp=3): prev() -> key=2, value=3.
     #   T2 (read_timestamp=1): prev() -> key=1, value=1.
     # --------------------------------------------------------------------------
-    def test_talbe_scan_with_different_read_ts_stable_prev(self):
+    def test_table_scan_with_different_read_ts_stable_prev(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
 
@@ -179,7 +179,7 @@ class test_layered96(wttest.WiredTigerTestCase):
     #   T1 (read_timestamp=2): next() -> key=1, value=1.
     #   T2 (read_timestamp=3): next() -> key=2, value=3.
     # --------------------------------------------------------------------------
-    def test_talbe_scan_with_different_read_ts_ingest_next(self):
+    def test_table_scan_with_different_read_ts_ingest_next(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
 
@@ -224,7 +224,7 @@ class test_layered96(wttest.WiredTigerTestCase):
     #   T1 (read_timestamp=2): prev() -> key=2, value=1.
     #   T2 (read_timestamp=3): prev() -> key=1, value=3.
     # --------------------------------------------------------------------------
-    def test_talbe_scan_with_different_read_ts_ingest_prev(self):
+    def test_table_scan_with_different_read_ts_ingest_prev(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
 
