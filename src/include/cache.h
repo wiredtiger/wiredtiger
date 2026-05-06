@@ -159,5 +159,3 @@ struct __wt_cache_pool {
     uint8_t flags;
 };
 
-/* Optimize comparisons against the shared metadata store for disaggregated storage. */
-#define WT_IS_DISAGG_META(dh) F_ISSET(dh, WT_DHANDLE_DISAGG_META)
