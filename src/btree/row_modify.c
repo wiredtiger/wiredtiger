@@ -415,6 +415,12 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
             continue;
         }
 
+        /* Cannot truncate the updates if we need to remove the updates from the history store. */
+        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP)) {
+            first = NULL;
+            continue;
+        }
+
         /*
          * If a table has garbage collection enabled, then trim updates as possible. We should check
          * the logic here - it might be possible to do something more aggressive?
@@ -426,10 +432,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
         } else
-            first = NULL;
-
-        /* Cannot truncate the updates if we need to remove the updates from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP))
             first = NULL;
     }
 
