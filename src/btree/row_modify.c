@@ -368,8 +368,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first;
-    wt_timestamp_t prune_timestamp;
-    uint64_t oldest_id;
     u_int count;
 
     page = cbt->ref->page;
@@ -379,10 +377,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
     /* If we can't lock it, don't scan, that's okay. */
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
-
-    prune_timestamp = __wt_atomic_load_uint64_relaxed(&CUR2BT(cbt)->prune_timestamp);
-
-    oldest_id = __wt_txn_oldest_id(session);
 
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
@@ -394,13 +388,12 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
-        uint64_t txnid;
         /*
          * This function is only invoked when a new write is made. As a result, there is no risk of
          * racing with prepared rollback, since no updates should exist in the prepared state at
          * this point.
          */
-        if ((txnid = __wt_atomic_load_uint64_v_relaxed(&upd->txnid)) == WT_TXN_ABORTED)
+        if (__wt_atomic_load_uint64_v_relaxed(&upd->txnid) == WT_TXN_ABORTED)
             continue;
 
         /*
@@ -421,17 +414,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
             continue;
         }
 
-        /*
-         * If a table has garbage collection enabled, then trim updates as possible. We should check
-         * the logic here - it might be possible to do something more aggressive?
-         */
-        if (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT)) {
-            if (txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
-              upd->upd_durable_ts <= prune_timestamp)
-                first = upd;
-            else
-                first = NULL;
-        } else if (__wt_txn_upd_visible_all(session, upd))
+        if (__wt_txn_upd_visible_all(session, upd))
             first = upd;
         else
             first = NULL;
