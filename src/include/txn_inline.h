@@ -787,7 +787,6 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     WT_RET(__txn_next_op(session, &op));
     op->type = WT_TXN_OP_FOLLOWER_TRUNCATE;
-    WT_ASSERT(session, t->txn_id == WT_TXN_NONE);
     t->txn_id = session->txn->time_point.id;
 
     op->u.follower_truncate.t = t;
