@@ -431,6 +431,36 @@ err:
 }
 
 /*
+ * __layered_flush_pending_updates --
+ *     Flush the accumulated update chain for the current key to stable and clear *updsp. In the
+ *     final drain pass, a single-tombstone chain covered by a committed truncate is dropped because
+ *     the range truncate already deleted the stable key.
+ */
+static int
+__layered_flush_pending_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
+  WT_UPDATE **updsp, WT_UPDATE *last_upd, wt_timestamp_t to_ts, WT_LAYERED_TABLE *layered_table)
+{
+    WT_DECL_RET;
+    bool skip_key;
+
+    skip_key = false;
+    if (to_ts == WT_TS_MAX && *updsp == last_upd && (*updsp)->type == WT_UPDATE_TOMBSTONE &&
+      layered_table != NULL)
+        WT_RET(__layered_key_covered_by_committed_truncate(session, layered_table, key, &skip_key));
+
+    if (skip_key)
+        __wt_free_update_list(session, updsp);
+    else {
+        WT_WITH_DHANDLE(session, cbt->dhandle,
+          ret = __layered_move_updates(session, cbt, key, *updsp, last_upd));
+        if (ret == 0)
+            *updsp = NULL;
+        WT_RET(ret);
+    }
+    return (0);
+}
+
+/*
  * __layered_copy_ingest_table --
  *     Moving ingest updates whose durable timestamp falls in (from_ts, to_ts] to the corresponding
  *     stable table. layered_table may be NULL when there are no truncates; when non-NULL it is used
@@ -459,8 +489,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-    bool in_ts_range, is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed,
-      skip_key;
+    bool in_ts_range, is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
@@ -504,30 +533,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
         upd = NULL;
         WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
         if (ret == WT_NOTFOUND) {
-            if (key->size > 0 && upds != NULL) {
-                skip_key = false;
-                /*
-                 * In the final pass (to_ts == WT_TS_MAX), truncate windows have already been
-                 * applied. A single-tombstone chain covered by a committed truncate means the key
-                 * is already deleted from stable; skip the tombstone rather than asserting on the
-                 * missing underlying value. In earlier passes the window hasn't run yet, so the
-                 * tombstone must still be moved so it acts as a split point.
-                 */
-                if (to_ts == WT_TS_MAX && upds == last_upd &&
-                  upds->type == WT_UPDATE_TOMBSTONE && layered_table != NULL) {
-                    WT_ERR(__layered_key_covered_by_committed_truncate(
-                      session, layered_table, key, &skip_key));
-                }
-                if (skip_key)
-                    __wt_free_update_list(session, &upds);
-                else {
-                    WT_WITH_DHANDLE(session, cbt->dhandle,
-                      ret = __layered_move_updates(session, cbt, key, upds, last_upd));
-                    WT_ERR(ret);
-                }
-                upds = NULL;
-            } else
-                ret = 0;
+            ret = 0;
+            if (key->size > 0 && upds != NULL)
+                WT_ERR(__layered_flush_pending_updates(
+                  session, cbt, key, &upds, last_upd, to_ts, layered_table));
             break;
         }
 
@@ -540,29 +549,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
              */
             WT_ASSERT(session, key->size == 0 || cmp <= 0);
 
-            if (upds != NULL) {
-                skip_key = false;
-                /*
-                 * In the final pass (to_ts == WT_TS_MAX), truncate windows have already been
-                 * applied. A single-tombstone chain covered by a committed truncate means the key
-                 * is already deleted from stable; skip the tombstone rather than asserting on the
-                 * missing underlying value. In earlier passes the window hasn't run yet, so the
-                 * tombstone must still be moved so it acts as a split point.
-                 */
-                if (to_ts == WT_TS_MAX && upds == last_upd &&
-                  upds->type == WT_UPDATE_TOMBSTONE && layered_table != NULL) {
-                    WT_ERR(__layered_key_covered_by_committed_truncate(
-                      session, layered_table, key, &skip_key));
-                }
-                if (skip_key)
-                    __wt_free_update_list(session, &upds);
-                else {
-                    WT_WITH_DHANDLE(session, cbt->dhandle,
-                      ret = __layered_move_updates(session, cbt, key, upds, last_upd));
-                    WT_ERR(ret);
-                }
-            }
-
+            if (upds != NULL)
+                WT_ERR(__layered_flush_pending_updates(
+                  session, cbt, key, &upds, last_upd, to_ts, layered_table));
             upds = NULL;
             prev_upd = NULL;
             prepare_txn_fixed = false;
@@ -731,6 +720,45 @@ __truncate_cmp_by_start_ts(const void *a, const void *b)
 }
 
 /*
+ * __layered_build_sorted_truncates --
+ *     Snapshot committed truncates from the truncate list into a caller-owned sorted array.
+ *     The truncate lock is released before returning; entries remain valid until truncate_clear.
+ */
+static int
+__layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
+  WT_TRUNCATE ***sortedp, size_t *ntruncatesp)
+{
+    WT_DECL_RET;
+    WT_TRUNCATE *t, **sorted;
+    size_t i, ntruncates;
+
+    sorted = NULL;
+    ntruncates = 0;
+
+    __wt_readlock(session, &layered_table->truncate_lock);
+    TAILQ_FOREACH (t, &layered_table->truncateqh, q)
+        if (t->txn_id != WT_TXN_NONE)
+            ++ntruncates;
+    if (ntruncates > 0) {
+        ret = __wt_calloc_def(session, ntruncates, &sorted);
+        if (ret == 0) {
+            i = 0;
+            TAILQ_FOREACH (t, &layered_table->truncateqh, q)
+                if (t->txn_id != WT_TXN_NONE)
+                    sorted[i++] = t;
+        }
+    }
+    __wt_readunlock(session, &layered_table->truncate_lock);
+
+    WT_RET(ret);
+    if (ntruncates > 0)
+        qsort(sorted, ntruncates, sizeof(*sorted), __truncate_cmp_by_start_ts);
+    *sortedp = sorted;
+    *ntruncatesp = ntruncates;
+    return (0);
+}
+
+/*
  * __layered_drain_ingest_table_and_truncate_list --
  *     Drain ingest to stable in timestamp order, interleaving committed follower truncates.
  *
@@ -765,35 +793,12 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
     WT_ERR_NOTFOUND_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
-        ret = 0;
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX, NULL));
-        goto err;
+    if (ret != WT_NOTFOUND) {
+        layered_dhandle = session->dhandle;
+        layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
+        WT_ERR(__layered_build_sorted_truncates(session, layered_table, &sorted, &ntruncates));
     }
-    layered_dhandle = session->dhandle;
-    layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
-
-    /* Count committed truncates and build a sorted snapshot (under read lock). */
-    __wt_readlock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (t, &layered_table->truncateqh, q)
-        if (t->txn_id != WT_TXN_NONE)
-            ++ntruncates;
-    if (ntruncates > 0) {
-        WT_ERR_NOTFOUND_OK(__wt_calloc_def(session, ntruncates, &sorted), false);
-        i = 0;
-        TAILQ_FOREACH (t, &layered_table->truncateqh, q)
-            if (t->txn_id != WT_TXN_NONE)
-                sorted[i++] = t;
-    }
-    __wt_readunlock(session, &layered_table->truncate_lock);
-
-    if (ntruncates == 0) {
-        WT_ERR(
-          __layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX, layered_table));
-        goto done;
-    }
-
-    qsort(sorted, ntruncates, sizeof(*sorted), __truncate_cmp_by_start_ts);
+    ret = 0;
 
     prev_ts = WT_TS_NONE;
     for (i = 0; i < ntruncates; i++) {
@@ -803,12 +808,10 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
         prev_ts = t->start_ts;
     }
+    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX, layered_table));
 
-    WT_ERR(
-      __layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX, layered_table));
-
-done:
-    __wt_layered_table_truncate_clear(session, layered_table);
+    if (layered_table != NULL)
+        __wt_layered_table_truncate_clear(session, layered_table);
 
 err:
     __wt_free(session, sorted);
