@@ -58,6 +58,65 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 }
 
 /*
+ * __truncate_entry_remove --
+ *     Remove an entry from the truncate queue. Must be called under the truncate write lock.
+ */
+static void
+__truncate_entry_remove(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE *entry)
+{
+    WT_ASSERT(session, !TAILQ_EMPTY(&layered_table->truncateqh));
+    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&layered_table->iface.references) > 0);
+
+    TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
+
+    if (TAILQ_EMPTY(&layered_table->truncateqh))
+        WT_DHANDLE_RELEASE(&layered_table->iface);
+}
+
+/*
+ * __truncate_entry_eligible_for_gc --
+ *     Determine if an entry is redundant and should be removed from the list.
+ */
+static bool
+__truncate_entry_eligible_for_gc(const WT_TRUNCATE *const entry, const wt_timestamp_t prune_ts)
+{
+    if (prune_ts == WT_TS_NONE)
+        return (false);
+
+    if (entry->durable_ts == WT_TS_NONE)
+        return (false);
+
+    return (entry->durable_ts <= prune_ts);
+}
+
+/*
+ * __layered_table_truncate_gc --
+ *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
+ */
+static void
+__layered_table_truncate_gc(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table)
+{
+    const wt_timestamp_t prune_timestamp =
+      __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
+
+    if (prune_timestamp == WT_TS_NONE)
+        return;
+
+    WT_TRUNCATE *entry = NULL;
+    WT_TRUNCATE *next = NULL;
+
+    TAILQ_FOREACH_SAFE(entry, &layered_table->truncateqh, q, next)
+    {
+        if (!__truncate_entry_eligible_for_gc(entry, prune_timestamp))
+            continue;
+
+        __truncate_entry_remove(session, layered_table, entry);
+        __disagg_truncate_free(session, &entry);
+    }
+}
+
+/*
  * __log_truncate_entry --
  *     Create a log message for the truncate entry that will be added to the truncate list.
  */
@@ -90,7 +149,8 @@ err:
 
 /*
  * __txn_insert_truncate_entry_helper --
- *     Register a truncate entry to the latest transaction and store it in the truncate list.
+ *     Register a truncate entry to the latest transaction and store it in the truncate list. This
+ *     function will also opportunistically prune the truncate list so it does not grow infinitely.
  */
 static int
 __txn_insert_truncate_entry_helper(
@@ -106,6 +166,8 @@ __txn_insert_truncate_entry_helper(
     __log_truncate_entry(session, layered_table, entry);
 
     __wt_writelock(session, &layered_table->truncate_lock);
+
+    __layered_table_truncate_gc(session, layered_table);
 
     if (TAILQ_EMPTY(&layered_table->truncateqh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
@@ -415,23 +477,6 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
- * __truncate_entry_remove --
- *     Remove an entry from the truncate queue. Must be called under the truncate write lock.
- */
-static void
-__truncate_entry_remove(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE *entry)
-{
-    WT_ASSERT(session, !TAILQ_EMPTY(&layered_table->truncateqh));
-    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&layered_table->iface.references) > 0);
-
-    TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
-
-    if (TAILQ_EMPTY(&layered_table->truncateqh))
-        WT_DHANDLE_RELEASE(&layered_table->iface);
-}
-
-/*
  * __wti_layered_table_truncate_rollback_apply --
  *     Remove a truncate entry from a layered table as part of rollback processing.
  */
@@ -477,55 +522,5 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
         __truncate_entry_remove(session, layered_table, entry);
         __disagg_truncate_free(session, &entry);
     }
-    __wt_writeunlock(session, &layered_table->truncate_lock);
-}
-
-/*
- * __truncate_entry_eligible_for_gc --
- *     Determine if an entry is redundant and should be removed from the list.
- */
-static bool
-__truncate_entry_eligible_for_gc(const WT_TRUNCATE *const entry, const wt_timestamp_t prune_ts)
-{
-    if (prune_ts == WT_TS_NONE)
-        return (false);
-
-    if (entry->durable_ts == WT_TS_NONE)
-        return (false);
-
-    return (entry->durable_ts <= prune_ts);
-}
-
-/*
- * __wt_layered_table_truncate_gc --
- *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
- */
-void
-__wt_layered_table_truncate_gc(WT_SESSION_IMPL *const session,
-  WT_LAYERED_TABLE *const layered_table, const wt_timestamp_t prune_ts)
-{
-    if (!__wt_process.disagg_fast_truncate_2026)
-        return;
-
-    WT_ASSERT(session, layered_table != NULL);
-    WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
-
-    if (prune_ts == WT_TS_NONE)
-        return;
-
-    WT_TRUNCATE *entry = NULL;
-    WT_TRUNCATE *next = NULL;
-
-    __wt_writelock(session, &layered_table->truncate_lock);
-
-    TAILQ_FOREACH_SAFE(entry, &layered_table->truncateqh, q, next)
-    {
-        if (!__truncate_entry_eligible_for_gc(entry, prune_ts))
-            continue;
-
-        TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
-        __disagg_truncate_free(session, &entry);
-    }
-
     __wt_writeunlock(session, &layered_table->truncate_lock);
 }
