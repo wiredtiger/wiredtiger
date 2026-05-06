@@ -1099,6 +1099,13 @@ __txn_resolve_prepared_update_chain(
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
         __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
+        /*
+         * A release store would only prevent prior writes from being reordered after it; it would
+         * not prevent the subsequent timestamp writes from being reordered before it on
+         * weakly-ordered architectures. The explicit release barrier ensures this prepare state
+         * write is ordered before any timestamp field is modified, so a concurrent reader can never
+         * observe updated timestamps while the prepare state appears unchanged.
+         */
         WT_RELEASE_BARRIER();
         if (F_ISSET(txn_time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
             __wt_atomic_store_uint64_relaxed(
@@ -2894,6 +2901,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "stable timestamp: %s",
       __wt_timestamp_to_string(
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp), ts_string)));
+    WT_RET(__wt_msg(session, "stable disaggregated schema epoch: %s",
+      __wt_timestamp_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch),
+        ts_string)));
     WT_RET(__wt_msg(
       session, "has_durable_timestamp: %s", txn_global->has_durable_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
@@ -2902,6 +2913,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "has_stable_disaggregated_schema_epoch: %s",
+      __wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) ? "yes" :
+                                                                                          "no"));
     WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->oldest_is_pinned) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "stable_is_pinned: %s",

@@ -56,6 +56,12 @@ class test_layered_fast_truncate15(wttest.WiredTigerTestCase):
             self.skipTest("fast truncate support is not enabled")
         super().setUp()
 
+    def session_create_config(self):
+        cfg = "key_format=i,value_format=S"
+        if self.uri.startswith("table"):
+            cfg += ",block_manager=disagg,type=layered"
+        return cfg
+
     def auto_closing_cursor(self):
         return closing(self.session.open_cursor(self.uri))
 
@@ -66,7 +72,7 @@ class test_layered_fast_truncate15(wttest.WiredTigerTestCase):
                     cursor[key] = "v"
 
     def setup_leader(self, keys: Iterable[int] | None = None):
-        self.session.create(self.uri, "key_format=i,value_format=S")
+        self.session.create(self.uri, self.session_create_config())
         if keys is not None:
             self.populate(keys)
         self.session.checkpoint()
