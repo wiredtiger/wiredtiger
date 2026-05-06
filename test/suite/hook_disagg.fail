@@ -21,6 +21,7 @@ test_encrypt06.py
 test_env01.py
 test_error_info01.py
 test_error_info03.py    # FIXME: WT-16872
+test_hs01.py  # FIXME: WT-15371 Scenario 3 durable_check fails: disagg skips recovery RTS but doesn't use precise checkpoint (FIXME-WT-14721), so unstable updates (ts > stable) survive on disk
 test_hs24.py    # FIXME: WT-16872
 test_hs_evict_race01.py # FIXME: WT-16872
 test_log03.py
