@@ -879,9 +879,9 @@ __clayered_range_truncate_ingest(
     WT_CURSOR *cursor = start;
     int cmp;
 
-    /* Early return if stop key is smaller than or equal to start key, nothing to truncate. */
+    /* Early return if stop key is smaller than start key, nothing to truncate. */
     WT_RET(start->compare(start, stop, &cmp));
-    if (cmp >= 0)
+    if (cmp > 0)
         return (0);
 
     do {
