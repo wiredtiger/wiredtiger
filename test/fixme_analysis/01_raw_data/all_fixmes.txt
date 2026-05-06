@@ -1,0 +1,335 @@
+/data/work/git/wiredtiger5/cmake/strict/strict_flags_helpers.cmake:128:    # FIXME-WT-11788: Remove the following flag once the violation of the standard C11 7.1.3 has
+/data/work/git/wiredtiger5/cmake/strict/strict_flags_helpers.cmake:42:    # FIXME-WT-11788: Remove the following flag once the violation of the standard C11 7.1.3 has
+/data/work/git/wiredtiger5/dist/api_config.py:246:        # FIXME-WT-15615: We should implement a better way to handle duplicate
+/data/work/git/wiredtiger5/dist/api_config.py:292:        # FIXME-WT-15615: We should implement a better way to handle duplicate
+/data/work/git/wiredtiger5/ext/page_log/palite/palite.cpp:859:         * FIXME-WT-16159: Enable multi-process DB access in PALite
+/data/work/git/wiredtiger5/lang/python/wiredtiger/init.py:60:# FIXME-WT-13237: Rename these testutil flags
+/data/work/git/wiredtiger5/lang/python/wiredtiger/init.py:69:    # FIXME-WT-13143 We assume TSan is only compatible with clang here. This may change in the future.
+/data/work/git/wiredtiger5/src/block/block_ckpt.c:120:             * FIXME: We may need to change how we setup for verify when it supports tiered tables.
+/data/work/git/wiredtiger5/src/block/block_open.c:370:     * FIXME-WT-5832: MongoDB relies heavily on the error codes reported when opening cursors (which
+/data/work/git/wiredtiger5/src/block_cache/block_cache.c:874:    /* FIXME-WT-15663 Disable block cache until it is stable. */
+/data/work/git/wiredtiger5/src/block_cache/block_io.c:190:             * FIXME-WT-14608: we're choosing not to handle deltas here, but that's not going to
+/data/work/git/wiredtiger5/src/block_cache/block_io.c:378:     * FIXME-WT-14716 Stop casting away the const. The compressor interface marks it as non-const.
+/data/work/git/wiredtiger5/src/block_cache/block_io.c:447:         * FIXME-WT-14717: we used to read garbage values for block meta from the block cache for
+/data/work/git/wiredtiger5/src/block_cache/block_mgr.c:805:             * FIXME-WT-12028: The set of active handles may be quite large, so the memmove may be
+/data/work/git/wiredtiger5/src/block_disagg/block_disagg_mgr.c:149:    /* FIXME-WT-15564: Check block is safe to cast as disagg block. */
+/data/work/git/wiredtiger5/src/block_disagg/block_disagg_read.c:153:     * FIXME: WT-15768: To support current testing, we never give up. It is better to hang here as
+/data/work/git/wiredtiger5/src/block_disagg/block_disagg_read.c:86:    /* FIXME-WT-15914 Resolve special constant for materialization frontier LSN. */
+/data/work/git/wiredtiger5/src/block_disagg/block_disagg_read.c:89:        /* FIXME-WT-15818 Consider crashing upon this check failure. */
+/data/work/git/wiredtiger5/src/block_disagg/block_disagg_size.c:41:    /* FIXME WT-16864: re-enable this assert once the disagg block size accounting bug is fixed. */
+/data/work/git/wiredtiger5/src/btree/bt_cursor.c:155:     * FIXME-WT-5147 No fast-path searches at read-committed isolation. Underlying transactional
+/data/work/git/wiredtiger5/src/btree/bt_discard.c:73:     * FIXME-WT-14720: this check needs a bit more thought. There isn't really an LSN that makes
+/data/work/git/wiredtiger5/src/btree/bt_handle.c:1079:             * FIXME-WT-14612: If we want to use prefetch with disaggregated storage we will need to
+/data/work/git/wiredtiger5/src/btree/bt_handle.c:224:         * FIXME-WT-16477: if we directly read from the shared metadata, we can avoid taking the
+/data/work/git/wiredtiger5/src/btree/bt_handle.c:640:     * Detect if the btree is disaggregated. FIXME-WT-14721: the file extension check should be
+/data/work/git/wiredtiger5/src/btree/bt_import.c:110:     * FIXME-WT-14723: import needs a little thought for shared tables once we've decided how to
+/data/work/git/wiredtiger5/src/btree/bt_sync_obsolete.c:453:     * FIXME: Read internal pages from non-logged tables when the remove/truncate
+/data/work/git/wiredtiger5/src/btree/bt_sync_obsolete.c:652:     * FIXME-WT-13321 Rely on the oldest_start_ts rather than the newest_*_ts.
+/data/work/git/wiredtiger5/src/btree/bt_sync_obsolete.c:684:     * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+/data/work/git/wiredtiger5/src/btree/bt_sync_obsolete.c:702:             * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+/data/work/git/wiredtiger5/src/btree/bt_sync_obsolete.c:731:         * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+/data/work/git/wiredtiger5/src/btree/bt_vrfy.c:1346:/* FIXME-WT-10779 - Enable the history store validation. */
+/data/work/git/wiredtiger5/src/btree/bt_vrfy.c:507:                 * FIXME-WT-16660: We are seeing mismatches due to nuanced reconciliation issues,
+/data/work/git/wiredtiger5/src/cache/cache_pool.c:214:     * FIXME-WT-11152: Using a local bool (cp_locked) for lock ownership management. A long-term
+/data/work/git/wiredtiger5/src/cache/cache_pool.c:457:     * FIXME-WT-11152: Using a local bool (cp_locked) for lock ownership management. A long-term
+/data/work/git/wiredtiger5/src/checkpoint/checkpoint_txn.c:1504:        /* FIXME-WT-15069: Remove this if condition as part of this FIXME. This is a temporary
+/data/work/git/wiredtiger5/src/checkpoint/checkpoint_txn.c:1930:     * FIXME-WT-11149: Some reading threads rely on the value of checkpoint running flag being
+/data/work/git/wiredtiger5/src/checkpoint/checkpoint_txn.c:2998:         * FIXME-WT-15879: Fix up layering for checkpoint root page discard
+/data/work/git/wiredtiger5/src/checkpoint/checkpoint_txn.c:556:     * FIXME-WT-17015 We should update how eviction triggers are accessed so they are consistently
+/data/work/git/wiredtiger5/src/checkpoint/checkpoint_txn.c:600:     * FIXME-WT-17015 We should update how eviction triggers are accessed so they are consistently
+/data/work/git/wiredtiger5/src/conn/conn_api.c:1916:     * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
+/data/work/git/wiredtiger5/src/conn/conn_api.c:2981:        /* FIXME-WT-14051 Add support for Windows */
+/data/work/git/wiredtiger5/src/conn/conn_api.c:3450:     * FIXME-WT-14721: Disaggregated storage should only support precise checkpoint but mongod is
+/data/work/git/wiredtiger5/src/conn/conn_compact.c:479:     * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+/data/work/git/wiredtiger5/src/conn/conn_compact.c:497:             * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+/data/work/git/wiredtiger5/src/conn/conn_compact.c:535:         * FIXME-WT-15259: will wrap the metadata forward-traversal logic (including the
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1125:     * FIXME-WT-17040: Investigate if it's necessary to create the shared metadata table on
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1189:     * FIXME-WT-16524: This function is no longer an optional operation for testing, remove this
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1452:             * FIXME-WT-14733: currently the leader silently ignores the checkpoint_meta
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1467:    /* FIXME-WT-15447 Consider deprecating this. */
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1526:    /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1529:         * FIXME-WT-17177: Read-only connections are currently not supported with disaggregated
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1750: * FIXME-WT-15163: Revisit what files get written and what needs to be deleted.
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:1759:     * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:26:    /* FIXME-WT-14728: Refactor this with __create_layered? */
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:378:             * FIXME-WT-14730: check that the other parts of the metadata are identical.
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:404:            /* FIXME-WT-14730: verify that there is no btree ID conflict. */
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:737:        /* FIXME-WT-16000: Make the checksum parameter in "checkpoint_meta" required */
+/data/work/git/wiredtiger5/src/conn/conn_layered.c:745:         * FIXME-WT-16562 Checkpoint size tech debt cleanup. Disagg checkpoint metadata may be
+/data/work/git/wiredtiger5/src/conn/conn_layered_ingest.c:475:                 * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
+/data/work/git/wiredtiger5/src/conn/conn_layered_ingest.c:718:    /* FIXME-WT-14735: skip empty ingest tables. */
+/data/work/git/wiredtiger5/src/conn/conn_open.c:249:     * FIXME-WT-14721: the disagg config check is a giant hack. Ideally, we'd have a single
+/data/work/git/wiredtiger5/src/conn/conn_sweep.c:104:         * FIXME-WT-16982: Optimization to close layered dhandles with empty ingest tables and on
+/data/work/git/wiredtiger5/src/cursor/cur_backup_incr.c:135:    /* FIXME-WT-14789: we can probably replace the NULL check with something tidier. */
+/data/work/git/wiredtiger5/src/cursor/cur_hs.c:139:     * FIXME-WT-6037: This isn't reasonable and needs a better fix.
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:1082:     * FIXME-WT-16810: In leader mode, skip iterating through ingest as it should be empty. This
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:1090:     * FIXME-WT-15058: Both cursors are expected to be initialized, but we currently have an issue
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:124:     * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:1780:     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty.
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:192:     * FIXME-WT-17360: Consider removing this flag
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:1971:    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:2025:         * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer.
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:2107:     * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:2588:        /* FIXME-WT-14736: consider the size of ingest table in the future. */
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:376:     * position. FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:525:     * any changes. FIXME-WT-14545.
+/data/work/git/wiredtiger5/src/cursor/cur_layered.c:705:     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty. This will need
+/data/work/git/wiredtiger5/src/cursor/cur_version.c:665:             * FIXME-WT-16136: for history store, it is hard to determine if the stop durable
+/data/work/git/wiredtiger5/src/evict/evict_conn.c:477: *     FIXME-WT-13666: Investigate whether this function should be internal to prevent unintended
+/data/work/git/wiredtiger5/src/evict/evict_inline.h:860:    /* FIXME-WT-12905: Pre-fetch threads are not allowed to be pulled into eviction. */
+/data/work/git/wiredtiger5/src/evict/evict_page.c:825:             * FIXME-WT-9780: this and the CAS should be rolled into a WT_REF_TRYLOCK macro.
+/data/work/git/wiredtiger5/src/include/api.h:158:         * FIXME-WT-7247 Ideally we would not leave any history store cursors open when we         \
+/data/work/git/wiredtiger5/src/include/btmem.h:84:    /* FIXME-WT-16512: A byte of padding, reserved to make the header extensible in the future. */
+/data/work/git/wiredtiger5/src/include/btree.h:182:    /* FIXME-WT-15633: Combine `prune_timestamp` and `checkpoint_timestamp` into one variable */
+/data/work/git/wiredtiger5/src/include/cell_inline.h:454: *     Copy a key/value cell and buffer pair. FIXME-WT-14887: ensure memory safety on the pointer.
+/data/work/git/wiredtiger5/src/include/connection.h:123:    /* FIXME-WT-15865: Check whether all the strings contain duplicated content. */
+/data/work/git/wiredtiger5/src/include/cursor_inline.h:575: * we'll do a wasted data copy each time a new value is inserted into the object. FIXME-WT-14806:
+/data/work/git/wiredtiger5/src/include/generation_inline.h:11:/* FIXME: Move all generation functions into one file. */
+/data/work/git/wiredtiger5/src/include/misc.h:212: * FIXME-WT-12534 We need atomics to fix data races detected by TSan, however these atomics come
+/data/work/git/wiredtiger5/src/include/misc.h:495: *     statistic is allowed to be fuzzy. FIXME-WT-15755: Consider using relaxed CAS instead to
+/data/work/git/wiredtiger5/src/include/schema.h:118:     * FIXME-WT-16789: Make list sorted by start key or start timestamp for performance
+/data/work/git/wiredtiger5/src/include/schema.h:79:     * FIXME-WT-16789: Investigate if there is more efficient way to get the dhandle.
+/data/work/git/wiredtiger5/src/include/session.h:130:    /* FIXME-WT-16787 Consider removing the session name field. */
+/data/work/git/wiredtiger5/src/include/stat.h:182: * FIXME-WT-15752: Remove __wt_tsan_suppress_* wrappers and implement proper atomics synchronization
+/data/work/git/wiredtiger5/src/include/stat.h:208:/* FIXME-WT-15754: Consider using relaxed memory order for all statistic operations. */
+/data/work/git/wiredtiger5/src/include/stat.h:249:/* FIXME-WT-15961 Introduce thread-safe stats interfaces. */
+/data/work/git/wiredtiger5/src/include/tiered.h:116:/* FIXME: Currently the WT_TIERED_OBJECT data structure is not used. */
+/data/work/git/wiredtiger5/src/include/tiered.h:141:/* FIXME: Currently the WT_TIERED_TREE data structure is not used. */
+/data/work/git/wiredtiger5/src/include/txn_inline.h:530:                        /* FIXME-WT-16319: Data races reported. */
+/data/work/git/wiredtiger5/src/include/txn_inline.h:721:                /* FIXME-WT-16319: Data races reported. */
+/data/work/git/wiredtiger5/src/live_restore/live_restore_fs.c:1091:        /* FIXME-WT-14047: Currently we do not support absolute log paths. */
+/data/work/git/wiredtiger5/src/live_restore/live_restore_fs.c:1796:    /* FIXME-WT-14051 - Add live restore support to Windows. */
+/data/work/git/wiredtiger5/src/live_restore/live_restore_fs.c:1873:    /* FIXME-WT-13820: These are unimplemented. */
+/data/work/git/wiredtiger5/src/live_restore/live_restore_fs.c:2086:    /* FIXME-WT-14223: Remove this once readonly database connections are supported. */
+/data/work/git/wiredtiger5/src/live_restore/live_restore_fs.c:2092:    /* FIXME-WT-14051 - Add live restore support to Windows. */
+/data/work/git/wiredtiger5/src/live_restore/live_restore_server.c:276:    /* FIXME-WT-13897 Replace this with an API call into the block manager. */
+/data/work/git/wiredtiger5/src/log/log.c:1993:        /* FIXME-WT-15708: Unprotected access to log->sync_lsn.l.file. */
+/data/work/git/wiredtiger5/src/log/log.h:113: * FIXME-WT-8681 - According to WT_MIN_STARTUP_VERSION any WT version less then 3.2.0 will not
+/data/work/git/wiredtiger5/src/log/log_mgr.c:671:                 * FIXME-WT-15337: Consider using a release write in production.
+/data/work/git/wiredtiger5/src/meta/meta_ckpt.c:1325:    /* FIXME-WT-13897 Replace this with an API call into the block manager. */
+/data/work/git/wiredtiger5/src/meta/meta_turtle.c:742:    /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
+/data/work/git/wiredtiger5/src/reconcile/rec_child.c:239:            /* FIXME-WT-14879: support delta for fast truncate. */
+/data/work/git/wiredtiger5/src/reconcile/rec_row.c:440:    /* FIXME-WT-15709: build delta for split pages. */
+/data/work/git/wiredtiger5/src/reconcile/rec_row.c:577:         * FIXME-WT-15709: build delta for split pages.
+/data/work/git/wiredtiger5/src/reconcile/rec_visibility.c:715:     * FIXME-WT-9182: figure out what should be included in the calculation of the size of the saved
+/data/work/git/wiredtiger5/src/reconcile/rec_visibility.c:854:         * FIXME-WT-14902: currently we only support this mode from startup. If we want to enable
+/data/work/git/wiredtiger5/src/reconcile/rec_write.c:1224:        /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas.
+/data/work/git/wiredtiger5/src/reconcile/rec_write.c:1244:    /* FIXME-WT-14881: Temporary hack to ensure we don't run out of space when rewriting deltas. */
+/data/work/git/wiredtiger5/src/reconcile/rec_write.c:2095:     * FIXME-WT-14882: we should rethink where we should call this. Is this safe to call this right
+/data/work/git/wiredtiger5/src/reconcile/rec_write.c:2776:    /* FIXME-WT-14882: this is unnecessary, we overwrite it later. */
+/data/work/git/wiredtiger5/src/reconcile/rec_write.c:3083:         * FIXME-WT-14884: we need to check with the page service team if we need to write an empty
+/data/work/git/wiredtiger5/src/reconcile/rec_write.c:3338:            /* FIXME-WT-15709: build delta for split pages. */
+/data/work/git/wiredtiger5/src/reconcile/rec_write.c:431:     * Sanity check timings (WT_DAY is in seconds, and we have milliseconds). FIXME-WT-12192
+/data/work/git/wiredtiger5/src/reconcile/reconcile_inline.h:316: *     Copy a key/value cell and buffer pair. FIXME-WT-14887: ensure memory safety on the pointer.
+/data/work/git/wiredtiger5/src/rollback_to_stable/rts_api.c:177:        /* FIXME-WT-16778: use atomic write for the has durable timestamp flag. */
+/data/work/git/wiredtiger5/src/schema/schema_create.c:1093:     * FIXME-WT-16462 We should determine if there is a better way to determine if this is a layered
+/data/work/git/wiredtiger5/src/schema/schema_create.c:1223:         * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a
+/data/work/git/wiredtiger5/src/schema/schema_create.c:1319:    /* FIXME-WT-16351: Fix the mix of WT_RET and WT_ERR */
+/data/work/git/wiredtiger5/src/schema/schema_create.c:309:                 * FIXME-WT-7735: Importing a tiered table is not yet allowed.
+/data/work/git/wiredtiger5/src/schema/schema_create.c:697:             * FIXME-WT-16164: __wt_config_merge expects that the config array passed to it is not
+/data/work/git/wiredtiger5/src/schema/schema_drop.c:162:     * FIXME-WT-16527: Set start LSN once implemented.
+/data/work/git/wiredtiger5/src/schema/schema_drop.c:258:     * FIXME-WT-13812: Investigate table locking during session->drop Ideally we would keep the
+/data/work/git/wiredtiger5/src/schema/schema_drop.c:284:     * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables.
+/data/work/git/wiredtiger5/src/schema/schema_drop.c:542:     * FIXME-WT-16215: During recovery (including partial backup restore), the meta tracking has not
+/data/work/git/wiredtiger5/src/schema/schema_open.c:659:    /* FIXME-WT-14738: Setup collator information. */
+/data/work/git/wiredtiger5/src/schema/schema_truncate.c:210:     * FIXME-WT-17308: Remove once the session truncate starts creating local cursors.
+/data/work/git/wiredtiger5/src/schema/schema_util.c:220:    /* FIXME-WT-12021: Replace this function and its call sites with a proper failpoint once the
+/data/work/git/wiredtiger5/src/session/session_api.c:278:        /* FIXME-WT-17360: Consider removing this flag. */
+/data/work/git/wiredtiger5/src/session/session_api.c:533:     * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
+/data/work/git/wiredtiger5/src/session/session_dhandle.c:288:        /* FIXME-WT-12037 Use a sleep to work around a Windows-specific scheduling issue. */
+/data/work/git/wiredtiger5/src/session/session_dhandle.c:965:             * FIXME-WT-16477: work around to ensure we always acquire the checkpoint lock before
+/data/work/git/wiredtiger5/src/txn/txn.c:2636:         * FIXME-WT-14739: we should be able to do shutdown checkpoint for followers as well when we
+/data/work/git/wiredtiger5/src/txn/txn.c:2692:     * FIXME-WT-15823
+/data/work/git/wiredtiger5/src/txn/txn_recover.c:902:    /* FIXME-WT-16146: Add capability for cleaning up incomplete complex tables. */
+/data/work/git/wiredtiger5/src/txn/txn_timestamp.c:586:    /* FIXME-WT-16310: Check synchronization around `oldest_timestamp` and `stable_timestamp`. */
+/data/work/git/wiredtiger5/src/txn/txn_truncate.c:109:     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
+/data/work/git/wiredtiger5/src/txn/txn_truncate.c:196: * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing so
+/data/work/git/wiredtiger5/src/txn/txn_truncate.c:282:     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle from the
+/data/work/git/wiredtiger5/src/txn/txn_truncate.c:311:     * FIXME-WT-17347 Remove the queue-wide write lock when applying commit metadata to truncate
+/data/work/git/wiredtiger5/test/3rdparty/python-subunit-1.4.4/python/subunit/__init__.py:974:    # fixme - error -> result
+/data/work/git/wiredtiger5/test/3rdparty/sqlite3/sqlite3.c:103812:          /* FIXME: Be smarter about indexes that use expressions */
+/data/work/git/wiredtiger5/test/3rdparty/sqlite3/sqlite3.c:52141:    /* FIXME:  If Windows truly always prevents truncating or deleting a
+/data/work/git/wiredtiger5/test/catch2/block/api/test_block_api_misc.cpp:121:     * FIXME-WT-13582: Enable once the __wt_panic functions doesn't assert anymore.
+/data/work/git/wiredtiger5/test/catch2/block/unit/test_block_file.cpp:261:     * FIXME-WT-13504: Enable once segmentation fault is fixed.
+/data/work/git/wiredtiger5/test/catch2/block/unit/test_block_file.cpp:94:        // FIXME-WT-13467: Enable once free function adheres to WiredTiger free pattern.
+/data/work/git/wiredtiger5/test/catch2/wrappers/mock_session.cpp:32:    // FIXME-WT-13505: Move terminate function to connection once circular dependency is fixed.
+/data/work/git/wiredtiger5/test/checkpoint/checkpointer.c:317:             * FIXME: when we change the API to notify that a flush_tier has completed, we'll need
+/data/work/git/wiredtiger5/test/checkpoint/checkpointer.c:336:        /* FIXME-WT-15357 Disagg: Implement checkpoint cursors */
+/data/work/git/wiredtiger5/test/checkpoint/checkpointer.c:680:    /* FIXME-WT-15357: Checkpoint cursors are not compatible with disagg for now. */
+/data/work/git/wiredtiger5/test/cppsuite/src/main/thread_worker.cpp:382: * FIXME: WT-9198 We're concurrently doing a transaction that contains a bunch of operations while
+/data/work/git/wiredtiger5/test/cppsuite/src/main/transaction.cpp:67:     * FIXME-WT-9198 Now we are accepting the error code EINVAL because of possible invalid
+/data/work/git/wiredtiger5/test/cppsuite/tests/cache_resize.cpp:178:        /* FIXME-WT-12931. */
+/data/work/git/wiredtiger5/test/cppsuite/tests/cache_resize.cpp:230:                 * FIXME-WT-12931 - Somehow we have some transactions that go through while the
+/data/work/git/wiredtiger5/test/cppsuite/tests/cache_resize.cpp:238:             * FIXME-WT-12931 - Save the last cache size seen by the transaction.
+/data/work/git/wiredtiger5/test/cppsuite/tests/cache_resize.cpp:248:         * FIXME-WT-12931 - Somehow we have some transactions that go through while the cache is
+/data/work/git/wiredtiger5/test/cppsuite/tests/run.cpp:198:    /* FIXME-WT-13919: Use the util options parsing code for this. */
+/data/work/git/wiredtiger5/test/csuite/schema_abort/main.c:671:             * FIXME: when we change the API to notify that a flush_tier has completed, we'll need
+/data/work/git/wiredtiger5/test/csuite/timestamp_abort/main.c:527:             * FIXME: when we change the API to notify that a flush_tier has completed, we'll need
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:120:    /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:138:        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:157:        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:206:        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:226:        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:246:        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:268:        /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:291:            /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt2695_checksum/main.c:321:            /* FIXME-WT-12067: Re-enable after fixing CRC with seed in software on s390x. */
+/data/work/git/wiredtiger5/test/csuite/wt4105_large_doc_small_upd/main.c:152:             * FIXME-WT-6113: extend timeout to pass the test.
+/data/work/git/wiredtiger5/test/evergreen.yml:141:        # FIXME-SERVER-86966: consider consolidating once prelude.sh is runnable in the perf project.
+/data/work/git/wiredtiger5/test/evergreen.yml:1736:          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+/data/work/git/wiredtiger5/test/evergreen.yml:1742:  # FIXME-WT-16113: Consolidate this logic in test/format itself.
+/data/work/git/wiredtiger5/test/evergreen.yml:1751:          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+/data/work/git/wiredtiger5/test/evergreen.yml:2565:          # FIXME-WT-16228: decrease the timeout when the performance of the disagg leader tests is improved.
+/data/work/git/wiredtiger5/test/evergreen.yml:2587:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:2606:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:2627:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:2644:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:2661:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:2678:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:2695:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:2913:          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+/data/work/git/wiredtiger5/test/evergreen.yml:3826:  - name: s-outdated-fixmes
+/data/work/git/wiredtiger5/test/evergreen.yml:3827:    # Detect any FIXME comments in the codebase tied to closed Jira tickets.
+/data/work/git/wiredtiger5/test/evergreen.yml:3828:    # This will send a GET request to JIRA for each FIXME ticket so we don't
+/data/work/git/wiredtiger5/test/evergreen.yml:4785:          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
+/data/work/git/wiredtiger5/test/evergreen.yml:5290:          # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
+/data/work/git/wiredtiger5/test/evergreen.yml:5415:          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
+/data/work/git/wiredtiger5/test/evergreen.yml:5431:          # FIXME-WT-16228: Re-evaluate whether increased cache settings (size & triggers) are needed after PALI.
+/data/work/git/wiredtiger5/test/evergreen.yml:5482:      # FIXME-WT-10936: Enable once predictable replay supports column store
+/data/work/git/wiredtiger5/test/evergreen.yml:5512:      # FIXME-WT-7868: we should download a pre populated database here and remove the
+/data/work/git/wiredtiger5/test/evergreen.yml:6867:    # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
+/data/work/git/wiredtiger5/test/evergreen.yml:6869:    # FIXME-WT-14962 - Added for tiered storage; may help disagg but currently a CI blocker and needs re-evaluation.
+/data/work/git/wiredtiger5/test/evergreen.yml:6903:    # FIXME-WT-16067: AFAIK even with num_jobs=1 some tests (e.g. format.sh) could be executed in
+/data/work/git/wiredtiger5/test/evergreen.yml:6932:# FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
+/data/work/git/wiredtiger5/test/evergreen.yml:6955:    # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
+/data/work/git/wiredtiger5/test/evergreen.yml:6961:    # FIXME-WT-16309: Enable the common test format tag for TSAN
+/data/work/git/wiredtiger5/test/evergreen.yml:6992:# FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
+/data/work/git/wiredtiger5/test/evergreen.yml:7023:# FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
+/data/work/git/wiredtiger5/test/evergreen.yml:7671:    # FIXME-WT-16067: AFAIK even with num_jobs=1 some tests (e.g. format.sh) could be executed in
+/data/work/git/wiredtiger5/test/evergreen.yml:7699:# FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
+/data/work/git/wiredtiger5/test/evergreen.yml:7716:    # FIXME-WT-16066 Remove unit test tsan once we incorporate TSAN environment variable setting into run.py
+/data/work/git/wiredtiger5/test/evergreen.yml:7721:    # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
+/data/work/git/wiredtiger5/test/evergreen.yml:7727:    # FIXME-WT-16309: Enable the common test format tag for TSAN
+/data/work/git/wiredtiger5/test/evergreen.yml:7735:# FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
+/data/work/git/wiredtiger5/test/evergreen.yml:7769:# FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
+/data/work/git/wiredtiger5/test/evergreen.yml:817:  # FIXME-WT-8538 This task prevents us from saving the same artifacts to evergreen twice. It can be
+/data/work/git/wiredtiger5/test/evergreen/print_stack_trace.py:183:            # FIXME - macOS to be supported in WT-8976
+/data/work/git/wiredtiger5/test/evergreen/print_stack_trace.py:192:            # FIXME - Windows to be supported in WT-8937
+/data/work/git/wiredtiger5/test/evergreen_develop.yml:137:    - name: s-outdated-fixmes
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:551:  # FIXME-WT-16113: Consolidate this logic in test/format itself.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:570:          # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:573:          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:583:          # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:586:          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:588:  # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:598:          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:600:  # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:611:          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+/data/work/git/wiredtiger5/test/evergreen_disagg.yml:652:  # FIXME-WT-16394: Enable disagg switch mode on all platforms once failures have been resolved.
+/data/work/git/wiredtiger5/test/format/bulk.c:107:    /* FIXME-WT-14563: There is no support yet for bulk load with disaggregated storage. */
+/data/work/git/wiredtiger5/test/format/checkpoint.c:163:        /* FIXME-WT-15357 Checkpoint cursors are not compatible with disagg for now. */
+/data/work/git/wiredtiger5/test/format/follower.c:200:         * FIXME-WT-15788: Eventually have the leader send checkpoint metadata to the follower (via
+/data/work/git/wiredtiger5/test/format/format_config.c:1475:    /* FIXME WT-15189 For disagg, random cursors are problematic. */
+/data/work/git/wiredtiger5/test/format/format_config.c:1529:        if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) /* FIXME WT-6431 */
+/data/work/git/wiredtiger5/test/format/format_config.c:1561:    if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) { /* FIXME WT-6431 */
+/data/work/git/wiredtiger5/test/format/format_config.c:1581:    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+/data/work/git/wiredtiger5/test/format/format_config.c:476:         * FIXME-WT-11782: Investigate why predictable replays get stuck with ops.throttling
+/data/work/git/wiredtiger5/test/format/format_config.c:490:    /* FIXME-WT-12983: Temporarily disable salvage test due to increased failures. */
+/data/work/git/wiredtiger5/test/format/format_config.c:760:     * FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
+/data/work/git/wiredtiger5/test/format/format_config_def.c:238:   * FIXME-WT-7418: Temporarily disable import until WT_ROLLBACK error and wt_copy_and_sync error is
+/data/work/git/wiredtiger5/test/format/format_disagg.c:235:     * FIXME-WT-15763: WT does not yet support graceful step-downs. Simply reconfiguring WT to step
+/data/work/git/wiredtiger5/test/format/format_prepare_discover.c:120:    /* FIXME-WT-15357 Checkpoint cursors are not compatible with disagg for now. */
+/data/work/git/wiredtiger5/test/format/ops.c:1286:             * FIXME-WT-17311: If we can make modify return WT_ROLLBACK instead of WT_NOTFOUND when
+/data/work/git/wiredtiger5/test/format/ops.c:791:         * FIXME-WT-17260: Enable pre-positioning the cursor in predictable replay mode.
+/data/work/git/wiredtiger5/test/format/ops.c:868:             * FIXME-WT-9883: It is possible that the underlying cursor is still positioned even
+/data/work/git/wiredtiger5/test/model/src/core/kv_table.cpp:285:         * FIXME-WT-13232 Disable this check.
+/data/work/git/wiredtiger5/test/model/src/driver/kv_workload.cpp:134:    /* FIXME: We currently only support unsigned numbers for keys and values. */
+/data/work/git/wiredtiger5/test/model/src/driver/kv_workload_generator.cpp:103:    max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
+/data/work/git/wiredtiger5/test/model/src/driver/kv_workload_generator.cpp:542:        /* FIXME-WT-15040 Prepared transactions are not yet supported. */
+/data/work/git/wiredtiger5/test/model/src/driver/kv_workload_runner_wt.cpp:477:    /* FIXME-WT-14863 actually use the value we read. */
+/data/work/git/wiredtiger5/test/model/src/include/model/driver/kv_workload_runner.h:212:        /* FIXME-WT-14863 actually use the value we read. */
+/data/work/git/wiredtiger5/test/suite/hook_disagg.py:342:    # FIXME-WT-14740: Re-enable salvage once implemented.
+/data/work/git/wiredtiger5/test/suite/hook_disagg.py:384:            ("test_salvage",         "Salvage is not currently supported for disagg"), # FIXME-WT-14740
+/data/work/git/wiredtiger5/test/suite/hook_disagg.py:512:        # FIXME-WT-16920: When there are multiple connections on multiple home directories,
+/data/work/git/wiredtiger5/test/suite/hook_disagg.py:523:        # FIXME-WT-16918: for PALite will need to rummage in kv_home files.
+/data/work/git/wiredtiger5/test/suite/hook_disagg.py:527:        # FIXME-WT-15064: there really isn't an equivalent
+/data/work/git/wiredtiger5/test/suite/hook_disagg.py:92:    # FIXME-WT-17177: Read-only connections are currently not supported for disagg.
+/data/work/git/wiredtiger5/test/suite/hook_tiered.py:210:    # FIXME-PM-2538
+/data/work/git/wiredtiger5/test/suite/hook_tiered.py:243:# FIXME-PM-2532
+/data/work/git/wiredtiger5/test/suite/run.py:515:        # FIXME-WT-16067: Investigate the reason of hidden warnings.
+/data/work/git/wiredtiger5/test/suite/suite_subprocess.py:220:    # FIXME-WT-9808:
+/data/work/git/wiredtiger5/test/suite/test_bug010.py:47:    # FIXME-WT-16532 The setup of this test with the disagg hook causes a hard-to-reproduce failure.
+/data/work/git/wiredtiger5/test/suite/test_checkpoint33.py:86:            self.skipTest("FIXME-WT-14098 This test fails to compress the table when run under TSan")
+/data/work/git/wiredtiger5/test/suite/test_checkpoint_snapshot05.py:88:    @wttest.skip_for_hook("disagg", "layered trees do not yet support bulk loading")  # FIXME-WT-14563
+/data/work/git/wiredtiger5/test/suite/test_compact12.py:76:        # FIXME-SLS-1890
+/data/work/git/wiredtiger5/test/suite/test_corrupt01.py:38:# FIXME-WT-15064: This test is disabled until we have a way to implement corruption tests for DisAgg.
+/data/work/git/wiredtiger5/test/suite/test_cursor_bound16.py:49:        # FIXME-WT-9986: Re-enable dump_json after fixing the JSON cursor bug
+/data/work/git/wiredtiger5/test/suite/test_drop01.py:51:    @unittest.skip('FIXME-WT-16857, Test has known bug.')
+/data/work/git/wiredtiger5/test/suite/test_error_info02.py:37:    # FIXME-WT-15058
+/data/work/git/wiredtiger5/test/suite/test_import11.py:228:        # FIXME verification is disabled because it fails on tiered storage.
+/data/work/git/wiredtiger5/test/suite/test_import12.py:180:            # It's unknown yet why it doesn't ever happen in develop.  FIXME-WT-14713.
+/data/work/git/wiredtiger5/test/suite/test_import12.py:191:            # FIXME-WT-13639. Uncomment this.
+/data/work/git/wiredtiger5/test/suite/test_jsondump01.py:125:        # FIXME-WT-9986: Re-enable this test after fixing the JSON cursor bug
+/data/work/git/wiredtiger5/test/suite/test_jsondump01.py:89:        # FIXME-WT-9986: Re-enable this test after fixing the JSON cursor bug
+/data/work/git/wiredtiger5/test/suite/test_jsondump02.py:330:        # FIXME-WT-9986: Re-enable this test after fixing the JSON cursor bug
+/data/work/git/wiredtiger5/test/suite/test_jsondump02.py:91:        # FIXME-WT-9986: Re-enable this test after fixing the JSON cursor bug
+/data/work/git/wiredtiger5/test/suite/test_layered27.py:150:        # FIXME-WT-15763: Re-enable once we can abandon changes after stepping down.
+/data/work/git/wiredtiger5/test/suite/test_layered27.py:270:        # FIXME-WT-15763: Re-enable once we can abandon changes after stepping down.
+/data/work/git/wiredtiger5/test/suite/test_layered27.py:91:        # FIXME-WT-15763: Re-enable once we can abandon changes after stepping down.
+/data/work/git/wiredtiger5/test/suite/test_layered31.py:257:        # FIXME-WT-14545: enable this test when stepping down is debugged.
+/data/work/git/wiredtiger5/test/suite/test_layered43.py:58:        self.skipTest("FIXME-WT-15663: currently block cache is disabled.")
+/data/work/git/wiredtiger5/test/suite/test_layered64.py:82:        # FIXME-WT-16000: Make the checksum parameter in "checkpoint_meta" required
+/data/work/git/wiredtiger5/test/suite/test_layered88.py:31:# - Reverse collator (FIXME-WT-14738)
+/data/work/git/wiredtiger5/test/suite/test_layered88.py:51:        # FIXME-WT-17177: Opening a read-only connection with disagg must be rejected.
+/data/work/git/wiredtiger5/test/suite/test_layered88.py:62:        # collator support and rejects it. FIXME-WT-14738.
+/data/work/git/wiredtiger5/test/suite/test_layered91.py:148:        # FIXME-WT-17160: Increasing the number of situations results in abort due to cache stuck.
+/data/work/git/wiredtiger5/test/suite/test_layered98.py:119:        # FIXME-WT-17299 By getting metadata caching, we should be able to calculate these
+/data/work/git/wiredtiger5/test/suite/test_layered_fast_truncate01.py:199:    # FIXME-WT-17272: search_near in truncate path misses uncommitted ingest updates
+/data/work/git/wiredtiger5/test/suite/test_layered_fast_truncate01.py:200:    @unittest.skip("FIXME-WT-17272")
+/data/work/git/wiredtiger5/test/suite/test_layered_fast_truncate05.py:38:# FIXME-WT-15189: Random cursor reads hang when the ingest btree contains
+/data/work/git/wiredtiger5/test/suite/test_live_restore04.py:54:        # FIXME-WT-14051: Live restore is not supported on Windows.
+/data/work/git/wiredtiger5/test/suite/test_live_restore06.py:46:        # FIXME-WT-14051 Live restore is not supported on Windows.
+/data/work/git/wiredtiger5/test/suite/test_prefetch02.py:96:        # FIXME-WT-12193 Change some of these statistic checks to use assertGreater instead if possible.
+/data/work/git/wiredtiger5/test/suite/test_prepare34.py:35:# FIXME: Verify that prepared modifies are reconstructed properly when loaded from disk
+/data/work/git/wiredtiger5/test/suite/test_prepare_hs03.py:44:@wttest.skip_for_hook("disagg", "Salvage on disagg tables not yet implemented") # FIXME-WT-14740: Re-enable salvage once implemented.
+/data/work/git/wiredtiger5/test/suite/test_salvage01.py:271:        # FIXME-WT-12143 - It should be the responsibility of the pre-fetching
+/data/work/git/wiredtiger5/test/suite/test_sweep01.py:60:        # FIXME-WT-11367
+/data/work/git/wiredtiger5/test/suite/test_sweep03.py:150:    # FIXME-WT-16757: Enable on disagg once issue has been investigated.
+/data/work/git/wiredtiger5/test/suite/test_sweep03.py:185:    # FIXME - WT11133 Uncomment and re-enable this test after fixing this ticket.
+/data/work/git/wiredtiger5/test/suite/test_sweep04.py:113:        # FIXME-WT-13706
+/data/work/git/wiredtiger5/test/suite/test_sweep04.py:114:        self.skipTest("FIXME-WT-13706")
+/data/work/git/wiredtiger5/test/suite/test_sweep07.py:51:        # FIXME-WT-15646: We still check for LAS existence in __hs_cleanup_las() and according to
+/data/work/git/wiredtiger5/test/suite/test_tiered06.py:353:        # Remove this 'if' and comment when FIXME-WT-11004 is finished.
+/data/work/git/wiredtiger5/test/suite/test_tiered13.py:148:        # FIXME-WT-8644 There is an error path bug in wt_bm_read preventing this from
+/data/work/git/wiredtiger5/test/suite/test_tiered18.py:96:    # FIXME-WT-14939: this should be reinstated at some point.
+/data/work/git/wiredtiger5/test/suite/test_tiered20.py:107:        # Remove this 'if' and comment when FIXME-WT-11004 is finished.
+/data/work/git/wiredtiger5/test/suite/test_timestamp05.py:67:    # FIXME-WT-14563
+/data/work/git/wiredtiger5/test/suite/test_truncate15.py:37:# FIXME-WT-14582: Re-enable once disagg supports readonly connections.
+/data/work/git/wiredtiger5/test/suite/test_truncate23.py:127:        self.skipTest("FIXME-WT-13232")
+/data/work/git/wiredtiger5/test/suite/test_txn19.py:538:            # FIXME-WT-11995
+/data/work/git/wiredtiger5/test/suite/test_util23.py:34:# FIXME-WT-17177: Read-only connections are currently not supported for disagg (-r flag for commands).
+/data/work/git/wiredtiger5/test/suite/test_verify.py:106:    # FIXME-WT-15064:
+/data/work/git/wiredtiger5/test/suite/test_verify.py:83:    # FIXME-WT-15064:
+/data/work/git/wiredtiger5/test/suite/wttest.py:153:    # FIXME-WT-16369: Consider printing error dumps for self.conn_follow in DisAgg tests
+/data/work/git/wiredtiger5/test/suite/wttest.py:930:    # FIXME-WT-15791 review instances of "session.compact(...)" and replace with "self.compactUntilSuccess" where appropriate.
+/data/work/git/wiredtiger5/test/suite/wttest.py:936:    # FIXME-WT-15791 review instances of "session.drop(...)" and replace with "self.dropUntilSuccess" where appropriate.
+/data/work/git/wiredtiger5/test/suite/wttest.py:951:    # FIXME-WT-15791 review instances of "session.salvage(...)" and replace with "self.salvageUntilSuccess" where appropriate.
+/data/work/git/wiredtiger5/test/wt_hang_analyzer/wt_hang_analyzer.py:467:    # FIXME : WT-6918 - Remove the skip block of code after fixing the issues.
+/data/work/git/wiredtiger5/tools/backup_analysis.py:381:        # FIXME: More could be done here to report extra blocks added/removed.
+/data/work/git/wiredtiger5/tools/backup_analysis.py:388:    # FIXME: Right now the granularity must be an integer for the number of bytes.
+/data/work/git/wiredtiger5/tools/gdb/gdb_scripts/hazard_pointers.py:9:# FIXME-WT-11929 - Move these type aliases and find_session helper function into their own files so other 
+/data/work/git/wiredtiger5/tools/gdb/gdb_scripts/wt_debug_script_update.py:5:# FIXME-WT-9286 Update to use gdb.Command like the other python scripts.
+/data/work/git/wiredtiger5/tools/py_common/btree_format.py:914:                # FIXME-WT-13000 theres a bug in raw_bytes
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:117:            # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:124:            # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:129:        # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:34:        # FIXME - PM-3095 This check should be ignored until PM-3095.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:44:            # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:48:        # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:63:            # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:89:            # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/rts_verifier/checker.py:93:        # FIXME - PM-3095 Ignore this until the verifier is fully working.
+/data/work/git/wiredtiger5/tools/test/test_decode_log_mongodb.py:60:        self.skipTest("FIXME-WT-16726 Test for valid MongoDB log")
+/data/work/git/wiredtiger5/tools/test/test_decode_log_mongodb.py:63:        self.skipTest("FIXME-WT-16726 Test for valid multi-chunk MongoDB log")
+/data/work/git/wiredtiger5/tools/test/test_decode_log_mongodb.py:66:        self.skipTest("FIXME-WT-16726 Test for incomplete chunks in MongoDB log")
+/data/work/git/wiredtiger5/tools/test/test_decode_log_mongodb.py:69:        self.skipTest("FIXME-WT-16726 Test for no checksum mismatch in MongoDB log")
