@@ -56,12 +56,13 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
     *is_within_rangep = (compare_result <= 0);
     return (0);
 }
+
 /*
- * __log_inserted_entry --
- *     Create a log message for the entry that was added to the truncate list.
+ * __log_truncate_entry --
+ *     Create a log message for the truncate entry that will be added to the truncate list.
  */
 static void
-__log_inserted_entry(
+__log_truncate_entry(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_TRUNCATE *entry)
 {
     if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3))
@@ -78,7 +79,7 @@ __log_inserted_entry(
     const char *format = layered_table->key_format;
 
     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
-      "insert entry into truncate list on table %s: start=%s stop=%s", name,
+      "inserting entry into truncate list on table %s: start=%s stop=%s", name,
       __wt_key_string(session, entry->start_key.data, entry->start_key.size, format, start_buffer),
       __wt_key_string(session, entry->stop_key.data, entry->stop_key.size, format, stop_buffer));
 
@@ -101,6 +102,9 @@ __txn_insert_truncate_entry_helper(
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
     WT_ERR(__wt_txn_truncate(session, entry));
 
+    /* At this point, adding the entry to the truncate list will not fail. */
+    __log_truncate_entry(session, layered_table, entry);
+
     __wt_writelock(session, &layered_table->truncate_lock);
 
     if (TAILQ_EMPTY(&layered_table->truncateqh))
@@ -109,8 +113,6 @@ __txn_insert_truncate_entry_helper(
     TAILQ_INSERT_TAIL(&layered_table->truncateqh, entry, q);
 
     __wt_writeunlock(session, &layered_table->truncate_lock);
-
-    __log_inserted_entry(session, layered_table, entry);
 
     /* Ownership transferred to the txn op and truncate queue. */
     *tp = NULL;
