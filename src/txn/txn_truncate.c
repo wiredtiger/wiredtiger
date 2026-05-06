@@ -58,6 +58,37 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 }
 
 /*
+ * __log_truncate_entry --
+ *     Create a log message for the truncate entry that will be added to the truncate list.
+ */
+static void
+__log_truncate_entry(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_TRUNCATE *entry)
+{
+    if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3))
+        return;
+
+    WT_DECL_RET;
+    WT_DECL_ITEM(start_buffer);
+    WT_DECL_ITEM(stop_buffer);
+
+    const char *name = layered_table->iface.name;
+    const char *format = layered_table->key_format;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &start_buffer));
+    WT_ERR(__wt_scr_alloc(session, 0, &stop_buffer));
+
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
+      "inserting entry into truncate list on table %s: start=%s stop=%s", name,
+      __wt_key_string(session, entry->start_key.data, entry->start_key.size, format, start_buffer),
+      __wt_key_string(session, entry->stop_key.data, entry->stop_key.size, format, stop_buffer));
+
+err:
+    __wt_scr_free(session, &start_buffer);
+    __wt_scr_free(session, &stop_buffer);
+}
+
+/*
  * __txn_insert_truncate_entry_helper --
  *     Register a truncate entry to the latest transaction and store it in the truncate list.
  */
@@ -66,19 +97,20 @@ __txn_insert_truncate_entry_helper(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE **tp)
 {
     WT_DECL_RET;
-    WT_TRUNCATE *t;
-
-    t = *tp;
+    WT_TRUNCATE *entry = *tp;
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
-    WT_ERR(__wt_txn_truncate(session, t));
+    WT_ERR(__wt_txn_truncate(session, entry));
+
+    /* At this point, adding the entry to the truncate list will not fail. */
+    __log_truncate_entry(session, layered_table, entry);
 
     __wt_writelock(session, &layered_table->truncate_lock);
 
     if (TAILQ_EMPTY(&layered_table->truncateqh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
 
-    TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
+    TAILQ_INSERT_TAIL(&layered_table->truncateqh, entry, q);
 
     __wt_writeunlock(session, &layered_table->truncate_lock);
 
@@ -98,8 +130,6 @@ int
 __wt_insert_truncate_entry(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *start_key, WT_ITEM *stop_key)
 {
-    WT_DECL_ITEM(start_buf);
-    WT_DECL_ITEM(stop_buf);
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL;
 
@@ -110,15 +140,6 @@ __wt_insert_truncate_entry(
     /* Caller resolves open-ended ranges to concrete keys before reaching us. */
     WT_ASSERT(session, start_key != NULL && stop_key != NULL);
     WT_ASSERT(session, start_key->size != 0 && stop_key->size != 0);
-
-    WT_RET(__wt_scr_alloc(session, 0, &start_buf));
-    WT_RET(__wt_scr_alloc(session, 0, &stop_buf));
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
-      "insert entry into truncate list on table %s: start=%s stop=%s", layered_table->iface.name,
-      __wt_key_string(
-        session, start_key->data, start_key->size, layered_table->key_format, start_buf),
-      __wt_key_string(
-        session, stop_key->data, stop_key->size, layered_table->key_format, stop_buf));
 
     WT_ERR(__wt_calloc_one(session, &t));
     t->layered_table = layered_table;
@@ -137,8 +158,6 @@ __wt_insert_truncate_entry(
 err:
         __disagg_truncate_free(session, &t);
     }
-    __wt_scr_free(session, &start_buf);
-    __wt_scr_free(session, &stop_buf);
 
     return (ret);
 }
