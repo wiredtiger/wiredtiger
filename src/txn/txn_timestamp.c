@@ -1299,8 +1299,13 @@ __wti_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     if (F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
-        /* Assert the read timestamp is greater than or equal to the pinned timestamp. */
-        WT_ASSERT(session, txn_shared->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
+        /*
+         * Assert the read timestamp is greater than or equal to the pinned timestamp.
+         * WT_TXN_TS_INTERNAL_REPLAY transactions intentionally read at a historical timestamp
+         * older than the pinned horizon, so skip this check for them.
+         */
+        WT_ASSERT(session, F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY) ||
+          txn_shared->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
 
         WT_RELEASE_BARRIER();
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
