@@ -111,7 +111,7 @@ class test_hs01(wttest.WiredTigerTestCase):
     def test_hs(self):
         # disagg skips recovery RTS; without precise_checkpoint the stable btree checkpoint
         # writes unstable updates to disk, so durable_check would return the wrong value.
-        if hasattr(self, 'disagg_leader') and not self.precise_checkpoint:
+        if getattr(self, 'disagg_leader', False) and not self.precise_checkpoint:
             self.skipTest('disagg mode requires precise_checkpoint for durable_check')
 
         # Create a small table.
