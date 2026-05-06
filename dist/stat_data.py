@@ -916,6 +916,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
+    CacheStat('cache_obsolete_updates_removed', 'obsolete updates removed'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
@@ -984,6 +985,8 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint cleanup statistics
     ##########################################
+    CheckpointCleanupStat('cc_duration', 'most recent duration on all eligible files (usecs)', 'no_clear,no_scale'),
+    CheckpointCleanupStat('cc_handle_processed', 'most recent handles processed'),
     CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
     CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
     CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
