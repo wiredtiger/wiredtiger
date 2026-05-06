@@ -1412,7 +1412,13 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
-        WT_ASSERT_ALWAYS(session, WT_REC_HAS_ON_DISK(vpack), "No on-disk value is found");
+
+        if (!WT_REC_HAS_ON_DISK(vpack)) {
+            WT_ASSERT_ALWAYS(session, F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT),
+              "No on-disk value is found for a non-ingest tombstone-only chain");
+            upd_select->upd = tombstone;
+            return (0);
+        }
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)

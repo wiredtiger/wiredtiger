@@ -951,6 +951,13 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
                 WT_ERR(__wti_rec_cell_build_val(session, r, upd->data, upd->size, &tw, 0, NULL));
             break;
         case WT_UPDATE_TOMBSTONE:
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                /*
+                 * Ingest btree: value lives in the stable btree. Write a delete cell so the
+                 * tombstone survives GC re-instantiation. Once the tombstone becomes globally
+                 * visible, subsequent GC drops the key.
+                 */
+                WT_ERR(__wti_rec_cell_build_val(session, r, NULL, 0, &tw, 0, NULL));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, upd->type));
@@ -967,7 +974,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
               session, r, WT_RECNO_OOB, tmpkey, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
         }
 
-        if (upd->type == WT_UPDATE_TOMBSTONE)
+        if (upd->type == WT_UPDATE_TOMBSTONE && !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             continue;
 
         /* Build key cell. */
