@@ -365,7 +365,6 @@ err:
 void
 __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-    WT_BTREE *btree;
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first;
@@ -373,7 +372,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
     uint64_t oldest_id;
     u_int count;
 
-    btree = S2BT(session);
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
@@ -402,19 +400,8 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
          * racing with prepared rollback, since no updates should exist in the prepared state at
          * this point.
          */
-        if ((txnid = __wt_atomic_load_uint64_v_relaxed(&upd->txnid)) == WT_TXN_ABORTED) {
-            /*
-             * We only need to focus on prepared updates in the ingest table, as it is the only type
-             * of btree that requires draining during the step-up process.
-             */
-            if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                continue;
-
-            if (upd->prepare_state != WT_PREPARE_INPROGRESS)
-                continue;
-
+        if ((txnid = __wt_atomic_load_uint64_v_relaxed(&upd->txnid)) == WT_TXN_ABORTED)
             continue;
-        }
 
         /*
          * Prepare transaction rollback adds a globally visible tombstone to the update chain to
