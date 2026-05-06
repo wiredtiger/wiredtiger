@@ -68,22 +68,22 @@ __log_truncate_entry(
     if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3))
         return;
 
+    WT_DECL_RET;
     WT_DECL_ITEM(start_buffer);
     WT_DECL_ITEM(stop_buffer);
 
-    if (__wt_scr_alloc(session, 0, &start_buffer) != 0 ||
-      __wt_scr_alloc(session, 0, &stop_buffer) != 0)
-        goto done;
-
     const char *name = layered_table->iface.name;
     const char *format = layered_table->key_format;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &start_buffer));
+    WT_ERR(__wt_scr_alloc(session, 0, &stop_buffer));
 
     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
       "inserting entry into truncate list on table %s: start=%s stop=%s", name,
       __wt_key_string(session, entry->start_key.data, entry->start_key.size, format, start_buffer),
       __wt_key_string(session, entry->stop_key.data, entry->stop_key.size, format, stop_buffer));
 
-done:
+err:
     __wt_scr_free(session, &start_buffer);
     __wt_scr_free(session, &stop_buffer);
 }
