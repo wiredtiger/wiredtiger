@@ -586,7 +586,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      */
     if ((change_stable = clayered->stable_cursor != NULL &&
             (__clayered_can_advance_stable(clayered, iteration) || role_change)))
-        WT_RET(__clayered_reopen_stable(session, clayered, current_leader));
+        WT_RET(__clayered_reopen_stable(session, clayered));
 
     /* Update the state of the layered cursor. */
     clayered->leader = current_leader;
