@@ -42,7 +42,18 @@ __layered_assert_tombstone_has_value_on_stable_btree(
         if (upd != NULL) {
             WT_ASSERT_ALWAYS(session, upd->txnid != WT_TXN_ABORTED,
               "The stable btree should not contain aborted updates prior to draining");
-            has_value = upd->type != WT_UPDATE_TOMBSTONE;
+            if (upd->type != WT_UPDATE_TOMBSTONE)
+                has_value = true;
+            else {
+                /*
+                 * A newer tombstone already sits at the head of stable's update chain (e.g. from
+                 * drain_pending_truncates). The ingest tombstone being placed targets the on-disk
+                 * value underneath it, so check the on-disk cell directly.
+                 */
+                WT_TIME_WINDOW tw;
+                bool tw_found = __wt_read_cell_time_window(cbt, &tw);
+                has_value = tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw);
+            }
         } else {
             WT_TIME_WINDOW tw;
             bool tw_found = __wt_read_cell_time_window(cbt, &tw);
@@ -452,16 +463,6 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
     in_window = false;
     WT_CLEAR(win_start);
 
-    /* Collect windows in a read txn; apply them in a separate write txn. */
-    WT_ERR(__wt_txn_begin(session, NULL));
-    /* start_ts may predate oldest/stable; bypass timestamp ordering for this internal replay. */
-    F_SET(session->txn, WT_TXN_TS_INTERNAL_REPLAY);
-    WT_ERR(__wt_txn_set_read_timestamp(session, t->start_ts));
-
-    /* Pin our low read_ts globally so the read-timestamp-clear assertion holds. */
-    __wt_atomic_store_bool_relaxed(&S2C(session)->txn_global.oldest_is_pinned, false);
-    __wti_txn_update_pinned_timestamp(session, true);
-
     WT_ERR(__layered_window_open(
       session, stable_cursor, &t->start_key, true, &win_start, &in_window));
 
@@ -490,12 +491,9 @@ __layered_collect_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t,
         WT_ERR(__layered_window_close(session, stable_cursor, &t->stop_key, true,
           &win_start, win_startsp, win_stopsp, &starts_alloc, &stops_alloc, &nwindows));
 
-    WT_ERR(__wt_txn_rollback(session, NULL, false));
     *nwindowsp = nwindows;
 
 err:
-    if (F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_TRET(__wt_txn_rollback(session, NULL, false));
     __wt_buf_free(session, &win_start);
     WT_TRET(stable_cursor->reset(stable_cursor));
     WT_TRET(ingest_cursor->reset(ingest_cursor));
@@ -518,8 +516,8 @@ __layered_apply_truncate_windows(WT_SESSION_IMPL *session, WT_TRUNCATE *t, WT_IT
 
     trunc_start = trunc_stop = NULL;
 
-    WT_ERR(__wt_open_cursor(session, t->uri, NULL, open_cfg, &trunc_start));
-    WT_ERR(__wt_open_cursor(session, t->uri, NULL, open_cfg, &trunc_stop));
+    WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_start));
+    WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
 
     WT_ERR(__wt_txn_begin(session, NULL));
     /* Replay commit timestamp predates stable; bypass timestamp ordering checks. */
@@ -541,6 +539,100 @@ err:
         WT_TRET(trunc_start->close(trunc_start));
     if (trunc_stop != NULL)
         WT_TRET(trunc_stop->close(trunc_stop));
+    return (ret);
+}
+
+/*
+ * __layered_inject_truncate_tombstones --
+ *     When a committed truncate predates the oldest entry of an ingest update chain, write a
+ *     tombstone for that truncate directly to stable before the ingest chain is applied. 
+ *
+ *     Skip entirely when the chain is a single tombstone and an older covering truncate exists:
+ *     the key is already included in the stable-side range-truncate window (tombstone invisible
+ *     to the ingest cursor = not a split point), so no extra tombstone is needed.
+ */
+static int
+__layered_inject_truncate_tombstones(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
+  WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds, WT_UPDATE *last_upd, bool *skip_keyp)
+{
+    WT_DECL_RET;
+    WT_TRUNCATE *t;
+    WT_UPDATE *trunc_upd;
+    wt_timestamp_t chain_tail_ts;
+    wt_timestamp_t oldest_older_durable_ts, oldest_older_start_ts;
+    uint64_t oldest_older_txn_id;
+    bool any_covering, lock_held;
+    int cmp;
+
+    *skip_keyp = false;
+    trunc_upd = NULL;
+
+    if (layered_table == NULL || last_upd == NULL)
+        return (0);
+
+    oldest_older_txn_id = WT_TXN_NONE;
+    oldest_older_start_ts = WT_TS_MAX;
+    oldest_older_durable_ts = WT_TS_NONE;
+    any_covering = lock_held = false;
+    chain_tail_ts = last_upd->upd_start_ts;
+
+    __wt_readlock(session, &layered_table->truncate_lock);
+    lock_held = true;
+    TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
+        /* Skip uncommitted truncates. */
+        if (t->txn_id == WT_TXN_NONE)
+            continue;
+        WT_ERR(__wt_compare(session, layered_table->collator, key, &t->start_key, &cmp));
+        if (cmp < 0)
+            continue;
+
+        WT_ERR(__wt_compare(session, layered_table->collator, key, &t->stop_key, &cmp));
+        if (cmp > 0)
+            continue;
+        any_covering = true;
+        /* Track the oldest committed truncate whose timestamp predates the chain tail. */
+        if (t->start_ts < chain_tail_ts && t->start_ts < oldest_older_start_ts) {
+            oldest_older_txn_id = t->txn_id;
+            oldest_older_start_ts = t->start_ts;
+            oldest_older_durable_ts = t->durable_ts;
+        }
+    }
+    __wt_readunlock(session, &layered_table->truncate_lock);
+    lock_held = false;
+
+    if (!any_covering)
+        return (0);
+
+    /*
+     * If the chain is a single tombstone and an older covering truncate exists, skip this key.
+     * The key is already included in the stable-side range-truncate window (tombstone invisible
+     * to the ingest cursor = not a split point). Writing a tombstone to stable here would leave
+     * it with no value beneath it.
+     */
+    if (upds->type == WT_UPDATE_TOMBSTONE && upds == last_upd &&
+      oldest_older_txn_id != WT_TXN_NONE) {
+        *skip_keyp = true;
+        return (0);
+    }
+
+    /* Write the truncate tombstone directly to stable; the caller writes the ingest chain on top. */
+    if (oldest_older_txn_id != WT_TXN_NONE) {
+        WT_ERR(__wt_upd_alloc_tombstone(session, &trunc_upd, NULL));
+        trunc_upd->txnid = oldest_older_txn_id;
+        trunc_upd->upd_start_ts = oldest_older_start_ts;
+        trunc_upd->upd_durable_ts = oldest_older_durable_ts;
+        F_SET(trunc_upd, WT_UPDATE_RESTORED_FROM_INGEST);
+        WT_WITH_DHANDLE(session, cbt->dhandle,
+          ret = __layered_move_updates(session, cbt, key, trunc_upd, trunc_upd));
+        if (ret == 0)
+            trunc_upd = NULL; /* Ownership transferred to the btree. */
+        WT_ERR(ret);
+    }
+
+err:
+    if (lock_held)
+        __wt_readunlock(session, &layered_table->truncate_lock);
+    __wt_free(session, trunc_upd);
     return (ret);
 }
 
@@ -641,9 +733,6 @@ err:
         WT_TRET(ingest_raw_cursor->close(ingest_raw_cursor));
     if (stable_raw_cursor != NULL)
         WT_TRET(stable_raw_cursor->close(stable_raw_cursor));
-    /* Drop the truncate list, all entries should have been applied. */
-    if (layered_table != NULL)
-        __wt_layered_table_truncate_clear(session, layered_table);
     /*
      * Cursor opens and closes can leave session->dhandle pointing at a file dhandle, so scope the
      * release explicitly back onto the layered dhandle we acquired above. Without this, release
@@ -665,11 +754,14 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     WT_BTREE *ingest_btree, *stable_btree;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
     WT_CURSOR_BTREE *cbt;
+    WT_DATA_HANDLE *layered_dhandle;
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp_key);
     WT_DECL_ITEM(value);
     WT_DECL_RET;
+    WT_LAYERED_TABLE *layered_table;
     WT_UPDATE *last_upd, *prev_upd, *upd, *upds;
     wt_timestamp_t last_checkpoint_timestamp;
     wt_timestamp_t durable_start_ts, durable_stop_ts, start_prepare_ts, start_ts, stop_prepare_ts,
@@ -684,12 +776,25 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     bool is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
+    layered_dhandle = NULL;
+    layered_table = NULL;
     last_upd = prev_upd = upd = upds = NULL;
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
     WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
     WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
+
+    WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
+    WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
+    WT_ERR_NOTFOUND_OK(
+      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+    else {
+        layered_dhandle = session->dhandle;
+        layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
+    }
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
@@ -720,9 +825,16 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
         WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
-                WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd));
-                WT_ERR(ret);
+                bool skip_key = false;
+                WT_ERR(__layered_inject_truncate_tombstones(
+                  session, layered_table, cbt, key, upds, last_upd, &skip_key));
+                if (skip_key)
+                    __wt_free_update_list(session, &upds);
+                else {
+                    WT_WITH_DHANDLE(session, cbt->dhandle,
+                      ret = __layered_move_updates(session, cbt, key, upds, last_upd));
+                    WT_ERR(ret);
+                }
                 upds = NULL;
             } else
                 ret = 0;
@@ -739,9 +851,16 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
             WT_ASSERT(session, key->size == 0 || cmp <= 0);
 
             if (upds != NULL) {
-                WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd));
-                WT_ERR(ret);
+                bool skip_key = false;
+                WT_ERR(__layered_inject_truncate_tombstones(
+                  session, layered_table, cbt, key, upds, last_upd, &skip_key));
+                if (skip_key)
+                    __wt_free_update_list(session, &upds);
+                else {
+                    WT_WITH_DHANDLE(session, cbt->dhandle,
+                      ret = __layered_move_updates(session, cbt, key, upds, last_upd));
+                    WT_ERR(ret);
+                }
             }
 
             upds = NULL;
@@ -889,6 +1008,16 @@ err:
         WT_TRET(prepare_cursor->close(prepare_cursor));
     if (stable_cursor != NULL)
         WT_TRET(stable_cursor->close(stable_cursor));
+    /* Drop the truncate list now that all ingest updates have been migrated to stable. */
+    if (layered_table != NULL)
+        __wt_layered_table_truncate_clear(session, layered_table);
+    /*
+     * Cursor opens and closes can leave session->dhandle pointing at a file dhandle, so scope the
+     * release explicitly back onto the layered dhandle we acquired above.
+     */
+    if (layered_dhandle != NULL)
+        WT_WITH_DHANDLE(session, layered_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
+    __wt_scr_free(session, &layered_uri_buf);
     return (ret);
 }
 

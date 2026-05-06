@@ -616,6 +616,13 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
+    /*
+     * Internal replay operations (e.g. drain sentinel injection) deliberately write at historical
+     * timestamps that may predate existing updates on the same key.
+     */
+    if (F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY))
+        return (0);
+
     /* Check for disallowed timestamps. */
     if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
         if (!txn_has_ts)
