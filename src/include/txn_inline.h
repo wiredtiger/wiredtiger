@@ -992,9 +992,11 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * On a disaggregated storage follower, cap using the last completed checkpoint timestamp to
      * retain all data on the ingest btree up to that point.
      */
-    if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
-        checkpoint_ts = __wt_atomic_load_uint64_acquire(
-          &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+    if (__wt_conn_is_disagg(session) &&
+      (!conn->layered_table_manager.leader ||
+        F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP)))
+        checkpoint_ts =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
     else
         checkpoint_ts = txn_global->checkpoint_timestamp;
 
