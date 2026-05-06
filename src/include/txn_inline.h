@@ -997,17 +997,15 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
         checkpoint_ts =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
-        if (checkpoint_ts < pinned_ts)
-            *pinned_tsp = checkpoint_ts;
-        else
-            *pinned_tsp = pinned_ts;
-    } else {
+        if (checkpoint_ts == WT_TS_NONE)
+            checkpoint_ts = 1;
+    } else
         checkpoint_ts = txn_global->checkpoint_timestamp;
-        if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
-            *pinned_tsp = checkpoint_ts;
-        else
-            *pinned_tsp = pinned_ts;
-    }
+
+    if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
+        *pinned_tsp = checkpoint_ts;
+    else
+        *pinned_tsp = pinned_ts;
 }
 
 /*
