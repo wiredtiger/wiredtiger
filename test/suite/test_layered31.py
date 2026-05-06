@@ -89,8 +89,6 @@ class test_layered31(wttest.WiredTigerTestCase):
     # changes happening concurrently to the lifetime of the cursor.
     def scan_data_follower(self, value_prefix, low = 0, high = nitems, cursors = None, uris = all_uris):
         result_cursors = dict()
-        if value_prefix == 'eee':
-            self.session_follow.breakpoint()
         for uri in self.all_uris:
             if cursors:
                 cursor = cursors[uri]
@@ -229,31 +227,26 @@ class test_layered31(wttest.WiredTigerTestCase):
         follower_cursors = self.scan_data_follower(value_prefix4, uris=self.layered_uris)
 
         #
-        # Part 5: Check that a follower's open cursor's position
-        # does not change after stepping up to leader.
+        # Part 5: Check that after stepping up to leader, the new leader sees new data.
+        # Cursors must be reset (unpositioned) before stepping up.
         #
-        self.reset_cursors(follower_cursors)
-        follower_cursors = self.scan_data_follower(value_prefix4, 0, first_read, cursors=follower_cursors)
 
         # Make a change on the leader, and propagate to the follower.
         value_prefix5 = 'eee'
         self.put_data(value_prefix5)
 
-        # Advance the checkpoint, but leave cursors open
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Step up, leaving cursors open
+        # Reset cursors before stepping up -- positioned cursors across a role change are illegal.
+        self.reset_cursors(follower_cursors)
+
         # At this point, we have two connections, our old leader and the follower that is
         # becoming the new leader. Close the old leader first so there's no confusion within this test.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
-        # Check the continuation of each scan.  Again, we are checking with layered URIs only.
-        cursors = self.scan_data_follower(value_prefix4, first_read, self.nitems, cursors=follower_cursors, uris=self.layered_uris)
-
-        # Now check that after closing, we get the new value
-        self.close_cursors(cursors)
+        # Verify the new leader sees the latest data.
         cursors = self.scan_data_follower(value_prefix5, uris=self.layered_uris)
         self.close_cursors(cursors)
 

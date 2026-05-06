@@ -287,6 +287,8 @@ CONFIG configuration_list[] = {
 
 {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
 
+{"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0}
+
 {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0}
 
 {"preserve_prepared", "Preserve prepared", C_BOOL, 50, 0, 0}

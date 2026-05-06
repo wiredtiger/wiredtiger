@@ -283,6 +283,8 @@ __disagg_apply_checkpoint_meta(
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
+    WT_TIMER apply_timer;
+    uint64_t apply_elapsed_ms;
     uint32_t existing_tables, new_tables, new_ingest;
     char *current_value_copy, *layered_ingest_uri, *cfg_ret;
     const char *cfg[3], *checkpoint_name, *current_value, *metadata_checkpoint_name, *metadata_key,
@@ -297,6 +299,7 @@ __disagg_apply_checkpoint_meta(
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
+    __wt_timer_start(session, &apply_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
@@ -426,10 +429,12 @@ __disagg_apply_checkpoint_meta(
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
+    WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
-      " new ingest tables",
-      existing_tables, new_tables, new_ingest);
+      " new ingest tables in %" PRIu64 "ms",
+      existing_tables, new_tables, new_ingest, apply_elapsed_ms);
 
 done:
 err:
@@ -485,9 +490,12 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
 
     /* Update the timestamps. */
     __wt_atomic_store_uint64_release(
+      &conn->disaggregated_storage.last_checkpoint_schema_epoch, metadata->schema_epoch);
+    __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
+    conn->txn_global.last_ckpt_disaggregated_schema_epoch = metadata->schema_epoch;
     conn->txn_global.last_ckpt_timestamp = metadata->checkpoint_timestamp;
 
     /* Set the database size. */
@@ -522,8 +530,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    uint64_t current_meta_lsn;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    WT_TIMER pickup_timer;
+    uint64_t current_meta_lsn, pickup_elapsed_ms;
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
 
@@ -559,6 +568,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
         goto err;
     }
 
+    __wt_timer_start(session, &pickup_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
@@ -572,11 +582,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s"
-      ", oldest_timestamp=%" PRIu64 " %s, largest_file_id=%" PRIu32 ", root=\"%.*s\"",
+      " %s, oldest_timestamp=%" PRIu64 " %s, schema_epoch=%" PRIu64 " %s, largest_file_id=%" PRIu32
+      ", root=\"%.*s\"",
       ckpt_meta->metadata_lsn, metadata.checkpoint_timestamp,
       __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string[0]),
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
+      metadata.schema_epoch, __wt_timestamp_to_string(metadata.schema_epoch, ts_string[2]),
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /* Load crypt key data with the key provider extension, if any. */
@@ -600,9 +611,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
 
     /* Log the completion of the checkpoint pick-up. */
+    __wt_timer_evaluate_ms(session, &pickup_timer, &pickup_elapsed_ms);
+    WT_STAT_CONN_SET(session, disagg_pick_up_checkpoint_time, pickup_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
-      ckpt_meta->metadata_lsn);
+      "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 " in %" PRIu64
+      "ms",
+      ckpt_meta->metadata_lsn, pickup_elapsed_ms);
 
 err:
     if (ret == 0) {
@@ -1610,6 +1624,19 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_disagg_has_picked_up_checkpoint --
+ *     Return whether this connection is using disaggregated storage and has picked up a checkpoint.
+ */
+bool
+__wt_disagg_has_picked_up_checkpoint(WT_SESSION_IMPL *session)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    return (__wt_conn_is_disagg(session) &&
+      __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) != WT_DISAGG_LSN_NONE);
+}
+
+/*
  * __remove_or_fail_local_wt_file --
  *     Remove a local WiredTiger file or fail with EEXIST, depending on the configured action.
  */
@@ -1699,8 +1726,8 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
         if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD) &&
           !WT_PREFIX_MATCH(files[i], "WiredTigerStat"))
             WT_ERR(__remove_or_fail_local_wt_file(session, full_path, fail));
-        else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") ||
-          WT_SUFFIX_MATCH(files[i], ".wt_stable"))
+        else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_URI_IS_INGEST(files[i]) ||
+          WT_URI_IS_STABLE(files[i]))
             /*
              * Delete all normal tables since they are not usable without metadata anyway.
              *

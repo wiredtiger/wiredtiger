@@ -181,17 +181,20 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t oldest_id;
 
     wt_shared wt_timestamp_t durable_timestamp;
+    wt_shared wt_timestamp_t last_ckpt_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t last_ckpt_timestamp;
     wt_timestamp_t meta_ckpt_timestamp;
     wt_shared wt_timestamp_t oldest_timestamp;
     wt_shared wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
+    wt_shared wt_timestamp_t stable_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t stable_timestamp;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;
     wt_shared bool has_oldest_timestamp;
     wt_shared bool has_pinned_timestamp;
+    wt_shared bool has_stable_disaggregated_schema_epoch;
     wt_shared bool has_stable_timestamp;
     wt_shared bool oldest_is_pinned;
     wt_shared bool stable_is_pinned;
@@ -214,9 +217,10 @@ struct __wt_txn_global {
     wt_shared volatile bool checkpoint_running; /* Checkpoint running */
     wt_shared volatile bool
       checkpoint_running_hs; /* Checkpoint running and processing history store file */
-    wt_shared volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared;           /* Checkpoint's txn shared state */
-    wt_shared wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
+    wt_shared volatile uint32_t checkpoint_id;               /* Checkpoint's session ID */
+    WT_TXN_SHARED checkpoint_txn_shared;                     /* Checkpoint's txn shared state */
+    wt_shared wt_timestamp_t checkpoint_disagg_schema_epoch; /* Checkpoint's schema epoch */
+    wt_shared wt_timestamp_t checkpoint_timestamp;           /* Checkpoint's timestamp */
 
     wt_shared volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;                     /* Debug mode rollback */
@@ -440,22 +444,21 @@ struct __wt_txn {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_AUTOCOMMIT 0x00001u
 #define WT_TXN_ERROR 0x00002u
-#define WT_TXN_FORCE_ROLLBACK 0x00004u
-#define WT_TXN_HAS_SNAPSHOT 0x00008u
-#define WT_TXN_IGNORE_PREPARE 0x00010u
-#define WT_TXN_IS_CHECKPOINT 0x00020u
-#define WT_TXN_PREPARE 0x00040u
-#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00080u
-#define WT_TXN_READONLY 0x00100u
-#define WT_TXN_REFRESH_SNAPSHOT 0x00200u
-#define WT_TXN_RUNNING 0x00400u
-#define WT_TXN_SHARED_TS_DURABLE 0x00800u
-#define WT_TXN_SHARED_TS_READ 0x01000u
-#define WT_TXN_SYNC_SET 0x02000u
-#define WT_TXN_TS_NOT_SET 0x04000u
-#define WT_TXN_TS_ROUND_PREPARED 0x08000u
-#define WT_TXN_TS_ROUND_READ 0x10000u
-#define WT_TXN_UPDATE 0x20000u
+#define WT_TXN_HAS_SNAPSHOT 0x00004u
+#define WT_TXN_IGNORE_PREPARE 0x00008u
+#define WT_TXN_IS_CHECKPOINT 0x00010u
+#define WT_TXN_PREPARE 0x00020u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00040u
+#define WT_TXN_READONLY 0x00080u
+#define WT_TXN_REFRESH_SNAPSHOT 0x00100u
+#define WT_TXN_RUNNING 0x00200u
+#define WT_TXN_SHARED_TS_DURABLE 0x00400u
+#define WT_TXN_SHARED_TS_READ 0x00800u
+#define WT_TXN_SYNC_SET 0x01000u
+#define WT_TXN_TS_NOT_SET 0x02000u
+#define WT_TXN_TS_ROUND_PREPARED 0x04000u
+#define WT_TXN_TS_ROUND_READ 0x08000u
+#define WT_TXN_UPDATE 0x10000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
@@ -471,10 +474,21 @@ struct __wt_txn {
 /*
  * WT_FIX_PREPARED_COOKIE --
  *   State passed to find the prepared transaction to fix when draining the ingest btree.
+ *   The owning session is identified by either of two ids depending on how the prepared
+ *   transaction came to live in this connection:
+ *     - txnid: matches a session whose prepared transaction remained in-flight across
+ *       step-up and therefore still carries a transaction id.
+ *     - prepared_id: matches a session that reclaimed the prepared transaction from a
+ *       checkpoint at startup recovery. Such a session has no transaction id assigned but
+ *       does carry a prepared id.
+ *   Both ids must be set to the values associated with the prepared transaction being
+ *   fixed; the callback prefers txnid when the candidate session has a transaction id and
+ *   falls back to prepared_id otherwise.
  */
 struct __wt_fix_prepared_cookie {
     WT_BTREE *ingest_btree;
     WT_BTREE *stable_btree;
     WT_ITEM *key;
     uint64_t txnid;
+    uint64_t prepared_id;
 };
