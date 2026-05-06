@@ -171,11 +171,8 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)
 
         self.session.checkpoint()
-        # With precise_checkpoint enabled, updates with commit_timestamp > stable_timestamp stay
-        # in memory rather than being moved to the history store. bigvalue4 (timestamp i+1 for
-        # key i, all > stable=1) is not written to disk, so no new HS inserts happen here.
-        # The stats was already set at: (nrows-1)*3 (previous hs stats)
-        # Total: (nrows-1)*3 (unchanged)
+        # precise_checkpoint keeps unstable updates (bigvalue4, ts > stable=1) in memory,
+        # so no new HS inserts. Count stays at (nrows-1)*3 from the previous scenario.
         hs_writes = self.get_stat(stat.conn.cache_hs_insert)
         self.assertEqual(hs_writes, (nrows-1) * 3)
 
