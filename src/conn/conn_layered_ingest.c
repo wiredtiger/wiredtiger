@@ -392,63 +392,37 @@ err:
 }
 
 /*
- * __layered_key_covered_by_committed_truncate --
- *     Return true if a committed truncate (txn_id != WT_TXN_NONE) covers key. Does not perform
- *     timestamp-based visibility checks, which avoids requiring a running transaction.
- */
-static int
-__layered_key_covered_by_committed_truncate(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, const WT_ITEM *key, bool *coveredp)
-{
-    WT_DECL_RET;
-    WT_TRUNCATE *t;
-    int cmp;
-    bool lock_held;
-
-    *coveredp = false;
-    lock_held = false;
-
-    __wt_readlock(session, &layered_table->truncate_lock);
-    lock_held = true;
-
-    TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
-        if (t->txn_id == WT_TXN_NONE)
-            continue;
-        WT_ERR(__wt_compare(session, layered_table->collator, key, &t->start_key, &cmp));
-        if (cmp < 0)
-            continue;
-        WT_ERR(__wt_compare(session, layered_table->collator, key, &t->stop_key, &cmp));
-        if (cmp > 0)
-            continue;
-        *coveredp = true;
-        break;
-    }
-
-err:
-    if (lock_held)
-        __wt_readunlock(session, &layered_table->truncate_lock);
-    return (ret);
-}
-
-/*
  * __layered_flush_pending_updates --
- *     Flush the accumulated update chain for the current key to stable and clear *updsp. In the
- *     final drain pass, a single-tombstone chain covered by a committed truncate is dropped because
- *     the range truncate already deleted the stable key.
+ *     Flush the accumulated update chain for the current key to stable and clear *updsp.
+ *
+ *     When skip_t is non-NULL, a key inside [skip_t->start_key, skip_t->stop_key] that carries
+ *     only a single tombstone does not need to be moved: the follower wrote this tombstone as its
+ *     in-memory representation of the pending truncate, which will be applied to stable immediately
+ *     after this copy pass. Moving it would assert because there is no underlying stable value for
+ *     the tombstone to overwrite.
+ *
+ *     The guard `upds == last_upd` ensures the chain holds exactly one update. Chains with
+ *     additional updates (e.g. a value resurrected above the truncate) are moved normally.
  */
 static int
 __layered_flush_pending_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE **updsp, WT_UPDATE *last_upd, wt_timestamp_t to_ts, WT_LAYERED_TABLE *layered_table)
+  WT_UPDATE **updsp, WT_UPDATE *last_upd, WT_TRUNCATE *skip_t)
 {
     WT_DECL_RET;
+    int cmp;
     bool skip_key;
 
     skip_key = false;
-    if (to_ts == WT_TS_MAX && *updsp == last_upd && (*updsp)->type == WT_UPDATE_TOMBSTONE &&
-      layered_table != NULL)
-        WT_RET(__layered_key_covered_by_committed_truncate(session, layered_table, key, &skip_key));
+    if (skip_t != NULL && *updsp == last_upd && (*updsp)->type == WT_UPDATE_TOMBSTONE) {
+        WT_RET(__wt_compare(session, CUR2BT(cbt)->collator, key, &skip_t->start_key, &cmp));
+        if (cmp >= 0) {
+            WT_RET(__wt_compare(session, CUR2BT(cbt)->collator, key, &skip_t->stop_key, &cmp));
+            skip_key = (cmp <= 0);
+        }
+    }
 
     if (skip_key)
+        /* Discard the locally-allocated update objects; they were never placed on stable. */
         __wt_free_update_list(session, updsp);
     else {
         WT_WITH_DHANDLE(session, cbt->dhandle,
@@ -462,13 +436,13 @@ __layered_flush_pending_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
 /*
  * __layered_copy_ingest_table --
- *     Moving ingest updates whose durable timestamp falls in (from_ts, to_ts] to the corresponding
- *     stable table. layered_table may be NULL when there are no truncates; when non-NULL it is used
- *     to skip single-tombstone ingest chains whose key is already deleted by a truncate window.
+ *     Move ingest updates whose durable timestamp falls in (from_ts, to_ts] to the corresponding
+ *     stable table. When skip_t is non-NULL, single-tombstone chains for keys inside
+ *     [skip_t->start_key, skip_t->stop_key] are dropped rather than moved to stable.
  */
 static int
 __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts,
-  wt_timestamp_t to_ts, WT_LAYERED_TABLE *layered_table)
+  wt_timestamp_t to_ts, WT_TRUNCATE *skip_t)
 {
     WT_BTREE *ingest_btree, *stable_btree;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
@@ -536,7 +510,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
             ret = 0;
             if (key->size > 0 && upds != NULL)
                 WT_ERR(__layered_flush_pending_updates(
-                  session, cbt, key, &upds, last_upd, to_ts, layered_table));
+                  session, cbt, key, &upds, last_upd, skip_t));
             break;
         }
 
@@ -551,7 +525,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
 
             if (upds != NULL)
                 WT_ERR(__layered_flush_pending_updates(
-                  session, cbt, key, &upds, last_upd, to_ts, layered_table));
+                  session, cbt, key, &upds, last_upd, skip_t));
             upds = NULL;
             prev_upd = NULL;
             prepare_txn_fixed = false;
@@ -793,27 +767,31 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
     WT_ERR_NOTFOUND_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
-    if (ret != WT_NOTFOUND) {
-        layered_dhandle = session->dhandle;
-        layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
-        WT_ERR(__layered_build_sorted_truncates(session, layered_table, &sorted, &ntruncates));
+    if (ret == WT_NOTFOUND) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "No layered handle found for ingest table \"%s\" only performing ingest drain",
+          ingest_uri);
+        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX, NULL));
+        ret = 0;
+        goto err;
     }
-    ret = 0;
+    layered_dhandle = session->dhandle;
+    layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
+    WT_ERR(__layered_build_sorted_truncates(session, layered_table, &sorted, &ntruncates));
 
     prev_ts = WT_TS_NONE;
     for (i = 0; i < ntruncates; i++) {
         t = sorted[i];
-        WT_ERR(
-          __layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts, layered_table));
+        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts, t));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
         prev_ts = t->start_ts;
     }
-    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX, layered_table));
+    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX, NULL));
 
+err:
     if (layered_table != NULL)
         __wt_layered_table_truncate_clear(session, layered_table);
 
-err:
     __wt_free(session, sorted);
     /*
      * Cursor opens and closes can leave session->dhandle pointing at a file dhandle, so scope the

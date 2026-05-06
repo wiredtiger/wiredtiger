@@ -879,7 +879,7 @@ __clayered_range_truncate_ingest(
     WT_CURSOR *cursor = start;
     int cmp;
 
-    /* Early return if stop key is smaller than start key, nothing to truncate. */
+    /* Early return if stop key is strictly less than start key, nothing to truncate. */
     WT_RET(start->compare(start, stop, &cmp));
     if (cmp > 0)
         return (0);
@@ -1817,7 +1817,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
          * fast-truncate range. Advance stable forward past any truncated ranges. If forward
          * exhausts, step backward instead.
          */
-        if (ret == 0 && !clayered->leader &&
+        if (ret == 0 &&
           __wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle,
             &clayered->stable_cursor->key, NULL) == 0) {
             WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
