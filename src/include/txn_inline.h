@@ -951,11 +951,13 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
     bool has_pinned_timestamp;
 
-    txn_global = &S2C(session)->txn_global;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
@@ -986,8 +988,15 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * read the pinned timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
      * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
      * we take the minimum of it with the oldest timestamp, which is what we want.
+     *
+     * On a disaggregated storage leader, cap using the last completed checkpoint timestamp to
+     * retain all data on the ingest btree up to that point.
      */
-    checkpoint_ts = txn_global->checkpoint_timestamp;
+    if (__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader)
+        checkpoint_ts = __wt_atomic_load_uint64_acquire(
+          &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+    else
+        checkpoint_ts = txn_global->checkpoint_timestamp;
 
     if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
         *pinned_tsp = checkpoint_ts;

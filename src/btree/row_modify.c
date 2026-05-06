@@ -413,15 +413,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
             if (upd->prepare_state != WT_PREPARE_INPROGRESS)
                 continue;
 
-            /*
-             * In disaggregated storage, we cannot garbage collect an aborted prepared update with a
-             * rollback timestamp greater than the prune timestamp. This is because the update
-             * information is required to roll back the prepared update on the stable table in case
-             * of a step-up.
-             */
-            if (upd->upd_rollback_ts > prune_timestamp)
-                first = NULL;
-
             continue;
         }
 
