@@ -40,17 +40,19 @@ __cell_assert_tw_has_ts_for_garbage_collection_table(WT_SESSION_IMPL *session, W
     WT_UNUSED(tw);
 
     /*
-     * A GC btree cell must have a start timestamp unless it is a tombstone. For tombstone cells on
-     * ingest btrees, only the stop-side time window is recorded; GC only needs stop_durable_ts to
-     * make the prune decision, making start_ts irrelevant for this case.
+     * For tombstone-only chains on ingest btrees the start side is unknown, so
+     * WT_TIME_WINDOW_HAS_STOP allows the start side to be empty provided the stop side carries
+     * identity.
      */
     WT_ASSERT_ALWAYS(session,
       tw->start_ts != WT_TS_NONE || tw->start_prepare_ts != WT_TS_NONE ||
-        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) || WT_TIME_WINDOW_HAS_STOP(tw),
+        tw->start_txn != WT_TXN_NONE || !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) ||
+        WT_TIME_WINDOW_HAS_STOP(tw),
       "GC btree cell missing timestamp");
     WT_ASSERT_ALWAYS(session,
       !WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_ts != WT_TS_NONE ||
-        tw->stop_prepare_ts != WT_TS_NONE || !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT),
+        tw->stop_prepare_ts != WT_TS_NONE || tw->stop_txn != WT_TXN_NONE ||
+        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT),
       "GC btree cell missing stop timestamp");
 }
 
