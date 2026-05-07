@@ -665,7 +665,7 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
         if (t->txn_id != WT_TXN_NONE)
             ++ntruncates;
     if (ntruncates > 0) {
-        ret = __wt_calloc_def(session, ntruncates, &sorted);
+        ret = __wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted);
         if (ret == 0) {
             i = 0;
             TAILQ_FOREACH (t, &layered_table->truncateqh, q)
@@ -677,7 +677,7 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 
     WT_RET(ret);
     if (ntruncates > 0)
-        qsort(sorted, ntruncates, sizeof(*sorted), __truncate_cmp_by_start_ts);
+        qsort(sorted, ntruncates, sizeof(WT_TRUNCATE *), __truncate_cmp_by_start_ts);
     *sortedp = sorted;
     *ntruncatesp = ntruncates;
     return (0);
