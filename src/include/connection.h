@@ -237,7 +237,6 @@ typedef struct __wt_disagg_checkpoint_meta {
     uint32_t metadata_checksum; /* The checksum of the metadata page. */
 
     uint64_t database_size; /* The total database size. */
-    bool has_database_size; /* Whether the database size is present. */
     uint32_t version;       /* The version of the checkpoint_meta. */
     uint32_t
       compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
