@@ -503,7 +503,7 @@ err:
         __wt_page_modify_clear(session, page);
         __wt_ref_out(session, ref);
     } else if (shared_dsk_item != NULL)
-        /* If the page build failed, release our reference to the shared dsk item. */
+        /* If the page build failed, release our reference to the shared disk item. */
         __wt_shared_dsk_cache_release(session, shared_dsk_item);
 
     /* Free any disk images or delta buffers we allocated or read. */

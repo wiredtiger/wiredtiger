@@ -203,9 +203,6 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
     bucket = hash % shared_dsk_cache->hash_size;
     lock_idx = bucket % shared_dsk_cache->hash_lock_size;
 
-    data_size = 0;
-    dsk_type = 0;
-
     __wt_spin_lock(session, &shared_dsk_cache->hash_locks[lock_idx]);
     WT_ASSERT(session, shared_dsk_item->ref_count > 0);
     /* Remove the shared dsk item when ref count is reduced to 0. */

@@ -308,11 +308,11 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     is_disagg = __wt_conn_is_disagg(session);
 
     /*
-     * For shared dsk pages, page->memory_footprint includes dsk_size that is tracked by the shared
-     * dsk cache layer. Subtract the dsk_size from the drain amount, let the shared dsk cache layer
-     * drain the dsk_size on the matching last release.
+     * For shared disk pages, page memory footprint includes disk size that is tracked by the shared
+     * disk cache layer. Subtract the disk size from the drain amount, let the shared disk cache
+     * layer drain the disk size on the matching last release.
      */
-    if (WT_PAGE_OWNS_SHARED_DSK_REF(page)) {
+    if (WT_PAGE_HAS_SHARED_DSK_REF(page)) {
         WT_ASSERT(session, page->dsk != NULL);
         WT_ASSERT(session, memory_footprint >= page->dsk->mem_size);
         memory_footprint -= page->dsk->mem_size;

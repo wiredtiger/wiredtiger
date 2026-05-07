@@ -2972,7 +2972,7 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
 
 /*
  * __wt_cache_page_footprint_incr --
- *     Increment a page's memory_footprint without touching cache or btree totals.
+ *     Increment a page's memory footprint without touching cache or btree totals.
  */
 static WT_INLINE void
 __wt_cache_page_footprint_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)

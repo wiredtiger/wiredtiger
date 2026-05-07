@@ -758,7 +758,7 @@ struct __wt_page {
 
 #define WT_PAGE_IS_INTERNAL(page) WT_PAGE_TYPE_IS_INTERNAL((page)->type)
 #define WT_PAGE_IS_SHARED_DSK(page) F_ISSET_ATOMIC_16((page), WT_PAGE_DISK_SHARED)
-#define WT_PAGE_OWNS_SHARED_DSK_REF(page) \
+#define WT_PAGE_HAS_SHARED_DSK_REF(page) \
     ((page)->disagg_info != NULL && (page)->disagg_info->shared_dsk_item != NULL)
 #define WT_PAGE_TYPE_IS_INTERNAL(type) ((type) == WT_PAGE_COL_INT || (type) == WT_PAGE_ROW_INT)
 #define WT_PAGE_INVALID 0            /* Invalid page */

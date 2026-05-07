@@ -1261,9 +1261,9 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     }
 
     /*
-     * Mark the page as tied to the shared dsk cache layer if a shared dsk item was supplied. Set
-     * the local flag before any failure point so if we succeed on __wt_page_alloc and fail later,
-     * __wt_page_out's accounting can identify shared disk pages on the error path.
+     * Mark the page as tied to the shared disk cache layer if a shared disk item was supplied. Set
+     * the local flag before any failure point so if we succeed on page alloc and fail later, page
+     * out accounting can identify shared disk pages on the error path.
      */
     if (shared_dsk_item != NULL)
         LF_SET(WT_PAGE_DISK_SHARED);
@@ -1309,8 +1309,8 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     }
 
     /*
-     * Update the page's cache statistics. For shared dsk pages, cache totals exclude the dsk size
-     * as it is owned by the shared dsk cache layer.
+     * Update the page's cache statistics. For shared disk pages, cache totals exclude the disk size
+     * as it is owned by the shared disk cache layer.
      */
     if (!LF_ISSET(WT_PAGE_DISK_SHARED))
         __wt_cache_page_inmem_incr(session, page, size, false);
@@ -1330,15 +1330,10 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         ref->page = page;
     }
 
-    /*
-     * Hand ownership of shared_dsk_item to the page only on success. If we fail above this point,
-     * the page never owns the reference and the caller's error path is responsible for releasing
-     * it.
-     */
     WT_ASSERT(session, shared_dsk_item == NULL || page->disagg_info != NULL);
     if (page->disagg_info != NULL) {
         page->disagg_info->shared_dsk_item = shared_dsk_item;
-        /* memory_footprint still includes dsk size so per-page eviction logic stays unchanged.*/
+        /* memory footprint still includes disk size so per-page eviction logic stays unchanged. */
         if (LF_ISSET(WT_PAGE_DISK_SHARED))
             __wt_cache_page_footprint_incr(session, page, dsk->mem_size);
     }
