@@ -72,7 +72,8 @@ truncate_list_fixture::truncate_list_fixture()
 {
     _table.iface.name = "layered:truncate_list_fixture";
     TAILQ_INIT(&_table.truncateqh);
-    REQUIRE(__wt_rwlock_init(_session, &_table.truncate_lock) == 0);
+    CHECK(__wt_rwlock_init(_session, &_table.truncate_lock) == 0);
+    CHECK(truncate_list_size(_table) == 0);
 }
 
 truncate_list_fixture::~truncate_list_fixture()
@@ -108,7 +109,12 @@ truncate_list_fixture::add_entry(const WT_ITEM &start, const WT_ITEM &stop)
     entry->start_key = start;
     entry->stop_key = stop;
 
+    const auto initial_size = truncate_list_size(_table);
+
     TAILQ_INSERT_TAIL(&_table.truncateqh, entry, q);
+
+    const auto expected_size = initial_size + 1;
+    CHECK(truncate_list_size(_table) == expected_size);
     return entry;
 }
 

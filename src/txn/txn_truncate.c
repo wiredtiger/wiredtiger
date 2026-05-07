@@ -75,31 +75,13 @@ __truncate_entry_remove(
 }
 
 /*
- * __truncate_entry_eligible_for_gc --
- *     Determine if an entry is redundant and should be removed from the list.
- */
-static bool
-__truncate_entry_eligible_for_gc(const WT_TRUNCATE *const entry, const wt_timestamp_t prune_ts)
-{
-    if (prune_ts == WT_TS_NONE)
-        return (false);
-
-    if (entry->durable_ts == WT_TS_NONE)
-        return (false);
-
-    return (entry->durable_ts <= prune_ts);
-}
-
-/*
  * __layered_table_truncate_gc --
  *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
  */
 static void
-__layered_table_truncate_gc(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table)
+__layered_table_truncate_gc(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
 {
-    const wt_timestamp_t prune_timestamp =
-      __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
-
     if (prune_timestamp == WT_TS_NONE)
         return;
 
@@ -108,7 +90,10 @@ __layered_table_truncate_gc(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_
 
     TAILQ_FOREACH_SAFE(entry, &layered_table->truncateqh, q, next)
     {
-        if (!__truncate_entry_eligible_for_gc(entry, prune_timestamp))
+        const bool is_eligible =
+          entry->durable_ts != WT_TS_NONE && entry->durable_ts <= prune_timestamp;
+
+        if (!is_eligible)
             continue;
 
         __truncate_entry_remove(session, layered_table, entry);
@@ -167,7 +152,10 @@ __txn_insert_truncate_entry_helper(
 
     __wt_writelock(session, &layered_table->truncate_lock);
 
-    __layered_table_truncate_gc(session, layered_table);
+    const wt_timestamp_t prune_timestamp =
+      __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
+
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
 
     if (TAILQ_EMPTY(&layered_table->truncateqh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
@@ -524,3 +512,12 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     }
     __wt_writeunlock(session, &layered_table->truncate_lock);
 }
+
+#ifdef HAVE_UNITTEST
+void
+__ut_layered_table_truncate_gc(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
+{
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
+}
+#endif

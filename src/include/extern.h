@@ -2674,6 +2674,8 @@ extern void __ut_block_off_srch_pair(
 extern void __ut_block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack);
 extern void __ut_disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header);
 extern void __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt);
+extern void __ut_layered_table_truncate_gc(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp);
 
 #endif
 

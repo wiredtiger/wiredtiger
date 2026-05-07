@@ -62,6 +62,7 @@ else()
         truncate/test_truncate_visible_check.cpp
         truncate/test_layered_truncate_visibility.cpp
         truncate/test_layered_table_truncate_clear.cpp
+        truncate/test_layered_table_truncate_gc.cpp
         truncate/test_layered_table_truncate_rollback.cpp
     )
 endif()
