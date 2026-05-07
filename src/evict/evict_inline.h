@@ -295,6 +295,17 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     is_disagg = __wt_conn_is_disagg(session);
 
+    /*
+     * For shared dsk pages, page->memory_footprint includes dsk_size that is tracked by the shared
+     * dsk cache layer. Subtract the dsk_size from the drain amount, let the shared dsk cache layer
+     * drain the dsk_size on the matching last release.
+     */
+    if (WT_PAGE_OWNS_SHARED_DSK_REF(page)) {
+        WT_ASSERT(session, page->dsk != NULL);
+        WT_ASSERT(session, memory_footprint >= page->dsk->mem_size);
+        memory_footprint -= page->dsk->mem_size;
+    }
+
     /* Update the bytes in-memory to reflect the eviction. */
     __wt_cache_decr_check_uint64(
       session, &btree->bytes_inmem, memory_footprint, "WT_BTREE.bytes_inmem");
