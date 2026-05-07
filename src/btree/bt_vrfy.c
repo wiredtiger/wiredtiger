@@ -1302,12 +1302,11 @@ __verify_key_hs(
         __wt_hs_upd_time_window(hs_cursor, &tw);
 
         /* Skip stale HS entries not cleaned up after RTS. */
-        if (vs->stable_timestamp != WT_TS_NONE &&
-          (tw->durable_start_ts > vs->stable_timestamp || tw->stop_ts > vs->stable_timestamp))
+        if (vs->stable_timestamp != WT_TS_NONE && tw->durable_start_ts > vs->stable_timestamp)
             continue;
 
         /* Verify the newer record's start is later than the older record's stop. */
-        if (newer_start_ts > older_start_ts && newer_start_ts < tw->stop_ts) {
+        if (newer_start_ts != WT_NONE && newer_start_ts < tw->stop_ts) {
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
