@@ -27,25 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered102.py
-#   Test WT_SESSION::publish for disaggregated storage (WT-17087).
+#   Test WT_SESSION::publish for disaggregated storage.
 #
-#   Schema operations (create, drop) on a leader now enqueue with
-#   WT_SCHEMA_EPOCH_UNPUBLISHED and are withheld from followers until the
-#   caller explicitly publishes them with a schema epoch.  The stable
-#   disaggregated schema epoch acts as the cut-off: only operations whose
-#   epoch <= stable epoch are processed during checkpoint.
-#
-#   Tests:
-#     - table create: deferred until published, then visible after checkpoint
-#     - table drop: deferred until published, checkpoint succeeds without panic
-#     - error cases: zero epoch, epoch not newer than stable, follower, invalid URI
-#     - publish success / fail statistics
-#
-#   Known limitation: follower drop visibility (FIXME-WT-17089) is not yet
-#   implemented.  After the leader publishes and checkpoints a DROP, the
-#   follower's local metadata is not cleaned up, so the table remains visible
-#   on the follower.  test_drop_deferred_until_publish only verifies that
-#   publish and checkpoint succeed without error.
+#   Schema operations (create, drop) on a leader do not get included in the next checkpoint
+#   until they are published with a schema epoch.
 
 import time
 import wiredtiger, wttest
@@ -53,65 +38,87 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-
+#   Test WT_SESSION::publish for disaggregated storage.
 @disagg_test_class
 class test_layered102(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
-    conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
+    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
+
+    uri = 'layered:test_layered102'
 
     disagg_storages = gen_disagg_storages('test_layered102', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    # ------------------------------------------------------------------ helpers
+    #
+    # Helper methods
+    #
 
     def set_stable_epoch(self, epoch):
-        """Advance stable_disaggregated_schema_epoch; epoch is a positive integer."""
+        """
+        Set stable_disaggregated_schema_epoch.
+        """
         self.conn.set_timestamp(
             'stable_disaggregated_schema_epoch=' + self.timestamp_str(epoch))
 
     def leader_checkpoint(self, stable_ts):
-        """Set stable_timestamp and take a timestamped checkpoint."""
+        """
+        Set the oldest and stable timestamps, and then take a timestamped checkpoint.
+        """
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(stable_ts) +
             ',oldest_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
 
     def open_follower(self):
-        return self.wiredtiger_open(
+        """
+        Open a new connection with the follower configuration.
+        """
+        conn_follower = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' + self.conn_config_follower)
+        self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
+        return conn_follower
 
-    def table_visible_on_follower(self, uri):
+    def table_exists_on_follower(self, uri):
         """
-        Advance the follower to the latest leader checkpoint and return True if
-        a cursor can be opened on uri, False if the table is absent.
+        Check if the table exists on the follower, by opening a follower and picking up the latest
+        checkpoint. If the table is not visible, opening a cursor on it will fail with an error.
         """
-        conn_f = self.open_follower()
-        self.disagg_advance_checkpoint(conn_f)
-        session_f = conn_f.open_session('')
-        visible = True
+        conn_follower = self.open_follower()
+        self.disagg_advance_checkpoint(conn_follower)
+        session_follower = conn_follower.open_session('')
+        exists = True
         try:
-            c = session_f.open_cursor(uri)
+            c = session_follower.open_cursor(uri)
             c.close()
         except wiredtiger.WiredTigerError:
-            visible = False
-        session_f.close()
-        conn_f.close()
-        return visible
+            exists = False
+        session_follower.close()
+        conn_follower.close()
+        return exists
 
     def publish(self, uri, epoch, session=None):
+        """
+        Publish a schema change with the given epoch. If session is None, use the main test session.
+        """
         if session is None:
             session = self.session
         session.publish(uri, 'disaggregated=(schema_epoch=' + self.timestamp_str(epoch) + ')')
 
     def get_stat(self, stat_name):
+        """
+        Get the value of a statistic by name.
+        """
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         value = stat_cursor[stat_name][2]
         stat_cursor.close()
         return value
 
     def assertStatEqual(self, stat_name, expected_value, retries=10):
+        """
+        Assert that a statistic has the expected value, retrying if necessary.
+        """
         # Stats may be updated asynchronously, so retry a few times if the expected value is not
         # observed.
         for attempt in range(retries):
@@ -122,31 +129,30 @@ class test_layered102(wttest.WiredTigerTestCase):
                 time.sleep(0.1)
         self.assertEqual(value, expected_value)
 
-    # ------------------------------------------------------------------ end-to-end tests
+    #
+    # Functional tests
+    #
 
     def test_create_deferred_until_publish(self):
         """
         A table created after a stable epoch is set is invisible to followers
         until published; one checkpoint after publish makes it visible.
         """
-        uri = 'layered:test_layered102_create'
-
-        # Set a stable epoch so the checkpoint filters UNPUBLISHED entries.
         self.set_stable_epoch(5)
-        self.session.create(uri, 'key_format=i,value_format=S')
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
-        # Checkpoint 1: CREATE is deferred (UNPUBLISHED > cur_epoch=5).
+        # Checkpoint 1: The table is not yet visible.
         self.leader_checkpoint(1)
-        self.assertFalse(self.table_visible_on_follower(uri),
+        self.assertFalse(self.table_exists_on_follower(self.uri),
             'table should be invisible before publish')
 
-        # Publish with epoch 10 (must be > current stable epoch 5).
-        self.publish(uri, 10)
+        # Publish with epoch 10, and set the stable epoch to 10, which makes the table visible.
+        self.publish(self.uri, 10)
         self.set_stable_epoch(10)
 
-        # Checkpoint 2: CREATE is processed (entry epoch 10 <= cur_epoch=10).
+        # Checkpoint 2: The table is now visible.
         self.leader_checkpoint(2)
-        self.assertTrue(self.table_visible_on_follower(uri),
+        self.assertTrue(self.table_exists_on_follower(self.uri),
             'table should be visible after publish and checkpoint')
 
     def test_drop_deferred_until_publish(self):
@@ -154,92 +160,64 @@ class test_layered102(wttest.WiredTigerTestCase):
         A drop of a published table is deferred until the drop is itself
         published; one checkpoint after drop-publish removes the table.
         """
-        uri = 'layered:test_layered102_drop'
-
-        # Create and publish the table so it lands on the follower.
-        self.session.create(uri, 'key_format=i,value_format=S')
-        self.publish(uri, 10)
+        # Create and publish the table so that it gets included in the checkpoint.
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.publish(self.uri, 10)
         self.set_stable_epoch(10)
         self.leader_checkpoint(1)
-        self.assertTrue(self.table_visible_on_follower(uri),
+        self.assertTrue(self.table_exists_on_follower(self.uri),
             'table should be visible after create publish')
 
-        # Drop the table (new REMOVE entry gets UNPUBLISHED epoch).
-        # Advance stable epoch but do NOT publish the drop yet.
-        self.session.drop(uri)
+        # Drop the table, but do not publish yet.
+        self.session.drop(self.uri)
         self.set_stable_epoch(20)
         self.leader_checkpoint(2)
-        # DROP deferred: follower still sees the table.
-        self.assertTrue(self.table_visible_on_follower(uri),
+        self.assertTrue(self.table_exists_on_follower(self.uri),
             'table should still be visible before drop is published')
 
-        # Publish the drop with epoch 30 (> stable epoch 20).
-        self.publish(uri, 30)
+        # Publish the drop and check that the table is removed from the next checkpoint.
+        self.publish(self.uri, 30)
         self.set_stable_epoch(30)
         self.leader_checkpoint(3)
-        # FIXME-WT-17089: Follower drop visibility is not yet implemented.
-        # The leader processes the DROP in shared metadata, but the follower's
-        # local metadata is not cleaned up, so the table remains visible on the
-        # follower.  Once follower publish support is added, assert that the
-        # table is invisible here.
+        self.assertFalse(self.table_exists_on_follower(self.uri),
+            'table should be invisible after drop publish and checkpoint')
 
-    # ------------------------------------------------------------------ error cases
+    #
+    # Error handling tests for publish
+    #
 
     def test_publish_error_zero_epoch(self):
-        """schema_epoch=0 is rejected with EINVAL before touching the queue."""
-        uri = 'layered:test_layered102_err_zero'
-        self.session.create(uri, 'key_format=i,value_format=S')
+        """
+        Cannot publish with zero schema epoch.
+        """
+        self.session.create(self.uri, 'key_format=i,value_format=S')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.publish(uri, 'disaggregated=(schema_epoch=0)'),
+            lambda: self.session.publish(self.uri, 'disaggregated=(schema_epoch=0)'),
             '/zero not permitted/')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
                                 ',oldest_timestamp=' + self.timestamp_str(1))
 
     def test_publish_error_epoch_not_newer_than_stable(self):
         """
-        schema_epoch <= stable_disaggregated_schema_epoch is rejected with EINVAL.
-        The stable check fires before any queue access.
+        The schema epoch supplied to publish must be newer than the current stable disaggregated
+        schema epoch.
         """
-        uri = 'layered:test_layered102_err_old'
-        self.session.create(uri, 'key_format=i,value_format=S')
+        self.session.create(self.uri, 'key_format=i,value_format=S')
         self.set_stable_epoch(10)
 
         # Epoch equal to stable must fail.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.publish(uri, 10),
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.publish(self.uri, 10),
             '/Cannot publish with a schema epoch that is older/')
         # Epoch older than stable must fail.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.publish(uri, 5),
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.publish(self.uri, 5),
             '/Cannot publish with a schema epoch that is older/')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
                                 ',oldest_timestamp=' + self.timestamp_str(1))
 
-    def test_publish_error_follower(self):
-        """
-        Calling publish on a follower session returns ENOTSUP.
-
-        The table is created and checkpointed without a stable epoch so that
-        the CREATE entry is fully processed (no UNPUBLISHED entries remain in
-        the queue) before the follower test runs, avoiding unrelated panics.
-        """
-        uri = 'layered:test_layered102_err_follower'
-        self.session.create(uri, 'key_format=i,value_format=S')
-        # No stable epoch set: checkpoint processes the CREATE unconditionally.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
-                                ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()
-
-        conn_f = self.open_follower()
-        self.disagg_advance_checkpoint(conn_f)
-        session_f = conn_f.open_session('')
-        # The leader check fires before any queue access, so no panic risk.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.publish(uri, 20, session=session_f),
-            '/not supported for followers/')
-        session_f.close()
-        conn_f.close()
-
     def test_publish_error_invalid_uri(self):
-        """An unsupported URI prefix (not table: or layered:) returns ENOTSUP."""
+        """
+        Calling publish with a non-table URI returns EINVAL.
+        """
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.publish(
                 'file:test_layered102_err_uri',
@@ -248,33 +226,38 @@ class test_layered102(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
                                 ',oldest_timestamp=' + self.timestamp_str(1))
 
-    # ------------------------------------------------------------------ statistics
+    #
+    # Tests for the statistics.
+    #
 
     def test_publish_stats(self):
         """
-        session_table_publish_success increments on a no-op publish (no
-        schema_epoch supplied); session_table_publish_fail increments on EINVAL.
+        Test the publish statistics.
         """
-        uri = 'layered:test_layered102_stats'
-        self.session.create(uri, 'key_format=i,value_format=S')
-
-        success_before = self.get_stat(stat.conn.session_table_publish_success)
-        fail_before    = self.get_stat(stat.conn.session_table_publish_fail)
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
         # No schema_epoch in config: no-op, returns success.
-        self.session.publish(uri, '')
-        self.assertStatEqual(stat.conn.session_table_publish_success, success_before + 1)
-        self.assertStatEqual(stat.conn.session_table_publish_fail, fail_before)
+        self.session.publish(self.uri, '')
+        self.assertStatEqual(stat.conn.session_table_publish_success, 1)
+        self.assertStatEqual(stat.conn.session_table_publish_fail, 0)
+
+        # Publish create with a valid epoch: success stat increments.
+        self.publish(self.uri, 10)
+        self.assertStatEqual(stat.conn.session_table_publish_success, 2)
+        self.assertStatEqual(stat.conn.session_table_publish_fail, 0)
+
+        # Publish drop with a valid epoch: success stat increments.
+        self.set_stable_epoch(10)
+        self.session.drop(self.uri)
+        self.publish(self.uri, 20)
+        self.assertStatEqual(stat.conn.session_table_publish_success, 3)
+        self.assertStatEqual(stat.conn.session_table_publish_fail, 0)
 
         # Zero epoch: returns EINVAL (fail stat increments).
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.publish(uri, 'disaggregated=(schema_epoch=0)'),
+            lambda: self.session.publish(self.uri, 'disaggregated=(schema_epoch=0)'),
             '/zero not permitted/')
-        self.assertStatEqual(stat.conn.session_table_publish_success, success_before + 1)
-        self.assertStatEqual(stat.conn.session_table_publish_fail, fail_before + 1)
+        self.assertStatEqual(stat.conn.session_table_publish_success, 3)
+        self.assertStatEqual(stat.conn.session_table_publish_fail, 1)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
                                 ',oldest_timestamp=' + self.timestamp_str(1))
-
-
-if __name__ == '__main__':
-    wttest.run()
