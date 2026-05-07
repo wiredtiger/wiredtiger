@@ -93,7 +93,7 @@
 #define XSTR(s) STR(s)
 
 /* Duration of the follower run in disagg switch mode. */
-#define DISAGG_SWITCH_FOLLOWER_OPS_SEC 5
+#define DISAGG_SWITCH_FOLLOWER_OPS_SEC 3
 
 /* Number of RTS threads to use up to 10 (11 is for NULL config). */
 #define RTS_THREADS_MAX 11
