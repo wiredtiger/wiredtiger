@@ -1313,6 +1313,8 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
+    int64_t session_table_publish_fail;
+    int64_t session_table_publish_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;

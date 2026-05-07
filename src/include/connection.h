@@ -191,10 +191,12 @@ struct __wt_disagg_metadata_op {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
-    /* Metadata type operation. */
-    WT_SHARED_METADATA_OP metadata_op;
+    WT_SHARED_METADATA_OP metadata_op; /* The type of the metadata operation. */
+    wt_timestamp_t schema_epoch;       /* The schema epoch of the metadata operation. */
+
     /* Skip the drop operation in the next checkpoint and defer it to the one after. */
     bool deferred;
+
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 

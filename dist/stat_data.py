@@ -880,6 +880,8 @@ conn_stats = [
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_publish_fail', 'table publish failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_publish_success', 'table publish successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_success', 'table salvage successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
