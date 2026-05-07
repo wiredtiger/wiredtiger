@@ -937,6 +937,9 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
     if (ret_start == 0 && ret_stop == 0)
         WT_RET(__clayered_range_truncate_ingest(
           trunc_info->session, layered_table, ingest_start, ingest_stop));
+    else
+        WT_RET(__wt_layered_table_truncate_detect_non_ingest_write_conflict(
+          trunc_info->session, layered_table, &start_key, &stop_key));
 
     WT_RET(__wt_insert_truncate_entry(trunc_info->session, layered_table, &start_key, &stop_key));
 

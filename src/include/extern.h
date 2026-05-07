@@ -732,6 +732,9 @@ extern int __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype
 extern int __wt_key_return(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *session,
+  WT_LAYERED_TABLE *layered_table, const WT_ITEM *start_key, const WT_ITEM *stop_key)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_truncate_detect_write_conflict(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
