@@ -80,8 +80,8 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
-     * We only need to check on the first pass. The check assertions if the oldest update 
-     * in the whole chain has a tombstone and may produce consecutive tombstone situation.
+     * We only need to check on the first pass. The check assertions if the oldest update in the
+     * whole chain has a tombstone and may produce consecutive tombstone situation.
      */
     if (from_ts == WT_TS_NONE)
         __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
@@ -675,7 +675,7 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 
     WT_RET(ret);
     if (ntruncates > 0)
-        qsort(sorted, ntruncates, sizeof(WT_TRUNCATE *), __truncate_cmp_by_start_ts);
+        __wt_qsort(sorted, ntruncates, sizeof(WT_TRUNCATE *), __truncate_cmp_by_start_ts);
     *sortedp = sorted;
     *ntruncatesp = ntruncates;
     return (0);
@@ -721,7 +721,8 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
      */
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
-    WT_ERR(__layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
+    WT_ERR(
+      __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
     prev_ts = WT_TS_NONE;
     for (i = 0; i < ntruncates; i++) {

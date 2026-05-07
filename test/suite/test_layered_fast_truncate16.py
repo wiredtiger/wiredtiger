@@ -227,7 +227,7 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
 
     # --- Snapshot reads at intermediate timestamps ---
 
-    # Reads before vs after a single truncate's commit ts.
+    # Reads before vs after a single truncate commit ts.
     def test_snapshot_read_around_truncate(self):
         self.setup_follower()
         self.truncate_range(100, 700, 20)
@@ -236,7 +236,7 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         self.assert_deleted([100, 250, 500, 700], ts=30)
         self.assert_visible([50, 800], ts=30)
 
-    # Read at exactly the truncate's commit timestamp.
+    # Read at exactly the truncate commit timestamp.
     def test_read_at_truncate_timestamp(self):
         self.setup_follower()
         self.truncate_range(100, 700, 20)
@@ -322,7 +322,7 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
     def test_drain_truncate_below_stable_timestamp(self):
         self.setup_follower()
         self.truncate_range(100, 700, 20)
-        # Advance the follower's stable timestamp past the truncate's commit ts.
+        # Advance the follower's stable timestamp past the truncate commit ts.
         self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         self.step_up()
         # The drain succeeded; truncated keys are deleted at any post-stable read.
