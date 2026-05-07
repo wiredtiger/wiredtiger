@@ -387,8 +387,8 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         # The drain succeeded; truncated keys are deleted at any post-oldest read.
         self.assert_deleted([100, 250, 500, 700], ts=30)
         self.assert_visible([50, 800], lambda k: f"v{k}", ts=30)
-    
-    
+
+
     # Both oldest and stable timestamps have advanced past the truncate's commit ts.
     def test_drain_truncate_below_oldest_and_stable(self):
         self.setup_follower()

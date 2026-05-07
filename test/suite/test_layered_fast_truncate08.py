@@ -117,5 +117,6 @@ class test_layered_fast_truncate08(wttest.WiredTigerTestCase):
         expected_values = [sentinel] * num_keys_truncated
         self.assertEqual(values, expected_values)
 
+
 if __name__ == "__main__":
     wttest.run()

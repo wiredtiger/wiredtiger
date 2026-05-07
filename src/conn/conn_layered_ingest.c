@@ -345,11 +345,8 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 
 /*
  * __layered_apply_truncate_to_stable --
- *     Replay a single follower-recorded truncate against stable: issue a full range truncate over
- *     [start_key, stop_key] at the original commit timestamp.
- *
- *     Called after all ingest updates visible at T->start_ts have already been drained to stable,
- *     so the tombstones correctly overwrite both checkpoint data and the newly-drained ingest data.
+ *     Replay a single follower-recorded truncate against stable. This needs to be done after all
+ *     older ingest updates have been drained.
  */
 static int
 __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
@@ -367,7 +364,7 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
 
     WT_ERR(__wt_txn_begin(session, NULL));
-    /* Replay commit timestamp predates stable; bypass timestamp ordering checks. */
+    /* Bypass stable timestamp ordering checks. */
     F_SET(session->txn, WT_TXN_TS_INTERNAL_REPLAY);
 
     trunc_start->set_key(trunc_start, &t->start_key);
@@ -387,15 +384,14 @@ err:
     return (ret);
 }
 
-
 /*
  * __layered_copy_ingest_table --
- *     Move ingest updates whose durable timestamp falls in (from_ts, to_ts] to the corresponding
+ *     Move ingest updates whose durable timestamp falls in (from_ts, to_ts) to the corresponding
  *     stable table.
  */
 static int
-__layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts,
-  wt_timestamp_t to_ts)
+__layered_copy_ingest_table(
+  WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts, wt_timestamp_t to_ts)
 {
     WT_BTREE *ingest_btree, *stable_btree;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
@@ -436,11 +432,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
      * The version cursor skips updates at or below cursor_start_ts to avoid re-draining data
      * already covered by a previous pass or a checkpoint.
      */
-    cursor_start_ts =
-      (from_ts > last_checkpoint_timestamp) ? from_ts : last_checkpoint_timestamp;
+    cursor_start_ts = (from_ts > last_checkpoint_timestamp) ? from_ts : last_checkpoint_timestamp;
     if (cursor_start_ts != WT_TS_NONE)
-        WT_ERR(
-          __wt_snprintf(buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", cursor_start_ts));
+        WT_ERR(__wt_snprintf(buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", cursor_start_ts));
     else
         buf2[0] = '\0';
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
@@ -498,9 +492,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri, wt
 
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /*
-         * Only process updates whose durable timestamp falls in (cursor_start_ts, to_ts].
-         * Prepared updates (durable_ts == WT_TS_NONE) are included only in the final pass where
-         * to_ts == WT_TS_MAX, since their commit timestamp is not yet resolved.
+         * Only process updates whose durable timestamp falls in within the ts range. Prepared
+         * updates are included only in the final pass, since their commit timestamp is not yet
+         * resolved.
          */
         in_ts_range = to_ts == WT_TS_MAX || (!prepare && durable_start_ts <= to_ts);
         if (in_ts_range) {
@@ -652,8 +646,7 @@ __truncate_cmp_by_start_ts(const void *a, const void *b)
 
 /*
  * __layered_build_sorted_truncates --
- *     Snapshot committed truncates from the truncate list into a caller-owned sorted array.
- *     The truncate lock is released before returning; entries remain valid until truncate_clear.
+ *     Snapshot committed truncates from the truncate list into a sorted array. The
  */
 static int
 __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
@@ -692,16 +685,6 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 /*
  * __layered_drain_ingest_table_and_truncate_list --
  *     Drain ingest to stable in timestamp order, interleaving committed follower truncates.
- *
- *     For each committed truncate T_i (sorted ascending by start_ts):
- *       1. Copy ingest updates with durable_ts in (prev_ts, T_i->start_ts] to stable.
- *       2. Range-truncate [T_i->start_key, T_i->stop_key] on stable at T_i->start_ts.
- *     Then copy the remaining ingest updates (durable_ts > last truncate ts).
- *     Finally, clear the truncate list.
- *
- *     Draining ingest before applying each truncate ensures the range truncate's tombstones land
- *     on top of both checkpoint data and the newly-drained ingest data without needing to compute
- *     stable-only windows.
  */
 static int
 __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const char *ingest_uri)
@@ -711,8 +694,8 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *t, **sorted;
-    size_t i, ntruncates;
     wt_timestamp_t prev_ts;
+    size_t i, ntruncates;
 
     layered_dhandle = NULL;
     layered_table = NULL;
@@ -721,7 +704,6 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
-
 
     WT_ERR_NOTFOUND_OK(
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
@@ -733,6 +715,11 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
         ret = 0;
         goto err;
     }
+    /*
+     * For each committed truncate, copy ingest updates with lower bound and upper bound. The lower
+     * bound is timestamp of previous truncate and upper is timestamp of current truncate. After
+     * copying ingest updates, apply the range truncate.
+     */
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
     WT_ERR(__layered_build_sorted_truncates(session, layered_table, &sorted, &ntruncates));
