@@ -34,7 +34,7 @@ __schema_publish_disagg_schema_epoch(
         WT_ERR_MSG(session, ENOTSUP,
           "Publishing based on disaggregated schema epoch is only supported for disaggregated "
           "storage");
-    /* FIXME-WT-17088: Implement the publish API for followers. */
+    /* FIXME-WT-17089: Implement the publish API for followers. */
     if (!S2C(session)->layered_table_manager.leader)
         WT_ERR_MSG(session, ENOTSUP,
           "Publishing based on disaggregated schema epoch is not supported for followers");

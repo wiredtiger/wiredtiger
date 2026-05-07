@@ -41,7 +41,7 @@
 #     - error cases: zero epoch, epoch not newer than stable, follower, invalid URI
 #     - publish success / fail statistics
 #
-#   Known limitation: follower drop visibility (FIXME-WT-17088) is not yet
+#   Known limitation: follower drop visibility (FIXME-WT-17089) is not yet
 #   implemented.  After the leader publishes and checkpoints a DROP, the
 #   follower's local metadata is not cleaned up, so the table remains visible
 #   on the follower.  test_drop_deferred_until_publish only verifies that
@@ -177,7 +177,7 @@ class test_layered102(wttest.WiredTigerTestCase):
         self.publish(uri, 30)
         self.set_stable_epoch(30)
         self.leader_checkpoint(3)
-        # FIXME-WT-17088: Follower drop visibility is not yet implemented.
+        # FIXME-WT-17089: Follower drop visibility is not yet implemented.
         # The leader processes the DROP in shared metadata, but the follower's
         # local metadata is not cleaned up, so the table remains visible on the
         # follower.  Once follower publish support is added, assert that the
