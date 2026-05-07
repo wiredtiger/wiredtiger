@@ -21,7 +21,7 @@ using namespace truncate_list_helpers;
 
 namespace {
 
-// Converts an integer to a string in the form "keyNNN", where NNN is zero-padded.
+// Converts an integer to a string in the form "key" + "NNN", where NNN is zero-padded.
 std::string
 format_key(const int num)
 {
