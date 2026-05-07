@@ -229,7 +229,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
  *     Search if the current key we are modifying conflicts with any uncommitted truncates in the
  *     layered table truncate list.
  *
- * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing so
+ * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer. Doing so
  *     would remove the write cursor operations dependency on the truncate list.
  */
 int
