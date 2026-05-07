@@ -63,7 +63,6 @@ else()
         truncate/test_layered_truncate_visibility.cpp
         truncate/test_layered_table_truncate_clear.cpp
         truncate/test_layered_table_truncate_rollback.cpp
-        truncate/test_truncate_write_conflict.cpp
     )
 endif()
 
@@ -88,6 +87,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
         truncate/test_insert_truncate_entry.cpp
+        truncate/test_truncate_write_conflict.cpp
     )
 endif()
 
