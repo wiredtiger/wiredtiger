@@ -227,7 +227,7 @@ class test_layered102(wttest.WiredTigerTestCase):
                                 ',oldest_timestamp=' + self.timestamp_str(1))
 
     #
-    # Tests for the statistics.
+    # Statistics tests
     #
 
     def test_publish_stats(self):
