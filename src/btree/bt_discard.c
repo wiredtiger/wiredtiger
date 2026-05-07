@@ -117,7 +117,12 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     __wt_evict_page_cache_bytes_decr(session, page);
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
+    /*
+     * For shared disk pages the bytes image statistics are owned by the shared disk cache layer and
+     * are drained on the matching last release at the bottom of this function. Skip the per-page
+     * image decrement to avoid double draining.
+     */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC) && !WT_PAGE_IS_SHARED_DSK(page))
         __wt_cache_page_image_decr(session, page);
 
     /* Discard any mapped image. */
@@ -150,17 +155,18 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     }
 
     /*
-     * Discard any allocated disk image. When the image is owned by the shared disk cache, release
-     * our reference instead of freeing the memory directly; the cache frees the data once the last
-     * reference is dropped.
+     * Discard any allocated disk image. If the page holds a reference to a shared disk image,
+     * release it from the shared disk cache. Otherwise free the disk image if it is not a shared
+     * disk page.
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC)) {
-        if (page->disagg_info != NULL && page->disagg_info->shared_dsk_item != NULL) {
+        if (WT_PAGE_HAS_SHARED_DSK_REF(page)) {
+            WT_ASSERT(session, WT_PAGE_IS_SHARED_DSK(page));
             WT_ASSERT(session, S2C(session)->cache->shared_dsk_cache.enabled);
             WT_ASSERT(session, page->disagg_info->shared_dsk_item->data == dsk);
             WT_ASSERT(session, page->disagg_info->shared_dsk_item->data_size == dsk->mem_size);
             __wt_shared_dsk_cache_release(session, page->disagg_info->shared_dsk_item);
-        } else
+        } else if (!WT_PAGE_IS_SHARED_DSK(page))
             __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
     }
 

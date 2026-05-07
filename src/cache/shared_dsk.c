@@ -162,6 +162,11 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
 
     *shared_dsk_retp = shared_dsk_store;
     cache_inserted = true;
+
+    /* Update disk image statistics.*/
+    __wt_cache_inmem_incr(session, ((WT_PAGE_HEADER *)data)->type, data_size);
+    __wt_cache_image_incr(session, ((WT_PAGE_HEADER *)data)->type, WT_STORE_SIZE(data_size));
+
     __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,
       "put: disk image inserted in shared dsk cache", hash, bucket, lock_idx, addr, addr_size);
 done:
@@ -186,6 +191,8 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
 {
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
     uint64_t hash;
+    uint32_t data_size;
+    uint8_t dsk_type;
     u_int bucket, lock_idx;
 
     WT_ASSERT(session, shared_dsk_item != NULL);
@@ -201,7 +208,13 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
     /* Remove the shared dsk item when ref count is reduced to 0. */
     if (--shared_dsk_item->ref_count == 0) {
         TAILQ_REMOVE(&shared_dsk_cache->hash[bucket], shared_dsk_item, hashq);
+        data_size = shared_dsk_item->data_size;
+        dsk_type = ((WT_PAGE_HEADER *)shared_dsk_item->data)->type;
         __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
+
+        /* Symmetrically drain the cache on last release. */
+        __wt_evict_shared_dsk_cache_bytes_decr(session, dsk_type, data_size);
+        __wt_cache_image_decr(session, dsk_type, data_size);
 
         __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,
           "release: disk image removed from shared dsk cache", hash, bucket, lock_idx,

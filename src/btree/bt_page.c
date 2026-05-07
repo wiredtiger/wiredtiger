@@ -1260,16 +1260,21 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         return (__wt_illegal_value(session, dsk->type));
     }
 
+    /*
+     * Mark the page as tied to the shared disk cache layer if a shared disk item was supplied. Set
+     * the local flag before any failure point so if we succeed on page alloc and fail later, page
+     * out accounting can identify shared disk pages on the error path.
+     */
+    if (shared_dsk_item != NULL)
+        LF_SET(WT_PAGE_DISK_SHARED);
+
     /* Allocate and initialize a new WT_PAGE. */
     WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, true, &page, flags));
     __wt_tsan_suppress_store_wt_page_header_ptr(&page->dsk, dsk);
     F_SET_ATOMIC_16(page, flags);
-    WT_ASSERT(session, shared_dsk_item == NULL || page->disagg_info != NULL);
-    if (page->disagg_info != NULL)
-        page->disagg_info->shared_dsk_item = shared_dsk_item;
 
     /* Update image stats early so it's balanced with __wt_page_out decr if an error fires below. */
-    if (LF_ISSET(WT_PAGE_DISK_ALLOC))
+    if (LF_ISSET(WT_PAGE_DISK_ALLOC) && !LF_ISSET(WT_PAGE_DISK_SHARED))
         __wt_cache_page_image_incr(session, page);
 
     /*
@@ -1303,8 +1308,16 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         WT_ERR(__wt_illegal_value(session, page->type));
     }
 
-    /* Update the page's cache statistics. */
-    __wt_cache_page_inmem_incr(session, page, size, false);
+    /*
+     * Update the page's cache statistics. For shared disk pages, cache totals exclude the disk size
+     * as it is owned by the shared disk cache layer.
+     */
+    if (!LF_ISSET(WT_PAGE_DISK_SHARED))
+        __wt_cache_page_inmem_incr(session, page, size, false);
+    else {
+        WT_ASSERT(session, size >= dsk->mem_size);
+        __wt_cache_page_inmem_incr(session, page, size - dsk->mem_size, false);
+    }
 
     /* Link the new internal page to the parent. */
     if (ref != NULL) {
@@ -1315,6 +1328,14 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
             break;
         }
         ref->page = page;
+    }
+
+    WT_ASSERT(session, shared_dsk_item == NULL || page->disagg_info != NULL);
+    if (page->disagg_info != NULL) {
+        page->disagg_info->shared_dsk_item = shared_dsk_item;
+        /* memory footprint still includes disk size so per-page eviction logic stays unchanged. */
+        if (LF_ISSET(WT_PAGE_DISK_SHARED))
+            __wt_cache_page_footprint_incr(session, page, dsk->mem_size);
     }
 
     *pagep = page;
