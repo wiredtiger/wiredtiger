@@ -454,13 +454,13 @@ __layered_copy_ingest_table(
         upd = NULL;
         WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
         if (ret == WT_NOTFOUND) {
-            ret = 0;
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
                   ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
                 WT_ERR(ret);
                 upds = NULL;
-            }
+            } else
+                ret = 0;
             break;
         }
 
@@ -477,8 +477,9 @@ __layered_copy_ingest_table(
                 WT_WITH_DHANDLE(session, cbt->dhandle,
                   ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
                 WT_ERR(ret);
-                upds = NULL;
             }
+
+            upds = NULL;
             prev_upd = NULL;
             prepare_txn_fixed = false;
             prepare_resolved = false;
@@ -693,13 +694,13 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
-    WT_TRUNCATE *t, **sorted;
+    WT_TRUNCATE *t, **sorted_truncates;
     wt_timestamp_t prev_ts;
     size_t i, ntruncates;
 
     layered_dhandle = NULL;
     layered_table = NULL;
-    sorted = NULL;
+    sorted_truncates = NULL;
     ntruncates = 0;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
@@ -722,11 +723,11 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
      */
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
-    WT_ERR(__layered_build_sorted_truncates(session, layered_table, &sorted, &ntruncates));
+    WT_ERR(__layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
     prev_ts = WT_TS_NONE;
     for (i = 0; i < ntruncates; i++) {
-        t = sorted[i];
+        t = sorted_truncates[i];
         WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
         prev_ts = t->start_ts;
@@ -737,7 +738,7 @@ err:
     if (layered_table != NULL)
         __wt_layered_table_truncate_clear(session, layered_table);
 
-    __wt_free(session, sorted);
+    __wt_free(session, sorted_truncates);
     /*
      * Cursor opens and closes can leave session->dhandle pointing at a file dhandle, so scope the
      * release explicitly back onto the layered dhandle we acquired above.
