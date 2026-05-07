@@ -19,7 +19,7 @@ extern "C" {
 namespace utils {
 
 constexpr u_int CROSS_CHECKPOINT_CACHING_TEST_HASH_SIZE = 16;
-constexpr size_t CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE = 16;
+constexpr size_t CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE = WT_PAGE_HEADER_SIZE;
 
 /*
  * Stands up the minimum state needed to exercise the cross-checkpoint cache against a real
