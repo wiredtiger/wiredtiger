@@ -388,4 +388,14 @@ define_c_test(
     DIR_NAME wt16990_disagg_checkpoint_panic
     ARGUMENTS -b ${CMAKE_BINARY_DIR} -G
     DEPENDS "WT_POSIX"
+    LABEL "disagg"
 )
+
+# Use C++ linker for building this target.
+# When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
+# to link against the C++ sanitizer runtimes.
+# Some extensions (PALite, tiered storage) require C++ runtime to be linked
+# for sanitizers to work correctly.
+if(TARGET test_wt16990_disagg_checkpoint_panic)
+    set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
+endif()

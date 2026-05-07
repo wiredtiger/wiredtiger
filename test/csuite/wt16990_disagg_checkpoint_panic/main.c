@@ -184,6 +184,8 @@ main(int argc, char *argv[])
             testutil_die(EINVAL, "unexpected option");
     testutil_parse_end_opt(opts);
 
+    opts->disagg.page_log_home = opts->home; /* Set home directory for page log. */
+
     testutil_recreate_dir(opts->home);
 
     pid = fork();
