@@ -318,6 +318,17 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         self.step_up()
         self.assert_keys_gone([(100, 700)])
 
+    # Step-up bypasses commit timestamp ordering checks when draining a past truncate.
+    def test_drain_truncate_below_stable_timestamp(self):
+        self.setup_follower()
+        self.truncate_range(100, 700, 20)
+        # Advance the follower's stable timestamp past the truncate's commit ts.
+        self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.step_up()
+        # The drain succeeded; truncated keys are deleted at any post-stable read.
+        self.assert_deleted([100, 250, 500, 700], ts=35)
+        self.assert_visible([50, 800], lambda k: f"v{k}", ts=35)
+
     # --- Layered remove + truncate (special ingest tombstones) ---
 
     # Follower remove with no follower truncate.
@@ -360,18 +371,3 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         for ts in [15, 20, 30, 40]:
             self.assert_deleted([300], ts=ts)
         self.assert_visible([300], "v300", ts=12)
-
-    # --- Drain truncates bypassing oldest and stable timestamp checks ---
-
-    # Step-up bypasses commit timestamp ordering checks when draining a past truncate.
-    def test_drain_truncate_below_stable_timestamp(self):
-        self.setup_follower()
-        self.truncate_range(100, 700, 20)
-        # Advance the follower's stable timestamp past the truncate's commit ts.
-        self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
-        self.step_up()
-        # The drain succeeded; truncated keys are deleted at any post-stable read.
-        self.assert_deleted([100, 250, 500, 700], ts=35)
-        self.assert_visible([50, 800], lambda k: f"v{k}", ts=35)
-
-

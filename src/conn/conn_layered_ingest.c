@@ -80,9 +80,8 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
-     * Only check on the first pass (from_ts == WT_TS_NONE). On subsequent passes a prior pass may
-     * have placed the key in stable's insert list, which would trip the cbt->ins == NULL assertion
-     * inside the check.
+     * We only need to check on the first pass. The check assertions if the oldest update 
+     * in the whole chain has a tombstone and may produce consecutive tombstone situation.
      */
     if (from_ts == WT_TS_NONE)
         __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
@@ -223,7 +222,6 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
-
 #endif
 
 /*
