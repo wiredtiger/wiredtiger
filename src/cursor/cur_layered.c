@@ -212,7 +212,7 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 /*
  * __clayered_seed_random --
  *     Seed the constituent cursor's random state. The constituent itself is opened without random
- *     config because it overwrites normal next/prev methods. The next/prev methods are required for
+ *     config because it overwrites the normal next method. The next method is required for
  *     cursor::search_near to work. Instead initialize the cbt->rnd and directly use the file
  *     cursor::next_random function.
  *
@@ -246,6 +246,7 @@ __clayered_open_stable_int(WT_CURSOR_LAYERED *clayered, const char *stable_uri)
     const char *cfg[3] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL};
 
     WT_RET(__wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor));
+    F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
     if (F_ISSET(&clayered->iface, WT_CURSTD_DEBUG_RESET_EVICT))
         F_SET(clayered->stable_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
@@ -2602,6 +2603,9 @@ __clayered_next_random(WT_CURSOR *cursor)
     /*
      * Promote the picked key to the layered cursor and resolve any tombstones via search_near.
      * WT_NOTFOUND here is valid: the tree has no documents visible to us.
+     *
+     * Copy the key into the layered cursor's own buffer because search_near below may reposition
+     * the constituent and invalidate its key pointer.
      */
     F_CLR(cursor, WT_CURSTD_KEY_INT);
     WT_ERR(__wt_buf_set(session, &cursor->key, c->key.data, c->key.size));
