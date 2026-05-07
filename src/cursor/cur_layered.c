@@ -242,31 +242,16 @@ __clayered_seed_random(
 static int
 __clayered_open_stable_int(WT_CURSOR_LAYERED *clayered, const char *stable_uri)
 {
-    WT_CURSOR *c;
-    WT_DECL_ITEM(stable_uri_buf);
+    WT_DECL_ITEM(random_config);
     WT_DECL_RET;
-    WT_LAYERED_TABLE *layered;
-    WT_SESSION_IMPL *session;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
     const char *cfg[3] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL};
-    const char *checkpoint_name, *stable_uri;
 
-    session = CUR2S(clayered);
-    c = &clayered->iface;
-    layered = (WT_LAYERED_TABLE *)clayered->dhandle;
-    checkpoint_name = NULL;
+    WT_RET(__wt_scr_alloc(session, 0, &random_config));
+    /* Get the configuration for random cursors, if any. */
+    WT_ERR(__clayered_configure_random(session, clayered, random_config));
 
-retry:
-    stable_uri = layered->stable_uri;
-    if (!leader) {
-        /*
-         * We may have a stable chunk with no checkpoint yet. If that's the case then open a cursor
-         * on stable without a checkpoint. It will never return an invalid result (it's content is
-         * by definition trailing the ingest cursor). It is just slightly less efficient, and also
-         * not an accurate reflection of what we want in terms of sharing checkpoints across
-         * different WiredTiger instances eventually.
-         */
-
-    F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+    WT_ERR(__wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor));
 
     if (F_ISSET(&clayered->iface, WT_CURSTD_DEBUG_RESET_EVICT))
         F_SET(clayered->stable_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
