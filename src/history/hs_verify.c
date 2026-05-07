@@ -268,6 +268,11 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     uint32_t hs_id;
 
+    /* On a disaggregated follower with no checkpoint, there is nothing to verify. */
+    if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader &&
+      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE)
+        return (0);
+
     hs_id = 0;
     for (;;) {
         ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id);
