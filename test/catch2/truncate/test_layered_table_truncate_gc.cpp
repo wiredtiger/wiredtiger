@@ -163,8 +163,8 @@ SCENARIO("garbage collection removes an entry below the prune timestamp", "[trun
     }
 }
 
-SCENARIO("garbage collection removes eligible entries from a multi-entry list",
-  "[truncate_list][gc]")
+SCENARIO(
+  "garbage collection removes eligible entries from a multi-entry list", "[truncate_list][gc]")
 {
     GIVEN("a truncate list with one eligible entry and one ineligible entry")
     {
@@ -232,6 +232,60 @@ SCENARIO("garbage collection removes eligible entries from a multi-entry list",
         const wt_timestamp_t prune_ts = 10u;
         insert_durable_entry(fixture, prune_ts + 1u);
         insert_durable_entry(fixture, prune_ts + 2u);
+
+        const auto initial_size = truncate_list_size(fixture.layered_table());
+        const auto initial_ref_count = fixture.reference_count();
+
+        WHEN("garbage collection runs")
+        {
+            __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
+
+            THEN("the truncate list remains unchanged")
+            {
+                REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
+                REQUIRE(fixture.reference_count() == initial_ref_count);
+            }
+        }
+    }
+
+    GIVEN("a truncate list with one uncommitted entry and one eligible entry")
+    {
+        truncate_list_fixture fixture;
+
+        const wt_timestamp_t prune_ts = 10u;
+        fixture.add_entry(make_item("a"), make_item("z"));
+        insert_durable_entry(fixture, prune_ts - 1u);
+
+        const auto initial_size = truncate_list_size(fixture.layered_table());
+        const auto initial_ref_count = fixture.reference_count();
+
+        WHEN("garbage collection runs")
+        {
+            __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
+
+            THEN("the eligible entry is removed and the uncommitted entry survives")
+            {
+                const auto expected_size = initial_size - 1u;
+                REQUIRE(truncate_list_size(fixture.layered_table()) == expected_size);
+
+                const auto *head = truncate_list_head(fixture.layered_table());
+                REQUIRE(head->durable_ts == WT_TS_NONE);
+            }
+
+            THEN("the dhandle reference is not released")
+            {
+                REQUIRE(fixture.reference_count() == initial_ref_count);
+            }
+        }
+    }
+
+    GIVEN("a truncate list with one uncommitted entry and one ineligible entry")
+    {
+        truncate_list_fixture fixture;
+
+        const wt_timestamp_t prune_ts = 10u;
+        fixture.add_entry(make_item("a"), make_item("z"));
+        insert_durable_entry(fixture, prune_ts + 1u);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
         const auto initial_ref_count = fixture.reference_count();
