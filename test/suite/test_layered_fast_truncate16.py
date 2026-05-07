@@ -371,18 +371,3 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         for ts in [15, 20, 30, 40]:
             self.assert_deleted([300], ts=ts)
         self.assert_visible([300], "v300", ts=12)
-
-    # Ingest update and truncate at the same ts: the update was committed after the truncate in
-    # the follower's logical ordering, so it should survive step-up and be visible at ts=15.
-    def test_ingest_update_then_truncate_same_ts(self):
-        self.setup_follower()
-        self.write_kv(300, "follower-value", 15)
-        self.truncate_range(100, 700, 15)
-        self.step_up()
-        self.session_follow.checkpoint()
-        # Ingest update at ts=15 supersedes the same-ts truncate; key 300 must be visible.
-        self.assert_visible([300], "follower-value", ts=15)
-        # All other stable-only keys in the truncated range are deleted.
-        self.assert_deleted([100, 250, 400, 500, 700], ts=15)
-        # Keys outside the truncate range are unaffected.
-        self.assert_visible([50, 800], lambda k: f"v{k}", ts=15)

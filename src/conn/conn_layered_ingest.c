@@ -351,30 +351,47 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 {
     WT_CURSOR *trunc_start, *trunc_stop;
     WT_DECL_RET;
+    WT_TXN *txn;
     const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
 
     trunc_start = trunc_stop = NULL;
+    txn = session->txn;
 
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
+    WT_ASSERT(session, txn->mod_count == 0);
 
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_start));
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
 
-    WT_ERR(__wt_txn_begin(session, NULL));
-    /* Bypass stable timestamp ordering checks. */
-    F_SET(session->txn, WT_TXN_TS_INTERNAL_REPLAY);
+    /*
+     * Set the truncate txn ID and timestamps into session transaction. Both slow truncate and fast
+     * truncate entries will be stamped directly. The txn ID is not published to the global
+     * transaction table.
+     */
+    txn->isolation = session->isolation;
+    txn->time_point.id = t->txn_id;
+    txn->time_point.commit_timestamp = t->start_ts;
+    txn->time_point.durable_timestamp = t->start_ts;
+    F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID | WT_TXN_TIME_POINT_HAS_TS_COMMIT);
+    /* Bypass commit/stable timestamp ordering and transaction usage checks. */
+    F_SET(txn, WT_TXN_RUNNING | WT_TXN_TS_INTERNAL_REPLAY);
 
     trunc_start->set_key(trunc_start, &t->start_key);
     trunc_stop->set_key(trunc_stop, &t->stop_key);
     WT_ERR(__wt_session_range_truncate(session, NULL, trunc_start, trunc_stop));
 
-    WT_ERR(__wt_txn_set_timestamp_uint(session, WT_TS_TXN_TYPE_COMMIT, t->start_ts));
+    /* Clear flag to avoid proper transaction usage checks. */
+    F_CLR(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID);
     WT_ERR(__wt_txn_commit(session, NULL));
 
 err:
-    if (F_ISSET(session->txn, WT_TXN_RUNNING))
+    if (F_ISSET(txn, WT_TXN_RUNNING)) {
+        /* If we error clear the flag to avoid transaction usage checks. */
+        F_CLR(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID);
         WT_TRET(__wt_txn_rollback(session, NULL, false));
+    }
     if (trunc_start != NULL)
         WT_TRET(trunc_start->close(trunc_start));
     if (trunc_stop != NULL)
@@ -515,6 +532,7 @@ __layered_copy_ingest_table(
                     }
                 } else if (!prepare_resolved) {
                     /* Only resolve the updates from the same prepared transaction once. */
+                    WT_ASSERT(session, from_ts == WT_TS_NONE);
                     if (is_prepare_rollback) {
                         /*
                          * The original transaction id is stored in start timestamp and the rollback
@@ -639,6 +657,10 @@ __truncate_cmp_by_start_ts(const void *a, const void *b)
     if (ta->start_ts < tb->start_ts)
         return (-1);
     if (ta->start_ts > tb->start_ts)
+        return (1);
+    if (ta->txn_id < tb->txn_id)
+        return (-1);
+    if (ta->txn_id > tb->txn_id)
         return (1);
     return (0);
 }
