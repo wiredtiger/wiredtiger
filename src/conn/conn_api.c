@@ -1577,26 +1577,22 @@ __conn_startup_cleanup_and_verify(WT_CONNECTION_IMPL *conn, bool verify_meta)
     WT_DECL_RET;
     WT_SESSION_IMPL *session = NULL;
 
-    WT_ERR(__wt_open_internal_session(conn, "startup-cleanup-and-verify", false, 0, 0, &session));
-
-    /* The chunk cache metadata table may exist on upgrade. Discard it. */
-    WT_ERR(__conn_cleanup_chunk_cache(session));
+    WT_ERR(
+      __wt_open_internal_session(conn, "startup-cleanup-and-verify", verify_meta, 0, 0, &session));
 
     if (verify_meta) {
+        /* Database verification must happen as the first step before any potential changes. */
+        WT_ERR(__wt_verify_disagg_database_size(session));
+
         /*
          * If the user wants to verify WiredTiger metadata, verify the history store now that the
          * metadata table may have been salvaged and eviction has been started and recovery run.
          */
         WT_ERR(__wt_hs_verify(session));
-
-        /*
-         * Verify the disaggregated database size. This must happen after __wti_connection_workers,
-         * which is where disaggregated storage is initialized. The earlier metadata verify (above)
-         * does not need to wait because it only verifies the local metadata file, which is not a
-         * shared table and has no dependency on disagg initialization.
-         */
-        WT_ERR(__wt_verify_disagg_database_size(session));
     }
+
+    /* The chunk cache metadata table may exist on upgrade. Discard it. */
+    WT_ERR(__conn_cleanup_chunk_cache(session));
 
 err:
     if (session != NULL)
