@@ -1416,6 +1416,8 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         if (!WT_REC_HAS_ON_DISK(vpack)) {
             WT_ASSERT_ALWAYS(session, F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT),
               "No on-disk value is found for a non-ingest tombstone-only chain");
+            /* Populate tw from the tombstone so the cell carries a valid timestamp on the ingest btree. */
+            WT_TIME_WINDOW_SET_START(select_tw, tombstone, write_prepare);
             upd_select->upd = tombstone;
             return (0);
         }
