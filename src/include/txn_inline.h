@@ -1234,11 +1234,11 @@ __wt_txn_visible_id_snapshot(
 }
 
 /*
- * __txn_visible_id --
+ * __wt_txn_visible_id --
  *     Can the current transaction see the given ID?
  */
 static WT_INLINE bool
-__txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
+__wt_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 {
     WT_TXN *txn;
 
@@ -1333,7 +1333,7 @@ static WT_INLINE bool
 __wt_txn_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
-    if (!__txn_visible_id(session, id))
+    if (!__wt_txn_visible_id(session, id))
         return (false);
 
     /* Transactions read their writes, regardless of timestamps. */

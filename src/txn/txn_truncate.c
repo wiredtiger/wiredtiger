@@ -164,14 +164,13 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         WT_STAT_CONN_INCR(session, layered_truncate_list_search_entries_walked);
 
-        const bool is_visible =
-          __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
-
-        if (mode == WT_TRUNCATE_SEARCH_VISIBLE && !is_visible)
-            continue;
-
-        if (mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE && is_visible)
-            continue;
+        if (mode == WT_TRUNCATE_SEARCH_VISIBLE) {
+            if (!__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
+                continue;
+        } else if (mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE) {
+            if (__wt_txn_visible_id(session, entry->txn_id))
+                continue;
+        }
 
         WT_RET(__key_within_truncate_range(
           session, collator, &entry->start_key, &entry->stop_key, key, is_foundp));
