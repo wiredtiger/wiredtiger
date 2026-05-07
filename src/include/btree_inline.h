@@ -817,7 +817,7 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wt_cache_image_decr --
- *     Decrement an image's size to the cache.
+ *     Decrement an image's size in the cache.
  */
 static WT_INLINE void
 __wt_cache_image_decr(WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size)
@@ -857,7 +857,7 @@ __wt_cache_image_decr(WT_SESSION_IMPL *session, uint8_t image_type, uint32_t ima
 
 /*
  * __wt_cache_image_incr --
- *     Increment an image's size to the cache.
+ *     Increment an image's size in the cache.
  */
 static WT_INLINE void
 __wt_cache_image_incr(WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size)
@@ -891,7 +891,7 @@ __wt_cache_image_incr(WT_SESSION_IMPL *session, uint8_t image_type, uint32_t ima
 
 /*
  * __wt_cache_page_image_decr --
- *     Decrement a page image's size to the cache.
+ *     Decrement a page image's size in the cache.
  */
 static WT_INLINE void
 __wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -901,7 +901,7 @@ __wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wt_cache_page_image_incr --
- *     Increment a page image's size to the cache.
+ *     Increment a page image's size in the cache.
  */
 static WT_INLINE void
 __wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page)

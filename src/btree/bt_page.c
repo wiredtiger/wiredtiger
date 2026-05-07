@@ -1262,8 +1262,8 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 
     /*
      * Mark the page as tied to the shared dsk cache layer if a shared dsk item was supplied. Set
-     * the flag before any failure point so __wt_page_out's accounting can identify shared disk
-     * pages on the error path.
+     * the local flag before any failure point so if we succeed on __wt_page_alloc and fail later,
+     * __wt_page_out's accounting can identify shared disk pages on the error path.
      */
     if (shared_dsk_item != NULL)
         LF_SET(WT_PAGE_DISK_SHARED);

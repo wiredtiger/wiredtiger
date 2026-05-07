@@ -216,7 +216,7 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
         __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
 
         /* Symmetrically drain the cache on last release. */
-        __wt_cache_inmem_decr(session, dsk_type, data_size);
+        __wt_evict_shared_dsk_cache_bytes_decr(session, dsk_type, data_size);
         __wt_cache_image_decr(session, dsk_type, data_size);
 
         __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,

@@ -2471,6 +2471,14 @@ static WT_INLINE void __wt_cache_dirty_decr_size(
   WT_SESSION_IMPL *session, size_t size, bool is_internal);
 static WT_INLINE void __wt_cache_dirty_incr_size(
   WT_SESSION_IMPL *session, size_t size, bool is_internal);
+static WT_INLINE void __wt_cache_image_decr(
+  WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size);
+static WT_INLINE void __wt_cache_image_incr(
+  WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size);
+static WT_INLINE void __wt_cache_inmem_decr(
+  WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
+static WT_INLINE void __wt_cache_inmem_incr(
+  WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
 static WT_INLINE void __wt_cache_page_byte_dirty_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_page_byte_updates_decr(
