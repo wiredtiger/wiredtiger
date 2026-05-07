@@ -298,21 +298,9 @@ __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *se
         if (is_found)
             break;
 
-        /* Does the new range end within an existing range? */
-        WT_ERR(__key_within_truncate_range(
-          session, collator, &entry->start_key, &entry->stop_key, stop_key, &is_found));
-        if (is_found)
-            break;
-
         /* Does the old range start within the new range? */
         WT_ERR(__key_within_truncate_range(
           session, collator, start_key, stop_key, &entry->start_key, &is_found));
-        if (is_found)
-            break;
-
-        /* Does the old range end within the new range? */
-        WT_ERR(__key_within_truncate_range(
-          session, collator, start_key, stop_key, &entry->stop_key, &is_found));
         if (is_found)
             break;
     }
