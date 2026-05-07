@@ -602,21 +602,21 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
         /*
          * For a non-prepared transactions the commit timestamp should not be less or equal to the
          * stable timestamp.
-         */
-        if (commit_ts < oldest_ts)
-            WT_RET_MSG(session, EINVAL, "commit timestamp %s is less than the oldest timestamp %s",
-              __wt_timestamp_to_string(commit_ts, ts_string[0]),
-              __wt_timestamp_to_string(oldest_ts, ts_string[1]));
-
-        /*
+         *
          * Set a flag that allows internal callers to commit at a historical timestamp that may have
          * fallen behind the stable.
          */
-        if (stable_ts != WT_TS_NONE && commit_ts <= stable_ts &&
-          !F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY))
-            WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the stable timestamp %s",
-              __wt_timestamp_to_string(commit_ts, ts_string[0]),
-              __wt_timestamp_to_string(stable_ts, ts_string[1]));
+        if (!F_ISSET(txn, WT_TXN_TS_INTERNAL_REPLAY)) {
+            if (commit_ts < oldest_ts)
+                WT_RET_MSG(session, EINVAL, "commit timestamp %s is less than the oldest timestamp %s",
+                __wt_timestamp_to_string(commit_ts, ts_string[0]),
+                __wt_timestamp_to_string(oldest_ts, ts_string[1]));
+
+            if (stable_ts != WT_TS_NONE && commit_ts <= stable_ts)
+                WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the stable timestamp %s",
+                __wt_timestamp_to_string(commit_ts, ts_string[0]),
+                __wt_timestamp_to_string(stable_ts, ts_string[1]));
+        }
 
         __txn_assert_after_reads(session, "commit", commit_ts);
     } else {
