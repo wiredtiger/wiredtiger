@@ -1639,7 +1639,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
             if (retain_tombstone) {
                 /*
-                 * Sever after the on-page tombstone, freeing the on-page upd (and any intermediate
+                 * Sever after the on-page tombstone to free the on-page upd (and any intermediate
                  * aborted updates between the tombstone and the on-page upd). The tombstone stays
                  * attached behind the prepared update.
                  */
