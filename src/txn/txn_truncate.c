@@ -203,8 +203,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
         WT_STAT_CONN_INCR(session, layered_truncate_list_search_entries_walked);
 
         __truncate_read_entry_timestamps(entry, &start_ts, &durable_ts);
-        const bool is_visible =
-          __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
+        const bool is_visible = __wt_txn_visible(session, entry->txn_id, start_ts, durable_ts);
 
         if (mode == WT_TRUNCATE_SEARCH_VISIBLE && !is_visible)
             continue;
