@@ -242,24 +242,19 @@ __clayered_seed_random(
 static int
 __clayered_open_stable_int(WT_CURSOR_LAYERED *clayered, const char *stable_uri)
 {
-    WT_DECL_ITEM(random_config);
     WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(clayered);
     const char *cfg[3] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL};
-
-    WT_RET(__wt_scr_alloc(session, 0, &random_config));
-    /* Get the configuration for random cursors, if any. */
-    WT_ERR(__clayered_configure_random(session, clayered, random_config));
 
     WT_ERR(__wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor));
 
     if (F_ISSET(&clayered->iface, WT_CURSTD_DEBUG_RESET_EVICT))
         F_SET(clayered->stable_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
 
-err:
-    __wt_scr_free(session, &random_config);
+    if (F_ISSET(clayered, WT_CLAYERED_RANDOM))
+        __clayered_seed_random(session, clayered, clayered->stable_cursor);
 
-    return (ret);
+    return (0);
 }
 
 /*
