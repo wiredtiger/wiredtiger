@@ -1089,8 +1089,8 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
         /* Defer entries that belong to the next checkpoint. */
         if (entry->deferred) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Defer metadata %s operation for table \"%s\"", entry->table_name,
-              __shared_metadata_op_to_string(entry->metadata_op));
+              "Defer metadata operation %s for table \"%s\"",
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name);
             entry->deferred = false;
             continue;
         }
@@ -1098,8 +1098,8 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
         /* Defer entries based on the schema epoch. */
         if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Defer metadata %s operation for table \"%s\" with schema epoch %" PRIu64,
-              entry->table_name, __shared_metadata_op_to_string(entry->metadata_op),
+              "Defer metadata operation %s for table \"%s\" with schema epoch %" PRIu64,
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
               entry->schema_epoch);
             continue;
         }
@@ -1144,7 +1144,7 @@ __wt_disagg_shared_metadata_queue_publish(
         /* Update unpublished schema epochs before any ordering or range checks. */
         if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Publishing metadata %s operation for table \"%s\" to schema epoch %" PRIu64,
+              "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
               __shared_metadata_op_to_string(entry->metadata_op), entry->table_name, schema_epoch);
             entry->schema_epoch = schema_epoch;
         }
@@ -1153,7 +1153,7 @@ __wt_disagg_shared_metadata_queue_publish(
         if (entry->schema_epoch < prev_schema_epoch)
             WT_ERR_MSG(session, EINVAL,
               "Schema epoch of metadata operation for table \"%s\" is out of order: current schema "
-              "epoch %" PRIu64 ", previous schema epoch was %" PRIu64,
+              "epoch %" PRIu64 ", previous schema epoch %" PRIu64,
               table_name, entry->schema_epoch, prev_schema_epoch);
         prev_schema_epoch = entry->schema_epoch;
 
