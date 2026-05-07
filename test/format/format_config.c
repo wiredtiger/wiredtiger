@@ -51,6 +51,7 @@ static void config_obsolete_cleanup(void);
 static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
+static void config_prefetch(void);
 static void config_run_length(void);
 static void config_statistics(void);
 static void config_tiered_storage(void);
@@ -494,6 +495,7 @@ config_run(void)
     config_disagg_storage();                         /* Disaggregated storage */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
+    config_prefetch();                               /* Prefetch */
     config_checkpoint();                             /* Checkpoints */
     config_compression(NULL, "logging.compression"); /* Logging compression */
     config_encryption();                             /* Encryption */
@@ -511,6 +513,35 @@ config_run(void)
     config_run_length();
 
     config_random_generators_before_run();
+}
+
+/*
+ * config_prefetch --
+ *     Prefetch configuration.
+ */
+static void
+config_prefetch(void)
+{
+    bool available = GV(PREFETCH) != 0;
+    bool default_on = GV(PREFETCH_DEFAULT) != 0;
+
+    /* Nothing to fix: either prefetch is available (valid), or default is off (no constraint). */
+    if (available || !default_on)
+        return;
+
+    /*
+     * Invalid combination: prefetch.default=true requires prefetch=true (available).
+     * Resolve based on whether the flags came from the user or were randomly generated:
+     * - User explicitly set prefetch.default but left prefetch unset: force prefetch on.
+     * - prefetch.default was randomly turned on: silently turn it off.
+     */
+    bool available_explicit = config_explicit(NULL, "prefetch");
+    bool default_explicit = config_explicit(NULL, "prefetch.default");
+
+    if (default_explicit && !available_explicit)
+        config_single(NULL, "prefetch=1", true);
+    else if (!default_explicit)
+        config_off(NULL, "prefetch.default");
 }
 
 /*
@@ -1045,6 +1076,8 @@ config_in_memory_reset(void)
         config_off(NULL, "precise_checkpoint");
     if (!config_explicit(NULL, "prefetch"))
         config_off(NULL, "prefetch");
+    if (!config_explicit(NULL, "prefetch.default"))
+        config_off(NULL, "prefetch.default");
 }
 
 /*
