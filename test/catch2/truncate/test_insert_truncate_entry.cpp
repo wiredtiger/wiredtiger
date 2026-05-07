@@ -74,6 +74,16 @@ public:
         return __wt_atomic_load_uint32_relaxed(&layered_table().iface.references);
     }
 
+    void
+    set_prune_timestamp(const wt_timestamp_t prune_ts)
+    {
+        REQUIRE(__wt_session_get_dhandle(
+                  _session_impl, layered_table().ingest_uri, nullptr, nullptr, 0) == 0);
+
+        __wt_atomic_store_uint64_relaxed(&S2BT(_session_impl)->prune_timestamp, prune_ts);
+        REQUIRE(__wt_session_release_dhandle(_session_impl) == 0);
+    }
+
 private:
     static constexpr auto home = "WT_TEST.truncate_list";
 
@@ -425,6 +435,31 @@ SCENARIO("adding an entry releases the truncate lock", "[truncate_list][insert]"
             THEN("the truncate lock is not held")
             {
                 REQUIRE(lock_is_released(connection.session(), connection.layered_table()));
+            }
+        }
+    }
+}
+
+// GC correctness is covered exhaustively in test_layered_table_truncate_gc.cpp.
+// This test only verifies that insert wires up the GC call.
+SCENARIO("inserting an entry triggers garbage collection", "[truncate_list][insert]")
+{
+    GIVEN("a truncate list with one eligible entry eligible for garbage collection")
+    {
+        follower_connection connection;
+        CHECK(insert_one_entry(connection) == 0);
+
+        const wt_timestamp_t prune_ts = 10u;
+        truncate_list_head(connection.layered_table())->durable_ts = prune_ts - 1u;
+        connection.set_prune_timestamp(prune_ts);
+
+        WHEN("a new entry is inserted")
+        {
+            CHECK(insert_one_entry(connection) == 0);
+
+            THEN("the eligible entry is garbage collected")
+            {
+                REQUIRE(truncate_list_size(connection.layered_table()) == 1u);
             }
         }
     }
