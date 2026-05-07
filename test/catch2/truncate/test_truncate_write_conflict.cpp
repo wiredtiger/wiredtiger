@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string_view>
+#include <tuple>
 
 #include <catch2/catch.hpp>
 
@@ -33,34 +34,52 @@ format_key(const int num)
 // Calls the provided functor/lambda, wrapped in a transaction.
 template <typename Op>
 int
-do_in_transaction(WT_SESSION_IMPL *s, const Op operation, const bool commit)
+do_in_committed_transaction(WT_SESSION_IMPL *session, const Op operation)
 {
-    auto *iface = &s->iface;
+    auto *iface = &session->iface;
+
     REQUIRE(iface->begin_transaction(iface, nullptr) == 0);
-
     const int ret = operation();
-
-    if (commit)
-        REQUIRE(iface->commit_transaction(iface, nullptr) == 0);
+    REQUIRE(iface->commit_transaction(iface, nullptr) == 0);
 
     return ret;
 }
 
+// Calls the provided functor/lambda in a transaction, but rolls back afterwards.
+template <typename Op>
+int
+do_in_rolled_back_transaction(WT_SESSION_IMPL *session, const Op operation)
+{
+    auto *iface = &session->iface;
+
+    CHECK(iface->begin_transaction(iface, nullptr) == 0);
+    const int ret = operation();
+    CHECK(iface->rollback_transaction(iface, nullptr) == 0);
+
+    return ret;
+}
+
+// Calls the provided functor/lambda, but leaves the transaction open.
 template <typename Op>
 int
 do_in_uncommitted_transaction(WT_SESSION_IMPL *session, const Op operation)
 {
-    return do_in_transaction(session, operation, /* commit = */ false);
+    auto *iface = &session->iface;
+    CHECK(iface->begin_transaction(iface, nullptr) == 0);
+    return operation();
 }
 
-template <typename Op>
-int
-do_in_committed_transaction(WT_SESSION_IMPL *session, const Op operation)
+// Scope guard that ensures that transactions are always rolled back.
+[[nodiscard]] auto
+rollback_on_exit(WT_SESSION_IMPL *session)
 {
-    return do_in_transaction(session, operation, /* commit = */ true);
+    auto *iface = &session->iface;
+    const auto deleter = [](WT_SESSION *s) { std::ignore = s->rollback_transaction(s, nullptr); };
+
+    return std::unique_ptr<WT_SESSION, decltype(deleter)>(iface, deleter);
 }
 
-// Ensures the given test directory is removed at the beginning of the test.
+// Ensures the given test directory is removed between tests.
 class home_directory {
 public:
     explicit home_directory(const std::string_view path) : _path(path)
@@ -68,10 +87,15 @@ public:
         std::filesystem::remove_all(path);
     }
 
-    [[nodiscard]] std::string_view
+    ~home_directory()
+    {
+        std::filesystem::remove_all(_path);
+    }
+
+    [[nodiscard]] const char *
     path() const
     {
-        return _path;
+        return _path.c_str();
     }
 
 private:
@@ -88,8 +112,8 @@ public:
           "key_format=S,value_format=S,block_manager=disagg,type=layered";
 
         auto &session = _session->iface;
-        REQUIRE(session.create(&session, uri, config) == 0);
-        REQUIRE(session.open_cursor(&session, uri, nullptr, nullptr, &_cursor) == 0);
+        CHECK(session.create(&session, uri, config) == 0);
+        CHECK(session.open_cursor(&session, uri, nullptr, nullptr, &_cursor) == 0);
     }
 
     [[nodiscard]] WT_SESSION_IMPL *
@@ -140,7 +164,7 @@ private:
 
     scoped_fast_truncate_enable _enable;
     home_directory _home{"WT_TEST.truncate_write_conflict"};
-    connection_wrapper _conn{_home.path().data(), conn_config};
+    connection_wrapper _conn{_home.path(), conn_config};
     WT_SESSION_IMPL *_session{_conn.create_session()};
     WT_CURSOR *_cursor{};
 };
@@ -155,7 +179,7 @@ SCENARIO("write conflict returns 0 for an empty truncate list", "[truncate_list]
 
         WHEN("the conflict check is called for any key")
         {
-            const auto result = do_in_uncommitted_transaction(
+            const auto result = do_in_rolled_back_transaction(
               f.session(), [&] { return f.detect_conflict(f.session(), 150); });
 
             THEN("it returns 0 (no conflict)")
@@ -172,13 +196,17 @@ SCENARIO("write conflict returns 0 when the key is outside all uncommitted range
     GIVEN("one uncommitted truncate range [100, 200]")
     {
         write_conflict_fixture f;
+
         do_in_uncommitted_transaction(
           f.session(), [&] { return f.insert_truncate_entry(f.session(), 100, 200); });
+
+        const auto cleanup = rollback_on_exit(f.session());
 
         WHEN("the conflict check is called for a key before the range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 50); });
 
             THEN("it returns 0 (no conflict)")
@@ -190,7 +218,8 @@ SCENARIO("write conflict returns 0 when the key is outside all uncommitted range
         WHEN("the conflict check is called for a key after the range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 250); });
 
             THEN("it returns 0 (no conflict)")
@@ -203,16 +232,20 @@ SCENARIO("write conflict returns 0 when the key is outside all uncommitted range
     GIVEN("two non-overlapping uncommitted ranges [100, 200] and [400, 500]")
     {
         write_conflict_fixture f;
+
         do_in_uncommitted_transaction(f.session(), [&] {
             REQUIRE(f.insert_truncate_entry(f.session(), 100, 200) == 0);
             REQUIRE(f.insert_truncate_entry(f.session(), 400, 500) == 0);
             return 0;
         });
 
+        const auto cleanup = rollback_on_exit(f.session());
+
         WHEN("the conflict check is called for a key between the ranges")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 300); });
 
             THEN("it returns 0 (no conflict)")
@@ -229,13 +262,17 @@ SCENARIO("write conflict returns WT_ROLLBACK when the key is inside an uncommitt
     GIVEN("one uncommitted truncate range [100, 200]")
     {
         write_conflict_fixture f;
+
         do_in_uncommitted_transaction(
           f.session(), [&] { return f.insert_truncate_entry(f.session(), 100, 200); });
+
+        const auto cleanup = rollback_on_exit(f.session());
 
         WHEN("the conflict check is called for a key strictly inside the range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 150); });
 
             THEN("it returns WT_ROLLBACK")
@@ -247,7 +284,8 @@ SCENARIO("write conflict returns WT_ROLLBACK when the key is inside an uncommitt
         WHEN("the conflict check is called for the start boundary key")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 100); });
 
             THEN("it returns WT_ROLLBACK (start boundary is inclusive)")
@@ -259,7 +297,8 @@ SCENARIO("write conflict returns WT_ROLLBACK when the key is inside an uncommitt
         WHEN("the conflict check is called for the stop boundary key")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 200); });
 
             THEN("it returns WT_ROLLBACK (stop boundary is inclusive)")
@@ -275,13 +314,17 @@ SCENARIO("write conflict with a single-key uncommitted range", "[truncate_list][
     GIVEN("a single-key uncommitted range [100, 100]")
     {
         write_conflict_fixture f;
+
         do_in_uncommitted_transaction(
           f.session(), [&] { return f.insert_truncate_entry(f.session(), 100, 100); });
+
+        const auto cleanup = rollback_on_exit(f.session());
 
         WHEN("the conflict check is called for the exact key")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 100); });
 
             THEN("it returns WT_ROLLBACK")
@@ -293,7 +336,8 @@ SCENARIO("write conflict with a single-key uncommitted range", "[truncate_list][
         WHEN("the conflict check is called for a key just before the range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 99); });
 
             THEN("it returns 0 (no conflict)")
@@ -305,7 +349,8 @@ SCENARIO("write conflict with a single-key uncommitted range", "[truncate_list][
         WHEN("the conflict check is called for a key just after the range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 101); });
 
             THEN("it returns 0 (no conflict)")
@@ -322,16 +367,20 @@ SCENARIO(
     GIVEN("uncommitted ranges [100, 200] and [400, 500]")
     {
         write_conflict_fixture f;
+
         do_in_uncommitted_transaction(f.session(), [&] {
-            REQUIRE(f.insert_truncate_entry(f.session(), 100, 200) == 0);
-            REQUIRE(f.insert_truncate_entry(f.session(), 400, 500) == 0);
+            f.insert_truncate_entry(f.session(), 100, 200);
+            f.insert_truncate_entry(f.session(), 400, 500);
             return 0;
         });
+
+        const auto cleanup = rollback_on_exit(f.session());
 
         WHEN("the conflict check is called for a key in the first range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 150); });
 
             THEN("it returns WT_ROLLBACK")
@@ -343,7 +392,8 @@ SCENARIO(
         WHEN("the conflict check is called for a key in the second range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 450); });
 
             THEN("it returns WT_ROLLBACK")
@@ -360,13 +410,15 @@ SCENARIO("write conflict does not trigger for a committed truncate range",
     GIVEN("one committed (globally visible) truncate range [100, 200]")
     {
         write_conflict_fixture f;
+
         do_in_committed_transaction(
           f.session(), [&] { return f.insert_truncate_entry(f.session(), 100, 200); });
 
         WHEN("the conflict check is called for a key inside the committed range")
         {
             auto *session_2 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_2, [&] { return f.detect_conflict(session_2, 150); });
 
             THEN("it returns 0 (no conflict)")
@@ -386,7 +438,7 @@ SCENARIO("write conflict does not trigger for the reader's own uncommitted range
 
         WHEN("the conflict check is called for a key inside that range")
         {
-            const auto result = do_in_uncommitted_transaction(f.session(), [&] {
+            const auto result = do_in_rolled_back_transaction(f.session(), [&] {
                 f.insert_truncate_entry(f.session(), 100, 200);
                 return f.detect_conflict(f.session(), 150);
             });
@@ -405,18 +457,22 @@ SCENARIO("write conflict with overlapping committed and uncommitted ranges",
     GIVEN("a committed range [100, 300] and an uncommitted range [200, 400]")
     {
         write_conflict_fixture f;
-        auto *session_2 = f.create_session();
 
         do_in_committed_transaction(
           f.session(), [&] { return f.insert_truncate_entry(f.session(), 100, 300); });
 
+        auto *session_2 = f.create_session();
+
         do_in_uncommitted_transaction(
           session_2, [&] { return f.insert_truncate_entry(session_2, 200, 400); });
+
+        const auto cleanup = rollback_on_exit(session_2);
 
         WHEN("the conflict check is called for a key covered only by the committed range")
         {
             auto *session_3 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_3, [&] { return f.detect_conflict(session_3, 150); });
 
             THEN("it returns 0 (no conflict)")
@@ -428,7 +484,8 @@ SCENARIO("write conflict with overlapping committed and uncommitted ranges",
         WHEN("the conflict check is called for a key in the overlap region")
         {
             auto *session_3 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_3, [&] { return f.detect_conflict(session_3, 250); });
 
             THEN("it returns WT_ROLLBACK (uncommitted range covers the key)")
@@ -440,7 +497,8 @@ SCENARIO("write conflict with overlapping committed and uncommitted ranges",
         WHEN("the conflict check is called for a key covered only by the uncommitted range")
         {
             auto *session_3 = f.create_session();
-            const auto result = do_in_uncommitted_transaction(
+
+            const auto result = do_in_rolled_back_transaction(
               session_3, [&] { return f.detect_conflict(session_3, 350); });
 
             THEN("it returns WT_ROLLBACK")
@@ -459,7 +517,8 @@ SCENARIO("write conflict read lock is always released", "[truncate_list][write_c
 
         WHEN("the conflict check is called")
         {
-            f.detect_conflict(f.session(), 150);
+            do_in_rolled_back_transaction(
+              f.session(), [&] { return f.detect_conflict(f.session(), 150); });
 
             THEN("the truncate lock is not held")
             {
