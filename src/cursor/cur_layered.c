@@ -242,7 +242,6 @@ __clayered_seed_random(
 static int
 __clayered_open_stable_int(WT_CURSOR_LAYERED *clayered, const char *stable_uri)
 {
-    WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(clayered);
     const char *cfg[3] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL};
 
