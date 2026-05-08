@@ -8,7 +8,7 @@
 
 /*
  * Regression test for BF-42866: drain worker racing with a concurrent drop of the same layered
- * table during follower→leader step-up.
+ * table during follower -> leader step-up.
  *
  * The race:
  *  1. A follower is promoted to leader via conn->reconfigure("disaggregated=(role=leader)").
@@ -65,10 +65,10 @@ leader_cfg()
 
 /*
  * follower_cfg --
- *     Connection config for the follower that will be promoted. The drain_ingest_table_slow
- *     flag injects a 300 ms sleep at the start of __layered_copy_ingest_table before any
- *     cursors are opened. This reliably widens the race window so that a concurrent drop
- *     lands while the drain worker is mid-copy.
+ *     Connection config for the follower that will be promoted. The drain_ingest_table_slow flag
+ *     injects a 300 ms sleep at the start of __layered_copy_ingest_table before any cursors are
+ *     opened. This reliably widens the race window so that a concurrent drop lands while the drain
+ *     worker is mid-copy.
  */
 static std::string
 follower_cfg()
@@ -111,7 +111,7 @@ setup_db(const std::string &home)
  *     Runs the racy scenario in the current process. Called only from a forked child so a panic
  *     (SIGABRT) doesn't kill the test runner.
  *
- *     Returns 0 on clean completion, 1 if an intermediate step fails unexpectedly without a panic.
+ * Returns 0 on clean completion, 1 if an intermediate step fails unexpectedly without a panic.
  */
 static int
 run_race(const std::string &home)
@@ -139,15 +139,14 @@ run_race(const std::string &home)
     cursor->close(cursor);
 
     /*
-     * Thread 1 (background): trigger follower→leader step-up. This calls
+     * Thread 1 (background): trigger follower -> leader step-up. This calls
      * __wti_layered_drain_ingest_tables, which enqueues the ingest dhandle and then calls
      * __layered_copy_ingest_table. With the stress flag set that function sleeps 300 ms before
      * opening any cursors, creating a wide window for the concurrent drop.
      */
     int reconfig_ret = 0;
-    std::thread reconfig_thread([&]() {
-        reconfig_ret = conn->reconfigure(conn, "disaggregated=(role=leader)");
-    });
+    std::thread reconfig_thread(
+      [&]() { reconfig_ret = conn->reconfigure(conn, "disaggregated=(role=leader)"); });
 
     /*
      * Main thread: spin until the drain has started (layered_drain_data.running becomes true),
@@ -167,8 +166,7 @@ run_race(const std::string &home)
     }
     /*
      * Use checkpoint_wait=false so the drop does not block on the checkpoint lock held by the
-     * reconfigure thread throughout __disagg_step_up. In production, MongoDB's TimestampMonitor
-     * drops idents with checkpoint_wait=false for the same reason.
+     * reconfigure thread throughout __disagg_step_up.
      */
     (void)session->drop(session, TABLE_URI.c_str(), "force=true,checkpoint_wait=false");
 
@@ -178,7 +176,7 @@ run_race(const std::string &home)
     /*
      * A non-zero reconfig_ret means the drain worker encountered an error (e.g. ENOENT because the
      * concurrent drop removed the ingest file). Treat this as a test failure even when the process
-     * did not panic — the drain should complete cleanly with no error after any correct fix.
+     * did not panic the drain should complete cleanly with no error after any correct fix.
      */
     return reconfig_ret != 0 ? 1 : 0;
 }
@@ -186,7 +184,7 @@ run_race(const std::string &home)
 /*
  * race_crashes --
  *     Fork a child that runs the racy scenario. Returns true if the child was killed by a signal
- *     (i.e. WT_PANIC → abort() → SIGABRT), false if it exited cleanly.
+ *     (i.e. WT_PANIC abort() SIGABRT), false if it exited cleanly.
  */
 static bool
 race_crashes(const std::string &home)
@@ -207,8 +205,8 @@ race_crashes(const std::string &home)
     return !WIFEXITED(status) || WEXITSTATUS(status) != 0;
 }
 
-TEST_CASE("Drain/drop race: concurrent drop during step-up drain should not panic",
-  "[drain_drop_race]")
+TEST_CASE(
+  "Drain/drop race: concurrent drop during step-up drain should not panic", "[drain_drop_race]")
 {
     const std::string home = "WT_TEST.drain_drop_race";
     setup_db(home);
