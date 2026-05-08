@@ -1187,8 +1187,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (!found_last_upd_to_keep) {
             upd_select->upd = upd;
 
-            if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              __wt_txn_upd_visible_all(session, upd)) {
+            if (__wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
                 break;
             }
