@@ -490,11 +490,11 @@ __layered_copy_ingest_table(
 
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /*
-         * Only process updates whose durable timestamp falls in within the ts range. Prepared
-         * updates are included only in the final pass, since their commit timestamp is not yet
-         * resolved.
+         * Only process updates whose durable timestamp falls in the range. Prepared updates are
+         * included only in the final pass since their commit timestamp is not yet resolved.
          */
-        in_ts_range = to_ts == WT_TS_MAX || (!prepare && durable_start_ts <= to_ts);
+        in_ts_range = prepare ? (to_ts == WT_TS_MAX) :
+                                (durable_start_ts > from_ts && durable_start_ts <= to_ts);
         if (in_ts_range) {
             /*
              * If the "preserve prepared" option is enabled and the ingest btree contains a resolved
