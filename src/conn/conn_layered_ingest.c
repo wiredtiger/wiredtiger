@@ -369,8 +369,8 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
     session->replay_trunc_ctx.durable_ts = t->start_ts;
 
     F_SET(session, WT_SESSION_INGEST_REPLAY);
-    ret = __wt_session_range_truncate(
-      session, t->layered_table->stable_uri, trunc_start, trunc_stop);
+    ret =
+      __wt_session_range_truncate(session, t->layered_table->stable_uri, trunc_start, trunc_stop);
     F_CLR(session, WT_SESSION_INGEST_REPLAY);
 
 err:
