@@ -995,6 +995,7 @@ __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
     /* Both boundary cursors must be fully positioned. */
     WT_ASSERT(session, F_ISSET(trunc_info->start, WT_CURSTD_KEY_INT));
     WT_RET(__wt_cursor_localkey(trunc_info->start));
+    WT_ASSERT(session, trunc_info->stop != NULL);
     WT_ASSERT(session, F_ISSET(trunc_info->stop, WT_CURSTD_KEY_INT));
     WT_RET(__wt_cursor_localkey(trunc_info->stop));
 

@@ -355,6 +355,7 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
+    WT_ASSERT(session, t->durable_ts >= t->start_ts);
 
     trunc_start = trunc_stop = NULL;
 
@@ -366,11 +367,10 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     session->replay_trunc_ctx.txn_id = t->txn_id;
     session->replay_trunc_ctx.commit_ts = t->start_ts;
-    session->replay_trunc_ctx.durable_ts = t->start_ts;
+    session->replay_trunc_ctx.durable_ts = t->durable_ts;
 
     F_SET(session, WT_SESSION_INGEST_REPLAY);
-    ret =
-      __wt_session_range_truncate(session, t->layered_table->stable_uri, trunc_start, trunc_stop);
+    ret = __wt_session_range_truncate(session, NULL, trunc_start, trunc_stop);
     F_CLR(session, WT_SESSION_INGEST_REPLAY);
 
 err:
