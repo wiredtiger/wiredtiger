@@ -443,6 +443,103 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
 }
 
+/*
+ * WT-16814 TEMPORARY: helpers serializing layered-table TRUNCATE against concurrent layered writes
+ * within format. Remove once __clayered_truncate_follower's race window between ingest tombstone
+ * walk and truncate-list registration is closed in WT.
+ */
+
+/*
+ * layered_table_serialize --
+ *     True when this table's per-table layered-truncate hack lock should be honored. Active for any
+ *     run with disagg+layered, only on layered tables.
+ */
+static inline bool
+layered_table_serialize(TABLE *t)
+{
+    return (g.disagg_storage_config && GV(DISAGG_LAYERED) && DATASOURCE(t, "layered"));
+}
+
+/*
+ * layered_lock_release_for_table --
+ *     Release whatever lock this thread holds on the given table.
+ */
+static inline void
+layered_lock_release_for_table(TINFO *tinfo, TABLE *t)
+{
+    switch (tinfo->layered_lock_state[t->id]) {
+    case WT16814_LOCK_HELD_READER:
+        lock_readunlock(tinfo->session, &t->layered_truncate_hack_lock);
+        break;
+    case WT16814_LOCK_HELD_WRITER:
+        lock_writeunlock(tinfo->session, &t->layered_truncate_hack_lock);
+        break;
+    default:
+        return;
+    }
+    tinfo->layered_lock_state[t->id] = WT16814_LOCK_HELD_NONE;
+}
+
+/*
+ * layered_lock_release_all --
+ *     Release every layered lock this thread is currently holding. Called on commit/rollback and
+ *     on thread loop exit.
+ */
+static inline void
+layered_lock_release_all(TINFO *tinfo)
+{
+    u_int i;
+
+    for (i = 0; i <= ntables; ++i)
+        if (tinfo->layered_lock_state[i] != WT16814_LOCK_HELD_NONE)
+            layered_lock_release_for_table(tinfo, tables[i]);
+}
+
+/*
+ * layered_lock_acquire_all_readers --
+ *     Acquire shared (reader) lock on every layered table. Called BEFORE WT's begin_transaction so
+ *     the new txn's snapshot is taken after any concurrent truncate has finished. No-op for tables
+ *     where the thread already holds a lock.
+ */
+static inline void
+layered_lock_acquire_all_readers(TINFO *tinfo)
+{
+    u_int i;
+    TABLE *t;
+
+    for (i = 0; i <= ntables; ++i) {
+        t = tables[i];
+        if (t == NULL || !layered_table_serialize(t))
+            continue;
+        if (tinfo->layered_lock_state[t->id] != WT16814_LOCK_HELD_NONE)
+            continue;
+        lock_readlock(tinfo->session, &t->layered_truncate_hack_lock);
+        tinfo->layered_lock_state[t->id] = WT16814_LOCK_HELD_READER;
+    }
+}
+
+/*
+ * layered_lock_acquire_all_writers --
+ *     Acquire exclusive (writer) lock on every layered table. Called BEFORE begin_transaction for a
+ *     dedicated TRUNCATE-only txn so that no concurrent write txn can be active when the truncate
+ *     takes its snapshot. The caller must have already released any locks held by a previous txn.
+ */
+static inline void
+layered_lock_acquire_all_writers(TINFO *tinfo)
+{
+    u_int i;
+    TABLE *t;
+
+    for (i = 0; i <= ntables; ++i) {
+        t = tables[i];
+        if (t == NULL || !layered_table_serialize(t))
+            continue;
+        testutil_assert(tinfo->layered_lock_state[t->id] == WT16814_LOCK_HELD_NONE);
+        lock_writelock(tinfo->session, &t->layered_truncate_hack_lock);
+        tinfo->layered_lock_state[t->id] = WT16814_LOCK_HELD_WRITER;
+    }
+}
+
 #define trace_msg(s, fmt, ...)                                                               \
     do {                                                                                     \
         if (FLD_ISSET(g.trace_flags, TRACE))                                                 \

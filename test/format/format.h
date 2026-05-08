@@ -173,6 +173,15 @@ typedef struct {
     char *val_base;              /* value: base/original */
     uint32_t val_dup_data_len;   /* value: length of duplicate data items */
 
+    /*
+     * WT-16814 TEMPORARY: per-table reader-writer lock used to serialize a layered-table TRUNCATE
+     * against concurrent INSERT/UPDATE/REMOVE/MODIFY on the same table, working around the race
+     * window in __clayered_truncate_follower where the truncate-list entry is registered AFTER the
+     * ingest btree walk that writes per-key tombstones. Remove together with related changes once
+     * the WT-side write-conflict detection is fixed.
+     */
+    RWLOCK layered_truncate_hack_lock;
+
     CONFIGV v[V_ELEMENT_COUNT]; /* table configuration */
 } TABLE;
 
@@ -433,6 +442,16 @@ typedef struct {
     WT_ITEM moda, modb; /* Temporary buffers for modify checks */
 
     int op_ret; /* Operation return. */
+
+    /*
+     * WT-16814 TEMPORARY: per-table state of the layered-truncate hack lock for this thread.
+     * Indexed by table id. WT16814_LOCK_HELD_NONE / READER / WRITER. Removed with the rest of the
+     * hack once the WT-side write-conflict fix lands.
+     */
+#define WT16814_LOCK_HELD_NONE 0
+#define WT16814_LOCK_HELD_READER 1
+#define WT16814_LOCK_HELD_WRITER 2
+    uint8_t layered_lock_state[V_MAX_TABLES_CONFIG + 1];
 
 #define TINFO_RUNNING 1  /* Running */
 #define TINFO_COMPLETE 2 /* Finished */

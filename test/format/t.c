@@ -130,10 +130,25 @@ void
 locks_init(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
+    u_int i;
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_init(session, &g.backup_lock);
     lock_init(session, &g.prepare_commit_lock);
+
+    /*
+     * WT-16814 TEMPORARY: initialize per-table layered-truncate hack locks. Always pthread (not
+     * WT_RWLOCK) so the lock survives the wts_reopen done during follower step-down. Active only
+     * on layered tables in a disagg run; cheap to init for all tables uniformly.
+     */
+    for (i = 0; i <= ntables; ++i) {
+        TABLE *t = tables[i];
+        if (t == NULL)
+            continue;
+        testutil_check(pthread_rwlock_init(&t->layered_truncate_hack_lock.l.pthread, NULL));
+        t->layered_truncate_hack_lock.lock_type = LOCK_PTHREAD;
+    }
+
     testutil_check(session->close(session, NULL));
 }
 
@@ -145,10 +160,21 @@ static void
 locks_destroy(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
+    u_int i;
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_destroy(session, &g.backup_lock);
     lock_destroy(session, &g.prepare_commit_lock);
+
+    /* WT-16814 TEMPORARY: destroy per-table layered-truncate hack locks. */
+    for (i = 0; i <= ntables; ++i) {
+        TABLE *t = tables[i];
+        if (t == NULL || t->layered_truncate_hack_lock.lock_type == LOCK_NONE)
+            continue;
+        testutil_check(pthread_rwlock_destroy(&t->layered_truncate_hack_lock.l.pthread));
+        t->layered_truncate_hack_lock.lock_type = LOCK_NONE;
+    }
+
     testutil_check(session->close(session, NULL));
 }
 

@@ -635,6 +635,9 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);
+
+    /* WT-16814 TEMPORARY: release any per-table layered-truncate hack locks held for this txn. */
+    layered_lock_release_all(tinfo);
 }
 
 /*
@@ -666,6 +669,9 @@ rollback_transaction(TINFO *tinfo, bool prepared)
 
     trace_uri_op(
       tinfo, NULL, "abort read-ts=%" PRIu64 ", rollback-ts=%" PRIu64, tinfo->read_ts, ts);
+
+    /* WT-16814 TEMPORARY: release any per-table layered-truncate hack locks held for this txn. */
+    layered_lock_release_all(tinfo);
 }
 
 /*
@@ -1139,6 +1145,12 @@ rollback_retry:
          */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
+            /*
+             * WT-16814 TEMPORARY: acquire reader locks on every layered table BEFORE WT's
+             * begin_transaction so this txn's snapshot is taken after any concurrent truncate
+             * (which holds the writer lock) has finished and committed.
+             */
+            layered_lock_acquire_all_readers(tinfo);
             begin_transaction_ts(tinfo);
             intxn = true;
         }
@@ -1162,6 +1174,8 @@ rollback_retry:
                     break;
                 }
 
+                /* WT-16814 TEMPORARY: see matching comment above begin_transaction_ts. */
+                layered_lock_acquire_all_readers(tinfo);
                 begin_transaction(tinfo, iso_config);
                 intxn = true;
             }
@@ -1196,6 +1210,27 @@ rollback_retry:
                 op = UPDATE;
         }
         tinfo->op = op; /* Keep the op in the thread info for debugging */
+
+        /*
+         * WT-16814 TEMPORARY: if this is a TRUNCATE on a layered run, run it as a standalone
+         * transaction under writer locks on every layered table. Commit any current (read-locked)
+         * txn first to release readers, then acquire writers and begin a fresh txn so this
+         * truncate's snapshot is taken with no concurrent write txns in flight. Released after the
+         * truncate via the dedicated commit just past the mirror fanout.
+         */
+        if (op == TRUNCATE && g.disagg_storage_config && GV(DISAGG_LAYERED)) {
+            if (intxn) {
+                commit_transaction(tinfo, false);
+                intxn = false;
+            }
+            layered_lock_acquire_all_writers(tinfo);
+            iso_level = ISOLATION_SNAPSHOT;
+            if (g.transaction_timestamps_config)
+                begin_transaction_ts(tinfo);
+            else
+                begin_transaction(tinfo, "isolation=snapshot");
+            intxn = true;
+        }
 
         /* Make sure this is an operation that is permitted for this kind of run. */
         testutil_assert(replay_operation_enabled(op));
@@ -1368,6 +1403,21 @@ skip_operation:
             goto rollback;
 
         /*
+         * WT-16814 TEMPORARY: a dedicated truncate-only txn must commit immediately so the writer
+         * locks are released and other threads can resume. Skip the random "extend the txn or
+         * commit/rollback" decision below.
+         */
+        if (op == TRUNCATE && intxn && g.disagg_storage_config && GV(DISAGG_LAYERED)) {
+            __wt_yield(); /* Encourage races */
+            commit_transaction(tinfo, false);
+            snap_repeat_update(tinfo, true);
+            if (mirrored_truncate)
+                wts_verify_mirrored_truncate(tinfo);
+            intxn = false;
+            continue;
+        }
+
+        /*
          * If not in a transaction, we're done with this operation. If in a transaction, add more
          * operations to the transaction half the time. For predictable replay runs, always complete
          * the transaction.
@@ -1460,6 +1510,12 @@ rollback:
     }
 
 loop_exit:
+    /*
+     * WT-16814 TEMPORARY: a thread can be told to quit mid-transaction (timer expired, etc.) and
+     * leave layered-truncate hack locks held. Drop them before tearing down the session.
+     */
+    layered_lock_release_all(tinfo);
+
     if (session != NULL)
         testutil_check(session->close(session, NULL));
     tinfo->session = NULL;
