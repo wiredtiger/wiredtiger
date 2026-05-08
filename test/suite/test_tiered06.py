@@ -301,10 +301,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # Create file system objects. First try some error cases.
         errmsg = '/No such|Invalid bucket name/'
-        # S3 store expects a region with the bucket
-        if self.ss_name == 's3_store':
-            bad_bucket += ';us-east-2'
-
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(session, bad_bucket, self.auth_token,
                 self.get_fs_config(prefix, self.cachedir1)), errmsg)
