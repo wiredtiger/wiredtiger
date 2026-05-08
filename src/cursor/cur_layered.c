@@ -949,12 +949,12 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
 }
 
 /*
- * __clayered_stable_replay_rmfunc --
+ * __clayered_stable_replay_remove_int --
  *     Per-key delete function for ingest truncate replay. Allocates a pre-stamped tombstone and
  *     inserts it directly via __wt_row_modify, bypassing the session transaction entirely.
  */
 static int
-__clayered_stable_replay_rmfunc(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
+__clayered_stable_replay_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -977,16 +977,14 @@ __clayered_stable_replay_rmfunc(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_in
 }
 
 /*
- * __wt_curlayered_range_truncate_stable_replay --
- *     Stamp pre-timestamped tombstones on every key in a range of the stable table, bypassing the
- *     session transaction. Called from __wt_schema_range_truncate when WT_SESSION_INGEST_REPLAY is
- *     set; cursors are already positioned by __wt_session_range_truncate.
+ * __wt_clayered_range_truncate_stable_replay --
+ *     Range truncate dispatch for ingest replay on the stable table.
  */
 int
-__wt_curlayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
+__wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
 {
     WT_RET(__wt_cursor_truncate((WT_CURSOR_BTREE *)trunc_info->start,
-      (WT_CURSOR_BTREE *)trunc_info->stop, __clayered_stable_replay_rmfunc, false));
+      (WT_CURSOR_BTREE *)trunc_info->stop, __clayered_stable_replay_remove_int, false));
     return (0);
 }
 

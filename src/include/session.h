@@ -250,7 +250,7 @@ struct __wt_session_impl {
         uint64_t txn_id;
         wt_timestamp_t commit_ts;
         wt_timestamp_t durable_ts;
-    } replay_trunc_ctx; /* Txn context for replay-mode truncate rmfunc. */
+    } replay_trunc_ctx; /* Context for truncate drain during stepup. */
 
     WT_PREFETCH pf; /* Pre-fetch structure */
 

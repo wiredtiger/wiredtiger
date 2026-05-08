@@ -1813,10 +1813,8 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
 
 /*
  * __wt_cursor_truncate --
- *     Discard a cursor range from row-store or variable-width column-store tree. When
- *     truncate_pages is true, leaf pages with no overflow items may be fast-truncated without being
- *     read; pass false during replay where the caller supplies its own rmfunc that bypasses
- *     transaction machinery.
+ *     Discard a cursor range from row-store or variable-width column-store tree. If truncate_pages
+ *     is true, fast-truncation is enabled.
  */
 int
 __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
