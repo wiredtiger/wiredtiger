@@ -377,9 +377,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         page->modify->obsolete_check_txn = WT_TXN_NONE;
     }
 
-    /* It is not safe to trim the ingest btrees here because we may race with a reader. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
-        __wt_update_obsolete_check(session, cbt, upd->next);
+    __wt_update_obsolete_check(session, cbt, upd->next);
 
     return (0);
 }
