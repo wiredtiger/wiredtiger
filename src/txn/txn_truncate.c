@@ -368,14 +368,40 @@ err:
 }
 
 /*
+ * __truncate_entry_copy_keys --
+ *     Copy the start and stop keys from a truncate entry into caller-owned buffers.
+ */
+static int
+__truncate_entry_copy_keys(
+  WT_SESSION_IMPL *session, const WT_TRUNCATE *const entry, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
+{
+    WT_ASSERT(session, start_keyp != NULL && stop_keyp != NULL);
+
+    WT_DECL_RET;
+    WT_ERR(__wt_buf_set(session, start_keyp, entry->start_key.data, entry->start_key.size));
+    WT_ERR(__wt_buf_set(session, stop_keyp, entry->stop_key.data, entry->stop_key.size));
+
+    if (0) {
+err:
+        __wt_buf_free(session, start_keyp);
+        __wt_buf_free(session, stop_keyp);
+    }
+
+    return (ret);
+}
+
+/*
  * __wt_truncate_delete_visible_check --
- *     Search if the given key has been deleted in the layered table truncate list.
+ *     Search if the given key has been deleted in the layered table truncate list. start_keyp and
+ *     stop_keyp are optional out parameters that represent the truncate range that deleted the key.
+ *     Freeing of start_keyp and stop_keyp must be managed by the caller.
  */
 int
-__wt_truncate_delete_visible_check(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
+__wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
+  WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
 {
     WT_DECL_RET;
+    WT_TRUNCATE *tp = NULL;
     bool is_found = false;
 
     if (__wt_process.disagg_slow_truncate_2026)
@@ -394,11 +420,16 @@ __wt_truncate_delete_visible_check(
      * Ignore all truncate entries that haven't been committed. They won't be visible to this
      * transaction.
      */
-    ret = __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, tp, &is_found);
+    WT_ERR(
+      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, &tp, &is_found));
 
+    const bool keys_wanted = (start_keyp != NULL && stop_keyp != NULL);
+
+    if (is_found && keys_wanted)
+        WT_ERR(__truncate_entry_copy_keys(session, tp, start_keyp, stop_keyp));
+
+err:
     __wt_readunlock(session, &layered_table->truncate_lock);
-    WT_RET(ret);
-
     return (is_found ? 0 : WT_NOTFOUND);
 }
 

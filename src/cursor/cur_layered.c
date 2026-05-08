@@ -747,7 +747,10 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
     WT_DECL_RET;
     int cmp;
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_TRUNCATE *t;
+
+    WT_ITEM start_key, stop_key;
+    WT_CLEAR(start_key);
+    WT_CLEAR(stop_key);
 
     if (__wt_process.disagg_slow_truncate_2026)
         return (0);
@@ -758,14 +761,18 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        ret = __wt_truncate_delete_visible_check(
-          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
-        if (ret == WT_NOTFOUND)
-            break;
-        WT_RET(ret);
+        WT_ERR_NOTFOUND_OK(
+          __wt_truncate_delete_visible_check(
+            session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &start_key, &stop_key),
+          true);
 
-        stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
-        WT_RET(stable->search_near(stable, &cmp));
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            break;
+        }
+
+        stable->set_key(stable, forward ? &stop_key : &start_key);
+        WT_ERR(stable->search_near(stable, &cmp));
 
         /*
          * Advance until the stable cursor is strictly past the truncated boundary. The boundary
@@ -777,13 +784,17 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
              * The cursor next()/prev() could return back WT_NOTFOUND, meaning we have reached the
              * end of the table.
              */
-            WT_RET(forward ? stable->next(stable) : stable->prev(stable));
+            WT_ERR(forward ? stable->next(stable) : stable->prev(stable));
 
-            WT_RET(__wt_compare(
-              session, collator, &stable->key, forward ? &t->stop_key : &t->start_key, &cmp));
+            WT_ERR(__wt_compare(
+              session, collator, &stable->key, forward ? &stop_key : &start_key, &cmp));
         }
     }
-    return (0);
+
+err:
+    __wt_buf_free(session, &start_key);
+    __wt_buf_free(session, &stop_key);
+    return (ret);
 }
 
 /*
