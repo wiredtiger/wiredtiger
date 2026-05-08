@@ -852,6 +852,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * fact just allocated the structure to fill in.
      */
     ref->page_del->txnid = txn->time_point.id;
+
     if (__txn_should_assign_timestamp(session, op))
         __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
