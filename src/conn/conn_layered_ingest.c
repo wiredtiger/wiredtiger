@@ -342,7 +342,13 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+    struct timespec tsp;
     bool is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
+
+    /* Pause before opening any cursors to allow concurrent drops to race in. */
+    tsp.tv_sec = 0;
+    tsp.tv_nsec = 300 * WT_MILLION;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW, &tsp);
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;

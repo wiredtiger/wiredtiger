@@ -234,6 +234,7 @@ extern const char __WT_CONFIG_CHOICE_delete[];
 extern const char __WT_CONFIG_CHOICE_disagg[];
 extern const char __WT_CONFIG_CHOICE_disaggregated_storage[];
 extern const char __WT_CONFIG_CHOICE_disk_validate[];
+extern const char __WT_CONFIG_CHOICE_drain_ingest_table_slow[];
 extern const char __WT_CONFIG_CHOICE_dsync[];
 extern const char __WT_CONFIG_CHOICE_during_key_rotation[];
 extern const char __WT_CONFIG_CHOICE_error[];

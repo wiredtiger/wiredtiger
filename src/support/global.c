@@ -58,7 +58,8 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
   {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
   {"split_7", WT_TIMING_STRESS_SPLIT_7}, {"split_8", WT_TIMING_STRESS_SPLIT_8},
-  {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH}, {NULL, 0}};
+  {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH},
+  {"drain_ingest_table_slow", WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW}, {NULL, 0}};
 
 /*
  * __endian_check --
