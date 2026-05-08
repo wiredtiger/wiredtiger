@@ -983,6 +983,21 @@ __clayered_stable_replay_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, 
 int
 __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
 {
+    WT_SESSION_IMPL *session;
+
+    session = trunc_info->session;
+
+    /* Only valid on stable tables during stepup to leader, routed via WT_SESSION_INGEST_REPLAY. */
+    WT_ASSERT(session, F_ISSET(session, WT_SESSION_INGEST_REPLAY));
+    WT_ASSERT(session, WT_URI_IS_STABLE(trunc_info->start->internal_uri));
+    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+
+    /* Both boundary cursors must be fully positioned. */
+    WT_ASSERT(session, F_ISSET(trunc_info->start, WT_CURSTD_KEY_INT));
+    WT_RET(__wt_cursor_localkey(trunc_info->start));
+    WT_ASSERT(session, F_ISSET(trunc_info->stop, WT_CURSTD_KEY_INT));
+    WT_RET(__wt_cursor_localkey(trunc_info->stop));
+
     WT_RET(__wt_cursor_truncate((WT_CURSOR_BTREE *)trunc_info->start,
       (WT_CURSOR_BTREE *)trunc_info->stop, __clayered_stable_replay_remove_int, false));
     return (0);
