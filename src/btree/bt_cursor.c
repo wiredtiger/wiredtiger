@@ -1813,11 +1813,14 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
 
 /*
  * __wt_cursor_truncate --
- *     Discard a cursor range from row-store or variable-width column-store tree.
+ *     Discard a cursor range from row-store or variable-width column-store tree. When
+ *     truncate_pages is true, leaf pages with no overflow items may be fast-truncated without being
+ *     read; pass false during replay where the caller supplies its own rmfunc that bypasses
+ *     transaction machinery.
  */
 int
 __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
-  int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
+  int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int), bool truncate_pages)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -1855,7 +1858,7 @@ retry:
             return (0);
         }
 
-        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND) {
+        if ((ret = __wt_btcur_next(start, truncate_pages)) == WT_NOTFOUND) {
             WT_STAT_CONN_INCRV(session, cursor_truncate_keys_deleted, records_truncated);
             return (0);
         }
@@ -1913,7 +1916,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
      * truncate so we're good to go: if that ever changes, we'd need to do something here to ensure
      * a fully instantiated cursor.
      */
-    WT_ERR(__wt_cursor_truncate(start, stop, __cursor_modify));
+    WT_ERR(__wt_cursor_truncate(start, stop, __cursor_modify, true));
 
 err:
     if (logging)

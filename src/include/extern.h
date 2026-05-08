@@ -513,7 +513,7 @@ extern int __wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only)
 extern int __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
-  int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
+  int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int), bool truncate_pages)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_colgroup_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -734,6 +734,8 @@ extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_truncate_detect_write_conflict(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curlayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

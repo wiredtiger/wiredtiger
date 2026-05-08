@@ -351,47 +351,29 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 {
     WT_CURSOR *trunc_start, *trunc_stop;
     WT_DECL_RET;
-    WT_TXN *txn;
     const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
-
-    trunc_start = trunc_stop = NULL;
-    txn = session->txn;
 
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
-    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
-    WT_ASSERT(session, txn->mod_count == 0);
+
+    trunc_start = trunc_stop = NULL;
 
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_start));
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
 
-    /*
-     * Set the truncate txn ID and timestamps into session transaction. Both slow truncate and fast
-     * truncate entries will be stamped directly. The txn ID is not published to the global
-     * transaction table.
-     */
-    txn->isolation = session->isolation;
-    txn->time_point.id = t->txn_id;
-    txn->time_point.commit_timestamp = t->start_ts;
-    txn->time_point.durable_timestamp = t->start_ts;
-    F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID | WT_TXN_TIME_POINT_HAS_TS_COMMIT);
-    /* Bypass commit/stable timestamp ordering and transaction usage checks. */
-    F_SET(txn, WT_TXN_RUNNING | WT_TXN_TS_INTERNAL_REPLAY);
-
     trunc_start->set_key(trunc_start, &t->start_key);
     trunc_stop->set_key(trunc_stop, &t->stop_key);
-    WT_ERR(__wt_session_range_truncate(session, NULL, trunc_start, trunc_stop));
 
-    /* Clear flag to avoid proper transaction usage checks. */
-    F_CLR(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID);
-    WT_ERR(__wt_txn_commit(session, NULL));
+    session->replay_trunc_ctx.txn_id = t->txn_id;
+    session->replay_trunc_ctx.commit_ts = t->start_ts;
+    session->replay_trunc_ctx.durable_ts = t->start_ts;
+
+    F_SET(session, WT_SESSION_INGEST_REPLAY);
+    ret = __wt_session_range_truncate(
+      session, t->layered_table->stable_uri, trunc_start, trunc_stop);
+    F_CLR(session, WT_SESSION_INGEST_REPLAY);
 
 err:
-    if (F_ISSET(txn, WT_TXN_RUNNING)) {
-        /* If we error clear the flag to avoid transaction usage checks. */
-        F_CLR(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID);
-        WT_TRET(__wt_txn_rollback(session, NULL, false));
-    }
     if (trunc_start != NULL)
         WT_TRET(trunc_start->close(trunc_start));
     if (trunc_stop != NULL)
