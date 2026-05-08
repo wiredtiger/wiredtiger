@@ -89,14 +89,6 @@ Full rules in @CONTRIBUTING.md.
 | model | `test/model/` | Lightweight formal verification |
 | wtperf | `bench/wtperf/` | Performance benchmarks |
 
-## Writing Tests
-
-- Write regression tests that are **general**, not narrowly tailored to the exact bug circumstances. Frame the test around the invariant being verified, not the internal mechanics of the failure.
-- Parameterize over the relevant configurations (key positions, data shapes, etc.) rather than writing multiple hardcoded test methods. In the Python suite, `make_scenarios` is the standard way to do this.
-- Keep tests short and easy to understand. A reader who doesn't know the bug should be able to follow the test.
-- Do **not** put implementation-level commentary in the test (which flag was missing, which function asserted, step-by-step internal state). That detail belongs in the JIRA ticket, not the source file.
-- When writing a regression test, proactively offer to draft the JIRA ticket description. That's where the failure scenario, root cause, and fix explanation should live.
-
 ## CI
 
 Runs on MongoDB Evergreen. Config: `test/evergreen.yml` (and `test/evergreen_disagg.yml` for disaggregated storage).
