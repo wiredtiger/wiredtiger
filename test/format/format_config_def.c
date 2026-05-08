@@ -426,7 +426,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     100, V_GLOBAL_TIERED_STORAGE_FLUSH_FREQUENCY},
 
   {"tiered_storage.storage_source",
-    "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)",
+    "storage source used (azure_store | dir_store | gcp_store | none | off)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_TIERED_STORAGE_STORAGE_SOURCE},
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,
