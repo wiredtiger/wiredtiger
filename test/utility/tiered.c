@@ -237,7 +237,7 @@ testutil_tiered_storage_configuration(TEST_OPTS *opts, const char *home, char *t
 {
     char auth_token[256];
     char cwd[256], dir[256], s3_prefix[128];
-    const char *s3_access_key, *s3_secret_key, *s3_bucket_name;
+    const char *s3_bucket_name;
     bool is_dir_store;
 
     s3_bucket_name = NULL;
@@ -245,36 +245,8 @@ testutil_tiered_storage_configuration(TEST_OPTS *opts, const char *home, char *t
 
     if (opts->tiered_storage) {
         is_dir_store = testutil_is_dir_store(opts);
-        if (!is_dir_store) {
-            s3_access_key = getenv("aws_sdk_s3_ext_access_key");
-            s3_secret_key = getenv("aws_sdk_s3_ext_secret_key");
-            s3_bucket_name = getenv("WT_S3_EXT_BUCKET");
-
-            if (s3_access_key == NULL || s3_secret_key == NULL)
-                testutil_die(EINVAL, "AWS S3 access key or secret key is not set");
-            testutil_snprintf(
-              auth_token, sizeof(auth_token), "%s;%s", s3_access_key, s3_secret_key);
-
-            /*
-             * By default the S3 bucket name is S3_DEFAULT_BUCKET_NAME, but it can be overridden
-             * with environment variables.
-             */
-            if (s3_bucket_name == NULL)
-                s3_bucket_name = S3_DEFAULT_BUCKET_NAME;
-
-            /*
-             * Read configuration that we might have saved before to a file, which is what we need
-             * to do when opening an existing database (e.g., for tests that crash, recover, and
-             * verify), so that we use the same object prefix.
-             */
-            if (!tiered_storage_read_config(home, s3_prefix, sizeof(s3_prefix))) {
-                /* Generate a random prefix for the new database. */
-                tiered_storage_generate_prefix(s3_prefix, sizeof(s3_prefix));
-
-                /* Remember it for the next time. */
-                tiered_storage_write_config(home, s3_prefix);
-            }
-        }
+        if (!is_dir_store)
+            testutil_die(EINVAL, "only dir_store is supported for tiered storage in csuite tests");
         testutil_snprintf(ext_cfg, ext_cfg_size, TESTUTIL_ENV_CONFIG_TIERED_EXT, opts->build_dir,
           opts->tiered_storage_source, opts->tiered_storage_source, opts->delay_ms, opts->error_ms,
           opts->force_delay, opts->force_error);
