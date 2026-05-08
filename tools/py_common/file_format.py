@@ -27,6 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import logging
+from dataclasses import dataclass
+from typing import Iterator, Optional
 
 from py_common import binary_data, btree_format
 from py_common.decode_opts import DecodeOptions
@@ -37,7 +39,20 @@ from py_common.stats import PageStats
 logger = logging.getLogger(__name__)
 
 
-def file_header_decode(p, b):
+@dataclass
+class ParsedBlock:
+    '''
+    Result of parsing a single block from a WT file object. Either ``page`` is
+    set (parse succeeded or returned an unsuccessful WTPage), or ``error`` is a
+    human-readable message describing why the block could not be parsed.
+    '''
+    startblock: int
+    page: Optional[btree_format.WTPage] = None
+    error: Optional[str] = None
+    fatal: bool = False
+
+
+def file_header_decode(b):
     # block.h
     h = btree_format.BlockFileHeader.parse(b)
     logger.info('magic: ' + str(h.magic))
@@ -78,47 +93,43 @@ def outfile_header(output):
         ]
         output.write(",".join(fields))
 
-def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
-    p = Printer(b, split=opts.split)
+
+def parse_file_object(b, nbytes, opts: DecodeOptions) -> Iterator[ParsedBlock]:
+    '''
+    Walk a WT file object and yield one ``ParsedBlock`` per attempted block.
+
+    This function does not write to stdout; callers that need printed output
+    should iterate the generator and emit text themselves (see
+    ``wtdecode_file_object``).
+    '''
     pagecount = 0
     startblock = opts.offset
     if opts.offset == 0:
-        valid_header = file_header_decode(p, b)
+        valid_header = file_header_decode(b)
         if valid_header:
             startblock = (b.tell() + 0x1ff) & ~(0x1FF)
         else:
             logger.info("Malformed or missing file header, treating as fragment.")
 
-    outfile_header(opts.output)
-
     while (nbytes == 0 or startblock < nbytes) and (opts.pages == 0 or pagecount < opts.pages):
-        d_h = binary_data.d_and_h(startblock)
-        PageStats.outfile_stats_start(opts.output, d_h)
-        print('Decode at ' + d_h)
         b.seek(startblock)
         try:
             page = btree_format.WTPage.parse(b, nbytes,
                                              disagg=opts.disagg,
                                              skip_data=opts.skip_data,
                                              cont=opts.cont)
-            if page.success:
-                page.print_page(split=opts.split,
-                                decode_as_bson=opts.bson,
-                                disagg=opts.disagg)
-                if page.pagestats:
-                    PageStats.outfile_stats_end(opts.output,
-                                               page.page_header,
-                                               page.block_header,
-                                               page.pagestats)
-            p.rint('')
+            yield ParsedBlock(startblock=startblock, page=page)
         except BrokenPipeError:
-            break
+            return
         except ModuleNotFoundError as e:
             # We're missing snappy compression support. No point continuing from here.
-            p.rint('ERROR: ' + str(e))
-            exit(1)
+            yield ParsedBlock(startblock=startblock,
+                              error=str(e),
+                              fatal=True)
+            return
         except Exception:
-            p.rint(f'ERROR decoding block at {binary_data.d_and_h(startblock)}')
+            yield ParsedBlock(startblock=startblock,
+                              error=f'ERROR decoding block at {binary_data.d_and_h(startblock)}')
             logger.debug('Exception while decoding block', exc_info=True)
         pos = b.tell()
 
@@ -131,4 +142,32 @@ def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
         else:
             startblock = pos
         pagecount += 1
+
+
+def wtdecode_file_object(b, nbytes, opts: DecodeOptions):
+    p = Printer(b, split=opts.split)
+
+    outfile_header(opts.output)
+
+    for parsed in parse_file_object(b, nbytes, opts):
+        d_h = binary_data.d_and_h(parsed.startblock)
+        PageStats.outfile_stats_start(opts.output, d_h)
+        print('Decode at ' + d_h)
+        if parsed.error is not None:
+            if parsed.fatal:
+                p.rint('ERROR: ' + parsed.error)
+                exit(1)
+            p.rint(parsed.error)
+        else:
+            page = parsed.page
+            if page.success:
+                page.print_page(split=opts.split,
+                                decode_as_bson=opts.bson,
+                                disagg=opts.disagg)
+                if page.pagestats:
+                    PageStats.outfile_stats_end(opts.output,
+                                               page.page_header,
+                                               page.block_header,
+                                               page.pagestats)
+            p.rint('')
     p.rint('')
