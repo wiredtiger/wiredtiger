@@ -32,10 +32,6 @@ if(WT_POSIX)
         add_subdirectory(storage_sources/gcp_store)
     endif()
 
-    if(ENABLE_AZURE)
-        add_subdirectory(storage_sources/azure_store)
-    endif()
-
     # Build the test extensions.
     add_subdirectory(test/fail_fs)
 endif()
