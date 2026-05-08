@@ -987,7 +987,7 @@ __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
 
     session = trunc_info->session;
 
-    /* Only valid on stable tables during stepup to leader, routed via WT_SESSION_INGEST_REPLAY. */
+    /* Only valid on stable tables during step up to leader, routed via WT_SESSION_INGEST_REPLAY. */
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_INGEST_REPLAY));
     WT_ASSERT(session, WT_URI_IS_STABLE(trunc_info->start->internal_uri));
     WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
