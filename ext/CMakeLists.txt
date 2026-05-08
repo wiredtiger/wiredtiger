@@ -28,10 +28,6 @@ if(WT_POSIX)
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/dir_store)
 
-    if(ENABLE_GCP)
-        add_subdirectory(storage_sources/gcp_store)
-    endif()
-
     # Build the test extensions.
     add_subdirectory(test/fail_fs)
 endif()

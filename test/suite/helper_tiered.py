@@ -38,14 +38,11 @@ def get_auth_token(storage_source):
     if storage_source == 'dir_store':
         # Fake a secret token.
         auth_token = "Secret"
-    if storage_source == 'gcp_store':
-        auth_token = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     return auth_token
 
 # Buckets configured for the storage source.
 buckets = {
     "dir_store": ['bucket1', 'bucket2'],
-    "gcp_store": ["gcptestext-us", "gcptestext-ap"]
 }
 
 # Get name of the bucket at specified index in the list.
@@ -122,18 +119,6 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = 'pfx2_',
             num_ops=100,
             ss_name = 'dir_store')),
-        ('gcp_store', dict(is_tiered = True,
-            is_tiered_shared = tiered_shared,
-            is_local_storage = False,
-            has_cache = False,
-            auth_token = get_auth_token('gcp_store'),
-            bucket = get_bucket_name('gcp_store', 0),
-            bucket1 = get_bucket_name('gcp_store', 1),
-            bucket_prefix = generate_prefix(random_prefix, test_name),
-            bucket_prefix1 = generate_prefix(random_prefix, test_name),
-            bucket_prefix2 = generate_prefix(random_prefix, test_name),
-            num_ops=100,
-            ss_name = 'gcp_store')),
         # This must be the last item as we separate the non-tiered from the tiered items later on.
         ('non_tiered', dict(is_tiered = False)),
     ]
@@ -241,23 +226,5 @@ class TieredConfigMixin:
         extlist.extension('storage_sources', self.ss_name + config)
 
     def download_objects(self, bucket_name, prefix):
-        if (not self.is_tiered or self.is_local_storage):
-            return
-
-        # Create a directory within the test directory to download the objects to.
-        object_files_path = 'objects/'
-        if not os.path.exists(object_files_path):
-            os.makedirs(object_files_path)
-
-        if (self.ss_name == 'gcp_store'):
-            from google.cloud import storage
-
-            storage_client = storage.Client()
-            blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
-
-            for blob in blobs:
-                file_path = object_files_path + '/' + blob.name.split('/')[-1]
-                blob.download_to_filename(file_path)
-        else:
-            raise Exception("Storage source does not exist within the download object function")
+        pass
 
