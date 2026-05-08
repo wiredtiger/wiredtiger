@@ -999,7 +999,7 @@ __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
     WT_RET(__wt_cursor_localkey(trunc_info->stop));
 
     WT_RET(__wt_cursor_truncate((WT_CURSOR_BTREE *)trunc_info->start,
-      (WT_CURSOR_BTREE *)trunc_info->stop, __clayered_stable_replay_remove_int, false));
+      (WT_CURSOR_BTREE *)trunc_info->stop, __clayered_stable_replay_remove_int));
     return (0);
 }
 

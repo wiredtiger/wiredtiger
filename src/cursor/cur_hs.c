@@ -1313,7 +1313,7 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     }
 
     WT_RET(__wt_cursor_truncate((WT_CURSOR_BTREE *)start_file_cursor,
-      (WT_CURSOR_BTREE *)stop_file_cursor, __curhs_remove_int, true));
+      (WT_CURSOR_BTREE *)stop_file_cursor, __curhs_remove_int));
 
     return (0);
 }

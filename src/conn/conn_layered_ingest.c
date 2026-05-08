@@ -628,7 +628,7 @@ err:
 
 /*
  * __truncate_cmp_by_start_ts --
- *     qsort comparator: ascending order by truncate start timestamp.
+ *     qsort comparator: ascending order by truncate start timestamp and txn id.
  */
 static int
 __truncate_cmp_by_start_ts(const void *a, const void *b)

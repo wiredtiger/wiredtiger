@@ -458,8 +458,13 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN
     page_del = op->u.ref->page_del;
 
     if (page_del != NULL && page_del->pg_del_start_ts == WT_TS_NONE) {
-        page_del->pg_del_start_ts = txn->time_point.commit_timestamp;
-        page_del->pg_del_durable_ts = txn->time_point.durable_timestamp;
+        if (F_ISSET(session, WT_SESSION_INGEST_REPLAY)) {
+            page_del->pg_del_start_ts = session->replay_trunc_ctx.commit_ts;
+            page_del->pg_del_durable_ts = session->replay_trunc_ctx.durable_ts;
+        } else {
+            page_del->pg_del_start_ts = txn->time_point.commit_timestamp;
+            page_del->pg_del_durable_ts = txn->time_point.durable_timestamp;
+        }
     }
 
     return;
@@ -840,7 +845,9 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * This access to the WT_PAGE_DELETED structure is safe; caller has the WT_REF locked, and in
      * fact just allocated the structure to fill in.
      */
-    ref->page_del->txnid = txn->time_point.id;
+    ref->page_del->txnid = F_ISSET(session, WT_SESSION_INGEST_REPLAY) ?
+      session->replay_trunc_ctx.txn_id :
+      txn->time_point.id;
 
     if (__txn_should_assign_timestamp(session, op))
         __txn_op_delete_commit_apply_page_del_timestamp(session, op);
