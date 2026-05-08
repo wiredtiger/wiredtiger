@@ -1206,7 +1206,10 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (!found_last_upd_to_keep) {
             upd_select->upd = upd;
 
-            if (__wt_txn_upd_visible_all(session, upd)) {
+            /* For ingest btrees, skip the global visibility check for non-timestamped tombstones. */
+            if ((!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || upd->type != WT_UPDATE_TOMBSTONE ||
+                  upd->upd_durable_ts != WT_TS_NONE) &&
+              __wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
                 break;
             }
