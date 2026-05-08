@@ -514,7 +514,7 @@ __layered_copy_ingest_table(
                     }
                 } else if (!prepare_resolved) {
                     /* Only resolve the updates from the same prepared transaction once. */
-                    WT_ASSERT(session, from_ts == WT_TS_NONE);
+                    WT_ASSERT(session, to_ts == WT_TS_MAX);
                     if (is_prepare_rollback) {
                         /*
                          * The original transaction id is stored in start timestamp and the rollback
