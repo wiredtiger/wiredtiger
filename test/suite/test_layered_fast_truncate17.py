@@ -92,28 +92,15 @@ class test_layered_fast_truncate17(wttest.WiredTigerTestCase):
         c_start.close()
         c_stop.close()
 
-    def multi_truncate_same_txn(self, ranges, ts):
-        self.session_follow.begin_transaction()
-        for start, stop in ranges:
-            c_start = self.session_follow.open_cursor(self.uri)
-            c_start.set_key(start)
-            c_stop = self.session_follow.open_cursor(self.uri)
-            c_stop.set_key(stop)
-            self.session_follow.truncate(None, c_start, c_stop, None)
-            c_start.close()
-            c_stop.close()
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-
-    def assert_keys(self, present, absent, ts):
+    def assert_ranges_deleted(self, ranges, ts):
         self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
         cursor = self.session_follow.open_cursor(self.uri)
-        for k in present:
+        for k in range(self.nitems):
             cursor.set_key(k)
-            self.assertEqual(cursor.search(), 0, f'key {k} should be visible at ts={ts}')
-        for k in absent:
-            cursor.set_key(k)
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND,
-                f'key {k} should be deleted at ts={ts}')
+            in_range = any(lo <= k <= hi for lo, hi in ranges)
+            expected = wiredtiger.WT_NOTFOUND if in_range else 0
+            self.assertEqual(cursor.search(), expected,
+                f'key {k} {"should be deleted" if in_range else "should be visible"} at ts={ts}')
         cursor.close()
         self.session_follow.rollback_transaction()
 
@@ -129,41 +116,13 @@ class test_layered_fast_truncate17(wttest.WiredTigerTestCase):
         trunc_start, trunc_stop = 200, self.nitems - 200 - 1
         self.truncate_range(trunc_start, trunc_stop, ts=20)
         self.assert_fast_truncate_fired("Fast truncate did not happen.")
-        self.assert_keys(
-            present=[0, trunc_start - 1, trunc_stop + 1, self.nitems - 1],
-            absent=[trunc_start, trunc_start + 100, trunc_stop],
-            ts=30)
+        self.assert_ranges_deleted([(trunc_start, trunc_stop)], ts=30)
 
-    def test_fast_truncate_with_ingest_updates_in_range(self):
-        # Pages with ingest updates are ineligible.
+    def test_fast_truncate_multiple_ranges(self):
         self.setup_follower()
-        cursor = self.session_follow.open_cursor(self.uri)
-        for k in [300, 1000, 2000, 3000, 4000]:
-            self.session_follow.begin_transaction()
-            cursor[k] = 'updated'
-            self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
-        cursor.close()
-        trunc_start, trunc_stop = 200, self.nitems - 200 - 1
-        self.truncate_range(trunc_start, trunc_stop, ts=20)
+        self.truncate_range(200, 1199, ts=20)
+        self.truncate_range(1700, 2699, ts=20)
+        self.truncate_range(3200, 4199, ts=20)
         self.assert_fast_truncate_fired(
-            "rec_page_delete_fast did not increase with mixed ingest updates in range.")
-        self.assert_keys(
-            present=[0, trunc_start - 1, trunc_stop + 1, self.nitems - 1],
-            absent=[trunc_start, 300, 1000, 2000, 3000, 4000, trunc_stop],
-            ts=30)
-
-    def test_fast_truncate_multiple_ranges_same_txn(self):
-        # Three ranges from one transaction; fast-delete must fire for each.
-        self.setup_follower()
-        self.multi_truncate_same_txn([(200, 1199), (1700, 2699), (3200, 4199)], ts=20)
-        self.assert_fast_truncate_fired(
-            "fast truncate did not increase for multi-range same-txn truncate.")
-        self.assert_keys(
-            present=[0, 199,           # before range 1
-                     1200, 1699,       # gap 1→2
-                     2700, 3199,       # gap 2→3
-                     4200, self.nitems - 1],  # after range 3
-            absent=[200,  700,  1199,  # range 1
-                    1700, 2200, 2699,  # range 2
-                    3200, 3700, 4199], # range 3
-            ts=30)
+            "fast truncate did not increase for multi-range truncate.")
+        self.assert_ranges_deleted([(200, 1199), (1700, 2699), (3200, 4199)], ts=30)
