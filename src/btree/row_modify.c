@@ -414,9 +414,10 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
             continue;
         }
 
-        if (__wt_txn_upd_visible_all(session, upd))
-            first = upd;
-        else
+        if (__wt_txn_upd_visible_all(session, upd)) {
+            if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+                first = upd;
+        } else
             first = NULL;
     }
 
