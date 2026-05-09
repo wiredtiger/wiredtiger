@@ -841,6 +841,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
         ref->page_del->txnid = session->replay_trunc_ctx.txn_id;
         ref->page_del->pg_del_start_ts = session->replay_trunc_ctx.commit_ts;
         ref->page_del->pg_del_durable_ts = session->replay_trunc_ctx.durable_ts;
+        ref->page_del->committed = true;
         return (0);
     }
 
