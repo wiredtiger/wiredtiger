@@ -321,10 +321,8 @@ functions:
           ${GNU_CXX_VERSION|} \
           ${CLANG_C_VERSION|} \
           ${CLANG_CXX_VERSION|} \
-          ${ENABLE_AZURE|} \
           ${ENABLE_CPPSUITE|} \
           ${ENABLE_GCP|} \
-          ${IMPORT_AZURE_SDK|} \
           ${IMPORT_GCP_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
@@ -560,9 +558,6 @@ functions:
           set -o errexit
           ${PREPARE_TEST_ENV}
 
-          # Set the Azure credentials using config variable.
-          export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-
           # GCP requires a path to a credentials file for authorization. To not expose the private
           # information within the file, we use a placeholder private variable which are replaced
           # in the command line with the evergreen expansion variables and stored in a temporary
@@ -582,7 +577,6 @@ functions:
           virtualenv -p python3 venv
           source venv/bin/activate
           pip3 install boto3==1.34.144
-          pip3 install azure-storage-blob==12.20.0
           pip3 install google-cloud-storage==2.17.0
 
           # Run Python testing for all tiered tests.
