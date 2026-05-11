@@ -41,6 +41,32 @@ bflag()
 }
 
 #############################################################
+# get_path_for_branch:
+#       arg1: branch name
+#############################################################
+get_path_for_branch()
+{
+    # Older release branches (mongodb-7.0 and earlier) don't build with modern mongodb
+    # toolchains (v5+/GCC 14+); they need v4 (GCC 11). For those branches, replace any
+    # /opt/mongodbtoolchain/vN/ entry in PATH with v4 — this stays correct when the
+    # default toolchain is bumped (e.g. v5 -> v6). For newer branches, return PATH
+    # unchanged.
+    local new_path="$PATH"
+    case "$1" in
+        mongodb-*)
+            local major=$(echo "$1" | cut -d- -f2 | cut -d. -f1)
+            if [ "$major" -le 7 ]; then
+                new_path=$(echo "$new_path" | sed -E 's#/opt/mongodbtoolchain/v[0-9]+/#/opt/mongodbtoolchain/v4/#g')
+                if [[ "$new_path" != *"/opt/mongodbtoolchain/v4/"* ]]; then
+                    new_path=/opt/mongodbtoolchain/v4/bin:$new_path
+                fi
+            fi
+            ;;
+    esac
+    echo "$new_path"
+}
+
+#############################################################
 # get_prev_version:
 #       arg1: branch name
 #############################################################
@@ -121,21 +147,12 @@ build_branch()
         # regardless of the branch's own CMake setup.
         cp "$PROJECT_ROOT/CMakePresets.json" CMakePresets.json
 
+        local cmake_preset="linux-gcc"
+
         # Branches mongodb-7.0 and older require the v4 toolchain (incompatible with GCC 14+).
-        local cmake_preset
-        case "$1" in
-            mongodb-*)
-                local major=$(echo "$1" | cut -d- -f2 | cut -d. -f1)
-                if [ "$major" -le 7 ]; then
-                    cmake_preset="linux-v4-gcc"
-                else
-                    cmake_preset="linux-gcc"
-                fi
-                ;;
-            *)
-                cmake_preset="linux-gcc"
-                ;;
-        esac
+        if [[ "$1" =~ ^mongodb-[0-7]\. ]]; then
+            cmake_preset="linux-v4-gcc"
+        fi
 
         (
             mkdir -p build && cd build &&

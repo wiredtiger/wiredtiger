@@ -127,7 +127,7 @@ for compiler in "${compilers[@]}" ; do
                option="$option $always"
                if ! BuildTest "$compiler" "$option" "$compiler_path"; then
                        ecode=1
-                       echo "*** ERROR: $compiler, $option"
+                       echo "*** ERROR: $CC, $option"
                fi
                IFS="$cr_IFS"
        done

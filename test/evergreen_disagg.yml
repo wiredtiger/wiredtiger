@@ -350,10 +350,7 @@ functions:
           ${CODE_COVERAGE_FLAGS} \
           ${HAVE_DIAGNOSTIC|} \
           ${WORDS_BIGENDIAN|} \
-          ${GNU_C_VERSION|} \
-          ${GNU_CXX_VERSION|} \
-          ${CLANG_C_VERSION|} \
-          ${CLANG_CXX_VERSION|} \
+          ${ENABLE_AZURE|} \
           ${ENABLE_CPPSUITE|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
