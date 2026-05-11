@@ -4,10 +4,10 @@
 
 The WiredTiger extension API allows control over how files are stored via the storage source
 abstraction layer. More information can be found about customizing storage sources in
-@ref custom_storage_sources. There are three storage sources that extend WiredTiger's capability
+@ref custom_storage_sources. There are two storage sources that extend WiredTiger's capability
 to store data files into cloud storage through Google and AWS providers. The cloud storage
 extensions provide a means to construct, configure and control a custom file system linked to a
-cloud bucket. All three storage source implementations internally interact with the cloud storage
+cloud bucket. Both storage source implementations internally interact with the cloud storage
 through their own C++ SDKs.
 
 All storage sources implement the following key functionalities defined by the storage source
