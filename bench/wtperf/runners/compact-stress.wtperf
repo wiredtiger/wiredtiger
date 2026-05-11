@@ -1,0 +1,36 @@
+# WT-14196 compact-under-load benchmark.
+# Reproduces the ticket scenario: populate a row-store with varied values,
+# remove every 3rd key to fragment, then run a foreground compact in parallel
+# with random updates and periodic checkpoints.
+
+conn_config="cache_size=20G,statistics=(all),statistics_log=(json,on_close,wait=1)"
+table_config="allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=64MB,memory_page_max=10M,split_pct=90,key_format=S,value_format=S"
+
+# Populate: 1M records, varied 512B-4KB values, ~5GB on disk.
+icount=1000000
+populate_threads=1
+value_sz_min=512
+value_sz_max=4096
+value_sz=2048
+random_value=true
+
+# Fragmentation: remove every 3rd key after populate.
+post_populate_remove_modulus=3
+
+# Workload phase: one update thread, one checkpoint thread, one compact thread.
+threads=((count=1,updates=1))
+run_time=1800
+checkpoint_threads=1
+checkpoint_interval=15
+compact_threads=1
+compact_start_after=0
+compact_ends_workload=true
+
+# Time-series monitor (existing) + per-op latency histogram (existing).
+sample_interval=2
+sample_rate=1
+report_interval=10
+
+# SLA gates — disabled until we have baseline runs to tune them.
+min_throughput=0
+max_latency=0

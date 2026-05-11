@@ -1,0 +1,30 @@
+# WT-14196 smoke test for the compact-under-load benchmark.
+# Completes in <30 seconds so the CI step can assert the compact_summary.txt
+# format is intact.
+
+conn_config="cache_size=512M,statistics=(all),statistics_log=(json,on_close,wait=1)"
+table_config="allocation_size=4KB,leaf_page_max=32KB,memory_page_max=10M,split_pct=90,key_format=S,value_format=S"
+
+icount=20000
+populate_threads=1
+value_sz_min=512
+value_sz_max=4096
+value_sz=2048
+random_value=true
+
+post_populate_remove_modulus=3
+
+threads=((count=1,updates=1))
+run_time=60
+checkpoint_threads=1
+checkpoint_interval=5
+compact_threads=1
+compact_start_after=0
+compact_ends_workload=true
+
+sample_interval=2
+sample_rate=1
+report_interval=5
+
+min_throughput=0
+max_latency=0
