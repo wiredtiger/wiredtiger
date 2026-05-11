@@ -5,7 +5,7 @@
 The WiredTiger extension API allows control over how files are stored via the storage source
 abstraction layer. More information can be found about customizing storage sources in
 @ref custom_storage_sources. There are three storage sources that extend WiredTiger's capability
-to store data files into cloud storage through Azure, Google and AWS providers. The cloud storage
+to store data files into cloud storage through Google and AWS providers. The cloud storage
 extensions provide a means to construct, configure and control a custom file system linked to a
 cloud bucket. All three storage source implementations internally interact with the cloud storage
 through their own C++ SDKs.
@@ -37,7 +37,7 @@ class also provides the means to delete objects, to clean up artifacts from inte
 
 WiredTiger supports a database over a custom file system by exposing a \c WT_FILE_SYSTEM interface
 for the end-user to implement. The store itself provides a means to configure as many file systems
-as needed, each linked to a bucket. These file systems - \c GCP_FILE_SYSTEM, \c AZURE_FILE_SYSTEM
+as needed, each linked to a bucket. These file systems - \c GCP_FILE_SYSTEM
 and \c S3_FILE_SYSTEM - are custom implementations provided by the storage source. These file
 systems contain an instance of the connection class, hence providing an active connection to the
 bucket embedded in the file system instance.
@@ -88,23 +88,20 @@ Hence, a \c WT_FILE_HANDLE is kept encapsulated in the S3 file handle.
 
 - The S3 store has created a logging class which extends the AWS SDK's logging system.
 
-@section azure_gcp_store Azure and GCP Storage Source
-The Azure and Google Cloud Platform (GCP) stores implement the following functionality:
+@section gcp_store GCP Storage Source
+The Google Cloud Platform (GCP) store implements the following functionality:
 
-- The Azure and GCP stores follow different authentication methods to connect to their respective
-SDKs. GCP requires setting a \c GOOGLE_APPLICATION_CREDENTIALS environment variable with the
-path to an authentication file and Azure requires the \c AZURE_STORAGE_CONNECTION_STRING environment
-variable to be set.
+- The GCP store requires setting a \c GOOGLE_APPLICATION_CREDENTIALS environment variable with the
+path to an authentication file to connect to the SDK.
 
 - Another reference count is incremented each time the file handle reference is opened and
 decremented with the close. When the reference count goes zero, the file system is de-registered
 from the storage source and any allocated resources are freed.
 
-- Whenever a GCP or Azure file handle is created, it does not require the file to be present in the
+- Whenever a GCP file handle is created, it does not require the file to be present in the
 local file system. The file handle will directly interact with the connection class to handle all
 file handle operations.
 
-- The GCP store has created a logging class which extends the GCP SDK's logging backend and the
-Azure store has created a logging class using the Azure SDK's callback function.
+- The GCP store has created a logging class which extends the GCP SDK's logging backend.
 
 */

@@ -1569,7 +1569,6 @@ variables:
     ENABLE_SHARED: -DENABLE_SHARED=0
     ENABLE_STATIC: -DENABLE_STATIC=1
 
-  # Configure flags for tiered storage Azure extension.
   # Configure flags for tiered storage GCP extension.
   - &configure_flags_tiered_storage_gcp
     ENABLE_GCP: -DENABLE_GCP=1
