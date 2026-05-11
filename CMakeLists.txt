@@ -74,11 +74,6 @@ include(cmake/third_party/iaa.cmake)
 include(cmake/third_party/voidstar.cmake)
 include(cmake/third_party/sqlite3.cmake)
 
-# Skip the AZURE SDK build step if the extension is not enabled.
-if(ENABLE_AZURE)
-    include(cmake/third_party/azure_sdk.cmake)
-endif()
-
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. "
         "Need to enable at least one build flavour.")

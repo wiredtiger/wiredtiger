@@ -1576,10 +1576,6 @@ variables:
     ENABLE_STATIC: -DENABLE_STATIC=1
 
   # Configure flags for tiered storage Azure extension.
-  - &configure_flags_tiered_storage_azure
-    ENABLE_AZURE: -DENABLE_AZURE=1
-    IMPORT_AZURE_SDK: -DIMPORT_AZURE_SDK=external
-
   # Configure flags for tiered storage GCP extension.
   - &configure_flags_tiered_storage_gcp
     ENABLE_GCP: -DENABLE_GCP=1
@@ -4424,75 +4420,6 @@ tasks:
 
       - func: "code coverage publish report"
 
-  - name: azure-gcp-tiered-storage-extensions-test
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "install gcp dependencies"
-      - func: "compile wiredtiger"
-        vars:
-          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered
-  - name: azure-gcp-tiered-catch2-unittest-test
-    tags: ["tiered_unittest"]
-    commands:
-      - func: "get project"
-      - func: "install gcp dependencies"
-      - func: "compile wiredtiger"
-        vars:
-          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
-          HAVE_UNITTEST: -DHAVE_UNITTEST=1
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          script: |
-            set -o errexit
-            # Set the Azure credentials using config variable.
-            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-
-            # GCP requires a path to a credentials file for authorization. To not expose the private
-            # information within the file, we use a placeholder private variable which are replaced
-            # in the command line with the evergreen expansion variables and stored in a temporary
-            # file.
-            file=$(mktemp --suffix ".json")
-
-            # Use '|' as the delimiter instead of default behavior because the private key contains
-            # slash characters.
-            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
-                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
-                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
-                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
-                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
-                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
-            export GOOGLE_APPLICATION_CREDENTIALS="$file"
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-
-            # Run Azure extension unit testing.
-            ext/storage_sources/azure_store/test/run_azure_unit_tests
-
-            # Run GCP extension unit testing.
-            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
-
-  - name: azure-gcp-tiered-test-small
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "install gcp dependencies"
-      - func: "compile wiredtiger"
-        vars:
-          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered06
-
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
@@ -6831,8 +6758,8 @@ buildvariants:
     - name: format-failure-configs-test
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
-    # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
-    # - name: azure-gcp-tiered-storage-extensions-test
+    # FIXME-WT-14962 - Added for tiered storage; may help disagg but currently a CI blocker and needs re-evaluation.
+    # - name: csuite-timestamp-abort-test-s3
     - name: bench-tiered-push-pull
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
