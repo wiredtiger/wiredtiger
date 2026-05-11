@@ -6751,8 +6751,6 @@ buildvariants:
     - name: format-failure-configs-test
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
-    # FIXME-WT-14962 - Added for tiered storage; may help disagg but currently a CI blocker and needs re-evaluation.
-    # - name: csuite-timestamp-abort-test-s3
     - name: bench-tiered-push-pull
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours

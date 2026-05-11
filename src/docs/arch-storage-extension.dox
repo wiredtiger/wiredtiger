@@ -38,7 +38,7 @@ class also provides the means to delete objects, to clean up artifacts from inte
 WiredTiger supports a database over a custom file system by exposing a \c WT_FILE_SYSTEM interface
 for the end-user to implement. The store itself provides a means to configure as many file systems
 as needed, each linked to a bucket. These file systems - \c GCP_FILE_SYSTEM
-and \c S3_FILE_SYSTEM - are custom implementations provided by the storage source. These file
+- are custom implementations provided by the storage source. These file
 systems contain an instance of the connection class, hence providing an active connection to the
 bucket embedded in the file system instance.
 
