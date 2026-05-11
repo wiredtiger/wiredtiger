@@ -37,14 +37,15 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
     /*
-     * Check for a hazard pointer indicating another thread is using the page, meaning the page
-     * cannot be evicted.
+     * Check for active hazard pointers using the per-ref count. Readers speculatively increment
+     * hp_count before WT_FULL_BARRIER() and roll back if the page state is not WT_REF_MEM after the
+     * barrier, so hp_count > 0 reliably indicates an active reader with no transition window.
      */
-    if (__wt_hazard_check(session, ref, NULL) == NULL)
-        return (0);
-
-    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
-    return (__wt_set_return(session, EBUSY));
+    if (__wt_atomic_load_uint32_relaxed(&ref->hp_count) > 0) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
+        return (__wt_set_return(session, EBUSY));
+    }
+    return (0);
 }
 
 /*
@@ -374,7 +375,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_SESSION_IMPL *hp_session;
     uint64_t page_size;
     uint8_t stats_flags;
     bool acquired, app_thread_assist, closing, ebusy_only, evict_clean, inmem_split;
@@ -512,7 +512,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
              * cause its level-0 CAS to fail with WT_RESTART repeatedly, causing a hang. Return
              * EBUSY so the split is retried once all other hazard holders have released the page.
              */
-            if (__wt_hazard_check(session, ref, NULL) != NULL) {
+            if (__wt_atomic_load_uint32_relaxed(&ref->hp_count) > 0) {
                 WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
                 ret = __wt_set_return(session, EBUSY);
                 goto err;
@@ -533,39 +533,28 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * possible.
      *
      * All non-closing callers arrive with a hazard pointer already set on the ref (it is the
-     * phase-1 pin). We must not trigger the gate for our own hazard pointer — that HP will be
-     * cleared by __evict_acquire_exclusive before phase-2 runs and poses no conflict. We pass
-     * &hp_session to __wt_hazard_check and only fire the gate when the first HP found belongs to
-     * a different session. This is a "best-effort" check: if our own HP happens to be scanned
-     * before a concurrent reader's HP, the gate is a false negative and we proceed to phase-1,
-     * which may then fail at phase-2 (EBUSY). That is acceptable — the gate is an optimization to
-     * avoid wasted reconcile work, not a correctness mechanism.
+     * phase-1 pin), contributing 1 to ref->hp_count. A count > 1 means at least one other session
+     * also holds an HP on this page. This is an O(1) check: a single relaxed atomic load on
+     * ref->hp_count replaces the previous O(N_sessions x barrier) session array walk.
      *
      * Run this check on every attempt, including the first. Under high-concurrency write workloads
      * (bulk insert, find-one-and-update) app threads hold hazard pointers during B-tree traversal
      * and update for tens to hundreds of microseconds -- far longer than the phase-2 spin-wait cap
      * (WT_THOUSAND * WT_PAUSE approximately 1-4 us). Skipping the gate on the first attempt causes
-     * phase-1 reconciliation work to be discarded at a high rate: sys-perf data showed 79-116
-     * pages/s written and immediately restored in-memory, 89-98% forced-eviction failure rates, and
-     * write-ticket exhaustion in 78% of samples for insert workloads. __wt_hazard_check scans all
-     * sessions' hazard arrays but is cheap in practice (a few entries per call); the cost of one
-     * pre-check is negligible compared to a wasted page reconcile.
+     * phase-1 reconciliation work to be discarded at a high rate.
      *
-     * Background eviction workers: apply a cooldown when an HP is found. Single-phase reconciles
-     * under WT_REF_LOCKED, blocking all readers for the full reconcile duration. A short cooldown
-     * is cheaper: the HP is often from a transient reader that will release within
-     * WT_EVICT_HP_COOLDOWN_PASSES passes.
+     * Background eviction workers: apply a cooldown when another HP is found. A short cooldown is
+     * cheaper than a wasted phase-1 reconcile: the reader is often transient and will release
+     * within WT_EVICT_HP_COOLDOWN_PASSES passes.
      *
      * App-thread assist eviction: skip this gate entirely. Even when a concurrent reader holds an
-     * HP, phase-1 reconcile proceeds and phase-2 handles any HP that persists. The scan cost is
-     * wasted work on a path that must return to its caller promptly; phase-2 already has its own
-     * single-iteration HP check. Falling to single-phase blocks all concurrent readers for the
-     * full reconcile duration, directly inflating read latency.
+     * HP, phase-1 reconcile proceeds and phase-2 handles any HP that persists. Falling to
+     * single-phase blocks all concurrent readers for the full reconcile duration, directly
+     * inflating read latency.
      *
      * Urgent eviction bypasses the cooldown to avoid cache-pressure livelock.
      */
-    if (two_phase && !app_thread_assist && __wt_hazard_check(session, ref, &hp_session) != NULL &&
-      hp_session != session) {
+    if (two_phase && !app_thread_assist && __wt_atomic_load_uint32_relaxed(&ref->hp_count) > 1) {
         /* Background: cooldown, then retry two-phase on the next pass. */
         __wt_atomic_store_uint64_relaxed(&page->evict_pass_gen,
           __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen) +
@@ -741,7 +730,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * eviction server picks up the already-reconciled page as soon as hazard pointers drain,
          * rather than waiting for normal LRU scoring.
          */
-        if (__wt_hazard_check(session, ref, NULL) != NULL) {
+        if (__wt_atomic_load_uint32_relaxed(&ref->hp_count) > 0) {
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
             if (app_thread_assist) {
                 WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard_app_thread);
@@ -756,7 +745,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
                 ret = __wt_set_return(session, EBUSY);
                 goto err;
             }
-            for (uint32_t haz_spin = 0; __wt_hazard_check(session, ref, NULL) != NULL; ++haz_spin) {
+            for (uint32_t haz_spin = 0; __wt_atomic_load_uint32_relaxed(&ref->hp_count) > 0;
+                 ++haz_spin) {
                 if (haz_spin > WT_THOUSAND) {
                     if (LF_ISSET(WT_EVICT_CALL_URGENT) && is_dirty)
                         __wt_evict_page_soon(session, ref);

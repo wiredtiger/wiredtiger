@@ -1207,6 +1207,16 @@ struct __wt_ref {
     wt_shared volatile WT_REF_STATE __state;
 
     /*
+     * Count of active hazard pointers on this ref across all sessions. Incremented speculatively
+     * before WT_FULL_BARRIER() in __wt_hazard_set_func and rolled back if the page state is not
+     * WT_REF_MEM after the barrier. Because WT_REF objects are never freed while the tree is open,
+     * this field is always safe to access regardless of page state, eliminating the transition
+     * window that would otherwise require an O(N) fallback scan. __evict_exclusive uses this as a
+     * pure O(1) busy check.
+     */
+    wt_shared uint32_t hp_count;
+
+    /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
      * or NULL if page created in-memory.
      */
@@ -1358,9 +1368,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 

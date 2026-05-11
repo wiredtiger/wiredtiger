@@ -21,32 +21,13 @@ struct __wt_data_handle_cache {
 };
 
 /*
- * WT_HAZARD --
- *	A hazard pointer.
- */
-struct __wt_hazard {
-    wt_shared WT_REF *ref; /* Page reference */
-#ifdef HAVE_DIAGNOSTIC
-    const char *func; /* Function/line hazard acquired */
-    int line;
-#endif
-};
-
-/*
  * WT_HAZARD_ARRAY --
- *   An array of all hazard pointers held by the session.
- *   New hazard pointers are added on a first-fit basis, and on removal their entry
- *   in the array is set to null. As such this array may contain holes.
+ *   Per-session hazard pointer tracking. Hazard pointers are now tracked via per-ref hp_count
+ *   atomics on WT_REF rather than a session-local array. This struct retains only the count of
+ *   active hazard pointers held by this session, used for session-close validation.
  */
 struct __wt_hazard_array {
-/* The hazard pointer array grows as necessary, initialize with 250 slots. */
-#define WT_SESSION_INITIAL_HAZARD_SLOTS 250
-
-    wt_shared WT_HAZARD *arr; /* The hazard pointer array */
-    wt_shared uint32_t inuse; /* Number of array slots potentially in-use. We only need to iterate
-                                 this many slots to find all active pointers */
-    wt_shared uint32_t num_active; /* Number of array slots containing an active hazard pointer */
-    uint32_t size;                 /* Allocated size of the array */
+    uint32_t num_active; /* Number of active hazard pointers held by this session */
 };
 
 /*
@@ -411,13 +392,15 @@ struct __wt_session_impl {
 /*
  * Hazard pointers.
  *
- * Hazard information persists past session close because it's accessed by threads of control other
- * than the thread owning the session.
+ * Hazard information persists past session close. Hazard pointers are tracked via per-ref hp_count
+ * atomics on WT_REF rather than a session-local array. The hazards struct retains only the active
+ * count for session-close validation.
  *
- * Use the non-NULL state of the hazard array to know if the session has previously been
- * initialized.
+ * Use the zero state of rnd_random to detect first use: the RNG persists past session close and is
+ * initialized on first use from a non-zero seed (time + pid + session id), so v == 0 reliably
+ * indicates the session has never been initialized.
  */
-#define WT_SESSION_FIRST_USE(s) ((s)->hazards.arr == NULL)
+#define WT_SESSION_FIRST_USE(s) ((s)->rnd_random.v == 0)
     WT_HAZARD_ARRAY hazards;
 
     /*

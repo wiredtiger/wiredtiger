@@ -188,8 +188,8 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     }
 
     /*
-     * The session split stash, hazard information and handle arrays aren't discarded during normal
-     * session close, they persist past the life of the session. Discard them now.
+     * The session split stash and handle arrays aren't discarded during normal session close, they
+     * persist past the life of the session. Discard them now.
      */
     if (!F_ISSET_ATOMIC_32(conn, WT_CONN_LEAK_MEMORY))
         if ((s = WT_CONN_SESSIONS_GET(conn)) != NULL)
@@ -197,7 +197,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
                 __wt_free(session, s->cursor_cache);
                 __wt_free(session, s->dhhash);
                 __wt_stash_discard_all(session, s);
-                __wt_free(session, s->hazards.arr);
             }
 
     /* Destroy the file-system configuration. */

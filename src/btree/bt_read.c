@@ -56,6 +56,13 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     /*
+     * If there is more than one active hazard pointer on this ref, eviction will fail and there is
+     * no point trying.
+     */
+    if (__wt_atomic_load_uint32_relaxed(&ref->hp_count) > 1)
+        return (false);
+
+    /*
      * If the page is less than the maximum size and can be split in-memory, let's try that first
      * without forcing the page to evict on release.
      */

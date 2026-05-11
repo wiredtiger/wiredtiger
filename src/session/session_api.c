@@ -245,7 +245,6 @@ __session_clear(WT_SESSION_IMPL *session)
      */
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
-    __wt_atomic_store_uint32_relaxed(&session->hazards.inuse, 0);
     session->hazards.num_active = 0;
 }
 /*
@@ -2636,17 +2635,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session_ret->isolation = WT_ISO_SNAPSHOT;
     WT_ERR(__wt_txn_init(session, session_ret));
 
-    /*
-     * The session's hazard pointer memory isn't discarded during normal session close because
-     * access to it isn't serialized. Allocate the first time we open this session.
-     */
-    if (WT_SESSION_FIRST_USE(session_ret)) {
-        WT_ERR(
-          __wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazards.arr));
-        session_ret->hazards.size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        __wt_atomic_store_uint32_relaxed(&session_ret->hazards.inuse, 0);
-        session_ret->hazards.num_active = 0;
-    }
+    session_ret->hazards.num_active = 0;
 
     /*
      * Cache the offset of this session's statistics bucket. It's important we pass the correct

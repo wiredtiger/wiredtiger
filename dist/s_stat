@@ -71,6 +71,9 @@ perf_hist_leaf_reconstruct_latency_total_usecs
 perf_hist_opread_latency_total_usecs
 perf_hist_opwrite_latency_total_usecs
 txn_rts_upd_aborted_dryrun
+cache_hazard_checks
+cache_hazard_max
+cache_hazard_walks
 UNUSED_STAT_FIELDS
 
 echo "$search"
