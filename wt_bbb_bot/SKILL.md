@@ -23,9 +23,12 @@ investigation summary.
 | Reproduce locally / run test/format | @paths/build.md |
 | Inspect a WT data directory or WAL | @paths/wt-cli.md |
 | Load, search, or comment on a Jira ticket | @paths/jira.md |
-| Run or stop on format repro | @paths/repro-format.md |
 | Structured output format / Jira comment | @reference/output-template.md |
 | Escalation order and good defaults | @reference/workflow.md |
+| Inspect WT pages in SLS / disagg storage | @skills/disagg-page-inspection/SKILL.md |
+| Triage a HELP ticket with FTDC data | @skills/help-ticket-triage/SKILL.md |
+| test/format runs, tracing, parallel repro | @skills/wiredtiger-test-format/SKILL.md |
+| Root cause methodology (before fixing anything) | @skills/systematic-debugging/SKILL.md |
 
 # MCP Tools
 

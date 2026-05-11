@@ -1,26 +1,95 @@
-# Build Path
+---
+name: wt-build
+description: Use this skill when the user wants to build or compile WiredTiger, mentions "build", "compile", "ninja", "cmake", or asks to rebuild after making changes. Handles all build variants including fast builds, sanitizer builds, and force rebuilds.
+version: 1.1.0
+---
 
-Use this path to reproduce a WiredTiger failure locally, measure a flaky test's failure
-rate, or propose and verify a fix.
+# WiredTiger Build & Reproduction
 
-## When to enter this path
+Use this path to:
+- build or compile WiredTiger (any variant)
+- reproduce a BF failure locally
+- propose and verify a fix
 
-- Need to confirm a hypothesis by reproducing the failure
-- Measuring failure rate for a flaky/intermittent test
-- Have a fix candidate and need to verify it resolves the failure
+---
 
-## Tools
+## Building WiredTiger
 
-- `evg_get_raw_task_logs` — extract the exact failing command from Evergreen
-- `jira_get_issue`, `jira_get_issue_comments` — read failure context and prior repro attempts
-- `jira_add_comment` — post repro findings (always confirm with user before posting)
+All builds use CMake + Ninja with `-DPYTHON3_REQUIRED_VERSION=3.10`.
 
-## Workflow
+### Locating the WiredTiger source root
 
-### Step 1: Extract the exact repro command
+Before building, find the repo root — the directory containing `CMakeLists.txt`. Call it `$WT_SRC`.
 
-From Evergreen task logs (`evg_get_raw_task_logs`, `log_type=agent`), find the command
-the CI runner used. Look for lines like:
+- If currently inside a worktree (path contains `.claude/worktrees/`), `$WT_SRC` is the worktree root.
+- Otherwise walk up from the current working directory until you find `CMakeLists.txt`, or ask the user.
+
+### Build directory convention
+
+Create build directories **relative to `$WT_SRC`**, not at a hardcoded absolute path.
+
+| Variant | Suggested dir name |
+|---|---|
+| Default debug | `build/` |
+| AddressSanitizer | `build_asan/` |
+| MemorySanitizer | `build_msan/` |
+| ThreadSanitizer | `build_tsan/` |
+| UBSan | `build_ubsan/` |
+| Release | `build_release/` |
+
+### Build targets
+
+| Ninja target | What it builds |
+|---|---|
+| *(none / all)* | Everything |
+| `wt` | Just the `wt` CLI binary — fastest after C source changes |
+| `t` | Test binaries only |
+
+### Common build commands
+
+**Full build (first time or after clean)**
+```bash
+mkdir -p $WT_SRC/build && cd $WT_SRC/build && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -G Ninja .. && ninja
+```
+
+**Incremental rebuild (most common — source was edited, build dir exists)**
+```bash
+cd $WT_SRC/build && ninja
+cd $WT_SRC/build && ninja wt   # CLI only
+cd $WT_SRC/build && ninja t    # test binaries only
+```
+
+**Force clean rebuild (corrupted build state)**
+```bash
+rm -rf $WT_SRC/build && mkdir -p $WT_SRC/build && cd $WT_SRC/build && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -G Ninja .. && ninja
+```
+
+**Sanitizer builds**
+```bash
+# ASan
+mkdir -p $WT_SRC/build_asan && cd $WT_SRC/build_asan && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -DCMAKE_BUILD_TYPE=ASan -G Ninja .. && ninja
+# TSan
+mkdir -p $WT_SRC/build_tsan && cd $WT_SRC/build_tsan && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -DCMAKE_BUILD_TYPE=TSan -G Ninja .. && ninja
+# UBSan
+mkdir -p $WT_SRC/build_ubsan && cd $WT_SRC/build_ubsan && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -DCMAKE_BUILD_TYPE=UBSan -G Ninja .. && ninja
+# Release
+mkdir -p $WT_SRC/build_release && cd $WT_SRC/build_release && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -DCMAKE_BUILD_TYPE=Release -G Ninja .. && ninja
+```
+
+### Instructions
+
+1. **Locate `$WT_SRC`** — find `CMakeLists.txt` relative to the current directory. Never hardcode an absolute path.
+2. **Prefer incremental** — if the build dir exists, just `cd <build_dir> && ninja [target]`.
+3. **Choose the right target**: `wt` for CLI-only changes, `t` for test-only, bare `ninja` for everything.
+4. **Create the build dir if missing** — run the full `mkdir + cmake + ninja` pipeline only on first build or after an explicit clean.
+
+---
+
+## Reproducing a BF Failure
+
+### Step 1: Extract the repro command from Evergreen
+
+`evg_get_raw_task_logs` with `log_type=agent` — find the exact command CI ran:
 ```
 python3 ../test/suite/run.py test_checkpoint ...
 ./t -C <config> ...
@@ -28,59 +97,52 @@ ctest -R <test-name> ...
 ```
 
 Also extract:
-- CMake build flags used (e.g., `-DHAVE_DIAGNOSTIC=1`, `-DCMAKE_BUILD_TYPE=Debug`)
+- CMake build flags (e.g. `-DHAVE_DIAGNOSTIC=1`, `-DCMAKE_BUILD_TYPE=Debug`)
 - Any env vars set before the test command
 
-### Step 2: Choose repro mode
+### Step 2: Match the build variant
 
-**Investigation mode** — stop on first failure, preserve artifacts:
+If CI ran with ASan, reproduce with `build_asan/`. Build first if the directory doesn't exist.
+
+### Step 3: Run the reproduction
+
+For test/format runs and parallel repro:
+→ **@skills/wiredtiger-test-format/SKILL.md** — format runs, tracing, tmux workers, stop-on-fail
+
+For Python suite:
 ```bash
-# For test/format:
-bash scripts/repro_format_tmux.sh \
-  /data/wiredtiger \
-  /data/wiredtiger/test/format/CONFIG \
-  <workers> \
-  /tmp/wt_repro \
-  --stop-on-fail
-
-# For Python suite:
 python3 ../test/suite/run.py <test_name> -j1
+```
 
-# For ctest:
+For ctest:
+```bash
 ctest --test-dir build -R <test_regex> --repeat until-fail:<N>
 ```
 
-**Validation mode** — bounded repetitions to measure failure rate:
-```bash
-# test/format without --stop-on-fail:
-bash scripts/repro_format_tmux.sh /data/wiredtiger CONFIG <workers> /tmp/wt_repro
-```
+For data directory inspection after a failure: → **@wt-cli.md**
 
-See @repro-format.md for full format repro guidance.
-See @wt-cli.md for inspecting the WT data directory after a failure.
-
-### Step 3: Capture artifacts
+### Step 4: Capture artifacts
 
 Always record:
 - Exact command line and config
-- Build flags and branch/commit
-- Worker count (for format runs)
-- First failure: worker dir, `stdout.log`, `stderr.log`
-- First error line in stderr
+- Build variant and branch/commit
+- First failure: worker dir, `stdout.log`, `stderr.log`, first error line in stderr
 
-### Step 4: Propose a fix
+### Step 5: Propose a fix
 
-State the narrowest change that addresses the root cause. Include:
+State the narrowest change that addresses the root cause:
 - File and approximate line range
-- What changes and why it fixes the invariant that was violated
+- What changes and why it fixes the violated invariant
 - Any risk of side effects
 
-### Step 5: Verify the fix
+### Step 6: Verify the fix
 
 Re-run in validation mode with the fix applied:
-- For format: use 4–8 workers, 20–50 iterations
+- For format: 4–8 workers, 20–50 iterations
 - For Python suite: `python3 ../test/suite/run.py <test> -j4 --repeat 20`
 - Report pass/fail rate before and after
+
+---
 
 ## Output format
 
@@ -88,6 +150,7 @@ Re-run in validation mode with the fix applied:
 - mode: (investigation | validation)
 - command:
 - config:
+- build variant:
 - workers:
 - result: reproduced | not reproduced | inconclusive
 - failure rate: X/N runs
