@@ -94,7 +94,7 @@ def prepare_branch(branch, config):
         else:
             source = 'https://github.com/wiredtiger/wiredtiger.git'
             print(f'Cloning branch {branch}')
-            system(f'git clone "{source}" "{path}" -b {branch}')
+            system(f'git clone --single-branch --depth 1 -b {branch} "{source}" "{path}"')
 
     # Parse the build config
     standalone = False
@@ -111,11 +111,24 @@ def prepare_branch(branch, config):
     # support older branches, which use autoconf.
     if not os.path.exists(os.path.join(build_path, 'build.ninja')):
         os.mkdir(build_path)
-        cmake_args = '-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake'
-        cmake_args += ' -DENABLE_PYTHON=1'
+        cmake_args = '-DENABLE_PYTHON=1'
         if not standalone:
             cmake_args += ' -DWT_STANDALONE_BUILD=0'
-        system(f'cd "{build_path}" && cmake {cmake_args} -G Ninja ../.')
+
+        # Older release branches (mongodb-7.0 and earlier) don't build with modern mongodb
+        # toolchains (v5+/GCC 14+); they need v4. Replace any /opt/mongodbtoolchain/vN/ entry
+        # in PATH with v4 so this stays correct when the default toolchain is bumped.
+        path_override = ''
+        if branch.startswith('mongodb-') and \
+                int(branch.split('-')[1].split('.')[0]) <= 7:
+            current_path = os.environ.get('PATH', '')
+            new_path = re.sub(r'/opt/mongodbtoolchain/v\d+/',
+                              '/opt/mongodbtoolchain/v4/', current_path)
+            if '/opt/mongodbtoolchain/v4/' not in new_path:
+                new_path = '/opt/mongodbtoolchain/v4/bin:' + new_path
+            path_override = f'PATH="{new_path}" '
+
+        system(f'cd "{build_path}" && env {path_override}CC=gcc CXX=g++ cmake {cmake_args} -G Ninja ../.')
 
     print(f'Building {path}')
     system(f'cd "{build_path}" && ninja')

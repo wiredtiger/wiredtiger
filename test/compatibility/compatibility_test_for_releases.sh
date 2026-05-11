@@ -41,6 +41,32 @@ bflag()
 }
 
 #############################################################
+# get_path_for_branch:
+#       arg1: branch name
+#############################################################
+get_path_for_branch()
+{
+    # Older release branches (mongodb-7.0 and earlier) don't build with modern mongodb
+    # toolchains (v5+/GCC 14+); they need v4 (GCC 11). For those branches, replace any
+    # /opt/mongodbtoolchain/vN/ entry in PATH with v4 — this stays correct when the
+    # default toolchain is bumped (e.g. v5 -> v6). For newer branches, return PATH
+    # unchanged.
+    local new_path="$PATH"
+    case "$1" in
+        mongodb-*)
+            local major=$(echo "$1" | cut -d- -f2 | cut -d. -f1)
+            if [ "$major" -le 7 ]; then
+                new_path=$(echo "$new_path" | sed -E 's#/opt/mongodbtoolchain/v[0-9]+/#/opt/mongodbtoolchain/v4/#g')
+                if [[ "$new_path" != *"/opt/mongodbtoolchain/v4/"* ]]; then
+                    new_path=/opt/mongodbtoolchain/v4/bin:$new_path
+                fi
+            fi
+            ;;
+    esac
+    echo "$new_path"
+}
+
+#############################################################
 # get_prev_version:
 #       arg1: branch name
 #############################################################
@@ -117,15 +143,14 @@ build_branch()
         # Disable cppsuite - not all versions build with the toolchain
         config+="-DENABLE_CPPSUITE=0 "
 
-        # Use the stable MongoDB toolchain if it exists
-        toolchain="$PWD/cmake/toolchains/mongodbtoolchain_stable_gcc.cmake"
-        if [ ! -f $toolchain ]; then
-            toolchain="$PWD/cmake/toolchains/mongodbtoolchain_v4_gcc.cmake"
-        fi
-        config+="-DCMAKE_TOOLCHAIN_FILE=$toolchain "
-
-        (mkdir -p build && cd build &&
-            $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+        # mongodb toolchain should be on PATH (set in evergreen.yml). Older branches need v4.
+        (
+            export PATH=$(get_path_for_branch "$1")
+            export CC=gcc
+            export CXX=g++
+            mkdir -p build && cd build &&
+                $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)
+        ) > /dev/null
     else
         config+="--enable-snappy "
         config+="--disable-standalone-build "
