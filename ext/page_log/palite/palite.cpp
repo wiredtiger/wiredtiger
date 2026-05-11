@@ -361,14 +361,21 @@ struct Config {
     uint32_t force_error = 0;              /* Force a simulated network error every N operations */
     uint32_t materialization_delay_ms = 0; /* Average length of materialization delay */
     /*
-     * skunk_94 touch-cursor POC simulation knobs. Each get_pages call sleeps for the
-     * appropriate value below. A warmup call (WT_PAGE_LOG_WARMUP) records the page id
-     * in a per-Palite "warm set"; subsequent non-warmup reads of warm page ids sleep
-     * warm_read_ms instead of cold_read_ms.
+     * skunk_94 touch-cursor POC simulation. All disabled by default so existing palite
+     * users are not affected. Set ``touch_sim_enabled=true`` in the extension config
+     * to opt in; the three latency knobs then govern get_pages timing:
+     *
+     *   - WT_PAGE_LOG_WARMUP calls sleep ``touch_sim_warmup_ms`` the first time a
+     *     given (table_id, page_id) is warmed; repeated warmups are free.
+     *   - Regular reads sleep ``touch_sim_cold_ms`` for pages not in the warm-set,
+     *     ``touch_sim_warm_ms`` for pages that have been warmed.
+     *   - A regular read does NOT auto-promote a page into the warm-set: the warm-set
+     *     models SLS heuristic state, only the touch cursor feeds it.
      */
-    uint32_t cold_read_ms = 0; /* Per-call delay for a cold (never-warmed) page read */
-    uint32_t warm_read_ms = 0; /* Per-call delay for a warm (previously warmed) page read */
-    uint32_t warmup_ms = 0;    /* Per-call delay for a fire-and-forget warmup call */
+    bool touch_sim_enabled = false;
+    uint32_t touch_sim_cold_ms = 0;
+    uint32_t touch_sim_warm_ms = 0;
+    uint32_t touch_sim_warmup_ms = 0;
     uint64_t last_materialized_lsn = 0;    /* The last materialized LSN (0 if not set) */
     int32_t verbose = WT_VERBOSE_INFO;     /* Verbose level */
     bool verbose_msg = true;               /* Send verbose messages to msg callback interface */
@@ -391,9 +398,10 @@ struct Config {
         configure_value(parser.get(), config, "force_delay", force_delay);
         configure_value(parser.get(), config, "force_error", force_error);
         configure_value(parser.get(), config, "materialization_delay_ms", materialization_delay_ms);
-        configure_value(parser.get(), config, "cold_read_ms", cold_read_ms);
-        configure_value(parser.get(), config, "warm_read_ms", warm_read_ms);
-        configure_value(parser.get(), config, "warmup_ms", warmup_ms);
+        configure_value(parser.get(), config, "touch_sim_enabled", touch_sim_enabled);
+        configure_value(parser.get(), config, "touch_sim_cold_ms", touch_sim_cold_ms);
+        configure_value(parser.get(), config, "touch_sim_warm_ms", touch_sim_warm_ms);
+        configure_value(parser.get(), config, "touch_sim_warmup_ms", touch_sim_warmup_ms);
         configure_value(parser.get(), config, "verbose", verbose);
         configure_value(parser.get(), config, "verbose_msg", verbose_msg);
         configure_value(parser.get(), config, "sql_trace", sql_trace);
@@ -479,12 +487,13 @@ template <> struct std::formatter<Config> {
     {
         return std::format_to(ctx.out(),
           "{{cache_size_mb={:L}, mmap_size_mb={:L}, delay_ms={}, error_ms={}, force_delay={}, "
-          "force_error={}, materialization_delay_ms={}, cold_read_ms={}, warm_read_ms={}, "
-          "warmup_ms={}, last_materialized_lsn={}, "
-          "verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
+          "force_error={}, materialization_delay_ms={}, touch_sim_enabled={}, "
+          "touch_sim_cold_ms={}, touch_sim_warm_ms={}, touch_sim_warmup_ms={}, "
+          "last_materialized_lsn={}, verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
           cfg.cache_size_mb, cfg.mmap_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay,
-          cfg.force_error, cfg.materialization_delay_ms, cfg.cold_read_ms, cfg.warm_read_ms,
-          cfg.warmup_ms, cfg.last_materialized_lsn, cfg.verbose,
+          cfg.force_error, cfg.materialization_delay_ms, cfg.touch_sim_enabled,
+          cfg.touch_sim_cold_ms, cfg.touch_sim_warm_ms, cfg.touch_sim_warmup_ms,
+          cfg.last_materialized_lsn, cfg.verbose,
           cfg.verbose_msg, cfg.sql_trace, cfg.verify);
     }
 };
@@ -2216,21 +2225,27 @@ public:
         const bool is_warmup = (args->flags & WT_PAGE_LOG_WARMUP) != 0;
 
         /*
-         * skunk_94 simulation. For a warmup, we deliberately do *not* fetch the page; we
-         * record the (table_id, page_id) as warm, sleep the warmup latency, and return zero
-         * results so the caller treats this like "not found / nothing to do". The next
-         * non-warmup get for the same page will hit the warm-read latency.
+         * skunk_94 touch-cursor simulation, opt-in via touch_sim_enabled. When the
+         * master switch is off the rest of palite behaves exactly as before:
+         *   - the warm-set is never consulted or modified,
+         *   - reads pay no extra latency,
+         *   - warmup requests still return zero results (they have to: that is the
+         *     contract of WT_PAGE_LOG_WARMUP), but they do not sleep.
+         * That keeps every existing palite-backed test bit-for-bit identical.
          */
         if (is_warmup) {
-            /*
-             * Per-page warmup cost is paid only once; subsequent warmup calls for the
-             * same (table_id, page_id) are no-ops. This models PALI's expected async
-             * behavior: the first hint dispatches work to the page log; repeated
-             * hints for an in-flight or already-warm page fall through cheaply.
-             */
-            const bool newly = mark_warm(table_id, page_id);
-            if (newly && config.warmup_ms > 0)
-                std::this_thread::sleep_for(std::chrono::milliseconds(config.warmup_ms));
+            if (config.touch_sim_enabled) {
+                /*
+                 * Per-page warmup cost is paid only once; subsequent warmup calls for
+                 * the same (table_id, page_id) are no-ops. This models PALI's expected
+                 * async behavior: the first hint dispatches work to the page log;
+                 * repeated hints for an in-flight or already-warm page fall through.
+                 */
+                const bool newly = mark_warm(table_id, page_id);
+                if (newly && config.touch_sim_warmup_ms > 0)
+                    std::this_thread::sleep_for(
+                      std::chrono::milliseconds(config.touch_sim_warmup_ms));
+            }
             assert(results_count != nullptr);
             *results_count = 0;
             /* Preserve the requested LSN; clear everything else so callers see no data. */
@@ -2242,11 +2257,13 @@ public:
             return;
         }
 
-        const bool warm = (config.warm_read_ms > 0 || config.cold_read_ms > 0) &&
-          is_warm(table_id, page_id);
-        const uint32_t sleep_ms = warm ? config.warm_read_ms : config.cold_read_ms;
-        if (sleep_ms > 0)
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+        if (config.touch_sim_enabled) {
+            const bool warm = is_warm(table_id, page_id);
+            const uint32_t sleep_ms =
+              warm ? config.touch_sim_warm_ms : config.touch_sim_cold_ms;
+            if (sleep_ms > 0)
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+        }
 
         Pages &table = get_table(table_id);
         table.get(table_id, page_id, args, flags, results_array, results_count);

@@ -1158,8 +1158,9 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
         F_SET(cbt, WT_CBT_READ_ONCE);
 
     /*
-     * skunk_94 touch cursor: parse touch=(enabled,class,action,command). When enabled the
-     * cursor's search() becomes a fire-and-forget hint into the page log layer.
+     * skunk_94 touch cursor: parse touch=(enabled,class_id,action,command). When
+     * enabled, cursor->search() becomes a fire-and-forget hint into the page log
+     * layer (PALI) -- see __wt_btcur_touch in src/btree/bt_curtouch.c.
      */
     WT_ERR(__wt_config_gets(session, cfg, "touch.enabled", &cval));
     if (cval.val != 0) {
@@ -1167,9 +1168,8 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
         WT_ERR(__wt_config_gets(session, cfg, "touch.class_id", &cval));
         cbt->touch_class = (uint32_t)cval.val;
         WT_ERR(__wt_config_gets(session, cfg, "touch.command", &cval));
-        if (cval.len > 0) {
+        if (cval.len > 0)
             WT_ERR(__wt_buf_set(session, &cbt->touch_command, cval.str, cval.len));
-        }
         /* Touch cursors are fire-and-forget; never cache them. */
         cacheable = false;
     }
