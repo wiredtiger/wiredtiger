@@ -272,7 +272,7 @@ Among the fields of a \c WT_BUCKET_STORAGE is a pointer to a \c
 WT_STORAGE_SOURCE. The storage source can be thought of as a driver,
 or an abstraction of a cloud provider with operations. WiredTiger has
 several instances of \c WT_STORAGE_SOURCE, these include the drivers
-for the AWS, GCP, and Azure clouds, as well as \c dir_store,
+for the AWS and GCP clouds, as well as \c dir_store,
 used for testing and development.
 A storage source can be asked to create a custom file system
 (returning a \c WT_FILE_SYSTEM) from a
