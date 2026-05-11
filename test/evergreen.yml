@@ -5707,6 +5707,42 @@ tasks:
     # Performance Tests for btree #
     ###############################
 
+  - name: perf-test-compact-stress
+    tags: ["btree-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: compact-stress.wtperf
+          maxruns: 3
+          wtarg: -ops ['"compact_wallclock_sec", "compact_pages_reviewed", "compact_pages_rewritten", "compact_pages_skipped", "file_size_reduction_bytes", "block_reuse_bytes_after", "block_first_srch_walk_peak_us", "update_ops_during_compact", "update_max_latency_during_compact_us", "update_avg_latency_during_compact_us", "update_p50_latency_us", "update_p95_latency_us", "update_p99_latency_us", "update_p999_latency_us", "min_max_update_throughput", "max_latency_read_update"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: compact-stress.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: compact-stress.wtperf
+
+  - name: perf-test-compact-stress-medium
+    tags: ["btree-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: compact-stress.wtperf
+          maxruns: 2
+          wtarg: -args ['"-o icount=5000000", "-o run_time=3600", "-o conn_config=cache_size=10G"'] -ops ['"compact_wallclock_sec", "compact_pages_reviewed", "compact_pages_rewritten", "compact_pages_skipped", "file_size_reduction_bytes", "block_reuse_bytes_after", "block_first_srch_walk_peak_us", "update_ops_during_compact", "update_max_latency_during_compact_us", "update_avg_latency_during_compact_us", "update_p50_latency_us", "update_p95_latency_us", "update_p99_latency_us", "update_p999_latency_us", "min_max_update_throughput", "max_latency_read_update"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: compact-stress-medium
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: compact-stress-medium
+
   - name: perf-test-small-btree
     tags: ["btree-perf"]
     depends_on:
