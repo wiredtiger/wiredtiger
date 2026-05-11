@@ -154,7 +154,7 @@ class test_touch_cursor05(wttest.WiredTigerTestCase):
         uri = 'file:touch_nonascii.wt'
         self._create(uri)
         c = self.session.open_cursor(uri)
-        c['\xe4\xb8\x96\xe7\x95\x8c'] = 'world-in-utf8'    # utf-8 bytes for "world" in CJK
+        c['\xe4\xb8\x96\xe7\x95\x8c'] = 'world-in-utf8'    # utf-8 bytes for non-ASCII "world"
         c['key\x00with\x00nul'] = 'nul-in-key'
         c.close()
 

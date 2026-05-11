@@ -40,7 +40,7 @@
 # zero exceptions and zero corrupt reads (every key must read back its
 # matching value). This exercises:
 #   - Concurrent WT_GEN_SPLIT enter/leave by multiple sessions.
-#   - palite's process-static warm-set under mutex contention.
+#   - The palite process-static warm-set under mutex contention.
 #   - The cursor cache short-circuit refusal for touch cursors under
 #     concurrent open/close churn.
 
@@ -110,7 +110,7 @@ class test_touch_cursor04(wttest.WiredTigerTestCase, DisaggConfigMixin):
                         c.close()
             finally:
                 sess.close()
-        except BaseException as e:    # pylint: disable=broad-except
+        except BaseException as e:
             errors.append(('toucher', e))
 
     def _reader(self, uri, deadline, rng_seed, errors):
@@ -135,7 +135,7 @@ class test_touch_cursor04(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     c.close()
             finally:
                 sess.close()
-        except BaseException as e:    # pylint: disable=broad-except
+        except BaseException as e:
             errors.append(('reader', e))
 
     # ---- tests ---------------------------------------------------------

@@ -1165,8 +1165,8 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
      *
      * Internal callers (e.g. __hs_verify, __wt_curfile_open from a layered
      * cursor) pass cfg == NULL; __wt_config_gets_def handles that by returning
-     * the supplied default. The non-_def variant dereferences cfg[0] and
-     * crashes, so we exclusively use _def here.
+     * the supplied default. The non-_def variant would dereference cfg[0] and
+     * crash, so we exclusively use _def here.
      */
     WT_ERR(__wt_config_gets_def(session, cfg, "touch.enabled", 0, &cval));
     if (cval.val != 0) {

@@ -40,17 +40,17 @@
 #
 # This test:
 #   1. Verifies the cursor open succeeds and search() always returns WT_NOTFOUND.
-#   2. Runs a scaled-down version of the case-94 workload (UUID -> JSON payload
-#      table plus a birthday index) with a deliberately small cache, so the
-#      working set never fits in cache and every iteration is forced through
-#      palite. With palite's touch_sim_enabled=true latencies engaged, the
-#      touch-warmup path should be measurably faster than the no-touch path
-#      over multiple repeats.
+#   2. Runs a scaled-down version of the case-94 workload (random-id -> JSON
+#      payload table plus a birthday index) with a deliberately small cache,
+#      so the working set never fits in cache and every iteration is forced
+#      through palite. With the touch_sim_enabled=true timing knobs engaged
+#      in the palite extension, the touch-warmup path should be measurably
+#      faster than the no-touch path over multiple repeats.
 #
 # The simulation knobs live entirely in palite; they default to disabled so
 # every other palite-backed test in the suite sees zero behavior change.
 
-import json, random, time, uuid, wiredtiger, wttest
+import json, random, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -61,7 +61,7 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Latency knobs in milliseconds. Picked to be small enough to keep the
     # whole test under ~3 minutes on Evergreen, large enough that wall-clock
     # signal dominates Python/SQLite overhead. Cold:warm = 5:1 leaves enough
-    # headroom that the assertion below is robust to ~25% timing jitter.
+    # headroom that the assertion below tolerates ~25% timing noise.
     cold_ms = 5
     warm_ms = 1
     warmup_ms = 1
@@ -128,7 +128,7 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             month = rng.randint(1, 12)
             day = rng.randint(1, 28)
             bday = f'{year:04d}{month:02d}{day:02d}'
-            u = uuid.UUID(int=rng.getrandbits(128)).hex
+            u = format(rng.getrandbits(128), '032x')
             houses = rng.randint(0, 5)
             payload = json.dumps(
                 {'year': year, 'houses': houses, 'name': f'p_{u[:8]}', 'pad': pad}
@@ -139,7 +139,7 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         idx.close()
         self.session.checkpoint()
 
-    def _collect_uuids(self, idx_uri):
+    def _collect_keys(self, idx_uri):
         min_year = self.age_ref_year - self.age_high
         max_year = self.age_ref_year - self.age_low
         lo = f'{min_year:04d}0101'
@@ -162,12 +162,12 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         finally:
             c.close()
 
-    def _warmup(self, main_uri, uuids):
+    def _warmup(self, main_uri, keys):
         t = self.session.open_cursor(
             main_uri, None, 'touch=(enabled=true,action=warmup)'
         )
         try:
-            for u in uuids:
+            for u in keys:
                 t.set_key(u)
                 rc = t.search()
                 self.assertEqual(rc, wiredtiger.WT_NOTFOUND,
@@ -175,11 +175,11 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         finally:
             t.close()
 
-    def _sum_houses(self, main_uri, uuids):
+    def _sum_houses(self, main_uri, keys):
         c = self.session.open_cursor(main_uri, None, None)
         total = 0
         try:
-            for u in uuids:
+            for u in keys:
                 c.set_key(u)
                 if c.search() == 0:
                     total += json.loads(c.get_value())['houses']
@@ -254,13 +254,13 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.pr(f'  populate took {time.perf_counter() - t0:.1f}s')
 
         # Establish the working set once -- both paths use the exact same
-        # uuid list (drawn from the same seed), so per-iteration comparison is
+        # id list (drawn from the same seed), so per-iteration comparison is
         # apples-to-apples.
         self._reopen()
-        uuids = self._collect_uuids(idx_uri)
-        self.assertGreater(len(uuids), 100,
-                           'age window matched too few uuids; bump nitems')
-        self.pr(f'  matched {len(uuids)} uuids in age {self.age_low}..{self.age_high}')
+        keys = self._collect_keys(idx_uri)
+        self.assertGreater(len(keys), 100,
+                           'age window matched too few keys; bump nitems')
+        self.pr(f'  matched {len(keys)} keys in age {self.age_low}..{self.age_high}')
 
         # Path A: no touch. Each iteration reopens to drop the WT cache, so
         # every iteration is forced back through palite at cold latency.
@@ -268,17 +268,17 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.repeats):
             self._reopen()
             t0 = time.perf_counter()
-            total_a = self._sum_houses(main_uri, uuids)
+            total_a = self._sum_houses(main_uri, keys)
             dt = time.perf_counter() - t0
             a_times.append(dt)
             self.pr(f'  no-touch  iter {i}: {dt*1000:7.1f} ms  sum={total_a}')
 
-        # Path B: touch once, then run the same repeats. palite's warm-set is
+        # Path B: touch once, then run the same repeats. The palite warm-set is
         # process-static keyed by db_home, so the warm bits survive the
         # reopen() between iterations.
         self._reopen()
         t0 = time.perf_counter()
-        self._warmup(main_uri, uuids)
+        self._warmup(main_uri, keys)
         warmup_s = time.perf_counter() - t0
         self.pr(f'  warmup pass: {warmup_s*1000:.1f} ms')
 
@@ -286,7 +286,7 @@ class test_touch_cursor01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.repeats):
             self._reopen()
             t0 = time.perf_counter()
-            total_b = self._sum_houses(main_uri, uuids)
+            total_b = self._sum_houses(main_uri, keys)
             dt = time.perf_counter() - t0
             b_times.append(dt)
             self.pr(f'  touched   iter {i}: {dt*1000:7.1f} ms  sum={total_b}')

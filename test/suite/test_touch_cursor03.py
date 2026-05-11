@@ -162,8 +162,8 @@ class test_touch_cursor03(wttest.WiredTigerTestCase, DisaggConfigMixin):
             f'touch_search={after_search - before_search}, '
             f'touch_warmup={after_warmup - before_warmup}, '
             f'touch_leaf_cached={after_cached - before_cached}')
-        # On a freshly opened connection with a small cache, at least one of
-        # those warmups should have actually gone through.
+        # On a freshly opened connection with a small cache, at least one
+        # warmup should have actually gone through.
         self.assertGreater(after_warmup - before_warmup, 0)
 
     def test_command_payload_can_be_any_string(self):

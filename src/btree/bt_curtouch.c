@@ -7,7 +7,7 @@
  */
 
 /*
- * Touch cursor implementation (skunk_94).
+ * Touch cursor implementation.
  *
  * A touch cursor's WT_CURSOR::search descends the btree using only internal
  * pages and forwards a fire-and-forget warmup hint to the page log layer

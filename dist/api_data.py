@@ -1862,29 +1862,26 @@ methods = {
         if non-empty, back up the given list of objects; valid only for a backup data source''',
         type='list'),
     Config('touch', '', r'''
-        Configure this cursor as a fire-and-forget "touch" cursor that descends a btree to
-        the leaf parent and then sends a non-returning command (typically a prefetch/warmup
-        hint) down to the page log layer (PALI) instead of materializing the leaf page in
-        cache. The cursor's search APIs return WT_NOTFOUND once the hint has been issued.
-        This is a POC interface for skunkworks-94''',
+        Configure this cursor as a fire-and-forget touch cursor. The cursor descends
+        the btree to the leaf parent and forwards a hint to the page log layer instead
+        of materializing the leaf page in cache; search returns WT_NOTFOUND once the
+        hint has been issued''',
         type='category', subconfig=[
         Config('enabled', 'false', r'''
-            Enable the touch (fire-and-forget) cursor behavior. When false, the cursor
-            behaves as a normal cursor regardless of the other touch sub-options''',
+            enable touch (fire-and-forget) behavior; when false the cursor behaves as
+            a regular cursor regardless of the other touch sub-options''',
             type='boolean'),
         Config('class_id', '1', r'''
-            Touch class hint passed through to the page log layer. Reserved; defaults to 1
-            for the "warmup" class. (Named class_id rather than class to avoid colliding
-            with C++ keywords in generated headers.)''',
+            tier or class hint forwarded to the page log layer (named class_id to
+            avoid the C++ reserved word in generated headers)''',
             type='int', min='0', max='255'),
         Config('action', 'warmup', r'''
-            Touch action passed to the page log layer. The default "warmup" is the only
-            action currently understood by palite''',
+            action forwarded to the page log layer; the default is the only action
+            currently understood by the palite extension''',
             choices=['warmup']),
         Config('command', '', r'''
-            Opaque command payload (a base64-encoded prototype is suggested) forwarded
-            verbatim to the page log layer as a WT_ITEM. Use the empty string to send no
-            payload'''),
+            opaque payload forwarded verbatim to the page log layer as a WT_ITEM;
+            empty string sends no payload'''),
         ]),
 ]),
 

@@ -1059,24 +1059,21 @@ struct __wt_session {
      * "clear"\, \c "size"\, \c "tree_walk"; default empty.}
      * @config{target, if non-empty\, back up the given list of objects; valid only for a backup
      * data source., a list of strings; default empty.}
-     * @config{touch = (, Configure this cursor as a fire-and-forget "touch" cursor that descends a
-     * btree to the leaf parent and then sends a non-returning command (typically a prefetch/warmup
-     * hint) down to the page log layer (PALI) instead of materializing the leaf page in cache.  The
-     * cursor's search APIs return WT_NOTFOUND once the hint has been issued.  This is a POC
-     * interface for skunkworks-94., a set of related configuration options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;action, Touch action passed to the page log layer.  The
-     * default "warmup" is the only action currently understood by palite., a string\, chosen from
-     * the following options: \c "warmup"; default \c warmup.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * class_id, Touch class hint passed through to the page log layer.  Reserved; defaults to 1 for
-     * the "warmup" class.  (Named class_id rather than class to avoid colliding with C++ keywords
-     * in generated headers.)., an integer between \c 0 and \c 255; default \c 1.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;command, Opaque command payload (a base64-encoded prototype
-     * is suggested) forwarded verbatim to the page log layer as a WT_ITEM. Use the empty string to
-     * send no payload., a string; default empty.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, Enable
-     * the touch (fire-and-forget) cursor behavior.  When false\, the cursor behaves as a normal
-     * cursor regardless of the other touch sub-options., a boolean flag; default \c false.}
+     * @config{touch = (, Configure this cursor as a fire-and-forget touch cursor.  The cursor
+     * descends the btree to the leaf parent and forwards a hint to the page log layer instead of
+     * materializing the leaf page in cache; search returns WT_NOTFOUND once the hint has been
+     * issued., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;action, action forwarded to the page log layer; the default
+     * is the only action currently understood by the palite extension., a string\, chosen from the
+     * following options: \c "warmup"; default \c warmup.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;class_id,
+     * tier or class hint forwarded to the page log layer (named class_id to avoid the C++ reserved
+     * word in generated headers)., an integer between \c 0 and \c 255; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;command, opaque payload forwarded verbatim to the page log
+     * layer as a WT_ITEM; empty string sends no payload., a string; default empty.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable touch (fire-and-forget) behavior; when false
+     * the cursor behaves as a regular cursor regardless of the other touch sub-options., a boolean
+     * flag; default \c false.}
      * @config{ ),,}
      * @configend
      * @param[out] cursorp a pointer to the newly opened cursor
@@ -7688,12 +7685,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cursor: touch cursor warmup hints that returned an error */
 #define	WT_STAT_CONN_CURSOR_TOUCH_WARMUP_ERROR		1541
 /*!
- * cursor: touch cursor warmups skipped because the leaf had no address
+ * cursor: touch cursor warmup skipped because the leaf had no address
  * cookie
  */
 #define	WT_STAT_CONN_CURSOR_TOUCH_SKIPPED_NO_ADDR	1542
 /*!
- * cursor: touch cursor warmups skipped because the tree is not
+ * cursor: touch cursor warmup skipped because the tree is not
  * disaggregated
  */
 #define	WT_STAT_CONN_CURSOR_TOUCH_SKIPPED_NON_DISAGG	1543
@@ -9771,9 +9768,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_TOUCH_WARMUP		2278
 /*! cursor: touch warmup hints that returned an error */
 #define	WT_STAT_DSRC_CURSOR_TOUCH_WARMUP_ERROR		2279
-/*! cursor: touch warmups skipped because the leaf had no address cookie */
+/*! cursor: touch warmup skipped because the leaf had no address cookie */
 #define	WT_STAT_DSRC_CURSOR_TOUCH_SKIPPED_NO_ADDR	2280
-/*! cursor: touch warmups skipped because the tree is not disaggregated */
+/*! cursor: touch warmup skipped because the tree is not disaggregated */
 #define	WT_STAT_DSRC_CURSOR_TOUCH_SKIPPED_NON_DISAGG	2281
 /*! cursor: truncate calls */
 #define	WT_STAT_DSRC_CURSOR_TRUNCATE			2282
