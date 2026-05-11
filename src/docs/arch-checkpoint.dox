@@ -96,7 +96,7 @@ than 1 when calling ::wiredtiger_open.
 The main checkpoint thread and the workers communicate through two queues:
 a work queue of pages to reconcile and a done queue of completed items.
 For each leaf page encountered during the B-tree walk, the main thread duplicates
-the walk position (giving the copy its own hazard pointer), wraps it in a work
+the walk position (giving the copy of its own hazard pointer), wraps it in a work
 item, and pushes it onto the work queue. Workers pick up items, reconcile the
 page, and push the result onto the done queue, posting a semaphore.
 
