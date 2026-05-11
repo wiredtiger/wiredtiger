@@ -18,6 +18,9 @@ allowed-tools:
   - mcp__devprod-mcp-gateway__evg_get_test_results_summary
   - mcp__devprod-mcp-gateway__evg_get_test_results_detailed
   - mcp__devprod-mcp-gateway__evg_get_patch_failed_jobs
+  - mcp__devprod-mcp-gateway__evg_list_user_recent_patches
+  - mcp__devprod-mcp-gateway__evg_get_inferred_project_ids
+  - mcp__devprod-mcp-gateway__evg_download_task_artifacts
   - mcp__devprod-mcp-gateway__git_log
   - mcp__devprod-mcp-gateway__git_blame
   - mcp__devprod-mcp-gateway__git_search
@@ -50,6 +53,7 @@ investigation summary.
 | Reproduce locally / run test/format | @paths/build.md |
 | Inspect a WT data directory or WAL | @skills/wt-cli/SKILL.md |
 | Load, search, or comment on a Jira ticket | @skills/jira/SKILL.md |
+| Fetch CI logs, test results, or patch failures | @skills/evergreen/SKILL.md |
 | Structured output format / Jira comment | @reference/output-template.md |
 | Escalation order and good defaults | @reference/workflow.md |
 | Inspect WT pages in SLS / disagg storage | @skills/disagg-page-inspection/SKILL.md |
@@ -108,16 +112,17 @@ If a confirmed root cause exists, skip to Step 6 to verify and summarize.
 
 ## Step 3: Fetch Evergreen task logs
 
-`evg_get_task_log_summary` for the failing task ID from the BF description.
+Use the evergreen skill (@skills/evergreen/SKILL.md) to fetch task logs, test results, and
+patch failure context. The skill handles WT-specific failure classification, the log-prefix
+→ subsystem map, and the Antithesis special-case.
 
-If the summary does not show the first error clearly, use `evg_get_raw_task_logs` with
-`log_type=task`.
+Inputs come from the BF custom fields you read in Step 1: `Failing Tasks`,
+`Failing Buildvariants`, `Evergreen Project`, `First Failing Revision`. If the task ID
+isn't present as a field, extract it from the Evergreen URL in the BF description (the long
+hex string in the path).
 
-Extract:
-- First error line and surrounding context (20 lines before/after)
-- Stack trace (if crash or assertion)
-- Test name and file
-- Whether the failure is deterministic or appears intermittent in the log
+Hand back to this flow: the first error line, stack-trace summary, failure type, affected
+subsystem, and recommendation for which path/skill to invoke next.
 
 ## Step 4: Classify failure type
 
