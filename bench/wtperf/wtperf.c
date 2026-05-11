@@ -36,6 +36,9 @@
 
 static WT_THREAD_RET checkpoint_worker(void *);
 static WT_THREAD_RET compact_worker(void *);
+static WT_THREAD_RET stats_sampler_worker(void *);
+static int           capture_pre_compact_stats(WTPERF *, WT_SESSION *, const char *);
+static int           capture_post_compact_stats(WTPERF *, WT_SESSION *, const char *);
 static int drop_all_tables(WTPERF *);
 static int execute_populate(WTPERF *);
 static int execute_post_populate_remove(WTPERF *);
@@ -1479,6 +1482,125 @@ err:
 }
 
 /*
+ * stat_read_u64 --
+ *     Read a single uint64 stat from an open statistics cursor.
+ */
+static int
+stat_read_u64(WT_CURSOR *cursor, int stat_key, uint64_t *valuep)
+{
+    const char *desc, *str_val;
+    int ret;
+
+    cursor->set_key(cursor, stat_key);
+    if ((ret = cursor->search(cursor)) != 0)
+        return (ret);
+    return (cursor->get_value(cursor, &desc, &str_val, valuep));
+}
+
+/*
+ * capture_pre_compact_stats --
+ *     Read file size, block_reuse_bytes, and compact page counters before
+ *     compact starts.
+ */
+static int
+capture_pre_compact_stats(WTPERF *wtperf, WT_SESSION *session, const char *uri)
+{
+    WT_CURSOR *cursor;
+    char stat_uri[256];
+    int ret;
+
+    testutil_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri);
+    if ((ret = session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cursor)) != 0) {
+        lprintf(wtperf, ret, 0, "capture_pre_compact_stats: open_cursor %s", stat_uri);
+        return (ret);
+    }
+    (void)stat_read_u64(cursor, WT_STAT_DSRC_BLOCK_SIZE, &wtperf->compact_pre_file_size);
+    (void)stat_read_u64(cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &wtperf->compact_pre_reuse_bytes);
+    return (cursor->close(cursor));
+}
+
+/*
+ * capture_post_compact_stats --
+ *     Read final compact page counters, file size, and block_reuse_bytes.
+ */
+static int
+capture_post_compact_stats(WTPERF *wtperf, WT_SESSION *session, const char *uri)
+{
+    WT_CURSOR *cursor;
+    char stat_uri[256];
+    int ret;
+
+    testutil_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri);
+    if ((ret = session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cursor)) != 0) {
+        lprintf(wtperf, ret, 0, "capture_post_compact_stats: open_cursor %s", stat_uri);
+        return (ret);
+    }
+    (void)stat_read_u64(cursor, WT_STAT_DSRC_BLOCK_SIZE, &wtperf->compact_post_file_size);
+    (void)stat_read_u64(cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &wtperf->compact_post_reuse_bytes);
+    (void)stat_read_u64(cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED,
+                        &wtperf->compact_pages_reviewed);
+    (void)stat_read_u64(cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN,
+                        &wtperf->compact_pages_rewritten);
+    (void)stat_read_u64(cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED,
+                        &wtperf->compact_pages_skipped);
+    return (cursor->close(cursor));
+}
+
+/*
+ * stats_sampler_worker --
+ *     While compact is running, sample the connection block_first_srch_walk_time
+ *     stat every 100 ms and track the max. Exits when wtperf->compact_done is set.
+ */
+static WT_THREAD_RET
+stats_sampler_worker(void *arg)
+{
+    WTPERF *wtperf;
+    WTPERF_THREAD *thread;
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    WT_CURSOR *cursor;
+    const char *desc, *str_val;
+    uint64_t sample, peak;
+    int ret;
+
+    thread = (WTPERF_THREAD *)arg;
+    wtperf = thread->wtperf;
+    conn = wtperf->conn;
+    session = NULL;
+    cursor = NULL;
+    peak = 0;
+
+    if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
+        lprintf(wtperf, ret, 0, "stats_sampler: open_session");
+        goto done;
+    }
+    if ((ret = session->open_cursor(
+           session, "statistics:", NULL, "statistics=(all)", &cursor)) != 0) {
+        lprintf(wtperf, ret, 0, "stats_sampler: open_cursor statistics:");
+        goto done;
+    }
+
+    while (!wtperf->compact_done && !wtperf->stop) {
+        cursor->set_key(cursor, WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME);
+        if ((ret = cursor->search(cursor)) == 0) {
+            (void)cursor->get_value(cursor, &desc, &str_val, &sample);
+            if (sample > peak)
+                peak = sample;
+        }
+        cursor->reset(cursor);
+        usleep(100 * 1000); /* 100 ms */
+    }
+    wtperf->block_first_srch_walk_peak_us = peak;
+
+done:
+    if (cursor != NULL)
+        (void)cursor->close(cursor);
+    if (session != NULL)
+        (void)session->close(session, NULL);
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
  * compact_worker --
  *     Foreground compact thread for WT-14196 benchmark. Fires session->compact()
  *     once and signals the workload to wind down.
@@ -1519,6 +1641,17 @@ compact_worker(void *arg)
     if (wtperf->stop)
         goto err;
 
+    if ((ret = capture_pre_compact_stats(wtperf, session, uri)) != 0)
+        goto err;
+
+    /*
+     * Launch a stats sampler thread to track the peak
+     * block_first_srch_walk_time during compact. It exits when we set
+     * wtperf->compact_done below.
+     */
+    wtperf->statssamplerthreads = dcalloc(1, sizeof(WTPERF_THREAD));
+    start_threads(wtperf, NULL, wtperf->statssamplerthreads, 1, stats_sampler_worker);
+
     lprintf(wtperf, 0, 1, "compact_worker: starting session->compact(%s)", uri);
     start_clock = __wt_clock(NULL);
     ret = session->compact(session, uri, NULL);
@@ -1529,11 +1662,21 @@ compact_worker(void *arg)
     if (ret != 0)
         lprintf(wtperf, ret, 0, "compact_worker: session->compact returned %d", ret);
 
+    (void)capture_post_compact_stats(wtperf, session, uri);
+
     lprintf(wtperf, 0, 1,
       "compact_worker: session->compact finished in %.2f sec (ret=%d)",
       elapsed_us / 1.0e6, ret);
 
     wtperf->compact_done = true;
+
+    /* Join the sampler thread before flipping wtperf->stop. */
+    if (wtperf->statssamplerthreads != NULL) {
+        stop_threads(1, wtperf->statssamplerthreads);
+        free(wtperf->statssamplerthreads);
+        wtperf->statssamplerthreads = NULL;
+    }
+
     if (opts->compact_ends_workload)
         wtperf->stop = true;
 
