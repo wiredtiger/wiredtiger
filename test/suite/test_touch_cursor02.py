@@ -66,9 +66,16 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
                 wiredtiger.WiredTigerError,
                 lambda: self.session.open_cursor(uri, None, config))
 
+    # NOTE: every test below uses a file: URI rather than table:. The disagg
+    # test hook (hook_disagg.py::replace_uri) rewrites table:* to layered:*
+    # which routes cursor opens through __wt_clayered_open instead of
+    # __wt_curfile_open, bypassing the touch-config validation in
+    # __curfile_create. file: URIs are not rewritten, so the validation we
+    # are testing actually runs under every hook configuration.
+
     def test_touch_rejects_column_store(self):
         """A column-store source rejects touch=() at open time."""
-        uri = 'table:touch_cs'
+        uri = 'file:touch_cs.wt'
         self.session.create(uri, 'key_format=r,value_format=i')
         self._assert_open_rejects(
             uri, 'touch=(enabled=true)',
@@ -84,7 +91,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
 
     def test_touch_rejects_next_random(self):
         """touch=(enabled=true) with next_random=true is rejected up-front."""
-        uri = 'table:touch_random'
+        uri = 'file:touch_random.wt'
         self.session.create(uri, 'key_format=S,value_format=S')
         c = self.session.open_cursor(uri)
         c['k'] = 'v'
@@ -95,7 +102,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
 
     def test_touch_rejects_unknown_action(self):
         """touch.action must be in the allowed set (currently {warmup})."""
-        uri = 'table:touch_action'
+        uri = 'file:touch_action.wt'
         self.session.create(uri, 'key_format=S,value_format=S')
         self._assert_open_rejects(
             uri, 'touch=(enabled=true,action=not_a_real_action)',
@@ -103,7 +110,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
 
     def test_touch_class_id_bounds(self):
         """class_id must be in [0, 255]."""
-        uri = 'table:touch_classid'
+        uri = 'file:touch_classid.wt'
         self.session.create(uri, 'key_format=S,value_format=S')
         for bad, frag in (('-1', 'too small'), ('256', 'too large'),
                           ('99999', 'too large')):
@@ -113,7 +120,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
 
     def test_touch_class_id_accepted_range(self):
         """class_id 0, 1, 127, 255 all open cleanly."""
-        uri = 'table:touch_classid_ok'
+        uri = 'file:touch_classid_ok.wt'
         self.session.create(uri, 'key_format=S,value_format=S')
         for good in (0, 1, 127, 255):
             c = self.session.open_cursor(
@@ -123,7 +130,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
     def test_touch_open_succeeds_on_row_store(self):
         """A row-store table with touch=(enabled=true) opens successfully and
         search() returns WT_NOTFOUND."""
-        uri = 'table:touch_ok'
+        uri = 'file:touch_ok.wt'
         self.session.create(uri, 'key_format=S,value_format=S')
         c = self.session.open_cursor(
             uri, None,
@@ -136,7 +143,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
 
     def test_touch_default_disabled(self):
         """Without touch=(...) the cursor is a normal cursor."""
-        uri = 'table:touch_default'
+        uri = 'file:touch_default.wt'
         self.session.create(uri, 'key_format=S,value_format=S')
         c = self.session.open_cursor(uri)
         try:
@@ -150,7 +157,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
     def test_touch_search_returns_notfound_for_every_key_shape(self):
         """search() on a touch cursor always returns WT_NOTFOUND, regardless
         of whether the underlying key exists."""
-        uri = 'table:touch_notfound'
+        uri = 'file:touch_notfound.wt'
         self.session.create(uri,
                             'key_format=S,value_format=S,'
                             'allocation_size=512,leaf_page_max=512')
@@ -172,7 +179,7 @@ class test_touch_cursor02(wttest.WiredTigerTestCase):
 
     def test_touch_cursor_close_releases_payload(self):
         """Close on a touch cursor doesn't leak the command buffer."""
-        uri = 'table:touch_close'
+        uri = 'file:touch_close.wt'
         self.session.create(uri, 'key_format=S,value_format=S')
         # Open + close many times with a payload to surface any leak under
         # diagnostic builds.
