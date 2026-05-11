@@ -1,0 +1,50 @@
+{
+  "skill_name": "wt-analyze",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "BF-12345",
+      "expected_behavior": "Fetches BF ticket via jira_get_issue, checks linked issues and Build Baron, fetches EVG task log summary, classifies failure type, and produces structured output using reference/output-template.md"
+    },
+    {
+      "id": 2,
+      "prompt": "BF-12345 — checkpoint assertion crash on rhel8",
+      "expected_behavior": "Classifies as Assertion/Crash type, maps to checkpoint subsystem, extracts stack trace from raw logs, forms hypothesis, recommends paths/investigate.md for deep-dive"
+    },
+    {
+      "id": 3,
+      "prompt": "BF-12345 has linked SERVER-98765 with a CAUSES relationship",
+      "expected_behavior": "Reads the linked SERVER ticket first (Step 2), jumps to verification (Step 6), confirms the commit is in the failure window before accepting the hypothesis"
+    },
+    {
+      "id": 4,
+      "prompt": "Triage these BFs: BF-12345, BF-12346, BF-12347",
+      "expected_behavior": "Routes to paths/priority.md; fetches details for each BF, ranks by blast radius and recurrence, produces ranked table with top-3 next actions"
+    },
+    {
+      "id": 5,
+      "prompt": "BF-12345 is intermittent — fails about 20% of the time on rhel8",
+      "expected_behavior": "Classifies as Flaky type, routes to paths/build.md to measure failure rate; uses repro_format_tmux.sh in validation mode (no --stop-on-fail)"
+    },
+    {
+      "id": 6,
+      "prompt": "Reproduce BF-12345 locally and stop on first failure",
+      "expected_behavior": "Routes to paths/build.md; calls evg_get_raw_task_logs to extract the exact test command; uses repro_format_tmux.sh with --stop-on-fail; reports worker dir and log paths"
+    },
+    {
+      "id": 7,
+      "prompt": "Post an investigation summary for BF-12345 to Jira",
+      "expected_behavior": "Uses templates/bf-comment.md to format the comment in Jira wiki markup; shows the full comment to the user and waits for explicit confirmation before calling jira_add_comment"
+    },
+    {
+      "id": 8,
+      "prompt": "BF-12345 — task times out with no output on disagg variant",
+      "expected_behavior": "Classifies as Hang/Timeout, maps to disagg subsystem, searches Glean for disagg hang patterns, recommends paths/investigate.md with specific questions about flow control or WT stall"
+    },
+    {
+      "id": 9,
+      "prompt": "What are the top WiredTiger BFs right now?",
+      "expected_behavior": "Routes to paths/priority.md; calls jira_search_issues with a JQL query for open WT BFs, enriches with Build Baron recurrence data, produces ranked output"
+    }
+  ]
+}
