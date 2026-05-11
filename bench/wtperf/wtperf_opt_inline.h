@@ -96,6 +96,23 @@ DEF_OPT_AS_BOOL(close_conn, 1,
   "properly close connection at end of test. Setting to false does not sync data to disk and can "
   "result in lost data after test exits.")
 DEF_OPT_AS_BOOL(compact, 0, "post-populate compact")
+DEF_OPT_AS_BOOL(compact_ends_workload, 1,
+  "when a compact_worker returns, signal worker threads to stop. If false, workload runs "
+  "until run_time elapses even after compact finishes.")
+DEF_OPT_AS_UINT32(compact_start_after, 0,
+  "seconds into the workload phase to wait before issuing compact, 0 fires immediately.")
+DEF_OPT_AS_UINT32(compact_threads, 0,
+  "number of foreground compact threads. Each runs session->compact() once "
+  "after compact_start_after seconds into the workload phase. Independent of "
+  "the (post-populate) compact option above.")
+DEF_OPT_AS_STRING(compact_uri, "",
+  "URI for compact_threads to operate on. Empty means the first table.")
+DEF_OPT_AS_UINT32(post_populate_remove_modulus, 0,
+  "after populate, remove every Nth key to create fragmentation. "
+  "0 disables. Takes precedence over post_populate_remove_pct.")
+DEF_OPT_AS_UINT32(post_populate_remove_pct, 0,
+  "after populate, remove this percentage of randomly-chosen keys. "
+  "0 disables. Ignored if post_populate_remove_modulus is set.")
 DEF_OPT_AS_STRING(compression, "none",
   "compression extension.  Allowed configuration values are: 'none', 'lz4', 'snappy', 'zlib', "
   "'zstd'")
