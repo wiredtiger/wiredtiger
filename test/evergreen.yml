@@ -322,8 +322,6 @@ functions:
           ${CLANG_C_VERSION|} \
           ${CLANG_CXX_VERSION|} \
           ${ENABLE_CPPSUITE|} \
-          ${ENABLE_GCP|} \
-          ${IMPORT_GCP_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
           ${CC_OPTIMIZE_LEVEL|} \
@@ -558,26 +556,8 @@ functions:
           set -o errexit
           ${PREPARE_TEST_ENV}
 
-          # GCP requires a path to a credentials file for authorization. To not expose the private
-          # information within the file, we use a placeholder private variable which are replaced
-          # in the command line with the evergreen expansion variables and stored in a temporary
-          # file.
-          file=$(mktemp --suffix ".json")
-
-          # Use '|' as the delimiter instead of default behavior because the private key contains
-          # slash characters.
-          sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
-              -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
-              -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
-              -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
-              -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
-              -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
-          export GOOGLE_APPLICATION_CREDENTIALS="$file"
-
           virtualenv -p python3 venv
           source venv/bin/activate
-          pip3 install boto3==1.34.144
-          pip3 install google-cloud-storage==2.17.0
 
           # Run Python testing for all tiered tests.
           python3 ../test/suite/run.py ${ignore_stdout} -j $(nproc) ${tiered_storage_test_name}
@@ -1496,17 +1476,6 @@ functions:
         WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} list
         WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} verify
 
-  "install gcp dependencies":
-    - command: shell.exec
-      type: setup
-      params:
-        working_dir: "wiredtiger"
-        shell: bash
-        script: |
-          set -o errexit
-          . test/evergreen/find_cmake.sh
-          . test/evergreen/install_gcp_dependencies.sh $CMAKE
-
   "split stress test":
     command: shell.exec
     params:
@@ -1568,11 +1537,6 @@ variables:
     <<: *configure_flags_with_builtins
     ENABLE_SHARED: -DENABLE_SHARED=0
     ENABLE_STATIC: -DENABLE_STATIC=1
-
-  # Configure flags for tiered storage GCP extension.
-  - &configure_flags_tiered_storage_gcp
-    ENABLE_GCP: -DENABLE_GCP=1
-    IMPORT_GCP_SDK: -DIMPORT_GCP_SDK=external
 
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_asan_mongodb_stable_clang_with_builtins
