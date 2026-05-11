@@ -163,6 +163,49 @@ __bmd_get_page_ids(
 }
 
 /*
+ * __bmd_warmup --
+ *     Issue a fire-and-forget warmup hint to PALI for the page referenced by addr. The PALI
+ *     contract is that warmup returns zero results; defensively free anything a buggy
+ *     implementation hands back.
+ */
+static int
+__bmd_warmup(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
+  const WT_ITEM *command)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_DECL_RET;
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
+    WT_PAGE_LOG_GET_ARGS get_args;
+    WT_PAGE_LOG_HANDLE *plhandle;
+    uint32_t i, results_count;
+    const uint8_t *p;
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    if (block_disagg == NULL || (plhandle = block_disagg->plhandle) == NULL ||
+      plhandle->plh_get == NULL)
+        return (0);
+
+    p = addr;
+    WT_RET(__wt_block_disagg_addr_unpack(session, &p, addr_size, &cookie));
+
+    memset(results, 0, sizeof(results));
+    memset(&get_args, 0, sizeof(get_args));
+    get_args.flags = WT_PAGE_LOG_WARMUP;
+    get_args.command = command;
+    results_count = WT_DELTA_LIMIT + 1;
+
+    ret = plhandle->plh_get(
+      plhandle, &session->iface, cookie.page_id, 0, &get_args, results, &results_count);
+
+    for (i = 0; i < results_count; ++i)
+        if (results[i].mem != NULL)
+            __wt_free(session, results[i].mem);
+
+    return (ret);
+}
+
+/*
  * __bmd_method_set --
  *     Set up the legal methods.
  */
@@ -202,6 +245,7 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->verify_addr = __wti_block_disagg_verify_addr;
     bm->verify_end = __wti_block_disagg_verify_end;
     bm->verify_start = __wti_block_disagg_verify_start;
+    bm->warmup = __bmd_warmup;
     bm->write = __bmd_write;
     bm->write_size = __bmd_write_size;
     bm->encrypt_skip = __bmd_encrypt_skip_size;

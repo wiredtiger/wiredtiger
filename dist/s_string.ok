@@ -71,6 +71,7 @@ CELLs
 CGmP
 CGs
 CHUNKCACHE
+CJK
 CKPT
 CLAYERED
 CLOEXEC
@@ -359,6 +360,7 @@ PDEATHSIG
 PFX
 PID
 PIDs
+POC
 POS
 POSIX
 PPC
@@ -513,6 +515,7 @@ URI's
 URIs
 USECS
 UTF
+UUID
 UltraSparc
 Unbuffered
 Uncomment
@@ -538,6 +541,7 @@ Vigenere
 Vixie
 VxWorks
 WAL
+WARMUP
 WCHAR
 WILLNEED
 WIREDTIGER
@@ -832,10 +836,12 @@ curhs
 curindex
 curlog
 curmetadata
+currentp
 cursoring
 cursorp
 curstat
 curtable
+curtouch
 curversion
 cust
 customizable
@@ -887,8 +893,10 @@ dequeued
 der
 deref
 dereference
+dereferences
 dereferencing
 desc
+descentp
 designator
 dest
 destSize
@@ -1178,6 +1186,7 @@ iter
 iterable
 ized
 janky
+jitter
 jjj
 js
 json
@@ -1200,6 +1209,7 @@ kvraw
 kvs
 lang
 las
+latencies
 latin
 lazyfs
 lbrace
@@ -1439,6 +1449,7 @@ packv
 pagesize
 pali
 palite
+palite's
 param
 params
 parens
@@ -1509,6 +1520,7 @@ pv
 pwrite
 py
 pygit
+pylint
 pymongo
 qdown
 qn
@@ -1625,6 +1637,7 @@ skiplist
 skiplists
 skipp
 skippable
+skunkworks
 slotp
 slvg
 sn
@@ -1855,6 +1868,7 @@ utf
 util
 utils
 uu
+uuid
 vCPU
 vCPUs
 vN
@@ -1894,6 +1908,7 @@ waker
 wakeup
 wakeups
 warmup
+warmups
 whitespace
 wiredTiger
 wiredTigerTables

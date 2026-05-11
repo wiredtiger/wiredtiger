@@ -35,35 +35,29 @@
 
 /*
  * __curtouch_warmup_leaf --
- *     Issue a fire-and-forget warmup hint for the leaf page referenced by descent. Only meaningful
- *     when the tree is on disaggregated storage; on a non-disagg tree the call is a no-op success
- *     because there is no PALI handle to forward to. The contract with PALI is that the
- *     implementation must return zero results for a warmup; we defensively free anything that leaks
- *     back to avoid a memory leak from a buggy implementation.
+ *     Forward a fire-and-forget warmup hint for the leaf page referenced by descent through the
+ *     block manager. Disagg trees forward the hint to PALI via bm->warmup; other tree kinds and
+ *     pages without an on-disk address account as a no-op skip. The caller's WT_NOTFOUND outcome is
+ *     unchanged either way.
  */
 static int
 __curtouch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM *command)
 {
     WT_ADDR_COPY addr;
-    WT_BLOCK_DISAGG *block_disagg;
-    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_ITEM results[WT_DELTA_LIMIT + 1];
-    WT_PAGE_LOG_GET_ARGS get_args;
-    WT_PAGE_LOG_HANDLE *plhandle;
-    uint32_t i, results_count;
-    const uint8_t *p;
 
     btree = S2BT(session);
     bm = btree->bm;
+    /* Silence clang-analyzer; __wt_ref_addr_copy only writes the struct on success. */
+    WT_CLEAR(addr);
 
     /*
-     * No-op for storage classes that don't speak PALI. We still return success so the touch cursor
-     * is usable on any tree -- the caller observes the same WT_NOTFOUND either way.
+     * Only disagg block managers wire a warmup hook. On any other tree kind the hint has nowhere to
+     * go; the caller still sees WT_NOTFOUND.
      */
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || bm == NULL) {
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || bm == NULL || bm->warmup == NULL) {
         WT_STAT_CONN_DSRC_INCR(session, cursor_touch_skipped_non_disagg);
         return (0);
     }
@@ -78,37 +72,10 @@ __curtouch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM 
         return (0);
     }
 
-    /* Crack the cookie for the page id. */
-    p = addr.addr;
-    WT_RET(__wt_block_disagg_addr_unpack(session, &p, addr.size, &cookie));
-
-    /* The disaggregated block manager handle stores the PALI handle directly. */
-    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-    if (block_disagg == NULL || (plhandle = block_disagg->plhandle) == NULL ||
-      plhandle->plh_get == NULL) {
-        WT_STAT_CONN_DSRC_INCR(session, cursor_touch_skipped_non_disagg);
-        return (0);
-    }
-
-    memset(results, 0, sizeof(results));
-    memset(&get_args, 0, sizeof(get_args));
-    get_args.flags = WT_PAGE_LOG_WARMUP;
-    get_args.command = command;
-    results_count = WT_DELTA_LIMIT + 1;
-
     WT_STAT_CONN_DSRC_INCR(session, cursor_touch_warmup);
-    ret = plhandle->plh_get(
-      plhandle, &session->iface, cookie.page_id, 0, &get_args, results, &results_count);
+    ret = bm->warmup(bm, session, addr.addr, addr.size, command);
     if (ret != 0)
         WT_STAT_CONN_DSRC_INCR(session, cursor_touch_warmup_error);
-
-    /*
-     * The contract is that warmup returns zero results, but a faulty implementation could still
-     * allocate. Free anything that came back.
-     */
-    for (i = 0; i < results_count; ++i)
-        if (results[i].mem != NULL)
-            __wt_free(session, results[i].mem);
 
     return (ret);
 }
@@ -144,6 +111,8 @@ __curtouch_descend(
     collator = btree->collator;
     descent = NULL;
     pindex = NULL;
+    /* Silence clang-analyzer; __wt_ref_addr_copy only writes the struct on success. */
+    WT_CLEAR(addr);
 
     if (0) {
 restart:

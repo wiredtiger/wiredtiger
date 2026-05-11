@@ -139,7 +139,7 @@ find [a-z]* -name '*.[ch]' \
     -e '/\/node_modules\//d' \
     -e '/^tools\/wt-mcp\/\.venv\//d' \
     -e '/^venv\//d' \
-    -e '/^build\//d' \
+    -e '/^build[^/]*\//d' \
     -e '/dist\/__/d' \
     -e 's/^\.\///' |
     do_in_parallel || RET=1
