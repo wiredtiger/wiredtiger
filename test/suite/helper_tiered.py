@@ -38,13 +38,6 @@ def get_auth_token(storage_source):
     if storage_source == 'dir_store':
         # Fake a secret token.
         auth_token = "Secret"
-    if storage_source == 's3_store':
-        # Auth token is the AWS access key ID and the AWS secret key as semi-colon separated values.
-        # We expect the values to have been provided through the environment variables.
-        access_key = os.getenv('aws_sdk_s3_ext_access_key')
-        secret_key = os.getenv('aws_sdk_s3_ext_secret_key')
-        if access_key and secret_key:
-            auth_token = access_key + ";" + secret_key
     if storage_source == 'azure_store':
         if (os.getenv('AZURE_STORAGE_CONNECTION_STRING') != None):
             auth_token = '\"' + os.getenv('AZURE_STORAGE_CONNECTION_STRING') + '\"'
@@ -54,8 +47,6 @@ def get_auth_token(storage_source):
 
 # Buckets configured for the storage source.
 buckets = {
-    # S3 buckets requires a region.
-    "s3_store": ['s3testext-us;us-east-2', 's3testext;ap-southeast-2'],
     "dir_store": ['bucket1', 'bucket2'],
     "gcp_store": ["gcptestext-us", "gcptestext-ap"],
     "azure_store": ["azuretestext-us", "azuretestext-ap"]
@@ -136,17 +127,6 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = 'pfx2_',
             num_ops=100,
             ss_name = 'dir_store')),
-        ('s3_store', dict(is_tiered = True,
-            is_tiered_shared = tiered_shared,
-            is_local_storage = False,
-            auth_token = get_auth_token('s3_store'),
-            bucket = get_bucket_name('s3_store', 0),
-            bucket1 = get_bucket_name('s3_store', 1),
-            bucket_prefix = generate_prefix(random_prefix, test_name),
-            bucket_prefix1 = generate_prefix(random_prefix, test_name),
-            bucket_prefix2 = generate_prefix(random_prefix, test_name),
-            num_ops=20,
-            ss_name = 's3_store')),
         ('gcp_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = False,
@@ -269,7 +249,6 @@ class TieredConfigMixin:
         elif config != '':
             config = '=(config=\"(%s)\")' % config
 
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
         if not self.is_local_storage:
             extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.
@@ -286,22 +265,7 @@ class TieredConfigMixin:
         if not os.path.exists(object_files_path):
             os.makedirs(object_files_path)
 
-        if (self.ss_name == 's3_store'):
-            import boto3
-            # The bucket from the storage source is expected to be a name and a region, separated by a
-            # semi-colon. eg: 'abcd;ap-southeast-2'.
-            bucket_name, region = bucket_name.split(';')
-
-            # Get the bucket resource and list the objects within that bucket that match the prefix for a
-            # given test.
-            s3 = boto3.resource('s3')
-            bucket = s3.Bucket(bucket_name)
-            objects = list(bucket.objects.filter(Prefix=prefix))
-
-            for o in objects:
-                file_path = object_files_path + '/' + o.key.split('/')[-1]
-                bucket.download_file(o.key, file_path)
-        elif (self.ss_name == 'gcp_store'):
+        if (self.ss_name == 'gcp_store'):
             from google.cloud import storage
 
             storage_client = storage.Client()
