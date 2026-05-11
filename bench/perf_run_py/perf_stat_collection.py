@@ -29,7 +29,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os
-from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMinMax, PerfStatLatencyWorkgen, PerfStatDBSize
+from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMinMax, PerfStatLatencyWorkgen, PerfStatDBSize, PerfStatLatencyPercentile
 from typing import List
 
 
@@ -114,6 +114,79 @@ class PerfStatCollection:
                      input_offset=5,
                      output_label='Update count over sec'),
             ]
+
+    @staticmethod
+    def compact_stats():
+        """Stats produced by wtperf compact-stress runner: compact_summary.txt + latency.update."""
+        return [
+            PerfStat(short_label="compact_wallclock_sec",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Compact wallclock seconds\s+:\s+[\d.]+',
+                     input_offset=4, output_precision=2,
+                     conversion_function=float,
+                     output_label='Compact wallclock seconds'),
+            PerfStat(short_label="compact_pages_reviewed",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Compact pages reviewed\s+:\s+\d+',
+                     input_offset=4,
+                     output_label='Compact pages reviewed'),
+            PerfStat(short_label="compact_pages_rewritten",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Compact pages rewritten\s+:\s+\d+',
+                     input_offset=4,
+                     output_label='Compact pages rewritten'),
+            PerfStat(short_label="compact_pages_skipped",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Compact pages skipped\s+:\s+\d+',
+                     input_offset=4,
+                     output_label='Compact pages skipped'),
+            PerfStat(short_label="file_size_reduction_bytes",
+                     stat_file='compact_summary.txt',
+                     pattern=r'File size reduction bytes\s+:\s+-?\d+',
+                     input_offset=5,
+                     output_label='File size reduction bytes'),
+            PerfStat(short_label="block_reuse_bytes_after",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Block reuse bytes after compact\s+:\s+\d+',
+                     input_offset=6,
+                     output_label='Block reuse bytes after compact'),
+            PerfStat(short_label="block_first_srch_walk_peak_us",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Block first srch walk time peak usecs\s+:\s+\d+',
+                     input_offset=8,
+                     output_label='Block first srch walk time peak usecs'),
+            PerfStat(short_label="update_ops_during_compact",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Update ops during compact\s+:\s+\d+',
+                     input_offset=5,
+                     output_label='Update ops during compact'),
+            PerfStat(short_label="update_avg_latency_during_compact_us",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Update avg latency during compact us\s+:\s+\d+',
+                     input_offset=7,
+                     output_label='Update avg latency during compact us'),
+            PerfStat(short_label="update_max_latency_during_compact_us",
+                     stat_file='compact_summary.txt',
+                     pattern=r'Update max latency during compact us\s+:\s+\d+',
+                     input_offset=7,
+                     output_label='Update max latency during compact us'),
+            PerfStatLatencyPercentile(short_label="update_p50_latency_us",
+                                      stat_file='latency.update',
+                                      output_label='Update p50 latency us',
+                                      percentile=50.0, op_name='update'),
+            PerfStatLatencyPercentile(short_label="update_p95_latency_us",
+                                      stat_file='latency.update',
+                                      output_label='Update p95 latency us',
+                                      percentile=95.0, op_name='update'),
+            PerfStatLatencyPercentile(short_label="update_p99_latency_us",
+                                      stat_file='latency.update',
+                                      output_label='Update p99 latency us',
+                                      percentile=99.0, op_name='update'),
+            PerfStatLatencyPercentile(short_label="update_p999_latency_us",
+                                      stat_file='latency.update',
+                                      output_label='Update p99.9 latency us',
+                                      percentile=99.9, op_name='update'),
+        ]
 
     @staticmethod
     def all_stats():
@@ -243,4 +316,4 @@ class PerfStatCollection:
                                    input_offset=11),
             PerfStatDBSize(short_label="database_size",
                            output_label='Database Size (in bytes)')
-        ] + PerfStatCollection.cache_eviction_stats()
+        ] + PerfStatCollection.cache_eviction_stats() + PerfStatCollection.compact_stats()
