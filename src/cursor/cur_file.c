@@ -311,6 +311,17 @@ __curfile_search(WT_CURSOR *cursor)
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
     time_start = __wt_clock(session);
+    if (cbt->touch_enabled) {
+        /*
+         * skunk_94: fire-and-forget touch cursor. Descend internal pages only and emit
+         * a warmup hint via PALI. The expected return is WT_NOTFOUND; we deliberately
+         * skip the active-position assertion below.
+         */
+        WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_touch(cbt));
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+        goto err;
+    }
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search(cbt));
     WT_ERR(ret);
     time_stop = __wt_clock(session);
@@ -639,6 +650,10 @@ err:
     WT_TRET(__wt_btcur_close(cbt, false));
     /* The URI is owned by the btree handle. */
     cursor->internal_uri = NULL;
+
+    /* skunk_94 touch cursor: free any payload buffer we allocated. */
+    if (cbt->touch_command.mem != NULL)
+        __wt_buf_free(session, &cbt->touch_command);
 
     WT_ASSERT(session,
       session->dhandle == NULL ||
@@ -1141,6 +1156,23 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     WT_ERR(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
     if (cval.val != 0)
         F_SET(cbt, WT_CBT_READ_ONCE);
+
+    /*
+     * skunk_94 touch cursor: parse touch=(enabled,class,action,command). When enabled the
+     * cursor's search() becomes a fire-and-forget hint into the page log layer.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "touch.enabled", &cval));
+    if (cval.val != 0) {
+        cbt->touch_enabled = true;
+        WT_ERR(__wt_config_gets(session, cfg, "touch.class_id", &cval));
+        cbt->touch_class = (uint32_t)cval.val;
+        WT_ERR(__wt_config_gets(session, cfg, "touch.command", &cval));
+        if (cval.len > 0) {
+            WT_ERR(__wt_buf_set(session, &cbt->touch_command, cval.str, cval.len));
+        }
+        /* Touch cursors are fire-and-forget; never cache them. */
+        cacheable = false;
+    }
 
     /* Underlying btree initialization. */
     __wt_btcur_open(cbt);

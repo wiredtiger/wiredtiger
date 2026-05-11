@@ -1861,6 +1861,31 @@ methods = {
     Config('target', '', r'''
         if non-empty, back up the given list of objects; valid only for a backup data source''',
         type='list'),
+    Config('touch', '', r'''
+        Configure this cursor as a fire-and-forget "touch" cursor that descends a btree to
+        the leaf parent and then sends a non-returning command (typically a prefetch/warmup
+        hint) down to the page log layer (PALI) instead of materializing the leaf page in
+        cache. The cursor's search APIs return WT_NOTFOUND once the hint has been issued.
+        This is a POC interface for skunkworks-94''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            Enable the touch (fire-and-forget) cursor behavior. When false, the cursor
+            behaves as a normal cursor regardless of the other touch sub-options''',
+            type='boolean'),
+        Config('class_id', '1', r'''
+            Touch class hint passed through to the page log layer. Reserved; defaults to 1
+            for the "warmup" class. (Named class_id rather than class to avoid colliding
+            with C++ keywords in generated headers.)''',
+            type='int', min='0', max='255'),
+        Config('action', 'warmup', r'''
+            Touch action passed to the page log layer. The default "warmup" is the only
+            action currently understood by palite''',
+            choices=['warmup']),
+        Config('command', '', r'''
+            Opaque command payload (a base64-encoded prototype is suggested) forwarded
+            verbatim to the page log layer as a WT_ITEM. Use the empty string to send no
+            payload'''),
+        ]),
 ]),
 
 'WT_SESSION.query_timestamp' : Method([

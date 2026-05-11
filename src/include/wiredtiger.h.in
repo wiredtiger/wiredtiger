@@ -1059,6 +1059,25 @@ struct __wt_session {
      * "clear"\, \c "size"\, \c "tree_walk"; default empty.}
      * @config{target, if non-empty\, back up the given list of objects; valid only for a backup
      * data source., a list of strings; default empty.}
+     * @config{touch = (, Configure this cursor as a fire-and-forget "touch" cursor that descends a
+     * btree to the leaf parent and then sends a non-returning command (typically a prefetch/warmup
+     * hint) down to the page log layer (PALI) instead of materializing the leaf page in cache.  The
+     * cursor's search APIs return WT_NOTFOUND once the hint has been issued.  This is a POC
+     * interface for skunkworks-94., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;action, Touch action passed to the page log layer.  The
+     * default "warmup" is the only action currently understood by palite., a string\, chosen from
+     * the following options: \c "warmup"; default \c warmup.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * class_id, Touch class hint passed through to the page log layer.  Reserved; defaults to 1 for
+     * the "warmup" class.  (Named class_id rather than class to avoid colliding with C++ keywords
+     * in generated headers.)., an integer between \c 0 and \c 255; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;command, Opaque command payload (a base64-encoded prototype
+     * is suggested) forwarded verbatim to the page log layer as a WT_ITEM. Use the empty string to
+     * send no payload., a string; default empty.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, Enable
+     * the touch (fire-and-forget) cursor behavior.  When false\, the cursor behaves as a normal
+     * cursor regardless of the other touch sub-options., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @configend
      * @param[out] cursorp a pointer to the newly opened cursor
      * @errors
@@ -5838,6 +5857,8 @@ typedef enum {
 #define WT_PAGE_LOG_ENCRYPTED 0x4u
 /*! page is cold tier */
 #define WT_PAGE_LOG_COLD 0x8u
+/*! fire-and-forget touch hint (warmup); the call must not return page data */
+#define WT_PAGE_LOG_WARMUP 0x40u
 
 /*!
  * WT_PAGE_LOG::pl_complete_checkpoint interface.
@@ -5896,6 +5917,13 @@ struct __wt_page_log_get_args {
         * Input arguments
         */
        uint32_t flags;
+
+       /*
+        * Optional fire-and-forget hint payload. When ::WT_PAGE_LOG_WARMUP is set in flags
+        * the implementation may inspect this WT_ITEM to learn what action to take. The
+        * caller retains ownership of the memory referenced by data/size. May be NULL.
+        */
+       const WT_ITEM *command;
 
        /*
         * Output arguments, returned by the call

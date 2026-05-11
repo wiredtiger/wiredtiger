@@ -929,6 +929,14 @@ __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *c
     if (cval.val != 0)
         goto return_false;
 
+    /*
+     * skunk_94 touch cursor: a touch cursor is a different cursor type. Don't let a regular
+     * cached cursor be reused with touch=(enabled=true), and don't cache touch cursors.
+     */
+    WT_RET(__wt_config_gets_def(session, cfg, "touch.enabled", 0, &cval));
+    if (cval.val != 0)
+        goto return_false;
+
     WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
     if (cval.val)
         goto return_false;

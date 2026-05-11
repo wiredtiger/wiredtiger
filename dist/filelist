@@ -29,6 +29,7 @@ src/btree/bt_compact.c
 src/btree/bt_curnext.c
 src/btree/bt_curprev.c
 src/btree/bt_cursor.c
+src/btree/bt_curtouch.c
 src/btree/bt_debug.c
 src/btree/bt_delete.c
 src/btree/bt_discard.c

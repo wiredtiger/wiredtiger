@@ -243,6 +243,18 @@ struct __wt_cursor_btree {
     uint8_t append_tree; /* Cursor appended to the tree */
 
     /*
+     * skunk_94 touch-cursor POC.
+     *
+     * When ``touch_enabled`` is set, the cursor's search APIs fire a non-returning
+     * "warmup" hint down the page log layer (PALI) for the would-be leaf page and
+     * return WT_NOTFOUND, instead of materializing the leaf into the WT cache. The
+     * opaque ``touch_command`` payload is forwarded verbatim to the page log layer.
+     */
+    bool touch_enabled;
+    uint32_t touch_class;
+    WT_ITEM touch_command;
+
+    /*
      * We have to restart cursor next/prev after a prepare conflict. Keep the state of the cursor
      * separately so we can restart at exactly the right point.
      */
