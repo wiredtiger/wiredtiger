@@ -1170,9 +1170,10 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if (cval.val != 0) {
         if (WT_CURSOR_RECNO(cursor))
             WT_ERR_MSG(session, ENOTSUP, "touch cursor: only row-store tables are supported");
-        if (bulk)
-            WT_ERR_MSG(
-              session, EINVAL, "touch cursor is incompatible with bulk-load configuration");
+        /*
+         * bulk+touch is rejected up-front in __wt_curfile_open before the exclusive dhandle is
+         * taken, so we don't re-check bulk here.
+         */
         if (cbt->checkpoint_txn != NULL)
             WT_ERR_MSG(session, EINVAL, "touch cursor is incompatible with checkpoint cursors");
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
