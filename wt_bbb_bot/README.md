@@ -9,14 +9,34 @@ from the performance-ai repo, adapted for WT correctness and test failures.
 
 ```
 SKILL.md  ←  /wt-analyze BF-XXXXX  (interactive, in Claude Code)
-  └── paths/priority.md       — rank multiple open BFs
-  └── paths/investigate.md    — deep-dive root cause analysis
-  └── paths/build.md          — reproduce locally, propose fix
-  └── paths/wt-cli.md         — inspect WT data directories
-  └── paths/repro-format.md   — test/format repro workflow
-
-main.py   ←  python main.py BF-XXXXX  (batch / cron automation)
-  └── loads SKILL.md as system prompt → Anthropic SDK → devprod-mcp-gateway
+  │
+  ├── paths/                        BF-specific triage workflows
+  │     ├── investigate.md          gather evidence → delegate to systematic-debugging
+  │     ├── priority.md             rank and score multiple open BFs
+  │     └── build.md                build WT + extract repro → delegate to wiredtiger-test-format
+  │
+  ├── skills/                       reusable, independently invokable skills
+  │     ├── jira/                   read tickets, search, post comments
+  │     ├── github/                 commit investigation, blame, diff
+  │     ├── wt-cli/                 inspect WT data directories and WAL
+  │     ├── wiredtiger-test-format/ run test/format, tracing, parallel repro
+  │     ├── systematic-debugging/   root cause methodology (before any fix)
+  │     ├── disagg-page-inspection/ inspect WT pages in SLS disagg storage
+  │     │     └── references/       setup, navigation, decoding, decryption, grpc
+  │     └── help-ticket-triage/     triage HELP tickets with FTDC data
+  │
+  ├── reference/
+  │     ├── workflow.md             escalation order and good defaults
+  │     ├── output-template.md      structured output for all investigations
+  │     └── safety-rules.md        safety constraints for WT data operations
+  │
+  ├── templates/
+  │     └── bf-comment.md          Jira wiki markup comment template
+  │
+  ├── scripts/
+  │     └── repro_format_tmux.sh   tmux-based format repro helper
+  │
+  └── main.py                       batch / automation entry point (Anthropic SDK)
 ```
 
 ## Setup (one-time, per developer)
@@ -39,25 +59,32 @@ main.py   ←  python main.py BF-XXXXX  (batch / cron automation)
    automatically. The first MCP call triggers Okta auth — on a headless box, copy the
    printed authorization URL into a laptop browser to complete the flow.
 
+## Architecture principle
+
+**`paths/`** = BF-specific context and evidence gathering steps, routed to from `SKILL.md`.  
+**`skills/`** = reusable, service-specific or methodology skills — independently invokable and referenced by paths.
+
 ## Interactive use (recommended)
 
 Install the skill into Claude Code and invoke it with a ticket key:
 
 ```bash
-# Link skill into Claude Code's skills directory
 ln -sf "$(pwd)/wt_bbb_bot" ~/.claude/skills/wt-analyze
+```
 
-# Then in Claude Code:
+Then in Claude Code:
+```
 /wt-analyze BF-12345
 ```
+
+No credentials needed — Claude Code handles the devprod-mcp-gateway connection natively.
 
 ## Batch / automation use
 
 ```bash
 pip install -r requirements.txt
 
-# Credentials (request via Grove)
-export ANTHROPIC_API_KEY=<your-key>
+export ANTHROPIC_API_KEY=<your-key>       # request via Grove
 export DEVPROD_MCP_URL=<gateway-url>
 export DEVPROD_MCP_TOKEN=<gateway-token>
 
@@ -83,3 +110,21 @@ python main.py "Triage BF-12345, BF-12346, BF-12347"
 | `.mcp.json` | MCP server config — auto-loaded by Claude Code from this directory |
 | `main.py` | Batch launcher (loads SKILL.md via Anthropic SDK) |
 | `testing/evals/evals.json` | Evals for skill correctness |
+
+## What's implemented
+
+| Component | Status |
+|---|---|
+| `SKILL.md` — 7-step triage process + routing | Done |
+| `paths/investigate.md` | Done |
+| `paths/priority.md` | Done |
+| `paths/build.md` | Done |
+| `skills/jira/` | Done |
+| `skills/github/` | Done |
+| `skills/wt-cli/` | Done |
+| `skills/wiredtiger-test-format/` | Done |
+| `skills/systematic-debugging/` | Done |
+| `skills/disagg-page-inspection/` + all references | Done |
+| `skills/help-ticket-triage/` | Done |
+| `main.py` SDK launcher | Scaffolded — needs MCP gateway wiring |
+| Evals runner | Not yet — `testing/evals/evals.json` has 9 cases ready |

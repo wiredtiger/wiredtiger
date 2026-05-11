@@ -1,62 +1,67 @@
 # Output Template
 
-Every investigation should end with this structure. Use it for both console output and
-Jira comments (see @../templates/bf-comment.md for the Jira-formatted version).
+Keep everything tight. Bullet points over paragraphs. One line per fact.
+Use the Jira version in @../templates/bf-comment.md.
 
 ---
 
-## BF Summary
+## AI-Assisted Triage and Investigate
 
-**Ticket:** BF-XXXXX — `<summary>`
-**Status:** `<current Jira status>`
-**Variants affected:** `<N variants>` — `<list or "all">`
-**Recurrence (7d):** `<N failures>`
-**Age:** `<N days open>`
+**Ticket:** WT/BF-XXXXX — `<summary>`
+**Status:** `<status>` | **Age:** `<N days>` | **Type:** `<Crash / Assertion / Hang / Corruption / Flaky / Infra>` | **Subsystem:** `<name>`
 
 ---
 
-## Failure Classification
+## Priority Assessment
 
-| Field | Value |
-|---|---|
-| Type | Crash / Assertion / Hang / Corruption / Flaky / Infra |
-| Subsystem | e.g. checkpoint, eviction, txn, rollback-to-stable, disagg |
-| First error | `<exact error line>` |
-| Stack (if any) | `<top 3–5 frames>` |
+- `<One sentence: what kind of failure is this and how bad>`
+- `<One sentence: how broad / who is affected>`
+- `<One sentence: production impact or lack thereof>`
 
----
-
-## Root Cause Hypothesis
-
-`<One paragraph. State what failed, where, and the most likely why.>`
-
-**Confidence:** Low / Medium / High
-**Key uncertainty:** `<what would change the conclusion>`
+**Recommended priority:** P1 / P2 / P3 / P4
 
 ---
 
-## Evidence
+## Root Cause
 
-- **EVG task:** `<task ID or URL>`
-- **Log line:** `<file:line or log excerpt>`
-- **Related tickets:** `<BF-XXXXX, SERVER-XXXXX, WT-XXXXX>`
-- **Prior occurrences:** `<yes/no — link if yes>`
+**TL;DR:** `<One sentence — the core problem a reader can grasp in 5 seconds>`
 
----
+- **What:** `<test/component that failed>`
+- **Where:** `<file:function>`
+- **Why:** `<two to four sentences — exact mechanism, function names, data flow>`
 
-## Recommended Next Action
-
-`<One of the following>`
-- Investigate deeper → @paths/investigate.md (`<specific question to answer>`)
-- Reproduce locally → @paths/build.md (`<exact repro command or config>`)
-- Assign to owner: `<team or person>` (`<reason>`)
-- Already fixed by `<SERVER-XXXXX or commit SHA>` — transition ticket to `Won't Fix` / `Closed`
-- Close as infra issue (`<evidence>`)
+**Confidence:** Low / Medium / High — `<key uncertainty in one clause>`
 
 ---
 
-## AI Disclaimer
+## Recommended Fix  ← root cause known AND fix is clear
 
-> This investigation was produced with AI assistance. Findings should be reviewed before
-> acting on them. Commands marked **[CONFIRM BEFORE RUNNING]** require explicit user
-> approval.
+`<One to two sentences — specific change, file, function. Cite existing patch if present.>`
+
+**Story points:** `<1 / 2 / 3 / 5 / 8 / 13 / 21>` | **Regression risk:** Low / Medium / High — `<one clause>`
+
+---
+
+## Fix Options  ← root cause known BUT fix is unclear
+
+**Option 1 (preferred):** `<approach>`
+Story points: `<N>` | Regression risk: `<level>` | Trade-off: `<one clause>`
+
+**Option 2:** `<approach>`
+Story points: `<N>` | Regression risk: `<level>` | Trade-off: `<one clause>`
+
+**Option 3 (if applicable):** `<approach>`
+Story points: `<N>` | Regression risk: `<level>` | Trade-off: `<one clause>`
+
+---
+
+## Next Action  ← root cause unclear
+
+- Investigate deeper → @paths/investigate.md (`<specific question>`)
+- Reproduce locally → @paths/build.md (`<repro command>`)
+- Already fixed by `<commit/ticket>` — close as Won't Fix
+- Close as infra (`<evidence>`)
+
+---
+
+> AI-assisted. Review before acting.

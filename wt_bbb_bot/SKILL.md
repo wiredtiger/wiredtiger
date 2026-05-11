@@ -4,7 +4,34 @@ description: Triage WiredTiger build failure (BF) tickets — fetch Jira and Eve
 when_to_use: WiredTiger BF triage, Evergreen test failure investigation, WT crash or assertion analysis, BF priority ranking, local reproduction
 argument-hint: "BF-XXXXX"
 owner: jie.chen@mongodb.com
+allowed-tools:
+  - mcp__devprod-mcp-gateway__jira_get_issue
+  - mcp__devprod-mcp-gateway__jira_get_issue_comments
+  - mcp__devprod-mcp-gateway__jira_search_issues
+  - mcp__devprod-mcp-gateway__jira_add_comment
+  - mcp__devprod-mcp-gateway__bb_get_bf
+  - mcp__devprod-mcp-gateway__bb_get_bfg
+  - mcp__devprod-mcp-gateway__bb_get_bfg_by_task
+  - mcp__devprod-mcp-gateway__bb_search_bfgs
+  - mcp__devprod-mcp-gateway__evg_get_task_log_summary
+  - mcp__devprod-mcp-gateway__evg_get_raw_task_logs
+  - mcp__devprod-mcp-gateway__evg_get_test_results_summary
+  - mcp__devprod-mcp-gateway__evg_get_test_results_detailed
+  - mcp__devprod-mcp-gateway__evg_get_patch_failed_jobs
+  - mcp__devprod-mcp-gateway__git_log
+  - mcp__devprod-mcp-gateway__git_blame
+  - mcp__devprod-mcp-gateway__git_search
+  - mcp__devprod-mcp-gateway__git_diff
+  - mcp__devprod-mcp-gateway__git_show
+  - mcp__claude_ai_Glean_via_MCP__search
 ---
+
+# Rules
+
+- Follow Steps 1–7 below exactly, in order. Do not skip steps or deviate from the process.
+- If a step cannot be completed (e.g., no Evergreen task URL exists), note the skip explicitly before continuing.
+- Do not implement code fixes or take actions beyond Step 7 without explicit user instruction.
+- Always end at Step 7: produce the output and offer to post a Jira comment.
 
 # WiredTiger BF Analyzer
 
