@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import datetime, inspect, os, random, wiredtiger
+import os, wiredtiger
 
 # These routines help run the various storage sources. They are required to manage
 # generation of storage source specific configurations.
@@ -81,30 +81,6 @@ def get_check(storage_source, tc, base, n):
         storage_source.assertEqual(tc[str(i)], str(i))
     tc.set_key(str(n))
     storage_source.assertEqual(tc.search(), wiredtiger.WT_NOTFOUND)
-
-# Generate a unique object prefix for cloud store tests.
-def generate_prefix(random_prefix = '', test_name = ''):
-    # Generates a unique prefix to be used with the object keys, eg:
-    # "s3test/python/2022-31-01-16-34-10/623843294--".
-    # Do not change this prefix pattern without checking with the release manager,
-    # as the cloud buckets may have lifecycle rules tied to it.
-    # Group all the python test objects under s3test/python/
-    prefix = 's3test/python/'
-    # Group each test run together by random number and date. If a random prefix isn't provided
-    # generate a new one now.
-    if random_prefix is None:
-        random_prefix = str(random.randrange(1, 2147483646))
-    prefix += datetime.datetime.now().strftime('%Y-%m-%d-%H-%M') + '--' + random_prefix +'/'
-    # Group all scenarios from the same test under the same test name.
-    prefix += test_name + '/'
-
-    # Generate a random number to differentiate object files for tests that use multiple bucket
-    # prefixes. It is important to generate unique prefixes for different tests in the same class,
-    # so that the database namespace do not collide.
-    # Range up to int32_max, matches that of C++'s std::default_random_engine
-    prefix += str(random.randrange(1, 2147483646)) + '--'
-
-    return prefix
 
 def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False, tiered_shared=False):
     tiered_storage_sources = [
