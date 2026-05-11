@@ -35,6 +35,7 @@
 #define DEFAULT_MONITOR_DIR "WT_TEST"
 
 static WT_THREAD_RET checkpoint_worker(void *);
+static WT_THREAD_RET compact_worker(void *);
 static int drop_all_tables(WTPERF *);
 static int execute_populate(WTPERF *);
 static int execute_post_populate_remove(WTPERF *);
@@ -1477,6 +1478,71 @@ err:
     return (WT_THREAD_RET_VALUE);
 }
 
+/*
+ * compact_worker --
+ *     Foreground compact thread for WT-14196 benchmark. Fires session->compact()
+ *     once and signals the workload to wind down.
+ */
+static WT_THREAD_RET
+compact_worker(void *arg)
+{
+    CONFIG_OPTS *opts;
+    WTPERF *wtperf;
+    WTPERF_THREAD *thread;
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    const char *uri;
+    uint64_t start_clock, elapsed_us, delay_remaining;
+    int ret;
+
+    thread = (WTPERF_THREAD *)arg;
+    wtperf = thread->wtperf;
+    opts = wtperf->opts;
+    conn = wtperf->conn;
+    session = NULL;
+    ret = 0;
+
+    if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
+        lprintf(wtperf, ret, 0, "compact_worker: open_session");
+        goto err;
+    }
+
+    uri = (opts->compact_uri != NULL && opts->compact_uri[0] != '\0') ?
+      opts->compact_uri : wtperf->uris[0];
+
+    /* Optional warm-up delay before issuing compact, polling stop. */
+    delay_remaining = opts->compact_start_after;
+    while (delay_remaining > 0 && !wtperf->stop) {
+        sleep(1);
+        --delay_remaining;
+    }
+    if (wtperf->stop)
+        goto err;
+
+    lprintf(wtperf, 0, 1, "compact_worker: starting session->compact(%s)", uri);
+    start_clock = __wt_clock(NULL);
+    ret = session->compact(session, uri, NULL);
+    elapsed_us = WT_CLOCKDIFF_US(__wt_clock(NULL), start_clock);
+
+    wtperf->compact_ret = ret;
+    wtperf->compact_wallclock_us = elapsed_us;
+    if (ret != 0)
+        lprintf(wtperf, ret, 0, "compact_worker: session->compact returned %d", ret);
+
+    lprintf(wtperf, 0, 1,
+      "compact_worker: session->compact finished in %.2f sec (ret=%d)",
+      elapsed_us / 1.0e6, ret);
+
+    wtperf->compact_done = true;
+    if (opts->compact_ends_workload)
+        wtperf->stop = true;
+
+err:
+    if (session != NULL)
+        (void)session->close(session, NULL);
+    return (WT_THREAD_RET_VALUE);
+}
+
 static WT_THREAD_RET
 flush_tier_worker(void *arg)
 {
@@ -2296,6 +2362,7 @@ wtperf_free(WTPERF *wtperf)
 
     free(wtperf->backupthreads);
     free(wtperf->ckptthreads);
+    free(wtperf->compactthreads);
     free(wtperf->flushthreads);
     free(wtperf->scanthreads);
     free(wtperf->popthreads);
@@ -2568,6 +2635,14 @@ start_run(WTPERF *wtperf)
             start_threads(
               wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
         }
+        /* Start the foreground compact thread (WT-14196). */
+        if (opts->compact_threads != 0) {
+            lprintf(wtperf, 0, 1,
+              "Starting %" PRIu32 " compact thread(s)", opts->compact_threads);
+            wtperf->compactthreads = dcalloc(opts->compact_threads, sizeof(WTPERF_THREAD));
+            start_threads(
+              wtperf, NULL, wtperf->compactthreads, opts->compact_threads, compact_worker);
+        }
         /* Start the flush_tier thread. */
         if (opts->tiered_flush_interval != 0) {
             lprintf(wtperf, 0, 1, "Starting 1 flush_tier thread");
@@ -2646,6 +2721,7 @@ err:
     wtperf->ckpt_stop = true;
     stop_threads(1, wtperf->ckptthreads);
     stop_threads(1, wtperf->scanthreads);
+    stop_threads(opts->compact_threads, wtperf->compactthreads);
 
     if (monitor_created != 0)
         testutil_check(__wt_thread_join(NULL, &monitor_thread));
