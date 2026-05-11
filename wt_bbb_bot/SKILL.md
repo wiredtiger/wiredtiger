@@ -17,12 +17,15 @@ investigation summary.
 | Need | Go to |
 |---|---|
 | Initial triage of one BF ticket | This file — Steps 1–7 below |
+| Unclear failure / "why did this happen?" | @paths/investigate.md — Phase 0 |
+| Deep-dive root cause investigation | @paths/investigate.md — Phase 1+ |
 | Rank and prioritize multiple open BFs | @paths/priority.md |
-| Deep-dive root cause investigation | @paths/investigate.md |
 | Reproduce locally / run test/format | @paths/build.md |
 | Inspect a WT data directory or WAL | @paths/wt-cli.md |
+| Load, search, or comment on a Jira ticket | @paths/jira.md |
 | Run or stop on format repro | @paths/repro-format.md |
 | Structured output format / Jira comment | @reference/output-template.md |
+| Escalation order and good defaults | @reference/workflow.md |
 
 # MCP Tools
 

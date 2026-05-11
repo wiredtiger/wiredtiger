@@ -1,13 +1,18 @@
 # Investigate Path
 
-Use this path for a deep-dive into a specific WiredTiger BF — crash, assertion, hang,
-data corruption, or stubborn intermittent.
+Use this path for:
+- failing WT tests
+- intermittent behavior
+- regressions with unclear cause
+- "why did this happen?"
+- "what should I check first?"
+- crash, assertion, hang, or data corruption requiring deep-dive
 
 ## When to enter this path
 
-- Initial triage (SKILL.md Step 4) classified the failure as crash, assertion, hang, or corruption
-- The log summary was not enough to form a hypothesis
-- A root cause hypothesis exists but needs verification
+- Failure cause is unclear — start at Phase 0
+- Initial triage (SKILL.md Step 4) classified the failure — start at Phase 1
+- A root cause hypothesis exists but needs verification — start at Phase 2
 
 ## Tools
 
@@ -16,22 +21,52 @@ data corruption, or stubborn intermittent.
 - `jira_get_issue`, `jira_get_issue_comments` — full BF history
 - `bb_get_bfg` — failure group timeline; is this a recent regression or long-standing?
 - `jira_search_issues` — search for related SERVER/WT tickets with JQL
+- `mcp__claude_ai_Glean_via_MCP__search` — internal Confluence/Slack context
 
-## Investigation workflow
+---
+
+## Phase 0: Triage (start here when cause is unclear)
+
+### Step 1: Read the full error
+- Capture exact error text, assertion, or signal
+- Note the test name and file
+- Record exact reproduction steps from the Evergreen task log
+
+### Step 2: Check recent changes
+- Has this test ever passed? Check `bb_get_bfg` for failure history
+- Any recent WT commits touching the failing subsystem?
+- Linked SERVER/WT tickets with CAUSES relationships?
+
+### Step 3: Gather evidence at component boundaries
+- What was the engine doing? (checkpoint, eviction, txn commit, recovery)
+- Any config flags that change behavior? (`wiredtiger_open` string, test flags)
+- Is the failure deterministic or intermittent?
+
+### Step 4: Classify
+
+| Type | Characteristics | Next |
+|---|---|---|
+| Crash / SIGABRT | Stack trace with signal or `wiredtiger_abort` | Phase 1 |
+| Assertion failure | `WT_ASSERT`, `__wt_errx`, or Python `AssertionError` | Phase 1 |
+| Hang / timeout | Task timeout, no progress in logs | Phase 1 |
+| Data corruption | `verify` failure, unexpected key/value | Phase 1 |
+| Flaky / intermittent | Passes sometimes, low failure rate | @build.md to measure rate |
+| Environment / infra | OOM, disk full, network, agent crash | Note and close as infra |
+
+---
+
+## Phase 1: Root cause investigation
 
 ### Step 1: Extract the exact failure signature
 From the raw logs, find:
 - The **first** error or assertion (not a cascade effect)
 - Full stack trace — note file, function, and line
-- Any preceding log lines that show what WT was doing (checkpoint, eviction, txn commit, etc.)
+- Any preceding log lines that show what WT was doing
 - Relevant config: `wiredtiger_open` string, test flags, storage config
 
-### Step 2: Search for prior art
-```
-jira_search_issues: project in (BF, WT) AND text ~ "<assertion text or function name>" ORDER BY created DESC
-```
-Also use `mcp__claude_ai_Glean_via_MCP__search` for internal Confluence/Slack context on
-the failing function or subsystem.
+### Step 2: Find a nearby working example
+- Search for a similar test that passes
+- Compare broken vs working behavior — list concrete differences
 
 ### Step 3: Map the failure to WT subsystem
 
@@ -46,31 +81,47 @@ the failing function or subsystem.
 | `block_disagg`, `tiered` | Disaggregated / tiered storage |
 | Python `AssertionError` in `test/suite/` | API or functional test |
 
-### Step 4: Verify the hypothesis
-Before concluding, confirm:
-- The commit window: is the failure new (regression) or long-standing?
-- Check `bb_get_bfg` — when did failures start? Any gap in history?
-- If the stack points to a specific commit, check git blame in the WT repo
+### Step 4: Search for prior art
+```
+jira_search_issues: project in (BF, WT) AND text ~ "<assertion text or function name>" ORDER BY created DESC
+```
 
-For local verification: see @repro-format.md to reproduce, or @wt-cli.md to inspect data.
+---
+
+## Phase 2: Hypothesis and testing
+
+- Write **one explicit hypothesis** — what broke, where, and why
+- Test the **smallest change or check** that can prove or disprove it
+- Do not stack multiple speculative fixes
+- Confidence: Low / Medium / High — state the key uncertainty
+
+---
+
+## Phase 3: Implementation
+
+Only enter this phase after root cause is understood:
+- Create a failing test or reproducer first when possible — see @build.md
+- Verify the fix resolves the failure
+- Check for fallout in related subsystems
+
+For local reproduction: see @repro-format.md.
+For data directory inspection: see @wt-cli.md.
+
+---
 
 ## Output format
 
 ### Current understanding
-One paragraph.
+One short paragraph.
 
-### Evidence
-- **Source:** (EVG task ID / BF ID / Jira key)
-- **First error:** (exact line)
-- **Stack trace summary:** (file:line → file:line chain)
-- **WT state at failure:** (what was the engine doing?)
-- **Prior occurrences:** (related BFs or tickets)
+### Evidence gathered
+- failure:
+- repro:
+- recent change:
+- logs or artifacts:
 
-### Root cause hypothesis
-One paragraph — the most likely explanation and why.
-
-### Confidence
-Low / Medium / High — and the key uncertainty.
+### Working theory
+One short paragraph — most likely cause and confidence level.
 
 ### Next checks
 1. ...
