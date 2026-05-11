@@ -558,7 +558,6 @@ functions:
 
           virtualenv -p python3 venv
           source venv/bin/activate
-          pip3 install boto3==1.34.144
 
           # Run Python testing for all tiered tests.
           python3 ../test/suite/run.py ${ignore_stdout} -j $(nproc) ${tiered_storage_test_name}
