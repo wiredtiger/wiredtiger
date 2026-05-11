@@ -1162,8 +1162,13 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
      * cursor->search() becomes a fire-and-forget hint into the page log layer (PALI) -- see
      * __wt_btcur_touch in src/btree/bt_curtouch.c. All incompatibility checks are done up-front so
      * the caller sees the failure on open_cursor, not on the first search().
+     *
+     * Internal callers (e.g. __hs_verify, __wt_curfile_open from a layered
+     * cursor) pass cfg == NULL; __wt_config_gets_def handles that by returning
+     * the supplied default. The non-_def variant dereferences cfg[0] and
+     * crashes, so we exclusively use _def here.
      */
-    WT_ERR(__wt_config_gets(session, cfg, "touch.enabled", &cval));
+    WT_ERR(__wt_config_gets_def(session, cfg, "touch.enabled", 0, &cval));
     if (cval.val != 0) {
         if (WT_CURSOR_RECNO(cursor))
             WT_ERR_MSG(session, ENOTSUP, "touch cursor: only row-store tables are supported");
@@ -1177,9 +1182,9 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
             WT_ERR_MSG(session, EINVAL, "touch cursor is incompatible with next_random");
 
         cbt->touch_enabled = true;
-        WT_ERR(__wt_config_gets(session, cfg, "touch.class_id", &cval));
+        WT_ERR(__wt_config_gets_def(session, cfg, "touch.class_id", 1, &cval));
         cbt->touch_class = (uint32_t)cval.val;
-        WT_ERR(__wt_config_gets(session, cfg, "touch.command", &cval));
+        WT_ERR(__wt_config_gets_def(session, cfg, "touch.command", 0, &cval));
         if (cval.len > 0)
             WT_ERR(__wt_buf_set(session, &cbt->touch_command, cval.str, cval.len));
         /* Touch cursors are fire-and-forget; never cache them. */
@@ -1271,9 +1276,10 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
             /*
              * skunk_94: touch cursors are read-side, bulk cursors are write-side; the combination
              * is meaningless. Reject before acquiring the bulk-mode exclusive dhandle so the user
-             * sees a clean EINVAL.
+             * sees a clean EINVAL. Use _def for NULL-cfg safety, in line with the surrounding
+             * checkpoint_wait lookup convention.
              */
-            WT_RET(__wt_config_gets(session, cfg, "touch.enabled", &cval));
+            WT_RET(__wt_config_gets_def(session, cfg, "touch.enabled", 0, &cval));
             if (cval.val != 0)
                 WT_RET_MSG(
                   session, EINVAL, "touch cursor is incompatible with bulk-load configuration");
