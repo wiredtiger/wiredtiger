@@ -311,18 +311,16 @@ __curfile_search(WT_CURSOR *cursor)
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
     time_start = __wt_clock(session);
+    WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search(cbt));
+    /*
+     * Touch search returns WT_NOTFOUND on every call (fire-and-forget), but the operation has done
+     * useful work; account for its timing before the WT_ERR jump that would otherwise skip it.
+     */
     if (cbt->touch_enabled) {
-        /*
-         * skunk_94: fire-and-forget touch cursor. Descend internal pages only and emit a warmup
-         * hint via PALI. The expected return is WT_NOTFOUND; we deliberately skip the
-         * active-position assertion below.
-         */
-        WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_touch(cbt));
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
         goto err;
     }
-    WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search(cbt));
     WT_ERR(ret);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
@@ -1158,9 +1156,9 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
         F_SET(cbt, WT_CBT_READ_ONCE);
 
     /*
-     * skunk_94 touch cursor: parse touch=(enabled,class_id,action,command). When enabled,
-     * cursor->search() becomes a fire-and-forget hint into the page log layer (PALI) -- see
-     * __wt_btcur_touch in src/btree/bt_curtouch.c. All incompatibility checks are done up-front so
+     * Touch cursor: parse touch=(enabled,class_id,action,command). When enabled, cursor->search()
+     * becomes a fire-and-forget hint into the page log layer (PALI); the dispatch lives in
+     * __wt_btcur_search in src/btree/bt_cursor.c. All incompatibility checks are done up-front so
      * the caller sees the failure on open_cursor, not on the first search().
      *
      * Internal callers (e.g. __hs_verify, __wt_curfile_open from a layered
