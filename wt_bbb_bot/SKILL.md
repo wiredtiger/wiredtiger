@@ -28,6 +28,7 @@ investigation summary.
 | Inspect WT pages in SLS / disagg storage | @skills/disagg-page-inspection/SKILL.md |
 | Triage a HELP ticket with FTDC data | @skills/help-ticket-triage/SKILL.md |
 | test/format runs, tracing, parallel repro | @skills/wiredtiger-test-format/SKILL.md |
+| Investigate a commit, blame a function, find a PR | @skills/github/SKILL.md |
 | Root cause methodology (before fixing anything) | @skills/systematic-debugging/SKILL.md |
 
 # MCP Tools
