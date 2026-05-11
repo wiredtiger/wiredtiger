@@ -22,7 +22,7 @@ cloud objects that makes these btrees different.
 
 Tiered storage is configured and enabled on the connection
 via ::wiredtiger_open configuration options
-(e.g. <code>tiered_storage=(name="s3_store",bucket="...")</code> ).
+(e.g. <code>tiered_storage=(name="dir_store",bucket="...")</code> ).
 Once enabled on the connection, the configuration applies to all tables created.
 The configuration can be overridden on individual tables with
 configuration options for WT_SESSION::create .
