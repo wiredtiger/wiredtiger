@@ -37,6 +37,7 @@
 static WT_THREAD_RET checkpoint_worker(void *);
 static int drop_all_tables(WTPERF *);
 static int execute_populate(WTPERF *);
+static int execute_post_populate_remove(WTPERF *);
 static int execute_workload(WTPERF *);
 static int find_table_count(WTPERF *);
 static WT_THREAD_RET monitor(void *);
@@ -1825,6 +1826,90 @@ close_reopen(WTPERF *wtperf)
     return (0);
 }
 
+/*
+ * execute_post_populate_remove --
+ *     After populate, remove a deterministic or random subset of keys to fragment
+ *     the on-disk extent list. WT-14196.
+ */
+static int
+execute_post_populate_remove(WTPERF *wtperf)
+{
+    CONFIG_OPTS *opts;
+    WT_CONNECTION *conn;
+    WT_CURSOR *cursor;
+    WT_SESSION *session;
+    WT_RAND_STATE rnd;
+    uint64_t i, removed;
+    uint64_t start_clock;
+    uint32_t modulus, pct;
+    char *key_buf;
+    int ret;
+
+    opts = wtperf->opts;
+    modulus = opts->post_populate_remove_modulus;
+    pct = opts->post_populate_remove_pct;
+    conn = wtperf->conn;
+
+    if (modulus == 0 && pct == 0)
+        return (0);
+    if (modulus != 0 && pct != 0)
+        lprintf(wtperf, 0, 1,
+          "post_populate_remove: both modulus and pct set; modulus wins, ignoring pct=%u", pct);
+
+    lprintf(wtperf, 0, 1, "Post-populate remove starting (modulus=%u pct=%u, icount=%" PRIu32 ")",
+      modulus, pct, opts->icount);
+
+    if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
+        lprintf(wtperf, ret, 0, "post_populate_remove: open_session");
+        return (ret);
+    }
+    if ((ret = session->open_cursor(session, wtperf->uris[0], NULL, NULL, &cursor)) != 0) {
+        lprintf(wtperf, ret, 0, "post_populate_remove: open_cursor on %s", wtperf->uris[0]);
+        (void)session->close(session, NULL);
+        return (ret);
+    }
+
+    key_buf = dcalloc(opts->key_sz + 1, 1);
+    __wt_random_init((WT_SESSION_IMPL *)session, &rnd);
+    start_clock = __wt_clock(NULL);
+    removed = 0;
+    for (i = 0; i < opts->icount; ++i) {
+        bool del;
+        if (modulus != 0)
+            del = (i % modulus == 0);
+        else
+            del = ((__wt_random(&rnd) % 100) < pct);
+        if (!del)
+            continue;
+        generate_key(opts, key_buf, i + 1);
+        cursor->set_key(cursor, key_buf);
+        if ((ret = cursor->remove(cursor)) != 0 && ret != WT_NOTFOUND) {
+            lprintf(wtperf, ret, 0, "post_populate_remove: remove key %" PRIu64, i + 1);
+            goto err;
+        }
+        ret = 0;
+        ++removed;
+    }
+
+    /* Checkpoint to materialise the removes on disk. */
+    if ((ret = session->checkpoint(session, NULL)) != 0) {
+        lprintf(wtperf, ret, 0, "post_populate_remove: checkpoint");
+        goto err;
+    }
+
+    wtperf->post_populate_remove_us = WT_CLOCKDIFF_US(__wt_clock(NULL), start_clock);
+    wtperf->post_populate_remove_records = removed;
+    lprintf(wtperf, 0, 1,
+      "Post-populate remove finished: removed %" PRIu64 " records in %.2f sec",
+      removed, wtperf->post_populate_remove_us / 1.0e6);
+
+err:
+    (void)cursor->close(cursor);
+    (void)session->close(session, NULL);
+    free(key_buf);
+    return (ret);
+}
+
 static int
 execute_workload(WTPERF *wtperf)
 {
@@ -2451,6 +2536,10 @@ start_run(WTPERF *wtperf)
 
     /* If creating, populate the table. */
     if (opts->create != 0 && execute_populate(wtperf) != 0)
+        goto err;
+
+    /* Post-populate fragmentation pass (WT-14196). No-op when both knobs are 0. */
+    if (opts->create != 0 && execute_post_populate_remove(wtperf) != 0)
         goto err;
 
     /* Optional workload. */
