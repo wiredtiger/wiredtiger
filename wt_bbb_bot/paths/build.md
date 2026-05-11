@@ -119,7 +119,7 @@ For ctest:
 ctest --test-dir build -R <test_regex> --repeat until-fail:<N>
 ```
 
-For data directory inspection after a failure: → **@wt-cli.md**
+For data directory inspection after a failure: → **@skills/wt-cli/SKILL.md**
 
 ### Step 4: Capture artifacts
 

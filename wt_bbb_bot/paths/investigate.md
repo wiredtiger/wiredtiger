@@ -84,7 +84,7 @@ With the WT-specific evidence gathered, apply the full investigation process:
 hypothesis and testing, implementation
 
 For local reproduction: → **@build.md**
-For data directory inspection: → **@wt-cli.md**
+For data directory inspection: → **@skills/wt-cli/SKILL.md**
 
 ---
 
