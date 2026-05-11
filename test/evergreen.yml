@@ -1541,7 +1541,7 @@ variables:
   # Template for Mac tests
   - &mac_test_template
     expansions: &mac_test_template_expansions
-      # macOS uses Xcode's clang (no mongodb toolchain).
+      # macOS uses XCode's clang (no mongodb toolchain).
       CC: clang
       CXX: clang++
       CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
