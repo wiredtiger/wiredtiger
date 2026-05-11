@@ -376,11 +376,11 @@ struct Config {
     uint32_t touch_sim_cold_ms = 0;
     uint32_t touch_sim_warm_ms = 0;
     uint32_t touch_sim_warmup_ms = 0;
-    uint64_t last_materialized_lsn = 0;    /* The last materialized LSN (0 if not set) */
-    int32_t verbose = WT_VERBOSE_INFO;     /* Verbose level */
-    bool verbose_msg = true;               /* Send verbose messages to msg callback interface */
-    bool sql_trace = false;                /* Trace all SQLite calls */
-    bool verify = true;                    /* Verify integrity of page delta chains */
+    uint64_t last_materialized_lsn = 0; /* The last materialized LSN (0 if not set) */
+    int32_t verbose = WT_VERBOSE_INFO;  /* Verbose level */
+    bool verbose_msg = true;            /* Send verbose messages to msg callback interface */
+    bool sql_trace = false;             /* Trace all SQLite calls */
+    bool verify = true;                 /* Verify integrity of page delta chains */
 
     Config() = default;
     Config(WT_EXTENSION_API *wt_api, WT_CONFIG_ARG *config) : extapi(wt_api)
@@ -493,8 +493,7 @@ template <> struct std::formatter<Config> {
           cfg.cache_size_mb, cfg.mmap_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay,
           cfg.force_error, cfg.materialization_delay_ms, cfg.touch_sim_enabled,
           cfg.touch_sim_cold_ms, cfg.touch_sim_warm_ms, cfg.touch_sim_warmup_ms,
-          cfg.last_materialized_lsn, cfg.verbose,
-          cfg.verbose_msg, cfg.sql_trace, cfg.verify);
+          cfg.last_materialized_lsn, cfg.verbose, cfg.verbose_msg, cfg.sql_trace, cfg.verify);
     }
 };
 
@@ -2012,10 +2011,9 @@ class Storage {
      * fire-and-forget WT_PAGE_LOG_WARMUP path. Future cold reads of these pages incur
      * Config::warm_read_ms instead of Config::cold_read_ms.
      *
-     * In a real deployment the warm-set models SLS heuristic state, which lives
-     * outside WiredTiger and survives WT restarts. We mirror that by keeping the set
-     * process-static, keyed by db_home path; closing and reopening a WT connection
-     * against the same db_home does NOT lose warm bits.
+     * In a real deployment the warm-set models SLS heuristic state, which lives outside WiredTiger
+     * and survives WT restarts. We mirror that by keeping the set process-static, keyed by db_home
+     * path; closing and reopening a WT connection against the same db_home does NOT lose warm bits.
      */
     static std::mutex &
     global_warm_mu()
@@ -2236,10 +2234,10 @@ public:
         if (is_warmup) {
             if (config.touch_sim_enabled) {
                 /*
-                 * Per-page warmup cost is paid only once; subsequent warmup calls for
-                 * the same (table_id, page_id) are no-ops. This models PALI's expected
-                 * async behavior: the first hint dispatches work to the page log;
-                 * repeated hints for an in-flight or already-warm page fall through.
+                 * Per-page warmup cost is paid only once; subsequent warmup calls for the same
+                 * (table_id, page_id) are no-ops. This models PALI's expected async behavior: the
+                 * first hint dispatches work to the page log; repeated hints for an in-flight or
+                 * already-warm page fall through.
                  */
                 const bool newly = mark_warm(table_id, page_id);
                 if (newly && config.touch_sim_warmup_ms > 0)
@@ -2259,8 +2257,7 @@ public:
 
         if (config.touch_sim_enabled) {
             const bool warm = is_warm(table_id, page_id);
-            const uint32_t sleep_ms =
-              warm ? config.touch_sim_warm_ms : config.touch_sim_cold_ms;
+            const uint32_t sleep_ms = warm ? config.touch_sim_warm_ms : config.touch_sim_cold_ms;
             if (sleep_ms > 0)
                 std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
         }
@@ -2272,12 +2269,11 @@ public:
         object_gets += *results_count;
 
         /*
-         * NB: a regular read does *not* promote the page into the warm-set. In the
-         * skunk_94 mental model the warm-set represents SLS heuristic state -- only
-         * the explicit warmup hint feeds it. A non-touched read is cold every time
-         * its WT cache copy has been evicted; a touched read enjoys the warm latency
-         * for as long as SLS keeps the page hot. This is what makes the touch=()
-         * cursor a useful primitive in the first place.
+         * NB: a regular read does *not* promote the page into the warm-set. In the skunk_94 mental
+         * model the warm-set represents SLS heuristic state -- only the explicit warmup hint feeds
+         * it. A non-touched read is cold every time its WT cache copy has been evicted; a touched
+         * read enjoys the warm latency for as long as SLS keeps the page hot. This is what makes
+         * the touch=() cursor a useful primitive in the first place.
          */
     }
 

@@ -7,26 +7,42 @@
  */
 
 /*
- * skunk_94 -- "touch" cursor POC.
+ * Touch cursor implementation (skunk_94).
  *
- * A touch cursor is fire-and-forget. Its WT_CURSOR::search descends the btree using
- * only internal pages and, instead of materializing the would-be leaf page into the
- * WiredTiger cache, forwards a non-returning warmup hint to the page log layer
- * (PALI). The caller always sees WT_NOTFOUND. The intent is to let storage classes
- * below WT (e.g. the SLS data movement layer behind PALI) act on the heuristic
- * without paying the WT-side leaf-read cost.
+ * A touch cursor's WT_CURSOR::search descends the btree using only internal
+ * pages and forwards a fire-and-forget warmup hint to the page log layer
+ * (PALI) for the would-be leaf page. The caller always sees WT_NOTFOUND;
+ * no leaf is materialized into the WiredTiger cache.
+ *
+ * The intent is to let storage layers below WT (e.g. SLS via PALI) promote
+ * pages to a faster tier ahead of the real read. Worst-case latency is
+ * identical to the non-touch path: a warmup hint that the page log ignores
+ * costs at most one extra round-trip, and the caller's subsequent real
+ * search() still pays full cold-tier cost.
+ *
+ * Public surface:
+ *   - WT_SESSION.open_cursor sub-config touch=(enabled,class_id,action,command)
+ *     (see dist/api_data.py / src/cursor/cur_file.c::__curfile_create)
+ *   - WT_PAGE_LOG_GET_ARGS.flags |= WT_PAGE_LOG_WARMUP
+ *   - WT_PAGE_LOG_GET_ARGS.command (opaque payload)
+ *
+ * Restrictions enforced at cursor open time (cur_file.c):
+ *   - row-store only
+ *   - not compatible with bulk, next_random or checkpoint cursors
  */
 
 #include "wt_internal.h"
 
 /*
- * __touch_warmup_leaf --
- *     Issue a fire-and-forget warmup hint for the leaf page referenced by descent.
- *     Only meaningful when the btree sits on top of disaggregated storage; for any
- *     other storage class this is a no-op success.
+ * __curtouch_warmup_leaf --
+ *     Issue a fire-and-forget warmup hint for the leaf page referenced by descent. Only meaningful
+ *     when the tree is on disaggregated storage; on a non-disagg tree the call is a no-op success
+ *     because there is no PALI handle to forward to. The contract with PALI is that the
+ *     implementation must return zero results for a warmup; we defensively free anything that leaks
+ *     back to avoid a memory leak from a buggy implementation.
  */
 static int
-__touch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM *cmd)
+__curtouch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM *command)
 {
     WT_ADDR_COPY addr;
     WT_BLOCK_DISAGG *block_disagg;
@@ -34,66 +50,82 @@ __touch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM *cm
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_ITEM results_array[WT_DELTA_LIMIT + 1];
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_PAGE_LOG_GET_ARGS get_args;
-    const uint8_t *p;
+    WT_PAGE_LOG_HANDLE *plhandle;
     uint32_t i, results_count;
+    const uint8_t *p;
 
     btree = S2BT(session);
     bm = btree->bm;
 
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || bm == NULL)
+    /*
+     * No-op for storage classes that don't speak PALI. We still return success so the touch cursor
+     * is usable on any tree -- the caller observes the same WT_NOTFOUND either way.
+     */
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || bm == NULL) {
+        WT_STAT_CONN_DSRC_INCR(session, cursor_touch_skipped_non_disagg);
         return (0);
+    }
 
-    /* Pull the address cookie for the leaf without locking the WT_REF in place. */
-    if (!__wt_ref_addr_copy(session, descent, &addr))
+    /*
+     * Pull the address cookie for the leaf without locking the WT_REF in place. __wt_ref_addr_copy
+     * returns false if the ref has no address (e.g. a freshly created empty page); nothing to warm
+     * in that case.
+     */
+    if (!__wt_ref_addr_copy(session, descent, &addr) || addr.size == 0) {
+        WT_STAT_CONN_DSRC_INCR(session, cursor_touch_skipped_no_addr);
         return (0);
-    if (addr.size == 0)
-        return (0);
+    }
 
     /* Crack the cookie for the page id. */
     p = addr.addr;
     WT_RET(__wt_block_disagg_addr_unpack(session, &p, addr.size, &cookie));
 
-    /* The block manager handle stores the PALI handle directly. */
+    /* The disaggregated block manager handle stores the PALI handle directly. */
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-    if (block_disagg == NULL || block_disagg->plhandle == NULL ||
-      block_disagg->plhandle->plh_get == NULL)
+    if (block_disagg == NULL || (plhandle = block_disagg->plhandle) == NULL ||
+      plhandle->plh_get == NULL) {
+        WT_STAT_CONN_DSRC_INCR(session, cursor_touch_skipped_non_disagg);
         return (0);
+    }
 
-    /*
-     * Issue the warmup. Palite is configured to ignore the returned buffer set on this
-     * code path; we still hand it the scratch array because the API mandates a non-null
-     * results buffer. We do not allocate; palite must return zero results for warmup.
-     */
-    memset(results_array, 0, sizeof(results_array));
+    memset(results, 0, sizeof(results));
     memset(&get_args, 0, sizeof(get_args));
     get_args.flags = WT_PAGE_LOG_WARMUP;
-    get_args.command = cmd;
+    get_args.command = command;
     results_count = WT_DELTA_LIMIT + 1;
-    ret = block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface,
-      cookie.page_id, 0, &get_args, results_array, &results_count);
+
+    WT_STAT_CONN_DSRC_INCR(session, cursor_touch_warmup);
+    ret = plhandle->plh_get(
+      plhandle, &session->iface, cookie.page_id, 0, &get_args, results, &results_count);
+    if (ret != 0)
+        WT_STAT_CONN_DSRC_INCR(session, cursor_touch_warmup_error);
+
     /*
-     * The contract is that warmup returns zero results, but a faulty implementation
-     * could still allocate. Free anything that came back so we don't leak.
+     * The contract is that warmup returns zero results, but a faulty implementation could still
+     * allocate. Free anything that came back.
      */
     for (i = 0; i < results_count; ++i)
-        if (results_array[i].mem != NULL)
-            __wt_free(session, results_array[i].mem);
+        if (results[i].mem != NULL)
+            __wt_free(session, results[i].mem);
 
     return (ret);
 }
 
 /*
- * __touch_descend --
- *     Walk down a row-store btree using only internal pages. Stops at the parent of
- *     the would-be leaf and returns *descentp pointing at the matching internal-index
- *     entry. The caller must release the held page (returned in *currentp) after the
- *     warmup hint has been issued.
+ * __curtouch_descend --
+ *     Walk down a row-store btree using only internal pages. On success *currentp points at the
+ *     page whose hazard pointer the caller must release, and *descentp at the WT_REF for the
+ *     would-be leaf, or NULL if the descent never reached a leaf parent (single-page tree, or the
+ *     leaf was already in cache). The split generation must be held by the caller; we read
+ *     ref->addr without loading the target page.
  */
 static int
-__touch_descend(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF **currentp, WT_REF **descentp)
+__curtouch_descend(
+  WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF **currentp, WT_REF **descentp)
 {
+    WT_ADDR_COPY addr;
     WT_BTREE *btree;
     WT_COLLATOR *collator;
     WT_DECL_RET;
@@ -101,13 +133,17 @@ __touch_descend(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF **currentp, 
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_REF *current, *descent;
-    uint32_t base, indx, limit, read_flags;
+    uint32_t base, indx, limit;
     int cmp;
+    bool leaf;
+
+    *currentp = NULL;
+    *descentp = NULL;
 
     btree = S2BT(session);
     collator = btree->collator;
-    *currentp = NULL;
-    *descentp = NULL;
+    descent = NULL;
+    pindex = NULL;
 
     if (0) {
 restart:
@@ -115,7 +151,7 @@ restart:
     }
 
     current = &btree->root;
-    for (pindex = NULL;;) {
+    for (;;) {
         page = current->page;
         if (page->type != WT_PAGE_ROW_INT)
             break;
@@ -123,8 +159,9 @@ restart:
         WT_INTL_INDEX_GET(session, page, pindex);
 
         /*
-         * Binary search the internal page. The 0th key on an internal page is the
-         * "smallest" sentinel so always start at base = 1, exactly as __wt_row_search.
+         * Binary search the internal page. The 0th key on an internal page is the smallest
+         * sentinel, so we always start at base=1, exactly mirroring __wt_row_search's internal-page
+         * loop.
          */
         base = 1;
         limit = pindex->entries - 1;
@@ -146,31 +183,24 @@ restart:
         descent = pindex->index[base - 1];
 
         /*
-         * If the child is a row-store leaf, we have found the leaf parent. Don't
-         * swap into the leaf. The caller will issue the warmup and release current.
+         * Detect whether the descent target is a leaf without loading it. If the page happens to
+         * already be cached, peek at the type directly; otherwise crack the address cookie.
+         * WT_GEN_SPLIT held by the caller keeps the ref alive during the peek.
          */
-        {
-            uint8_t state = WT_REF_GET_STATE(descent);
-            WT_PAGE *child = descent->page;
-            bool child_is_leaf = false;
-            WT_ADDR_COPY addr;
+        leaf = false;
+        if (WT_REF_GET_STATE(descent) == WT_REF_MEM && descent->page != NULL)
+            leaf = (descent->page->type == WT_PAGE_ROW_LEAF);
+        else if (__wt_ref_addr_copy(session, descent, &addr))
+            leaf = (addr.type == WT_ADDR_LEAF || addr.type == WT_ADDR_LEAF_NO);
 
-            if (state == WT_REF_MEM && child != NULL)
-                child_is_leaf = (child->type == WT_PAGE_ROW_LEAF);
-            else if (__wt_ref_addr_copy(session, descent, &addr))
-                child_is_leaf =
-                  (addr.type == WT_ADDR_LEAF || addr.type == WT_ADDR_LEAF_NO);
-
-            if (child_is_leaf) {
-                *currentp = current;
-                *descentp = descent;
-                return (0);
-            }
+        if (leaf) {
+            *currentp = current;
+            *descentp = descent;
+            return (0);
         }
 
         /* Swap to the (internal) child and continue descending. */
-        read_flags = WT_READ_RESTART_OK;
-        if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {
+        if ((ret = __wt_page_swap(session, current, descent, WT_READ_RESTART_OK)) == 0) {
             current = descent;
             continue;
         }
@@ -179,7 +209,11 @@ restart:
         WT_ERR(ret);
     }
 
-    /* current is already a row-store leaf - it's in cache so nothing to warm up. */
+    /*
+     * Loop exit: current is already a leaf (single-page tree or shrunk tree). The leaf is in cache
+     * by construction, so there is no warmup to issue. Hand the held ref back to the caller for
+     * release.
+     */
     *currentp = current;
     *descentp = NULL;
     return (0);
@@ -192,9 +226,8 @@ err:
 
 /*
  * __wt_btcur_touch --
- *     Implementation of WT_CURSOR::search for a touch cursor. Descends through internal
- *     pages only, issues a warmup hint via PALI for the would-be leaf page, and returns
- *     WT_NOTFOUND.
+ *     WT_CURSOR::search implementation for a touch cursor. Descends through internal pages only,
+ *     issues a warmup hint via PALI for the would-be leaf page, and returns WT_NOTFOUND.
  */
 int
 __wt_btcur_touch(WT_CURSOR_BTREE *cbt)
@@ -202,6 +235,7 @@ __wt_btcur_touch(WT_CURSOR_BTREE *cbt)
     WT_BTREE *btree;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_ITEM *command;
     WT_REF *current, *descent;
     WT_SESSION_IMPL *session;
 
@@ -209,33 +243,42 @@ __wt_btcur_touch(WT_CURSOR_BTREE *cbt)
     session = CUR2S(cbt);
     btree = S2BT(session);
 
+    /*
+     * Touch cursor opens reject anything other than row-store, so this should never trip. Defensive
+     * check keeps __wt_btcur_touch usable as a stand-alone helper.
+     */
     if (btree->type != BTREE_ROW)
         WT_RET_MSG(session, ENOTSUP, "touch cursor: only row-store tables are supported");
 
+    WT_STAT_CONN_DSRC_INCR(session, cursor_touch_search);
+
     WT_RET(__wt_cursor_localkey(cursor));
     __cursor_pos_clear(cbt);
-
     WT_RET(__wt_cursor_func_init(cbt, true));
 
     current = descent = NULL;
+    command = cbt->touch_command.size > 0 ? &cbt->touch_command : NULL;
+
     /*
-     * Accessing ref->addr from an unloaded leaf requires holding the split generation.
-     * __wt_page_swap handles this internally for the in-cache case; we read the address
-     * cookie directly via __wt_ref_addr_copy so we have to enter the generation ourselves.
+     * The custom descent reads ref->addr from an unloaded leaf via
+     * __wt_ref_addr_copy. That is only safe inside WT_GEN_SPLIT;
+     * __wt_page_swap holds it internally for the in-cache path but we
+     * bypass page_swap for the final descent, so we take the generation
+     * ourselves here.
      */
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
-    ret = __touch_descend(session, &cursor->key, &current, &descent);
-    if (ret == 0 && descent != NULL)
-        ret = __touch_warmup_leaf(
-          session, descent, cbt->touch_command.size > 0 ? &cbt->touch_command : NULL);
+    ret = __curtouch_descend(session, &cursor->key, &current, &descent);
+    if (ret == 0) {
+        if (descent != NULL)
+            ret = __curtouch_warmup_leaf(session, descent, command);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cursor_touch_leaf_cached);
+    }
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
 
-    /* Always release the parent before returning. */
     if (current != NULL && current != &btree->root)
         WT_TRET(__wt_page_release(session, current, 0));
 
-    WT_STAT_CONN_DSRC_INCR(session, cursor_search);
-
-    /* Fire-and-forget; the caller sees WT_NOTFOUND so it knows no value is materialized. */
+    /* Fire-and-forget: WT_NOTFOUND signals "no value was materialized". */
     return (ret == 0 ? WT_NOTFOUND : ret);
 }

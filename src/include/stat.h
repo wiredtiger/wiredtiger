@@ -964,6 +964,12 @@ struct __wt_connection_stats {
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
+    int64_t cursor_touch_search;
+    int64_t cursor_touch_leaf_cached;
+    int64_t cursor_touch_warmup;
+    int64_t cursor_touch_warmup_error;
+    int64_t cursor_touch_skipped_no_addr;
+    int64_t cursor_touch_skipped_non_disagg;
     int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_tiered_count;
@@ -1707,6 +1713,12 @@ struct __wt_dsrc_stats {
     int64_t cursor_search;
     int64_t cursor_search_hs;
     int64_t cursor_search_near;
+    int64_t cursor_touch_search;
+    int64_t cursor_touch_leaf_cached;
+    int64_t cursor_touch_warmup;
+    int64_t cursor_touch_warmup_error;
+    int64_t cursor_touch_skipped_no_addr;
+    int64_t cursor_touch_skipped_non_disagg;
     int64_t cursor_truncate;
     int64_t cursor_update;
     int64_t cursor_update_bytes;

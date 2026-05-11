@@ -298,6 +298,12 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: search calls",
   "cursor: search history store calls",
   "cursor: search near calls",
+  "cursor: touch search calls",
+  "cursor: touch search calls that skipped warmup because the leaf was already in cache",
+  "cursor: touch warmup hints issued to the page log layer",
+  "cursor: touch warmup hints that returned an error",
+  "cursor: touch warmups skipped because the leaf had no address cookie",
+  "cursor: touch warmups skipped because the tree is not disaggregated",
   "cursor: truncate calls",
   "cursor: update calls",
   "cursor: update key and value bytes",
@@ -748,6 +754,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_search = 0;
     stats->cursor_search_hs = 0;
     stats->cursor_search_near = 0;
+    stats->cursor_touch_search = 0;
+    stats->cursor_touch_leaf_cached = 0;
+    stats->cursor_touch_warmup = 0;
+    stats->cursor_touch_warmup_error = 0;
+    stats->cursor_touch_skipped_no_addr = 0;
+    stats->cursor_touch_skipped_non_disagg = 0;
     stats->cursor_truncate = 0;
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
@@ -1198,6 +1210,12 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_search += from->cursor_search;
     to->cursor_search_hs += from->cursor_search_hs;
     to->cursor_search_near += from->cursor_search_near;
+    to->cursor_touch_search += from->cursor_touch_search;
+    to->cursor_touch_leaf_cached += from->cursor_touch_leaf_cached;
+    to->cursor_touch_warmup += from->cursor_touch_warmup;
+    to->cursor_touch_warmup_error += from->cursor_touch_warmup_error;
+    to->cursor_touch_skipped_no_addr += from->cursor_touch_skipped_no_addr;
+    to->cursor_touch_skipped_non_disagg += from->cursor_touch_skipped_non_disagg;
     to->cursor_truncate += from->cursor_truncate;
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
@@ -1689,6 +1707,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_search += WT_STAT_DSRC_READ(from, cursor_search);
     to->cursor_search_hs += WT_STAT_DSRC_READ(from, cursor_search_hs);
     to->cursor_search_near += WT_STAT_DSRC_READ(from, cursor_search_near);
+    to->cursor_touch_search += WT_STAT_DSRC_READ(from, cursor_touch_search);
+    to->cursor_touch_leaf_cached += WT_STAT_DSRC_READ(from, cursor_touch_leaf_cached);
+    to->cursor_touch_warmup += WT_STAT_DSRC_READ(from, cursor_touch_warmup);
+    to->cursor_touch_warmup_error += WT_STAT_DSRC_READ(from, cursor_touch_warmup_error);
+    to->cursor_touch_skipped_no_addr += WT_STAT_DSRC_READ(from, cursor_touch_skipped_no_addr);
+    to->cursor_touch_skipped_non_disagg += WT_STAT_DSRC_READ(from, cursor_touch_skipped_non_disagg);
     to->cursor_truncate += WT_STAT_DSRC_READ(from, cursor_truncate);
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
@@ -2429,6 +2453,12 @@ static const char *const __stats_connection_desc[] = {
   "cursor: open cursor count",
   "cursor: open cursor time application (usecs)",
   "cursor: open cursor time internal (usecs)",
+  "cursor: touch cursor search calls",
+  "cursor: touch cursor search calls that skipped warmup because the leaf was already in cache",
+  "cursor: touch cursor warmup hints issued to the page log layer",
+  "cursor: touch cursor warmup hints that returned an error",
+  "cursor: touch cursor warmups skipped because the leaf had no address cookie",
+  "cursor: touch cursor warmups skipped because the tree is not disaggregated",
   "data-handle: Layered connection data handles currently active",
   "data-handle: Table connection data handles currently active",
   "data-handle: Tiered connection data handles currently active",
@@ -3478,6 +3508,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_open_count */
     /* not clearing cursor_open_time_user_usecs */
     /* not clearing cursor_open_time_internal_usecs */
+    stats->cursor_touch_search = 0;
+    stats->cursor_touch_leaf_cached = 0;
+    stats->cursor_touch_warmup = 0;
+    stats->cursor_touch_warmup_error = 0;
+    stats->cursor_touch_skipped_no_addr = 0;
+    stats->cursor_touch_skipped_non_disagg = 0;
     /* not clearing dh_conn_handle_layered_count */
     /* not clearing dh_conn_handle_table_count */
     /* not clearing dh_conn_handle_tiered_count */
@@ -4636,6 +4672,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
     to->cursor_open_time_user_usecs += WT_STAT_CONN_READ(from, cursor_open_time_user_usecs);
     to->cursor_open_time_internal_usecs += WT_STAT_CONN_READ(from, cursor_open_time_internal_usecs);
+    to->cursor_touch_search += WT_STAT_CONN_READ(from, cursor_touch_search);
+    to->cursor_touch_leaf_cached += WT_STAT_CONN_READ(from, cursor_touch_leaf_cached);
+    to->cursor_touch_warmup += WT_STAT_CONN_READ(from, cursor_touch_warmup);
+    to->cursor_touch_warmup_error += WT_STAT_CONN_READ(from, cursor_touch_warmup_error);
+    to->cursor_touch_skipped_no_addr += WT_STAT_CONN_READ(from, cursor_touch_skipped_no_addr);
+    to->cursor_touch_skipped_non_disagg += WT_STAT_CONN_READ(from, cursor_touch_skipped_non_disagg);
     to->dh_conn_handle_layered_count += WT_STAT_CONN_READ(from, dh_conn_handle_layered_count);
     to->dh_conn_handle_table_count += WT_STAT_CONN_READ(from, dh_conn_handle_table_count);
     to->dh_conn_handle_tiered_count += WT_STAT_CONN_READ(from, dh_conn_handle_tiered_count);

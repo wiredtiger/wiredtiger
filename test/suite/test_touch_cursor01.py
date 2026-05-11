@@ -27,9 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# disagg
-# touch_cursor
-# perf
+# cursors
+# search
 # [END_TAGS]
 
 # test_touch_cursor01.py
