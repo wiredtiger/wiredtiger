@@ -171,6 +171,49 @@ class PerfStatLatencyWorkgen(PerfStat):
         return as_list
 
 
+class PerfStatLatencyPercentile(PerfStat):
+    """Computes a percentile latency by reading a wtperf latency.<op> CSV.
+
+    The CSV columns are: usecs, operations, cumulative-operations, total-operations.
+    Each row is a histogram bucket: 'operations' ops with latency <= 'usecs'.
+    We find the smallest bucket whose cumulative >= percentile * total / 100.
+    """
+
+    def __init__(self, short_label: str, stat_file: str, output_label: str,
+                 percentile: float, op_name: str):
+        super().__init__(short_label=short_label,
+                         stat_file=stat_file,
+                         output_label=output_label)
+        self.percentile = percentile
+        self.op_name = op_name
+
+    def find_stat(self, test_stat_path: str):
+        """Return [bucket_us] for the percentile, or [0] if the file is missing/empty."""
+        if not os.path.exists(test_stat_path):
+            return [0]
+        last_us = 0
+        total = 0
+        with open(test_stat_path) as f:
+            for line in f:
+                if line.startswith('#') or not line.strip():
+                    continue
+                parts = line.strip().split(',')
+                if len(parts) < 4:
+                    continue
+                try:
+                    us = int(parts[0])
+                    cum = int(parts[2])
+                    total = int(parts[3])
+                except ValueError:
+                    continue
+                last_us = us
+                # First bucket whose cumulative crosses the threshold wins.
+                if total > 0 and cum * 100 >= self.percentile * total:
+                    return [us]
+        # Below threshold for entire file: return the largest bucket we saw.
+        return [last_us]
+
+
 class PerfStatDBSize(PerfStat):
     def find_stat(self, test_stat_path: str):
         home_path = os.path.dirname(test_stat_path)
