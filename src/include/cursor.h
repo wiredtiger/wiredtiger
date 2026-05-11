@@ -245,10 +245,10 @@ struct __wt_cursor_btree {
     /*
      * skunk_94 touch-cursor POC.
      *
-     * When ``touch_enabled`` is set, the cursor's search APIs fire a non-returning
-     * "warmup" hint down the page log layer (PALI) for the would-be leaf page and
-     * return WT_NOTFOUND, instead of materializing the leaf into the WT cache. The
-     * opaque ``touch_command`` payload is forwarded verbatim to the page log layer.
+     * When ``touch_enabled`` is set, the cursor's search APIs fire a non-returning "warmup" hint
+     * down the page log layer (PALI) for the would-be leaf page and return WT_NOTFOUND, instead of
+     * materializing the leaf into the WT cache. The opaque ``touch_command`` payload is forwarded
+     * verbatim to the page log layer.
      */
     bool touch_enabled;
     uint32_t touch_class;
