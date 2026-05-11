@@ -1,5 +1,5 @@
 ---
-name: wt-analyze
+name: bug-bash-bot
 description: Triage WiredTiger build failure (BF) tickets — fetch Jira and Evergreen context, classify the failure type, identify root cause, and drive resolution.
 when_to_use: WiredTiger BF triage, Evergreen test failure investigation, WT crash or assertion analysis, BF priority ranking, local reproduction
 argument-hint: "BF-XXXXX"

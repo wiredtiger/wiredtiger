@@ -3,7 +3,7 @@
 WiredTiger BBB Bot — batch / automation entry point.
 
 For interactive use, run the skill directly in Claude Code:
-    /wt-analyze BF-XXXXX
+    /bug-bash-bot BF-XXXXX
 
 This script is for programmatic/cron use: it loads SKILL.md as the system
 prompt and drives the same analysis via the Anthropic SDK.

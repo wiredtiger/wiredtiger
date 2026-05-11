@@ -8,7 +8,7 @@ from the performance-ai repo, adapted for WT correctness and test failures.
 ## Architecture
 
 ```
-SKILL.md  ←  /wt-analyze BF-XXXXX  (interactive, in Claude Code)
+SKILL.md  ←  /bug-bash-bot BF-XXXXX  (interactive, in Claude Code)
   │
   ├── paths/                        BF-specific triage workflows
   │     ├── investigate.md          gather evidence → delegate to systematic-debugging
@@ -69,12 +69,12 @@ SKILL.md  ←  /wt-analyze BF-XXXXX  (interactive, in Claude Code)
 Install the skill into Claude Code and invoke it with a ticket key:
 
 ```bash
-ln -sf "$(pwd)/wt_bbb_bot" ~/.claude/skills/wt-analyze
+ln -sf "$(pwd)/wt_bbb_bot" ~/.claude/skills/bug-bash-bot
 ```
 
 Then in Claude Code:
 ```
-/wt-analyze BF-12345
+/bug-bash-bot BF-12345
 ```
 
 No credentials needed — Claude Code handles the devprod-mcp-gateway connection natively.
