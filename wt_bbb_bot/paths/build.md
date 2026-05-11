@@ -15,6 +15,25 @@ Use this path to:
 
 ## Building WiredTiger
 
+### Toolchain requirement
+
+**Always use the MongoDB stable toolchain** — the system GCC (11.x) is too old for some WT extensions (e.g. palite requires GCC ≥ 13):
+
+```bash
+export CC=/opt/mongodbtoolchain/v5/bin/gcc
+export CXX=/opt/mongodbtoolchain/v5/bin/g++
+```
+
+Or pass them directly to cmake:
+```
+-DCMAKE_C_COMPILER=/opt/mongodbtoolchain/v5/bin/gcc \
+-DCMAKE_CXX_COMPILER=/opt/mongodbtoolchain/v5/bin/g++
+```
+
+For disaggregated/layered storage tests, also add `-DENABLE_PALITE=1`.
+
+---
+
 All builds use CMake + Ninja with `-DPYTHON3_REQUIRED_VERSION=3.10`.
 
 ### Locating the WiredTiger source root
@@ -49,7 +68,17 @@ Create build directories **relative to `$WT_SRC`**, not at a hardcoded absolute 
 
 **Full build (first time or after clean)**
 ```bash
-mkdir -p $WT_SRC/build && cd $WT_SRC/build && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -G Ninja .. && ninja
+mkdir -p $WT_SRC/build && cd $WT_SRC/build
+cmake -DPYTHON3_REQUIRED_VERSION=3.10 -G Ninja \
+  -DCMAKE_C_COMPILER=/opt/mongodbtoolchain/v5/bin/gcc \
+  -DCMAKE_CXX_COMPILER=/opt/mongodbtoolchain/v5/bin/g++ \
+  -DENABLE_PYTHON=1 \
+  .. && ninja
+```
+
+For disaggregated/layered tests (requires palite, needs GCC ≥ 13):
+```bash
+cmake ... -DENABLE_PALITE=1 -DENABLE_PYTHON=1 ..
 ```
 
 **Incremental rebuild (most common — source was edited, build dir exists)**
@@ -61,7 +90,12 @@ cd $WT_SRC/build && ninja t    # test binaries only
 
 **Force clean rebuild (corrupted build state)**
 ```bash
-rm -rf $WT_SRC/build && mkdir -p $WT_SRC/build && cd $WT_SRC/build && cmake -DPYTHON3_REQUIRED_VERSION=3.10 -G Ninja .. && ninja
+rm -rf $WT_SRC/build && mkdir -p $WT_SRC/build && cd $WT_SRC/build
+cmake -DPYTHON3_REQUIRED_VERSION=3.10 -G Ninja \
+  -DCMAKE_C_COMPILER=/opt/mongodbtoolchain/v5/bin/gcc \
+  -DCMAKE_CXX_COMPILER=/opt/mongodbtoolchain/v5/bin/g++ \
+  -DENABLE_PYTHON=1 \
+  .. && ninja
 ```
 
 **Sanitizer builds**

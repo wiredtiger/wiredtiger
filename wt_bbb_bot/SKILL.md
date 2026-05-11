@@ -27,14 +27,51 @@ allowed-tools:
   - mcp__devprod-mcp-gateway__git_diff
   - mcp__devprod-mcp-gateway__git_show
   - mcp__claude_ai_Glean_via_MCP__search
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Agent
 ---
 
 # Rules
 
-- Follow Steps 1–7 below exactly, in order. Do not skip steps or deviate from the process.
+- Follow Steps 1–8 below exactly, in order. Do not skip steps or deviate from the process.
 - If a step cannot be completed (e.g., no Evergreen task URL exists), note the skip explicitly before continuing.
-- Do not implement code fixes or take actions beyond Step 7 without explicit user instruction.
-- Always end at Step 7: produce the output and offer to post a Jira comment.
+- Do not implement code fixes or take actions beyond Step 8 without explicit user instruction.
+- Always end at Step 8: attempt reproduction, then offer to post the full output (RCA + reproducer) as a Jira comment.
+
+## Step completion checklist
+
+Before moving to the next step, confirm the current step is done by printing a one-line status:
+
+```
+✓ Step N complete — <one sentence summary of what was found/done>
+```
+
+Do not proceed to Step N+1 without printing this line. This makes the step sequence visible and auditable.
+
+**Critical ordering rules:**
+- Step 7 (reproduce) MUST be completed before Step 8 (produce output). Never jump from Step 6 to Step 8.
+- After Step 8, the Jira comment offered to the user MUST be the combined output: Step 8 template (using @templates/bf-comment.md) + Step 7 reproducer results. Do not offer a freeform comment.
+
+## Explore agent
+
+**Use an Explore subagent for all source code investigation.** Do not read or grep source files inline. Instead, spawn an Explore agent with a precise question. This keeps the main context clean and lets the agent search broadly without polluting it with raw file contents.
+
+When to spawn an Explore agent:
+- Locating where an assertion, macro, or function is defined
+- Tracing a stack frame through source to understand what a line does
+- Finding recent changes to a file or subsystem (complement to git_blame)
+- Checking whether a fix or guard already exists in the current source
+- Understanding a subsystem's invariants before forming a hypothesis
+
+How to invoke:
+```
+Agent(subagent_type="Explore", prompt="<specific question about the WiredTiger source>. Search breadth: <quick|medium|very thorough>.")
+```
+
+Return the Explore agent's findings as evidence in the root cause hypothesis (Step 6) and the source-check result (Step 8a).
 
 # WiredTiger BF Analyzer
 
@@ -152,11 +189,42 @@ Based on the first error, stack trace, and any confirmed linked cause:
 - **Why it likely failed**: the narrowest plausible explanation
 - **Confidence**: Low / Medium / High
 
-## Step 7: Produce output
+## Step 7: Reproduce the bug locally
 
-Use the template at @reference/output-template.md.
+Follow @paths/build.md.
 
-Always end with:
-- **Recommended next action** (one of: investigate deeper → @paths/investigate.md,
-  reproduce locally → @paths/build.md, assign to owner, close as infra, already fixed)
-- **Jira comment ready** (offer to post with `jira_add_comment` — always confirm first)
+**7a — Check if the bug is already fixed in current source:**
+
+Spawn an Explore agent to check whether the specific guard, assertion, or function the fix should touch already exists. If the fix is already present, skip to reporting "already fixed" and skip the build.
+
+**7b — Build:**
+
+Use an incremental build if `build/` exists. Match the CI variant (ASan if CI used ASan, etc.):
+→ @paths/build.md for commands.
+
+**7c — Choose the repro method:**
+
+| Situation | Method |
+|---|---|
+| A concrete deterministic Python scenario is known (from the ticket or WT-17278-style test) | Write and run a Python test: `python3 ../test/suite/run.py <test> -j1` |
+| No deterministic scenario but a test/format config is known | Run `./t -c CONFIG <overrides> runs.timer=5` — 3–5 iterations |
+| Neither is known | State "no repro attempted — insufficient scenario" and move on |
+
+Prefer the Python path: it runs in seconds, is deterministic, and becomes a regression test.
+
+**7d — Report outcome:**
+
+- **Reproduced:** exact command, failure output (first error line + stack), iteration it failed on
+- **Not reproduced:** command run, N iterations, "bug may be already fixed or scenario requires specific timing"
+- **Already fixed:** evidence in source (file:line where the guard now exists)
+
+**7e — Write the reproducer:**
+
+If reproduced, write the minimal Python test or test/format one-liner that triggers the failure.
+This becomes the `Reproducer` section of the Jira comment.
+
+## Step 8: Produce output
+
+Use the template at @reference/output-template.md. Include the reproducer result from Step 7.
+
+**After Step 8:** offer to post the full output (RCA + reproducer) with `jira_add_comment` — always confirm first.
