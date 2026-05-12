@@ -9,6 +9,14 @@
         "run",
         "server.py"
       ]
+    },
+    "devprod-mcp-gateway": {
+      "type": "stdio",
+      "command": "devprod-mcp-proxy",
+      "args": [
+        "--gateway",
+        "https://app.devprod-mcp-gateway.prod.corp.mongodb.com/mcp"
+      ]
     }
   }
 }

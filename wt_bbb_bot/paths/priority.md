@@ -12,7 +12,7 @@ evaluation** — definitions may have changed since this path was written. Score
 what the page says, not from memory of what it said.
 
 ```
-mcp__devprod-mcp-gateway__confluence_get_page(page_id="164430772")
+mcp__devprod-mcp-gateway__confluence_get_page_by_title(space_key="WT", title="Storage Engines Bug Priorities")
 ```
 
 If the fetch fails (auth error, network), note it explicitly and fall back to the
@@ -26,7 +26,7 @@ definitions."
 Before scoring anything:
 
 ```
-mcp__devprod-mcp-gateway__confluence_get_page(page_id="164430772")
+mcp__devprod-mcp-gateway__confluence_get_page_by_title(space_key="WT", title="Storage Engines Bug Priorities")
 ```
 
 Read the returned content and use it as the authoritative P1–P5 definition for this

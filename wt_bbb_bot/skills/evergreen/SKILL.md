@@ -115,17 +115,16 @@ If you don't have a task **ID** (just a name + variant + project), the BF descri
 
 ### Failure classification
 
-| Type | Log signature | Where to go next |
-|---|---|---|
-| **Crash / SIGABRT** | `wiredtiger_abort`, signal/segv, `core dump`, stack trace from gdb | systematic-debugging skill / investigate path |
-| **WT assertion** | `WT_ASSERT`, `__wt_assert`, `__wt_errx`, `__wt_panic` | investigate path |
-| **Python `AssertionError`** | `testtools.testresult.real._StringException`, traceback through `wttest.py` | investigate path |
-| **Hang / timeout** | Task timeout, no progress in logs, stuck on `wt_open` or checkpoint | investigate path (look for lock contention) |
-| **Data corruption** | `wt verify` failure, unexpected key/value, `WT_VERB_LOG NOTICE: record len corruption` | investigate path + wt-cli skill |
-| **Flaky / intermittent** | Passes sometimes; same task green on other runs of the same commit | build path to measure failure rate |
-| **Compilation / build** | `archive_dist_test` failure with compiler errors | fix first — cascades to test failures |
-| **Lint / format** | `s_all` / `s_fast` violations | quick fix, independent |
-| **Environment / infra** | OOM, disk full, agent crash, host allocation failure | escalate / close as infra |
+→ **@paths/triage.md Step 4** for the canonical failure type table and routing.
+
+Log signatures to match against before classifying:
+- Crash: `wiredtiger_abort`, signal/segv, `core dump`, gdb stack trace
+- Assertion: `WT_ASSERT`, `__wt_assert`, `__wt_errx`, `__wt_panic`
+- Python assertion: `testtools.testresult.real._StringException`, traceback through `wttest.py`
+- Hang: task timeout, no progress, stuck on `wt_open` or checkpoint
+- Corruption: `wt verify` failure, unexpected key/value, `WT_VERB_LOG NOTICE: record len corruption`
+- Compilation: `archive_dist_test` failure with compiler errors — fix first, cascades to test failures
+- Lint: `s_all` / `s_fast` violations — quick fix, independent
 
 ### WT log-prefix → subsystem map
 
