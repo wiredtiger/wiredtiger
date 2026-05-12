@@ -728,16 +728,16 @@ err:
  */
 
 /*
- * __btcur_touch_warmup_leaf --
- *     Forward a fire-and-forget warmup hint for the leaf page referenced by descent through the
+ * __btcur_touch_leaf --
+ *     Forward a fire-and-forget touch hint for the leaf page referenced by descent through the
  *     block manager. Disagg trees forward the hint to PALI via bm->touch; other tree kinds and
  *     pages without an on-disk address account as a no-op skip. The caller's WT_NOTFOUND outcome is
- *     unchanged either way. bm->touch is a generic verb (the action is encoded in the command
- *     payload); today we only emit the warmup action, but the BM interface is ready for future
- *     actions like cold-tier pin or drop-hot without further interface change.
+ *     unchanged either way. bm->touch is a generic verb: the action (warmup today; possibly future
+ *     cold-tier pin, drop-hot, etc.) is encoded in the caller's opaque WT_ITEM command payload,
+ *     forwarded verbatim to the page-log layer.
  */
 static int
-__btcur_touch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM *command)
+__btcur_touch_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM *command)
 {
     WT_ADDR_COPY addr;
     WT_BM *bm;
@@ -933,7 +933,7 @@ __btcur_touch(WT_CURSOR_BTREE *cbt)
     ret = __btcur_touch_descend(session, &cursor->key, &current, &descent);
     if (ret == 0) {
         if (descent != NULL)
-            ret = __btcur_touch_warmup_leaf(session, descent, command);
+            ret = __btcur_touch_leaf(session, descent, command);
         else
             WT_STAT_CONN_DSRC_INCR(session, cursor_touch_leaf_cached);
     }
