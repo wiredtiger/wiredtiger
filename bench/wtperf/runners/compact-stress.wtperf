@@ -3,7 +3,7 @@
 # remove every 3rd key to fragment, then run a foreground compact in parallel
 # with random updates and periodic checkpoints.
 
-conn_config="cache_size=20G,statistics=(all),statistics_log=(json,on_close,wait=1)"
+conn_config="cache_size=20G,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact:2]"
 table_config="allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=64MB,memory_page_max=10M,split_pct=90,key_format=S,value_format=S"
 
 # Populate: 1M records, varied 512B-4KB values, ~5GB on disk.
@@ -19,7 +19,7 @@ post_populate_remove_modulus=3
 
 # Workload phase: one update thread, one checkpoint thread, one compact thread.
 threads=((count=1,updates=1))
-run_time=1800
+run_time=300
 checkpoint_threads=1
 checkpoint_interval=15
 compact_threads=1
