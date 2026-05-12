@@ -3854,7 +3854,7 @@ tasks:
   # End of live restore tests
 
   - name: s-all
-    tags: ["lint"]
+    tags: ["lint", "pull_request_compilers"]
     commands:
       - func: "get project"
       - command: shell.exec
