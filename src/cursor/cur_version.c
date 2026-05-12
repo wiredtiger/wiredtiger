@@ -463,7 +463,8 @@ __curversion_next_single_key(WT_CURSOR *cursor)
      * emitted, and 0 with upd_found=false when the chain is exhausted (proceed to on-disk).
      */
     WT_ERR_NOTFOUND_OK(
-      __curversion_process_update_chain(cursor, session, cbt, version_cursor, &tombstone, &upd_found),
+      __curversion_process_update_chain(
+        cursor, session, cbt, version_cursor, &tombstone, &upd_found),
       true);
     if (ret == WT_NOTFOUND)
         goto done;
