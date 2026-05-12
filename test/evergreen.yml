@@ -1838,6 +1838,8 @@ tasks:
   # Base compile task on posix flavors
   - name: compile
     tags: ["pull_request"]
+    depends_on:
+      - name: s_all
     commands:
       - func: "get project"
       - func: "compile wiredtiger"

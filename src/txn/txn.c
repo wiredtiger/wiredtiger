@@ -137,7 +137,8 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
     /*
-     * Clear a checkpoint's pinned ID and timestamp, only do this if we are the original checkpoint
+     * Clear a checkpoint's pinned ID and timestamp, 
+     * only do this if we are the original checkpoint
      * thread and not a worker.
      */
     if (WT_SESSION_IS_CHECKPOINT(session) && !F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
@@ -146,7 +147,8 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
         __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, WT_TS_NONE);
     }
 
-    /* Leave the generation after releasing the snapshot. */
+    /* Leave the generation after 
+     * releasing the snapshot. */
     __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
 
     __txn_clear_bytes_dirty(session);
