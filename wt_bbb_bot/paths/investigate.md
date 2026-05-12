@@ -4,98 +4,39 @@ Full investigation of a WiredTiger ticket — triage through reproduction.
 
 **Core rule:** Only assert what you fetched. Unknown = record as "unknown." Never fill a gap with an assumption. When in doubt, do less and say more.
 
-**Sub-agent rule:** Steps 6, 7, and 8 MUST be executed by spawning sub-agents using the `Agent()` blocks defined in each step. Never inline their instructions or run their commands directly. This preserves context window budget for the triage steps.
-
-## Explore agent
-
-Before spawning an Explore agent, check `@reference/codebase.md` for orientation — use it to form a targeted question, then verify with source.
-
-```
-Agent(subagent_type="Explore", prompt="<question about WiredTiger source>. Search breadth: <quick|medium|very thorough>.")
-```
+**HARD RULE — sub-agents are mandatory:** Every step (0–3) delegates to a path file. Read that file and spawn its `Agent()` block. Never run the step's tools, commands, or lookups inline. Never skip the `Agent()` call and summarize from memory. If a step's `Agent()` cannot be spawned, record it as skipped with the reason and proceed to Output.
 
 ---
 
-# Triage
+## Step 0: Triage
 
-## Step 1: Fetch WT ticket
+→ **@paths/triage.md** — read the file and spawn its `Agent()` block. Pass the ticket key.
 
-`jira_get_issue` + `jira_get_issue_comments` for the WT key. Extract:
-
-| Field | Extract |
-|---|---|
-| Summary / Status / Priority / Assignee | |
-| EVG task IDs | All URLs or IDs in the description |
-| CAUSES / IS CAUSED BY links | Any linked WT or SERVER tickets |
-| Last comment date | |
-| Prior investigation in comments | yes / no / partial — one-line summary |
-
-**Early exit:** if a CAUSES link points to a closed ticket with a fix commit, or a comment from the last 48h shows an active investigation → skip to Output.
-
-## Step 2: Check linked issues + Build Baron
-
-- Read comments on any sibling tickets from the same task/commit.
-- `bb_get_bfg_by_task(task_id)` (fallback: `bb_search_bfgs`, then `bb_get_bfg`).
-
-Extract: failure group ID, last-good SHA, first-bad SHA, total failures, time window, variants affected, CI blocker.
-
-## Step 3: Fetch Evergreen logs
-
-→ **@skills/evergreen/SKILL.md** for the full log-fetching escalation sequence.
-
-Inputs: `Failing Tasks`, `Failing Buildvariants`, `Evergreen Project`, `First Failing Revision` from Jira custom fields. Extract the task ID from the Evergreen URL in the description if not present as a field.
-
-Carry forward: test name, first error line (exact quoted), stack trace top frames, build variant, `wiredtiger_open` config.
-
-## Step 4: Classify failure type
-
-| Type | Characteristics | Next |
-|---|---|---|
-| Crash / SIGABRT | Stack trace with signal or `wiredtiger_abort` | Continue → Step 5 |
-| Assertion failure | `WT_ASSERT`, `__wt_errx`, or Python `AssertionError` | Continue → Step 5 |
-| Hang / timeout | Task timeout, no progress in logs | Continue → Step 5 |
-| Data corruption | `verify` failure, unexpected key/value | Continue → Step 5 |
-| Flaky / intermittent | Passes sometimes, low failure rate | @paths/build.md to measure rate |
-| Environment / infra | OOM, disk full, network, agent crash | Close as infra issue |
-
-## Step 5: Recurrence + blast radius
-
-From the Build Baron failure group (Step 2):
-- How many distinct variants are affected?
-- Failure rate over the last 7 days?
-- Is this a CI blocker?
-
-Set **min repro iterations** from BFG count (30 days): ≥ 5 → 10 iterations | 2–4 → 20 | 1 → 30.
+Returns: all structured triage fields (Jira context, BFG data, log evidence, failure type, min repro iterations).
 
 ---
 
-# Investigation
+## Investigation
 
-## Step 6: Git History
+## Step 1: Git History
 
-**Spawn the sub-agent defined in `@paths/git-history.md`.** Do not run git commands inline — read that file and call its `Agent()` block directly, passing:
-- Last-good SHA / first-bad SHA (Step 2)
-- Failing file, failing function, assertion text (Step 3)
+→ **@paths/git-history.md** — read the file and spawn its `Agent()` block. Pass last-good/first-bad SHAs, failing file/function, and assertion text (from triage).
 
 Returns: suspect commit list (SHA, date, ticket, reason flagged).
 
-## Step 7: Codebase Lookup
+## Step 2: Codebase Lookup
 
-Skip if Step 3 produced no concrete signal (no assertion text, no function name, no `file:line`). Record "Codebase: skipped — no signal" and proceed to Output.
+Skip if triage produced no concrete signal (no assertion text, no function name, no `file:line`). Record "Codebase: skipped — no signal" and proceed to Output.
 
-**Spawn the sub-agent defined in `@paths/codebase-lookup.md`.** Do not run grep commands inline — read that file and call its `Agent()` block directly, passing:
-- Assertion text, function name, file:line (Step 3)
+→ **@paths/codebase-lookup.md** — read the file and spawn its `Agent()` block. Pass assertion text, function name, and file:line (from triage).
 
 Returns: assertion location (file:line), 5 lines above (verbatim), subsystem, prior tickets.
 
-## Step 8: Reproduction
+## Step 3: Reproduction
 
-Skip if any of the following hold: Step 3 has no concrete error signal / Step 7 subsystem is "unknown" / failure is already explained by a known fix commit. Record "Reproduction: skipped — `<reason>`".
+Skip if any of the following hold: triage has no concrete error signal / Step 2 subsystem is "unknown" / failure is already explained by a known fix commit. Record "Reproduction: skipped — `<reason>`".
 
-**Spawn the sub-agent defined in `@paths/reproduction.md`.** Do not run test commands inline — read that file and call its `Agent()` block directly, passing:
-- Test name / command, build variant (Step 3)
-- Min iterations (Step 5)
-- Suspect commit / location (Steps 6–7)
+→ **@paths/reproduction.md** — read the file and spawn its `Agent()` block. Pass test command, build variant, min iterations (from triage), and suspect commit (from Step 1).
 
 Returns: result, failure rate, first error line, log path.
 
@@ -152,13 +93,13 @@ Populate every field. Write "unknown" or "insufficient data" rather than omittin
 
 | Source | Done? | Notes |
 |---|---|---|
-| Jira description + comments (Step 1) | | |
-| Evergreen log (Step 3) | | |
-| Build Baron failure group (Step 2) | | |
-| Sibling tickets (Step 2) | | |
-| Source code for failing function / assertion (Step 7) | | |
-| Git history in failure window (Step 6) | | |
-| Local build + test run (Step 8) | | |
+| Jira description + comments (triage Step 1) | | |
+| Evergreen log (triage Step 3) | | |
+| Build Baron failure group (triage Step 2) | | |
+| Sibling tickets (triage Step 2) | | |
+| Source code for failing function / assertion (Step 2) | | |
+| Git history in failure window (Step 1) | | |
+| Local build + test run (Step 3) | | |
 
 ### Working theory
 *Only write this if log and code evidence directly support it. Otherwise write: "Insufficient evidence — see unknowns."*
@@ -190,10 +131,10 @@ If you have read the code:
 
 Pick exactly one:
 
-- **Reproduced — needs fix** — Step 8 reproduced; root cause identified: `@paths/build.md`
+- **Reproduced — needs fix** — Step 3 reproduced; root cause identified: `@paths/build.md`
 - **Reproduced — root cause unclear** — reproduced but mechanism not understood: continue source investigation
-- **Not reproduced** — Step 8 met minimum iterations with zero failures: flag for CI monitoring
-- **Repro skipped** — Step 8 preconditions not met: `@paths/build.md`
+- **Not reproduced** — Step 3 met minimum iterations with zero failures: flag for CI monitoring
+- **Repro skipped** — Step 3 preconditions not met: `@paths/build.md`
 - **Needs data inspection** — failure points to persisted state: `@skills/wt-cli/SKILL.md`
 - **Needs owner** — assign to `<team>` because `<reason>`
 - **Infra issue** — evidence: `<log lines>`

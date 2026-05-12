@@ -430,7 +430,6 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
           &durable_start_ts, &start_prepare_ts, &start_prepared_id, &stop_txn, &stop_ts,
           &durable_stop_ts, &stop_prepare_ts, &stop_prepared_id, &type, &prepare, &flags, &location,
           value));
-
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /*
          * It is possible to see a full value that is smaller than or equal to the last checkpoint
