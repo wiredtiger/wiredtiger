@@ -6790,6 +6790,118 @@ tasks:
         vars:
           test-name: microbenchmark_prefetch_on_verify.py
 
+  ##########################
+  # YCSB Performance Tests #
+  ##########################
+
+  - name: perf-test-ycsb-a
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-a.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "update_ops", "avg_latency_read", "avg_latency_update"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-a.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-a.wtperf
+
+  - name: perf-test-ycsb-b
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-b.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "update_ops", "avg_latency_read", "avg_latency_update"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-b.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-b.wtperf
+
+  - name: perf-test-ycsb-c
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-c.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "avg_latency_read"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-c.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-c.wtperf
+
+  - name: perf-test-ycsb-d
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-d.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "insert_ops", "avg_latency_read", "avg_latency_insert"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-d.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-d.wtperf
+
+  - name: perf-test-ycsb-e
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-e.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "insert_ops", "avg_latency_read", "avg_latency_insert"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-e.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-e.wtperf
+
+  - name: perf-test-ycsb-f
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-f.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "modify_ops", "avg_latency_read", "avg_latency_modify"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-f.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-f.wtperf
+
   - name: bench-wt2853-perf-test-row
     tags: ["wt2853-perf"]
     depends_on:
