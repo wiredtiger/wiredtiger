@@ -94,7 +94,7 @@ __sync_dup_hazard_pointer(WT_SESSION_IMPL *session, WT_REF *walk)
          * get spurious busy errors (e.g., if eviction is attempting to lock the page). Keep trying:
          * we have one hazard pointer so we should be able to get another one.
          */
-        WT_RET(__wt_hazard_set(session, walk, &busy));
+        WT_RET(__wt_ref_count_acquire(session, walk, &busy));
         if (!busy)
             break;
         __wt_yield();

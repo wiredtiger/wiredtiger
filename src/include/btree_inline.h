@@ -2472,7 +2472,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         }
     }
 
-    return (__wt_hazard_clear(session, ref));
+    __wt_ref_count_release(session, ref);
+    return (0);
 }
 
 /*

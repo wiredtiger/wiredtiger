@@ -31,14 +31,12 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_ref) != ref);
 
     /*
-     * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
-     * complicated by the fact that readers publish their hazard pointer before re-checking the page
-     * state, so our check can race with readers without indicating a real problem. If we find a
-     * hazard pointer, wait for it to be cleared.
+     * Verify no readers are still pinning the page via the packed reference count. Any in-flight
+     * reader that incremented the count before seeing the LOCKED state will have already decremented
+     * by the time __evict_exclusive returns successfully.
      */
-    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
-      __wt_hazard_check_assert(session, ref, true),
-      "Attempted to free a page with active hazard pointers");
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK, __wt_ref_count(ref) == 0,
+      "Attempted to free a page with active readers");
 
     __wt_page_out(session, &ref->page);
 }
@@ -421,11 +419,10 @@ __wti_free_ref_index(
 
         /*
          * Used when unrolling splits and other error paths where there should never have been a
-         * hazard pointer taken.
+         * reader count acquired.
          */
-        WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
-          __wt_hazard_check_assert(session, ref, false),
-          "Attempting to discard ref to a page with hazard pointers");
+        WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK, __wt_ref_count(ref) == 0,
+          "Attempting to discard ref to a page with active readers");
 
         __wti_free_ref(session, ref, page->type, free_pages);
     }

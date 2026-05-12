@@ -10,6 +10,18 @@
 
 #include "evict_private.h"
 
+/*
+ * Eviction locking mode.
+ *
+ * 0 (drain): eviction CAS to LOCKED succeeds even with active readers; __evict_exclusive then
+ *   spins up to WT_EVICT_DRAIN_ITERS times yielding for in-flight readers to release their count.
+ *
+ * 1 (exclusive): the eviction CAS to LOCKED only succeeds when the reader count is zero.
+ *   Eviction never waits on readers; it loses the race at the CAS and retries later.
+ */
+#define WT_EVICT_LOCK_EXCLUSIVE 1
+#define WT_EVICT_DRAIN_ITERS 100
+
 struct __wt_evict {
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */

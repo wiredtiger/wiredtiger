@@ -59,7 +59,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * If this session has more than one hazard pointer, eviction will fail and there is no point
      * trying.
      */
-    if (__wt_hazard_count(session, ref) > 1)
+    if (__wt_ref_count(ref) > 1)
         return (false);
 
     /*
@@ -113,10 +113,9 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     previous_state = WT_REF_GET_STATE(ref);
     locked =
       previous_state == WT_REF_MEM && WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED);
-    if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
-        if (locked)
-            WT_REF_SET_STATE(ref, previous_state);
-        return (ret == 0 ? EBUSY : ret);
+    __wt_ref_count_release(session, ref);
+    if (!locked) {
+        return (EBUSY);
     }
 
     evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
@@ -500,6 +499,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     btree = S2BT(session);
     txn = session->txn;
     sleep_count = 0;
+#ifdef HAVE_DIAGNOSTIC
+    WT_UNUSED(func);
+    WT_UNUSED(line);
+#endif
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
@@ -603,11 +606,7 @@ read:
  * The expected reason we can't get a hazard pointer is because the page is being evicted, yield,
  * try again.
  */
-#ifdef HAVE_DIAGNOSTIC
-            WT_RET(__wt_hazard_set_func(session, ref, &busy, func, line));
-#else
-            WT_RET(__wt_hazard_set_func(session, ref, &busy));
-#endif
+            WT_RET(__wt_ref_count_acquire(session, ref, &busy));
             if (busy) {
                 /*
                  * Treat a busy page-in as a stall so we skip the yield loop and proceed directly to

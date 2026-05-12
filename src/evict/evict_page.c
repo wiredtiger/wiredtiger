@@ -27,21 +27,29 @@ __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE prev
 
 /*
  * __evict_exclusive --
- *     Acquire exclusive access to a page.
+ *     Wait for exclusive access to a page after the eviction CAS to LOCKED.
+ *
+ * In exclusive mode (WT_EVICT_LOCK_EXCLUSIVE == 1) the CAS in WT_REF_CAS_STATE_EVICT only
+ * succeeded because the reader count was already zero, so this function returns immediately.
+ *
+ * In drain mode (WT_EVICT_LOCK_EXCLUSIVE == 0) the CAS preserved an in-flight reader count;
+ * spin briefly until those readers release. New readers see LOCKED and decrement immediately.
  */
 static WT_INLINE int
 __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
-    /*
-     * Check for a hazard pointer indicating another thread is using the page, meaning the page
-     * cannot be evicted.
-     */
-    if (__wt_hazard_check(session, ref, NULL) == NULL)
+    if (__wt_ref_count(ref) == 0)
         return (0);
 
-    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
+    for (uint32_t i = 0; i < WT_EVICT_DRAIN_ITERS; ++i) {
+        __wt_yield();
+        if (__wt_ref_count(ref) == 0)
+            return (0);
+    }
+
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_readers);
     return (__wt_set_return(session, EBUSY));
 }
 

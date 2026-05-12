@@ -3026,7 +3026,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
          * For pages that are already being evicted, this operation will fail and we will move on.
          */
         if ((previous_state = WT_REF_GET_STATE(evict_entry->ref)) != WT_REF_MEM ||
-          !WT_REF_CAS_STATE(session, evict_entry->ref, previous_state, WT_REF_LOCKED)) {
+          !WT_REF_CAS_STATE_EVICT(session, evict_entry->ref, previous_state, WT_REF_LOCKED)) {
             __evict_list_clear(session, evict_entry);
             continue;
         }

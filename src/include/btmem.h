@@ -1203,8 +1203,6 @@ struct __wt_ref {
      *
      * For more details on these functions see ref_inline.h.
      */
-    wt_shared volatile WT_REF_STATE __state;
-
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
      * or NULL if page created in-memory.
@@ -1339,6 +1337,19 @@ struct __wt_ref {
      */
     wt_shared WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
+    /*
+     * Packed state and reader reference count. Low 8 bits hold the WT_REF_STATE; bits 8-31 hold the
+     * number of active readers currently pinning the page. Eviction's CAS from WT_REF_MEM to
+     * WT_REF_LOCKED expects the full word to be (WT_REF_MEM | count=0), so the transition naturally
+     * fails when any reader holds the page. Readers atomically increment this field, re-check the
+     * state bits, and decrement on mismatch.
+     */
+#define WT_REF_SC_STATE_MASK UINT32_C(0x000000FF) /* bits  0-7:  page state */
+#define WT_REF_SC_COUNT_SHIFT 8                    /* bits 8-31: reader count */
+#define WT_REF_SC_COUNT_ONE UINT32_C(0x00000100)  /* one reader */
+#define WT_REF_SC_COUNT_MASK UINT32_C(0xFFFFFF00) /* count field mask */
+    wt_shared volatile uint32_t state_and_count;
+
 #ifdef HAVE_REF_TRACK
 #define WT_REF_SAVE_STATE_MAX 3
     /* Capture history of ref state changes. */
@@ -1357,9 +1368,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 
