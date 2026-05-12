@@ -267,12 +267,12 @@ __curversion_advance_update_chain(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *v
  *     cursor's stop metadata to reflect this update's start information for the next iteration.
  */
 static int
-__curversion_emit_update_value(WT_CURSOR *cursor, WT_SESSION_IMPL *session,
-  WT_CURSOR_BTREE *cbt, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
+__curversion_emit_update_value(WT_CURSOR *cursor, WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
 {
     /*
-     * Copy the update value into the version cursor as we don't know the value format.
-     * If the update is a modify, reconstruct the value.
+     * Copy the update value into the version cursor as we don't know the value format. If the
+     * update is a modify, reconstruct the value.
      */
     if (upd->type != WT_UPDATE_MODIFY)
         __wt_upd_value_assign(cbt->upd_value, upd);
@@ -281,29 +281,27 @@ __curversion_emit_update_value(WT_CURSOR *cursor, WT_SESSION_IMPL *session,
           session, cbt, upd, cbt->upd_value, WT_OPCTX_TRANSACTION));
 
     /*
-     * Set the version cursor's value, which also contains all the record metadata for
-     * that particular version of the update.
+     * Set the version cursor's value, which also contains all the record metadata for that
+     * particular version of the update.
      */
     if (upd->txnid == WT_TXN_ABORTED)
-        WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-          upd->txnid, upd->upd_saved_txnid, upd->upd_rollback_ts, upd->prepare_ts,
-          upd->prepared_id, version_cursor->upd_stop_txnid,
-          __curversion_stop_uses_prepare_ts(version_cursor) ?
-            version_cursor->upd_stop_prepare_ts :
-            version_cursor->curversion_stop_ts,
-          version_cursor->curversion_durable_stop_ts,
-          version_cursor->upd_stop_prepare_ts, version_cursor->upd_stop_prepared_id,
-          upd->type, version_prepared, upd->flags, WT_CURVERSION_UPDATE_CHAIN));
+        WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, upd->txnid,
+          upd->upd_saved_txnid, upd->upd_rollback_ts, upd->prepare_ts, upd->prepared_id,
+          version_cursor->upd_stop_txnid,
+          __curversion_stop_uses_prepare_ts(version_cursor) ? version_cursor->upd_stop_prepare_ts :
+                                                              version_cursor->curversion_stop_ts,
+          version_cursor->curversion_durable_stop_ts, version_cursor->upd_stop_prepare_ts,
+          version_cursor->upd_stop_prepared_id, upd->type, version_prepared, upd->flags,
+          WT_CURVERSION_UPDATE_CHAIN));
     else
-        WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-          upd->txnid, upd->upd_start_ts, upd->upd_durable_ts, upd->prepare_ts,
-          upd->prepared_id, version_cursor->upd_stop_txnid,
-          __curversion_stop_uses_prepare_ts(version_cursor) ?
-            version_cursor->upd_stop_prepare_ts :
-            version_cursor->curversion_stop_ts,
-          version_cursor->curversion_durable_stop_ts,
-          version_cursor->upd_stop_prepare_ts, version_cursor->upd_stop_prepared_id,
-          upd->type, version_prepared, upd->flags, WT_CURVERSION_UPDATE_CHAIN));
+        WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, upd->txnid,
+          upd->upd_start_ts, upd->upd_durable_ts, upd->prepare_ts, upd->prepared_id,
+          version_cursor->upd_stop_txnid,
+          __curversion_stop_uses_prepare_ts(version_cursor) ? version_cursor->upd_stop_prepare_ts :
+                                                              version_cursor->curversion_stop_ts,
+          version_cursor->curversion_durable_stop_ts, version_cursor->upd_stop_prepare_ts,
+          version_cursor->upd_stop_prepared_id, upd->type, version_prepared, upd->flags,
+          WT_CURVERSION_UPDATE_CHAIN));
 
     /* Update stop metadata for the next iteration to use this update as the new stop. */
     version_cursor->upd_stop_txnid = upd->txnid;
@@ -331,9 +329,8 @@ __curversion_emit_update_value(WT_CURSOR *cursor, WT_SESSION_IMPL *session,
  *     section. Returns other errors on failure.
  */
 static int
-__curversion_process_update_chain(WT_CURSOR *cursor, WT_SESSION_IMPL *session,
-  WT_CURSOR_BTREE *cbt, WT_CURSOR_VERSION *version_cursor, WT_UPDATE **tombstonep,
-  bool *upd_foundp)
+__curversion_process_update_chain(WT_CURSOR *cursor, WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  WT_CURSOR_VERSION *version_cursor, WT_UPDATE **tombstonep, bool *upd_foundp)
 {
     WT_DECL_RET;
     WT_UPDATE *first_globally_visible, *tombstone, *upd;
@@ -355,8 +352,7 @@ __curversion_process_update_chain(WT_CURSOR *cursor, WT_SESSION_IMPL *session,
         return (0);
     }
 
-    if (version_cursor->start_timestamp != WT_TS_NONE &&
-      upd->upd_durable_ts != WT_TS_NONE &&
+    if (version_cursor->start_timestamp != WT_TS_NONE && upd->upd_durable_ts != WT_TS_NONE &&
       upd->upd_durable_ts <= version_cursor->start_timestamp)
         return (WT_NOTFOUND);
 
@@ -364,9 +360,9 @@ __curversion_process_update_chain(WT_CURSOR *cursor, WT_SESSION_IMPL *session,
         tombstone = upd;
 
         /*
-         * If the update is a tombstone, we still want to record the stop information but we
-         * also need traverse to the next update to get the full value. If the tombstone was
-         * the last update in the update list, retrieve the ondisk value.
+         * If the update is a tombstone, we still want to record the stop information but we also
+         * need traverse to the next update to get the full value. If the tombstone was the last
+         * update in the update list, retrieve the ondisk value.
          */
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
         version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
@@ -399,8 +395,8 @@ __curversion_process_update_chain(WT_CURSOR *cursor, WT_SESSION_IMPL *session,
     version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
       (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
 
-    WT_ERR(__curversion_emit_update_value(
-      cursor, session, cbt, version_cursor, upd, version_prepared));
+    WT_ERR(
+      __curversion_emit_update_value(cursor, session, cbt, version_cursor, upd, version_prepared));
 
     *upd_foundp = true;
 
@@ -412,10 +408,9 @@ err:
 
 /*
  * __curversion_next_single_key --
- *     Iterate the updates of a single key. The function is organized in three phases:
- *     (1) update chain traversal via __curversion_process_update_chain,
- *     (2) on-disk value handling, and
- *     (3) history store traversal.
+ *     Iterate the updates of a single key. The function is organized in three phases: (1) update
+ *     chain traversal via __curversion_process_update_chain, (2) on-disk value handling, and (3)
+ *     history store traversal.
  */
 static int
 __curversion_next_single_key(WT_CURSOR *cursor)
@@ -462,9 +457,8 @@ __curversion_next_single_key(WT_CURSOR *cursor)
      * start_timestamp boundary is reached (we are done), 0 with upd_found=true when a value was
      * emitted, and 0 with upd_found=false when the chain is exhausted (proceed to on-disk).
      */
-    WT_ERR_NOTFOUND_OK(
-      __curversion_process_update_chain(
-        cursor, session, cbt, version_cursor, &tombstone, &upd_found),
+    WT_ERR_NOTFOUND_OK(__curversion_process_update_chain(
+                         cursor, session, cbt, version_cursor, &tombstone, &upd_found),
       true);
     if (ret == WT_NOTFOUND)
         goto done;
