@@ -243,11 +243,11 @@ struct __wt_bm {
     int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
     /*
      * Optional fire-and-forget touch hint for the page referenced by an address cookie. The verb is
-     * intentionally generic: the meaning of the hint is encoded in the opaque `command` payload
-     * (a WT_ITEM forwarded verbatim to the page-log layer) so that callers can ask for warmup,
+     * intentionally generic: the meaning of the hint is encoded in the opaque `command` payload (a
+     * WT_ITEM forwarded verbatim to the page-log layer) so that callers can ask for warmup,
      * cold-tier pin, drop-from-hot, or any future action without changing this interface. Only
-     * wired by block managers that can speak to a page log (today: disagg). Callers are
-     * responsible for verifying bm->touch != NULL before invoking.
+     * wired by block managers that can speak to a page log (today: disagg). Callers are responsible
+     * for verifying bm->touch != NULL before invoking.
      */
     int (*touch)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, const WT_ITEM *);
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, size_t, uint8_t *,
