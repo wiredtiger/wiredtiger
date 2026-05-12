@@ -231,11 +231,11 @@ __curversion_record_stop_point(
 }
 
 /*
- * __curversion_emit_chain_update --
+ * __curversion_value_return_from_upd --
  *     Pack the metadata for an update emitted from the in-memory update chain.
  */
 static int
-__curversion_emit_chain_update(
+__curversion_value_return_from_upd(
   WT_CURSOR *cursor, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
 {
     uint64_t durable_meta, start_meta;
@@ -375,7 +375,7 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
           session, cbt, upd, cbt->upd_value, WT_OPCTX_TRANSACTION));
 
     /* Pack the metadata describing this version into the version cursor's value. */
-    WT_RET(__curversion_emit_chain_update(cursor, version_cursor, upd, version_prepared));
+    WT_RET(__curversion_value_return_from_upd(cursor, version_cursor, upd, version_prepared));
 
     __curversion_record_stop_point(version_cursor, upd, version_prepared);
 
