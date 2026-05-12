@@ -328,6 +328,9 @@ struct __wtperf_thread {    /* Per-thread structure */
     TRACK truncate_sleep; /* Truncate sleep operations */
     TRACK update;         /* Update operations */
     TRACK compact;        /* Compact operations (foreground compact thread only) */
+
+    uint64_t ckpt_min_us; /* Cumulative minimum checkpoint duration (microseconds) */
+    uint64_t ckpt_max_us; /* Cumulative maximum checkpoint duration (microseconds) */
 };
 
 void backup_read(WTPERF *, WT_SESSION *);
@@ -344,6 +347,7 @@ char *config_reopen(CONFIG_OPTS *);
 int config_sanity(WTPERF *);
 int delete_index_key(WTPERF *, WT_CURSOR *, char *, uint64_t);
 void generate_index_key(WTPERF_THREAD *, bool, char *, uint64_t);
+void latency_ckpt(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_print(WTPERF *);

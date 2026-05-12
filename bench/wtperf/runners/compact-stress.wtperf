@@ -3,7 +3,7 @@
 # remove every 3rd key to fragment, then run a foreground compact in parallel
 # with random updates and periodic checkpoints.
 
-conn_config="cache_size=20G,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact:2]"
+conn_config="cache_size=1G,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact:2]"
 table_config="allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=64MB,memory_page_max=10M,split_pct=90,key_format=S,value_format=S"
 
 # Populate: 1M records, varied 512B-4KB values, ~5GB on disk.
@@ -25,6 +25,7 @@ checkpoint_interval=15
 compact_threads=1
 compact_start_after=0
 compact_ends_workload=true
+compact_config="force=true"
 
 # Time-series monitor (existing) + per-op latency histogram (existing).
 sample_interval=2

@@ -105,6 +105,9 @@ DEF_OPT_AS_UINT32(compact_threads, 0,
   "number of foreground compact threads. Each runs session->compact() once "
   "after compact_start_after seconds into the workload phase. Independent of "
   "the (post-populate) compact option above.")
+DEF_OPT_AS_STRING(compact_config, "",
+  "config string passed to session->compact() for compact_threads. "
+  "Example: force=true to bypass skip heuristics.")
 DEF_OPT_AS_STRING(
   compact_uri, "", "URI for compact_threads to operate on. Empty means the first table.")
 DEF_OPT_AS_UINT32(post_populate_remove_modulus, 0,

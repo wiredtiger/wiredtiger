@@ -39,6 +39,7 @@ static WT_THREAD_RET compact_worker(void *);
 static WT_THREAD_RET stats_sampler_worker(void *);
 static int capture_pre_compact_stats(WTPERF *, WT_SESSION *, const char *);
 static int capture_post_compact_stats(WTPERF *, WT_SESSION *, const char *);
+static void ckpt_stats_dump(WTPERF *);
 static void compact_stats_dump(WTPERF *);
 static int drop_all_tables(WTPERF *);
 static int execute_populate(WTPERF *);
@@ -1146,6 +1147,7 @@ monitor(void *arg)
     uint64_t cur_inserts, cur_modifies, cur_reads, cur_updates;
     uint64_t last_inserts, last_modifies, last_reads, last_updates;
     uint32_t latency_max, level;
+    uint32_t ckpt_avg, ckpt_max, ckpt_min;
     uint32_t insert_avg, insert_max, insert_min;
     uint32_t modify_avg, modify_max, modify_min;
     uint32_t read_avg, read_max, read_min;
@@ -1204,7 +1206,10 @@ monitor(void *arg)
       "read maximum latency(uS),"
       "update average latency(uS),"
       "update min latency(uS),"
-      "update maximum latency(uS)"
+      "update maximum latency(uS),"
+      "checkpoint average duration(uS),"
+      "checkpoint min duration(uS),"
+      "checkpoint maximum duration(uS)"
       "\n");
     last_inserts = last_modifies = last_reads = last_updates = 0;
     while (!wtperf->stop) {
@@ -1227,6 +1232,7 @@ monitor(void *arg)
         modifies = sum_modify_ops(wtperf);
         reads = sum_read_ops(wtperf);
         updates = sum_update_ops(wtperf);
+        latency_ckpt(wtperf, &ckpt_avg, &ckpt_min, &ckpt_max);
         latency_insert(wtperf, &insert_avg, &insert_min, &insert_max);
         latency_modify(wtperf, &modify_avg, &modify_min, &modify_max);
         latency_read(wtperf, &read_avg, &read_min, &read_max);
@@ -1248,11 +1254,12 @@ monitor(void *arg)
         (void)fprintf(fp,
           "%s,%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%c,%c,%c,%c%" PRIu32
           ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32
-          ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\n",
+          ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\n",
           buf, wtperf->totalsec, cur_inserts, cur_modifies, cur_reads, cur_updates,
           wtperf->backup ? 'Y' : 'N', wtperf->ckpt ? 'Y' : 'N', wtperf->flush ? 'Y' : 'N',
           wtperf->scan ? 'Y' : 'N', insert_avg, insert_min, insert_max, modify_avg, modify_min,
-          modify_max, read_avg, read_min, read_max, update_avg, update_min, update_max);
+          modify_max, read_avg, read_min, read_max, update_avg, update_min, update_max, ckpt_avg,
+          ckpt_min, ckpt_max);
         if (jfp != NULL) {
             buf_size = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt);
             testutil_assert(buf_size != 0);
@@ -1281,6 +1288,10 @@ monitor(void *arg)
               ",\"update\":{\"ops per sec\":%" PRIu64 ",\"average latency\":%" PRIu32
               ",\"min latency\":%" PRIu32 ",\"max latency\":%" PRIu32 "}",
               cur_updates, update_avg, update_min, update_max);
+            (void)fprintf(jfp,
+              ",\"checkpoint\":{\"average duration\":%" PRIu32 ",\"min duration\":%" PRIu32
+              ",\"max duration\":%" PRIu32 "}",
+              ckpt_avg, ckpt_min, ckpt_max);
             fprintf(jfp, "}}\n");
         }
 
@@ -1429,6 +1440,7 @@ checkpoint_worker(void *arg)
     WTPERF_THREAD *thread;
     WT_CONNECTION *conn;
     WT_SESSION *session;
+    uint64_t ckpt_start, ckpt_stop_clk, usecs;
     uint32_t i;
     int ret;
     bool stop;
@@ -1439,6 +1451,8 @@ checkpoint_worker(void *arg)
     conn = wtperf->conn;
     session = NULL;
     stop = false;
+    thread->ckpt_min_us = UINT64_MAX;
+    thread->ckpt_max_us = 0;
 
     if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
         lprintf(wtperf, ret, 0, "open_session failed in checkpoint thread.");
@@ -1460,10 +1474,22 @@ checkpoint_worker(void *arg)
         if (stop)
             lprintf(wtperf, 0, 1, "Last call before stopping checkpoint");
         wtperf->ckpt = true;
+        ckpt_start = __wt_clock(NULL);
         if ((ret = session->checkpoint(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Checkpoint failed.");
             goto err;
         }
+        ckpt_stop_clk = __wt_clock(NULL);
+        usecs = WT_CLOCKDIFF_US(ckpt_stop_clk, ckpt_start);
+        lprintf(wtperf, 0, 1,
+          "checkpoint_worker: checkpoint %" PRIu64 " completed in %" PRIu64 " ms",
+          thread->ckpt.ops + 1, usecs / WT_THOUSAND);
+        ++thread->ckpt.latency_ops;
+        track_operation(&thread->ckpt, usecs);
+        if (usecs < thread->ckpt_min_us)
+            thread->ckpt_min_us = usecs;
+        if (usecs > thread->ckpt_max_us)
+            thread->ckpt_max_us = usecs;
         wtperf->ckpt = false;
         ++thread->ckpt.ops;
     }
@@ -1686,7 +1712,8 @@ compact_worker(void *arg)
 
     lprintf(wtperf, 0, 1, "compact_worker: starting session->compact(%s)", uri);
     start_clock = __wt_clock(NULL);
-    ret = session->compact(session, uri, NULL);
+    ret =
+      session->compact(session, uri, opts->compact_config[0] != '\0' ? opts->compact_config : NULL);
     elapsed_us = WT_CLOCKDIFF_US(__wt_clock(NULL), start_clock);
 
     wtperf->compact_ret = ret;
@@ -2882,10 +2909,28 @@ start_run(WTPERF *wtperf)
           wtperf->scan_ops / wtperf->testsec);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
+        if (wtperf->ckpt_ops > 0 && wtperf->ckptthreads != NULL) {
+            uint64_t total_lat, avg_us, min_us, max_us;
+            u_int ci;
+            total_lat = min_us = max_us = 0;
+            min_us = UINT64_MAX;
+            for (ci = 0; ci < opts->checkpoint_threads; ++ci) {
+                total_lat += wtperf->ckptthreads[ci].ckpt.latency;
+                if (wtperf->ckptthreads[ci].ckpt_min_us < min_us)
+                    min_us = wtperf->ckptthreads[ci].ckpt_min_us;
+                if (wtperf->ckptthreads[ci].ckpt_max_us > max_us)
+                    max_us = wtperf->ckptthreads[ci].ckpt_max_us;
+            }
+            avg_us = wtperf->ckpt_ops > 0 ? total_lat / wtperf->ckpt_ops : 0;
+            lprintf(wtperf, 0, 1,
+              "Checkpoint duration ms: avg %" PRIu64 " min %" PRIu64 " max %" PRIu64
+              " (total %" PRIu64 " ms across %" PRIu64 " checkpoints)",
+              avg_us / WT_THOUSAND, min_us / WT_THOUSAND, max_us / WT_THOUSAND,
+              total_lat / WT_THOUSAND, wtperf->ckpt_ops);
+        }
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
 
         latency_print(wtperf);
-        compact_stats_dump(wtperf);
     }
 
     if (0) {
@@ -2903,7 +2948,10 @@ err:
     wtperf->ckpt_stop = true;
     stop_threads(1, wtperf->ckptthreads);
     stop_threads(1, wtperf->scanthreads);
+    /* Join compact thread before dumping its stats: compact may outlast the workload. */
     stop_threads(opts->compact_threads, wtperf->compactthreads);
+    compact_stats_dump(wtperf);
+    ckpt_stats_dump(wtperf);
 
     if (monitor_created != 0)
         testutil_check(__wt_thread_join(NULL, &monitor_thread));
@@ -2935,6 +2983,53 @@ err:
 
 extern int __wt_optind, __wt_optreset;
 extern char *__wt_optarg;
+
+/*
+ * ckpt_stats_dump --
+ *     Write checkpoint_summary.txt with per-checkpoint duration metrics. WT-14196.
+ */
+static void
+ckpt_stats_dump(WTPERF *wtperf)
+{
+    CONFIG_OPTS *opts;
+    FILE *fp;
+    WTPERF_THREAD *thread;
+    char path[1024];
+    uint64_t total_lat, avg_us, min_us, max_us;
+    u_int i;
+
+    opts = wtperf->opts;
+
+    if (opts->checkpoint_threads == 0 || wtperf->ckptthreads == NULL || wtperf->ckpt_ops == 0)
+        return;
+
+    testutil_snprintf(path, sizeof(path), "%s/checkpoint_summary.txt", wtperf->monitor_dir);
+    if ((fp = fopen(path, "w")) == NULL) {
+        lprintf(wtperf, errno, 0, "ckpt_stats_dump: fopen %s", path);
+        return;
+    }
+
+    total_lat = 0;
+    min_us = UINT64_MAX;
+    max_us = 0;
+    for (i = 0, thread = wtperf->ckptthreads; i < opts->checkpoint_threads; ++i, ++thread) {
+        total_lat += thread->ckpt.latency;
+        if (thread->ckpt_min_us < min_us)
+            min_us = thread->ckpt_min_us;
+        if (thread->ckpt_max_us > max_us)
+            max_us = thread->ckpt_max_us;
+    }
+    avg_us = total_lat / wtperf->ckpt_ops;
+
+    fprintf(fp, "Checkpoint count : %" PRIu64 "\n", wtperf->ckpt_ops);
+    fprintf(fp, "Checkpoint total duration ms : %" PRIu64 "\n", total_lat / WT_THOUSAND);
+    fprintf(fp, "Checkpoint avg duration ms : %" PRIu64 "\n", avg_us / WT_THOUSAND);
+    fprintf(fp, "Checkpoint min duration ms : %" PRIu64 "\n",
+      min_us == UINT64_MAX ? 0 : min_us / WT_THOUSAND);
+    fprintf(fp, "Checkpoint max duration ms : %" PRIu64 "\n", max_us / WT_THOUSAND);
+
+    (void)fclose(fp);
+}
 
 /*
  * compact_stats_dump --

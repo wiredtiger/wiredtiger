@@ -309,6 +309,71 @@ latency_update(WTPERF *wtperf, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
 }
 
 /*
+ * latency_ckpt_op --
+ *     Compute per-sampling-period average, minimum, and maximum checkpoint duration across all
+ *     checkpoint threads. Resets per-period min/max after reading, matching latency_op behavior.
+ */
+static void
+latency_ckpt_op(WTPERF *wtperf, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
+{
+    CONFIG_OPTS *opts;
+    TRACK *track;
+    WTPERF_THREAD *thread;
+    uint64_t ops, latency, tmp;
+    uint32_t max, min;
+    u_int i;
+
+    opts = wtperf->opts;
+    ops = latency = 0;
+    max = 0;
+    min = UINT32_MAX;
+
+    for (i = 0, thread = wtperf->ckptthreads; thread != NULL && i < opts->checkpoint_threads;
+         ++i, ++thread) {
+        track = &thread->ckpt;
+        tmp = track->latency_ops;
+        ops += tmp - track->last_latency_ops;
+        track->last_latency_ops = tmp;
+        tmp = track->latency;
+        latency += tmp - track->last_latency;
+        track->last_latency = tmp;
+
+        if (min > track->min_latency)
+            min = track->min_latency;
+        track->min_latency = UINT32_MAX;
+        if (max < track->max_latency)
+            max = track->max_latency;
+        track->max_latency = 0;
+    }
+
+    if (ops == 0)
+        *avgp = *minp = *maxp = 0;
+    else {
+        *minp = min;
+        *maxp = max;
+        *avgp = (uint32_t)(latency / ops);
+    }
+}
+
+void
+latency_ckpt(WTPERF *wtperf, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
+{
+    static uint32_t last_avg = 0, last_max = 0, last_min = 0;
+
+    latency_ckpt_op(wtperf, avgp, minp, maxp);
+
+    if (*minp == 0) {
+        *avgp = last_avg;
+        *minp = last_min;
+        *maxp = last_max;
+    } else {
+        last_avg = *avgp;
+        last_min = *minp;
+        last_max = *maxp;
+    }
+}
+
+/*
  * sum_latency --
  *     Sum latency for a set of threads.
  */
@@ -359,6 +424,35 @@ static void
 sum_update_latency(WTPERF *wtperf, TRACK *total)
 {
     sum_latency(wtperf, offsetof(WTPERF_THREAD, update), total);
+}
+
+static void
+sum_ckpt_latency(WTPERF *wtperf, TRACK *total)
+{
+    CONFIG_OPTS *opts;
+    WTPERF_THREAD *thread;
+    TRACK *trk;
+    u_int i, j;
+
+    opts = wtperf->opts;
+    memset(total, 0, sizeof(*total));
+
+    for (i = 0, thread = wtperf->ckptthreads; thread != NULL && i < opts->checkpoint_threads;
+         ++i, ++thread) {
+        trk = &thread->ckpt;
+        for (j = 0; j < ELEMENTS(trk->us); ++j) {
+            total->ops += trk->us[j];
+            total->us[j] += trk->us[j];
+        }
+        for (j = 0; j < ELEMENTS(trk->ms); ++j) {
+            total->ops += trk->ms[j];
+            total->ms[j] += trk->ms[j];
+        }
+        for (j = 0; j < ELEMENTS(trk->sec); ++j) {
+            total->ops += trk->sec[j];
+            total->sec[j] += trk->sec[j];
+        }
+    }
 }
 
 static void
@@ -415,4 +509,6 @@ latency_print(WTPERF *wtperf)
     latency_print_single(wtperf, &total, "read");
     sum_update_latency(wtperf, &total);
     latency_print_single(wtperf, &total, "update");
+    sum_ckpt_latency(wtperf, &total);
+    latency_print_single(wtperf, &total, "checkpoint");
 }
