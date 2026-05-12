@@ -76,10 +76,15 @@ Using `@reference/output-template.md`, compose the final comment from Step 1 (in
 Agent(
   subagent_type="general-purpose",
   prompt="""
-Update @reference/codebase.md with architectural facts learned from this investigation.
+Update @reference/codebase.md with high-level architectural knowledge learned from this investigation.
 
 ## Investigation output
 <paste Step 1 output here>
+
+Rules:
+- Only write subsystem ownership, component relationships, data flow, and system-level invariants.
+- Never write function names, struct names, field names, lock names, line numbers, or config strings — those belong in source, not here.
+- Entries must remain true even if the implementation is refactored.
 
 Follow the entry format in codebase.md. Add new entries, correct stale ones, remove entries that are no longer true. Return a one-line summary of what was saved.
 """

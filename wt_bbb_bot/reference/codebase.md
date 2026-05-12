@@ -1,6 +1,6 @@
 # WiredTiger Architecture Knowledge
 
-Orientation hints accumulated from past BF investigations. Use these to ask more targeted
+Orientation hints accumulated from past BF investigations. Use these to form targeted
 Explore questions — not as ground truth. Architecture changes; entries may be stale.
 Always verify with source before relying on anything here.
 
@@ -11,27 +11,26 @@ Add new entries after each investigation. Correct stale ones. Remove entries tha
 ```
 ### <subsystem> — <concept or interaction>
 
-<One to three sentences: ownership, relationships, invariants.>
+<One to three sentences: who owns what, how components relate, what invariant holds.>
 
 - **Learned from**: <WT-XXXXX>
 - **Date**: <YYYY-MM-DD>
 ```
 
 **Capture:** subsystem ownership, component interactions, data flow, system-level invariants.
-**Skip:** function signatures, struct fields, lock names, line numbers — read those from source.
+**Never capture:** function names, struct names, field names, lock names, line numbers, config strings — read those from source.
 
-Entries are grouped by subsystem.
+Entries are grouped by subsystem. Keep each entry high-level enough that it remains true even if the implementation is refactored.
 
 ---
 
 ## btree / cursor
 
-### layered cursor (disagg) — ingest + stable constituent ownership
+### layered cursor (disagg) — ingest vs. stable constituent ownership
 
-`WT_CURSOR_LAYERED` wraps an ingest cursor and a stable cursor. Iteration merges both; the direction flag (`WT_CLAYERED_ITERATE_NEXT/PREV`) and `current_cursor` must be kept consistent. In leader mode the ingest cursor is skipped entirely (ingest is expected to be empty post-promotion).
+In disaggregated storage, a layered cursor merges reads across an ingest layer and a stable layer. Iteration direction and which constituent is "current" must stay consistent. In leader mode the ingest layer is bypassed entirely after promotion.
 
 - **Learned from**: WT-17454
 - **Date**: 2026-05-12
 
 ---
-
