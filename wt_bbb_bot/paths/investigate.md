@@ -369,8 +369,7 @@ Only after ticking all applicable rows may a field be recorded as "unknown". If 
 is unavailable (e.g., 401 on Evergreen, macOS-only failure), record *why* it is
 unavailable — "unknown" alone is not an acceptable entry when a source was never attempted.
 
-**Local build rule:** When the Evergreen log is unavailable and the root cause is unclear
-from static analysis, you MUST attempt local reproduction before writing "unknown".
+**Local build rule:** You MUST attempt local reproduction before writing "unknown".
 This is not optional. Steps in order:
 
 1. Build WiredTiger (`cd build && ninja` — incremental if build dir exists).
@@ -416,10 +415,14 @@ If you have read the code, write:
 Source analysis alone — tracing the call path, identifying the missing guard, reading
 the assertion — justifies a root cause hypothesis. It does not verify the fix.
 
+**Preferred form:** re-run the original failing test. **Fallback:** targeted test or reproducer
+(when the original test is not achievable due to platform, timing, or environment).
+
 | Reproduction status | Max fix confidence |
 |---|---|
-| Reproduced locally AND fix verified (failure gone after patch) | High |
-| Reproduced locally but fix not yet applied/tested | Medium |
+| Original failing test reproduced AND fix verified (failure gone after patch) | Very High |
+| Scenario reproduced via targeted test/reproducer AND fix verified | High |
+| Reproduced (any form) but fix not yet applied/tested | Medium |
 | Not reproduced (timing, seeds, env) — fix proposed from source only | Medium |
 | Cannot reproduce at all | Low |
 

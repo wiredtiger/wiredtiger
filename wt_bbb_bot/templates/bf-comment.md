@@ -24,7 +24,7 @@ h3. Root Cause
 * *Where:* <file:function>
 * *Why:* <two to four sentences — exact mechanism, function names, data flow>
 
-*Confidence:* Low / Medium / High — <key uncertainty in one clause>
+*Confidence:* Low / Medium / High / Very High — <key uncertainty in one clause>
 
 h3. Recommended Fix
 <One to two sentences — specific change, file, function. Cite existing patch if present.>

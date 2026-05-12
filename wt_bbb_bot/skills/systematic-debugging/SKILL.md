@@ -129,11 +129,22 @@ When the error is deep in the call stack, trace backward:
 
 Source analysis alone — reading code, tracing the call path, identifying the missing guard — can justify a root cause hypothesis. It cannot justify a fix.
 
+**Preferred form:** Re-run the original failing test with the exact command, seeds, and config from CI. This is the strongest evidence because it confirms the bug exists in the real scenario, not just a proxy.
+
+**Fallback forms** (use only when the original test is not achievable due to platform constraints, timing, or environment):
+- A targeted Python test that directly sets up the failing scenario (e.g., prepared insert + prepared delete + forced switch)
+- A minimal C reproducer or csuite test that calls the affected function with the triggering inputs
+- A test/format run with parameters tuned to hit the race more reliably
+
+Fallback reproducers are acceptable but weaker — they confirm the hypothesis in a controlled scenario but do not prove the original CI path is exercised.
+
 | Reproduction status | Max fix confidence |
 |---|---|
-| Reproduced locally, fix verified | High |
-| Not reproduced (timing, env, seeds) | Medium — fix is a hypothesis |
-| Cannot reproduce at all | Low — root cause may be wrong |
+| Original failing test reproduced AND fix verified (failure gone after patch) | Very High |
+| Scenario reproduced via targeted test/reproducer AND fix verified | High |
+| Bug reproduced (any form) but fix not yet tested against it | Medium |
+| No reproducer (timing, env, scenario too complex) — fix from source only | Medium |
+| Cannot reproduce at all, source analysis inconclusive | Low |
 
 If you propose a fix without a reproducer, state this explicitly: "Fix proposed from source analysis; confidence is Medium until a reproduction verifies the change eliminates the assertion." Do not report High confidence on a fix you have not tested.
 
@@ -180,9 +191,10 @@ can't build, etc.) — and say so explicitly.
 | Rung | Action | Confidence gained |
 |---|---|---|
 | 1 | Read the failing assertion and call stack in source | Root cause hypothesis |
-| 2 | Reproduce the failure locally (meet minimum iteration count) | Root cause confirmed |
+| 2 | Reproduce the failure locally — preferred: original test; fallback: targeted test | Root cause confirmed |
 | 3 | Implement the minimal fix | Fix hypothesis |
-| 4 | Rebuild and re-run the same repro to verify the failure is gone | Fix confirmed — High |
+| 4a | Rebuild and re-run the targeted/fallback reproducer to verify the failure is gone | Fix confirmed — High |
+| 4b | Rebuild and re-run the original failing test to verify the failure is gone | Fix confirmed — Very High |
 | 5 | Run a broader regression pass (related tests / longer timer) | No regressions introduced |
 
 **The iron rule:** Do not stop at Rung 1 or 2 and call it done. If you can reproduce,
@@ -192,7 +204,7 @@ ladder until a rung is genuinely blocked, then state why you stopped.
 When you stop early, say:
 > "Stopped at Rung N — `<specific blocker>`. Confidence: Medium."
 
-Never claim High confidence without reaching Rung 4.
+Never claim Very High confidence without reaching Rung 4b. Never claim High without 4a.
 
 ---
 

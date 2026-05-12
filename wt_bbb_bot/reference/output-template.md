@@ -30,7 +30,7 @@ Use the Jira version in @../templates/bf-comment.md.
 - **Where:** `<file:function>`
 - **Why:** `<two to four sentences — exact mechanism, function names, data flow>`
 
-**Confidence:** Low / Medium / High — `<key uncertainty in one clause>`
+**Confidence:** Low / Medium / High / Very High — `<key uncertainty in one clause>`
 
 ---
 

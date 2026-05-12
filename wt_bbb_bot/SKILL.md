@@ -57,7 +57,11 @@ Do not proceed to Step N+1 without printing this line. This makes the step seque
 
 ## Explore agent
 
-**Use an Explore subagent for all source code investigation.** Do not read or grep source files inline. Instead, spawn an Explore agent with a precise question. This keeps the main context clean and lets the agent search broadly without polluting it with raw file contents.
+**Use an Explore subagent for ALL source code investigation. This is a hard rule — no exceptions.**
+
+Never use the Read tool, Bash grep, or any inline tool to look at source files for investigative purposes. It does not matter how targeted or "quick" the lookup seems. Every investigative source read must go through an Explore agent. Rationalizations like "I know exactly where to look" or "it's just one file" are not exceptions — spawn the agent.
+
+The only inline reads permitted are for files you are about to edit (reading the file immediately before an Edit call). Everything else — understanding code, tracing a call path, checking if a guard exists, reading an assertion — goes through Explore.
 
 When to spawn an Explore agent:
 - Locating where an assertion, macro, or function is defined
@@ -65,6 +69,7 @@ When to spawn an Explore agent:
 - Finding recent changes to a file or subsystem (complement to git_blame)
 - Checking whether a fix or guard already exists in the current source
 - Understanding a subsystem's invariants before forming a hypothesis
+- Any question of the form "what does this code do?" or "where is X?"
 
 How to invoke:
 ```
