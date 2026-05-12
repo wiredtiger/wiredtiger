@@ -461,6 +461,58 @@ __curversion_disk_check_with_stop(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *v
 }
 
 /*
+ * __curversion_disk_finalize_prepared --
+ *     Resolve the prepared-state and visibility decisions for an on-disk record, possibly mutating
+ *     the stop fields when running in visible-only mode.
+ */
+static void
+__curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW *tw,
+  WT_UPDATE *tombstone, uint64_t *stop_txnp, wt_timestamp_t *stop_prepare_tsp,
+  uint64_t *stop_prepared_idp, wt_timestamp_t *stop_tsp, wt_timestamp_t *durable_stop_tsp,
+  bool *stop_preparedp, bool *version_preparedp, bool *skipp, bool *donep)
+{
+    uint8_t prepare_state;
+
+    if (tombstone != NULL) {
+        WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, tombstone->prepare_state);
+        *version_preparedp =
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+        return;
+    }
+
+    if (version_cursor->start_timestamp != WT_TS_NONE) {
+        if (WT_TIME_WINDOW_HAS_STOP(tw)) {
+            /* Done if the on-disk stop durable timestamp is at or before the end timestamp. */
+            if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
+              tw->durable_stop_ts <= version_cursor->start_timestamp) {
+                *donep = true;
+                return;
+            }
+        } else if (!WT_TIME_WINDOW_HAS_START_PREPARE(tw) &&
+          tw->durable_start_ts <= version_cursor->start_timestamp) {
+            /* No stop side: done if the start durable timestamp is past the end timestamp. */
+            *donep = true;
+            return;
+        }
+    }
+
+    if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) && WT_TIME_WINDOW_HAS_PREPARE(tw)) {
+        if (!WT_TIME_WINDOW_HAS_STOP(tw) || *stop_txnp == tw->start_txn) {
+            *skipp = true;
+            return;
+        }
+        *stop_txnp = WT_TXN_MAX;
+        *stop_prepare_tsp = WT_TS_MAX;
+        *stop_prepared_idp = WT_PREPARED_ID_NONE;
+        *stop_tsp = WT_TS_MAX;
+        *durable_stop_tsp = WT_TS_NONE;
+        *stop_preparedp = false;
+        *version_preparedp = false;
+    } else
+        *version_preparedp = WT_TIME_WINDOW_HAS_PREPARE(tw);
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
