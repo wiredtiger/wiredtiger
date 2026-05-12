@@ -212,9 +212,8 @@ __curversion_tombstone_next_upd(
 /*
  * __curversion_advance_update_chain --
  *     Walk forward from the current update to find the next non-obsolete update to visit on the
- *     next call. Sets version_cursor->next_upd and first_globally_visible. Returns the update
- *     immediately after the emitted one that should be visited next, or NULL when the chain is
- *     exhausted.
+ *     next call. Sets version_cursor->next_upd to the next update to visit (NULL when exhausted)
+ *     and *first_globally_visiblep to the first globally visible update encountered.
  */
 static WT_INLINE void
 __curversion_advance_update_chain(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor,
