@@ -1617,6 +1617,13 @@ methods = {
         calls and needs to be reapplied each time the service is enabled. The individual objects in
         the list can only be of the \c table: URI type''',
         type='list'),
+    Config('force', 'false', r'''
+        attempt to make progress even when the usual compact heuristics would
+        cause the pass to be skipped: an insufficient amount of available
+        space, the file having grown between passes, or no progress being made
+        on the previous pass. Does not override the 1MB minimum file size, the
+        per-page allocation skip, or the \c timeout limit''',
+        type='boolean'),
     Config('free_space_target', '20MB', r'''
         minimum amount of space recoverable for compaction to proceed''',
         min='1MB'),

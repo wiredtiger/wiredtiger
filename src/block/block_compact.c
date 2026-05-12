@@ -187,6 +187,16 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     } else if (avail_ninety > WT_MEGABYTE && avail_ninety >= file_size / 10) {
         *skipp = false;
         *compact_pct_tenths_p = 1;
+    } else if (session->compact->force) {
+        /*
+         * Heuristics say we shouldn't bother, but the user explicitly asked us to try anyway.
+         * Default to the more aggressive last-20% target.
+         */
+        *skipp = false;
+        *compact_pct_tenths_p = 2;
+        __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+          "%s: insufficient free space for normal compaction; proceeding anyway because force=true",
+          block->name);
     } else {
         *skipp = true;
         *compact_pct_tenths_p = 0;
@@ -215,13 +225,20 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
 
     /*
      * Skip files that have failed to make progress on previous compact iterations. Use
-     * compact_estimated to avoid this check on the first pass.
+     * compact_estimated to avoid this check on the first pass. With force=true keep retrying
+     * regardless.
      */
     if (block->compact_estimated && !*skipp) {
         if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
-            __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
-              "%s: compaction failed to make progress, no new pages rewritten", block->name);
-            *skipp = true;
+            if (session->compact->force)
+                __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+                  "%s: no new pages rewritten on previous pass; continuing because force=true",
+                  block->name);
+            else {
+                __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+                  "%s: compaction failed to make progress, no new pages rewritten", block->name);
+                *skipp = true;
+            }
         } else
             block->compact_prev_pages_rewritten = block->compact_pages_rewritten;
     }
@@ -517,9 +534,10 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 
     /*
      * Check if the number of available bytes matches the expected configured threshold. Only
-     * perform that check during the first iteration.
+     * perform that check during the first iteration. With force=true the user has explicitly opted
+     * to ignore this heuristic.
      */
-    if (block->compact_pages_reviewed == 0 &&
+    if (!session->compact->force && block->compact_pages_reviewed == 0 &&
       block->live.avail.bytes < session->compact->free_space_target)
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the number of available bytes %" PRIu64
@@ -527,14 +545,21 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
           block->name, block->live.avail.bytes, session->compact->free_space_target);
     /*
      * The file can grow due to parallel activity, it is better to stop compacting to avoid
-     * conflicting behavior.
+     * conflicting behavior. With force=true keep going regardless.
      */
-    else if (block->compact_prev_size > 0 && block->size > block->compact_prev_size)
+    else if (!session->compact->force && block->compact_prev_size > 0 &&
+      block->size > block->compact_prev_size)
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the file has grown between compact passes.", block->name);
-    else
+    else {
+        if (session->compact->force && block->compact_prev_size > 0 &&
+          block->size > block->compact_prev_size)
+            __wt_verbose_debug1(session, WT_VERB_COMPACT,
+              "%s: file has grown between compact passes, continuing because force=true.",
+              block->name);
         __block_compact_skip_internal(
           session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
+    }
 
     block->compact_prev_size = block->size;
 

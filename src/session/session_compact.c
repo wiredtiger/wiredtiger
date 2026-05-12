@@ -504,6 +504,10 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_ERR(__wt_config_gets(session, cfg, "dryrun", &cval));
     session->compact->dryrun = (bool)cval.val;
 
+    /* Configure force mode: override skip heuristics that would normally cut a pass short. */
+    WT_ERR(__wt_config_gets(session, cfg, "force", &cval));
+    session->compact->force = (bool)cval.val;
+
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a
      * table, so acquire the table lock in write mode.
