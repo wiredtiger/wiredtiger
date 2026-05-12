@@ -210,11 +210,11 @@ __curversion_tombstone_next_upd(
 }
 
 /*
- * __curversion_record_stop_meta --
+ * __curversion_record_stop_point --
  *     Save an update's metadata as the previously-emitted stop state.
  */
 static void
-__curversion_record_stop_meta(
+__curversion_record_stop_point(
   WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
 {
     version_cursor->upd_stop_txnid = upd->txnid;
@@ -348,7 +348,7 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
         version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
           (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
-        __curversion_record_stop_meta(version_cursor, upd, version_prepared);
+        __curversion_record_stop_point(version_cursor, upd, version_prepared);
         upd = __curversion_tombstone_next_upd(session, version_cursor, tombstone);
     }
 
@@ -377,7 +377,7 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
     /* Pack the metadata describing this version into the version cursor's value. */
     WT_RET(__curversion_emit_chain_update(cursor, version_cursor, upd, version_prepared));
 
-    __curversion_record_stop_meta(version_cursor, upd, version_prepared);
+    __curversion_record_stop_point(version_cursor, upd, version_prepared);
 
     *upd_foundp = true;
 
