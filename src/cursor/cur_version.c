@@ -661,12 +661,12 @@ __curversion_process_on_disk(
 }
 
 /*
- * __curversion_emit_hs_value --
+ * __curversion_value_return_from_hs --
  *     Pack the metadata for the history-store value and record it as the previously-emitted stop
  *     state.
  */
 static int
-__curversion_emit_hs_value(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64_t hs_upd_type)
+__curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64_t hs_upd_type)
 {
     WT_CURSOR_VERSION *version_cursor;
     wt_timestamp_t durable_start_meta, start_meta;
@@ -805,7 +805,7 @@ __curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITE
         }
     }
 
-    WT_RET(__curversion_emit_hs_value(cursor, twp, hs_upd_type));
+    WT_RET(__curversion_value_return_from_hs(cursor, twp, hs_upd_type));
     *upd_foundp = true;
     return (0);
 }
