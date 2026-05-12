@@ -61,7 +61,7 @@ Extract:
 | Time window | First seen → last seen |
 | Failures in last 7 days | N |
 | Distinct variants affected | List — platform, sanitizer, build type |
-| Blocking trunk or a release? | yes / no / unknown |
+| CI blocker? | yes / no / unknown |
 
 ### 2b: Characterize the variant pattern
 
@@ -321,7 +321,7 @@ field. This step is read-only — do not post to Jira or modify any external sta
 - **Total failures:** N over X days across Y variants
 - **Failure pattern:** `<evenly spread / burst / single occurrence>`
 - **Variants:** `<list>`
-- **Blocking trunk / release:** `<yes / no / unknown>`
+- **CI blocker:** `<yes / no / unknown>`
 - **Siblings:** `<list, or none>`
 
 ### Log evidence

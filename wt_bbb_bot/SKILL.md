@@ -206,7 +206,7 @@ subsystem, and recommendation for which path/skill to invoke next.
 From the Build Baron failure group (Step 2):
 - How many distinct variants are affected?
 - Failure rate over the last 7 days?
-- Is this gating a release or blocking trunk?
+- Is this a CI blocker (gating trunk or a release)?
 
 This determines urgency — include in the output.
 

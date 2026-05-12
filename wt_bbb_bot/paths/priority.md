@@ -6,6 +6,11 @@ Score a single WiredTiger ticket by urgency. This path runs after `@paths/invest
 **Core rule:** Scores come only from investigation output fields. If a field is
 "unknown" or "insufficient data", treat it as neutral — do not inflate or penalise.
 
+**Truth foundation:** The MongoDB Storage Engines Bug Priorities wiki
+(https://wiki.corp.mongodb.com/spaces/WT/pages/164430772/Storage+Engines+Bug+Priorities)
+defines what P1–P5 mean. All scoring below is derived from that document. When in
+doubt, consult it.
+
 ---
 
 ## Input
@@ -13,7 +18,7 @@ Score a single WiredTiger ticket by urgency. This path runs after `@paths/invest
 The investigation output from `@paths/investigate.md` for the ticket, containing:
 
 - Jira context (priority, assignee)
-- Occurrence analysis (total failures, failures last 7d, variants, blocking)
+- Occurrence analysis (total failures, failures last 7d, variants, CI blocker)
 - Log evidence (failure type from first error / stack trace)
 - Git history (suspect commit)
 - Working theory (root cause origin, confidence)
@@ -32,7 +37,7 @@ For each ticket, extract these values directly from the investigation output:
 | Suspect commit | Git history → Suspect commit |
 | Failures last 7 days | Occurrence analysis → Failures in last 7 days |
 | Distinct variants | Occurrence analysis → Variants |
-| Blocking trunk / release | Occurrence analysis → Blocking trunk / release |
+| CI blocker | Occurrence analysis → CI blocker |
 | Assignee | Jira context → Assignee |
 | Age | Jira context → ticket creation date vs today |
 
@@ -40,70 +45,126 @@ For each ticket, extract these values directly from the investigation output:
 
 ## Step 2: Score each ticket
 
-Assign a **priority score from 0–100** by weighing the signals below. The weights are
-not fixed arithmetic — use them as a relative importance guide and apply judgment when
-signals conflict or are missing.
+Assign a **priority score from 0–100** anchored to the P1–P5 definitions below. Use
+the Jira priority as the starting bracket, then adjust up or down within that bracket
+based on the remaining signals.
 
-### Jira priority
+### Anchor: Jira priority bracket
 
-P1 or P2 means someone with full context already decided this is critical. Treat it as
-the strongest single signal — a P1/P2 ticket should land at or near the top regardless
-of other signals.
+| Jira priority | Score range | Meaning |
+|---|---|---|
+| P1 — Blocker | 85–100 | Needs immediate attention; release may be blocked |
+| P2 — Critical | 65–84 | Needs urgent attention; other teams may be blocked |
+| P3 — Major | 35–64 | Important but not urgent; queue for normal triage |
+| P4 — Minor | 15–34 | Non-critical; uncommon conditions |
+| P5 — Trivial | 0–14 | Cosmetic; no functional impact |
+| Unset / unknown | Neutral — use failure type to infer bracket | |
 
-### Failure severity
+If the Jira priority is **not set**, infer the bracket from the failure type and
+recurrence in Step 2a, then score within that inferred bracket.
 
-The failure type from the investigation log evidence is the second-strongest signal.
-Order from most to least severe:
+**Skepticism rule: default to P3. Raise to P1 or P2 only when the evidence clearly
+meets the bar below. When in doubt, stay lower.**
 
-- **Data corruption** — `verify` failure or unexpected key/value after recovery. The
-  worst outcome: persisted data is wrong and may propagate silently. Treat as critical.
-- **Crash / SIGABRT / `wiredtiger_abort`** — process died. Serious but data may be intact.
-- **Data mismatch** — wrong key or value observed during the test, process survived.
-  Caught, but implies a correctness bug in production code.
-- **ASAN non-leak** — use-after-free, buffer overflow, heap corruption. Memory safety
-  violation; often precedes a crash or corruption in real workloads.
-- **`WT_PANIC` / `WT_ASSERT`** — assertion in production code fired. Indicates an
-  invariant the WT team considered impossible was violated.
-- **Hang / task timeout** — no forward progress. Can block entire variants.
-- **ASAN memory leak** — real defect but almost never urgent; rarely causes CI failures
-  in the short term.
-- **Infra / test-only failure** — the problem is in the test harness or CI environment,
-  not in WT code. Deprioritise significantly.
+**User-impact rule:** P1 requires both data corruption/loss AND regular recurrence. A
+failure in a feature not yet deployed to users (e.g. disaggregated/layered storage,
+tiered storage, experimental configs) cannot be P1 regardless of severity — cap at P2.
 
-### Root cause origin
+---
 
-From the investigation's working theory:
+### Step 2a: Failure type + recurrence → bracket
 
-- **Internal WT bug** — the stack trace, assertion, or theory points to production code
-  in `src/`. This matters more than the same failure in a test harness.
-- **Suspect commit identified** — a regression with a specific commit to look at is
-  easier to fix and more urgent than an unknown root cause.
-- **Test-only or infra** — if the investigation concluded the failure is in test
-  scaffolding or environment, lower the priority substantially.
-- **Unknown** — treat neutrally; do not inflate or deflate.
+P1 and P2 are reserved for data correctness failures. Recurrence is what separates them.
 
-### Recurrence
+**P1 — data corruption or loss, happening regularly:**
 
-From "Failures in last 7 days" in the occurrence analysis. The pattern to look for:
+Both conditions must hold: (1) the failure indicates data corruption or loss, AND (2)
+it is occurring frequently (multiple times per week or more). A single occurrence of a
+corruption failure is P2, not P1.
 
-- A ticket hitting CI **every day or multiple times a day** is actively blocking
-  developers from merging — it belongs at the top of the queue.
-- A ticket failing **a few times a week** is noisy but not a daily blocker.
-- A ticket that **has not fired recently** may already be fixed on trunk or may have
-  been an isolated event — verify before spending time on it.
+Failure types that qualify as data corruption/loss:
+- Snapshot-isolation key/value mismatch: `"snapshot-isolation: ... expected <X> found <Y>"`
+- `test/format` or `test/checkpoint` indicating a data mismatch after recovery
+- `random_abort`, `random_directio`, or `timestamp_abort` failures
 
-### Blast radius
+**P2 — data corruption or loss, occurring infrequently:**
 
-More variants affected = wider impact. A failure showing up across platforms,
-sanitizer builds, and release variants simultaneously suggests a deep correctness
-issue, not a configuration fluke.
+Same failure types as P1, but low recurrence (rare, single occurrence, or isolated
+burst). Still serious, but not an immediate fire.
 
-### Other signals that raise urgency
+Also P2:
+- Any assertion failure relating to timestamps, txnids, or updates
+- A BF where **another team outside Storage Engines is waiting on WT to unblock them**
+  (e.g. the Server team cannot proceed because of a WT issue) — regardless of failure type.
 
-- **Blocking trunk or a release branch** — gating impact is immediate.
-- **Unowned** — no one is looking at it; higher urgency to assign or triage.
-- **Long open without a fix or investigation comment** — age without progress is a
-  signal the ticket has been missed.
+**P3 — everything else by default:**
+
+Unless there is clear evidence of data corruption/loss, assume P3. This includes:
+- Cache stuck failures
+- Most `test/csuite` failures
+- Frequently hitting assertion failures that do not imply data correctness issues
+- Python/other tests where WiredTiger statistics are out of expected range
+- Test failures indicating slowness (task timeout, performance regression)
+- Test failure with unknown cause — e.g. "Status 137 unknown reason"
+- Coverity failures on new code
+- Most Python test failures
+
+**P4:**
+- Uncommon or rarely-used configuration failures
+- Compiler warnings
+
+**P5:**
+- Typos in log messages, documentation, or UI strings
+- Formatting issues with no functional impact
+
+**ASAN / memory safety:**
+- ASAN non-leak (use-after-free, buffer overflow, heap corruption) — default P3; raise
+  to P2 only if the faulting component is on the critical data path (`src/txn/`,
+  `src/btree/`, `src/evict/`, `src/checkpoint/`, `src/block/`, `src/log/`) AND the
+  failure recurs regularly.
+- ASAN memory leak — P3/P4; real defect but rarely urgent.
+
+---
+
+### Step 2b: CI blocker — adjust within bracket
+
+If the investigation recorded CI blocker = yes (test consistently failing on trunk or a
+release branch, making CI red):
+- This is an independent urgency signal — it means developers can't trust CI results,
+  which masks new regressions.
+- Push the score to the top of its current bracket.
+- Do NOT automatically raise the bracket — a CI-red P3 test stays P3, but scores at
+  the high end of P3.
+- **Exception:** if an external team is waiting on WT to fix the failure before they
+  can proceed, that raises the bracket to P2 per the wiki definition.
+
+---
+
+### Step 2c: Root cause origin — adjust within bracket
+
+- **Internal WT bug** (`src/` code) — the failure reflects a production code defect;
+  no adjustment needed (already reflected in failure type).
+- **Suspect commit identified** — a regression with a specific commit to bisect is
+  more actionable; nudge score up 5 points within the bracket.
+- **Test-only or infra** — the failure is in test scaffolding or the CI environment,
+  not production code. Lower the score by 10–15 points. Do not raise to P1/P2 on
+  infra evidence alone.
+- **Unknown** — treat neutrally.
+
+---
+
+### Step 2d: Recurrence — adjust within bracket
+
+- **Hitting CI every day or multiple times a day** — actively noisy; nudge up 5 points.
+- **A few times a week** — noisy but not a daily blocker; no adjustment.
+- **Not fired recently** — may already be fixed or isolated; nudge down 5 points.
+
+---
+
+### Step 2e: Other modifiers
+
+- **Blast radius (many variants)** — failure across platforms, sanitizers, and release
+  builds simultaneously suggests a deep correctness issue; nudge up 5 points.
 
 ---
 
@@ -112,11 +173,23 @@ issue, not a configuration fluke.
 ### Score
 
 **WT-XXXXX — `<summary>`**
-**Score: N/100 — `<Critical / High / Medium / Low / Minimal>`**
+**Score: N/100 — `<P1-Critical / P2-High / P3-Medium / P4-Low / P5-Minimal>`**
+
+Label mapping:
+
+| Score | Label |
+|---|---|
+| 85–100 | P1-Critical |
+| 65–84 | P2-High |
+| 35–64 | P3-Medium |
+| 15–34 | P4-Low |
+| 0–14 | P5-Minimal |
 
 ### Rationale
 
-One short paragraph: which signals drove the score and how they combined.
+One short paragraph: which wiki-defined signals drove the bracket, and which modifiers
+shifted the score within it. Name the specific failure type category from Step 2a if
+the failure type was the deciding factor.
 
 ### Next action
 
