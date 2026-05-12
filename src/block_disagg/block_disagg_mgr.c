@@ -163,13 +163,14 @@ __bmd_get_page_ids(
 }
 
 /*
- * __bmd_warmup --
- *     Issue a fire-and-forget warmup hint to PALI for the page referenced by addr. The PALI
- *     contract is that warmup returns zero results; defensively free anything a buggy
- *     implementation hands back.
+ * __bmd_touch --
+ *     Issue a fire-and-forget touch hint to PALI for the page referenced by addr. The hint type
+ *     (warmup today; future cold-tier pin, drop-hot, etc.) is encoded in the caller's opaque
+ *     `command` payload, forwarded verbatim to PALI. The PALI contract is that touch returns zero
+ *     results; defensively free anything a buggy implementation hands back.
  */
 static int
-__bmd_warmup(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
+__bmd_touch(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
   const WT_ITEM *command)
 {
     WT_BLOCK_DISAGG *block_disagg;
@@ -245,7 +246,7 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->verify_addr = __wti_block_disagg_verify_addr;
     bm->verify_end = __wti_block_disagg_verify_end;
     bm->verify_start = __wti_block_disagg_verify_start;
-    bm->warmup = __bmd_warmup;
+    bm->touch = __bmd_touch;
     bm->write = __bmd_write;
     bm->write_size = __bmd_write_size;
     bm->encrypt_skip = __bmd_encrypt_skip_size;

@@ -730,9 +730,11 @@ err:
 /*
  * __btcur_touch_warmup_leaf --
  *     Forward a fire-and-forget warmup hint for the leaf page referenced by descent through the
- *     block manager. Disagg trees forward the hint to PALI via bm->warmup; other tree kinds and
+ *     block manager. Disagg trees forward the hint to PALI via bm->touch; other tree kinds and
  *     pages without an on-disk address account as a no-op skip. The caller's WT_NOTFOUND outcome is
- *     unchanged either way.
+ *     unchanged either way. bm->touch is a generic verb (the action is encoded in the command
+ *     payload); today we only emit the warmup action, but the BM interface is ready for future
+ *     actions like cold-tier pin or drop-hot without further interface change.
  */
 static int
 __btcur_touch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_ITEM *command)
@@ -748,10 +750,10 @@ __btcur_touch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_IT
     WT_CLEAR(addr);
 
     /*
-     * Only disagg block managers wire a warmup hook. On any other tree kind the hint has nowhere to
+     * Only disagg block managers wire a touch hook. On any other tree kind the hint has nowhere to
      * go; the caller still sees WT_NOTFOUND.
      */
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || bm == NULL || bm->warmup == NULL) {
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || bm == NULL || bm->touch == NULL) {
         WT_STAT_CONN_DSRC_INCR(session, cursor_touch_skipped_non_disagg);
         return (0);
     }
@@ -767,7 +769,7 @@ __btcur_touch_warmup_leaf(WT_SESSION_IMPL *session, WT_REF *descent, const WT_IT
     }
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_touch_warmup);
-    ret = bm->warmup(bm, session, addr.addr, addr.size, command);
+    ret = bm->touch(bm, session, addr.addr, addr.size, command);
     if (ret != 0)
         WT_STAT_CONN_DSRC_INCR(session, cursor_touch_warmup_error);
 

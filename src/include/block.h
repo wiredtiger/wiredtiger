@@ -242,11 +242,14 @@ struct __wt_bm {
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *, bool verify_success);
     int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
     /*
-     * Optional fire-and-forget warmup hint for the page referenced by an address cookie. Only wired
-     * by block managers that can promote pages to a faster tier (today: disagg). The caller is
-     * responsible for verifying the BM speaks warmup before invoking this method.
+     * Optional fire-and-forget touch hint for the page referenced by an address cookie. The verb is
+     * intentionally generic: the meaning of the hint is encoded in the opaque `command` payload
+     * (a WT_ITEM forwarded verbatim to the page-log layer) so that callers can ask for warmup,
+     * cold-tier pin, drop-from-hot, or any future action without changing this interface. Only
+     * wired by block managers that can speak to a page log (today: disagg). Callers are
+     * responsible for verifying bm->touch != NULL before invoking.
      */
-    int (*warmup)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, const WT_ITEM *);
+    int (*touch)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, const WT_ITEM *);
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, size_t, uint8_t *,
       size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
