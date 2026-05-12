@@ -513,11 +513,11 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
 }
 
 /*
- * __curversion_emit_disk_value --
+ * __curversion_value_return_from_disk_image --
  *     Pack the metadata for the on-disk value and record it as the previously-emitted stop state.
  */
 static int
-__curversion_emit_disk_value(WT_CURSOR *cursor, WT_TIME_WINDOW *tw, uint64_t stop_txn,
+__curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw, uint64_t stop_txn,
   bool stop_prepared, wt_timestamp_t stop_prepare_ts, wt_timestamp_t stop_ts,
   wt_timestamp_t durable_stop_ts, uint64_t stop_prepared_id, bool version_prepared)
 {
@@ -652,8 +652,8 @@ __curversion_process_on_disk(
         return (0);
     }
 
-    WT_RET(__curversion_emit_disk_value(cursor, tw, stop_txn, stop_prepared, stop_prepare_ts,
-      stop_ts, durable_stop_ts, stop_prepared_id, version_prepared));
+    WT_RET(__curversion_value_return_from_disk_image(cursor, tw, stop_txn, stop_prepared,
+      stop_prepare_ts, stop_ts, durable_stop_ts, stop_prepared_id, version_prepared));
 
     *upd_foundp = true;
     F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
