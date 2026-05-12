@@ -3,48 +3,28 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "BF-12345",
-      "expected_behavior": "Fetches BF ticket via jira_get_issue, checks linked issues and Build Baron, fetches EVG task log summary, classifies failure type, and produces structured output using reference/output-template.md"
+      "type": "scenario",
+      "scenario_file": "scenarios/checkpoint_assertion.md",
+      "expected_behavior": "Classifies as Crash/Assertion type in txn subsystem. Extracts the assertion text (ts_order->ts_seconds != 0) and stack trace from the provided log. Forms a hypothesis about timestamp ordering invariant violation during checkpoint. Recommends paths/investigate.md for deep-dive. Notes blast radius (8 variants, 25% failure rate, blocking trunk) as High urgency."
     },
     {
       "id": 2,
-      "prompt": "BF-12345 — checkpoint assertion crash on rhel8",
-      "expected_behavior": "Classifies as Assertion/Crash type, maps to checkpoint subsystem, extracts stack trace from raw logs, forms hypothesis, recommends paths/investigate.md for deep-dive"
+      "type": "scenario",
+      "scenario_file": "scenarios/disagg_hang.md",
+      "expected_behavior": "Classifies as Hang/Timeout type on disagg storage path. Notes the hang point is after 'Flushing dirty pages to page service' — maps to page service / flow control. Searches Glean or references disagg-page-inspection skill. Recommends paths/investigate.md with specific questions about WT stall or page service flow control. Notes 70% failure rate as Critical urgency."
     },
     {
       "id": 3,
-      "prompt": "BF-12345 has linked SERVER-98765 with a CAUSES relationship",
-      "expected_behavior": "Reads the linked SERVER ticket first (Step 2), jumps to verification (Step 6), confirms the commit is in the failure window before accepting the hypothesis"
+      "type": "scenario",
+      "scenario_file": "scenarios/priority_ranking.md",
+      "expected_behavior": "Routes to paths/priority.md or priority agent. Ranks BF-SCENARIO-C (disagg hang, 70% rate, unowned, blocking milestone) as #1, BF-SCENARIO-A (checkpoint crash, 25% rate, trunk blocking) as #2, BF-SCENARIO-B (flaky, 3% rate, assigned, not blocking) as #3. Produces ranked table with blast radius, recurrence, age, owner columns. Gives one concrete next action per top-3."
     },
     {
       "id": 4,
-      "prompt": "Triage these BFs: BF-12345, BF-12346, BF-12347",
-      "expected_behavior": "Routes to paths/priority.md; fetches details for each BF, ranks by blast radius and recurrence, produces ranked table with top-3 next actions"
-    },
-    {
-      "id": 5,
-      "prompt": "BF-12345 is intermittent — fails about 20% of the time on rhel8",
-      "expected_behavior": "Classifies as Flaky type, routes to paths/build.md to measure failure rate; uses repro_format_tmux.sh in validation mode (no --stop-on-fail)"
-    },
-    {
-      "id": 6,
-      "prompt": "Reproduce BF-12345 locally and stop on first failure",
-      "expected_behavior": "Routes to paths/build.md; calls evg_get_raw_task_logs to extract the exact test command; uses repro_format_tmux.sh with --stop-on-fail; reports worker dir and log paths"
-    },
-    {
-      "id": 7,
-      "prompt": "Post an investigation summary for BF-12345 to Jira",
-      "expected_behavior": "Uses templates/bf-comment.md to format the comment in Jira wiki markup; shows the full comment to the user and waits for explicit confirmation before calling jira_add_comment"
-    },
-    {
-      "id": 8,
-      "prompt": "BF-12345 — task times out with no output on disagg variant",
-      "expected_behavior": "Classifies as Hang/Timeout, maps to disagg subsystem, searches Glean for disagg hang patterns, recommends paths/investigate.md with specific questions about flow control or WT stall"
-    },
-    {
-      "id": 9,
-      "prompt": "What are the top WiredTiger BFs right now?",
-      "expected_behavior": "Routes to paths/priority.md; calls jira_search_issues with a JQL query for open WT BFs, enriches with Build Baron recurrence data, produces ranked output"
+      "type": "fixture",
+      "fixture_dir": "WT-16620",
+      "prompt": "WT-16620",
+      "expected_behavior": "Fetches WT-16620 via jira_get_issue. Extracts failure from ticket description: test_cursor_random.test_cursor_random_deleted_all raises WiredTigerError: Invalid argument on macos-14-arm64. Notes Evergreen logs are unavailable (permission error) and falls back to the description. Classifies as Assertion/API error. Forms a hypothesis about cursor insert returning Invalid argument — likely a timestamp or configuration issue. Notes Build Baron has no data. Produces structured output."
     }
   ]
 }

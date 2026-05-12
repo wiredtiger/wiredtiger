@@ -73,6 +73,30 @@ Agent(subagent_type="Explore", prompt="<specific question about the WiredTiger s
 
 Return the Explore agent's findings as evidence in the root cause hypothesis (Step 6) and the source-check result (Step 8a).
 
+## Priority agent
+
+**Always run priority scoring in a subagent.** Never score a ticket inline. Spawn a `claude` subagent, pass it the full investigation output, and let it apply `@paths/priority.md` in isolation. This keeps the scoring step's context window separate from the investigation context.
+
+When to spawn a priority agent:
+- After Step 6 (root cause hypothesis) is complete for one or more tickets
+- When the user asks to rank or prioritize a set of open BFs
+- When `@paths/priority.md` is the next action in the routing table
+
+How to invoke:
+```
+Agent(prompt="""You are a WiredTiger BF priority scorer. Apply the scoring rules in @paths/priority.md exactly.
+
+## Investigation output
+
+<paste the full investigation output here>
+
+## Task
+
+Score this ticket 0–100, assign a severity label (Critical / High / Medium / Low / Minimal), write a one-paragraph rationale, and restate the next action with urgency context. Follow the output format in @paths/priority.md Step 3 exactly.""")
+```
+
+Return the priority agent's score, label, rationale, and next action as the **Priority Assessment** section of the Step 8 output template.
+
 # WiredTiger BF Analyzer
 
 Triage WiredTiger build failure tickets end-to-end: fetch context from Jira, Evergreen, and
@@ -86,7 +110,7 @@ investigation summary.
 | Initial triage of one BF ticket | This file — Steps 1–7 below |
 | Unclear failure / "why did this happen?" | @paths/investigate.md — Phase 0 |
 | Deep-dive root cause investigation | @paths/investigate.md — Phase 1+ |
-| Rank and prioritize multiple open BFs | @paths/priority.md |
+| Rank and prioritize multiple open BFs | Priority agent (subagent) — see ## Priority agent above |
 | Reproduce locally / run test/format | @paths/build.md |
 | Inspect a WT data directory or WAL | @skills/wt-cli/SKILL.md |
 | Load, search, or comment on a Jira ticket | @skills/jira/SKILL.md |
@@ -183,7 +207,10 @@ This determines urgency — include in the output.
 
 ## Step 6: Form root cause hypothesis
 
-Based on the first error, stack trace, and any confirmed linked cause:
+Follow @skills/systematic-debugging/SKILL.md Phases 1–3 using the evidence from Steps 1–5.
+Do not propose a fix or skip to Step 7 until Phase 3 produces a confirmed hypothesis.
+
+Output:
 - **What failed**: test name, assertion text, or crash signal
 - **Where it failed**: source file and line if visible in the stack
 - **Why it likely failed**: the narrowest plausible explanation

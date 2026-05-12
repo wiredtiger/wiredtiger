@@ -123,7 +123,19 @@ When the error is deep in the call stack, trace backward:
 
 **When You Don't Know**
 - Say "I don't understand X"
-- Don't pretend to know — ask for help or research more
+- Don't pretend to know — research more before forming a hypothesis
+
+**Fix Confidence Is Capped by Reproduction**
+
+Source analysis alone — reading code, tracing the call path, identifying the missing guard — can justify a root cause hypothesis. It cannot justify a fix.
+
+| Reproduction status | Max fix confidence |
+|---|---|
+| Reproduced locally, fix verified | High |
+| Not reproduced (timing, env, seeds) | Medium — fix is a hypothesis |
+| Cannot reproduce at all | Low — root cause may be wrong |
+
+If you propose a fix without a reproducer, state this explicitly: "Fix proposed from source analysis; confidence is Medium until a reproduction verifies the change eliminates the assertion." Do not report High confidence on a fix you have not tested.
 
 ---
 
@@ -139,7 +151,7 @@ When the error is deep in the call stack, trace backward:
 - ONE change at a time
 - No "while I'm here" improvements, no bundled refactoring
 
-**Verify Fix**
+**Verify Fix**ss
 - Test passes now? No other tests broken? Issue actually resolved?
 
 **If Fix Doesn't Work — STOP**
@@ -148,19 +160,39 @@ When the error is deep in the call stack, trace backward:
 - If ≥ 3: STOP and question the architecture (see below)
 - DON'T attempt Fix #4 without architectural discussion
 
-**If 3+ Fixes Failed: Question Architecture**
+**If 3+ Fixes Failed: Give Up**
 
 Signs of an architectural problem:
 - Each fix reveals new shared state/coupling/problem in a different place
 - Fixes require "massive refactoring" to implement
 - Each fix creates new symptoms elsewhere
 
-STOP and question fundamentals:
-- Is this pattern fundamentally sound?
-- Are we "sticking with it through sheer inertia"?
-- Should we refactor architecture vs. continue fixing symptoms?
+STOP. Record what was tried and why each failed. Mark the investigation as "Insufficient data — architectural issue suspected" and do not attempt further fixes.
 
-Discuss with your human partner before attempting more fixes. This is NOT a failed hypothesis — this is a wrong architecture.
+---
+
+## Confidence Ladder — Be Exhaustive
+
+Do not stop at source analysis when more evidence is reachable. Each rung raises
+confidence; skip a rung only when it is genuinely impossible (environment unavailable,
+can't build, etc.) — and say so explicitly.
+
+| Rung | Action | Confidence gained |
+|---|---|---|
+| 1 | Read the failing assertion and call stack in source | Root cause hypothesis |
+| 2 | Reproduce the failure locally (meet minimum iteration count) | Root cause confirmed |
+| 3 | Implement the minimal fix | Fix hypothesis |
+| 4 | Rebuild and re-run the same repro to verify the failure is gone | Fix confirmed — High |
+| 5 | Run a broader regression pass (related tests / longer timer) | No regressions introduced |
+
+**The iron rule:** Do not stop at Rung 1 or 2 and call it done. If you can reproduce,
+fix. If you can fix, verify. If you can verify, run a regression pass. Work down the
+ladder until a rung is genuinely blocked, then state why you stopped.
+
+When you stop early, say:
+> "Stopped at Rung N — `<specific blocker>`. Confidence: Medium."
+
+Never claim High confidence without reaching Rung 4.
 
 ---
 

@@ -77,6 +77,18 @@ From the failure group:
 - Failure rate trend: increasing / stable / declining / single burst
 - If burst: time window of all failures (e.g. "all 6 within 3 hours on 2026-05-07")
 
+**Intermittency assessment — carry this forward into all repro and fix-verification steps:**
+
+CI recurrence does not prove local reproducibility. Always treat failures as potentially intermittent regardless of BFG count. Use BFG count only to set a floor on iterations:
+
+| BFG count (30 days) | Min iterations for repro/verification |
+|---|---|
+| ≥ 5 | 10 |
+| 2–4 | 20 |
+| 1 (single occurrence) | 30 |
+
+A single passing local run is not evidence of anything. Never claim "not reproduced" or "already fixed" without meeting the minimum iteration count.
+
 ### 2d: Search for sibling failures
 
 → **@skills/jira/SKILL.md**:
@@ -128,6 +140,13 @@ evg_get_raw_task_logs(task_id, log_type="system")
 evg_get_test_results_summary(task_id)
 evg_get_test_results_detailed(task_id)
 ```
+
+**Critical rule — the Jira description is never sufficient as a log source:**
+The error text in a Jira ticket description is truncated and may omit the full WiredTiger
+error string (e.g., "commit timestamp 0x1 must be after stable timestamp 0x3a2f"). Always
+fetch at least 3a before accepting any error as understood. If 3a is unavailable (401,
+missing task ID), note the skip explicitly and record "log evidence: unavailable" — do NOT
+treat the Jira excerpt as equivalent to reading the log.
 
 When scanning a large raw log, search for these signals first:
 `WT_PANIC`, `wiredtiger_abort`, `SIGABRT`, `WT_ASSERT`, `AssertionError`, `Assertion failed`
@@ -257,6 +276,34 @@ Record any prior tickets, their status, and whether a fix commit exists.
 
 ---
 
+## Step 6: Reproduction Attempt
+
+Attempt reproduction if **all** of the following hold:
+1. Step 3 yielded a concrete error signal (assertion text, test name, or test command).
+2. Step 5 identified the subsystem (not "unknown").
+3. The failure is not already explained by a known fix commit (which would make repro unnecessary).
+
+If any condition is not met, skip this step and record "Reproduction: skipped — `<reason>`" in the Output.
+
+**Spawn a sub-agent to run the repro** — do not run it inline. This keeps noisy build/test output out of the investigation context.
+
+Prompt the sub-agent with:
+- The ticket key and one-line failure summary.
+- The exact test name and command from Step 3.
+- The build variant from Step 3 (e.g. ASan, debug, release).
+- The suspect commit / code location from Steps 4–5 (for context only — the sub-agent does not fix anything).
+- Instruction to follow `@paths/build.md` — sections "Reproducing a BF Failure" Steps 1–4 only. No fix proposal, no code changes.
+- The minimum iteration count from Step 2c's intermittency table.
+
+**The sub-agent must:**
+1. Build the matching variant if the build directory does not exist.
+2. Run the test at the minimum iteration count.
+3. Return the reproduction output block from `@paths/build.md` (mode, command, config, build variant, workers, result, failure rate, first failure log path).
+
+**Record the result verbatim in the Output.** Do not interpret "no failure in N runs" as "fixed" unless the minimum iteration count was met. If the sub-agent fails to build or returns an error, record that as the result.
+
+---
+
 ## Output
 
 Populate every field. Write "unknown" or "insufficient data" rather than omitting a
@@ -294,8 +341,52 @@ field. This step is read-only — do not post to Jira or modify any external sta
 - **Assertion location:** `<file:line, or unavailable>`
 - **Prior tickets:** `<list with status, or "none found">`
 
+### Reproduction
+- **Result:** `reproduced | not reproduced | inconclusive | skipped — <reason>`
+- **Command:** `<exact command run>`
+- **Build variant:** `<value>`
+- **Iterations run:** N
+- **Failure rate:** X/N
+- **First failure log:** `<path, or "n/a">`
+
 ### Unknowns
 - ...
+
+**Before writing any field as "unknown" or choosing "Insufficient data" as the next action,
+confirm you have exhausted these sources in order:**
+
+| Source | Done? | Notes |
+|---|---|---|
+| Jira description + comments | | |
+| Evergreen log (3a summary or 3b raw) | | |
+| Build Baron failure group (Step 2) | | |
+| Sibling BF tickets (Step 2d) | | |
+| Source code for the failing function / assertion (Step 5) | | |
+| Git history in the failure window (Step 4) | | |
+| Local build + test run to observe actual error output | | |
+
+Only after ticking all applicable rows may a field be recorded as "unknown". If a source
+is unavailable (e.g., 401 on Evergreen, macOS-only failure), record *why* it is
+unavailable — "unknown" alone is not an acceptable entry when a source was never attempted.
+
+**Local build rule:** When the Evergreen log is unavailable and the root cause is unclear
+from static analysis, you MUST attempt local reproduction before writing "unknown".
+This is not optional. Steps in order:
+
+1. Build WiredTiger (`cd build && ninja` — incremental if build dir exists).
+2. Run the exact failing test: `python3 ../test/suite/run.py <test> -j1`
+   with any hooks the CI used (e.g. `--hook timestamp`).
+3. If the test doesn't fail on the first run, run more iterations up to the
+   minimum count from Step 2c. Use `--repeat N` or a loop.
+4. If the failure requires a platform that cannot be reproduced locally
+   (e.g., macOS-only), write a *targeted* reproducer instead — a minimal
+   Python script that directly exercises the hypothesis (e.g., sets
+   stable_timestamp to a high value and attempts a low-timestamp commit).
+   Run that script and record the exact output.
+5. Only after steps 1–4 are exhausted may a field be written as "unknown",
+   and only with an explicit record of what was run, how many iterations,
+   and what the output was.
+
 
 ### Working theory
 *Only write this if log and code evidence directly support it. Otherwise write:
@@ -304,14 +395,51 @@ field. This step is read-only — do not post to Jira or modify any external sta
 **Confidence:** Low / Medium / High
 **What would confirm or refute this:** `<one specific thing>`
 
+### Recommended fix
+
+**Rule:** Only write this section if confidence is Medium or High AND you have read the
+relevant source file(s) in this session. "Read" means you fetched the actual lines via
+Bash grep, Read, or an Explore agent — not that you inferred the content from logs or
+prior knowledge.
+
+If you have not read the code:
+- Write: `"Not proposed — relevant source not read. Read <file> before proposing a fix."`
+- Do NOT write a vague directive like "fix the timestamp lifecycle bug in hook_timestamp.py".
+
+If you have read the code, write:
+- **File:** `<path:line range>`
+- **Change:** one or two sentences — what specifically changes and why it fixes the violated invariant
+- **Risk:** one clause on regression risk
+
+**Fix confidence is capped by reproduction:**
+
+Source analysis alone — tracing the call path, identifying the missing guard, reading
+the assertion — justifies a root cause hypothesis. It does not verify the fix.
+
+| Reproduction status | Max fix confidence |
+|---|---|
+| Reproduced locally AND fix verified (failure gone after patch) | High |
+| Reproduced locally but fix not yet applied/tested | Medium |
+| Not reproduced (timing, seeds, env) — fix proposed from source only | Medium |
+| Cannot reproduce at all | Low |
+
+If you propose a fix without a verified reproducer, say so explicitly:
+> "Fix proposed from source analysis. Confidence is Medium until a reproduction confirms
+> the fix eliminates the assertion."
+
+Do not report High fix confidence on a change you have not tested against a real failure.
+
 ### Next action
 
 Pick exactly one:
 
-- **Needs local repro** — failure rate and evidence support reproduction: `@paths/build.md`
+- **Reproduced — needs fix** — Step 6 reproduced the failure; root cause is identified: `@paths/build.md` Step 5 (fix proposal) and Step 6 (verification)
+- **Reproduced — root cause unclear** — failure reproduced but mechanism not yet understood: continue source investigation before proposing a fix
+- **Not reproduced** — Step 6 met the minimum iteration count with zero failures; failure may be environment-specific or already fixed: note iteration count and build variant, flag for CI monitoring
+- **Repro skipped — needs local repro** — Step 6 preconditions were not met; manual repro required: `@paths/build.md`
 - **Needs data inspection** — failure points to persisted state or corruption: `@skills/wt-cli/SKILL.md`
 - **Needs disagg inspection** — failure is in SLS / block_disagg: `@skills/disagg-page-inspection/SKILL.md`
 - **Needs owner** — assign to `<team>` because `<reason>`
 - **Infra issue** — evidence: `<log lines showing OOM / disk / agent crash>`
-- **Already fixed** — by `<WT-XXXXX or commit SHA>`; verify merge to affected branch
+- **Already fixed** — only use this when ALL of the following are true: (1) a specific fix commit or ticket is identified by name in the source or git log, AND (2) the fix has been verified by running the test at ≥ minimum iterations for the intermittency classification from Step 2c. A single passing run, or source-code inspection alone, is not sufficient evidence.
 - **Insufficient data** — `<what is missing and how to get it>`

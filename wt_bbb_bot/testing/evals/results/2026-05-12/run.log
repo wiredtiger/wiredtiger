@@ -1,0 +1,4 @@
+01:00:48  INFO     === run_evals start  date=2026-05-12  evals=1 ===
+01:00:48  INFO     [1/1] eval-1: BF-12345
+01:02:02  INFO       agent: ok  (74.1s)
+01:02:02  INFO     === done  elapsed=1.2min  avg_score=0.0/5  results=/data/bbb-bot/wiredtiger/wt_bbb_bot/testing/evals/results/2026-05-12 ===
