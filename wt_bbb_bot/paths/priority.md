@@ -6,10 +6,33 @@ Score a single WiredTiger ticket by urgency. This path runs after `@paths/invest
 **Core rule:** Scores come only from investigation output fields. If a field is
 "unknown" or "insufficient data", treat it as neutral — do not inflate or penalise.
 
-**Truth foundation:** The MongoDB Storage Engines Bug Priorities wiki
-(https://wiki.corp.mongodb.com/spaces/WT/pages/164430772/Storage+Engines+Bug+Priorities)
-defines what P1–P5 mean. All scoring below is derived from that document. When in
-doubt, consult it.
+**Truth foundation:** The MongoDB Storage Engines Bug Priorities wiki is the live
+authority on P1–P5 definitions. **Always fetch it at the start of every priority
+evaluation** — definitions may have changed since this path was written. Score from
+what the page says, not from memory of what it said.
+
+```
+mcp__devprod-mcp-gateway__confluence_get_page(page_id="164430772")
+```
+
+If the fetch fails (auth error, network), note it explicitly and fall back to the
+definitions in this file — but flag the output as "wiki unavailable, used cached
+definitions."
+
+---
+
+## Step 0: Fetch the priority wiki
+
+Before scoring anything:
+
+```
+mcp__devprod-mcp-gateway__confluence_get_page(page_id="164430772")
+```
+
+Read the returned content and use it as the authoritative P1–P5 definition for this
+session. If the definitions differ from what is written in this file, the wiki wins.
+Record: "Wiki fetched — version `<updated date from response>`" or "Wiki unavailable —
+falling back to cached definitions."
 
 ---
 

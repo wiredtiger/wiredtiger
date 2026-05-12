@@ -26,6 +26,8 @@ allowed-tools:
   - mcp__devprod-mcp-gateway__git_search
   - mcp__devprod-mcp-gateway__git_diff
   - mcp__devprod-mcp-gateway__git_show
+  - mcp__devprod-mcp-gateway__confluence_get_page
+  - mcp__devprod-mcp-gateway__confluence_get_page_by_title
   - mcp__claude_ai_Glean_via_MCP__search
   - Bash
   - Read
