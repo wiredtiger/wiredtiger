@@ -661,6 +661,37 @@ __curversion_process_on_disk(
 }
 
 /*
+ * __curversion_value_return_from_hs --
+ *     Pack the metadata for the history-store value and record it as the previously-returned stop
+ *     state.
+ */
+static int
+__curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64_t hs_upd_type)
+{
+    WT_CURSOR_VERSION *version_cursor;
+    wt_timestamp_t durable_start_meta, start_meta;
+    bool has_start_prepare;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(twp);
+    start_meta = has_start_prepare ? twp->start_prepare_ts : twp->start_ts;
+    durable_start_meta = has_start_prepare ? twp->start_prepare_ts : twp->durable_start_ts;
+
+    WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, twp->start_txn,
+      start_meta, durable_start_meta, twp->start_prepare_ts, twp->start_prepared_id, twp->stop_txn,
+      WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->stop_ts,
+      WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->durable_stop_ts,
+      twp->stop_prepare_ts, twp->stop_prepared_id, hs_upd_type, 0, 0, WT_CURVERSION_HISTORY_STORE));
+
+    version_cursor->upd_stop_txnid = twp->start_txn;
+    version_cursor->curversion_durable_stop_ts = durable_start_meta;
+    version_cursor->curversion_stop_ts = start_meta;
+    version_cursor->upd_stop_prepare_ts = twp->start_prepare_ts;
+    version_cursor->upd_stop_prepared_id = twp->start_prepared_id;
+    return (0);
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
