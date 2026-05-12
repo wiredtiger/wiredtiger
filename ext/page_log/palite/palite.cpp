@@ -150,6 +150,7 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <format>
 #include <functional>
 #include <iostream>
@@ -376,6 +377,13 @@ struct Config {
     uint32_t touch_sim_cold_ms = 0;
     uint32_t touch_sim_warm_ms = 0;
     uint32_t touch_sim_warmup_ms = 0;
+    /*
+     * When true, palite persists the warm-set to <kv_home>/warmset.bin on Storage destruction and
+     * loads it on construction. Lets a sidecar warmup process feed the warm-set that a subsequent
+     * mongod (or any other WT consumer) will observe. Off by default so the existing tests, which
+     * already assume process-static warm-set behavior, are unaffected.
+     */
+    bool touch_sim_persist_warmset = false;
     uint64_t last_materialized_lsn = 0; /* The last materialized LSN (0 if not set) */
     int32_t verbose = WT_VERBOSE_INFO;  /* Verbose level */
     bool verbose_msg = true;            /* Send verbose messages to msg callback interface */
@@ -402,6 +410,8 @@ struct Config {
         configure_value(parser.get(), config, "touch_sim_cold_ms", touch_sim_cold_ms);
         configure_value(parser.get(), config, "touch_sim_warm_ms", touch_sim_warm_ms);
         configure_value(parser.get(), config, "touch_sim_warmup_ms", touch_sim_warmup_ms);
+        configure_value(
+          parser.get(), config, "touch_sim_persist_warmset", touch_sim_persist_warmset);
         configure_value(parser.get(), config, "verbose", verbose);
         configure_value(parser.get(), config, "verbose_msg", verbose_msg);
         configure_value(parser.get(), config, "sql_trace", sql_trace);
@@ -2053,6 +2063,65 @@ class Storage {
         return global_warm_map()[db_home.string()].insert(k).second;
     }
 
+    /*
+     * skunk_94: warm-set persistence. Stored at <db_home>/warmset.bin as
+     *     [uint64 magic][uint64 count][uint64 entries...].
+     * Lets a sidecar warmup process and a separately-launched mongod (or any other WT consumer)
+     * share warm-set state across processes, which the in-memory map can't do on its own.
+     */
+    static constexpr uint64_t WARMSET_MAGIC = 0x53303934'57534554ULL; /* 'S094WSET' */
+
+    std::filesystem::path
+    warmset_path() const
+    {
+        return db_home / "warmset.bin";
+    }
+
+    void
+    load_warmset_locked()
+    {
+        const auto path = warmset_path();
+        std::ifstream in(path, std::ios::binary);
+        if (!in)
+            return;
+        uint64_t magic = 0, count = 0;
+        in.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+        in.read(reinterpret_cast<char *>(&count), sizeof(count));
+        if (!in || magic != WARMSET_MAGIC)
+            return;
+        auto &set = global_warm_map()[db_home.string()];
+        set.reserve(set.size() + count);
+        for (uint64_t i = 0; i < count; ++i) {
+            uint64_t k = 0;
+            if (!in.read(reinterpret_cast<char *>(&k), sizeof(k)))
+                return;
+            set.insert(k);
+        }
+    }
+
+    void
+    save_warmset()
+    {
+        std::lock_guard<std::mutex> lock(global_warm_mu());
+        auto it = global_warm_map().find(db_home.string());
+        if (it == global_warm_map().end())
+            return;
+        const auto path = warmset_path();
+        const auto tmp = path.string() + ".tmp";
+        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+        if (!out)
+            return;
+        const uint64_t magic = WARMSET_MAGIC;
+        const uint64_t count = it->second.size();
+        out.write(reinterpret_cast<const char *>(&magic), sizeof(magic));
+        out.write(reinterpret_cast<const char *>(&count), sizeof(count));
+        for (uint64_t k : it->second)
+            out.write(reinterpret_cast<const char *>(&k), sizeof(k));
+        out.close();
+        if (out)
+            std::filesystem::rename(tmp, path);
+    }
+
     static size_t
     get_shard_id(uint64_t table_id)
     {
@@ -2060,11 +2129,25 @@ class Storage {
     }
 
 public:
-    ~Storage() = default;
+    ~Storage()
+    {
+        if (config.touch_sim_persist_warmset)
+            save_warmset();
+    }
     Storage(Config &cfg, const std::filesystem::path &dbp)
         : config(cfg), db_home(dbp), globals(cfg, store_access, db_home),
           checkpoints(cfg, store_access, db_home)
     {
+        if (config.touch_sim_persist_warmset) {
+            std::lock_guard<std::mutex> lock(global_warm_mu());
+            /*
+             * Only seed from disk if no other Storage in this process has populated the map for
+             * this db_home yet. Otherwise the in-memory state is already authoritative and
+             * re-reading would be a no-op (or worse, lose unsynced entries on a parallel destruct).
+             */
+            if (global_warm_map().find(db_home.string()) == global_warm_map().end())
+                load_warmset_locked();
+        }
     }
 
     Storage(const Storage &) = delete;
