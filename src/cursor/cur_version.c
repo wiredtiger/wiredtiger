@@ -390,6 +390,35 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
 }
 
 /*
+ * __curversion_disk_skip_no_stop --
+ *     Decide whether to skip an on-disk record that has no stop side, when running in timestamp
+ *     order mode.
+ */
+static bool
+__curversion_disk_skip_no_stop(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW *tw)
+{
+    if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
+        return (false);
+
+    /* Prepared values on disk are always skipped. */
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
+        return (true);
+
+    /*
+     * If the previous emission was a rolled-back prepared update its stop slot holds a rollback
+     * timestamp instead of a real stop timestamp, so the comparison would be meaningless.
+     */
+    if (version_cursor->upd_stop_txnid == WT_TXN_ABORTED)
+        return (false);
+
+    if (__curversion_stop_uses_prepare_ts(version_cursor))
+        return (tw->start_txn > version_cursor->upd_stop_txnid ||
+          tw->start_ts > version_cursor->upd_stop_prepare_ts);
+    return (tw->start_txn > version_cursor->upd_stop_txnid ||
+      tw->start_ts > version_cursor->curversion_stop_ts);
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
