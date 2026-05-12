@@ -114,6 +114,7 @@ def prepare_branch(branch, config):
         cmake_args = '-DENABLE_PYTHON=1'
         if not standalone:
             cmake_args += ' -DWT_STANDALONE_BUILD=0'
+
         # Always use master's CMakePresets.json so preset names are consistent
         # regardless of the branch's own CMake setup.
         preset_dst = os.path.join(path, 'CMakePresets.json')
