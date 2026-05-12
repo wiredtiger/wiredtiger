@@ -161,10 +161,10 @@ struct __wtperf {          /* Per-database structure */
     const char *tiered_ext;   /* Tiered extension for conn */
     const char *tiered_table; /* Tiered arg to table create */
 
-    WTPERF_THREAD *backupthreads; /* Backup threads */
-    WTPERF_THREAD *ckptthreads;   /* Checkpoint threads */
-    WTPERF_THREAD *flushthreads;  /* Flush_tier threads */
-    WTPERF_THREAD *popthreads;    /* Populate threads */
+    WTPERF_THREAD *backupthreads;       /* Backup threads */
+    WTPERF_THREAD *ckptthreads;         /* Checkpoint threads */
+    WTPERF_THREAD *flushthreads;        /* Flush_tier threads */
+    WTPERF_THREAD *popthreads;          /* Populate threads */
     WTPERF_THREAD *scanthreads;         /* Scan threads */
     WTPERF_THREAD *compactthreads;      /* Foreground compact threads */
     WTPERF_THREAD *statssamplerthreads; /* Stats sampler threads */
@@ -188,26 +188,26 @@ struct __wtperf {          /* Per-database structure */
     uint64_t update_ops;   /* update operations */
 
     /* Compact benchmark state (WT-14196). */
-    volatile bool compact_done;                     /* Compact returned; sampler should stop */
-    int compact_ret;                                /* Return code from session->compact() */
-    uint64_t compact_wallclock_us;                  /* session->compact() wallclock in usecs */
-    uint64_t compact_pre_file_size;                 /* file size before compact (bytes) */
-    uint64_t compact_post_file_size;                /* file size after compact (bytes) */
-    uint64_t compact_pre_reuse_bytes;               /* block_reuse_bytes before compact */
-    uint64_t compact_post_reuse_bytes;              /* block_reuse_bytes after compact */
-    uint64_t compact_pages_reviewed;                /* btree_compact_pages_reviewed final */
-    uint64_t compact_pages_rewritten;               /* btree_compact_pages_rewritten final */
-    uint64_t compact_pages_skipped;                 /* btree_compact_pages_skipped final */
-    uint64_t block_first_srch_walk_peak_us;         /* peak observed during compact */
+    volatile bool compact_done;             /* Compact returned; sampler should stop */
+    int compact_ret;                        /* Return code from session->compact() */
+    uint64_t compact_wallclock_us;          /* session->compact() wallclock in usecs */
+    uint64_t compact_pre_file_size;         /* file size before compact (bytes) */
+    uint64_t compact_post_file_size;        /* file size after compact (bytes) */
+    uint64_t compact_pre_reuse_bytes;       /* block_reuse_bytes before compact */
+    uint64_t compact_post_reuse_bytes;      /* block_reuse_bytes after compact */
+    uint64_t compact_pages_reviewed;        /* btree_compact_pages_reviewed final */
+    uint64_t compact_pages_rewritten;       /* btree_compact_pages_rewritten final */
+    uint64_t compact_pages_skipped;         /* btree_compact_pages_skipped final */
+    uint64_t block_first_srch_walk_peak_us; /* peak observed during compact */
     /* Update TRACK aggregates snapshot at compact start and end. */
     uint64_t update_ops_pre_compact;
     uint64_t update_ops_post_compact;
-    uint64_t update_latency_pre_compact;            /* cumulative latency_ops snapshot */
+    uint64_t update_latency_pre_compact; /* cumulative latency_ops snapshot */
     uint64_t update_latency_post_compact;
     uint64_t update_max_latency_during_compact_us;
     /* Post-populate remove state (WT-14196). */
     uint64_t post_populate_remove_records;
-    uint64_t post_populate_remove_us;              /* wallclock duration in usecs */
+    uint64_t post_populate_remove_us; /* wallclock duration in usecs */
 
     uint64_t index_max_multiplier; /* used to find and modify index keys */
     uint64_t insert_key;           /* insert key */

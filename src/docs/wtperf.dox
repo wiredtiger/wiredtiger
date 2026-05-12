@@ -138,6 +138,18 @@ connection configuration string
 properly close connection at end of test. Setting to false does not sync data to disk and can  result in lost data after test exits.
 @par compact (boolean, default=false)
 post-populate compact
+@par compact_ends_workload (boolean, default=true)
+when a compact_worker returns, signal worker threads to stop. If false, workload runs  until run_time elapses even after compact finishes.
+@par compact_start_after (unsigned int, default=0)
+seconds into the workload phase to wait before issuing compact, 0 fires immediately.
+@par compact_threads (unsigned int, default=0)
+number of foreground compact threads. Each runs session->compact() once  after compact_start_after seconds into the workload phase. Independent of  the (post-populate) compact option above.
+@par compact_uri (string, default="")
+URI for compact_threads to operate on. Empty means the first table.
+@par post_populate_remove_modulus (unsigned int, default=0)
+after populate, remove every Nth key to create fragmentation.  0 disables. Takes precedence over post_populate_remove_pct.
+@par post_populate_remove_pct (unsigned int, default=0)
+after populate, remove this percentage of randomly-chosen keys.  0 disables. Ignored if post_populate_remove_modulus is set.
 @par compression (string, default="none")
 compression extension.  Allowed configuration values are: 'none', 'lz4', 'snappy', 'zlib',  'zstd'
 @par create (boolean, default=true)

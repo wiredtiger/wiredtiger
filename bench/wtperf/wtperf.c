@@ -37,9 +37,9 @@
 static WT_THREAD_RET checkpoint_worker(void *);
 static WT_THREAD_RET compact_worker(void *);
 static WT_THREAD_RET stats_sampler_worker(void *);
-static int           capture_pre_compact_stats(WTPERF *, WT_SESSION *, const char *);
-static int           capture_post_compact_stats(WTPERF *, WT_SESSION *, const char *);
-static void          compact_stats_dump(WTPERF *);
+static int capture_pre_compact_stats(WTPERF *, WT_SESSION *, const char *);
+static int capture_post_compact_stats(WTPERF *, WT_SESSION *, const char *);
+static void compact_stats_dump(WTPERF *);
 static int drop_all_tables(WTPERF *);
 static int execute_populate(WTPERF *);
 static int execute_post_populate_remove(WTPERF *);
@@ -1484,8 +1484,8 @@ err:
 
 /*
  * snapshot_update_track --
- *     Sum the worker threads' update TRACK ops and latency counters into
- *     scalars. Used at compact start and end to compute deltas.
+ *     Sum the worker threads' update TRACK ops and latency counters into scalars. Used at compact
+ *     start and end to compute deltas.
  */
 static void
 snapshot_update_track(WTPERF *wtperf, uint64_t *ops, uint64_t *latency_sum, uint64_t *max_us)
@@ -1526,8 +1526,7 @@ stat_read_u64(WT_CURSOR *cursor, int stat_key, uint64_t *valuep)
 
 /*
  * capture_pre_compact_stats --
- *     Read file size, block_reuse_bytes, and compact page counters before
- *     compact starts.
+ *     Read file size, block_reuse_bytes, and compact page counters before compact starts.
  */
 static int
 capture_pre_compact_stats(WTPERF *wtperf, WT_SESSION *session, const char *uri)
@@ -1564,19 +1563,19 @@ capture_post_compact_stats(WTPERF *wtperf, WT_SESSION *session, const char *uri)
     }
     (void)stat_read_u64(cursor, WT_STAT_DSRC_BLOCK_SIZE, &wtperf->compact_post_file_size);
     (void)stat_read_u64(cursor, WT_STAT_DSRC_BLOCK_REUSE_BYTES, &wtperf->compact_post_reuse_bytes);
-    (void)stat_read_u64(cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED,
-                        &wtperf->compact_pages_reviewed);
-    (void)stat_read_u64(cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN,
-                        &wtperf->compact_pages_rewritten);
-    (void)stat_read_u64(cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED,
-                        &wtperf->compact_pages_skipped);
+    (void)stat_read_u64(
+      cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED, &wtperf->compact_pages_reviewed);
+    (void)stat_read_u64(
+      cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN, &wtperf->compact_pages_rewritten);
+    (void)stat_read_u64(
+      cursor, WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED, &wtperf->compact_pages_skipped);
     return (cursor->close(cursor));
 }
 
 /*
  * stats_sampler_worker --
- *     While compact is running, sample the connection block_first_srch_walk_time
- *     stat every 100 ms and track the max. Exits when wtperf->compact_done is set.
+ *     While compact is running, sample the connection block_first_srch_walk_time stat every 100 ms
+ *     and track the max. Exits when wtperf->compact_done is set.
  */
 static WT_THREAD_RET
 stats_sampler_worker(void *arg)
@@ -1601,8 +1600,8 @@ stats_sampler_worker(void *arg)
         lprintf(wtperf, ret, 0, "stats_sampler: open_session");
         goto done;
     }
-    if ((ret = session->open_cursor(
-           session, "statistics:", NULL, "statistics=(all)", &cursor)) != 0) {
+    if ((ret = session->open_cursor(session, "statistics:", NULL, "statistics=(all)", &cursor)) !=
+      0) {
         lprintf(wtperf, ret, 0, "stats_sampler: open_cursor statistics:");
         goto done;
     }
@@ -1629,8 +1628,8 @@ done:
 
 /*
  * compact_worker --
- *     Foreground compact thread for WT-14196 benchmark. Fires session->compact()
- *     once and signals the workload to wind down.
+ *     Foreground compact thread for WT-14196 benchmark. Fires session->compact() once and signals
+ *     the workload to wind down.
  */
 static WT_THREAD_RET
 compact_worker(void *arg)
@@ -1656,8 +1655,8 @@ compact_worker(void *arg)
         goto err;
     }
 
-    uri = (opts->compact_uri != NULL && opts->compact_uri[0] != '\0') ?
-      opts->compact_uri : wtperf->uris[0];
+    uri = (opts->compact_uri != NULL && opts->compact_uri[0] != '\0') ? opts->compact_uri :
+                                                                        wtperf->uris[0];
 
     /* Optional warm-up delay before issuing compact, polling stop. */
     delay_remaining = opts->compact_start_after;
@@ -1672,9 +1671,8 @@ compact_worker(void *arg)
         goto err;
 
     /*
-     * Launch a stats sampler thread to track the peak
-     * block_first_srch_walk_time during compact. It exits when we set
-     * wtperf->compact_done below.
+     * Launch a stats sampler thread to track the peak block_first_srch_walk_time during compact. It
+     * exits when we set wtperf->compact_done below.
      */
     wtperf->statssamplerthreads = dcalloc(1, sizeof(WTPERF_THREAD));
     start_threads(wtperf, NULL, wtperf->statssamplerthreads, 1, stats_sampler_worker);
@@ -1698,14 +1696,13 @@ compact_worker(void *arg)
 
     (void)capture_post_compact_stats(wtperf, session, uri);
 
-    lprintf(wtperf, 0, 1,
-      "compact_worker: session->compact finished in %.2f sec (ret=%d)",
+    lprintf(wtperf, 0, 1, "compact_worker: session->compact finished in %.2f sec (ret=%d)",
       elapsed_us / 1.0e6, ret);
 
     {
         uint64_t max_us;
-        snapshot_update_track(wtperf, &wtperf->update_ops_post_compact,
-          &wtperf->update_latency_post_compact, &max_us);
+        snapshot_update_track(
+          wtperf, &wtperf->update_ops_post_compact, &wtperf->update_latency_post_compact, &max_us);
         wtperf->update_max_latency_during_compact_us = max_us;
     }
 
@@ -2078,8 +2075,8 @@ close_reopen(WTPERF *wtperf)
 
 /*
  * execute_post_populate_remove --
- *     After populate, remove a deterministic or random subset of keys to fragment
- *     the on-disk extent list. WT-14196.
+ *     After populate, remove a deterministic or random subset of keys to fragment the on-disk
+ *     extent list. WT-14196.
  */
 static int
 execute_post_populate_remove(WTPERF *wtperf)
@@ -2149,8 +2146,7 @@ execute_post_populate_remove(WTPERF *wtperf)
 
     wtperf->post_populate_remove_us = WT_CLOCKDIFF_US(__wt_clock(NULL), start_clock);
     wtperf->post_populate_remove_records = removed;
-    lprintf(wtperf, 0, 1,
-      "Post-populate remove finished: removed %" PRIu64 " records in %.2f sec",
+    lprintf(wtperf, 0, 1, "Post-populate remove finished: removed %" PRIu64 " records in %.2f sec",
       removed, wtperf->post_populate_remove_us / 1.0e6);
 
 err:
@@ -2240,6 +2236,8 @@ execute_workload(WTPERF *wtperf)
          */
         sleep(1);
         ++wtperf->testsec;
+        if (wtperf->stop)
+            break;
         if (run_time != 0) {
             if (--run_time == 0)
                 break;
@@ -2821,8 +2819,7 @@ start_run(WTPERF *wtperf)
         }
         /* Start the foreground compact thread (WT-14196). */
         if (opts->compact_threads != 0) {
-            lprintf(wtperf, 0, 1,
-              "Starting %" PRIu32 " compact thread(s)", opts->compact_threads);
+            lprintf(wtperf, 0, 1, "Starting %" PRIu32 " compact thread(s)", opts->compact_threads);
             wtperf->compactthreads = dcalloc(opts->compact_threads, sizeof(WTPERF_THREAD));
             start_threads(
               wtperf, NULL, wtperf->compactthreads, opts->compact_threads, compact_worker);
@@ -2941,8 +2938,7 @@ extern char *__wt_optarg;
 
 /*
  * compact_stats_dump --
- *     Write compact_summary.txt with metrics consumed by perf_run_py.
- *     WT-14196.
+ *     Write compact_summary.txt with metrics consumed by perf_run_py. WT-14196.
  */
 static void
 compact_stats_dump(WTPERF *wtperf)
@@ -2965,15 +2961,16 @@ compact_stats_dump(WTPERF *wtperf)
         return;
     }
 
-    uri = (opts->compact_uri != NULL && opts->compact_uri[0] != '\0') ?
-      opts->compact_uri : wtperf->uris[0];
+    uri = (opts->compact_uri != NULL && opts->compact_uri[0] != '\0') ? opts->compact_uri :
+                                                                        wtperf->uris[0];
 
     ops_during = wtperf->update_ops_post_compact - wtperf->update_ops_pre_compact;
     lat_sum_during = wtperf->update_latency_post_compact - wtperf->update_latency_pre_compact;
     avg_lat_us = ops_during == 0 ? 0.0 : (double)lat_sum_during / (double)ops_during;
     reduction_pct = wtperf->compact_pre_file_size == 0 ? 0.0 :
-      100.0 * (double)(wtperf->compact_pre_file_size - wtperf->compact_post_file_size) /
-      (double)wtperf->compact_pre_file_size;
+                                                         100.0 *
+        (double)((int64_t)wtperf->compact_pre_file_size - (int64_t)wtperf->compact_post_file_size) /
+        (double)wtperf->compact_pre_file_size;
 
     fprintf(fp, "Compact configuration uri : %s\n", uri);
     fprintf(fp, "Compact wallclock seconds : %.2f\n", wtperf->compact_wallclock_us / 1.0e6);
@@ -2989,17 +2986,16 @@ compact_stats_dump(WTPERF *wtperf)
       (int64_t)wtperf->compact_pre_file_size - (int64_t)wtperf->compact_post_file_size);
     fprintf(fp, "File size reduction pct : %.2f\n", reduction_pct);
     fprintf(fp, "\n");
-    fprintf(fp, "Block reuse bytes before compact : %" PRIu64 "\n",
-      wtperf->compact_pre_reuse_bytes);
-    fprintf(fp, "Block reuse bytes after compact : %" PRIu64 "\n",
-      wtperf->compact_post_reuse_bytes);
+    fprintf(
+      fp, "Block reuse bytes before compact : %" PRIu64 "\n", wtperf->compact_pre_reuse_bytes);
+    fprintf(
+      fp, "Block reuse bytes after compact : %" PRIu64 "\n", wtperf->compact_post_reuse_bytes);
     fprintf(fp, "Block first srch walk time peak usecs : %" PRIu64 "\n",
       wtperf->block_first_srch_walk_peak_us);
     fprintf(fp, "\n");
-    fprintf(fp, "Post-populate remove records : %" PRIu64 "\n",
-      wtperf->post_populate_remove_records);
-    fprintf(fp, "Post-populate remove seconds : %.2f\n",
-      wtperf->post_populate_remove_us / 1.0e6);
+    fprintf(
+      fp, "Post-populate remove records : %" PRIu64 "\n", wtperf->post_populate_remove_records);
+    fprintf(fp, "Post-populate remove seconds : %.2f\n", wtperf->post_populate_remove_us / 1.0e6);
     fprintf(fp, "\n");
     fprintf(fp, "Update ops during compact : %" PRIu64 "\n", ops_during);
     fprintf(fp, "Update avg latency during compact us : %.0f\n", avg_lat_us);
