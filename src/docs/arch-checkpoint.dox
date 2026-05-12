@@ -98,14 +98,20 @@ a work queue of pages to reconcile and a done queue of completed items.
 For each leaf page encountered during the B-tree walk, the main thread duplicates
 the walk position (giving the copy of its own hazard pointer), wraps it in a work
 item, and pushes it onto the work queue. Workers pick up items, reconcile the
-page, and push the result onto the done queue, posting a semaphore.
+page, and push the result onto the done queue, posting a semaphore. Workers must
+return completed pages to the main thread via the done queue because hazard
+pointers cannot be transferred between sessions: a worker cannot release a hazard
+pointer that was acquired by the main checkpoint thread. The done queue also
+carries each worker's return code, allowing errors to propagate to the caller.
+A semaphore rather than a condition variable is used so that a post issued by a
+worker before the main thread calls wait is not lost.
 
 Internal pages are never handed to workers. Before checking whether an internal
 page is dirty, the main thread drains the done queue by waiting on the semaphore
 until every outstanding work item has completed. Only then does it reconcile the
 internal page, ensuring it can collect the correct on-disk address cookies of its
-children. The main thread also releases each page's hazard pointer as it drains,
-because hazard pointers cannot be transferred between sessions.
+children. The main thread releases each page's hazard pointer as it drains the
+done queue.
 
 Each worker uses its own session, since sessions are not thread-safe.
 Workers are identified by the session flags \c WT_SESSION_CHECKPOINT and
