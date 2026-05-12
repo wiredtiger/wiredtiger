@@ -405,8 +405,8 @@ __curversion_disk_skip_no_stop(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW
         return (true);
 
     /*
-     * If the previous emission was a rolled-back prepared update its stop slots hold rollback
-     * metadata instead of a real stop timestamp, so the comparison would be meaningless.
+     * If the previous emission was a rolled-back prepared update its stop slot holds a rollback
+     * timestamp instead of a real stop timestamp, so the comparison would be meaningless.
      */
     if (version_cursor->upd_stop_txnid == WT_TXN_ABORTED)
         return (false);
