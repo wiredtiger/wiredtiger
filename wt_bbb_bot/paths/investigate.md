@@ -4,6 +4,8 @@ Full investigation of a WiredTiger ticket — triage through reproduction.
 
 **Core rule:** Only assert what you fetched. Unknown = record as "unknown." Never fill a gap with an assumption. When in doubt, do less and say more.
 
+**Sub-agent rule:** Steps 6, 7, and 8 MUST be executed by spawning sub-agents using the `Agent()` blocks defined in each step. Never inline their instructions or run their commands directly. This preserves context window budget for the triage steps.
+
 ## Explore agent
 
 Before spawning an Explore agent, check `@reference/codebase.md` for orientation — use it to form a targeted question, then verify with source.
@@ -71,7 +73,9 @@ Set **min repro iterations** from BFG count (30 days): ≥ 5 → 10 iterations |
 
 ## Step 6: Git History
 
-→ **@paths/git-history.md** — pass last-good/first-bad SHAs (Step 2), failing file/function and assertion text (Step 3).
+**Spawn the sub-agent defined in `@paths/git-history.md`.** Do not run git commands inline — read that file and call its `Agent()` block directly, passing:
+- Last-good SHA / first-bad SHA (Step 2)
+- Failing file, failing function, assertion text (Step 3)
 
 Returns: suspect commit list (SHA, date, ticket, reason flagged).
 
@@ -79,7 +83,8 @@ Returns: suspect commit list (SHA, date, ticket, reason flagged).
 
 Skip if Step 3 produced no concrete signal (no assertion text, no function name, no `file:line`). Record "Codebase: skipped — no signal" and proceed to Output.
 
-→ **@paths/codebase-lookup.md** — pass assertion text and function name (Step 3).
+**Spawn the sub-agent defined in `@paths/codebase-lookup.md`.** Do not run grep commands inline — read that file and call its `Agent()` block directly, passing:
+- Assertion text, function name, file:line (Step 3)
 
 Returns: assertion location (file:line), 5 lines above (verbatim), subsystem, prior tickets.
 
@@ -87,7 +92,10 @@ Returns: assertion location (file:line), 5 lines above (verbatim), subsystem, pr
 
 Skip if any of the following hold: Step 3 has no concrete error signal / Step 7 subsystem is "unknown" / failure is already explained by a known fix commit. Record "Reproduction: skipped — `<reason>`".
 
-→ **@paths/reproduction.md** — pass test command and build variant (Step 3), min iterations (Step 5), suspect commit (Step 6).
+**Spawn the sub-agent defined in `@paths/reproduction.md`.** Do not run test commands inline — read that file and call its `Agent()` block directly, passing:
+- Test name / command, build variant (Step 3)
+- Min iterations (Step 5)
+- Suspect commit / location (Steps 6–7)
 
 Returns: result, failure rate, first error line, log path.
 
