@@ -257,8 +257,8 @@ __curversion_value_return_from_upd(
 
 /*
  * __curversion_walk_to_next_update --
- *     Locate the next update worth emitting after the one just returned. Returns NULL if the chain
- *     is exhausted or if the just-emitted update was globally visible.
+ *     Locate the next update worth returning after the one just returned. Returns NULL if the chain
+ *     is exhausted or if the just-returned update was globally visible.
  */
 static WT_UPDATE *
 __curversion_walk_to_next_update(
