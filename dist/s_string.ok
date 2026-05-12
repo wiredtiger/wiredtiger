@@ -1028,6 +1028,7 @@ forceerror
 foreach
 formatmessage
 forw
+foundp
 foward
 fprintf
 fread
@@ -1758,6 +1759,7 @@ tokstart
 toktype
 tolower
 tombstoned
+tombstonep
 toml
 toolchain
 totalsec
@@ -1877,6 +1879,7 @@ verifyLayered
 vers
 vfprintf
 vh
+visiblep
 visitedKeys
 vm
 vpack
