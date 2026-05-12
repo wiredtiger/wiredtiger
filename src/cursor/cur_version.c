@@ -692,27 +692,22 @@ __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64
 }
 
 /*
- * __curversion_next_single_key --
- *     Iterate the updates of a single key.
+ * __curversion_process_hs --
+ *     Return the next version from the history store, if any.
  */
 static int
-__curversion_next_single_key(WT_CURSOR *cursor)
+__curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITEM **hs_valuep,
+  bool *upd_foundp, bool *donep)
 {
     WT_CURSOR *file_cursor, *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
-    WT_DECL_ITEM(hs_value);
-    WT_DECL_ITEM(key);
-    WT_DECL_RET;
-    WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *tombstone;
     wt_timestamp_t durable_start_ts, durable_stop_ts;
     size_t max_memsize;
-    uint64_t hs_upd_type, raw;
+    uint64_t hs_upd_type;
     uint8_t *p;
-    bool done, upd_found;
 
     session = CUR2S(cursor);
     version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -720,9 +715,127 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     hs_cursor = version_cursor->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
     twp = NULL;
-    upd_found = false;
-    done = false;
+
+    if (*upd_foundp || hs_cursor == NULL || F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED))
+        return (0);
+
+    /*
+     * Stop once we hit a globally visible record on the update chain; no need to return more
+     * updates. Aborted updates are never globally visible.
+     */
+    if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
+      !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
+      __wt_txn_visible_all(
+        session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts)) {
+        *donep = true;
+        return (0);
+    }
+
+    /* Ensure we can see all the content in the history store. */
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+
+    if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
+        if (page->type == WT_PAGE_ROW_LEAF)
+            hs_cursor->set_key(
+              hs_cursor, 4, S2BT(session)->id, &file_cursor->key, WT_TS_MAX, UINT64_MAX);
+        else {
+            /* Ensure enough room for a column-store key without checking. */
+            WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, keyp));
+
+            p = (*keyp)->mem;
+            WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
+            (*keyp)->size = WT_PTRDIFF(p, (*keyp)->data);
+            hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, *keyp, WT_TS_MAX, UINT64_MAX);
+        }
+        WT_RET(__wt_curhs_search_near_before(session, hs_cursor));
+    } else
+        WT_RET(hs_cursor->prev(hs_cursor));
+
+    WT_RET(__wt_scr_alloc(session, 0, hs_valuep));
+
+    for (;;) {
+        __wt_hs_upd_time_window(hs_cursor, &twp);
+        WT_RET(hs_cursor->get_value(
+          hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, *hs_valuep));
+
+        /*
+         * Reconstruct the history store value if needed. Because the current value is preserved
+         * across iterations, modifies can be applied on top of it.
+         */
+        if (hs_upd_type == WT_UPDATE_MODIFY) {
+            __wt_modify_max_memsize_format((*hs_valuep)->data, file_cursor->value_format,
+              cbt->upd_value->buf.size, &max_memsize);
+            WT_RET(__wt_buf_set_and_grow(session, &cbt->upd_value->buf, cbt->upd_value->buf.data,
+              cbt->upd_value->buf.size, max_memsize));
+            WT_RET(__wt_modify_apply_item(
+              session, file_cursor->value_format, &cbt->upd_value->buf, (*hs_valuep)->data));
+        } else {
+            WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
+            cbt->upd_value->buf.data = (*hs_valuep)->data;
+            cbt->upd_value->buf.size = (*hs_valuep)->size;
+        }
+
+        if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
+            break;
+
+        /* Skip all non-aborted updates that are duplicate to the previous updates returned. */
+        if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
+          twp->stop_txn <= version_cursor->upd_stop_txnid &&
+          twp->stop_ts <= version_cursor->curversion_stop_ts &&
+          twp->durable_stop_ts <= version_cursor->curversion_durable_stop_ts)
+            break;
+
+        WT_RET(hs_cursor->prev(hs_cursor));
+    }
+
+    if (version_cursor->start_timestamp != WT_TS_NONE) {
+        /* Done if the durable stop timestamp is at or before the end timestamp. */
+        if (twp->stop_ts != WT_TS_MAX && twp->durable_stop_ts <= version_cursor->start_timestamp) {
+            *donep = true;
+            return (0);
+        }
+        /*
+         * FIXME-WT-16136: for the history store it is hard to tell whether a stop durable timestamp
+         * belongs to a tombstone or to the previous full value. For now, always return the value
+         * when its stop durable timestamp is past the end timestamp.
+         */
+        if (twp->stop_ts == WT_TS_MAX && twp->durable_start_ts <= version_cursor->start_timestamp) {
+            *donep = true;
+            return (0);
+        }
+    }
+
+    WT_RET(__curversion_value_return_from_hs(cursor, twp, hs_upd_type));
+    *upd_foundp = true;
+    return (0);
+}
+
+/*
+ * __curversion_next_single_key --
+ *     Iterate the updates of a single key.
+ */
+static int
+__curversion_next_single_key(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_ITEM(hs_value);
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_SESSION_IMPL *session;
+    WT_UPDATE *tombstone;
+    uint64_t raw;
+    bool done, upd_found;
+
+    session = CUR2S(cursor);
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    file_cursor = version_cursor->file_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
     tombstone = NULL;
+    done = false;
+    upd_found = false;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -737,130 +850,11 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     page = cbt->ref->page;
 
     WT_ERR(__curversion_process_chain(cursor, &tombstone, &upd_found, &done));
-    if (done)
-        goto done;
+    if (!done)
+        WT_ERR(__curversion_process_on_disk(cursor, tombstone, page, &upd_found, &done));
+    if (!done)
+        WT_ERR(__curversion_process_hs(cursor, page, &key, &hs_value, &upd_found, &done));
 
-    WT_ERR(__curversion_process_on_disk(cursor, tombstone, page, &upd_found, &done));
-    if (done)
-        goto done;
-
-
-    if (!upd_found && version_cursor->hs_cursor != NULL &&
-      !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
-        /*
-         * We have already seen an update that is globally visible on the update chain. No need to
-         * return more updates. Aborted updates are never globally visible.
-         */
-        if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-          !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
-          __wt_txn_visible_all(
-            session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts))
-            goto done;
-
-        /* Ensure we can see all the content in the history store. */
-        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-
-        if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
-            if (page->type == WT_PAGE_ROW_LEAF)
-                hs_cursor->set_key(
-                  hs_cursor, 4, S2BT(session)->id, &file_cursor->key, WT_TS_MAX, UINT64_MAX);
-            else {
-                /* Ensure enough room for a column-store key without checking. */
-                WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-                p = key->mem;
-                WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
-                key->size = WT_PTRDIFF(p, key->data);
-                hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-            }
-            WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
-        } else
-            WT_ERR(hs_cursor->prev(hs_cursor));
-
-        WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
-
-        /*
-         * If there are no history store records for the given key or if we have iterated through
-         * all the records already, we have exhausted the history store.
-         */
-        WT_ASSERT(session, ret == 0);
-
-        for (;;) {
-            __wt_hs_upd_time_window(hs_cursor, &twp);
-            WT_ERR(hs_cursor->get_value(
-              hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, hs_value));
-
-            /*
-             * Reconstruct the history store value if needed. Since we save the value inside the
-             * version cursor every time we traverse a version, we can simply apply the modify onto
-             * the latest value.
-             */
-            if (hs_upd_type == WT_UPDATE_MODIFY) {
-                __wt_modify_max_memsize_format(hs_value->data, file_cursor->value_format,
-                  cbt->upd_value->buf.size, &max_memsize);
-                WT_ERR(__wt_buf_set_and_grow(session, &cbt->upd_value->buf,
-                  cbt->upd_value->buf.data, cbt->upd_value->buf.size, max_memsize));
-                WT_ERR(__wt_modify_apply_item(
-                  session, file_cursor->value_format, &cbt->upd_value->buf, hs_value->data));
-            } else {
-                WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
-                cbt->upd_value->buf.data = hs_value->data;
-                cbt->upd_value->buf.size = hs_value->size;
-            }
-
-            if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
-                break;
-
-            /* Skip all non-aborted updates that are duplicate to the previous updates returned. */
-            if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
-              twp->stop_txn <= version_cursor->upd_stop_txnid &&
-              twp->stop_ts <= version_cursor->curversion_stop_ts &&
-              twp->durable_stop_ts <= version_cursor->curversion_durable_stop_ts)
-                break;
-
-            WT_ERR(hs_cursor->prev(hs_cursor));
-        }
-
-        if (version_cursor->start_timestamp != WT_TS_NONE) {
-            /*
-             * We are done if the durable stop timestamp is smaller or equal to the end timestamp.
-             */
-            if (twp->stop_ts != WT_TS_MAX &&
-              twp->durable_stop_ts <= version_cursor->start_timestamp)
-                goto done;
-
-            /*
-             * FIXME-WT-16136: for history store, it is hard to determine if the stop durable
-             * timestamp is from a tombstone or the previous full value. Always return the value for
-             * now if its stop durable timestamp is larger than the end timestamp.
-             */
-            if (twp->stop_ts == WT_TS_MAX &&
-              twp->durable_start_ts <= version_cursor->start_timestamp)
-                goto done;
-        }
-
-        WT_ERR(
-          __curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, twp->start_txn,
-            WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->start_ts,
-            WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->durable_start_ts,
-            twp->start_prepare_ts, twp->start_prepared_id, twp->stop_txn,
-            WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->stop_ts,
-            WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->durable_stop_ts,
-            twp->stop_prepare_ts, twp->stop_prepared_id, hs_upd_type, 0, 0,
-            WT_CURVERSION_HISTORY_STORE));
-
-        version_cursor->upd_stop_txnid = twp->start_txn;
-        version_cursor->curversion_durable_stop_ts =
-          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->durable_start_ts;
-        version_cursor->curversion_stop_ts =
-          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->start_ts;
-        version_cursor->upd_stop_prepare_ts = twp->start_prepare_ts;
-        version_cursor->upd_stop_prepared_id = twp->start_prepared_id;
-
-        upd_found = true;
-    }
-
-done:
     if (!upd_found)
         ret = WT_NOTFOUND;
     else {
