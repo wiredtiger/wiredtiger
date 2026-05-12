@@ -178,7 +178,7 @@ __curversion_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
 
 /*
  * __curversion_tombstone_next_upd --
- *     After recording stop metadata from a tombstone, advance past it to find the value to emit.
+ *     After recording stop metadata from a tombstone, advance past it to find the value to return.
  *     Handles both the normal case (skip all aborted updates) and show_prepared_rollback mode
  *     (include rolled-back prepared value updates).
  */
@@ -210,11 +210,11 @@ __curversion_tombstone_next_upd(
 }
 
 /*
- * __curversion_record_stop_point --
- *     Save an update's metadata as the previously-emitted stop state.
+ * __curversion_record_stop_time_point --
+ *     Save an update's metadata as the previously-returned stop state.
  */
 static void
-__curversion_record_stop_point(
+__curversion_record_stop_time_point(
   WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
 {
     version_cursor->upd_stop_txnid = upd->txnid;
@@ -232,7 +232,7 @@ __curversion_record_stop_point(
 
 /*
  * __curversion_value_return_from_upd --
- *     Pack the metadata for an update emitted from the in-memory update chain.
+ *     Pack the metadata for an update returned from the in-memory update chain.
  */
 static int
 __curversion_value_return_from_upd(
@@ -288,7 +288,7 @@ __curversion_walk_to_next_update(
 
         if (next_upd != upd) {
             /*
-             * The previously emitted update is not globally visible: snapshot isolation plus the
+             * The previously returned update is not globally visible: snapshot isolation plus the
              * pinned global timestamp guarantee this. Aborted updates are never globally visible.
              */
             WT_ASSERT(session,
@@ -304,7 +304,7 @@ __curversion_walk_to_next_update(
 
 /*
  * __curversion_process_chain --
- *     Emit the next version from the in-memory update chain, if any.
+ *     Return the next version from the in-memory update chain, if any.
  */
 static int
 __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_foundp, bool *donep)
@@ -348,7 +348,7 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
         version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
           (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
-        __curversion_record_stop_point(version_cursor, upd, version_prepared);
+        __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
         upd = __curversion_tombstone_next_upd(session, version_cursor, tombstone);
     }
 
@@ -377,7 +377,7 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
     /* Pack the metadata describing this version into the version cursor's value. */
     WT_RET(__curversion_value_return_from_upd(cursor, version_cursor, upd, version_prepared));
 
-    __curversion_record_stop_point(version_cursor, upd, version_prepared);
+    __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
 
     *upd_foundp = true;
 
@@ -514,7 +514,7 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
 
 /*
  * __curversion_value_return_from_disk_image --
- *     Pack the metadata for the on-disk value and record it as the previously-emitted stop state.
+ *     Pack the metadata for the on-disk value and record it as the previously-returned stop state.
  */
 static int
 __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw, uint64_t stop_txn,
@@ -545,7 +545,7 @@ __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
 
 /*
  * __curversion_process_on_disk --
- *     Emit the on-disk value as the next version, if there is one and it should be returned.
+ *     Return the on-disk value as the next version, if there is one and it should be returned.
  */
 static int
 __curversion_process_on_disk(
@@ -662,7 +662,7 @@ __curversion_process_on_disk(
 
 /*
  * __curversion_value_return_from_hs --
- *     Pack the metadata for the history-store value and record it as the previously-emitted stop
+ *     Pack the metadata for the history-store value and record it as the previously-returned stop
  *     state.
  */
 static int
@@ -693,7 +693,7 @@ __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64
 
 /*
  * __curversion_process_hs --
- *     Emit the next version from the history store, if any.
+ *     Return the next version from the history store, if any.
  */
 static int
 __curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITEM **hs_valuep,
