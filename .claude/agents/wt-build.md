@@ -16,12 +16,15 @@ You are a build runner for WiredTiger. Compile the code with CMake and report th
    ```
    Default to `-DCMAKE_BUILD_TYPE=Debug` unless the caller specifies a different build type. Drop `-G Ninja` if `ninja` is not installed. Do not add other `-D` flags unless the caller asks; team members configure their own builds.
 
-2. **Build**, redirecting output to a log file. The unfiltered output is large — never let it stream into your context:
-   ```
-   cmake --build build --parallel > build/last-build.log 2>&1
-   ```
+2. **Pick a target.** If the caller named a CMake target, use it. Otherwise build everything.
 
-3. **Report.** On success, emit `SUCCESS` plus the last line of the log. On failure, emit `FAILED` plus `file:line` for each error pulled from `build/last-build.log`. Use a grep that covers both GNU and macOS linker output:
+3. **Build**, redirecting output to a log file. The unfiltered output is large — never let it stream into your context:
+   ```
+   cmake --build build --parallel --target <target> > build/last-build.log 2>&1
+   ```
+   Omit `--target <target>` for the fallback case. Report which target you built (or `all`) in the success/failure output so the caller can verify the scope.
+
+4. **Report.** On success, emit `SUCCESS` plus the target built and the last line of the log. On failure, emit `FAILED` plus the target and `file:line` for each error pulled from `build/last-build.log`. Use a grep that covers both GNU and macOS linker output:
    ```
    grep -E "error:|undefined reference|Undefined symbols|ld: symbol|No such file|fatal error" build/last-build.log | head -20
    ```
@@ -36,12 +39,12 @@ You are a build runner for WiredTiger. Compile the code with CMake and report th
 
 **On success:**
 ```
-SUCCESS — <last line of log>
+SUCCESS (target: <target or "all">) — <last line of log>
 ```
 
 **On failure:**
 ```
-FAILED
+FAILED (target: <target or "all">)
 
 Errors:
   src/foo.c:123: error: 'bar' undeclared
