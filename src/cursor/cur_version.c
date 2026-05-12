@@ -210,6 +210,27 @@ __curversion_tombstone_next_upd(
 }
 
 /*
+ * __curversion_record_stop_time_point --
+ *     Save an update's metadata as the previously-returned stop state.
+ */
+static void
+__curversion_record_stop_time_point(
+  WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
+{
+    version_cursor->upd_stop_txnid = upd->txnid;
+    if (upd->txnid == WT_TXN_ABORTED) {
+        version_cursor->curversion_stop_rollback_ts = upd->upd_rollback_ts;
+        version_cursor->curversion_stop_saved_txnid = upd->upd_saved_txnid;
+    } else {
+        version_cursor->curversion_durable_stop_ts = upd->upd_durable_ts;
+        version_cursor->curversion_stop_ts = upd->upd_start_ts;
+    }
+    version_cursor->upd_stop_prepare_ts = upd->prepare_ts;
+    version_cursor->upd_stop_prepared_id = upd->prepared_id;
+    version_cursor->upd_stop_prepared = version_prepared;
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
