@@ -127,7 +127,7 @@ testutil_tiered_storage_configuration(TEST_OPTS *opts, const char *home, char *t
 
     if (opts->tiered_storage) {
         if (!testutil_is_dir_store(opts))
-            testutil_die(EINVAL, "only dir_store is supported for tiered storage in csuite tests");
+            testutil_die(EINVAL, "only dir_store is supported for tiered storage");
         testutil_snprintf(ext_cfg, ext_cfg_size, TESTUTIL_ENV_CONFIG_TIERED_EXT, opts->build_dir,
           opts->tiered_storage_source, opts->tiered_storage_source, opts->delay_ms, opts->error_ms,
           opts->force_delay, opts->force_error);
