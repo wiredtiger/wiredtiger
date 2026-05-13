@@ -75,7 +75,7 @@ __collator_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_COLLATOR 
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (ncoll, &conn->collqh, q)
+    TAILQ_FOREACH (ncoll, &conn->extensions.collqh, q)
         if (WT_CONFIG_MATCH(ncoll->name, *cname)) {
             *collatorp = ncoll->collator;
             return (0);
@@ -138,7 +138,7 @@ __conn_add_collator(
     ncoll->collator = collator;
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->collqh, ncoll, q);
+    TAILQ_INSERT_TAIL(&conn->extensions.collqh, ncoll, q);
     ncoll = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -164,9 +164,9 @@ __wti_conn_remove_collator(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((ncoll = TAILQ_FIRST(&conn->collqh)) != NULL) {
+    while ((ncoll = TAILQ_FIRST(&conn->extensions.collqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->collqh, ncoll, q);
+        TAILQ_REMOVE(&conn->extensions.collqh, ncoll, q);
         /* Call any termination method. */
         if (ncoll->collator->terminate != NULL)
             WT_TRET(ncoll->collator->terminate(ncoll->collator, (WT_SESSION *)session));
@@ -194,7 +194,7 @@ __compressor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRESS
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (ncomp, &conn->compqh, q)
+    TAILQ_FOREACH (ncomp, &conn->extensions.compqh, q)
         if (WT_CONFIG_MATCH(ncomp->name, *cval)) {
             *compressorp = ncomp->compressor;
             return (0);
@@ -239,7 +239,7 @@ __conn_add_compressor(
     ncomp->compressor = compressor;
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->compqh, ncomp, q);
+    TAILQ_INSERT_TAIL(&conn->extensions.compqh, ncomp, q);
     ncomp = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -265,9 +265,9 @@ __wti_conn_remove_compressor(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((ncomp = TAILQ_FIRST(&conn->compqh)) != NULL) {
+    while ((ncomp = TAILQ_FIRST(&conn->extensions.compqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->compqh, ncomp, q);
+        TAILQ_REMOVE(&conn->extensions.compqh, ncomp, q);
         /* Call any termination method. */
         if (ncomp->compressor->terminate != NULL)
             WT_TRET(ncomp->compressor->terminate(ncomp->compressor, (WT_SESSION *)session));
@@ -362,7 +362,7 @@ __encryptor_confchk(
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (nenc, &conn->encryptqh, q)
+    TAILQ_FOREACH (nenc, &conn->extensions.encryptqh, q)
         if (WT_CONFIG_MATCH(nenc->name, *cval)) {
             if (nencryptorp != NULL)
                 *nencryptorp = nenc;
@@ -392,7 +392,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     kenc = NULL;
     conn = S2C(session);
 
-    __wt_spin_lock(session, &conn->encryptor_lock);
+    __wt_spin_lock(session, &conn->extensions.encryptor_lock);
 
     WT_ERR(__encryptor_confchk(session, cval, &nenc));
     if (nenc == NULL) {
@@ -430,7 +430,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     TAILQ_INSERT_HEAD(&nenc->keyedhashqh[bucket], kenc, hashq);
 
 out:
-    __wt_spin_unlock(session, &conn->encryptor_lock);
+    __wt_spin_unlock(session, &conn->extensions.encryptor_lock);
     *kencryptorp = kenc;
     return (0);
 
@@ -439,7 +439,7 @@ err:
         __wt_free(session, kenc->keyid);
         __wt_free(session, kenc);
     }
-    __wt_spin_unlock(session, &conn->encryptor_lock);
+    __wt_spin_unlock(session, &conn->extensions.encryptor_lock);
     return (ret);
 }
 
@@ -485,7 +485,7 @@ __conn_add_encryptor(
     for (i = 0; i < conn->hash_size; i++)
         TAILQ_INIT(&nenc->keyedhashqh[i]);
 
-    TAILQ_INSERT_TAIL(&conn->encryptqh, nenc, q);
+    TAILQ_INSERT_TAIL(&conn->extensions.encryptqh, nenc, q);
     nenc = NULL;
 
 err:
@@ -512,9 +512,9 @@ __wti_conn_remove_encryptor(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((nenc = TAILQ_FIRST(&conn->encryptqh)) != NULL) {
+    while ((nenc = TAILQ_FIRST(&conn->extensions.encryptqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->encryptqh, nenc, q);
+        TAILQ_REMOVE(&conn->extensions.encryptqh, nenc, q);
         while ((kenc = TAILQ_FIRST(&nenc->keyedqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nenc->keyedqh, kenc, q);
@@ -560,7 +560,7 @@ __conn_add_page_log(
     WT_ERR(__wt_strdup(session, name, &npl->name));
     npl->page_log = page_log;
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->pagelogqh, npl, q);
+    TAILQ_INSERT_TAIL(&conn->extensions.pagelogqh, npl, q);
     npl = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -589,7 +589,7 @@ __conn_get_page_log(WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG **page
     *page_logp = NULL;
 
     ret = EINVAL;
-    TAILQ_FOREACH (npage_log, &conn->pagelogqh, q)
+    TAILQ_FOREACH (npage_log, &conn->extensions.pagelogqh, q)
         if (WT_STREQ(npage_log->name, name)) {
             page_log = npage_log->page_log;
             WT_RET(page_log->pl_add_reference(page_log));
@@ -617,9 +617,9 @@ __wti_conn_remove_page_log(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((npl = TAILQ_FIRST(&conn->pagelogqh)) != NULL) {
+    while ((npl = TAILQ_FIRST(&conn->extensions.pagelogqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->pagelogqh, npl, q);
+        TAILQ_REMOVE(&conn->extensions.pagelogqh, npl, q);
 
         /* Call any termination method. */
         pl = npl->page_log;
@@ -683,7 +683,7 @@ __conn_add_storage_source(
         TAILQ_INIT(&nstorage->buckethashqh[i]);
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->storagesrcqh, nstorage, q);
+    TAILQ_INSERT_TAIL(&conn->extensions.storagesrcqh, nstorage, q);
     nstorage = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -713,7 +713,7 @@ __conn_get_storage_source(
     *storage_sourcep = NULL;
 
     ret = EINVAL;
-    TAILQ_FOREACH (nstorage_source, &conn->storagesrcqh, q)
+    TAILQ_FOREACH (nstorage_source, &conn->extensions.storagesrcqh, q)
         if (WT_STREQ(nstorage_source->name, name)) {
             storage_source = nstorage_source->storage_source;
             WT_RET(storage_source->ss_add_reference(storage_source));
@@ -742,9 +742,9 @@ __wti_conn_remove_storage_source(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((nstorage = TAILQ_FIRST(&conn->storagesrcqh)) != NULL) {
+    while ((nstorage = TAILQ_FIRST(&conn->extensions.storagesrcqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->storagesrcqh, nstorage, q);
+        TAILQ_REMOVE(&conn->extensions.storagesrcqh, nstorage, q);
         while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
