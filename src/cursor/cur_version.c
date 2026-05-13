@@ -513,6 +513,37 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
 }
 
 /*
+ * __curversion_value_return_from_disk_image --
+ *     Pack the metadata for the on-disk value and record it as the previously-returned stop state.
+ */
+static int
+__curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw, uint64_t stop_txn,
+  bool stop_prepared, wt_timestamp_t stop_prepare_ts, wt_timestamp_t stop_ts,
+  wt_timestamp_t durable_stop_ts, uint64_t stop_prepared_id, bool version_prepared)
+{
+    WT_CURSOR_VERSION *version_cursor;
+    wt_timestamp_t durable_start_meta, start_meta;
+    bool has_start_prepare;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
+    start_meta = has_start_prepare ? tw->start_prepare_ts : tw->start_ts;
+    durable_start_meta = has_start_prepare ? tw->start_prepare_ts : tw->durable_start_ts;
+
+    WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, tw->start_txn,
+      start_meta, durable_start_meta, tw->start_prepare_ts, tw->start_prepared_id, stop_txn,
+      stop_prepared ? stop_prepare_ts : stop_ts, durable_stop_ts, stop_prepare_ts, stop_prepared_id,
+      WT_UPDATE_STANDARD, version_prepared, 0, WT_CURVERSION_DISK_IMAGE));
+
+    version_cursor->upd_stop_txnid = tw->start_txn;
+    version_cursor->curversion_durable_stop_ts = durable_start_meta;
+    version_cursor->curversion_stop_ts = start_meta;
+    version_cursor->upd_stop_prepare_ts = tw->start_prepare_ts;
+    version_cursor->upd_stop_prepared_id = tw->start_prepared_id;
+    return (0);
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
@@ -645,29 +676,9 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                     goto skip_on_page;
             }
 
-            WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-              cbt->upd_value->tw.start_txn,
-              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
-                cbt->upd_value->tw.start_prepare_ts :
-                cbt->upd_value->tw.start_ts,
-              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
-                cbt->upd_value->tw.start_prepare_ts :
-                cbt->upd_value->tw.durable_start_ts,
-              cbt->upd_value->tw.start_prepare_ts, cbt->upd_value->tw.start_prepared_id, stop_txn,
-              stop_prepared ? stop_prepare_ts : stop_ts, durable_stop_ts, stop_prepare_ts,
-              stop_prepared_id, WT_UPDATE_STANDARD, version_prepared, 0, WT_CURVERSION_DISK_IMAGE));
-
-            version_cursor->upd_stop_txnid = cbt->upd_value->tw.start_txn;
-            version_cursor->curversion_durable_stop_ts =
-              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
-              cbt->upd_value->tw.start_prepare_ts :
-              cbt->upd_value->tw.durable_start_ts;
-            version_cursor->curversion_stop_ts =
-              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
-              cbt->upd_value->tw.start_prepare_ts :
-              cbt->upd_value->tw.start_ts;
-            version_cursor->upd_stop_prepare_ts = cbt->upd_value->tw.start_prepare_ts;
-            version_cursor->upd_stop_prepared_id = cbt->upd_value->tw.start_prepared_id;
+            WT_ERR(__curversion_value_return_from_disk_image(cursor, &cbt->upd_value->tw,
+              stop_txn, stop_prepared, stop_prepare_ts, stop_ts, durable_stop_ts, stop_prepared_id,
+              version_prepared));
 
             upd_found = true;
         } else
