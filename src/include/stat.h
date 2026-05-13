@@ -500,6 +500,7 @@ struct __wt_connection_stats {
     int64_t block_byte_write;
     int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
+    int64_t block_byte_write_compact_inmem;
     int64_t block_byte_write_intl_disk;
     int64_t block_byte_write_intl;
     int64_t block_byte_write_leaf_disk;
