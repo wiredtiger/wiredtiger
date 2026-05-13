@@ -256,6 +256,53 @@ __curversion_value_return_from_upd(
 }
 
 /*
+ * __curversion_walk_to_next_update --
+ *     Locate the next update worth returning after the one just returned. Returns NULL if the chain
+ *     is exhausted or if the just-returned update was globally visible.
+ */
+static WT_UPDATE *
+__curversion_walk_to_next_update(
+  WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd)
+{
+    WT_UPDATE *first_globally_visible, *next_upd;
+
+    first_globally_visible = NULL;
+
+    for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
+        /* Skip aborted updates unless showing prepared rollbacks. */
+        if (next_upd->txnid == WT_TXN_ABORTED &&
+          (!F_ISSET(version_cursor, WT_CURVERSION_SHOW_PREPARED_ROLLBACK) ||
+            !__curversion_is_prepare_rollback_update(next_upd)))
+            continue;
+
+        if (first_globally_visible != NULL) {
+            next_upd = NULL;
+            break;
+        }
+
+        /* We have traversed all the non-obsolete updates. */
+        if ((F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) ||
+              WT_UPDATE_DATA_VALUE(next_upd)) &&
+          __wt_txn_upd_visible_all(session, next_upd))
+            first_globally_visible = next_upd;
+
+        if (next_upd != upd) {
+            /*
+             * The previously returned update is not globally visible: snapshot isolation plus the
+             * pinned global timestamp guarantee this. Aborted updates are never globally visible.
+             */
+            WT_ASSERT(session,
+              version_cursor->upd_stop_txnid == WT_TXN_ABORTED ||
+                !__wt_txn_visible_all(session, version_cursor->upd_stop_txnid,
+                  version_cursor->curversion_durable_stop_ts));
+            break;
+        }
+    }
+
+    return (next_upd);
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
@@ -271,7 +318,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *first_globally_visible, *next_upd, *tombstone, *upd;
+    WT_UPDATE *next_upd, *tombstone, *upd;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_prepare_ts, stop_ts;
     size_t max_memsize;
     uint64_t hs_upd_type, raw, stop_prepared_id, stop_txn;
@@ -285,7 +332,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)file_cursor;
     twp = NULL;
     upd_found = false;
-    first_globally_visible = tombstone = upd = NULL;
+    tombstone = upd = NULL;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -355,38 +402,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
 
                 upd_found = true;
 
-                /* Walk to the next non-obsolete update. */
-                for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
-                    /* Skip aborted updates unless showing prepared rollbacks. */
-                    if (next_upd->txnid == WT_TXN_ABORTED &&
-                      (!F_ISSET(version_cursor, WT_CURVERSION_SHOW_PREPARED_ROLLBACK) ||
-                        !__curversion_is_prepare_rollback_update(next_upd)))
-                        continue;
-
-                    if (first_globally_visible != NULL) {
-                        next_upd = NULL;
-                        break;
-                    }
-
-                    /* We have traversed all the non-obsolete updates. */
-                    if ((F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) ||
-                          WT_UPDATE_DATA_VALUE(next_upd)) &&
-                      __wt_txn_upd_visible_all(session, next_upd))
-                        first_globally_visible = next_upd;
-
-                    if (next_upd != upd) {
-                        /*
-                         * If we are here, the previous update is not globally visible. We need
-                         * snapshot isolation and have pinned the global timestamp when we start the
-                         * version cursor. Aborted updates are never globally visible.
-                         */
-                        WT_ASSERT(session,
-                          version_cursor->upd_stop_txnid == WT_TXN_ABORTED ||
-                            !__wt_txn_visible_all(session, version_cursor->upd_stop_txnid,
-                              version_cursor->curversion_durable_stop_ts));
-                        break;
-                    }
-                }
+                next_upd = __curversion_walk_to_next_update(session, version_cursor, upd);
                 version_cursor->next_upd = next_upd;
                 if (next_upd == NULL)
                     F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
