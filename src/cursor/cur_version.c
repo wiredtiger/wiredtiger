@@ -449,7 +449,7 @@ __curversion_disk_check_with_stop(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *v
 }
 
 /*
- * Stop-side metadata collected for an on-disk record. Bundled so helpers that need to inspect and
+ * Stop time point collected for an on-disk record. Bundled so helpers that need to inspect and
  * potentially mutate all six fields can take a single pointer instead of six separate out-params.
  */
 typedef struct {
@@ -459,7 +459,7 @@ typedef struct {
     wt_timestamp_t ts;
     wt_timestamp_t durable_ts;
     bool prepared;
-} WT_CURVERSION_DISK_STOP;
+} WT_CURVERSION_DISK_STOP_TIME_POINT;
 
 /*
  * __curversion_disk_finalize_prepared --
@@ -468,7 +468,7 @@ typedef struct {
  */
 static void
 __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW *tw,
-  WT_UPDATE *tombstone, WT_CURVERSION_DISK_STOP *stopp, bool *version_preparedp, bool *skipp,
+  WT_UPDATE *tombstone, WT_CURVERSION_DISK_STOP_TIME_POINT *stopp, bool *version_preparedp, bool *skipp,
   bool *donep)
 {
     if (tombstone != NULL) {
@@ -537,7 +537,7 @@ __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
     version_cursor->upd_stop_prepared_id = tw->start_prepared_id;
     /*
      * upd_stop_prepared is intentionally not updated here. Disk records are stable so their
-     * start side is never an in-progress prepare; any prepared stop inherited from the update
+     * start time point is never an in-progress prepare; any prepared stop inherited from the update
      * chain still gates the globally-visible check for subsequent history-store iterations.
      */
     return (0);
@@ -566,7 +566,7 @@ __curversion_process_on_disk(
   WT_CURSOR *cursor, WT_UPDATE *tombstone, WT_PAGE *page, bool *upd_foundp, bool *donep)
 {
     WT_DECL_RET;
-    WT_CURVERSION_DISK_STOP stop;
+    WT_CURVERSION_DISK_STOP_TIME_POINT stop;
 
     WT_SESSION_IMPL *session = CUR2S(cursor);
     WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -686,8 +686,8 @@ __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64
     version_cursor->upd_stop_prepared_id = twp->start_prepared_id;
     /*
      * upd_stop_prepared is intentionally not updated here — history-store records are fully
-     * committed so their start side is never an in-progress prepare; any prepared stop inherited
-     * from the update chain still gates the globally-visible check for the next iteration.
+     * committed so their start time point is never an in-progress prepare; any prepared stop
+     * inherited from the update chain still gates the globally-visible check for the next iteration.
      */
     return (0);
 }
