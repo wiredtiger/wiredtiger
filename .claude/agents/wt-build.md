@@ -1,6 +1,6 @@
 ---
 name: wt-build
-description: Use this agent when WiredTiger C/C++ source or test code has changed and the CMake build needs verification. Typical triggers include verifying a fresh edit compiles before running tests, a pre-commit sanity check after touching files under `src/` or `test/` (Catch2, csuite, cppsuite, format, etc.), and confirming a newly added source or test file is wired into the build. See "When to invoke" in the agent body for worked scenarios.
+description: Use this agent when WiredTiger C/C++ source or test code has changed and the CMake build needs verification. Typical triggers include verifying a fresh edit compiles before running tests, a pre-commit sanity check after touching files under `src/` or `test/` (Catch2, csuite, cppsuite, format, etc.), and confirming a newly added source or test file is wired into the build.
 tools: ["Bash", "Read", "Glob", "Grep"]
 model: haiku
 color: yellow
