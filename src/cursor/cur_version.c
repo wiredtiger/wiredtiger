@@ -552,7 +552,26 @@ __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
     version_cursor->curversion_stop_ts = start_meta;
     version_cursor->upd_stop_prepare_ts = tw->start_prepare_ts;
     version_cursor->upd_stop_prepared_id = tw->start_prepared_id;
+    /*
+     * upd_stop_prepared is intentionally not updated here. Disk records are stable so their
+     * start side is never an in-progress prepare; any prepared stop inherited from the update
+     * chain still gates the globally-visible check for subsequent history-store iterations.
+     */
     return (0);
+}
+
+/*
+ * __curversion_stop_globally_visible --
+ *     True if the previously-returned stop record is globally visible in timestamp-order mode,
+ *     meaning no older versions need to be returned. Aborted stops are never globally visible.
+ */
+static WT_INLINE bool
+__curversion_stop_globally_visible(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor)
+{
+    return (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
+      !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
+      __wt_txn_visible_all(
+        session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts));
 }
 
 /*
@@ -580,14 +599,8 @@ __curversion_process_on_disk(
     if (*upd_foundp || F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED))
         return (0);
 
-    /*
-     * Stop once we hit a globally visible record on the update chain; no need to return more
-     * updates. Aborted updates are never globally visible.
-     */
-    if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-      !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
-      __wt_txn_visible_all(
-        session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts)) {
+    /* No older versions are needed once the previously-returned stop is globally visible. */
+    if (__curversion_stop_globally_visible(session, version_cursor)) {
         *donep = true;
         return (0);
     }
@@ -698,6 +711,11 @@ __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64
     version_cursor->curversion_stop_ts = start_meta;
     version_cursor->upd_stop_prepare_ts = twp->start_prepare_ts;
     version_cursor->upd_stop_prepared_id = twp->start_prepared_id;
+    /*
+     * upd_stop_prepared is intentionally not updated here — history-store records are fully
+     * committed so their start side is never an in-progress prepare; any prepared stop inherited
+     * from the update chain still gates the globally-visible check for the next iteration.
+     */
     return (0);
 }
 
@@ -729,14 +747,8 @@ __curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITE
     if (*upd_foundp || hs_cursor == NULL || F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED))
         return (0);
 
-    /*
-     * Stop once we hit a globally visible record on the update chain; no need to return more
-     * updates. Aborted updates are never globally visible.
-     */
-    if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-      !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
-      __wt_txn_visible_all(
-        session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts)) {
+    /* No older versions are needed once the previously-returned stop is globally visible. */
+    if (__curversion_stop_globally_visible(session, version_cursor)) {
         *donep = true;
         return (0);
     }
