@@ -85,7 +85,7 @@ class test_compact04(compact_util):
             c_stat.close()
 
             conn_stat = self.session.open_cursor('statistics:', None, 'statistics=(all)')
-            bytes_written_compact_inmem = conn_stat[stat.conn.block_byte_write_compact_inmem][2]
+            bytes_written_compact_inmem = conn_stat[stat.conn.session_table_compact_bytes_rewrite_inmem][2]
             conn_stat.close()
 
             # Compact stats can be retrieved with tiered storage but they're not meaningful.
