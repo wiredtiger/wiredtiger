@@ -1091,6 +1091,7 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
               "Defer metadata operation %s for table \"%s\" with schema epoch %" PRIu64,
               __shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
               entry->schema_epoch);
+            WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_unstable);
             continue;
         }
 
@@ -1101,6 +1102,7 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
             goto err;
         }
 
+        WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);

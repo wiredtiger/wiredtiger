@@ -824,6 +824,8 @@ struct __wt_connection_stats {
     int64_t checkpoint_fsync_post_duration;
     int64_t checkpoint_generation;
     int64_t checkpoint_time_max;
+    int64_t checkpoint_disagg_metadata_apply;
+    int64_t checkpoint_disagg_metadata_unstable;
     int64_t checkpoint_time_min;
     int64_t checkpoint_handle_drop_duration;
     int64_t checkpoint_handle_duration;

@@ -246,8 +246,20 @@ class test_layered104(wttest.WiredTigerTestCase):
         self.assertStatEqual(stat.conn.session_table_publish_success, 2)
         self.assertStatEqual(stat.conn.session_table_publish_fail, 0)
 
-        # Publish drop with a valid epoch: success stat increments.
+        # Checkpoint with stable schema epoch lower than the published epoch: the operation is
+        # counted as unstable and deferred to the next checkpoint.
+        self.set_stable_epoch(5)
+        self.leader_checkpoint(1)
+        self.assertStatEqual(stat.conn.checkpoint_disagg_metadata_unstable, 1)
+        self.assertStatEqual(stat.conn.checkpoint_disagg_metadata_apply, 0)
+
+        # Checkpoint with stable schema epoch matching the published epoch: the operation is applied.
         self.set_stable_epoch(10)
+        self.leader_checkpoint(2)
+        self.assertStatEqual(stat.conn.checkpoint_disagg_metadata_unstable, 1)
+        self.assertStatEqual(stat.conn.checkpoint_disagg_metadata_apply, 1)
+
+        # Publish drop with a valid epoch: success stat increments.
         self.session.drop(self.uri)
         self.publish(self.uri, 20)
         self.assertStatEqual(stat.conn.session_table_publish_success, 3)
@@ -259,5 +271,3 @@ class test_layered104(wttest.WiredTigerTestCase):
             '/zero not permitted/')
         self.assertStatEqual(stat.conn.session_table_publish_success, 3)
         self.assertStatEqual(stat.conn.session_table_publish_fail, 1)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
-                                ',oldest_timestamp=' + self.timestamp_str(1))
