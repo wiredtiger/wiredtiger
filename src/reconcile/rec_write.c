@@ -126,9 +126,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      */
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
 
-    /* If writing a page in service of compaction, we're done, clear the flag. */
     if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE))
         WT_STAT_CONN_INCRV(session, block_byte_write_compact_inmem, ref->page->memory_footprint);
+    /* If writing a page in service of compaction, we're done, clear the flag. */
     F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
 
     if (ret != 0)
