@@ -64,7 +64,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     /* Read-write locks */
     WT_RET(__wt_rwlock_init(session, &conn->log_mgr.debug_log_retention_lock));
     WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->locks.dhandle_lock, dhandle);
-    WT_RET(__wt_rwlock_init(session, &conn->hot_backup_lock));
+    WT_RET(__wt_rwlock_init(session, &conn->locks.hot_backup_lock));
     WT_RWLOCK_INIT_TRACKED(session, &conn->locks.table_lock, table);
 
     /* Initialize the generation manager. */
@@ -118,7 +118,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->locks.encryptor_lock);
     __wt_spin_destroy(session, &conn->locks.fh_lock);
     __wt_spin_destroy(session, &conn->locks.flush_tier_lock);
-    __wt_rwlock_destroy(session, &conn->hot_backup_lock);
+    __wt_rwlock_destroy(session, &conn->locks.hot_backup_lock);
     __wt_spin_destroy(session, &conn->locks.metadata_lock);
     __wt_spin_destroy(session, &conn->locks.reconfig_lock);
     __wt_spin_destroy(session, &conn->locks.schema_lock);

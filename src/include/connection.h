@@ -649,6 +649,7 @@ struct __wt_conn_locks {
     WT_SPINLOCK checkpoint_lock;      /* Checkpoint spinlock */
     WT_RWLOCK dhandle_lock;           /* Data handle list lock */
     WT_SPINLOCK encryptor_lock;       /* Encryptor list lock */
+    WT_RWLOCK hot_backup_lock;        /* Hot backup serialization */
     WT_SPINLOCK fh_lock;              /* File handle queue spinlock */
     WT_SPINLOCK flush_tier_lock;      /* Flush tier spinlock */
     WT_SPINLOCK metadata_lock;        /* Metadata update spinlock */
@@ -791,7 +792,6 @@ struct __wt_connection_impl {
     uint64_t *recovery_ckpt_snapshot;
     uint32_t recovery_ckpt_snapshot_count;
 
-    WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
     wt_shared uint64_t
       hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     wt_timestamp_t hot_backup_timestamp; /* Stable timestamp of checkpoint for the open backup */
