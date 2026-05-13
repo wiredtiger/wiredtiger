@@ -238,7 +238,8 @@ __curversion_value_return_from_upd(
     /* Aborted updates encode rollback metadata in the start slots. */
     bool aborted = (upd->txnid == WT_TXN_ABORTED);
     uint64_t start_meta = aborted ? upd->upd_saved_txnid : (uint64_t)upd->upd_start_ts;
-    uint64_t durable_meta = aborted ? (uint64_t)upd->upd_rollback_ts : (uint64_t)upd->upd_durable_ts;
+    uint64_t durable_meta =
+      aborted ? (uint64_t)upd->upd_rollback_ts : (uint64_t)upd->upd_durable_ts;
 
     return (__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, upd->txnid,
       start_meta, durable_meta, upd->prepare_ts, upd->prepared_id, version_cursor->upd_stop_txnid,
@@ -468,8 +469,8 @@ typedef struct {
  */
 static void
 __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW *tw,
-  WT_UPDATE *tombstone, WT_CURVERSION_DISK_STOP_TIME_POINT *stopp, bool *version_preparedp, bool *skipp,
-  bool *donep)
+  WT_UPDATE *tombstone, WT_CURVERSION_DISK_STOP_TIME_POINT *stopp, bool *version_preparedp,
+  bool *skipp, bool *donep)
 {
     if (tombstone != NULL) {
         uint8_t prepare_state;
@@ -523,7 +524,8 @@ __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
     WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
     bool has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
     wt_timestamp_t start_meta = has_start_prepare ? tw->start_prepare_ts : tw->start_ts;
-    wt_timestamp_t durable_start_meta = has_start_prepare ? tw->start_prepare_ts : tw->durable_start_ts;
+    wt_timestamp_t durable_start_meta =
+      has_start_prepare ? tw->start_prepare_ts : tw->durable_start_ts;
 
     WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, tw->start_txn,
       start_meta, durable_start_meta, tw->start_prepare_ts, tw->start_prepared_id, stop_txn,
@@ -536,9 +538,9 @@ __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
     version_cursor->upd_stop_prepare_ts = tw->start_prepare_ts;
     version_cursor->upd_stop_prepared_id = tw->start_prepared_id;
     /*
-     * upd_stop_prepared is intentionally not updated here. Disk records are stable so their
-     * start time point is never an in-progress prepare; any prepared stop inherited from the update
-     * chain still gates the globally-visible check for subsequent history-store iterations.
+     * upd_stop_prepared is intentionally not updated here. Disk records are stable so their start
+     * time point is never an in-progress prepare; any prepared stop inherited from the update chain
+     * still gates the globally-visible check for subsequent history-store iterations.
      */
     return (0);
 }
@@ -565,8 +567,8 @@ static int
 __curversion_process_on_disk(
   WT_CURSOR *cursor, WT_UPDATE *tombstone, WT_PAGE *page, bool *upd_foundp, bool *donep)
 {
-    WT_DECL_RET;
     WT_CURVERSION_DISK_STOP_TIME_POINT stop;
+    WT_DECL_RET;
 
     WT_SESSION_IMPL *session = CUR2S(cursor);
     WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -671,7 +673,8 @@ __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64
     WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
     bool has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(twp);
     wt_timestamp_t start_meta = has_start_prepare ? twp->start_prepare_ts : twp->start_ts;
-    wt_timestamp_t durable_start_meta = has_start_prepare ? twp->start_prepare_ts : twp->durable_start_ts;
+    wt_timestamp_t durable_start_meta =
+      has_start_prepare ? twp->start_prepare_ts : twp->durable_start_ts;
 
     WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, twp->start_txn,
       start_meta, durable_start_meta, twp->start_prepare_ts, twp->start_prepared_id, twp->stop_txn,
@@ -685,9 +688,9 @@ __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64
     version_cursor->upd_stop_prepare_ts = twp->start_prepare_ts;
     version_cursor->upd_stop_prepared_id = twp->start_prepared_id;
     /*
-     * upd_stop_prepared is intentionally not updated here — history-store records are fully
-     * committed so their start time point is never an in-progress prepare; any prepared stop
-     * inherited from the update chain still gates the globally-visible check for the next iteration.
+     * upd_stop_prepared is intentionally not updated here history-store records are fully committed
+     * so their start time point is never an in-progress prepare; any prepared stop inherited from
+     * the update chain still gates the globally-visible check for the next iteration.
      */
     return (0);
 }
