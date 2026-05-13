@@ -186,9 +186,6 @@ static WT_INLINE WT_UPDATE *
 __curversion_tombstone_next_upd(
   WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *tombstone)
 {
-    WT_UPDATE *upd;
-    bool show_prepared_rollback;
-
     /*
      * show_prepared_rollback currently targets ingest-table style rollback updates (in-memory
      * trees), where rollback metadata lives on aborted prepared value updates and no globally
@@ -199,8 +196,8 @@ __curversion_tombstone_next_upd(
     if (__wt_txn_upd_visible_all(session, tombstone))
         return (NULL);
 
-    show_prepared_rollback = F_ISSET(version_cursor, WT_CURVERSION_SHOW_PREPARED_ROLLBACK);
-    upd = tombstone->next;
+    bool show_prepared_rollback = F_ISSET(version_cursor, WT_CURVERSION_SHOW_PREPARED_ROLLBACK);
+    WT_UPDATE *upd = tombstone->next;
 
     while (upd != NULL && upd->txnid == WT_TXN_ABORTED &&
       (!show_prepared_rollback || !__curversion_is_prepare_rollback_update(upd)))
@@ -238,13 +235,10 @@ static int
 __curversion_value_return_from_upd(
   WT_CURSOR *cursor, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
 {
-    uint64_t durable_meta, start_meta;
-    bool aborted;
-
     /* Aborted updates encode rollback metadata in the start slots. */
-    aborted = (upd->txnid == WT_TXN_ABORTED);
-    start_meta = aborted ? upd->upd_saved_txnid : (uint64_t)upd->upd_start_ts;
-    durable_meta = aborted ? (uint64_t)upd->upd_rollback_ts : (uint64_t)upd->upd_durable_ts;
+    bool aborted = (upd->txnid == WT_TXN_ABORTED);
+    uint64_t start_meta = aborted ? upd->upd_saved_txnid : (uint64_t)upd->upd_start_ts;
+    uint64_t durable_meta = aborted ? (uint64_t)upd->upd_rollback_ts : (uint64_t)upd->upd_durable_ts;
 
     return (__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, upd->txnid,
       start_meta, durable_meta, upd->prepare_ts, upd->prepared_id, version_cursor->upd_stop_txnid,
@@ -264,9 +258,8 @@ static WT_UPDATE *
 __curversion_walk_to_next_update(
   WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd)
 {
-    WT_UPDATE *first_globally_visible, *next_upd;
-
-    first_globally_visible = NULL;
+    WT_UPDATE *first_globally_visible = NULL;
+    WT_UPDATE *next_upd;
 
     for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
         /* Skip aborted updates unless showing prepared rollbacks. */
@@ -309,22 +302,17 @@ __curversion_walk_to_next_update(
 static int
 __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_foundp, bool *donep)
 {
-    WT_CURSOR_BTREE *cbt;
-    WT_CURSOR_VERSION *version_cursor;
-    WT_SESSION_IMPL *session;
-    WT_UPDATE *next_upd, *tombstone, *upd;
+    WT_SESSION_IMPL *session = CUR2S(cursor);
+    WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
+    WT_UPDATE *tombstone = NULL;
     uint8_t prepare_state;
     bool version_prepared;
-
-    session = CUR2S(cursor);
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
-    cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
-    tombstone = NULL;
 
     if (F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED))
         return (0);
 
-    upd = version_cursor->next_upd;
+    WT_UPDATE *upd = version_cursor->next_upd;
     if (upd == NULL) {
         version_cursor->next_upd = NULL;
         F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
@@ -381,7 +369,7 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
 
     *upd_foundp = true;
 
-    next_upd = __curversion_walk_to_next_update(session, version_cursor, upd);
+    WT_UPDATE *next_upd = __curversion_walk_to_next_update(session, version_cursor, upd);
     version_cursor->next_upd = next_upd;
     if (next_upd == NULL)
         F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
@@ -483,9 +471,8 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
   WT_UPDATE *tombstone, WT_CURVERSION_DISK_STOP *stopp, bool *version_preparedp, bool *skipp,
   bool *donep)
 {
-    uint8_t prepare_state;
-
     if (tombstone != NULL) {
+        uint8_t prepare_state;
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, tombstone->prepare_state);
         *version_preparedp =
           prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
@@ -533,14 +520,10 @@ __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
   bool stop_prepared, wt_timestamp_t stop_prepare_ts, wt_timestamp_t stop_ts,
   wt_timestamp_t durable_stop_ts, uint64_t stop_prepared_id, bool version_prepared)
 {
-    WT_CURSOR_VERSION *version_cursor;
-    wt_timestamp_t durable_start_meta, start_meta;
-    bool has_start_prepare;
-
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
-    has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
-    start_meta = has_start_prepare ? tw->start_prepare_ts : tw->start_ts;
-    durable_start_meta = has_start_prepare ? tw->start_prepare_ts : tw->durable_start_ts;
+    WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
+    bool has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
+    wt_timestamp_t start_meta = has_start_prepare ? tw->start_prepare_ts : tw->start_ts;
+    wt_timestamp_t durable_start_meta = has_start_prepare ? tw->start_prepare_ts : tw->durable_start_ts;
 
     WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, tw->start_txn,
       start_meta, durable_start_meta, tw->start_prepare_ts, tw->start_prepared_id, stop_txn,
@@ -582,19 +565,14 @@ static int
 __curversion_process_on_disk(
   WT_CURSOR *cursor, WT_UPDATE *tombstone, WT_PAGE *page, bool *upd_foundp, bool *donep)
 {
-    WT_CURVERSION_DISK_STOP stop;
-    WT_CURSOR_BTREE *cbt;
-    WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    WT_TIME_WINDOW *tw;
-    bool skip, version_prepared;
+    WT_CURVERSION_DISK_STOP stop;
 
-    session = CUR2S(cursor);
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
-    cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
-    tw = &cbt->upd_value->tw;
-    version_prepared = false;
+    WT_SESSION_IMPL *session = CUR2S(cursor);
+    WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
+    WT_TIME_WINDOW *tw = &cbt->upd_value->tw;
+    bool version_prepared = false;
 
     if (*upd_foundp || F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED))
         return (0);
@@ -637,6 +615,7 @@ __curversion_process_on_disk(
     }
     WT_RET(ret);
 
+    bool skip = false;
     if (!WT_TIME_WINDOW_HAS_STOP(tw)) {
         if (__curversion_disk_skip_no_stop(version_cursor, tw)) {
             F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
@@ -649,7 +628,6 @@ __curversion_process_on_disk(
         stop.txn = version_cursor->upd_stop_txnid;
         stop.prepared = __curversion_stop_uses_prepare_ts(version_cursor);
     } else {
-        skip = false;
         __curversion_disk_check_with_stop(session, version_cursor, tw, &skip, donep);
         if (*donep)
             return (0);
@@ -665,7 +643,6 @@ __curversion_process_on_disk(
         stop.prepared = WT_TIME_WINDOW_HAS_STOP_PREPARE(tw);
     }
 
-    skip = false;
     __curversion_disk_finalize_prepared(
       version_cursor, tw, tombstone, &stop, &version_prepared, &skip, donep);
     if (*donep)
@@ -691,14 +668,10 @@ __curversion_process_on_disk(
 static int
 __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64_t hs_upd_type)
 {
-    WT_CURSOR_VERSION *version_cursor;
-    wt_timestamp_t durable_start_meta, start_meta;
-    bool has_start_prepare;
-
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
-    has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(twp);
-    start_meta = has_start_prepare ? twp->start_prepare_ts : twp->start_ts;
-    durable_start_meta = has_start_prepare ? twp->start_prepare_ts : twp->durable_start_ts;
+    WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
+    bool has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(twp);
+    wt_timestamp_t start_meta = has_start_prepare ? twp->start_prepare_ts : twp->start_ts;
+    wt_timestamp_t durable_start_meta = has_start_prepare ? twp->start_prepare_ts : twp->durable_start_ts;
 
     WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, twp->start_txn,
       start_meta, durable_start_meta, twp->start_prepare_ts, twp->start_prepared_id, twp->stop_txn,
@@ -727,22 +700,13 @@ static int
 __curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITEM **hs_valuep,
   bool *upd_foundp, bool *donep)
 {
-    WT_CURSOR *file_cursor, *hs_cursor;
-    WT_CURSOR_BTREE *cbt;
-    WT_CURSOR_VERSION *version_cursor;
-    WT_SESSION_IMPL *session;
-    WT_TIME_WINDOW *twp;
-    wt_timestamp_t durable_start_ts, durable_stop_ts;
-    size_t max_memsize;
+    WT_SESSION_IMPL *session = CUR2S(cursor);
+    WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
+    WT_CURSOR *file_cursor = version_cursor->file_cursor;
+    WT_CURSOR *hs_cursor = version_cursor->hs_cursor;
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)file_cursor;
+    WT_TIME_WINDOW *twp = NULL;
     uint64_t hs_upd_type;
-    uint8_t *p;
-
-    session = CUR2S(cursor);
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
-    file_cursor = version_cursor->file_cursor;
-    hs_cursor = version_cursor->hs_cursor;
-    cbt = (WT_CURSOR_BTREE *)file_cursor;
-    twp = NULL;
 
     if (*upd_foundp || hs_cursor == NULL || F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED))
         return (0);
@@ -764,7 +728,7 @@ __curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITE
             /* Ensure enough room for a column-store key without checking. */
             WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, keyp));
 
-            p = (*keyp)->mem;
+            uint8_t *p = (*keyp)->mem;
             WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
             (*keyp)->size = WT_PTRDIFF(p, (*keyp)->data);
             hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, *keyp, WT_TS_MAX, UINT64_MAX);
@@ -776,6 +740,7 @@ __curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITE
     WT_RET(__wt_scr_alloc(session, 0, hs_valuep));
 
     for (;;) {
+        wt_timestamp_t durable_start_ts, durable_stop_ts;
         __wt_hs_upd_time_window(hs_cursor, &twp);
         WT_RET(hs_cursor->get_value(
           hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, *hs_valuep));
@@ -785,6 +750,7 @@ __curversion_process_hs(WT_CURSOR *cursor, WT_PAGE *page, WT_ITEM **keyp, WT_ITE
          * across iterations, modifies can be applied on top of it.
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
+            size_t max_memsize;
             __wt_modify_max_memsize_format((*hs_valuep)->data, file_cursor->value_format,
               cbt->upd_value->buf.size, &max_memsize);
             WT_RET(__wt_buf_set_and_grow(session, &cbt->upd_value->buf, cbt->upd_value->buf.data,
