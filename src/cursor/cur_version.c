@@ -231,6 +231,31 @@ __curversion_record_stop_time_point(
 }
 
 /*
+ * __curversion_value_return_from_upd --
+ *     Pack the metadata for an update returned from the in-memory update chain.
+ */
+static int
+__curversion_value_return_from_upd(
+  WT_CURSOR *cursor, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
+{
+    uint64_t durable_meta, start_meta;
+    bool aborted;
+
+    /* Aborted updates encode rollback metadata in the start slots. */
+    aborted = (upd->txnid == WT_TXN_ABORTED);
+    start_meta = aborted ? upd->upd_saved_txnid : (uint64_t)upd->upd_start_ts;
+    durable_meta = aborted ? (uint64_t)upd->upd_rollback_ts : (uint64_t)upd->upd_durable_ts;
+
+    return (__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, upd->txnid,
+      start_meta, durable_meta, upd->prepare_ts, upd->prepared_id, version_cursor->upd_stop_txnid,
+      __curversion_stop_uses_prepare_ts(version_cursor) ? version_cursor->upd_stop_prepare_ts :
+                                                          version_cursor->curversion_stop_ts,
+      version_cursor->curversion_durable_stop_ts, version_cursor->upd_stop_prepare_ts,
+      version_cursor->upd_stop_prepared_id, upd->type, version_prepared, upd->flags,
+      WT_CURVERSION_UPDATE_CHAIN));
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
@@ -324,26 +349,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                  * Set the version cursor's value, which also contains all the record metadata for
                  * that particular version of the update.
                  */
-                if (upd->txnid == WT_TXN_ABORTED)
-                    WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-                      upd->txnid, upd->upd_saved_txnid, upd->upd_rollback_ts, upd->prepare_ts,
-                      upd->prepared_id, version_cursor->upd_stop_txnid,
-                      __curversion_stop_uses_prepare_ts(version_cursor) ?
-                        version_cursor->upd_stop_prepare_ts :
-                        version_cursor->curversion_stop_ts,
-                      version_cursor->curversion_durable_stop_ts,
-                      version_cursor->upd_stop_prepare_ts, version_cursor->upd_stop_prepared_id,
-                      upd->type, version_prepared, upd->flags, WT_CURVERSION_UPDATE_CHAIN));
-                else
-                    WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-                      upd->txnid, upd->upd_start_ts, upd->upd_durable_ts, upd->prepare_ts,
-                      upd->prepared_id, version_cursor->upd_stop_txnid,
-                      __curversion_stop_uses_prepare_ts(version_cursor) ?
-                        version_cursor->upd_stop_prepare_ts :
-                        version_cursor->curversion_stop_ts,
-                      version_cursor->curversion_durable_stop_ts,
-                      version_cursor->upd_stop_prepare_ts, version_cursor->upd_stop_prepared_id,
-                      upd->type, version_prepared, upd->flags, WT_CURVERSION_UPDATE_CHAIN));
+                WT_ERR(__curversion_value_return_from_upd(cursor, version_cursor, upd, version_prepared));
 
                 __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
 
