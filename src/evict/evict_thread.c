@@ -10,8 +10,8 @@
  * Eviction thread lifecycle and the main server loop. Covers three concerns:
  *
  * Thread management -- __wt_evict_threads_create and __wt_evict_threads_destroy own the thread
- * group that holds the eviction server plus any worker threads. __wt_evict_server_wake signals
- * the server's condition variable to interrupt its sleep when urgent work arrives.
+ * group that holds the eviction server plus any worker threads. __wt_evict_server_wake signals the
+ * server's condition variable to interrupt its sleep when urgent work arrives.
  *
  * Server loop -- __evict_server runs continuously, calling __evict_update_work to recompute cache
  * pressure flags (dirty, updates, hard), then either sleeping or triggering a pass. __evict_pass
@@ -20,7 +20,7 @@
  * server detects the cache is stuck.
  *
  * Worker tuning -- __evict_tune_workers samples eviction throughput every EVICT_TUNE_PERIOD ms and
- * adds or removes worker threads to maximize pages evicted per second, stabilising once the rate
+ * adds or removes worker threads to maximize pages evicted per second, stabilizing once the rate
  * stops improving or the configured maximum is reached.
  */
 #include "wt_internal.h"
