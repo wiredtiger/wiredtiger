@@ -21,8 +21,8 @@ mock_connection::~mock_connection()
         __wt_free(nullptr, _connection_impl->blockhash);
     if (_connection_impl->fhhash != nullptr)
         __wt_free(nullptr, _connection_impl->fhhash);
-    if (_connection_impl->block_lock.initialized == 1)
-        __wt_spin_destroy(nullptr, &_connection_impl->block_lock);
+    if (_connection_impl->locks.block_lock.initialized == 1)
+        __wt_spin_destroy(nullptr, &_connection_impl->locks.block_lock);
     /* setup_stats() used nullptr to allocate so use nullptr to free. */
     __wt_stat_connection_discard(nullptr, _connection_impl);
     __wt_free(nullptr, _connection_impl);
@@ -66,8 +66,8 @@ mock_connection::setup_block_manager(WT_SESSION_IMPL *session)
     TAILQ_INIT(&_connection_impl->fhqh);
 
     // Initialize the block manager and file list lock.
-    WT_RET(__wt_spin_init(session, &_connection_impl->fh_lock, "file list"));
-    WT_RET(__wt_spin_init(session, &_connection_impl->block_lock, "block manager"));
+    WT_RET(__wt_spin_init(session, &_connection_impl->locks.fh_lock, "file list"));
+    WT_RET(__wt_spin_init(session, &_connection_impl->locks.block_lock, "block manager"));
 
     // Initialize a file system layer used for testing purposes.
     _connection_impl->home = "";
