@@ -6,9 +6,23 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * Exclusive eviction access: acquiring and releasing the per-tree evict_disabled counter, which
+ * prevents the eviction server from walking or queuing pages for a specific tree. When
+ * evict_disabled is non-zero the walk skips the tree entirely and force-eviction of individual
+ * pages is disallowed; only whole-file eviction via __wt_evict_file remains permitted.
+ *
+ * __wt_evict_file_exclusive_on increments evict_disabled, interrupts any in-progress walk for
+ * the tree, drains pages already on the LRU queues, and waits for concurrent eviction activity
+ * to finish. __wt_evict_file_exclusive_off decrements it atomically. Both functions are called
+ * from schema operations, tree open/close paths, and __wt_evict_file itself.
+ *
+ * __wti_evict_lock_handle_list acquires the connection-wide dhandle read lock with a custom
+ * yield/sleep backoff that watches pass_intr so the eviction server can be interrupted quickly.
+ * __wti_evict_set_saved_walk_tree maintains the session_inuse reference count on the data handle
+ * that the eviction server last walked, preventing it from being closed mid-walk.
+ */
 #include "wt_internal.h"
-
-static int __evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *);
 
 /*
  * __wti_evict_lock_handle_list --
@@ -70,123 +84,6 @@ __wti_evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_dh
     }
 }
 
-/*
- * __wti_evict_clear_walk --
- *     Clear a single walk point and remember its position as a soft pointer if clear_pos is unset.
- */
-int
-__wti_evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
-{
-    WT_BTREE *btree;
-    WT_DECL_RET;
-    WT_EVICT *evict;
-    WT_REF *ref;
-#define PATH_STR_MAX 1024
-    char path_str[PATH_STR_MAX];
-    const char *where;
-    size_t path_str_offset;
-    double pos;
-
-    btree = S2BT(session);
-    evict = S2C(session)->evict;
-
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
-
-    if ((ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref)) == NULL)
-        return (0);
-
-    if (!evict->use_npos_in_pass || clear_pos)
-        WT_STAT_CONN_INCR(session, eviction_walks_abandoned);
-
-    /*
-     * Clear evict_ref before releasing it in case that forces eviction (we assert that we never try
-     * to evict the current eviction walk point).
-     */
-    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, NULL);
-
-    if (evict->use_npos_in_pass) {
-        /* If soft pointers are in use, remember the page's position unless clear_pos is set. */
-        if (clear_pos)
-            __wt_evict_clear_npos(btree);
-        else {
-            /*
-             * Remember the last position before clearing it so that we can restart from about the
-             * same point later. evict_saved_ref_check is used as an opaque page id to compare with
-             * it upon restoration for the purpose of stats.
-             */
-            btree->evict_saved_ref_check = (uint64_t)ref;
-
-            if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
-                /* If we're at a leaf page, use the middle of the page. */
-                pos = WT_NPOS_MID;
-                where = "MIDDLE";
-            } else {
-                /*
-                 * If we're at an internal page, then we've just finished all its leafs, so get the
-                 * position of the very beginning or the very end of it depending on the direction
-                 * of walk.
-                 */
-                if (btree->evict_start_type == WT_EVICT_WALK_NEXT ||
-                  btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
-                    pos = WT_NPOS_RIGHT;
-                    where = "RIGHT";
-                } else {
-                    pos = WT_NPOS_LEFT;
-                    where = "LEFT";
-                }
-            }
-            if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1))
-                btree->evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
-            else {
-                btree->evict_pos =
-                  __wt_page_npos(session, ref, pos, path_str, &path_str_offset, PATH_STR_MAX);
-                __wt_verbose_debug1(session, WT_VERB_EVICTION,
-                  "Evict walk point memorized at position %lf %s of %s page %s ref %p",
-                  btree->evict_pos, where, F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF",
-                  path_str, (void *)ref);
-            }
-        }
-    }
-
-    WT_WITH_DHANDLE(evict->walk_session, session->dhandle,
-      (ret = __wt_page_release(evict->walk_session, ref, WT_READ_NO_EVICT)));
-    return (ret);
-#undef PATH_STR_MAX
-}
-
-/*
- * __wti_evict_clear_all_walks_and_saved_tree --
- *     Clear the eviction walk points for all files a session is waiting on.
- */
-int
-__wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
-    WT_DECL_RET;
-
-    conn = S2C(session);
-
-    TAILQ_FOREACH (dhandle, &conn->dhqh, q)
-        if (WT_DHANDLE_BTREE(dhandle))
-            WT_WITH_DHANDLE(session, dhandle, WT_TRET(__wti_evict_clear_walk(session, true)));
-    __wti_evict_set_saved_walk_tree(session, NULL);
-    return (ret);
-}
-
-/*
- * __evict_clear_walk_and_saved_tree_if_current_locked --
- *     Clear single walk points and clear the walk tree if it's the current session's dhandle.
- */
-static int
-__evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session)
-{
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->evict_pass_lock);
-    if (session->dhandle == S2C(session)->evict->walk_tree)
-        __wti_evict_set_saved_walk_tree(session, NULL);
-    return (__wti_evict_clear_walk(session, false));
-}
-
 /* !!!
  * __wt_evict_file_exclusive_on --
  *     Acquire exclusive access to a file/tree making it possible to evict the entire file using
@@ -238,7 +135,8 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
      * any existing LRU eviction walk for the file.
      */
     (void)__wt_atomic_add_uint32_v(&evict->pass_intr, 1);
-    WTI_WITH_PASS_LOCK(session, ret = __evict_clear_walk_and_saved_tree_if_current_locked(session));
+    WTI_WITH_PASS_LOCK(
+      session, ret = __wti_evict_clear_walk_and_saved_tree_if_current_locked(session));
     (void)__wt_atomic_sub_uint32_v(&evict->pass_intr, 1);
     WT_ERR(ret);
 

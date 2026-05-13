@@ -6,6 +6,19 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * Eviction dispatch: selecting candidate pages from the LRU and urgent queues and driving their
+ * eviction through the page and reconciliation layers.
+ *
+ * __evict_get_ref dequeues the next candidate (preferring the urgent queue when present) and
+ * transitions its ref state to WT_REF_LOCKED before handing it off. __wti_evict_page runs one
+ * page through the full eviction path. __wti_evict_app_assist_worker is the entry point for
+ * application threads that are required to perform eviction themselves when cache dirty or update
+ * thresholds are exceeded. __wt_evict_page_urgent inserts a specific page into the urgent queue
+ * to force its eviction ahead of normal LRU ordering. __wt_evict_priority_set and
+ * __wt_evict_priority_clear control a per-tree priority that causes the walk to skip a tree
+ * unless eviction is in an aggressive state.
+ */
 #include "wt_internal.h"
 
 /*
@@ -488,7 +501,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
         if (!F_ISSET(evict, WT_EVICT_CACHE_ALL)) {
-            __wti_evict_list_clear_page_locked(session, ref, true);
+            __wti_evict_queue_clear_page_locked(session, ref, true);
             WT_STAT_CONN_INCR(session, eviction_clear_ordinary);
         } else
             goto done;

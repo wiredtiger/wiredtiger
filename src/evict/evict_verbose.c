@@ -6,6 +6,16 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * Eviction verbose diagnostics: on-demand and pressure-triggered reporting of cache state.
+ *
+ * __wt_verbose_dump_cache is the public entry point, invoked by the eviction server when the
+ * cache appears stuck and by the wt utility's "dump cache" command. It iterates all open data
+ * handles via __verbose_dump_cache_apply, calling __verbose_dump_cache_single for each btree to
+ * collect internal and leaf page counts, byte totals, and dirty/updates byte totals. The
+ * connection-wide summary (total bytes, dirty bytes, update bytes, and their percentages of the
+ * configured cache size) is printed after all per-file lines.
+ */
 #include "wt_internal.h"
 
 /*

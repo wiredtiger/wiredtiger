@@ -6,6 +6,18 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * LRU eviction queue management: maintaining the two rotating LRU queues and the urgent queue,
+ * sorting candidates by eviction score, and removing pages that can no longer be evicted.
+ *
+ * The eviction subsystem keeps two ordinary queues that alternate roles: one is being drained by
+ * eviction workers (__wti_evict_lru_pages) while the other is being refilled by the server via
+ * __wti_evict_lru_walk. __wti_evict_lru_walk drives the eviction walk to populate the fill queue,
+ * then sorts it by score using __evict_lru_cmp and sets evict_candidates to control how many
+ * entries workers will attempt. __wti_evict_queue_clear_page and its locked variant search all
+ * queues and clear a specific page when it transitions out of the WT_PAGE_EVICT_LRU state (e.g.
+ * because it was freed or reconciled by another path before the eviction worker reached it).
+ */
 #include "wt_internal.h"
 
 static int WT_CDECL __evict_lru_cmp(const void *, const void *);
@@ -47,13 +59,13 @@ __evict_lru_cmp(const void *a_arg, const void *b_arg)
 }
 
 /*
- * __wti_evict_list_clear_page --
+ * __wti_evict_queue_clear_page --
  *     Check whether a page is present in the LRU eviction list. If the page is found in the list,
  *     remove it. This is called from the page eviction code to make sure there is no attempt to
  *     evict a child page multiple times.
  */
 void
-__wti_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_evict_queue_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_EVICT *evict;
 
@@ -67,19 +79,19 @@ __wti_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_spin_lock(session, &evict->evict_queue_lock);
 
     /* Remove the reference from the eviction queues. */
-    __wti_evict_list_clear_page_locked(session, ref, false);
+    __wti_evict_queue_clear_page_locked(session, ref, false);
 
     __wt_spin_unlock(session, &evict->evict_queue_lock);
 }
 
 /*
- * __wti_evict_list_clear_page_locked --
+ * __wti_evict_queue_clear_page_locked --
  *     This function searches for the page in all the eviction queues (skipping the urgent queue if
  *     requested) and clears it if found. It does not take the eviction queue lock, so the caller
  *     should hold the appropriate locks before calling this function.
  */
 void
-__wti_evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
+__wti_evict_queue_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
 {
     WT_EVICT *evict;
     WTI_EVICT_ENTRY *evict_entry;
@@ -104,42 +116,6 @@ __wti_evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool e
         __wt_spin_unlock(session, &evict->evict_queues[q].evict_lock);
     }
     WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
-}
-
-/* !!!
- * __wt_evict_server_wake --
- *     Wake up the eviction server thread. The eviction server typically sleeps for some time when
- *     cache usage is below the target thresholds. When the cache is expected to exceed these
- *     thresholds, callers can nudge the eviction server to wake up and resume its work.
- *
- *     This function is called in situations where pages are queued for urgent eviction or when
- *     application threads request eviction assistance.
- */
-void
-__wt_evict_server_wake(WT_SESSION_IMPL *session)
-{
-    WT_CACHE *cache;
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    cache = conn->cache;
-
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_2)) {
-        uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
-
-        bytes_inuse = __wt_cache_bytes_inuse(cache);
-        bytes_max = conn->cache_size;
-        bytes_dirty = __wt_cache_dirty_inuse(cache);
-        bytes_updates = __wt_cache_bytes_updates(cache);
-        __wt_verbose_debug2(session, WT_VERB_EVICTION,
-          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB), bytes dirty %" PRIu64
-          "(bytes), bytes updates %" PRIu64 "(bytes)",
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE, bytes_dirty,
-          bytes_updates);
-    }
-
-    __wt_cond_signal(session, conn->evict->evict_cond);
 }
 
 /*

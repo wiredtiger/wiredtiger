@@ -6,6 +6,23 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * Eviction thread lifecycle and the main server loop. Covers three concerns:
+ *
+ * Thread management -- __wt_evict_threads_create and __wt_evict_threads_destroy own the thread
+ * group that holds the eviction server plus any worker threads. __wt_evict_server_wake signals
+ * the server's condition variable to interrupt its sleep when urgent work arrives.
+ *
+ * Server loop -- __evict_server runs continuously, calling __evict_update_work to recompute cache
+ * pressure flags (dirty, updates, hard), then either sleeping or triggering a pass. __evict_pass
+ * coordinates one full round of walking (__wti_evict_lru_walk) and draining (__wti_evict_lru_pages
+ * across all worker threads). __evict_update_work also sets the aggressive-eviction score when the
+ * server detects the cache is stuck.
+ *
+ * Worker tuning -- __evict_tune_workers samples eviction throughput every EVICT_TUNE_PERIOD ms and
+ * adds or removes worker threads to maximize pages evicted per second, stabilising once the rate
+ * stops improving or the configured maximum is reached.
+ */
 #include "wt_internal.h"
 
 #define EVICT_TUNE_BATCH 1 /* Max workers to add each period */
@@ -275,6 +292,42 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         }
     }
     return (0);
+}
+
+/* !!!
+ * __wt_evict_server_wake --
+ *     Wake up the eviction server thread. The eviction server typically sleeps for some time when
+ *     cache usage is below the target thresholds. When the cache is expected to exceed these
+ *     thresholds, callers can nudge the eviction server to wake up and resume its work.
+ *
+ *     This function is called in situations where pages are queued for urgent eviction or when
+ *     application threads request eviction assistance.
+ */
+void
+__wt_evict_server_wake(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    cache = conn->cache;
+
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_2)) {
+        uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
+
+        bytes_inuse = __wt_cache_bytes_inuse(cache);
+        bytes_max = conn->cache_size;
+        bytes_dirty = __wt_cache_dirty_inuse(cache);
+        bytes_updates = __wt_cache_bytes_updates(cache);
+        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB), bytes dirty %" PRIu64
+          "(bytes), bytes updates %" PRIu64 "(bytes)",
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE, bytes_dirty,
+          bytes_updates);
+    }
+
+    __wt_cond_signal(session, conn->evict->evict_cond);
 }
 
 /* !!!
