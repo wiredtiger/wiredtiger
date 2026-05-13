@@ -51,6 +51,7 @@ class PerfStatCollection:
                 try:
                     values = stat.find_stat(test_stat_path=test_stat_path)
                 except (FileNotFoundError, IndexError):
+                    # Missing some files is fine since the stat should exist in exactly one file.
                     continue
                 if values:
                     matched.append(values)
@@ -60,8 +61,7 @@ class PerfStatCollection:
             if len(matched) == 0:
                 raise RuntimeError(
                     f"Stat '{stat.short_label}' hasn't been found in any of files: {stat.stat_files}")
-            if matched:
-                stat.add_values(values=matched[0])
+            stat.add_values(values=matched[0])
 
 
     @staticmethod
@@ -268,19 +268,19 @@ class PerfStatCollection:
             PerfStatDBSize(short_label="database_size",
                            output_label='Database Size (in bytes)'),
             PerfStatMonitorAvg(short_label="avg_latency_read",
-                               output_label='Read average latency (us)',
+                               output_label='Read average latency (in micro sec)',
                                op='read',
                                field='average latency'),
             PerfStatMonitorAvg(short_label="avg_latency_insert",
-                               output_label='Insert average latency (us)',
+                               output_label='Insert average latency (in micro sec)',
                                op='insert',
                                field='average latency'),
             PerfStatMonitorAvg(short_label="avg_latency_modify",
-                               output_label='Modify average latency (us)',
+                               output_label='Modify average latency (in micro sec)',
                                op='modify',
                                field='average latency'),
             PerfStatMonitorAvg(short_label="avg_latency_update",
-                               output_label='Update average latency (us)',
+                               output_label='Update average latency (in micro sec)',
                                op='update',
                                field='average latency'),
         ] + PerfStatCollection.cache_eviction_stats()
