@@ -1996,6 +1996,9 @@ tasks:
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
 
   - name: make-check-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2003,6 +2006,9 @@ tasks:
 
   # This task is the same as make-check-test but fits for lower specs by allowing a bigger timeout.
   - name: make-check-test-low-perf
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - command: timeout.update
         params:
@@ -2018,6 +2024,9 @@ tasks:
 
   - name: lang-python-test
     tags: ["pull_request", "python"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2027,6 +2036,9 @@ tasks:
 
   - name: examples-c-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2036,6 +2048,9 @@ tasks:
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2047,6 +2062,9 @@ tasks:
 
   - name: examples-c-production-disable-static-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2058,6 +2076,9 @@ tasks:
 
   - name: checkpoint-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2068,6 +2089,9 @@ tasks:
 
   - name: checkpoint-test-disagg-leader
     tags: ["stress-test-disagg"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2077,6 +2101,9 @@ tasks:
           directory: test/checkpoint
 
   - name: checkpoint-test-long-running
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2087,6 +2114,9 @@ tasks:
 
   - name: cursor-order-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2096,6 +2126,9 @@ tasks:
 
   - name: fops-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2105,6 +2138,9 @@ tasks:
 
   - name: format-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2114,6 +2150,9 @@ tasks:
 
   - name: huge-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2123,6 +2162,9 @@ tasks:
 
   - name: manydbs-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2132,6 +2174,9 @@ tasks:
 
   - name: packing-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2141,6 +2186,9 @@ tasks:
 
   - name: readonly-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2150,6 +2198,9 @@ tasks:
 
   - name: salvage-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2159,6 +2210,9 @@ tasks:
 
   - name: thread-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2168,6 +2222,9 @@ tasks:
 
   - name: bench-wtperf-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2177,6 +2234,9 @@ tasks:
 
   - name: catch2-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2194,6 +2254,9 @@ tasks:
 
   - name: catch2-assertions
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2459,6 +2522,9 @@ tasks:
   # Start of csuite test tasks
   - name: csuite-tests-fast
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2468,6 +2534,9 @@ tasks:
           ctest_extra_args: -LE "long_running|check_disagg" ${ctest_extra_args} -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2488,6 +2557,9 @@ tasks:
             ./test_timestamp_abort -PT -Po s3_store
 
   - name: csuite-random-abort-lazyfs
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2504,6 +2576,9 @@ tasks:
             ./smoke_lazyfs.sh
 
   - name: csuite-schema-abort-lazyfs
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2520,6 +2595,9 @@ tasks:
             ./smoke_lazyfs.sh
 
   - name: csuite-timestamp-abort-lazyfs
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2558,6 +2636,9 @@ tasks:
   - name: csuite-long-running
     # Set 6 hours timeout (60 * 60 * 6 = 21600)
     exec_timeout_secs: 21600
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3259,6 +3340,9 @@ tasks:
 
   - name: unit-test-hook-tiered-s3
     tags: ["python"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3946,6 +4030,9 @@ tasks:
             fi
 
   - name: bench-tiered-push-pull-s3
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4022,6 +4109,9 @@ tasks:
 
   - name: compatibility-test-suite-daily
     tags: ["python"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4092,6 +4182,9 @@ tasks:
             test/compatibility/compatibility_test_for_releases.sh -i
 
   - name: generate-datafile-little-endian
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4144,6 +4237,9 @@ tasks:
       - func: "verify wt datafiles"
 
   - name: generate-datafile-big-endian
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4197,6 +4293,9 @@ tasks:
 
   - name: clang-analyzer
     tags: ["lint"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - command: shell.exec
@@ -4269,6 +4368,9 @@ tasks:
 
   - name: syscall-linux
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4283,6 +4385,9 @@ tasks:
             WT_BUILDDIR=$(pwd)/../../cmake_build LD_LIBRARY_PATH=$WT_BUILDDIR ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4516,6 +4621,9 @@ tasks:
 
   - name: s3-tiered-storage-extensions-test
     tags: ["python", "pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4535,6 +4643,9 @@ tasks:
           tiered_storage_test_name: tiered
   - name: s3-tiered-test-small
     tags: ["python"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4547,6 +4658,9 @@ tasks:
           tiered_storage_test_name: tiered06
   - name: s3-tiered-catch2-unittest-test
     tags: ["tiered_unittest", "pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4568,6 +4682,9 @@ tasks:
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-gcp-tiered-storage-extensions-test
     tags: ["python"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -4581,6 +4698,9 @@ tasks:
           tiered_storage_test_name: tiered
   - name: azure-gcp-tiered-catch2-unittest-test
     tags: ["tiered_unittest"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -4623,6 +4743,9 @@ tasks:
 
   - name: azure-gcp-tiered-test-small
     tags: ["python"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -4636,6 +4759,9 @@ tasks:
           tiered_storage_test_name: tiered06
 
   - name: spinlock-gcc-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4649,6 +4775,9 @@ tasks:
           test_format_extra_args: runs.rows=1000000:2500000
 
   - name: spinlock-pthread-adaptive-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4789,6 +4918,9 @@ tasks:
 
   - name: format-mirror-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4798,6 +4930,9 @@ tasks:
           trace_args: -T all
 
   - name: format-msan-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4808,6 +4943,9 @@ tasks:
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4817,6 +4955,9 @@ tasks:
           format_test_script_args: -t 10 rows=10000 ops=50000
 
   - name: format-smoke-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4830,6 +4971,9 @@ tasks:
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-asan-smoke-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4863,6 +5007,9 @@ tasks:
           times: 3
 
   - name: format-wtperf-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4911,6 +5058,9 @@ tasks:
 
   - name: tsan-playground-test
     exec_timeout_secs: 86400
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5119,6 +5269,9 @@ tasks:
             ./run_format_configs.sh -j ${num_jobs}
 
   - name: static-wt-build-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5151,6 +5304,9 @@ tasks:
   - name: checkpoint-stress-test
     tags: ["stress-test-1"]
     exec_timeout_secs: 86400
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - command: timeout.update
         params:
@@ -5167,6 +5323,9 @@ tasks:
 
   - name: checkpoint-stress-test-tiered
     exec_timeout_secs: 86400
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - command: timeout.update
         params:
@@ -5184,6 +5343,9 @@ tasks:
   - name: precise-checkpoint-stress-test
     tags: ["stress-test-1"]
     exec_timeout_secs: 86400
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - command: timeout.update
         params:
@@ -5202,6 +5364,9 @@ tasks:
 
   - name: precise-checkpoint-stress-test-tiered
     exec_timeout_secs: 86400
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - command: timeout.update
         params:
@@ -5221,6 +5386,9 @@ tasks:
   - name: skiplist-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 3600 # 1 hour
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5240,6 +5408,9 @@ tasks:
     tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
     # Set 5 hours timeout (60 * 60 * 5)
     exec_timeout_secs: 18000
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5247,6 +5418,9 @@ tasks:
 
   - name: model-unit-test
     tags: ["pull_request", "model_checking"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5262,6 +5436,9 @@ tasks:
 
   - name: model-test-failure-workloads
     tags: ["model_checking", "pull_request"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5277,6 +5454,9 @@ tasks:
 
   - name: model-test-long
     tags: ["model_checking"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5286,6 +5466,9 @@ tasks:
 
   - name: model-test-long-disagg
     tags: ["model_checking"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5295,6 +5478,9 @@ tasks:
 
   - name: model-test-long-random-config
     tags: ["model_checking"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5304,6 +5490,9 @@ tasks:
 
   - name: model-test-long-random-config-disagg
     tags: ["model_checking"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5313,6 +5502,9 @@ tasks:
 
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - command: expansions.update
@@ -5353,6 +5545,9 @@ tasks:
     tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5369,6 +5564,9 @@ tasks:
     tags: ["stress-test-ppc-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5544,6 +5742,9 @@ tasks:
           times: 1
 
   - name: format-abort-recovery-stress-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
       # run longer.
@@ -5561,6 +5762,9 @@ tasks:
   - name: format-predictable-test
     # Set 2.5 hour timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5573,6 +5777,9 @@ tasks:
   - name: schema-abort-predictable-test
     # Set 20 minute timeout (60 * 20)
     exec_timeout_secs: 1200
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5583,6 +5790,9 @@ tasks:
           times: 5
 
   - name: checkpoint-filetypes-predictable-test
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6909,6 +7119,9 @@ tasks:
 
   - name: debug-have-diagnostic
     tags: ["antithesis"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6916,6 +7129,9 @@ tasks:
 
   - name: release-with-debug-have-diagnostic
     tags: ["antithesis"]
+    depends_on:
+      - name: s-all
+        variant: ubuntu2004
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
