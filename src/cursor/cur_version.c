@@ -513,6 +513,123 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
 }
 
 /*
+ * __curversion_process_on_disk --
+ *     Return the on-disk value as the next version, if there is one and it should be returned.
+ */
+static int
+__curversion_process_on_disk(
+  WT_CURSOR *cursor, WT_UPDATE *tombstone, WT_PAGE *page, bool *upd_foundp, bool *donep)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    WT_TIME_WINDOW *tw;
+    wt_timestamp_t durable_stop_ts, stop_prepare_ts, stop_ts;
+    uint64_t stop_prepared_id, stop_txn;
+    bool skip, stop_prepared, version_prepared;
+
+    session = CUR2S(cursor);
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
+    tw = &cbt->upd_value->tw;
+    version_prepared = false;
+
+    if (*upd_foundp || F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED))
+        return (0);
+
+    /*
+     * Stop once we hit a globally visible record on the update chain; no need to return more
+     * updates. Aborted updates are never globally visible.
+     */
+    if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
+      !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
+      __wt_txn_visible_all(
+        session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts)) {
+        *donep = true;
+        return (0);
+    }
+
+    switch (page->type) {
+    case WT_PAGE_ROW_LEAF:
+        if (cbt->ins != NULL) {
+            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+            F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
+            return (WT_NOTFOUND);
+        }
+        break;
+    case WT_PAGE_COL_VAR:
+        /* Empty page doesn't have any on page value. */
+        if (page->entries == 0) {
+            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+            F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
+            return (WT_NOTFOUND);
+        }
+        break;
+    default:
+        return (__wt_illegal_value(session, page->type));
+    }
+
+    /*
+     * Get the ondisk value. It is possible to see an overflow-removed value if a concurrent
+     * checkpoint freed the underlying overflow blocks. In that case the value either already came
+     * back via the update chain or will come from the history store, so it is safe to skip.
+     */
+    ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, tw);
+    if (ret == WT_RESTART) {
+        F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+        return (0);
+    }
+    WT_RET(ret);
+
+    if (!WT_TIME_WINDOW_HAS_STOP(tw)) {
+        if (__curversion_disk_skip_no_stop(version_cursor, tw)) {
+            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+            return (0);
+        }
+        durable_stop_ts = version_cursor->curversion_durable_stop_ts;
+        stop_prepare_ts = version_cursor->upd_stop_prepare_ts;
+        stop_prepared_id = version_cursor->upd_stop_prepared_id;
+        stop_ts = version_cursor->curversion_stop_ts;
+        stop_txn = version_cursor->upd_stop_txnid;
+        stop_prepared = __curversion_stop_uses_prepare_ts(version_cursor);
+    } else {
+        skip = false;
+        __curversion_disk_check_with_stop(session, version_cursor, tw, &skip, donep);
+        if (*donep)
+            return (0);
+        if (skip) {
+            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+            return (0);
+        }
+        durable_stop_ts = tw->durable_stop_ts;
+        stop_prepare_ts = tw->stop_prepare_ts;
+        stop_prepared_id = tw->stop_prepared_id;
+        stop_ts = tw->stop_ts;
+        stop_txn = tw->stop_txn;
+        stop_prepared = WT_TIME_WINDOW_HAS_STOP_PREPARE(tw);
+    }
+
+    skip = false;
+    __curversion_disk_finalize_prepared(version_cursor, tw, tombstone, &stop_txn, &stop_prepare_ts,
+      &stop_prepared_id, &stop_ts, &durable_stop_ts, &stop_prepared, &version_prepared, &skip,
+      donep);
+    if (*donep)
+        return (0);
+    if (skip) {
+        F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+        return (0);
+    }
+
+    WT_RET(__curversion_value_return_from_disk_image(cursor, tw, stop_txn, stop_prepared,
+      stop_prepare_ts, stop_ts, durable_stop_ts, stop_prepared_id, version_prepared));
+
+    *upd_foundp = true;
+    F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+    return (0);
+}
+
+/*
  * __curversion_value_return_from_disk_image --
  *     Pack the metadata for the on-disk value and record it as the previously-returned stop state.
  */
@@ -560,11 +677,11 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *tombstone;
-    wt_timestamp_t durable_start_ts, durable_stop_ts, stop_prepare_ts, stop_ts;
+    wt_timestamp_t durable_start_ts, durable_stop_ts;
     size_t max_memsize;
-    uint64_t hs_upd_type, raw, stop_prepared_id, stop_txn;
-    uint8_t *p, prepare_state;
-    bool done, stop_prepared, upd_found, version_prepared;
+    uint64_t hs_upd_type, raw;
+    uint8_t *p;
+    bool done, upd_found;
 
     session = CUR2S(cursor);
     version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -589,105 +706,10 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     page = cbt->ref->page;
 
     WT_ERR(__curversion_process_chain(cursor, &tombstone, &upd_found, &done));
-    if (done)
-        goto done;
+    if (!done)
+        WT_ERR(__curversion_process_on_disk(cursor, tombstone, page, &upd_found, &done));
 
-    if (!upd_found && !F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED)) {
-        /*
-         * We have already seen an update that is globally visible on the update chain. No need to
-         * return more updates. Aborted updates are never globally visible.
-         */
-        if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-          !version_cursor->upd_stop_prepared && version_cursor->upd_stop_txnid != WT_TXN_ABORTED &&
-          __wt_txn_visible_all(
-            session, version_cursor->upd_stop_txnid, version_cursor->curversion_durable_stop_ts))
-            goto done;
-
-        switch (page->type) {
-        case WT_PAGE_ROW_LEAF:
-            if (cbt->ins != NULL) {
-                F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
-            }
-            break;
-        case WT_PAGE_COL_VAR:
-            /* Empty page doesn't have any on page value. */
-            if (page->entries == 0) {
-                F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
-            }
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, page->type));
-        }
-
-        /*
-         * Get the ondisk value. It is possible to see an overflow removed value if checkpoint has
-         * visited this page and freed the underlying overflow blocks. In this case, checkpoint
-         * reconciliation must have also appended the value to the update chain and moved it to the
-         * history store if it is not obsolete. Therefore, we should have either already returned it
-         * when walking the update chain if we are not racing with checkpoint removing the overflow
-         * value concurrently or we shall return it later when we scan the history store if we do
-         * race with checkpoint. If it is already obsolete, there is no need for us to return it as
-         * the version cursor only ensures to return values that are not obsolete. We can safely
-         * ignore the overflow removed value here.
-         */
-        WT_ERR_ERROR_OK(
-          __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &cbt->upd_value->tw),
-          WT_RESTART, true);
-        if (ret == 0) {
-            if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-                if (__curversion_disk_skip_no_stop(version_cursor, &cbt->upd_value->tw))
-                    goto skip_on_page;
-                durable_stop_ts = version_cursor->curversion_durable_stop_ts;
-                stop_prepare_ts = version_cursor->upd_stop_prepare_ts;
-                stop_prepared_id = version_cursor->upd_stop_prepared_id;
-                stop_ts = version_cursor->curversion_stop_ts;
-                stop_txn = version_cursor->upd_stop_txnid;
-                stop_prepared = __curversion_stop_uses_prepare_ts(version_cursor);
-            } else {
-                {
-                    bool disk_skip = false, disk_done = false;
-                    __curversion_disk_check_with_stop(session, version_cursor,
-                      &cbt->upd_value->tw, &disk_skip, &disk_done);
-                    if (disk_done)
-                        goto done;
-                    if (disk_skip)
-                        goto skip_on_page;
-                }
-                durable_stop_ts = cbt->upd_value->tw.durable_stop_ts;
-                stop_prepare_ts = cbt->upd_value->tw.stop_prepare_ts;
-                stop_prepared_id = cbt->upd_value->tw.stop_prepared_id;
-                stop_ts = cbt->upd_value->tw.stop_ts;
-                stop_txn = cbt->upd_value->tw.stop_txn;
-                stop_prepared = WT_TIME_WINDOW_HAS_STOP_PREPARE(&cbt->upd_value->tw);
-            }
-
-            {
-                bool fp_skip = false, fp_done = false;
-                __curversion_disk_finalize_prepared(version_cursor, &cbt->upd_value->tw,
-                  tombstone, &stop_txn, &stop_prepare_ts, &stop_prepared_id, &stop_ts,
-                  &durable_stop_ts, &stop_prepared, &version_prepared, &fp_skip, &fp_done);
-                if (fp_done)
-                    goto done;
-                if (fp_skip)
-                    goto skip_on_page;
-            }
-
-            WT_ERR(__curversion_value_return_from_disk_image(cursor, &cbt->upd_value->tw,
-              stop_txn, stop_prepared, stop_prepare_ts, stop_ts, durable_stop_ts, stop_prepared_id,
-              version_prepared));
-
-            upd_found = true;
-        } else
-            ret = 0;
-skip_on_page:
-        F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-    }
-
-    if (!upd_found && version_cursor->hs_cursor != NULL &&
+    if (!done && !upd_found && version_cursor->hs_cursor != NULL &&
       !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
         /*
          * We have already seen an update that is globally visible on the update chain. No need to
