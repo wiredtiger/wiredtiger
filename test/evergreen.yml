@@ -1629,6 +1629,7 @@ variables:
       # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
       ENABLE_TCMALLOC: 0
     tasks:
+      - name: s-all
       - name: compile
         # This is a special case and should *only* be used for the macOS buildvariant.
         # The macOS variant can take up to an hour to schedule tasks, but we want PR testing to complete
@@ -1847,6 +1848,8 @@ tasks:
       - func: "cleanup"
 
   - name: compile-develop
+    depends_on:
+      - name: s-all
     commands:
       - func: "get project"
       - func: "compile wiredtiger develop"
@@ -1856,6 +1859,8 @@ tasks:
   # production build with --disable-shared
   - name: compile-production-disable-shared
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on:
+      - name: s-all
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1867,6 +1872,8 @@ tasks:
   # production build with --disable-static
   - name: compile-production-disable-static
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on:
+      - name: s-all
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1877,6 +1884,8 @@ tasks:
 
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on:
+      - name: s-all
     commands:
       - command: expansions.update
         params:
@@ -1909,6 +1918,8 @@ tasks:
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on:
+      - name: s-all
     commands:
       - command: expansions.update
         params:
@@ -1956,6 +1967,8 @@ tasks:
   # is often pre-processed out.
   - name: compile-uncommon-build-flags
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on:
+      - name: s-all
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3854,7 +3867,7 @@ tasks:
   # End of live restore tests
 
   - name: s-all
-    tags: ["lint", "pull_request_compilers"]
+    tags: ["lint"]
     commands:
       - func: "get project"
       - command: shell.exec
@@ -7035,6 +7048,7 @@ buildvariants:
     num_jobs: 2
   tags: ["sanitizer"]
   tasks:
+    - name: s-all
     - name: compile
     - name: examples-c-test
     - name: unit-test-tsan
@@ -7073,6 +7087,7 @@ buildvariants:
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: csuite-tests-fast
     - name: fops
@@ -7104,6 +7119,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tags: ["sanitizer"]
   tasks:
+    - name: s-all
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
@@ -7129,6 +7145,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tags: ["sanitizer"]
   tasks:
+    - name: s-all
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
@@ -7150,6 +7167,7 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -7173,6 +7191,7 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -7204,6 +7223,7 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: make-check-test
     - name: fops
@@ -7234,6 +7254,7 @@ buildvariants:
     num_jobs:
     python_binary: "/cygdrive/c/python/Python311/python"
   tasks:
+    - name: s-all
     - name: compile
     # Windows hosts are slow, use the designed low-perf task to avoid timeout failures.
     - name: make-check-test-low-perf
@@ -7263,6 +7284,7 @@ buildvariants:
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: generate-datafile-little-endian
     - name: verify-datafile-little-endian
@@ -7278,6 +7300,7 @@ buildvariants:
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: generate-datafile-big-endian
     - name: verify-datafile-big-endian
@@ -7297,6 +7320,7 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_STRICT=0
   tasks:
+    - name: s-all
     - name: compile
     - name: unit-test
     - name: format-smoke-test
@@ -7315,6 +7339,7 @@ buildvariants:
     # Use half number of vCPU to avoid OOM kill failure
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: unit-test
     - name: format-smoke-test
@@ -7331,6 +7356,7 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
@@ -7398,6 +7424,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
+    - name: s-all
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -7424,6 +7451,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -7450,6 +7478,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -7468,6 +7497,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -7486,6 +7516,7 @@ buildvariants:
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
+    - name: s-all
     - name: compile
     - name: make-check-test
     - name: unit-test-extra-long
@@ -7503,6 +7534,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -7526,6 +7558,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
       distros: ubuntu2004-test
@@ -7548,6 +7581,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
+    - name: s-all
     - name: compile
       distros: ubuntu2004-arm64-small
     - name: make-check-test
@@ -7577,6 +7611,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
@@ -7606,6 +7641,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
       distros: amazon2023.3-arm64-large
@@ -7634,6 +7670,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
+    - name: s-all
     - name: compile
       distros: amazon2023.3-arm64-small
     - name: make-check-test
@@ -7662,6 +7699,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -7689,6 +7727,7 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
+    - name: s-all
     - name: compile
     - name: fops
     - name: format-failure-configs-test
@@ -7739,6 +7778,7 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -7806,6 +7846,7 @@ buildvariants:
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: 2
   tasks:
+    - name: s-all
     - name: compile
     - name: examples-c-test
     - name: .unit_test_tsan
@@ -7851,6 +7892,7 @@ buildvariants:
     ctest_extra_args: -LE "cppsuite|long_running|disagg"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
@@ -7879,6 +7921,7 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: s-all
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
@@ -7901,6 +7944,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
+    - name: s-all
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
