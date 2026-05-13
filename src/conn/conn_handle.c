@@ -20,17 +20,17 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
 
     session = conn->default_session;
 
-    TAILQ_INIT(&conn->dhqh);                    /* Data handle list */
-    TAILQ_INIT(&conn->dlhqh);                   /* Library list */
-    TAILQ_INIT(&conn->dsrcqh);                  /* Data source list */
-    TAILQ_INIT(&conn->fhqh);                    /* File list */
+    TAILQ_INIT(&conn->dhqh);             /* Data handle list */
+    TAILQ_INIT(&conn->dlhqh);            /* Library list */
+    TAILQ_INIT(&conn->dsrcqh);           /* Data source list */
+    TAILQ_INIT(&conn->fhqh);             /* File list */
     TAILQ_INIT(&conn->ext.collqh);       /* Collator list */
     TAILQ_INIT(&conn->ext.compqh);       /* Compressor list */
     TAILQ_INIT(&conn->ext.encryptqh);    /* Encryptor list */
     TAILQ_INIT(&conn->ext.pagelogqh);    /* Page log list */
     TAILQ_INIT(&conn->ext.storagesrcqh); /* Storage source list */
-    TAILQ_INIT(&conn->tieredqh);                /* Tiered work unit list */
-    TAILQ_INIT(&conn->pfqh);                    /* Pre-fetch reference list */
+    TAILQ_INIT(&conn->tieredqh);         /* Tiered work unit list */
+    TAILQ_INIT(&conn->pfqh);             /* Pre-fetch reference list */
 
     /* Disaggregated storage. */
     TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh);
