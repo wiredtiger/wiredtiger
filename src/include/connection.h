@@ -942,7 +942,7 @@ struct __wt_connection_impl {
     uint64_t sweep_interval;        /* Handle sweep interval */
     uint64_t sweep_handles_min;     /* Handle sweep minimum open */
 
-    WT_CONN_EXTENSIONS extensions; /* Extension interface lists */
+    WT_CONN_EXTENSIONS ext; /* Extension interface lists */
 
     void *lang_private; /* Language specific private storage */
 
