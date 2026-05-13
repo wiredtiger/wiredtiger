@@ -1922,7 +1922,6 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written",
   "block-manager: bytes written by compaction",
   "block-manager: bytes written for checkpoint",
-  "block-manager: bytes written for in-memory pages dirtied by compaction",
   "block-manager: bytes written for internal pages after compression and encryption",
   "block-manager: bytes written for internal pages before compression and encryption",
   "block-manager: bytes written for leaf pages after compression and encryption",
@@ -2771,6 +2770,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table compact dhandle successful calls",
   "session: table compact failed calls",
   "session: table compact failed calls due to cache pressure",
+  "session: table compact in-memory page footprint rewritten by compaction",
   "session: table compact passes",
   "session: table compact pulled into eviction",
   "session: table compact running",
@@ -3015,7 +3015,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write = 0;
     stats->block_byte_write_compact = 0;
     stats->block_byte_write_checkpoint = 0;
-    stats->block_byte_write_compact_inmem = 0;
     stats->block_byte_write_intl_disk = 0;
     stats->block_byte_write_intl = 0;
     stats->block_byte_write_leaf_disk = 0;
@@ -3816,6 +3815,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->session_table_compact_dhandle_success = 0;
     /* not clearing session_table_compact_fail */
     /* not clearing session_table_compact_fail_cache_pressure */
+    /* not clearing session_table_compact_bytes_rewrite_inmem */
     stats->session_table_compact_passes = 0;
     /* not clearing session_table_compact_eviction */
     /* not clearing session_table_compact_running */
@@ -4044,7 +4044,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write += WT_STAT_CONN_READ(from, block_byte_write);
     to->block_byte_write_compact += WT_STAT_CONN_READ(from, block_byte_write_compact);
     to->block_byte_write_checkpoint += WT_STAT_CONN_READ(from, block_byte_write_checkpoint);
-    to->block_byte_write_compact_inmem += WT_STAT_CONN_READ(from, block_byte_write_compact_inmem);
     to->block_byte_write_intl_disk += WT_STAT_CONN_READ(from, block_byte_write_intl_disk);
     to->block_byte_write_intl += WT_STAT_CONN_READ(from, block_byte_write_intl);
     to->block_byte_write_leaf_disk += WT_STAT_CONN_READ(from, block_byte_write_leaf_disk);
@@ -5083,6 +5082,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_compact_fail += WT_STAT_CONN_READ(from, session_table_compact_fail);
     to->session_table_compact_fail_cache_pressure +=
       WT_STAT_CONN_READ(from, session_table_compact_fail_cache_pressure);
+    to->session_table_compact_bytes_rewrite_inmem +=
+      WT_STAT_CONN_READ(from, session_table_compact_bytes_rewrite_inmem);
     to->session_table_compact_passes += WT_STAT_CONN_READ(from, session_table_compact_passes);
     to->session_table_compact_eviction += WT_STAT_CONN_READ(from, session_table_compact_eviction);
     to->session_table_compact_running += WT_STAT_CONN_READ(from, session_table_compact_running);

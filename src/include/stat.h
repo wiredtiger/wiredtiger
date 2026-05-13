@@ -500,7 +500,6 @@ struct __wt_connection_stats {
     int64_t block_byte_write;
     int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
-    int64_t block_byte_write_compact_inmem;
     int64_t block_byte_write_intl_disk;
     int64_t block_byte_write_intl;
     int64_t block_byte_write_leaf_disk;
@@ -1301,6 +1300,7 @@ struct __wt_connection_stats {
     int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
+    int64_t session_table_compact_bytes_rewrite_inmem;
     int64_t session_table_compact_passes;
     int64_t session_table_compact_eviction;
     int64_t session_table_compact_running;
