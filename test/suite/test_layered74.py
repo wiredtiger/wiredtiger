@@ -123,16 +123,16 @@ class test_layered74(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.create(self.uri, self.session_create_config())
 
         # Populate the table with nitems.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nitems + 1)}
-        self.insert(kv, inital_ts)
+        initial_value = "abc" * 10
+        initial_ts = 5
+        kv = {str(i): initial_value for i in range(1, self.nitems + 1)}
+        self.insert(kv, initial_ts)
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
 
-        kv_modfied = {}
+        kv_modified = {}
         num_deltas = random.randint(1, 10)
         for i in range(1, num_deltas + 1):
             # Generate a random number of keys to insert.
@@ -142,11 +142,11 @@ class test_layered74(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 for j in range(random_key_range)
             }
             # Insert random keys into the table.
-            self.insert(kv, inital_ts + i)
+            self.insert(kv, initial_ts + i)
             # Perform a checkpoint to write out a delta.
             self.session.checkpoint()
             # Merge kv into our cumulative dictionary
-            kv_modfied.update(kv)
+            kv_modified.update(kv)
 
         # Assert that we have written at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
@@ -161,7 +161,7 @@ class test_layered74(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_disagg_conn(self.conn_config())
 
         # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -174,7 +174,7 @@ class test_layered74(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
 
         # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):

@@ -133,7 +133,7 @@ def function_args(name, line):
     if re.search('^WT_RET', line):
         return False,0
 
-    # If one or more of the variables is being initialised, then dependencies
+    # If one or more of the variables is being initialized, then dependencies
     # may exist that prevent alphabetical ordering.
     # For example, the following lines cannot be sorted alphabetically:
     #    WT_BTREE *btree = S2BT(session);

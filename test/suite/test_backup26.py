@@ -49,7 +49,7 @@ class test_backup26(backup_base):
 
     # Percentage of tables to not copy over in selective backup.
     percentage = [
-        ('hundred_precent', dict(percentage=1)),
+        ('hundred_percent', dict(percentage=1)),
         ('ninety_percent', dict(percentage=0.9)),
         ('fifty_percent', dict(percentage=0.5)),
         ('ten_percent', dict(percentage=0.1)),

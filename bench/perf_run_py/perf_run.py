@@ -179,7 +179,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-re',
                         '--reuse',
                         action="store_true",
-                        help='reuse and reanalyse results from previous tests rather than running tests again')
+                        help='reuse and reanalyze results from previous tests rather than running tests again')
     parser.add_argument('-bf', '--batch_file', help='Run all specified configurations for a single test')
     parser.add_argument('-args', '--arguments', help='Additional arguments to pass into the test')
     parser.add_argument('-ops', '--operations', help='List of operations to report metrics for')

@@ -3037,7 +3037,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
     /* not clearing block_first_srch_walk_time */
-    stats->eviction_interupted_by_app = 0;
+    stats->eviction_interrupted_by_app = 0;
     stats->eviction_app_time = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
@@ -3092,7 +3092,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_dirty_pages_during_checkpoint = 0;
     stats->eviction_server_skip_ingest_trees = 0;
     stats->eviction_server_skip_intl_page_with_active_child = 0;
-    stats->eviction_server_skip_metatdata_with_history = 0;
+    stats->eviction_server_skip_metadata_with_history = 0;
     stats->eviction_server_skip_pages_checkpoint_timestamp = 0;
     stats->eviction_server_skip_pages_last_running = 0;
     stats->eviction_server_skip_pages_prune_timestamp = 0;
@@ -4077,7 +4077,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
     to->block_first_srch_walk_time += WT_STAT_CONN_READ(from, block_first_srch_walk_time);
-    to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
+    to->eviction_interrupted_by_app += WT_STAT_CONN_READ(from, eviction_interrupted_by_app);
     to->eviction_app_time += WT_STAT_CONN_READ(from, eviction_app_time);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       WT_STAT_CONN_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
@@ -4155,8 +4155,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_ingest_trees);
     to->eviction_server_skip_intl_page_with_active_child +=
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_with_active_child);
-    to->eviction_server_skip_metatdata_with_history +=
-      WT_STAT_CONN_READ(from, eviction_server_skip_metatdata_with_history);
+    to->eviction_server_skip_metadata_with_history +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_metadata_with_history);
     to->eviction_server_skip_pages_checkpoint_timestamp +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_checkpoint_timestamp);
     to->eviction_server_skip_pages_last_running +=

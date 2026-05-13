@@ -1,0 +1,25 @@
+{
+    "version": "0.2",
+    "language": "en-US",
+    "useGitignore": true,
+    "files": ["**"],
+    "ignorePaths": [
+        "test/3rdparty/**",      // vendored external Python test libs — not our code
+        "cmake/third_party/**",  // CMake find-modules for external libs — not our code
+        "src/docs/js/sorttable.js", // vendored third-party JS — do not modify copyright
+        "oss/**",                   // third-party OS-specific headers (Apple ulock, etc.)
+        "venv/**",               // Python virtual environment (top-level, not in .gitignore)
+        "WT_TEST/**",            // generated test output directories
+        "WT_TEST.*/**",          // generated test output directories (variant names)
+        "dist/cspell-words.txt", // our word list: spell-checking it would flag every entry as unknown
+        "cspell.json"            // this config file itself
+    ],
+    "dictionaryDefinitions": [
+        {
+            "name": "wiredtiger",
+            "path": "./dist/cspell-words.txt",
+            "addWords": true
+        }
+    ],
+    "dictionaries": ["wiredtiger"]
+}

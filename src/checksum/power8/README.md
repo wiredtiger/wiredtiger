@@ -76,7 +76,7 @@ To facilitate this optional defines can be introduced:
 
 - CRC32_FUNCTION to be set to the crc32 function name (instead of crc32_vpmsum)
 
-- CRC32_FUNCTION_ASM (asm version only) to be set to the assember function name used
+- CRC32_FUNCTION_ASM (asm version only) to be set to the assembler function name used
 by crc32_wrapper.c (defaults to __crc32_vpmsum).
 
 An example of this is with crc32_two_implementations as found in the Makefile.
@@ -257,7 +257,7 @@ detection:
 ...
 
 	if (getauxval(AT_HWCAP2) & PPC_FEATURE2_VEC_CRYPTO) {
-		/* Use crc32-vpmsum optimised version */
+		/* Use crc32-vpmsum optimized version */
 	} else {
 		/* fall back to non accelerated version */
 	}

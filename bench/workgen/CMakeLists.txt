@@ -19,7 +19,7 @@ elseif(ENABLE_SHARED)
     set(share_state SHARED)
     set(wiredtiger_target wiredtiger_shared)
 else()
-    message(STATIC "Skipping workgen compiliation: Requires either a shared library (ENABLE_SHARED)"
+    message(STATIC "Skipping workgen compilation: Requires either a shared library (ENABLE_SHARED)"
                     "or a PIC-enabled (WITH_PIC) build of wiredtiger")
 endif()
 

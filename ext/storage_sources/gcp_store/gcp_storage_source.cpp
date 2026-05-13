@@ -407,7 +407,7 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
     gcp_fh->name = name;
     gcp_fh->reference_count = 1;
 
-    // Define functions needed for google cloud with read-only privilleges.
+    // Define functions needed for google cloud with read-only privileges.
     gcp_fh->fh.close = gcp_file_close;
     gcp_fh->fh.fh_advise = nullptr;
     gcp_fh->fh.fh_extend = nullptr;

@@ -348,7 +348,7 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
             else
                 cbt->slot = UINT32_MAX;
             WT_ERR(__wt_modify_reconstruct_from_upd_list(
-              session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
+              session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILIATION));
             __wt_value_return(cbt, cbt->upd_value);
             value.data = cbt->upd_value->buf.data;
             value.size = cbt->upd_value->buf.size;
@@ -938,7 +938,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
              */
             cbt->slot = UINT32_MAX;
             WT_ERR(__wt_modify_reconstruct_from_upd_list(
-              session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
+              session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILIATION));
             __wt_value_return(cbt, cbt->upd_value);
             WT_ERR(__wti_rec_cell_build_val(
               session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0, NULL));
@@ -1241,7 +1241,7 @@ __wti_rec_row_leaf(
             case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
                 WT_ERR(__wt_modify_reconstruct_from_upd_list(
-                  session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
+                  session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILIATION));
                 __wt_value_return(cbt, cbt->upd_value);
                 WT_ERR(__wti_rec_cell_build_val(
                   session, r, cbt->iface.value.data, cbt->iface.value.size, twp, 0, NULL));

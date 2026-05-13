@@ -158,7 +158,7 @@ io_trace_collection::load_from_file_blkparse(FILE *f)
      *   8) Always "+"
      *   9) Block length
      *  10) Duration in (), in microseconds (enabled via the "-t" command-line argument)
-     *  11) Process name and potentally other process-relevant information in []
+     *  11) Process name and potentially other process-relevant information in []
      *
      * Note that actions other than C and D can carry different extra information on fields 7
      * and up.

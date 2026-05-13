@@ -189,10 +189,10 @@ def generate_file_info_as_html_text(file: str, file_info: dict, verbose: bool) -
 
         for hunk in file_info:
             if not first_line_for_file:
-                seperator = "--------"
+                separator = "--------"
                 report.append("  <tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td></td><td></td></tr>\n".
-                              format(centered_text(seperator), centered_text(seperator),
-                                     right_text(seperator), right_text(seperator)))
+                              format(centered_text(separator), centered_text(separator),
+                                     right_text(separator), right_text(separator)))
             first_line_for_file = False
 
             lines = hunk['lines']

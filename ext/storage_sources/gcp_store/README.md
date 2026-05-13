@@ -84,8 +84,8 @@ Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests 
 first have to write the tests before adding it as a task to the evergreen.yml file.
 
 Additionally, Evergreen has hidden the private key, private key id, project id, client email,
-client id and client x509 certificiate url for GCP and these are stored within the Evergreen system.
+client id and client x509 certificate url for GCP and these are stored within the Evergreen system.
 Due to GCP requiring a json authentication file, a template json authentication file is provided.
 The "real" private key, private key id, project id, client email, client id and client x509
-certificiate url can be subsitituted into this to create a temporary authentication file. Evergreen
+certificate url can be substituted into this to create a temporary authentication file. Evergreen
 also has a script to install all the dependencies that GCP requires.

@@ -153,7 +153,7 @@ if sys.maxsize < 2**32:
 python_rel_dir = os.path.join('lang', 'python')
 build_dir = os.path.join(wt_dir, 'cmake_pip_build')
 makefile = os.path.join(build_dir, 'build.ninja')
-built_sentinal = os.path.join(build_dir, 'built.txt')
+built_sentinel = os.path.join(build_dir, 'built.txt')
 conf_make_dir = 'cmake_pip_build'
 wt_swig_lib_name = os.path.join(python_rel_dir, '_wiredtiger.so')
 
@@ -256,7 +256,7 @@ class WTBuildExt(setuptools.command.build_ext.build_ext):
 
     def run(self):
         # only run this once
-        if not os.path.isfile(built_sentinal):
+        if not os.path.isfile(built_sentinel):
             try:
                 os.remove(makefile)
             except OSError:
@@ -269,7 +269,7 @@ class WTBuildExt(setuptools.command.build_ext.build_ext):
             self.execute(
                 lambda: build_commands(make_cmds, wt_dir, env), [],
                 'wiredtiger make')
-            open(built_sentinal, 'a').close()
+            open(built_sentinel, 'a').close()
         return setuptools.command.build_ext.build_ext.run(self)
 
 setup(

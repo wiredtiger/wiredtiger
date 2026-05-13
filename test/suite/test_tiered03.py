@@ -117,7 +117,7 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
         checkpoint = re.search(r',checkpoint=\(.+?\)\)', origmeta).group(0)[1:]
         self.pr('Orig checkpoint: ' + checkpoint)
         session2.alter(uri2, checkpoint)
-        self.pr('New metadata on secondaery: ' + metac2[uri2])
+        self.pr('New metadata on secondary: ' + metac2[uri2])
 
         # Check that we can see the new data
         cursor2 = session2.open_cursor(uri2)

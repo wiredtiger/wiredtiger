@@ -151,7 +151,7 @@ azure_connection::read_object(
         return -1;
     }
 
-    // Utilise the inbuilt DownloadTo options to avoid having to store the blob's content
+    // Use the DownloadTo options to avoid having to store the blob's content
     // in memory to save space.
     Azure::Core::Http::HttpRange range;
     range.Length = len;

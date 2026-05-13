@@ -26,7 +26,7 @@ whitespace()
     cmp $t $1 > /dev/null 2>&1 || (echo "$1" && cp $t $1)
 }
 
-# Parallel execution: if it's the main onvocation of the script, collect the file names
+# Parallel execution: if it's the main invocation of the script, collect the file names
 # to process and run them in subprocesses.
 is_main_run && {
     find bench dist examples ext src test tools/checksum_bitflip \

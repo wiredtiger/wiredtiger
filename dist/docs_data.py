@@ -38,7 +38,7 @@ arch_doc_pages = [
          'src/checkpoint/checkpoint_stats.c', 'src/checkpoint/checkpoint_txn.c',
          'src/meta/meta_ckpt.c']),
     ArchDocPage('arch-cloud-storage-extension',
-        ['S3_FILE_HANDLE', 'S3_FILE_SYSTEM', 'S3_STORAGE', 'azure_file_handle', 'azure_file_sytem',
+        ['S3_FILE_HANDLE', 'S3_FILE_SYSTEM', 'S3_STORAGE', 'azure_file_handle', 'azure_file_system',
          'azure_store', 'gcp_file_handle', 'gcp_file_system', 'gcp_store',  ],
         ['ext/storage_sources/azure_store/', 'ext/storage_sources/gcp_store/',
          'ext/storage_sources/s3_store/']),

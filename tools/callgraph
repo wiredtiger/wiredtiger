@@ -261,12 +261,12 @@ Usage:
 
   * Graphviz options:
 --dir                     - Graph direction: LR, RL, TB, BT.
---minmax                  - Group top and bottom rank nodes at the begginning and end.
+--minmax                  - Group top and bottom rank nodes at the beginning and end.
 
   * Misc options:
 --home               - Set source home directory (default: current).
 --mod                - Use module names instead of file names (default: false).
---files              - Use files (oppposite of --mod) (default: true).
+--files              - Use files (opposite of --mod) (default: true).
 --help, -h           - Print this usage help and exit.
 --version, -v        - Print version and exit.
 
@@ -322,7 +322,7 @@ Usage:
     \$ callgraph --path-all /_hs_
        * List all call stacks originating from __wt_page_alloc up to 10 calls deep:
     \$ callgraph --path-all __wt_page_alloc 10 | less -S
-       * List all call stacks originating from __wt_page_alloc up to 10 calls deep, exluding __wt_page_release:
+       * List all call stacks originating from __wt_page_alloc up to 10 calls deep, excluding __wt_page_release:
     \$ callgraph --path-all 10 __wt_page_alloc __wt_page_release | less -S
     \$ callgraph --path-all -t /page_alloc -d 5 -r -no-l --depth | less -S
 

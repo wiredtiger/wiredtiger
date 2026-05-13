@@ -45,7 +45,7 @@ def divide(a, b):
 def value_as_str(self):
     return '%.3f' % self.latency_average()
 
-# A collection of statastics that are related to a specific condition
+# A collection of statistics that are related to a specific condition
 # during the run, for example during checkpoints or not during checkpoints.
 class Digest:
     def __init__(self):

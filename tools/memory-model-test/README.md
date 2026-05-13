@@ -70,7 +70,7 @@ There are two options:
     ```
 
 
-Some tests use compiler barriers to prevent the compiler re-ordering memory accesses during optimisation.
+Some tests use compiler barriers to prevent the compiler re-ordering memory accesses during optimization.
 
 Note: if you get compile errors related to `#include <semaphore>` or semaphores in general,
 then check that you are using both the correct compiler and compiling for C++ 20,

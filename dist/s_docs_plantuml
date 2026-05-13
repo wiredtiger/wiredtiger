@@ -4,7 +4,7 @@
 # downloading it from sourceforge) and then generates uml images from the
 # plantuml templates embedded in the documentation.
 # Run this script after adding new plantuml templates to generate a fresh set of
-# uml images. All new images generated should be commited with the code.
+# uml images. All new images generated should be committed with the code.
 # For easy prototyping, following link can be used to generate these images
 # online:
 # http://www.plantuml.com/plantuml

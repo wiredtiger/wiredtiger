@@ -102,7 +102,7 @@
  *                                                                | uses storage-wide write lock |
  *                                                                                     |
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       |
- *    Storage-level Readers-Writer Lock (every method above has to aquire it)   >------+
+ *    Storage-level Readers-Writer Lock (every method above has to acquire it)   >------+
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       |
  *                                                                                     |
  *       < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >                 |
@@ -116,7 +116,7 @@
  *   |   < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >
  *   |
  * - | - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- *   +- Table-level Readers-Writer Lock (every method above has to aquire it)
+ *   +- Table-level Readers-Writer Lock (every method above has to acquire it)
  * - | - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  *   |
  *   +- {thread : Connection<sqlite3*>} - map: DB connections (per thread)

@@ -12,7 +12,7 @@
 # curtime, value, loadavg, diskavg.
 #
 # Since our Jenkins hosts have some variability to their load level,
-# we allow some 'resiliance' in the regression checking.  To this end,
+# we allow some 'resilience' in the regression checking.  To this end,
 # we calculate 3 values:
 #
 #    v3: The 'best' of the most recent 3 values, where 'best' is
@@ -50,7 +50,7 @@ value is an integer or float value
 Options:
   -t:     value is a time value, lower numbers are better
   -c:     value is a count value, higher numbers are better
-  -p pct: require short term avgs to be witnin 'pct' percent of long term avgs
+  -p pct: require short term avgs to be within 'pct' percent of long term avgs
 
 One of the -t and -c options is required.
 EOF

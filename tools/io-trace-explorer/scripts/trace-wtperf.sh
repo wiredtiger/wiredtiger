@@ -150,7 +150,7 @@ if [ $FORMAT ]; then
         WORKLOAD_DEVICE=`findmnt -n -o SOURCE -T "$WORKLOAD_DIR"`
     fi
 
-    # If the workload device is specified, we'll use the directory as the new mountpopint.
+    # If the workload device is specified, we'll use the directory as the new mountpoint.
 fi
 
 

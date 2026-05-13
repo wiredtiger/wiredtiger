@@ -61,7 +61,7 @@ public:
         int fd = syscall(SYS_perf_event_open, &_pe,
           0,  // pid: calling process/thread
           -1, // cpu: any CPU
-          -1, // groupd_fd: group with only 1 member
+          -1, // group_fd: group with only 1 member
           0); // flags
         testutil_assert(fd != -1);
         ioctl(fd, PERF_EVENT_IOC_RESET, 0);

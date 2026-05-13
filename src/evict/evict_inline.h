@@ -701,7 +701,7 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
     if (event_handler->handle_general != NULL &&
       event_handler->handle_general(
         event_handler, &S2C(session)->iface, &session->iface, WT_EVENT_EVICTION, NULL) != 0) {
-        WT_STAT_CONN_INCR(session, eviction_interupted_by_app);
+        WT_STAT_CONN_INCR(session, eviction_interrupted_by_app);
         return (false);
     }
 

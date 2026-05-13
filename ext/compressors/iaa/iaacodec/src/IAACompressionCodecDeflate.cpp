@@ -41,7 +41,7 @@ DeflateJobHWPool::DeflateJobHWPool(WT_COMPRESSOR *compressor, WT_SESSION *sessio
     if (initJobPool() < 0) {
         jobPoolEnabled = false;
         iaa_message(compressor, session, "DeflateJobHWPool",
-          "initializing unsucessfully! Please check if IAA hardware support! Here run QPL software "
+          "initializing unsuccessfully! Please check if IAA hardware support! Here run QPL software "
           "instead of hardware.",
           -2);
     } else {

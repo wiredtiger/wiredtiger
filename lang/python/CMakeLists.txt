@@ -96,7 +96,7 @@ endif()
 list(APPEND swig_c_flags -I${CMAKE_SOURCE_DIR})
 list(APPEND swig_c_flags -I${CMAKE_BINARY_DIR}/config)
 
-# SWIG will generate deprecated python3 protocols (being marked as deprecated in Python 3.7+). Generally supress these warnings
+# SWIG will generate deprecated python3 protocols (being marked as deprecated in Python 3.7+). Generally suppress these warnings
 # as the SWIG compiler lags behind newer python3 versions.
 if(${Python3_VERSION} VERSION_GREATER_EQUAL 3.7)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")

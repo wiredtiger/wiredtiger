@@ -1,6 +1,6 @@
 #
 # wtperf options file: Test performance with a log file enabled.
-# Set the log file small to catch log-swtich bottlenecks.
+# Set the log file small to catch log-switch bottlenecks.
 #
 # Perform updates instead of inserts to stress logging not eviction,
 # page splits or reconciliation.  Have it fit in cache.

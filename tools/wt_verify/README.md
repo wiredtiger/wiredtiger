@@ -29,4 +29,4 @@ python3 wt_verify.py -d dump_pages -hd DB_DIR -f FILENAME -o OUTPUT.TXT -v
 - `-h`: Show all the available options.
 - `-hd`: Set database directory.
 - `-o`: Set output file name.
-- `-v`: Enable visualisation (optional).
+- `-v`: Enable visualization (optional).

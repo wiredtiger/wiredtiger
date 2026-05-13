@@ -5,6 +5,7 @@
 .vscode/
 .cache/
 .ccls-cache/
+.cspellcache
 CMakeUserPresets.json
 compile_commands.json
 cscope.in.out

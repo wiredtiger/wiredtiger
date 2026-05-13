@@ -47,7 +47,7 @@ def main():
     args = parser.parse_args()
 
     if args.verbose:
-        print('Python Version Analyser')
+        print('Python Version Analyzer')
         print('=======================')
         print("This tool confirms that the Python version being used matches that configured in CMake.")
         print('Configuration:')

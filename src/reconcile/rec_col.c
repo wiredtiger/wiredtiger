@@ -577,7 +577,7 @@ record_loop:
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
                     WT_ERR(__wt_modify_reconstruct_from_upd_list(
-                      session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
+                      session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILIATION));
                     __wt_value_return(cbt, cbt->upd_value);
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
@@ -724,7 +724,7 @@ compare:
                      */
                     cbt->slot = UINT32_MAX;
                     WT_ERR(__wt_modify_reconstruct_from_upd_list(
-                      session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
+                      session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILIATION));
                     __wt_value_return(cbt, cbt->upd_value);
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;

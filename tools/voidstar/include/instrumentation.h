@@ -237,7 +237,7 @@ void __sanitizer_cov_trace_pc_guard_init(uint32_t *start, uint32_t *stop);
 //
 // Our implementation of the LLVM edge callback buffers a message to the Fuzzer containing the address of the instruction
 // that triggered the callback. The first time the callback is triggered for a given edge, the coverage message is 
-// buffered unconditionally. Sucessive invocations have their behavior governed by the `ANT_DISABLE_REUSED_EDGE` 
+// buffered unconditionally. Successive invocations have their behavior governed by the `ANT_DISABLE_REUSED_EDGE`
 // environment variable. If the variable is unset, or set to "1", the callback will only send coverage information the
 // first time. If set to anything other than "1", the callback will send coverage information every time.
 //

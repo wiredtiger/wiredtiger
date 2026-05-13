@@ -34,7 +34,7 @@ base_args="-x -R"
 
 rm -rf RUNDIR_0
 # The first run is for calibration only.  We just want to run for the designated
-# time and get an approriate stop timestamp that can be used in later runs.
+# time and get an appropriate stop timestamp that can be used in later runs.
 calibration_run_args="-PSD$r,E$x0"
 ./test_checkpoint -h RUNDIR_0 $base_args $checkpoint_args $calibration_run_args || exit 1
 echo "Finished calibration run"

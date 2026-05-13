@@ -371,7 +371,7 @@ key_gen_insert(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
 static inline int
 lock_try_writelock(WT_SESSION *session, RWLOCK *lock)
 {
-    /* Ensure locks are intialized. */
+    /* Ensure locks are initialized. */
     testutil_assert(lock->lock_type != LOCK_NONE);
 
     if (lock->lock_type == LOCK_WT)
@@ -386,7 +386,7 @@ lock_try_writelock(WT_SESSION *session, RWLOCK *lock)
 static inline void
 lock_writelock(WT_SESSION *session, RWLOCK *lock)
 {
-    /* Ensure locks are intialized. */
+    /* Ensure locks are initialized. */
     testutil_assert(lock->lock_type != LOCK_NONE);
 
     if (lock->lock_type == LOCK_WT)
@@ -402,7 +402,7 @@ lock_writelock(WT_SESSION *session, RWLOCK *lock)
 static inline void
 lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
 {
-    /* Ensure locks are intialized. */
+    /* Ensure locks are initialized. */
     testutil_assert(lock->lock_type != LOCK_NONE);
 
     if (lock->lock_type == LOCK_WT)
@@ -418,7 +418,7 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
 static inline void
 lock_readlock(WT_SESSION *session, RWLOCK *lock)
 {
-    /* Ensure locks are intialized. */
+    /* Ensure locks are initialized. */
     testutil_assert(lock->lock_type != LOCK_NONE);
 
     if (lock->lock_type == LOCK_WT)
@@ -434,7 +434,7 @@ lock_readlock(WT_SESSION *session, RWLOCK *lock)
 static inline void
 lock_readunlock(WT_SESSION *session, RWLOCK *lock)
 {
-    /* Ensure locks are intialized. */
+    /* Ensure locks are initialized. */
     testutil_assert(lock->lock_type != LOCK_NONE);
 
     if (lock->lock_type == LOCK_WT)

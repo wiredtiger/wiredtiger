@@ -77,7 +77,7 @@ wtfiles() {
                 # When a table is created in WT, both a table: and file: are
                 # created.  If there is is matching table: entry for this file,
                 # skip this entry. But if there's no matching table, then it is
-                # not refererenced elsewhere, and we want it in our list to compare.
+                # not referenced elsewhere, and we want it in our list to compare.
                 base=$(echo "$uri" | sed -e 's/file://' -e 's/.wt//')
                 if ! echo "$uris" | grep "table:$base" > /dev/null; then
                     results="$results $uri"

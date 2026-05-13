@@ -130,16 +130,16 @@ class test_layered63(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.session_create_config())
 
         # Populate the table with nrows.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nrows + 1)}
-        self.insert(kv, inital_ts)
+        initial_value = "abc" * 10
+        initial_ts = 5
+        kv = {str(i): initial_value for i in range(1, self.nrows + 1)}
+        self.insert(kv, initial_ts)
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
 
-        kv_modfied = {}
+        kv_modified = {}
         num_deltas = random.randint(1, 10)
         # Define a fixed set of 100 keys.
         fixed_keys = [str(k) for k in range(num_deltas, num_deltas + 100)]
@@ -148,12 +148,12 @@ class test_layered63(wttest.WiredTigerTestCase):
             # Each iteration updates the same 10 keys with new values.
             kv = {key: f"value_{i}_{key}" for key in fixed_keys}
 
-            self.insert(kv, inital_ts + i)
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(inital_ts + i))
+            self.insert(kv, initial_ts + i)
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(initial_ts + i))
             # Perform a checkpoint to write out a delta.
             self.session.checkpoint()
             # Merge kv into our cumulative dictionary
-            kv_modfied.update(kv)
+            kv_modified.update(kv)
 
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
             self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
@@ -167,7 +167,7 @@ class test_layered63(wttest.WiredTigerTestCase):
         self.reopen_disagg_conn(self.conn_config())
 
         # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -180,7 +180,7 @@ class test_layered63(wttest.WiredTigerTestCase):
         time.sleep(1.0)
 
         # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -208,10 +208,10 @@ class test_layered63(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.session_create_config())
 
         # Populate the table with nrows.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nrows + 1)}
-        self.insert(kv, inital_ts)
+        initial_value = "abc" * 10
+        initial_ts = 5
+        kv = {str(i): initial_value for i in range(1, self.nrows + 1)}
+        self.insert(kv, initial_ts)
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
@@ -235,8 +235,8 @@ class test_layered63(wttest.WiredTigerTestCase):
                     for _ in range(50)
                 }
 
-            self.insert(kv, inital_ts + i)
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(inital_ts + i))
+            self.insert(kv, initial_ts + i)
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(initial_ts + i))
             # Perform a checkpoint to write out a delta.
             self.session.checkpoint()
             # Merge kv into our cumulative dictionary.
@@ -254,7 +254,7 @@ class test_layered63(wttest.WiredTigerTestCase):
         self.reopen_disagg_conn(self.conn_config())
 
         # Verify the updated and inserted values in the table.
-        self.verify(kv_modified, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -267,7 +267,7 @@ class test_layered63(wttest.WiredTigerTestCase):
         time.sleep(1.0)
 
         # Verify the updated and inserted values again from the follower.
-        self.verify(kv_modified, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -295,10 +295,10 @@ class test_layered63(wttest.WiredTigerTestCase):
         extra_base_keys = 50
 
         # Populate the table with nrows + extra_base_keys in the base image.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nrows + extra_base_keys + 1)}
-        self.insert(kv, inital_ts)
+        initial_value = "abc" * 10
+        initial_ts = 5
+        kv = {str(i): initial_value for i in range(1, self.nrows + extra_base_keys + 1)}
+        self.insert(kv, initial_ts)
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
@@ -314,8 +314,8 @@ class test_layered63(wttest.WiredTigerTestCase):
             # Each delta updates a subset of base keys (not the trailing ones).
             kv = {key: f"delta_updated_value_{i}_{key}" for key in update_keys}
 
-            self.insert(kv, inital_ts + i)
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(inital_ts + i))
+            self.insert(kv, initial_ts + i)
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(initial_ts + i))
             # Perform a checkpoint to write out a delta.
             self.session.checkpoint()
             # Merge kv into our cumulative dictionary.
@@ -333,14 +333,14 @@ class test_layered63(wttest.WiredTigerTestCase):
         self.reopen_disagg_conn(self.conn_config())
 
         # Verify both updated keys and unmodified trailing base keys.
-        self.verify(kv_modified, inital_value)
+        self.verify(kv_modified, initial_value)
 
         follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
         self.reopen_disagg_conn(follower_config)
         time.sleep(1.0)
 
         # Verify both updated keys and unmodified trailing base keys again from the follower.
-        self.verify(kv_modified, inital_value)
+        self.verify(kv_modified, initial_value)
 
     def test_internal_page_delta_key_updated_multiple_times(self):
         """

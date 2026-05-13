@@ -1006,7 +1006,7 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
     # user-defined latency threshold. An outlier is a function
     # whose duration is in the 99.9th percentile. For each
     # time period we will show a bar whose height corresponds
-    # to the number of outliers observed during this exection
+    # to the number of outliers observed during this execution
     # period.
     #
     # Not all outliers are indicative of performance problems.

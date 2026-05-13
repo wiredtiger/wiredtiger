@@ -163,7 +163,7 @@ def parse_dump_blocks(input_file: str):
     """
     Parse the output file of dump_blocks.
     Return a dictionary that has checkpoint names as keys. Each checkpoint has a set of keys that
-    corresonds to each page type. Each page type has a list of tuples (offset, size) sorted by
+    corresponds to each page type. Each page type has a list of tuples (offset, size) sorted by
     offset.
     """
 

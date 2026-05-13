@@ -204,7 +204,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         base.type = WT_UPDATE_STANDARD;
 
         CHECK(__wt_modify_reconstruct_from_upd_list(
-                session_impl, NULL, &modify, &upd_value, WT_OPCTX_RECONCILATION) == 0);
+                session_impl, NULL, &modify, &upd_value, WT_OPCTX_RECONCILIATION) == 0);
         check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         session_impl->txn->isolation = WT_ISO_SNAPSHOT;

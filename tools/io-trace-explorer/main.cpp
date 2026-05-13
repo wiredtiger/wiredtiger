@@ -46,7 +46,7 @@ protected:
     {
 
         Glib::OptionContext ctx("INPUT_FILE...");
-        Glib::OptionGroup group("options", "Progran Options:", "Show the main program options");
+        Glib::OptionGroup group("options", "Program Options:", "Show the main program options");
 
         /* The --quiet argument. */
         bool quiet = false;

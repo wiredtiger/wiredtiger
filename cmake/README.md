@@ -155,7 +155,7 @@ To run with verbose output:
 ctest -j$(nproc) -VV
 ```
 
-To run a specfic test:
+To run a specific test:
 
 ```bash
 # Note: -R specifies a regex, where any matching test will be run

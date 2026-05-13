@@ -22,7 +22,7 @@ RUN_OS=$(uname -s)
 CPU_SET=0-1
 echo "test read write lock for time shifting using libfaketime"
 
-# check for program arguements, if not present, print usage
+# check for program arguments, if not present, print usage
 if [ -z $1 ]
 then
     echo "fail : this test needs libfaketime library with path"

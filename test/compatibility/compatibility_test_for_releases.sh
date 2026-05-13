@@ -1064,7 +1064,7 @@ if [ "$patch_version" = true ]; then
         cd $b; pv=$(pick_a_version $b); cd ..
 
         # A null string from the $pv variable indicates the release branch (e.g. mongodb-6.0)
-        # has not yet got a GA version (e.g. 6.0.0, 6.0.1) tagged. Skip running and verifiying
+        # has not yet got a GA version (e.g. 6.0.0, 6.0.1) tagged. Skip running and verifying
         # test checkpoint in that case.
         if [ -n "$pv" ]; then
             (build_branch $pv)

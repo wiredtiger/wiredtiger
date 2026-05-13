@@ -13,7 +13,7 @@ can be included in all PR testing. This has the benefit that developers and PR r
 to which the set of tests that have been executed covers the code that has been changed in the PR.
 
 Code coverage measurement requires building WiredTiger and its test code for code coverage, which both generates the
-compile-time code coverage files (`.gcno`) and turns off optimisation to ensure that the relationship between each line
+compile-time code coverage files (`.gcno`) and turns off optimization to ensure that the relationship between each line
 of the source code and the binary is maintained.
 
 Once the code has been built, a set of tests is executed which will generate run-time code coverage statistics which
@@ -35,7 +35,7 @@ The code coverage test set does not currently reach a high enough coverage, but 
 ## The challenges with parallel code coverage measurement
 
 Running test in parallel speeds up execution, however this raises a number of challenges, including:
-* gcov saves its run-time data in `.gcda` files, but when running tests in parallel there is no synchronisation of 
+* gcov saves its run-time data in `.gcda` files, but when running tests in parallel there is no synchronization of 
   writing the data from each parallel test and so it is possible that coverage data will be lost.
 * WiredTiger tests typically generate databases in subdirectories, and so running multiple tests in the same directory
   in parallel requires each test to store its database(s) in its own subdirectory. 

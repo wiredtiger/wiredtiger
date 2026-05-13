@@ -113,7 +113,7 @@ if __name__ == "__main__":
             print(functions[name](*args))
             sys.exit(0)
         else:
-            print(f"Function name '{name}' not recognised!")
+            print(f"Function name '{name}' not recognized!")
             print(f"Available functions are {list(functions.keys())}")
     else:
         print("Usage: `python3 ./common_functions.py function_name [function_args...]`")

@@ -56,7 +56,7 @@ typedef enum {
 /*
  * Enumeration used to track the context of reconstructing modifies within a update list.
  */
-typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
+typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILIATION } WT_OP_CONTEXT;
 
 /*
  * Transaction ID comparison dealing with edge cases.

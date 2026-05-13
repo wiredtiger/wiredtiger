@@ -479,7 +479,7 @@ resolve()
 
 		# Process group leader core dump indicates a bug, in contrast to any spurious cores
 		# from killing zombified child processes. This is to guard against spuriously
-		# missing memory sanitizer errors, which has occured historically even when
+		# missing memory sanitizer errors, which has occurred historically even when
 		# abort_on_error=1 was passed to MSan.
 		[[ -f "dump_t.${pid}.core" ]] && {
 		    report_failure $dir

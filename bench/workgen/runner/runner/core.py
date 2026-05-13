@@ -165,7 +165,7 @@ def _op_get_group_list(op):
 
 # This function is used by op_copy to modify a "tree" of operations to change the table
 # and/or key for each operation to a given value.  It operates on the current operation,
-# and recursively on any in its groiup list.
+# and recursively on any in its group list.
 def _op_copy_mod(op, table, key):
     if op._optype != Operation.OP_NONE:
         if table != None:

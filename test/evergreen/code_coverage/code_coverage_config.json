@@ -9,7 +9,7 @@
     "// run time.",
     "//",
     "// In 'test_tasks', we order the tests that are run in descending order with respect to the ",
-    "// duration of the test. This is because the script utilises a shared queue to run all the tasks",
+    "// duration of the test. This is because the script uses a shared queue to run all the tasks",
     "// in parallel and  and running the shortest tests last decreases the amount of time we spend",
     "// waiting for the last thread to complete. The test_task section is automatically sorted", 
     "// when --optimize_test_order option is invoked. ",

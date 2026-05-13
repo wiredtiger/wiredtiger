@@ -126,7 +126,7 @@ out:
 #endif
 
 /* When we have a load-store in a single-dispatch group and address overlap
- * such that foward is not allowed (load-hit-store) the group must be flushed.
+ * such that forward is not allowed (load-hit-store) the group must be flushed.
  * A group ending NOP prevents the flush.
  */
 #define GROUP_ENDING_NOP __asm__("ori 2,2,0" ::: "memory")

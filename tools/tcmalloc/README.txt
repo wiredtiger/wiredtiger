@@ -29,7 +29,7 @@ For example:
 
  $ with_tcmalloc ./wt -h
 
-Which is equvialent to:
+Which is equivalent to:
 
  $ LD_PRELOAD=$PWD/libtcmalloc.so ./wt -h
 

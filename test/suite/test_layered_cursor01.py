@@ -117,9 +117,9 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         self.nitems += self.ninserts
         self.posoplog += nops
 
-    def check_key_value(self, cursor, exp_enty):
-        expected_key = self.oplog.gen_key(exp_enty[0])
-        expected_value = self.oplog.gen_value(exp_enty[1])
+    def check_key_value(self, cursor, exp_entry):
+        expected_key = self.oplog.gen_key(exp_entry[0])
+        expected_value = self.oplog.gen_value(exp_entry[1])
 
         self.assertEqual(expected_key, cursor.get_key())
         self.assertEqual(expected_value, cursor.get_value())

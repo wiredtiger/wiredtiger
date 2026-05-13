@@ -117,7 +117,7 @@ static int azure_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 
 static void azure_log_statistics(const azure_store &);
 
-// Return a customised file system to access the Azure storage source.
+// Return a customized file system to access the Azure storage source.
 static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
@@ -569,7 +569,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     azure_fh->reference_count = 1;
     azure_fh->fs = azure_fs;
 
-    // Define functions needed for Azure with read-only privilleges.
+    // Define functions needed for Azure with read-only privileges.
     azure_fh->fh.close = azure_file_close;
     azure_fh->fh.fh_advise = nullptr;
     azure_fh->fh.fh_extend = nullptr;

@@ -31,7 +31,7 @@
 #	are labelled and colored proportionally to represent the ratio of time
 #	spent in each function call.
 # wtperf_flame.svg --
-#	A graph visualising stack traces and the time spent within each stack
+#	A graph visualizing stack traces and the time spent within each stack
 #	frame. If FLAME_GRAPH_PATH is not specified, this graph won't be
 #	generated.
 #

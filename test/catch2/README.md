@@ -26,11 +26,11 @@ Module specific tests are found under the directory matching the modules name. T
 contains unit tests under unit/ and api contract tests under api/.
 
 ### Miscellaneous tests
-Any unit tests that do not belong to a Wirediger module will be contained in the misc_tests
+Any unit tests that do not belong to a WiredTiger module will be contained in the misc_tests
 directory.
 
 ### Adding a new tes
-If you want to add new tests to an existing subsytem, simply edit the relevant .cpp file. If you
+If you want to add new tests to an existing subsystem, simply edit the relevant .cpp file. If you
 want to test a new subsystem, or a subsystem with no existing tests, create a new .cpp file and add
 it to the `SOURCES` list in `create_test_executable()` (in `CMakeLists.txt`).
 

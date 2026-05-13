@@ -271,7 +271,7 @@ def makeCSVFname(fname):
     return ".".join(words);
 #
 # The input is the dataframe, where each record has a function name, its
-# begin timestamp, its end timestamp and its stackdepth. This funciton will
+# begin timestamp, its end timestamp and its stackdepth. This function will
 # aggregate this data to determine the percentage of time we spent in each
 # function in each interval.
 #

@@ -95,10 +95,10 @@ class test_layered32(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.session_create_config())
 
         # Populate the table with nrows.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nrows + 1)}
-        self.insert(kv, inital_ts)
+        initial_value = "abc" * 10
+        initial_ts = 5
+        kv = {str(i): initial_value for i in range(1, self.nrows + 1)}
+        self.insert(kv, initial_ts)
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
@@ -106,7 +106,7 @@ class test_layered32(wttest.WiredTigerTestCase):
 
         # Perform two small updates.
         kv_modified = {str(100): "10abc", str(300): "220abc"}
-        self.insert(kv_modified, inital_ts + 1)
+        self.insert(kv_modified, initial_ts + 1)
         # Perform a checkpoint to write out a delta.
         self.session.checkpoint()
 
@@ -122,7 +122,7 @@ class test_layered32(wttest.WiredTigerTestCase):
         self.reopen_disagg_conn(self.conn_config())
 
         # Verify the updated values in the table.
-        self.verify(kv_modified, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -135,7 +135,7 @@ class test_layered32(wttest.WiredTigerTestCase):
         time.sleep(1.0)
 
         # Verify the updated values in the table.
-        self.verify(kv_modified, inital_value)
+        self.verify(kv_modified, initial_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -148,12 +148,12 @@ class test_layered32(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.session_create_config())
 
         # Initial population of the table with nrows.
-        inital_value = "abc" * 100
+        initial_value = "abc" * 100
         small_value = "b123r" * 20
-        inital_ts = 5
+        initial_ts = 5
 
         kv = {str(i): small_value for i in range(1, self.nrows + 1)}
-        self.insert(kv, inital_ts)
+        self.insert(kv, initial_ts)
 
         # First Checkpoint & Reopen to ensure all data is read from the disk.
         self.session.checkpoint()
@@ -163,9 +163,9 @@ class test_layered32(wttest.WiredTigerTestCase):
         keys_to_update = ["241","242","243", "244", "245", "246", "247", "248", "249", "250"]
         kv_modified = {}
         for key in keys_to_update:
-            kv = {key: inital_value}
-            inital_ts = inital_ts + 1
-            self.insert(kv, inital_ts)
+            kv = {key: initial_value}
+            initial_ts = initial_ts + 1
+            self.insert(kv, initial_ts)
 
         # Second Checkpoint to force a page split and write the newly split pages to disk.
         self.session.checkpoint()
@@ -174,8 +174,8 @@ class test_layered32(wttest.WiredTigerTestCase):
         # pages to merge back together and write an internal page delta.
         for key in keys_to_update:
             kv = {key: small_value}
-            inital_ts = inital_ts + 1
-            self.insert(kv, inital_ts)
+            initial_ts = initial_ts + 1
+            self.insert(kv, initial_ts)
             self.session.checkpoint()
             kv_modified.update(kv)
 

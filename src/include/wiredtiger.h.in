@@ -6469,7 +6469,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME		1096
 /*! cache: application requested eviction interrupt */
-#define	WT_STAT_CONN_EVICTION_INTERUPTED_BY_APP		1097
+#define	WT_STAT_CONN_EVICTION_INTERRUPTED_BY_APP	1097
 /*! cache: application thread time evicting (usecs) */
 #define	WT_STAT_CONN_EVICTION_APP_TIME			1098
 /*!
@@ -6628,7 +6628,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: eviction server skips internal pages as it has an active child */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_WITH_ACTIVE_CHILD	1151
 /*! cache: eviction server skips metadata pages with history */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_METATDATA_WITH_HISTORY	1152
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_METADATA_WITH_HISTORY	1152
 /*!
  * cache: eviction server skips pages that are written with transactions
  * greater than the checkpoint timestamp

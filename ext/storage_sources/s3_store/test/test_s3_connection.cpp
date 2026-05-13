@@ -42,7 +42,7 @@ const uint64_t partSize = 8 * 1024 * 1024;  // 8 MB.
 static std::string bucketName("s3testext"); // Can be overridden with environment variables.
 
 /*
- * Objects with the prefex pattern "s3test/*" are deleted after a certain period of time according
+ * Objects with the prefix pattern "s3test/*" are deleted after a certain period of time according
  * to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the prefix pattern
  * or lifecycle of the object, please speak to the release manager.
  */

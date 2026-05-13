@@ -1,131 +1,29 @@
-#!/bin/bash -
+#!/usr/bin/env bash
+set -euo pipefail
 #
-# Check spelling in comments and quoted strings from the source files.
+# Spell-check source files using cspell.
 
-. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/common_functions.sh"
 cd_dist
 check_fast_mode_flag
-setup_trap 'rm -f $t; exit $exit_val'
 
-# Insulate against locale-specific sort order
-LC_ALL=C
-export LC_ALL
+type cspell >/dev/null 2>&1 || { echo "$0 skipped: cspell not found"; exit 0; }
 
-custom_words=s_string.ok
+usage() { echo 'usage: s_string [-F]' >&2; exit 1; }
 
-# If aspell has not been installed, quit
-type aspell > /dev/null 2>&1 || {
-    echo "$0 skipped: aspell not found"
-    exit 0
-}
-
-# run_aspell_for:
-#    Run aspell with the correct mode for a given file type.
-run_aspell_for() {
+while [[ $# -gt 0 ]]; do
     case "$1" in
-    *.yml|*.yaml|*.py)
-        # aspell's built-in --mode=comment is broken
-        # (see https://github.com/GNUAspell/aspell/issues/505). This combines the
-        # workaround from that issue with the filters defined in comment.amf to
-        # replicate the comment filter.
-        aspell --clear-filter --add-filter=url --add-filter=context \
-            --clear-context-delimiters --add-context-delimiters='# \0' \
-            --lang=en_US list;;
-    *)
-        aspell --mode=ccpp --lang=en_US list;;
+        -F) check_fast_mode; shift ;;
+        *)  usage ;;
     esac
-}
+done
 
-# replace:
-#    Create a replacement list of spelling words. This is here because the
-# words we ignore changes over time and it's worth periodically collapsing
-# the list. Don't it too often, the list is correct for many different aspell
-# catalogs and generating a shorter list on any single system will break other
-# systems.
-replace() {
-    run_aspell_for $1 < ../$1 |
-    sort -u |
-    comm -12 /dev/stdin $custom_words
-}
-
-# check:
-#    Check the spelling of an individual file.
-check() {
-    # Strip out git hashes, which are seven character hex strings.
-    # Strip out double quote char literals ('"'), they confuse aspell.
-    # Strip out calls to __wt_getopt so the option lists don't have to be spelling words.
-    # Strip out C-style hex constants.
-    sed -e 's/ [0-9a-f]\{7\} / /g' -e "s/'\"'//g" -e 's/__wt_getopt([^()]*)//' -e 's/0x[[:xdigit:]]\{1,\}/ /g' ../$1 |
-    run_aspell_for $1 |
-    sort -u |
-    comm -23 /dev/stdin $custom_words > $t
-    test -s $t && {
-        echo "==== $1"
-        cat $t
-    }
-}
-
-# List of files to spellcheck.
-l=$(
-  {
-    cd ..
-    find bench dist examples ext src test tools/checksum_bitflip -name '*.[chsy]' | grep -v 'test/3rdparty'
-    find src -name '*.in'
-    find test -name '*.cpp' | grep -v 'test/3rdparty'
-    find test -name '*.py' | grep -v 'test/3rdparty'
-    find test -name '*.yml' | grep -v 'test/3rdparty'
-  } | filter_if_fast
+mapfile -t files < <(
+    cd .. && find bench cmake dist examples ext lang oss src test tools \
+        -type f -not -path '*/3rdparty/*' | filter_if_fast
 )
+[[ ${#files[@]} -eq 0 ]] && exit 0
 
-usage()
-{
-    echo 'usage: s_string [-F] [-r]' >&2
-    exit 1
-}
-
-exit_val=0
-while :
-    do case "$1" in
-    -r)            # -r builds replacement list of OK words
-        for f in $l; do
-            replace $f
-        done | sort -u > $t
-
-        # Between aspell versions 0.60.7-20110707 and 0.60.8 the following words have been
-        # added to the dictionary and are no longer considered spelling errors. This means
-        # that building a replacement list of words with the newer version of aspell will omit them
-        # from our custom words file, and subsequently running s_string with older aspell version will
-        # report spelling errors. Manually whitelist these names to address this.
-        whitelist_words="AWS AWS's MongoDB MONGODB PostgreSQL Reify sanitizer sanitizers dylib"
-        for name in $whitelist_words; do
-            echo $name >> $t
-        done
-        sort -u -o $t $t
-
-	if ! diff $t $custom_words >/dev/null 2>&1; then
-            echo "The $custom_words list will be updated to remove words that are no longer needed."
-            cp $t $custom_words
-            exit_val=1
-        else
-            echo "No need to update the $custom_words list."
-        fi
-        shift;;
-    -F) check_fast_mode; WT_FAST=1; shift;;
-    *)
-        test "$#" -eq 0 || usage
-        break;;
-    esac
-done
-
-# Check custom words are sorted.
-if ! sort -c $custom_words; then
-    echo "Sorting $custom_words ..."
-    sort -u -o $custom_words $custom_words
-fi
-
-# Check source files.
-for f in $l; do
-    check $f
-done
-
-exit $exit_val
+cd .. && printf '%s\n' "${files[@]}" | xargs cspell lint \
+    --no-progress --no-must-find-files --cache --cache-strategy content \
+    --config cspell.json

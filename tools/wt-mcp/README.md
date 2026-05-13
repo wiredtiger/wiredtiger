@@ -19,7 +19,7 @@ This enables debugging workflows such as:
 
 ### What is MCP?
 
-The Model Context Protocol (MCP) is a standardised way for AI assistants to interact with external tools, resources, and environments. For more information, visit [modelcontextprotocol.io](https://modelcontextprotocol.io).
+The Model Context Protocol (MCP) is a standardized way for AI assistants to interact with external tools, resources, and environments. For more information, visit [modelcontextprotocol.io](https://modelcontextprotocol.io).
 
 ## Installation
 

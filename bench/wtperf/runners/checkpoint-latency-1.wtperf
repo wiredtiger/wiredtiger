@@ -31,7 +31,7 @@ table_count=100
 threads=((count=100,updates=1,throttle=700),(count=100,reads=1,throttle=2800))
 # We've done all our calculations based on a 5K record size.  But we have
 # compression on, and there is also the factor of any additional btree
-# overhead. Experimently, we've observed that workgen records sized as below
+# overhead. Experimentally, we've observed that workgen records sized as below
 # end up with a disk footprint close to 5K, at least in btree data files.
 value_sz=7000
 # Wait for the throughput to stabilize

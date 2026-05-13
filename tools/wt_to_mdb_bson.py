@@ -77,7 +77,7 @@ def print_bson(bson, as_json):
     else:
         return pprint.pformat(bson, indent=1).replace('\n', '\n\t  ')
 
-# A utility function for converting verify byte output into parsible hex.
+# A utility function for converting verify byte output into parsable hex.
 def convert_byte(inp):
     ret = ""
     idx = 0
