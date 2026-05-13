@@ -514,6 +514,7 @@ worker(void *arg)
           (trk->ops % opts->sample_rate == 0);
         start = __wt_clock(NULL);
 
+retry:
         cursor->set_key(cursor, key_buf);
         switch (*op) {
         case WORKER_READ:
@@ -690,21 +691,19 @@ worker(void *arg)
                 break;
 
 op_err:
-            if (ret == WT_ROLLBACK && use_txn) {
-                /*
-                 * If we are running with explicit transactions configured and we hit a WT_ROLLBACK,
-                 * then we should rollback the current transaction and attempt to continue. This
-                 * does break the guarantee of insertion order in cases of ordered inserts, as we
-                 * aren't retrying here.
-                 */
-                if ((ret = session->rollback_transaction(session, NULL)) != 0) {
-                    lprintf(wtperf, ret, 0, "Failed rollback_transaction");
-                    goto err;
+            if (ret == WT_ROLLBACK) {
+                if (use_txn) {
+                    if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                        lprintf(wtperf, ret, 0, "Failed rollback_transaction");
+                        goto err;
+                    }
+                    if ((ret = session->begin_transaction(session, NULL)) != 0) {
+                        lprintf(wtperf, ret, 0, "Worker begin transaction failed");
+                        goto err;
+                    }
                 }
-                if ((ret = session->begin_transaction(session, NULL)) != 0) {
-                    lprintf(wtperf, ret, 0, "Worker begin transaction failed");
-                    goto err;
-                }
+                if (opts->retry_writes)
+                    goto retry;
                 break;
             }
             lprintf(wtperf, ret, 0, "%s failed for: %s, range: %" PRIu64, op_name(op), key_buf,
