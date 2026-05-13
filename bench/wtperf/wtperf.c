@@ -344,6 +344,7 @@ worker(void *arg)
     uint32_t rand_val, total_table_count;
     uint8_t *op, *op_end;
     int measure_latency, nmodify, ret, truncated;
+    uint32_t retry_count;
     char *index_buf, *index_del_buf, *key_buf, *value, *value_buf;
     char buf[512];
     bool use_txn;
@@ -513,6 +514,7 @@ worker(void *arg)
         measure_latency = opts->sample_interval != 0 && trk != NULL && trk->ops != 0 &&
           (trk->ops % opts->sample_rate == 0);
         start = __wt_clock(NULL);
+        retry_count = 0;
 
 retry:
         cursor->set_key(cursor, key_buf);
@@ -702,8 +704,15 @@ op_err:
                         goto err;
                     }
                 }
-                if (opts->retry_writes)
+                if (opts->retry_writes) {
+                    if (++retry_count > 1000) {
+                        lprintf(wtperf, WT_ERROR, 0,
+                          "Exceeded maximum retry limit of 1000 retries on write conflict, key: %s",
+                          key_buf);
+                        goto err;
+                    }
                     goto retry;
+                }
                 break;
             }
             lprintf(wtperf, ret, 0, "%s failed for: %s, range: %" PRIu64, op_name(op), key_buf,
