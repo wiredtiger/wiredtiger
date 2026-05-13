@@ -303,6 +303,93 @@ __curversion_walk_to_next_update(
 }
 
 /*
+ * __curversion_process_chain --
+ *     Return the next version from the in-memory update chain, if any.
+ */
+static int
+__curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_foundp, bool *donep)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_SESSION_IMPL *session;
+    WT_UPDATE *next_upd, *tombstone, *upd;
+    uint8_t prepare_state;
+    bool version_prepared;
+
+    session = CUR2S(cursor);
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
+    tombstone = NULL;
+
+    if (F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED))
+        return (0);
+
+    upd = version_cursor->next_upd;
+    if (upd == NULL) {
+        version_cursor->next_upd = NULL;
+        F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
+        return (0);
+    }
+
+    if (version_cursor->start_timestamp != WT_TS_NONE && upd->upd_durable_ts != WT_TS_NONE &&
+      upd->upd_durable_ts <= version_cursor->start_timestamp) {
+        *donep = true;
+        return (0);
+    }
+
+    if (upd->type == WT_UPDATE_TOMBSTONE) {
+        tombstone = upd;
+
+        /*
+         * Record the tombstone's stop information and traverse on to a value-bearing update. If the
+         * tombstone is the last update on the chain, the caller will fall back to the on-disk
+         * value.
+         */
+        WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+        version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
+          (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
+        __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
+        upd = __curversion_tombstone_next_upd(session, version_cursor, tombstone);
+    }
+
+    *tombstonep = tombstone;
+
+    if (upd == NULL) {
+        version_cursor->next_upd = NULL;
+        F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
+        return (0);
+    }
+
+    WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+    version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
+      (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
+
+    /*
+     * Copy the update value into the version cursor as we don't know the value format. If the
+     * update is a modify, reconstruct the value.
+     */
+    if (upd->type != WT_UPDATE_MODIFY)
+        __wt_upd_value_assign(cbt->upd_value, upd);
+    else
+        WT_RET(__wt_modify_reconstruct_from_upd_list(
+          session, cbt, upd, cbt->upd_value, WT_OPCTX_TRANSACTION));
+
+    /* Pack the metadata describing this version into the version cursor's value. */
+    WT_RET(__curversion_value_return_from_upd(cursor, version_cursor, upd, version_prepared));
+
+    __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
+
+    *upd_foundp = true;
+
+    next_upd = __curversion_walk_to_next_update(session, version_cursor, upd);
+    version_cursor->next_upd = next_upd;
+    if (next_upd == NULL)
+        F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
+
+    return (0);
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
@@ -318,12 +405,12 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *next_upd, *tombstone, *upd;
+    WT_UPDATE *tombstone;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_prepare_ts, stop_ts;
     size_t max_memsize;
     uint64_t hs_upd_type, raw, stop_prepared_id, stop_txn;
     uint8_t *p, prepare_state;
-    bool stop_prepared, upd_found, version_prepared;
+    bool done, stop_prepared, upd_found, version_prepared;
 
     session = CUR2S(cursor);
     version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -331,8 +418,9 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     hs_cursor = version_cursor->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
     twp = NULL;
+    done = false;
     upd_found = false;
-    tombstone = upd = NULL;
+    tombstone = NULL;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -346,69 +434,9 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     /* It's unsafe to access the page before checking the cursor's position. */
     page = cbt->ref->page;
 
-    if (!F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED)) {
-        upd = version_cursor->next_upd;
-
-        if (upd == NULL) {
-            version_cursor->next_upd = NULL;
-            F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
-        } else {
-            if (version_cursor->start_timestamp != WT_TS_NONE &&
-              upd->upd_durable_ts != WT_TS_NONE &&
-              upd->upd_durable_ts <= version_cursor->start_timestamp)
-                goto done;
-
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                tombstone = upd;
-
-                /*
-                 * If the update is a tombstone, we still want to record the stop information but we
-                 * also need traverse to the next update to get the full value. If the tombstone was
-                 * the last update in the update list, retrieve the ondisk value.
-                 */
-                WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
-                version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
-                  (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
-                __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
-
-                upd = __curversion_tombstone_next_upd(session, version_cursor, tombstone);
-            }
-
-            if (upd == NULL) {
-                version_cursor->next_upd = NULL;
-                F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
-            } else {
-                WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
-                version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
-                  (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
-
-                /*
-                 * Copy the update value into the version cursor as we don't know the value format.
-                 * If the update is a modify, reconstruct the value.
-                 */
-                if (upd->type != WT_UPDATE_MODIFY)
-                    __wt_upd_value_assign(cbt->upd_value, upd);
-                else
-                    WT_ERR(__wt_modify_reconstruct_from_upd_list(
-                      session, cbt, upd, cbt->upd_value, WT_OPCTX_TRANSACTION));
-
-                /*
-                 * Set the version cursor's value, which also contains all the record metadata for
-                 * that particular version of the update.
-                 */
-                WT_ERR(__curversion_value_return_from_upd(cursor, version_cursor, upd, version_prepared));
-
-                __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
-
-                upd_found = true;
-
-                next_upd = __curversion_walk_to_next_update(session, version_cursor, upd);
-                version_cursor->next_upd = next_upd;
-                if (next_upd == NULL)
-                    F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
-            }
-        }
-    }
+    WT_ERR(__curversion_process_chain(cursor, &tombstone, &upd_found, &done));
+    if (done)
+        goto done;
 
     if (!upd_found && !F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED)) {
         /*
