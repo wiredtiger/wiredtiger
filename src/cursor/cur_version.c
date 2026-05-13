@@ -178,7 +178,7 @@ __curversion_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
 
 /*
  * __curversion_tombstone_next_upd --
- *     After recording stop metadata from a tombstone, advance past it to find the value to emit.
+ *     After recording stop metadata from a tombstone, advance past it to find the value to return.
  *     Handles both the normal case (skip all aborted updates) and show_prepared_rollback mode
  *     (include rolled-back prepared value updates).
  */
