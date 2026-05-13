@@ -419,6 +419,48 @@ __curversion_disk_skip_no_stop(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW
 }
 
 /*
+ * __curversion_disk_check_with_stop --
+ *     Apply the timestamp-order filter to an on-disk record that has a stop side.
+ */
+static void
+__curversion_disk_check_with_stop(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor,
+  WT_TIME_WINDOW *tw, bool *skipp, bool *donep)
+{
+    if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
+        return;
+
+    if (__wt_txn_tw_start_visible_all(session, tw)) {
+        *donep = true;
+        return;
+    }
+
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
+        *skipp = true;
+        return;
+    }
+
+    /* See the no-stop branch: skip the comparison after a rolled-back prepared emission. */
+    if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED) {
+        if (__curversion_stop_uses_prepare_ts(version_cursor)) {
+            if (tw->stop_txn > version_cursor->upd_stop_txnid ||
+              tw->stop_ts > version_cursor->upd_stop_prepare_ts) {
+                *skipp = true;
+                return;
+            }
+        } else if (tw->stop_txn > version_cursor->upd_stop_txnid ||
+          tw->stop_ts > version_cursor->curversion_stop_ts) {
+            *skipp = true;
+            return;
+        }
+    }
+
+    /* An update whose start equals stop never became visible. */
+    if (tw->stop_txn == tw->start_txn && tw->stop_prepare_ts == tw->start_prepare_ts &&
+      tw->stop_ts == tw->start_ts && tw->durable_stop_ts == tw->durable_start_ts)
+        *skipp = true;
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
@@ -523,34 +565,13 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 stop_txn = version_cursor->upd_stop_txnid;
                 stop_prepared = __curversion_stop_uses_prepare_ts(version_cursor);
             } else {
-                if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER)) {
-                    if (__wt_txn_tw_start_visible_all(session, &cbt->upd_value->tw))
+                {
+                    bool disk_skip = false, disk_done = false;
+                    __curversion_disk_check_with_stop(session, version_cursor,
+                      &cbt->upd_value->tw, &disk_skip, &disk_done);
+                    if (disk_done)
                         goto done;
-
-                    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&cbt->upd_value->tw))
-                        goto skip_on_page;
-
-                    /*
-                     * See the no-stop branch above: skip the comparison when the previous emission
-                     * was a rolled-back prepared update.
-                     */
-                    if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED) {
-                        if (__curversion_stop_uses_prepare_ts(version_cursor)) {
-                            if (cbt->upd_value->tw.stop_txn > version_cursor->upd_stop_txnid ||
-                              cbt->upd_value->tw.stop_ts > version_cursor->upd_stop_prepare_ts)
-                                goto skip_on_page;
-                        } else {
-                            if (cbt->upd_value->tw.stop_txn > version_cursor->upd_stop_txnid ||
-                              cbt->upd_value->tw.stop_ts > version_cursor->curversion_stop_ts)
-                                goto skip_on_page;
-                        }
-                    }
-
-                    /* The update is not visible if start equals stop. */
-                    if (cbt->upd_value->tw.stop_txn == cbt->upd_value->tw.start_txn &&
-                      cbt->upd_value->tw.stop_prepare_ts == cbt->upd_value->tw.start_prepare_ts &&
-                      cbt->upd_value->tw.stop_ts == cbt->upd_value->tw.start_ts &&
-                      cbt->upd_value->tw.durable_stop_ts == cbt->upd_value->tw.durable_start_ts)
+                    if (disk_skip)
                         goto skip_on_page;
                 }
                 durable_stop_ts = cbt->upd_value->tw.durable_stop_ts;
