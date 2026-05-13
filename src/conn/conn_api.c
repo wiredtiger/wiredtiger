@@ -773,6 +773,42 @@ __wti_conn_remove_storage_source(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_conn_ext_init --
+ *     Initialize the WT_CONN_EXTENSIONS structure.
+ */
+int
+__wti_conn_ext_init(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    TAILQ_INIT(&conn->ext.collqh);       /* Collator list */
+    TAILQ_INIT(&conn->ext.compqh);       /* Compressor list */
+    TAILQ_INIT(&conn->ext.encryptqh);    /* Encryptor list */
+    TAILQ_INIT(&conn->ext.pagelogqh);    /* Page log list */
+    TAILQ_INIT(&conn->ext.storagesrcqh); /* Storage source list */
+    WT_RET(__wt_spin_init(session, &conn->ext.encryptor_lock, "encryptor"));
+    WT_RET(__wt_spin_init(session, &conn->ext.page_log_lock, "page log"));
+    WT_RET(__wt_spin_init(session, &conn->ext.storage_lock, "tiered storage"));
+    return (0);
+}
+
+/*
+ * __wti_conn_ext_destroy --
+ *     Destroy the WT_CONN_EXTENSIONS structure.
+ */
+void
+__wti_conn_ext_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    __wt_spin_destroy(session, &conn->ext.encryptor_lock);
+    __wt_spin_destroy(session, &conn->ext.page_log_lock);
+    __wt_spin_destroy(session, &conn->ext.storage_lock);
+}
+
+/*
  * __conn_ext_file_system_get --
  *     WT_EXTENSION.file_system_get method. Get file system in use.
  */

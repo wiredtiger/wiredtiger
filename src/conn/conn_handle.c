@@ -20,17 +20,15 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
 
     session = conn->default_session;
 
-    TAILQ_INIT(&conn->dhqh);             /* Data handle list */
-    TAILQ_INIT(&conn->dlhqh);            /* Library list */
-    TAILQ_INIT(&conn->dsrcqh);           /* Data source list */
-    TAILQ_INIT(&conn->fhqh);             /* File list */
-    TAILQ_INIT(&conn->ext.collqh);       /* Collator list */
-    TAILQ_INIT(&conn->ext.compqh);       /* Compressor list */
-    TAILQ_INIT(&conn->ext.encryptqh);    /* Encryptor list */
-    TAILQ_INIT(&conn->ext.pagelogqh);    /* Page log list */
-    TAILQ_INIT(&conn->ext.storagesrcqh); /* Storage source list */
-    TAILQ_INIT(&conn->tieredqh);         /* Tiered work unit list */
-    TAILQ_INIT(&conn->pfqh);             /* Pre-fetch reference list */
+    TAILQ_INIT(&conn->dhqh);   /* Data handle list */
+    TAILQ_INIT(&conn->dlhqh);  /* Library list */
+    TAILQ_INIT(&conn->dsrcqh); /* Data source list */
+    TAILQ_INIT(&conn->fhqh);   /* File list */
+    TAILQ_INIT(&conn->tieredqh); /* Tiered work unit list */
+    TAILQ_INIT(&conn->pfqh);     /* Pre-fetch reference list */
+
+    /* Extension interface lists. */
+    WT_RET(__wti_conn_ext_init(session));
 
     /* Disaggregated storage. */
     TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh);
@@ -50,9 +48,6 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->background_compact.lock, "background compact"));
     WT_RET(__wt_spin_init(
       session, &conn->disaggregated_storage.shared_metadata_queue_lock, "update shared metadata"));
-    WT_RET(__wt_spin_init(session, &conn->ext.encryptor_lock, "encryptor"));
-    WT_RET(__wt_spin_init(session, &conn->ext.page_log_lock, "page log"));
-    WT_RET(__wt_spin_init(session, &conn->ext.storage_lock, "tiered storage"));
     WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
     WT_RET(__wt_spin_init(session, &conn->flush_tier_lock, "flush tier"));
     WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata);
@@ -116,9 +111,6 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     __wt_rwlock_destroy(session, &conn->log_mgr.debug_log_retention_lock);
     __wt_rwlock_destroy(session, &conn->dhandle_lock);
-    __wt_spin_destroy(session, &conn->ext.encryptor_lock);
-    __wt_spin_destroy(session, &conn->ext.page_log_lock);
-    __wt_spin_destroy(session, &conn->ext.storage_lock);
     __wt_spin_destroy(session, &conn->fh_lock);
     __wt_spin_destroy(session, &conn->flush_tier_lock);
     __wt_rwlock_destroy(session, &conn->hot_backup_lock);
@@ -129,6 +121,9 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
     __wt_spin_destroy(session, &conn->prefetch_lock);
+
+    /* Extension interface lists. */
+    __wti_conn_ext_destroy(session);
 
     /* Free allocated hash buckets. */
     __wt_free(session, conn->blockhash);
