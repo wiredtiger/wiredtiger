@@ -72,8 +72,8 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
 
     REQUIRE(__wt_spin_init(session, &conn_impl->disaggregated_storage.shared_metadata_queue_lock,
               "update shared metadata") == 0);
-    REQUIRE(__wt_spin_init(session, &conn_impl->api_lock, "api") == 0);
-    REQUIRE(__wt_spin_init(session, &conn_impl->schema_lock, "schema") == 0);
+    REQUIRE(__wt_spin_init(session, &conn_impl->locks.api_lock, "api") == 0);
+    REQUIRE(__wt_spin_init(session, &conn_impl->locks.schema_lock, "schema") == 0);
 
     /* Setup the page log queue. */
     setup_page_log_queue(session);
@@ -126,5 +126,5 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
     REQUIRE(__wti_layered_table_manager_destroy(session) == 0);
 
     __wt_spin_destroy(session, &conn_impl->disaggregated_storage.shared_metadata_queue_lock);
-    __wt_spin_destroy(session, &conn_impl->api_lock);
+    __wt_spin_destroy(session, &conn_impl->locks.api_lock);
 }

@@ -406,7 +406,7 @@ struct __wt_import_list {
                 op;                                                                            \
             }                                                                                  \
         } else {                                                                               \
-            __wt_readlock(session, &__conn->locks.hot_backup_lock);                                  \
+            __wt_readlock(session, &__conn->locks.hot_backup_lock);                            \
             FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ);                    \
             if ((__wt_atomic_load_uint64_relaxed(&__conn->hot_backup_start) == 0) == bk_off) { \
                 if ((skipp) != (bool *)NULL)                                                   \
@@ -414,7 +414,7 @@ struct __wt_import_list {
                 op;                                                                            \
             }                                                                                  \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ);                    \
-            __wt_readunlock(session, &__conn->locks.hot_backup_lock);                                \
+            __wt_readunlock(session, &__conn->locks.hot_backup_lock);                          \
         }                                                                                      \
     } while (0)
 
@@ -448,11 +448,11 @@ struct __wt_import_list {
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP)) {  \
             op;                                                             \
         } else {                                                            \
-            __wt_readlock(session, &__conn->locks.hot_backup_lock);               \
+            __wt_readlock(session, &__conn->locks.hot_backup_lock);         \
             FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ); \
             op;                                                             \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ); \
-            __wt_readunlock(session, &__conn->locks.hot_backup_lock);             \
+            __wt_readunlock(session, &__conn->locks.hot_backup_lock);       \
         }                                                                   \
     } while (0)
 
@@ -467,10 +467,10 @@ struct __wt_import_list {
             op;                                                                                    \
         } else {                                                                                   \
             WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ)); \
-            __wt_writelock(session, &__conn->locks.hot_backup_lock);                                     \
+            __wt_writelock(session, &__conn->locks.hot_backup_lock);                               \
             FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE);                       \
             op;                                                                                    \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE);                       \
-            __wt_writeunlock(session, &__conn->locks.hot_backup_lock);                                   \
+            __wt_writeunlock(session, &__conn->locks.hot_backup_lock);                             \
         }                                                                                          \
     } while (0)
