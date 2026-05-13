@@ -210,6 +210,27 @@ __curversion_tombstone_next_upd(
 }
 
 /*
+ * __curversion_record_stop_time_point --
+ *     Save an update's metadata as the previously-returned stop state.
+ */
+static void
+__curversion_record_stop_time_point(
+  WT_CURSOR_VERSION *version_cursor, WT_UPDATE *upd, bool version_prepared)
+{
+    version_cursor->upd_stop_txnid = upd->txnid;
+    if (upd->txnid == WT_TXN_ABORTED) {
+        version_cursor->curversion_stop_rollback_ts = upd->upd_rollback_ts;
+        version_cursor->curversion_stop_saved_txnid = upd->upd_saved_txnid;
+    } else {
+        version_cursor->curversion_durable_stop_ts = upd->upd_durable_ts;
+        version_cursor->curversion_stop_ts = upd->upd_start_ts;
+    }
+    version_cursor->upd_stop_prepare_ts = upd->prepare_ts;
+    version_cursor->upd_stop_prepared_id = upd->prepared_id;
+    version_cursor->upd_stop_prepared = version_prepared;
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
@@ -276,17 +297,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
                 version_prepared = !__curversion_is_prepare_rollback_update(upd) &&
                   (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
-                version_cursor->upd_stop_txnid = upd->txnid;
-                if (upd->txnid == WT_TXN_ABORTED) {
-                    version_cursor->curversion_stop_rollback_ts = upd->upd_rollback_ts;
-                    version_cursor->curversion_stop_saved_txnid = upd->upd_saved_txnid;
-                } else {
-                    version_cursor->curversion_durable_stop_ts = upd->upd_durable_ts;
-                    version_cursor->curversion_stop_ts = upd->upd_start_ts;
-                }
-                version_cursor->upd_stop_prepare_ts = upd->prepare_ts;
-                version_cursor->upd_stop_prepared_id = upd->prepared_id;
-                version_cursor->upd_stop_prepared = version_prepared;
+                __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
 
                 upd = __curversion_tombstone_next_upd(session, version_cursor, tombstone);
             }
@@ -334,17 +345,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                       version_cursor->upd_stop_prepare_ts, version_cursor->upd_stop_prepared_id,
                       upd->type, version_prepared, upd->flags, WT_CURVERSION_UPDATE_CHAIN));
 
-                version_cursor->upd_stop_txnid = upd->txnid;
-                if (upd->txnid == WT_TXN_ABORTED) {
-                    version_cursor->curversion_stop_rollback_ts = upd->upd_rollback_ts;
-                    version_cursor->curversion_stop_saved_txnid = upd->upd_saved_txnid;
-                } else {
-                    version_cursor->curversion_durable_stop_ts = upd->upd_durable_ts;
-                    version_cursor->curversion_stop_ts = upd->upd_start_ts;
-                }
-                version_cursor->upd_stop_prepare_ts = upd->prepare_ts;
-                version_cursor->upd_stop_prepared_id = upd->prepared_id;
-                version_cursor->upd_stop_prepared = version_prepared;
+                __curversion_record_stop_time_point(version_cursor, upd, version_prepared);
 
                 upd_found = true;
 
