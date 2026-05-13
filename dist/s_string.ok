@@ -538,6 +538,7 @@ Vigenere
 Vixie
 VxWorks
 WAL
+WARMUP
 WCHAR
 WILLNEED
 WIREDTIGER
@@ -832,6 +833,7 @@ curhs
 curindex
 curlog
 curmetadata
+currentp
 cursoring
 cursorp
 curstat
@@ -889,6 +891,7 @@ deref
 dereference
 dereferencing
 desc
+descentp
 designator
 dest
 destSize

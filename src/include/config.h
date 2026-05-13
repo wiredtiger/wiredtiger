@@ -356,6 +356,7 @@ extern const char __WT_CONFIG_CHOICE_unencrypted[];
 extern const char __WT_CONFIG_CHOICE_upper[];
 extern const char __WT_CONFIG_CHOICE_verify[];
 extern const char __WT_CONFIG_CHOICE_version[];
+extern const char __WT_CONFIG_CHOICE_warmup[];
 extern const char __WT_CONFIG_CHOICE_write[];
 extern const char __WT_CONFIG_CHOICE_write_timestamp[];
 /*

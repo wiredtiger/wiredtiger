@@ -150,6 +150,7 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <format>
 #include <functional>
 #include <iostream>
@@ -167,6 +168,7 @@
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 
 using namespace std::chrono_literals;
 
@@ -359,11 +361,34 @@ struct Config {
     uint32_t force_delay = 0;              /* Force a simulated network delay every N operations */
     uint32_t force_error = 0;              /* Force a simulated network error every N operations */
     uint32_t materialization_delay_ms = 0; /* Average length of materialization delay */
-    uint64_t last_materialized_lsn = 0;    /* The last materialized LSN (0 if not set) */
-    int32_t verbose = WT_VERBOSE_INFO;     /* Verbose level */
-    bool verbose_msg = true;               /* Send verbose messages to msg callback interface */
-    bool sql_trace = false;                /* Trace all SQLite calls */
-    bool verify = true;                    /* Verify integrity of page delta chains */
+    /*
+     * skunk_94 touch-cursor POC simulation. All disabled by default so existing palite
+     * users are not affected. Set ``touch_sim_enabled=true`` in the extension config
+     * to opt in; the three latency knobs then govern get_pages timing:
+     *
+     *   - WT_PAGE_LOG_WARMUP calls sleep ``touch_sim_warmup_ms`` the first time a
+     *     given (table_id, page_id) is warmed; repeated warmups are free.
+     *   - Regular reads sleep ``touch_sim_cold_ms`` for pages not in the warm-set,
+     *     ``touch_sim_warm_ms`` for pages that have been warmed.
+     *   - A regular read does NOT auto-promote a page into the warm-set: the warm-set
+     *     models SLS heuristic state, only the touch cursor feeds it.
+     */
+    bool touch_sim_enabled = false;
+    uint32_t touch_sim_cold_ms = 0;
+    uint32_t touch_sim_warm_ms = 0;
+    uint32_t touch_sim_warmup_ms = 0;
+    /*
+     * When true, palite persists the warm-set to <kv_home>/warmset.bin on Storage destruction and
+     * loads it on construction. Lets a sidecar warmup process feed the warm-set that a subsequent
+     * mongod (or any other WT consumer) will observe. Off by default so the existing tests, which
+     * already assume process-static warm-set behavior, are unaffected.
+     */
+    bool touch_sim_persist_warmset = false;
+    uint64_t last_materialized_lsn = 0; /* The last materialized LSN (0 if not set) */
+    int32_t verbose = WT_VERBOSE_INFO;  /* Verbose level */
+    bool verbose_msg = true;            /* Send verbose messages to msg callback interface */
+    bool sql_trace = false;             /* Trace all SQLite calls */
+    bool verify = true;                 /* Verify integrity of page delta chains */
 
     Config() = default;
     Config(WT_EXTENSION_API *wt_api, WT_CONFIG_ARG *config) : extapi(wt_api)
@@ -381,6 +406,12 @@ struct Config {
         configure_value(parser.get(), config, "force_delay", force_delay);
         configure_value(parser.get(), config, "force_error", force_error);
         configure_value(parser.get(), config, "materialization_delay_ms", materialization_delay_ms);
+        configure_value(parser.get(), config, "touch_sim_enabled", touch_sim_enabled);
+        configure_value(parser.get(), config, "touch_sim_cold_ms", touch_sim_cold_ms);
+        configure_value(parser.get(), config, "touch_sim_warm_ms", touch_sim_warm_ms);
+        configure_value(parser.get(), config, "touch_sim_warmup_ms", touch_sim_warmup_ms);
+        configure_value(
+          parser.get(), config, "touch_sim_persist_warmset", touch_sim_persist_warmset);
         configure_value(parser.get(), config, "verbose", verbose);
         configure_value(parser.get(), config, "verbose_msg", verbose_msg);
         configure_value(parser.get(), config, "sql_trace", sql_trace);
@@ -466,11 +497,13 @@ template <> struct std::formatter<Config> {
     {
         return std::format_to(ctx.out(),
           "{{cache_size_mb={:L}, mmap_size_mb={:L}, delay_ms={}, error_ms={}, force_delay={}, "
-          "force_error={}, materialization_delay_ms={}, last_materialized_lsn={}, "
-          "verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
+          "force_error={}, materialization_delay_ms={}, touch_sim_enabled={}, "
+          "touch_sim_cold_ms={}, touch_sim_warm_ms={}, touch_sim_warmup_ms={}, "
+          "last_materialized_lsn={}, verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
           cfg.cache_size_mb, cfg.mmap_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay,
-          cfg.force_error, cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose,
-          cfg.verbose_msg, cfg.sql_trace, cfg.verify);
+          cfg.force_error, cfg.materialization_delay_ms, cfg.touch_sim_enabled,
+          cfg.touch_sim_cold_ms, cfg.touch_sim_warm_ms, cfg.touch_sim_warmup_ms,
+          cfg.last_materialized_lsn, cfg.verbose, cfg.verbose_msg, cfg.sql_trace, cfg.verify);
     }
 };
 
@@ -1983,6 +2016,112 @@ class Storage {
     std::atomic_ullong object_puts; /* (What would be) network writes */
     std::atomic_ullong object_gets; /* (What would be) network requests for data */
 
+    /*
+     * skunk_94: warm-set of (table_id, page_id) pairs that have been "warmed" via the
+     * fire-and-forget WT_PAGE_LOG_WARMUP path. Future cold reads of these pages incur
+     * Config::warm_read_ms instead of Config::cold_read_ms.
+     *
+     * In a real deployment the warm-set models SLS heuristic state, which lives outside WiredTiger
+     * and survives WT restarts. We mirror that by keeping the set process-static, keyed by db_home
+     * path; closing and reopening a WT connection against the same db_home does NOT lose warm bits.
+     */
+    static std::mutex &
+    global_warm_mu()
+    {
+        static std::mutex m;
+        return m;
+    }
+
+    static std::unordered_map<std::string, std::unordered_set<uint64_t>> &
+    global_warm_map()
+    {
+        static std::unordered_map<std::string, std::unordered_set<uint64_t>> m;
+        return m;
+    }
+
+    static uint64_t
+    warm_key(uint64_t table_id, uint64_t page_id)
+    {
+        return (table_id << 40) ^ page_id;
+    }
+
+    bool
+    is_warm(uint64_t table_id, uint64_t page_id)
+    {
+        const uint64_t k = warm_key(table_id, page_id);
+        std::lock_guard<std::mutex> lock(global_warm_mu());
+        auto it = global_warm_map().find(db_home.string());
+        return it != global_warm_map().end() && it->second.find(k) != it->second.end();
+    }
+
+    /* Returns true if the key was newly inserted. */
+    bool
+    mark_warm(uint64_t table_id, uint64_t page_id)
+    {
+        const uint64_t k = warm_key(table_id, page_id);
+        std::lock_guard<std::mutex> lock(global_warm_mu());
+        return global_warm_map()[db_home.string()].insert(k).second;
+    }
+
+    /*
+     * skunk_94: warm-set persistence. Stored at <db_home>/warmset.bin as
+     *     [uint64 magic][uint64 count][uint64 entries...].
+     * Lets a sidecar warmup process and a separately-launched mongod (or any other WT consumer)
+     * share warm-set state across processes, which the in-memory map can't do on its own.
+     */
+    static constexpr uint64_t WARMSET_MAGIC = 0x53303934'57534554ULL; /* 'S094WSET' */
+
+    std::filesystem::path
+    warmset_path() const
+    {
+        return db_home / "warmset.bin";
+    }
+
+    void
+    load_warmset_locked()
+    {
+        const auto path = warmset_path();
+        std::ifstream in(path, std::ios::binary);
+        if (!in)
+            return;
+        uint64_t magic = 0, count = 0;
+        in.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+        in.read(reinterpret_cast<char *>(&count), sizeof(count));
+        if (!in || magic != WARMSET_MAGIC)
+            return;
+        auto &set = global_warm_map()[db_home.string()];
+        set.reserve(set.size() + count);
+        for (uint64_t i = 0; i < count; ++i) {
+            uint64_t k = 0;
+            if (!in.read(reinterpret_cast<char *>(&k), sizeof(k)))
+                return;
+            set.insert(k);
+        }
+    }
+
+    void
+    save_warmset()
+    {
+        std::lock_guard<std::mutex> lock(global_warm_mu());
+        auto it = global_warm_map().find(db_home.string());
+        if (it == global_warm_map().end())
+            return;
+        const auto path = warmset_path();
+        const auto tmp = path.string() + ".tmp";
+        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+        if (!out)
+            return;
+        const uint64_t magic = WARMSET_MAGIC;
+        const uint64_t count = it->second.size();
+        out.write(reinterpret_cast<const char *>(&magic), sizeof(magic));
+        out.write(reinterpret_cast<const char *>(&count), sizeof(count));
+        for (uint64_t k : it->second)
+            out.write(reinterpret_cast<const char *>(&k), sizeof(k));
+        out.close();
+        if (out)
+            std::filesystem::rename(tmp, path);
+    }
+
     static size_t
     get_shard_id(uint64_t table_id)
     {
@@ -1990,11 +2129,25 @@ class Storage {
     }
 
 public:
-    ~Storage() = default;
+    ~Storage()
+    {
+        if (config.touch_sim_persist_warmset)
+            save_warmset();
+    }
     Storage(Config &cfg, const std::filesystem::path &dbp)
         : config(cfg), db_home(dbp), globals(cfg, store_access, db_home),
           checkpoints(cfg, store_access, db_home)
     {
+        if (config.touch_sim_persist_warmset) {
+            std::lock_guard<std::mutex> lock(global_warm_mu());
+            /*
+             * Only seed from disk if no other Storage in this process has populated the map for
+             * this db_home yet. Otherwise the in-memory state is already authoritative and
+             * re-reading would be a no-op (or worse, lose unsynced entries on a parallel destruct).
+             */
+            if (global_warm_map().find(db_home.string()) == global_warm_map().end())
+                load_warmset_locked();
+        }
     }
 
     Storage(const Storage &) = delete;
@@ -2150,11 +2303,61 @@ public:
     get_pages(uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args, uint32_t *flags,
       WT_ITEM *results_array, uint32_t *results_count)
     {
+        const bool is_warmup = (args->flags & WT_PAGE_LOG_WARMUP) != 0;
+
+        /*
+         * skunk_94 touch-cursor simulation, opt-in via touch_sim_enabled. When the
+         * master switch is off the rest of palite behaves exactly as before:
+         *   - the warm-set is never consulted or modified,
+         *   - reads pay no extra latency,
+         *   - warmup requests still return zero results (they have to: that is the
+         *     contract of WT_PAGE_LOG_WARMUP), but they do not sleep.
+         * That keeps every existing palite-backed test bit-for-bit identical.
+         */
+        if (is_warmup) {
+            if (config.touch_sim_enabled) {
+                /*
+                 * Per-page warmup cost is paid only once; subsequent warmup calls for the same
+                 * (table_id, page_id) are no-ops. This models PALI's expected async behavior: the
+                 * first hint dispatches work to the page log; repeated hints for an in-flight or
+                 * already-warm page fall through.
+                 */
+                const bool newly = mark_warm(table_id, page_id);
+                if (newly && config.touch_sim_warmup_ms > 0)
+                    std::this_thread::sleep_for(
+                      std::chrono::milliseconds(config.touch_sim_warmup_ms));
+            }
+            assert(results_count != nullptr);
+            *results_count = 0;
+            /* Preserve the requested LSN; clear everything else so callers see no data. */
+            uint64_t save_lsn = args->lsn;
+            memset(args, 0, sizeof(*args));
+            args->lsn = save_lsn;
+            if (flags != nullptr)
+                *flags = 0;
+            return;
+        }
+
+        if (config.touch_sim_enabled) {
+            const bool warm = is_warm(table_id, page_id);
+            const uint32_t sleep_ms = warm ? config.touch_sim_warm_ms : config.touch_sim_cold_ms;
+            if (sleep_ms > 0)
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+        }
+
         Pages &table = get_table(table_id);
         table.get(table_id, page_id, args, flags, results_array, results_count);
 
         assert(results_count != nullptr);
         object_gets += *results_count;
+
+        /*
+         * NB: a regular read does *not* promote the page into the warm-set. In the skunk_94 mental
+         * model the warm-set represents SLS heuristic state -- only the explicit warmup hint feeds
+         * it. A non-touched read is cold every time its WT cache copy has been evicted; a touched
+         * read enjoys the warm latency for as long as SLS keeps the page hot. This is what makes
+         * the touch=() cursor a useful primitive in the first place.
+         */
     }
 
     void

@@ -312,6 +312,15 @@ __curfile_search(WT_CURSOR *cursor)
 
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search(cbt));
+    /*
+     * Touch search returns WT_NOTFOUND on every call (fire-and-forget), but the operation has done
+     * useful work; account for its timing before the WT_ERR jump that would otherwise skip it.
+     */
+    if (cbt->touch_enabled) {
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+        goto err;
+    }
     WT_ERR(ret);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
@@ -639,6 +648,10 @@ err:
     WT_TRET(__wt_btcur_close(cbt, false));
     /* The URI is owned by the btree handle. */
     cursor->internal_uri = NULL;
+
+    /* skunk_94 touch cursor: free any payload buffer we allocated. */
+    if (cbt->touch_command.mem != NULL)
+        __wt_buf_free(session, &cbt->touch_command);
 
     WT_ASSERT(session,
       session->dhandle == NULL ||
@@ -1142,6 +1155,41 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if (cval.val != 0)
         F_SET(cbt, WT_CBT_READ_ONCE);
 
+    /*
+     * Touch cursor: parse touch=(enabled,class_id,action,command). When enabled, cursor->search()
+     * becomes a fire-and-forget hint into the page log layer (PALI); the dispatch lives in
+     * __wt_btcur_search in src/btree/bt_cursor.c. All incompatibility checks are done up-front so
+     * the caller sees the failure on open_cursor, not on the first search().
+     *
+     * Internal callers (e.g. __hs_verify, __wt_curfile_open from a layered
+     * cursor) pass cfg == NULL; __wt_config_gets_def handles that by returning
+     * the supplied default. The non-_def variant would dereference cfg[0] and
+     * crash, so we exclusively use _def here.
+     */
+    WT_ERR(__wt_config_gets_def(session, cfg, "touch.enabled", 0, &cval));
+    if (cval.val != 0) {
+        if (WT_CURSOR_RECNO(cursor))
+            WT_ERR_MSG(session, ENOTSUP, "touch cursor: only row-store tables are supported");
+        /*
+         * bulk+touch is rejected up-front in __wt_curfile_open before the exclusive dhandle is
+         * taken, so we don't re-check bulk here.
+         */
+        if (cbt->checkpoint_txn != NULL)
+            WT_ERR_MSG(session, EINVAL, "touch cursor is incompatible with checkpoint cursors");
+        WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
+        if (cval.val != 0)
+            WT_ERR_MSG(session, EINVAL, "touch cursor is incompatible with next_random");
+
+        cbt->touch_enabled = true;
+        WT_ERR(__wt_config_gets_def(session, cfg, "touch.class_id", 1, &cval));
+        cbt->touch_class = (uint32_t)cval.val;
+        WT_ERR(__wt_config_gets_def(session, cfg, "touch.command", 0, &cval));
+        if (cval.len > 0)
+            WT_ERR(__wt_buf_set(session, &cbt->touch_command, cval.str, cval.len));
+        /* Touch cursors are fire-and-forget; never cache them. */
+        cacheable = false;
+    }
+
     /* Underlying btree initialization. */
     __wt_btcur_open(cbt);
 
@@ -1223,6 +1271,17 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
         if (bulk) {
             if (F_ISSET(session->txn, WT_TXN_RUNNING))
                 WT_RET_MSG(session, EINVAL, "Bulk cursors can't be opened inside a transaction");
+
+            /*
+             * skunk_94: touch cursors are read-side, bulk cursors are write-side; the combination
+             * is meaningless. Reject before acquiring the bulk-mode exclusive dhandle so the user
+             * sees a clean EINVAL. Use _def for NULL-cfg safety, in line with the surrounding
+             * checkpoint_wait lookup convention.
+             */
+            WT_RET(__wt_config_gets_def(session, cfg, "touch.enabled", 0, &cval));
+            if (cval.val != 0)
+                WT_RET_MSG(
+                  session, EINVAL, "touch cursor is incompatible with bulk-load configuration");
 
             WT_RET(__wt_config_gets(session, cfg, "checkpoint_wait", &cval));
             checkpoint_wait = cval.val != 0;

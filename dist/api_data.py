@@ -1861,6 +1861,28 @@ methods = {
     Config('target', '', r'''
         if non-empty, back up the given list of objects; valid only for a backup data source''',
         type='list'),
+    Config('touch', '', r'''
+        Configure this cursor as a fire-and-forget touch cursor. The cursor descends
+        the btree to the leaf parent and forwards a hint to the page log layer instead
+        of materializing the leaf page in cache; search returns WT_NOTFOUND once the
+        hint has been issued''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            enable touch (fire-and-forget) behavior; when false the cursor behaves as
+            a regular cursor regardless of the other touch sub-options''',
+            type='boolean'),
+        Config('class_id', '1', r'''
+            tier or class hint forwarded to the page log layer (named class_id to
+            avoid the C++ reserved word in generated headers)''',
+            type='int', min='0', max='255'),
+        Config('action', 'warmup', r'''
+            action forwarded to the page log layer; the default is the only action
+            currently understood by the palite extension''',
+            choices=['warmup']),
+        Config('command', '', r'''
+            opaque payload forwarded verbatim to the page log layer as a WT_ITEM;
+            empty string sends no payload'''),
+        ]),
 ]),
 
 'WT_SESSION.query_timestamp' : Method([
