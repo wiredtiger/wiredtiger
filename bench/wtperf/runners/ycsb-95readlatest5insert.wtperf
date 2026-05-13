@@ -5,6 +5,8 @@
 # of on-disk data, so the cache should hold around 50% of the total dataset.
 # The total number of user threads is also set to 16 to avoid oversubscription.
 
+# FIXME-WT-17498: Consider bringing wtperf YCSB closer to the MongoDB implementation
+
 conn_config="cache_size=16G,log=(enabled=true)"
 table_config="type=file"
 key_sz=100
