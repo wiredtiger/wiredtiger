@@ -268,6 +268,7 @@ conn_stats = [
     BlockStat('block_byte_write', 'bytes written', 'size'),
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_byte_write_compact', 'bytes written by compaction', 'size'),
+    BlockStat('block_byte_write_compact_inmem', 'bytes written for in-memory pages dirtied by compaction', 'size'),
     BlockStat('block_byte_write_intl', 'bytes written for internal pages before compression and encryption', 'size'),
     BlockStat('block_byte_write_intl_delta_gt100', 'number of internal page deltas written that were greater than the size of the full image'),
     BlockStat('block_byte_write_intl_delta_lt100', 'number of internal page deltas written that were between 80-100 percent the size of the full image'),
