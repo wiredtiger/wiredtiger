@@ -241,11 +241,13 @@ __curversion_value_return_from_upd(
     uint64_t durable_meta =
       aborted ? (uint64_t)upd->upd_rollback_ts : (uint64_t)upd->upd_durable_ts;
 
+    wt_timestamp_t stop_ts = __curversion_stop_uses_prepare_ts(version_cursor) ?
+      version_cursor->upd_stop_prepare_ts :
+      version_cursor->curversion_stop_ts;
+
     return (__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, upd->txnid,
       start_meta, durable_meta, upd->prepare_ts, upd->prepared_id, version_cursor->upd_stop_txnid,
-      __curversion_stop_uses_prepare_ts(version_cursor) ? version_cursor->upd_stop_prepare_ts :
-                                                          version_cursor->curversion_stop_ts,
-      version_cursor->curversion_durable_stop_ts, version_cursor->upd_stop_prepare_ts,
+      stop_ts, version_cursor->curversion_durable_stop_ts, version_cursor->upd_stop_prepare_ts,
       version_cursor->upd_stop_prepared_id, upd->type, version_prepared, upd->flags,
       WT_CURVERSION_UPDATE_CHAIN));
 }
@@ -423,30 +425,25 @@ __curversion_disk_check_with_stop(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *v
         return;
     }
 
-    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
         *skipp = true;
-        return;
-    }
-
-    /* See the no-stop branch: skip the comparison after a rolled-back prepared emission. */
-    if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED) {
-        if (__curversion_stop_uses_prepare_ts(version_cursor)) {
-            if (tw->stop_txn > version_cursor->upd_stop_txnid ||
-              tw->stop_ts > version_cursor->upd_stop_prepare_ts) {
-                *skipp = true;
-                return;
-            }
-        } else if (tw->stop_txn > version_cursor->upd_stop_txnid ||
-          tw->stop_ts > version_cursor->curversion_stop_ts) {
-            *skipp = true;
-            return;
+    else {
+        /* See the no-stop branch: skip the comparison after a rolled-back prepared emission. */
+        if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED) {
+            if (__curversion_stop_uses_prepare_ts(version_cursor))
+                *skipp = (tw->stop_txn > version_cursor->upd_stop_txnid ||
+                  tw->stop_ts > version_cursor->upd_stop_prepare_ts);
+            else
+                *skipp = (tw->stop_txn > version_cursor->upd_stop_txnid ||
+                  tw->stop_ts > version_cursor->curversion_stop_ts);
         }
-    }
 
-    /* An update whose start equals stop never became visible. */
-    if (tw->stop_txn == tw->start_txn && tw->stop_prepare_ts == tw->start_prepare_ts &&
-      tw->stop_ts == tw->start_ts && tw->durable_stop_ts == tw->durable_start_ts)
-        *skipp = true;
+        /* An update whose start equals stop never became visible. */
+        if (!*skipp && tw->stop_txn == tw->start_txn &&
+          tw->stop_prepare_ts == tw->start_prepare_ts && tw->stop_ts == tw->start_ts &&
+          tw->durable_stop_ts == tw->durable_start_ts)
+            *skipp = true;
+    }
 }
 
 /*
@@ -484,32 +481,30 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
         if (WT_TIME_WINDOW_HAS_STOP(tw)) {
             /* Done if the on-disk stop durable timestamp is at or before the end timestamp. */
             if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
-              tw->durable_stop_ts <= version_cursor->start_timestamp) {
+              tw->durable_stop_ts <= version_cursor->start_timestamp)
                 *donep = true;
-                return;
-            }
         } else if (!WT_TIME_WINDOW_HAS_START_PREPARE(tw) &&
-          tw->durable_start_ts <= version_cursor->start_timestamp) {
+          tw->durable_start_ts <= version_cursor->start_timestamp)
             /* No stop side: done if the start durable timestamp is past the end timestamp. */
             *donep = true;
-            return;
-        }
     }
 
-    if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) && WT_TIME_WINDOW_HAS_PREPARE(tw)) {
-        if (!WT_TIME_WINDOW_HAS_STOP(tw) || stopp->txn == tw->start_txn) {
-            *skipp = true;
-            return;
-        }
-        stopp->txn = WT_TXN_MAX;
-        stopp->prepare_ts = WT_TS_MAX;
-        stopp->prepared_id = WT_PREPARED_ID_NONE;
-        stopp->ts = WT_TS_MAX;
-        stopp->durable_ts = WT_TS_NONE;
-        stopp->prepared = false;
-        *version_preparedp = false;
-    } else
-        *version_preparedp = WT_TIME_WINDOW_HAS_PREPARE(tw);
+    if (!*donep) {
+        if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) && WT_TIME_WINDOW_HAS_PREPARE(tw)) {
+            if (!WT_TIME_WINDOW_HAS_STOP(tw) || stopp->txn == tw->start_txn)
+                *skipp = true;
+            else {
+                stopp->txn = WT_TXN_MAX;
+                stopp->prepare_ts = WT_TS_MAX;
+                stopp->prepared_id = WT_PREPARED_ID_NONE;
+                stopp->ts = WT_TS_MAX;
+                stopp->durable_ts = WT_TS_NONE;
+                stopp->prepared = false;
+                *version_preparedp = false;
+            }
+        } else
+            *version_preparedp = WT_TIME_WINDOW_HAS_PREPARE(tw);
+    }
 }
 
 /*
@@ -517,9 +512,8 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
  *     Pack the metadata for the on-disk value and record it as the previously-returned stop state.
  */
 static int
-__curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw, uint64_t stop_txn,
-  bool stop_prepared, wt_timestamp_t stop_prepare_ts, wt_timestamp_t stop_ts,
-  wt_timestamp_t durable_stop_ts, uint64_t stop_prepared_id, bool version_prepared)
+__curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
+  const WT_CURVERSION_DISK_STOP_TIME_POINT *stopp, bool version_prepared)
 {
     WT_CURSOR_VERSION *version_cursor = (WT_CURSOR_VERSION *)cursor;
     bool has_start_prepare = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
@@ -528,9 +522,9 @@ __curversion_value_return_from_disk_image(WT_CURSOR *cursor, WT_TIME_WINDOW *tw,
       has_start_prepare ? tw->start_prepare_ts : tw->durable_start_ts;
 
     WT_RET(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, tw->start_txn,
-      start_meta, durable_start_meta, tw->start_prepare_ts, tw->start_prepared_id, stop_txn,
-      stop_prepared ? stop_prepare_ts : stop_ts, durable_stop_ts, stop_prepare_ts, stop_prepared_id,
-      WT_UPDATE_STANDARD, version_prepared, 0, WT_CURVERSION_DISK_IMAGE));
+      start_meta, durable_start_meta, tw->start_prepare_ts, tw->start_prepared_id, stopp->txn,
+      stopp->prepared ? stopp->prepare_ts : stopp->ts, stopp->durable_ts, stopp->prepare_ts,
+      stopp->prepared_id, WT_UPDATE_STANDARD, version_prepared, 0, WT_CURVERSION_DISK_IMAGE));
 
     version_cursor->upd_stop_txnid = tw->start_txn;
     version_cursor->curversion_durable_stop_ts = durable_start_meta;
@@ -579,12 +573,7 @@ __curversion_process_on_disk(
     if (*upd_foundp || F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED))
         return (0);
 
-    /* No older versions are needed once the previously-returned stop is globally visible. */
-    if (__curversion_stop_globally_visible(session, version_cursor)) {
-        *donep = true;
-        return (0);
-    }
-
+    /* Validate the page has an accessible on-disk slot before doing further work. */
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         if (cbt->ins != NULL) {
@@ -603,6 +592,12 @@ __curversion_process_on_disk(
         break;
     default:
         return (__wt_illegal_value(session, page->type));
+    }
+
+    /* No older versions are needed once the previously-returned stop is globally visible. */
+    if (__curversion_stop_globally_visible(session, version_cursor)) {
+        *donep = true;
+        return (0);
     }
 
     /*
@@ -631,31 +626,31 @@ __curversion_process_on_disk(
         stop.prepared = __curversion_stop_uses_prepare_ts(version_cursor);
     } else {
         __curversion_disk_check_with_stop(session, version_cursor, tw, &skip, donep);
-        if (*donep)
-            return (0);
-        if (skip) {
-            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-            return (0);
+        if (!skip && !*donep) {
+            stop.durable_ts = tw->durable_stop_ts;
+            stop.prepare_ts = tw->stop_prepare_ts;
+            stop.prepared_id = tw->stop_prepared_id;
+            stop.ts = tw->stop_ts;
+            stop.txn = tw->stop_txn;
+            stop.prepared = WT_TIME_WINDOW_HAS_STOP_PREPARE(tw);
         }
-        stop.durable_ts = tw->durable_stop_ts;
-        stop.prepare_ts = tw->stop_prepare_ts;
-        stop.prepared_id = tw->stop_prepared_id;
-        stop.ts = tw->stop_ts;
-        stop.txn = tw->stop_txn;
-        stop.prepared = WT_TIME_WINDOW_HAS_STOP_PREPARE(tw);
+    }
+
+    if (*donep || skip) {
+        if (skip)
+            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+        return (0);
     }
 
     __curversion_disk_finalize_prepared(
       version_cursor, tw, tombstone, &stop, &version_prepared, &skip, donep);
-    if (*donep)
-        return (0);
-    if (skip) {
-        F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
+    if (*donep || skip) {
+        if (skip)
+            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
         return (0);
     }
 
-    WT_RET(__curversion_value_return_from_disk_image(cursor, tw, stop.txn, stop.prepared,
-      stop.prepare_ts, stop.ts, stop.durable_ts, stop.prepared_id, version_prepared));
+    WT_RET(__curversion_value_return_from_disk_image(cursor, tw, &stop, version_prepared));
 
     *upd_foundp = true;
     F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
