@@ -82,6 +82,7 @@ class test_compact04(compact_util):
             c_stat = self.session.open_cursor('statistics:' + table_uri, None, 'statistics=(all)')
             pages_rewritten = c_stat[stat.dsrc.btree_compact_pages_rewritten][2]
             pages_rewritten_expected = c_stat[stat.dsrc.btree_compact_pages_rewritten_expected][2]
+            pages_selected_inmem = c_stat[stat.dsrc.btree_compact_pages_selected_inmem][2]
             c_stat.close()
 
             conn_stat = self.session.open_cursor('statistics:', None, 'statistics=(all)')
@@ -95,6 +96,7 @@ class test_compact04(compact_util):
 
             self.assertGreater(pages_rewritten, 0)
             self.assertGreater(pages_rewritten_expected, 0)
+            self.assertGreater(pages_selected_inmem, 0)
             self.assertGreater(bytes_written_compact_inmem, 0)
 
             d = abs(pages_rewritten - pages_rewritten_expected) / pages_rewritten
