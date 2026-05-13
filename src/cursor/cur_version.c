@@ -390,6 +390,35 @@ __curversion_process_chain(WT_CURSOR *cursor, WT_UPDATE **tombstonep, bool *upd_
 }
 
 /*
+ * __curversion_disk_skip_no_stop --
+ *     Decide whether to skip an on-disk record that has no stop side, when running in timestamp
+ *     order mode.
+ */
+static bool
+__curversion_disk_skip_no_stop(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW *tw)
+{
+    if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
+        return (false);
+
+    /* Prepared values on disk are always skipped. */
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
+        return (true);
+
+    /*
+     * If the previous emission was a rolled-back prepared update its stop slot holds a rollback
+     * timestamp instead of a real stop timestamp, so the comparison would be meaningless.
+     */
+    if (version_cursor->upd_stop_txnid == WT_TXN_ABORTED)
+        return (false);
+
+    if (__curversion_stop_uses_prepare_ts(version_cursor))
+        return (tw->start_txn > version_cursor->upd_stop_txnid ||
+          tw->start_ts > version_cursor->upd_stop_prepare_ts);
+    return (tw->start_txn > version_cursor->upd_stop_txnid ||
+      tw->start_ts > version_cursor->curversion_stop_ts);
+}
+
+/*
  * __curversion_next_single_key --
  *     Iterate the updates of a single key.
  */
@@ -485,28 +514,8 @@ __curversion_next_single_key(WT_CURSOR *cursor)
           WT_RESTART, true);
         if (ret == 0) {
             if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-                if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER)) {
-                    /* Always skip prepared update on disk. */
-                    if (WT_TIME_WINDOW_HAS_START_PREPARE(&cbt->upd_value->tw))
-                        goto skip_on_page;
-
-                    /*
-                     * Skip the comparison when the previously emitted update was a rolled- back
-                     * prepared update: there is no real stop to compare against, and the fields
-                     * hold rollback metadata rather than a stop timestamp.
-                     */
-                    if (version_cursor->upd_stop_txnid != WT_TXN_ABORTED) {
-                        if (__curversion_stop_uses_prepare_ts(version_cursor)) {
-                            if (cbt->upd_value->tw.start_txn > version_cursor->upd_stop_txnid ||
-                              cbt->upd_value->tw.start_ts > version_cursor->upd_stop_prepare_ts)
-                                goto skip_on_page;
-                        } else {
-                            if (cbt->upd_value->tw.start_txn > version_cursor->upd_stop_txnid ||
-                              cbt->upd_value->tw.start_ts > version_cursor->curversion_stop_ts)
-                                goto skip_on_page;
-                        }
-                    }
-                }
+                if (__curversion_disk_skip_no_stop(version_cursor, &cbt->upd_value->tw))
+                    goto skip_on_page;
                 durable_stop_ts = version_cursor->curversion_durable_stop_ts;
                 stop_prepare_ts = version_cursor->upd_stop_prepare_ts;
                 stop_prepared_id = version_cursor->upd_stop_prepared_id;
