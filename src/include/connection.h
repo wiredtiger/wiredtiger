@@ -664,6 +664,27 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
+ * WT_CONN_STAT_LOG --
+ *	Statistics logging subsystem fields, grouping the session, thread, and
+ *	configuration that drive the statistics log server.
+ */
+struct __wt_conn_stat_log {
+#define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
+    WT_SESSION_IMPL *session; /* Statistics log session */
+    wt_thread_t tid;          /* Statistics log thread */
+    bool tid_set;             /* Statistics log thread set */
+    WT_CONDVAR *cond;         /* Statistics log wait mutex */
+    const char *format;       /* Statistics log timestamp format */
+    WT_FSTREAM *fs;           /* Statistics log stream */
+    /* Statistics log json table printing state flag */
+    bool json_tables;
+    char *path;        /* Statistics log path format */
+    char **sources;    /* Statistics log list of objects */
+    const char *stamp; /* Statistics log entry timestamp */
+    uint64_t usecs;    /* Statistics log period */
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -897,19 +918,7 @@ struct __wt_connection_impl {
 
     bool preserve_prepared; /* Preserve prepared updates */
 
-#define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
-    WT_SESSION_IMPL *stat_session; /* Statistics log session */
-    wt_thread_t stat_tid;          /* Statistics log thread */
-    bool stat_tid_set;             /* Statistics log thread set */
-    WT_CONDVAR *stat_cond;         /* Statistics log wait mutex */
-    const char *stat_format;       /* Statistics log timestamp format */
-    WT_FSTREAM *stat_fs;           /* Statistics log stream */
-    /* Statistics log json table printing state flag */
-    bool stat_json_tables;
-    char *stat_path;        /* Statistics log path format */
-    char **stat_sources;    /* Statistics log list of objects */
-    const char *stat_stamp; /* Statistics log entry timestamp */
-    uint64_t stat_usecs;    /* Statistics log period */
+    WT_CONN_STAT_LOG stat_log; /* Statistics logging subsystem */
 
     WT_SESSION_IMPL *tiered_session;    /* Tiered thread session */
     wt_thread_t tiered_tid;             /* Tiered thread */
