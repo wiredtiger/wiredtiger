@@ -56,9 +56,9 @@ __rts_check(WT_SESSION_IMPL *session)
      * session open/close to ensure we don't race. This call is a rarely used RTS-only function,
      * acquiring the lock shouldn't be an issue.
      */
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
     WT_IGNORE_RET(__wt_session_array_walk(session, __rts_check_callback, true, &cookie));
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
 
     /*
      * A new cursor may be positioned or a transaction may start after we return from this call and
@@ -115,8 +115,8 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     dryrun = conn->rts->dryrun;
     threads = conn->rts->threads_num;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.schema_lock);
 
     /*
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the

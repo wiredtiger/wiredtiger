@@ -44,12 +44,12 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         /* Encourage races. */
         __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_1, NULL);
 
-        __wt_spin_lock(session, &conn->prefetch_lock);
+        __wt_spin_lock(session, &conn->locks.prefetch_lock);
         pe = TAILQ_FIRST(&conn->pfqh);
 
         /* If there is no work for the thread to do - return back to the thread pool */
         if (pe == NULL) {
-            __wt_spin_unlock(session, &conn->prefetch_lock);
+            __wt_spin_unlock(session, &conn->locks.prefetch_lock);
             break;
         }
 
@@ -65,7 +65,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          */
         if (__wt_evict_clean_pressure(session)) {
             F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
-            __wt_spin_unlock(session, &conn->prefetch_lock);
+            __wt_spin_unlock(session, &conn->locks.prefetch_lock);
             __wt_free(session, pe);
             continue;
         }
@@ -81,7 +81,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
-        __wt_spin_unlock(session, &conn->prefetch_lock);
+        __wt_spin_unlock(session, &conn->locks.prefetch_lock);
 
         /*
          * It's a weird case, but if verify is utilizing prefetch and encounters a corrupted block,
@@ -181,7 +181,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_evict_clean_pressure(session))
         return (EBUSY);
 
-    __wt_spin_lock(session, &conn->prefetch_lock);
+    __wt_spin_lock(session, &conn->locks.prefetch_lock);
     /* Don't queue pages for trees that have eviction disabled. */
     if (S2BT(session)->evict_disabled > 0)
         WT_ERR(EBUSY);
@@ -219,7 +219,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_REF_SET_STATE(ref, WT_REF_DISK);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
     __wt_tsan_suppress_add_uint64(&conn->prefetch_queue_count, 1);
-    __wt_spin_unlock(session, &conn->prefetch_lock);
+    __wt_spin_unlock(session, &conn->locks.prefetch_lock);
     __wt_cond_signal(session, conn->prefetch_threads.wait_cond);
 
     return (0);
@@ -228,7 +228,7 @@ err:
     /* Unlock the ref. */
     WT_REF_SET_STATE(ref, WT_REF_DISK);
 done:
-    __wt_spin_unlock(session, &conn->prefetch_lock);
+    __wt_spin_unlock(session, &conn->locks.prefetch_lock);
     return (ret);
 }
 
@@ -250,7 +250,7 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
     WT_ASSERT_ALWAYS(session, all || dhandle != NULL,
       "Pre-fetch needs to save a valid dhandle when clearing the queue for a btree");
 
-    __wt_spin_lock(session, &conn->prefetch_lock);
+    __wt_spin_lock(session, &conn->locks.prefetch_lock);
 
     /* Empty the queue of the relevant pages, or all of them if specified. */
     TAILQ_FOREACH_SAFE(pe, &conn->pfqh, q, pe_tmp)
@@ -271,7 +271,7 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
      * important that the flag is checked after locking the prefetch queue lock. If not then threads
      * may not note that the tree is closed for prefetch.
      */
-    __wt_spin_unlock(session, &conn->prefetch_lock);
+    __wt_spin_unlock(session, &conn->locks.prefetch_lock);
 
     /*
      * If we are only clearing refs from a certain tree, wait for any other concurrent pre-fetch

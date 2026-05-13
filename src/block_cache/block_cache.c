@@ -315,14 +315,14 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     blkcache->refs_since_filesize_estimated = 0;
 
     size = 0;
-    __wt_spin_lock(session, &conn->block_lock);
+    __wt_spin_lock(session, &conn->locks.block_lock);
     for (bucket = 0; bucket < conn->hash_size; bucket++) {
         TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
             size += (size_t)block->size;
         }
     }
     blkcache->estimated_file_size = size;
-    __wt_spin_unlock(session, &conn->block_lock);
+    __wt_spin_unlock(session, &conn->locks.block_lock);
 
     WT_STAT_CONN_SET(session, block_cache_bypass_filesize, blkcache->estimated_file_size);
 

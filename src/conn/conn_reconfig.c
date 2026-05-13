@@ -253,7 +253,7 @@ __wti_conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[], bool recon
     WT_ERR(__wt_open(session, (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
       WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
 
-    WT_ERR(__wt_spin_init(session, &conn->optrack_map_spinlock, "optrack map spinlock"));
+    WT_ERR(__wt_spin_init(session, &conn->locks.optrack_map_spinlock, "optrack map spinlock"));
 
     WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE, &conn->dummy_session.optrack_buf));
 
@@ -284,7 +284,7 @@ __wti_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
     if (!F_ISSET_ATOMIC_32(conn, WT_CONN_OPTRACK))
         return (0);
 
-    __wt_spin_destroy(session, &conn->optrack_map_spinlock);
+    __wt_spin_destroy(session, &conn->locks.optrack_map_spinlock);
 
     WT_TRET(__wt_close(session, &conn->optrack_map_fh));
     __wt_free(session, conn->dummy_session.optrack_buf);
@@ -392,7 +392,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     conn = S2C(session);
 
     /* Serialize reconfiguration. */
-    __wt_spin_lock(session, &conn->reconfig_lock);
+    __wt_spin_lock(session, &conn->locks.reconfig_lock);
 
     /*
      * The configuration argument has been checked for validity, update the previous connection
@@ -504,7 +504,7 @@ done:
     conn->cfg = p;
 
 err:
-    __wt_spin_unlock(session, &conn->reconfig_lock);
+    __wt_spin_unlock(session, &conn->locks.reconfig_lock);
 
     return (ret);
 }

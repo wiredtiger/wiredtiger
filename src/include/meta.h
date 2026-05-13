@@ -130,10 +130,11 @@
  * WT_WITH_TURTLE_LOCK --
  *	Acquire the turtle file lock, perform an operation, drop the lock.
  */
-#define WT_WITH_TURTLE_LOCK(session, op)                                                      \
-    do {                                                                                      \
-        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));        \
-        WT_WITH_LOCK_WAIT(session, &S2C(session)->turtle_lock, WT_SESSION_LOCKED_TURTLE, op); \
+#define WT_WITH_TURTLE_LOCK(session, op)                                               \
+    do {                                                                               \
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE)); \
+        WT_WITH_LOCK_WAIT(                                                             \
+          session, &S2C(session)->locks.turtle_lock, WT_SESSION_LOCKED_TURTLE, op);    \
     } while (0)
 
 /*

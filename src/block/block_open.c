@@ -188,12 +188,12 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     /* Block objects can be shared (although there can be only one writer). */
     hash = __wt_hash_city64(filename, strlen(filename));
     bucket = hash & (conn->hash_size - 1);
-    __wt_spin_lock(session, &conn->block_lock);
+    __wt_spin_lock(session, &conn->locks.block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
         if (block->objectid == objectid && strcmp(filename, block->name) == 0) {
             ++block->ref;
             *blockp = block;
-            __wt_spin_unlock(session, &conn->block_lock);
+            __wt_spin_unlock(session, &conn->locks.block_lock);
             return (0);
         }
 
@@ -279,13 +279,13 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     /* Block is valid, so make it visible in the connection. */
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
 
-    __wt_spin_unlock(session, &conn->block_lock);
+    __wt_spin_unlock(session, &conn->locks.block_lock);
 
     *blockp = block;
     return (0);
 
 err:
-    __wt_spin_unlock(session, &conn->block_lock);
+    __wt_spin_unlock(session, &conn->locks.block_lock);
     WT_TRET(__wt_block_close(session, block));
 
     return (ret);

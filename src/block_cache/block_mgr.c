@@ -23,9 +23,9 @@ __wti_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     __wt_verbose(session, WT_VERB_BLKCACHE, "block close: %s", block->name);
 
     conn = S2C(session);
-    __wt_spin_lock(session, &conn->block_lock);
+    __wt_spin_lock(session, &conn->locks.block_lock);
     if (block->ref > 0 && --block->ref > 0) {
-        __wt_spin_unlock(session, &conn->block_lock);
+        __wt_spin_unlock(session, &conn->locks.block_lock);
         return (0);
     }
 
@@ -33,7 +33,7 @@ __wti_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     hash = __wt_hash_city64(block->name, strlen(block->name));
     bucket = hash & (conn->hash_size - 1);
     WT_CONN_BLOCK_REMOVE(conn, block, bucket);
-    __wt_spin_unlock(session, &conn->block_lock);
+    __wt_spin_unlock(session, &conn->locks.block_lock);
 
     /* You can't close files during a checkpoint. */
     WT_ASSERT(
@@ -676,7 +676,7 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
     size_t root_addr_size;
 
     /* The checkpoint lock protects against concurrent switches */
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock)
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.checkpoint_lock)
     WT_ASSERT(session, bm->is_multi_handle);
 
     current = bm->block;

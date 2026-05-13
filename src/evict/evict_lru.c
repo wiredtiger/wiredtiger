@@ -39,7 +39,7 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     evict = conn->evict;
-    dh_lock = &conn->dhandle_lock;
+    dh_lock = &conn->locks.dhandle_lock;
 
     /*
      * Use a custom lock acquisition back off loop so the eviction server notices any interrupt
@@ -511,7 +511,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
              */
             ret = __evict_clear_all_walks_and_saved_tree(session);
 
-            __wt_readunlock(session, &conn->dhandle_lock);
+            __wt_readunlock(session, &conn->locks.dhandle_lock);
             WT_RET(ret);
         }
         /* Make sure we'll notice next time we're stuck. */
@@ -1644,7 +1644,7 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 
     conn = S2C(session);
 
-    WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
+    WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->locks.dhandle_lock));
 
 #undef RANDOM_DH_SELECTION_ENABLED
 
@@ -1929,7 +1929,7 @@ retry:
         btree->evict_walk_skips = 0;
 
         __evict_set_saved_walk_tree(session, dhandle);
-        __wt_readunlock(session, &conn->dhandle_lock);
+        __wt_readunlock(session, &conn->locks.dhandle_lock);
         dhandle_list_locked = false;
 
         /*
@@ -1978,7 +1978,7 @@ retry:
 
 err:
     if (dhandle_list_locked)
-        __wt_readunlock(session, &conn->dhandle_lock);
+        __wt_readunlock(session, &conn->locks.dhandle_lock);
 
     /*
      * If we didn't find any entries on a walk when we weren't interrupted, let our caller know.

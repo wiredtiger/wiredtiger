@@ -54,7 +54,7 @@ __wti_blkcache_tiered_open(
          */
         WT_ASSERT(session,
           !F_ISSET(session->dhandle, WT_DHANDLE_OPEN) ||
-            __wt_spin_owned(session, &S2C(session)->checkpoint_lock));
+            __wt_spin_owned(session, &S2C(session)->locks.checkpoint_lock));
         local_only = true;
         object_uri = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         object_name = object_uri;

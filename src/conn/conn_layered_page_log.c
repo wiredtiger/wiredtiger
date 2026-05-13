@@ -27,7 +27,7 @@ __disagg_get_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     if (page_log == NULL)
         return (ENOTSUP);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.checkpoint_lock);
 
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
@@ -71,7 +71,7 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     if (page_log == NULL)
         return (ENOTSUP);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.checkpoint_lock);
 
     WT_CLEAR(put_args);
 
@@ -227,7 +227,7 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
     WT_CLEAR(crypt);
     WT_CLEAR(key_item);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     /* No key provider configured. */
     if (key_provider == NULL)
@@ -418,7 +418,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_CLEAR(crypt.keys);
     lsn = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
         __wt_debug_crash(session);
@@ -580,7 +580,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     disagg = &conn->disaggregated_storage;
     lsn = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     if (checkpoint_root == NULL) {
         WT_ASSERT(session, checkpoint_root_size == 0);

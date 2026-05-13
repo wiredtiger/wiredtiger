@@ -82,7 +82,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     cursor_check = cursor_scan = NULL;
     stable_uri = NULL;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.schema_lock);
 
     WT_ERR(__wt_metadata_cursor(session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
@@ -297,7 +297,7 @@ __disagg_apply_checkpoint_meta(
     current_value_copy = layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.schema_lock);
 
     __wt_timer_start(session, &apply_timer);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -464,7 +464,7 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.schema_lock);
 
     if (conn->next_file_id < metadata->largest_file_id)
         conn->next_file_id = metadata->largest_file_id;
@@ -540,7 +540,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_CLEAR(metadata);
     md_cursor = NULL;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     /*
      * Reset the statistics tracked per checkpoint. Technically this isn't a checkpoint but we
@@ -1017,7 +1017,7 @@ __wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *
     conn = S2C(session);
     *drop_sizep = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.schema_lock);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1058,7 +1058,7 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
      * related to the given shared table, e.g., the various file, colgroup, table, and layered
      * entries.
      */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.schema_lock);
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -1170,7 +1170,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     /* Only the leader can abandon a checkpoint. */
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
@@ -1216,7 +1216,7 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     /* Only the leader can begin a global checkpoint. */
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
@@ -1249,7 +1249,7 @@ __disagg_restart_checkpoint(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.checkpoint_lock);
 
     WT_ERR_MSG_CHK(
       session, __disagg_abandon_checkpoint(session), "Failed to abandon the incomplete checkpoint");
@@ -1283,7 +1283,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      * concurrently with a checkpoint, it would do only a part of the work required for the new
      * role, leaving the database in an inconsistent state.
      */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
@@ -1373,7 +1373,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.checkpoint_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
@@ -1862,7 +1862,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     disagg = &conn->disaggregated_storage;
     WT_CLEAR(complete_args);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     /* Only the leader can advance the global checkpoint. */
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)

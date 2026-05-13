@@ -640,6 +640,30 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
+ * WT_CONN_LOCKS --
+ *	All connection-level spinlocks and read-write locks collected in one place.
+ */
+struct __wt_conn_locks {
+    WT_SPINLOCK api_lock;             /* Connection API spinlock */
+    WT_SPINLOCK block_lock;           /* Locked: block manager list */
+    WT_SPINLOCK checkpoint_lock;      /* Checkpoint spinlock */
+    WT_RWLOCK dhandle_lock;           /* Data handle list lock */
+    WT_SPINLOCK encryptor_lock;       /* Encryptor list lock */
+    WT_SPINLOCK fh_lock;              /* File handle queue spinlock */
+    WT_SPINLOCK flush_tier_lock;      /* Flush tier spinlock */
+    WT_SPINLOCK metadata_lock;        /* Metadata update spinlock */
+    WT_SPINLOCK optrack_map_spinlock; /* Optrack name-to-id translation file spinlock */
+    WT_SPINLOCK page_log_lock;        /* Page log list lock */
+    WT_SPINLOCK prefetch_lock;        /* Prefetch spinlock */
+    WT_SPINLOCK reconfig_lock;        /* Single thread reconfigure */
+    WT_SPINLOCK schema_lock;          /* Schema operation spinlock */
+    WT_SPINLOCK storage_lock;         /* Storage source list lock */
+    WT_RWLOCK table_lock;             /* Table list lock */
+    WT_SPINLOCK tiered_lock;          /* Tiered work queue spinlock */
+    WT_SPINLOCK turtle_lock;          /* Turtle file spinlock */
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -652,17 +676,7 @@ struct __wt_connection_impl {
 
     const char *cfg; /* Connection configuration */
 
-    WT_SPINLOCK api_lock;        /* Connection API spinlock */
-    WT_SPINLOCK checkpoint_lock; /* Checkpoint spinlock */
-    WT_SPINLOCK fh_lock;         /* File handle queue spinlock */
-    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
-    WT_SPINLOCK metadata_lock;   /* Metadata update spinlock */
-    WT_SPINLOCK reconfig_lock;   /* Single thread reconfigure */
-    WT_SPINLOCK schema_lock;     /* Schema operation spinlock */
-    WT_RWLOCK table_lock;        /* Table list lock */
-    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
-    WT_SPINLOCK turtle_lock;     /* Turtle file spinlock */
-    WT_RWLOCK dhandle_lock;      /* Data handle list lock */
+    WT_CONN_LOCKS locks; /* All connection-level locks */
 
     /* Connection queue */
     TAILQ_ENTRY(__wt_connection_impl) q;
@@ -698,10 +712,9 @@ struct __wt_connection_impl {
 
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
 
-    const char *optrack_path;         /* Directory for operation logs */
-    WT_FH *optrack_map_fh;            /* Name to id translation file. */
-    WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
-    uintmax_t optrack_pid;            /* Cache the process ID. */
+    const char *optrack_path; /* Directory for operation logs */
+    WT_FH *optrack_map_fh;    /* Name to id translation file. */
+    uintmax_t optrack_pid;    /* Cache the process ID. */
 
 #ifdef HAVE_CALL_LOG
     /* File stream used for writing to the call log. */
@@ -731,7 +744,6 @@ struct __wt_connection_impl {
     /* Locked: Tiered system work queue. */
     TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
 
-    WT_SPINLOCK block_lock; /* Locked: block manager list */
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
@@ -847,7 +859,6 @@ struct __wt_connection_impl {
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
 #define WT_PREFETCH_THREAD_COUNT 8
-    WT_SPINLOCK prefetch_lock;
     WT_THREAD_GROUP prefetch_threads;
     uint64_t prefetch_queue_count;
     /* Queue of refs to pre-fetch from */
@@ -925,15 +936,12 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_dsrc_qh, __wt_named_data_source) dsrcqh;
 
     /* Locked: encryptor list */
-    WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
     TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
 
     /* Locked: page log list */
-    WT_SPINLOCK page_log_lock; /* Page log list lock */
     TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
 
     /* Locked: storage source list */
-    WT_SPINLOCK storage_lock; /* Storage source list lock */
     TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
 
     void *lang_private; /* Language specific private storage */

@@ -119,7 +119,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     cursor = NULL;
     release = false;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.schema_lock);
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
 
     /*
@@ -980,7 +980,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
 
     API_CONF(session, WT_SESSION, begin_transaction, "isolation=snapshot", txn_conf);
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.schema_lock);
 
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         /* Precise checkpoint doesn't support non-timestamped checkpoint. */
@@ -1574,7 +1574,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     tracking = false;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     WT_RET(__checkpoint_parse_config(session, cfg, &ckpt_cfg));
 
@@ -1954,7 +1954,7 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
 
     __wt_atomic_store_bool_v_release(&txn_global->checkpoint_running, true);
 

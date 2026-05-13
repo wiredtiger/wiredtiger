@@ -113,8 +113,8 @@ __tier_flush_meta(
     WT_RET(__wt_scr_alloc(session, 512, &buf));
     dhandle = &tiered->iface;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.schema_lock);
     WT_UNUSED(conn); /* Avoid "unused variable" warnings in non-debug builds. */
 
     newconfig = obj_value = NULL;

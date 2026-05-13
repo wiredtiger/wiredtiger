@@ -338,7 +338,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
      * configuration information. We're holding the lock for an extended period of time, but
      * configuration changes should be rare and only happen during startup.
      */
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
 
     /*
      * Allocate new configuration entry and fill it in.
@@ -431,6 +431,6 @@ err:
         __wt_free(session, newcheck_name);
     }
 
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
     return (ret);
 }

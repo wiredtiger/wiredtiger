@@ -45,27 +45,27 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_stat_connection_init(session, conn));
 
     /* Spinlocks. */
-    WT_RET(__wt_spin_init(session, &conn->api_lock, "api"));
-    WT_SPIN_INIT_TRACKED(session, &conn->checkpoint_lock, checkpoint);
+    WT_RET(__wt_spin_init(session, &conn->locks.api_lock, "api"));
+    WT_SPIN_INIT_TRACKED(session, &conn->locks.checkpoint_lock, checkpoint);
     WT_RET(__wt_spin_init(session, &conn->background_compact.lock, "background compact"));
     WT_RET(__wt_spin_init(
       session, &conn->disaggregated_storage.shared_metadata_queue_lock, "update shared metadata"));
-    WT_RET(__wt_spin_init(session, &conn->encryptor_lock, "encryptor"));
-    WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
-    WT_RET(__wt_spin_init(session, &conn->flush_tier_lock, "flush tier"));
-    WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata);
-    WT_RET(__wt_spin_init(session, &conn->reconfig_lock, "reconfigure"));
-    WT_SPIN_INIT_SESSION_TRACKED(session, &conn->schema_lock, schema);
-    WT_RET(__wt_spin_init(session, &conn->storage_lock, "tiered storage"));
-    WT_RET(__wt_spin_init(session, &conn->tiered_lock, "tiered work unit list"));
-    WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
-    WT_RET(__wt_spin_init(session, &conn->prefetch_lock, "prefetch"));
+    WT_RET(__wt_spin_init(session, &conn->locks.encryptor_lock, "encryptor"));
+    WT_RET(__wt_spin_init(session, &conn->locks.fh_lock, "file list"));
+    WT_RET(__wt_spin_init(session, &conn->locks.flush_tier_lock, "flush tier"));
+    WT_SPIN_INIT_TRACKED(session, &conn->locks.metadata_lock, metadata);
+    WT_RET(__wt_spin_init(session, &conn->locks.reconfig_lock, "reconfigure"));
+    WT_SPIN_INIT_SESSION_TRACKED(session, &conn->locks.schema_lock, schema);
+    WT_RET(__wt_spin_init(session, &conn->locks.storage_lock, "tiered storage"));
+    WT_RET(__wt_spin_init(session, &conn->locks.tiered_lock, "tiered work unit list"));
+    WT_RET(__wt_spin_init(session, &conn->locks.turtle_lock, "turtle file"));
+    WT_RET(__wt_spin_init(session, &conn->locks.prefetch_lock, "prefetch"));
 
     /* Read-write locks */
     WT_RET(__wt_rwlock_init(session, &conn->log_mgr.debug_log_retention_lock));
-    WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->dhandle_lock, dhandle);
+    WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->locks.dhandle_lock, dhandle);
     WT_RET(__wt_rwlock_init(session, &conn->hot_backup_lock));
-    WT_RWLOCK_INIT_TRACKED(session, &conn->table_lock, table);
+    WT_RWLOCK_INIT_TRACKED(session, &conn->locks.table_lock, table);
 
     /* Initialize the generation manager. */
     __wt_gen_init(session);
@@ -74,7 +74,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
      * Block manager. XXX If there's ever a second block manager, we'll want to make this more
      * opaque, but for now this is simpler.
      */
-    WT_RET(__wt_spin_init(session, &conn->block_lock, "block manager"));
+    WT_RET(__wt_spin_init(session, &conn->locks.block_lock, "block manager"));
     TAILQ_INIT(&conn->blockqh); /* Block manager list */
 
     __wt_checkpoint_timer_stats_clear(session);
@@ -108,25 +108,25 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
 
     __wt_conn_foc_discard(session); /* free-on-close */
 
-    __wt_spin_destroy(session, &conn->api_lock);
+    __wt_spin_destroy(session, &conn->locks.api_lock);
     __wt_spin_destroy(session, &conn->background_compact.lock);
-    __wt_spin_destroy(session, &conn->block_lock);
-    __wt_spin_destroy(session, &conn->checkpoint_lock);
+    __wt_spin_destroy(session, &conn->locks.block_lock);
+    __wt_spin_destroy(session, &conn->locks.checkpoint_lock);
     __wt_spin_destroy(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     __wt_rwlock_destroy(session, &conn->log_mgr.debug_log_retention_lock);
-    __wt_rwlock_destroy(session, &conn->dhandle_lock);
-    __wt_spin_destroy(session, &conn->encryptor_lock);
-    __wt_spin_destroy(session, &conn->fh_lock);
-    __wt_spin_destroy(session, &conn->flush_tier_lock);
+    __wt_rwlock_destroy(session, &conn->locks.dhandle_lock);
+    __wt_spin_destroy(session, &conn->locks.encryptor_lock);
+    __wt_spin_destroy(session, &conn->locks.fh_lock);
+    __wt_spin_destroy(session, &conn->locks.flush_tier_lock);
     __wt_rwlock_destroy(session, &conn->hot_backup_lock);
-    __wt_spin_destroy(session, &conn->metadata_lock);
-    __wt_spin_destroy(session, &conn->reconfig_lock);
-    __wt_spin_destroy(session, &conn->schema_lock);
-    __wt_spin_destroy(session, &conn->storage_lock);
-    __wt_rwlock_destroy(session, &conn->table_lock);
-    __wt_spin_destroy(session, &conn->tiered_lock);
-    __wt_spin_destroy(session, &conn->turtle_lock);
-    __wt_spin_destroy(session, &conn->prefetch_lock);
+    __wt_spin_destroy(session, &conn->locks.metadata_lock);
+    __wt_spin_destroy(session, &conn->locks.reconfig_lock);
+    __wt_spin_destroy(session, &conn->locks.schema_lock);
+    __wt_spin_destroy(session, &conn->locks.storage_lock);
+    __wt_rwlock_destroy(session, &conn->locks.table_lock);
+    __wt_spin_destroy(session, &conn->locks.tiered_lock);
+    __wt_spin_destroy(session, &conn->locks.turtle_lock);
+    __wt_spin_destroy(session, &conn->locks.prefetch_lock);
 
     /* Free allocated hash buckets. */
     __wt_free(session, conn->blockhash);

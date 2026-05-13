@@ -49,7 +49,7 @@ __wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
 {
     /* Require single-threading. */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->turtle_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.turtle_lock);
 
     char *existing_config;
     WT_RET(__wt_turtle_read(session, WT_METAFILE_URI, &existing_config));

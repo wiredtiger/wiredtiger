@@ -1731,7 +1731,7 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
      * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
      * acquired by us.
      */
-    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->locks.schema_lock));
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config);

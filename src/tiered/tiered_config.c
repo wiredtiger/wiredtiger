@@ -50,7 +50,7 @@ __wti_tiered_bucket_config(
     bstorage = new = NULL;
     conn = S2C(session);
 
-    __wt_spin_lock(session, &conn->storage_lock);
+    __wt_spin_lock(session, &conn->locks.storage_lock);
 
     WT_ERR(__wt_schema_open_storage_source(session, &name, &nstorage));
     if (nstorage == NULL) {
@@ -128,7 +128,7 @@ err:
         }
         __wt_free(session, new);
     }
-    __wt_spin_unlock(session, &conn->storage_lock);
+    __wt_spin_unlock(session, &conn->locks.storage_lock);
     __wt_scr_free(session, &buf);
     return (ret);
 }

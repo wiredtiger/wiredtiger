@@ -60,7 +60,7 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name, bool locked)
     bucket = hash & (conn->hash_size - 1);
 
     if (!locked)
-        __wt_spin_lock(session, &conn->fh_lock);
+        __wt_spin_lock(session, &conn->locks.fh_lock);
 
     TAILQ_FOREACH (fh, &conn->fhhash[bucket], hashq)
         if (strcmp(name, fh->name) == 0) {
@@ -69,7 +69,7 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name, bool locked)
         }
 
     if (!locked)
-        __wt_spin_unlock(session, &conn->fh_lock);
+        __wt_spin_unlock(session, &conn->locks.fh_lock);
 
     return (found);
 }
@@ -86,9 +86,9 @@ __wt_remove_locked(WT_SESSION_IMPL *session, const char *name, bool *removed)
 
     conn = S2C(session);
     *removed = false;
-    __wt_spin_lock(session, &conn->fh_lock);
+    __wt_spin_lock(session, &conn->locks.fh_lock);
     if (__wt_handle_is_open(session, name, true)) {
-        __wt_spin_unlock(session, &conn->fh_lock);
+        __wt_spin_unlock(session, &conn->locks.fh_lock);
         return (0);
     } else {
         __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCKED: actually remove %s", name);
@@ -97,7 +97,7 @@ __wt_remove_locked(WT_SESSION_IMPL *session, const char *name, bool *removed)
         *removed = true;
     }
 err:
-    __wt_spin_unlock(session, &conn->fh_lock);
+    __wt_spin_unlock(session, &conn->locks.fh_lock);
     return (ret);
 }
 
@@ -121,7 +121,7 @@ __handle_search(WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH 
     hash = __wt_hash_city64(name, strlen(name));
     bucket = hash & (conn->hash_size - 1);
 
-    __wt_spin_lock(session, &conn->fh_lock);
+    __wt_spin_lock(session, &conn->locks.fh_lock);
 
     /*
      * If we already have the file open, increment the reference count and return a pointer.
@@ -144,7 +144,7 @@ __handle_search(WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH 
         *fhp = newfh;
     }
 
-    __wt_spin_unlock(session, &conn->fh_lock);
+    __wt_spin_unlock(session, &conn->locks.fh_lock);
 
     return (found);
 }
@@ -335,7 +335,7 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
     (void)__wt_atomic_sub_uint32(&conn->open_file_count, 1);
 
     if (locked)
-        __wt_spin_unlock(session, &conn->fh_lock);
+        __wt_spin_unlock(session, &conn->locks.fh_lock);
 
     /* Discard underlying resources. */
     WT_TRET(fh->handle->close(fh->handle, (WT_SESSION *)session));
@@ -371,10 +371,10 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
      *
      * Assert the reference count is correct, but don't let it wrap.
      */
-    __wt_spin_lock(session, &conn->fh_lock);
+    __wt_spin_lock(session, &conn->locks.fh_lock);
     WT_ASSERT(session, fh->ref > 0);
     if ((fh->ref > 0 && --fh->ref > 0)) {
-        __wt_spin_unlock(session, &conn->fh_lock);
+        __wt_spin_unlock(session, &conn->locks.fh_lock);
         return (0);
     }
 
@@ -395,7 +395,7 @@ __wt_fsync_background_chk(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     supported = true;
-    __wt_spin_lock(session, &conn->fh_lock);
+    __wt_spin_lock(session, &conn->locks.fh_lock);
     /*
      * Look for the first data file handle and see if the fsync nowait function is supported.
      */
@@ -411,7 +411,7 @@ __wt_fsync_background_chk(WT_SESSION_IMPL *session)
             supported = false;
         break;
     }
-    __wt_spin_unlock(session, &conn->fh_lock);
+    __wt_spin_unlock(session, &conn->locks.fh_lock);
     return (supported);
 }
 
@@ -428,7 +428,7 @@ __fsync_background(WT_SESSION_IMPL *session, WT_FH *fh)
     uint64_t now;
 
     conn = S2C(session);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->fh_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->locks.fh_lock);
     WT_STAT_CONN_INCR(session, fsync_all_fh_total);
 
     handle = fh->handle;
@@ -441,7 +441,7 @@ __fsync_background(WT_SESSION_IMPL *session, WT_FH *fh)
 
     now = __wt_clock(session);
     if (fh->last_sync == 0 || WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
-        __wt_spin_unlock(session, &conn->fh_lock);
+        __wt_spin_unlock(session, &conn->locks.fh_lock);
 
         /*
          * We set the false flag to indicate a non-blocking background fsync, but there is no
@@ -455,7 +455,7 @@ __fsync_background(WT_SESSION_IMPL *session, WT_FH *fh)
             fh->written = 0;
         }
 
-        __wt_spin_lock(session, &conn->fh_lock);
+        __wt_spin_lock(session, &conn->locks.fh_lock);
     }
     return (ret);
 }
@@ -472,7 +472,7 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
     WT_FH *fh, *fhnext;
 
     conn = S2C(session);
-    __wt_spin_lock(session, &conn->fh_lock);
+    __wt_spin_lock(session, &conn->locks.fh_lock);
     TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext)
     {
         /*
@@ -491,7 +491,7 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
          */
         if (--fh->ref == 0) {
             WT_TRET(__handle_close(session, fh, true));
-            __wt_spin_lock(session, &conn->fh_lock);
+            __wt_spin_lock(session, &conn->locks.fh_lock);
         }
 
         /*
@@ -501,7 +501,7 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
         if (fhnext != NULL)
             --fhnext->ref;
     }
-    __wt_spin_unlock(session, &conn->fh_lock);
+    __wt_spin_unlock(session, &conn->locks.fh_lock);
     return (ret);
 }
 

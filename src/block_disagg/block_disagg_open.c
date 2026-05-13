@@ -87,13 +87,13 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
     conn = S2C(session);
     hash = __wt_hash_city64(filename, strlen(filename));
     bucket = hash & (conn->hash_size - 1);
-    __wt_spin_lock(session, &conn->block_lock);
+    __wt_spin_lock(session, &conn->locks.block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
         /* TODO: Should check to make sure this is the right type of block */
         if (strcmp(filename, block->name) == 0) {
             ++block->ref;
             *blockp = block;
-            __wt_spin_unlock(session, &conn->block_lock);
+            __wt_spin_unlock(session, &conn->locks.block_lock);
             return (0);
         }
     }
@@ -122,13 +122,13 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
     WT_ASSERT_ALWAYS(session, block_disagg->plhandle != NULL, "disagg tables need a page log");
 
     *blockp = (WT_BLOCK *)block_disagg;
-    __wt_spin_unlock(session, &conn->block_lock);
+    __wt_spin_unlock(session, &conn->locks.block_lock);
     return (0);
 
 err:
     if (block_disagg != NULL)
         WT_TRET(__block_disagg_destroy(session, block_disagg));
-    __wt_spin_unlock(session, &conn->block_lock);
+    __wt_spin_unlock(session, &conn->locks.block_lock);
     return (ret);
 }
 
@@ -150,13 +150,13 @@ __wti_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg
     __wt_verbose(session, WT_VERB_BLOCK, "close: %s (table_id: %" PRIu64 ")",
       block_disagg->name == NULL ? "" : block_disagg->name, block_disagg->tableid);
 
-    __wt_spin_lock(session, &conn->block_lock);
+    __wt_spin_lock(session, &conn->locks.block_lock);
 
     /* Reference count is initialized to 1. */
     if (block_disagg->ref == 0 || --block_disagg->ref == 0)
         ret = __block_disagg_destroy(session, block_disagg);
 
-    __wt_spin_unlock(session, &conn->block_lock);
+    __wt_spin_unlock(session, &conn->locks.block_lock);
 
     return (ret);
 }

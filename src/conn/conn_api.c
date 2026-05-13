@@ -137,10 +137,10 @@ __conn_add_collator(
     WT_ERR(__wt_strdup(session, name, &ncoll->name));
     ncoll->collator = collator;
 
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
     TAILQ_INSERT_TAIL(&conn->collqh, ncoll, q);
     ncoll = NULL;
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
 
 err:
     if (ncoll != NULL) {
@@ -238,10 +238,10 @@ __conn_add_compressor(
     WT_ERR(__wt_strdup(session, name, &ncomp->name));
     ncomp->compressor = compressor;
 
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
     TAILQ_INSERT_TAIL(&conn->compqh, ncomp, q);
     ncomp = NULL;
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
 
 err:
     if (ncomp != NULL) {
@@ -303,10 +303,10 @@ __conn_add_data_source(
     ndsrc->dsrc = dsrc;
 
     /* Link onto the environment's list of data sources. */
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
     TAILQ_INSERT_TAIL(&conn->dsrcqh, ndsrc, q);
     ndsrc = NULL;
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
 
 err:
     if (ndsrc != NULL) {
@@ -392,7 +392,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     kenc = NULL;
     conn = S2C(session);
 
-    __wt_spin_lock(session, &conn->encryptor_lock);
+    __wt_spin_lock(session, &conn->locks.encryptor_lock);
 
     WT_ERR(__encryptor_confchk(session, cval, &nenc));
     if (nenc == NULL) {
@@ -430,7 +430,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     TAILQ_INSERT_HEAD(&nenc->keyedhashqh[bucket], kenc, hashq);
 
 out:
-    __wt_spin_unlock(session, &conn->encryptor_lock);
+    __wt_spin_unlock(session, &conn->locks.encryptor_lock);
     *kencryptorp = kenc;
     return (0);
 
@@ -439,7 +439,7 @@ err:
         __wt_free(session, kenc->keyid);
         __wt_free(session, kenc);
     }
-    __wt_spin_unlock(session, &conn->encryptor_lock);
+    __wt_spin_unlock(session, &conn->locks.encryptor_lock);
     return (ret);
 }
 
@@ -559,10 +559,10 @@ __conn_add_page_log(
     WT_ERR(__wt_calloc_one(session, &npl));
     WT_ERR(__wt_strdup(session, name, &npl->name));
     npl->page_log = page_log;
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
     TAILQ_INSERT_TAIL(&conn->pagelogqh, npl, q);
     npl = NULL;
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
 
 err:
     if (npl != NULL) {
@@ -682,10 +682,10 @@ __conn_add_storage_source(
     for (i = 0; i < conn->hash_size; i++)
         TAILQ_INIT(&nstorage->buckethashqh[i]);
 
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
     TAILQ_INSERT_TAIL(&conn->storagesrcqh, nstorage, q);
     nstorage = NULL;
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
 
 err:
     if (nstorage != NULL) {
@@ -974,9 +974,9 @@ __conn_load_extension_int(
     WT_ERR(load(&S2C(session)->iface, (WT_CONFIG_ARG *)ext_cfg));
 
     /* Link onto the environment's list of open libraries. */
-    __wt_spin_lock(session, &S2C(session)->api_lock);
+    __wt_spin_lock(session, &S2C(session)->locks.api_lock);
     TAILQ_INSERT_TAIL(&S2C(session)->dlhqh, dlh, q);
-    __wt_spin_unlock(session, &S2C(session)->api_lock);
+    __wt_spin_unlock(session, &S2C(session)->locks.api_lock);
     dlh = NULL;
 
 err:

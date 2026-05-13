@@ -128,8 +128,8 @@ __wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[
     WT_DECL_RET;
     const char *tablename;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.schema_lock);
 
     tablename = uri;
 

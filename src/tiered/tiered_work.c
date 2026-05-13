@@ -56,7 +56,7 @@ __wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool locked
 
     conn = S2C(session);
     if (!locked)
-        __wt_spin_lock(session, &conn->tiered_lock);
+        __wt_spin_lock(session, &conn->locks.tiered_lock);
     TAILQ_FOREACH_SAFE(entry, &conn->tieredqh, q, entry_tmp)
     {
         /* Remove and free any entry for this tiered handle. */
@@ -67,7 +67,7 @@ __wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool locked
         }
     }
     if (!locked)
-        __wt_spin_unlock(session, &conn->tiered_lock);
+        __wt_spin_unlock(session, &conn->locks.tiered_lock);
     return;
 }
 
@@ -81,11 +81,11 @@ __tiered_push_work_internal(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    __wt_spin_lock(session, &conn->tiered_lock);
+    __wt_spin_lock(session, &conn->locks.tiered_lock);
     TAILQ_INSERT_TAIL(&conn->tieredqh, entry, q);
     WT_ASSERT(session, entry->tiered != NULL);
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
-    __wt_spin_unlock(session, &conn->tiered_lock);
+    __wt_spin_unlock(session, &conn->locks.tiered_lock);
     __tiered_flush_state(session, entry->type, true);
     __wt_cond_signal(session, conn->tiered_cond);
     return;
@@ -152,7 +152,7 @@ __tiered_pop_work(
     conn = S2C(session);
     if (__tiered_queue_peek_empty(conn))
         return;
-    __wt_spin_lock(session, &conn->tiered_lock);
+    __wt_spin_lock(session, &conn->locks.tiered_lock);
 
     TAILQ_FOREACH (entry, &conn->tieredqh, q) {
         if (FLD_ISSET(type, entry->type) && (maxval == 0 || entry->op_val < maxval)) {
@@ -164,7 +164,7 @@ __tiered_pop_work(
             break;
         }
     }
-    __wt_spin_unlock(session, &conn->tiered_lock);
+    __wt_spin_unlock(session, &conn->locks.tiered_lock);
     return;
 }
 
@@ -188,14 +188,14 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
 
     while (!done) {
         found = false;
-        __wt_spin_lock(session, &conn->tiered_lock);
+        __wt_spin_lock(session, &conn->locks.tiered_lock);
         TAILQ_FOREACH (entry, &conn->tieredqh, q)
             if (FLD_ISSET(entry->type, WT_TIERED_WORK_FLUSH)) {
                 found = true;
                 break;
             }
 
-        __wt_spin_unlock(session, &conn->tiered_lock);
+        __wt_spin_unlock(session, &conn->locks.tiered_lock);
         if (found) {
             __wt_cond_signal(session, conn->tiered_cond);
             __wt_sleep(0, 10 * WT_THOUSAND);

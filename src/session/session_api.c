@@ -409,7 +409,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     WT_TRET(__wt_session_release_resources(session));
 
     /* The API lock protects opening and closing of sessions. */
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
 
     /*
      * Free transaction information: inside the lock because we're freeing the WT_TXN structure and
@@ -460,7 +460,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         if (__wt_atomic_sub_uint32(&conn->session_array.cnt, 1) == 0)
             break;
 
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
 
 #ifdef HAVE_CALL_LOG
     if (!internal_session)
@@ -1419,8 +1419,8 @@ err:
 static int
 __session_salvage_worker(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->locks.schema_lock);
 
     WT_RET(__wt_schema_worker(
       session, uri, __wt_salvage, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE));
@@ -2548,7 +2548,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session = conn->default_session;
     session_ret = NULL;
 
-    __wt_spin_lock(session, &conn->api_lock);
+    __wt_spin_lock(session, &conn->locks.api_lock);
 
     /*
      * Make sure we don't try to open a new session after the application closes the connection.
@@ -2707,7 +2707,7 @@ err:
 #endif
     if (ret != 0 && session_ret != NULL && !out_of_sessions)
         __wt_txn_destroy(session_ret);
-    __wt_spin_unlock(session, &conn->api_lock);
+    __wt_spin_unlock(session, &conn->locks.api_lock);
     return (ret);
 }
 
