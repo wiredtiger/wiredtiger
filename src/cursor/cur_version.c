@@ -682,9 +682,10 @@ __curversion_value_return_from_hs(WT_CURSOR *cursor, WT_TIME_WINDOW *twp, uint64
     version_cursor->upd_stop_prepare_ts = twp->start_prepare_ts;
     version_cursor->upd_stop_prepared_id = twp->start_prepared_id;
     /*
-     * upd_stop_prepared is intentionally not updated here history-store records are fully committed
-     * so their start time point is never an in-progress prepare; any prepared stop inherited from
-     * the update chain still gates the globally-visible check for the next iteration.
+     * upd_stop_prepared is intentionally not updated here; history-store records are fully
+     * committed so their start time point is never an in-progress prepare. Any prepared stop
+     * inherited from the update chain still gates the globally-visible check for the next
+     * iteration.
      */
     return (0);
 }
