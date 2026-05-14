@@ -514,6 +514,30 @@ struct __wt_named_storage_source {
 };
 
 /*
+ * WT_CONN_EXTENSIONS --
+ *	Extension interface lists and their associated locks, grouped by subsystem.
+ */
+struct __wt_conn_extensions {
+    /* Locked: collator list */
+    TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
+
+    /* Locked: compressor list */
+    TAILQ_HEAD(__wt_comp_qh, __wt_named_compressor) compqh;
+
+    /* Locked: encryptor list */
+    WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
+    TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
+
+    /* Locked: page log list */
+    WT_SPINLOCK page_log_lock; /* Page log list lock */
+    TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
+
+    /* Locked: storage source list */
+    WT_SPINLOCK storage_lock; /* Storage source list lock */
+    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
+};
+
+/*
  * WT_NAME_FLAG --
  *	Simple structure for name and flag configuration searches
  */
@@ -530,6 +554,42 @@ struct __wt_name_flag {
 struct __wt_layered_drain_entry {
     WT_DATA_HANDLE *ingest_dhandle;
     TAILQ_ENTRY(__wt_layered_drain_entry) q;
+};
+
+/*
+ * WT_CONN_STAT_LOG --
+ *	Statistics logging subsystem fields, grouping the session, thread, and
+ *	configuration that drive the statistics log server.
+ */
+struct __wt_conn_stat_log {
+#define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
+    WT_SESSION_IMPL *session; /* Statistics log session */
+    wt_thread_t tid;          /* Statistics log thread */
+    bool tid_set;             /* Statistics log thread set */
+    WT_CONDVAR *cond;         /* Statistics log wait mutex */
+    const char *format;       /* Statistics log timestamp format */
+    WT_FSTREAM *fs;           /* Statistics log stream */
+    /* Statistics log json table printing state flag */
+    bool json_tables;
+    char *path;        /* Statistics log path format */
+    char **sources;    /* Statistics log list of objects */
+    const char *stamp; /* Statistics log entry timestamp */
+    uint64_t usecs;    /* Statistics log period */
+};
+
+/*
+ * WT_CONN_SWEEP --
+ *	Handle sweep subsystem fields, grouping the session, thread, and
+ *	configuration that drive the handle sweep server.
+ */
+struct __wt_conn_sweep {
+    WT_SESSION_IMPL *session; /* Handle sweep session */
+    wt_thread_t tid;          /* Handle sweep thread */
+    int tid_set;              /* Handle sweep thread set */
+    WT_CONDVAR *cond;         /* Handle sweep wait mutex */
+    uint64_t idle_time;       /* Handle sweep idle time */
+    uint64_t interval;        /* Handle sweep interval */
+    uint64_t handles_min;     /* Handle sweep minimum open */
 };
 
 /*
@@ -640,6 +700,20 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
+ * WT_CONN_EVICT_CONFIG --
+ *     Eviction thread group configuration and management fields extracted from WT_CONNECTION_IMPL.
+ */
+struct __wt_conn_evict_config {
+    bool server_running;             /* Eviction server operating */
+    WT_THREAD_GROUP threads;         /* Eviction thread group */
+    uint32_t threads_max;            /* Max eviction threads */
+    uint32_t threads_min;            /* Min eviction threads */
+    bool sample_inmem;               /* Sample in-memory pages */
+    wt_shared bool use_npos;         /* Use npos page visit strategy */
+    bool legacy_page_visit_strategy; /* Use legacy page visit strategy */
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -725,6 +799,8 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_dhandle_qh, __wt_data_handle) dhqh;
     /* Locked: dynamic library handle list */
     TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
+    /* Locked: data source list */
+    TAILQ_HEAD(__wt_dsrc_qh, __wt_named_data_source) dsrcqh;
     /* Locked: file list */
     TAILQ_HEAD(__wt_fhhash, __wt_fh) * fhhash;
     TAILQ_HEAD(__wt_fh_qh, __wt_fh) fhqh;
@@ -835,14 +911,7 @@ struct __wt_connection_impl {
 
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
-    bool evict_server_running; /* Eviction server operating */
-
-    WT_THREAD_GROUP evict_threads;
-    uint32_t evict_threads_max; /* Max eviction threads */
-    uint32_t evict_threads_min; /* Min eviction threads */
-    bool evict_sample_inmem;
-    wt_shared bool evict_use_npos;
-    bool evict_legacy_page_visit_strategy;
+    WT_CONN_EVICT_CONFIG evict_config; /* Eviction thread group and configuration */
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
@@ -871,19 +940,7 @@ struct __wt_connection_impl {
 
     bool preserve_prepared; /* Preserve prepared updates */
 
-#define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
-    WT_SESSION_IMPL *stat_session; /* Statistics log session */
-    wt_thread_t stat_tid;          /* Statistics log thread */
-    bool stat_tid_set;             /* Statistics log thread set */
-    WT_CONDVAR *stat_cond;         /* Statistics log wait mutex */
-    const char *stat_format;       /* Statistics log timestamp format */
-    WT_FSTREAM *stat_fs;           /* Statistics log stream */
-    /* Statistics log json table printing state flag */
-    bool stat_json_tables;
-    char *stat_path;        /* Statistics log path format */
-    char **stat_sources;    /* Statistics log list of objects */
-    const char *stat_stamp; /* Statistics log entry timestamp */
-    uint64_t stat_usecs;    /* Statistics log period */
+    WT_CONN_STAT_LOG stat_log; /* Statistics logging subsystem */
 
     WT_SESSION_IMPL *tiered_session;    /* Tiered thread session */
     wt_thread_t tiered_tid;             /* Tiered thread */
@@ -907,34 +964,9 @@ struct __wt_connection_impl {
      */
     bool modified;
 
-    WT_SESSION_IMPL *sweep_session; /* Handle sweep session */
-    wt_thread_t sweep_tid;          /* Handle sweep thread */
-    int sweep_tid_set;              /* Handle sweep thread set */
-    WT_CONDVAR *sweep_cond;         /* Handle sweep wait mutex */
-    uint64_t sweep_idle_time;       /* Handle sweep idle time */
-    uint64_t sweep_interval;        /* Handle sweep interval */
-    uint64_t sweep_handles_min;     /* Handle sweep minimum open */
+    WT_CONN_SWEEP sweep; /* Handle sweep thread and configuration */
 
-    /* Locked: collator list */
-    TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
-
-    /* Locked: compressor list */
-    TAILQ_HEAD(__wt_comp_qh, __wt_named_compressor) compqh;
-
-    /* Locked: data source list */
-    TAILQ_HEAD(__wt_dsrc_qh, __wt_named_data_source) dsrcqh;
-
-    /* Locked: encryptor list */
-    WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
-    TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
-
-    /* Locked: page log list */
-    WT_SPINLOCK page_log_lock; /* Page log list lock */
-    TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
-
-    /* Locked: storage source list */
-    WT_SPINLOCK storage_lock; /* Storage source list lock */
-    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
+    WT_CONN_EXTENSIONS ext; /* Extension interface lists */
 
     void *lang_private; /* Language specific private storage */
 
