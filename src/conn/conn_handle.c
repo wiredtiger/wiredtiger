@@ -27,6 +27,9 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->tieredqh); /* Tiered work unit list */
     TAILQ_INIT(&conn->pfqh);     /* Pre-fetch reference list */
 
+    /* I/O capacity subsystem. */
+    WT_RET(__wti_conn_capacity_init(session));
+
     /* Extension interface lists. */
     WT_RET(__wti_conn_ext_init(session));
 
@@ -121,6 +124,9 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
     __wt_spin_destroy(session, &conn->prefetch_lock);
+
+    /* I/O capacity subsystem. */
+    __wti_conn_capacity_destroy(session);
 
     /* Extension interface lists. */
     __wti_conn_ext_destroy(session);
