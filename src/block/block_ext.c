@@ -112,7 +112,8 @@ __block_update_max_size(
     int i;
 
     WT_RET(__wt_calloc(session, 1,
-      sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * sizeof(WT_EXT *) + WT_SKIP_MAXDEPTH * sizeof(wt_off_t),
+      sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * 2 * sizeof(WT_EXT *) +
+        WT_SKIP_MAXDEPTH * sizeof(wt_off_t),
       &fake));
     fake->depth = WT_SKIP_MAXDEPTH;
     fake->size = 0;
