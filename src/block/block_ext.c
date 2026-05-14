@@ -9,6 +9,59 @@
 #include "wt_internal.h"
 
 /*
+ * Augmented skiplist design for O(log n) first-fit block search
+ * ==============================================================
+ *
+ * Background: standard WiredTiger skiplists
+ * -----------------------------------------
+ * The avail extent list is a skiplist ordered by file offset. Each WT_EXT node
+ * has a variable-length array of forward pointers next[0..depth-1], where
+ * next[i] skips over all nodes at levels 0..i-1. This gives O(log n) for
+ * point lookups (find extent at offset X) but not for first-fit search
+ * (find the lowest-offset extent with size >= S), which degrades to O(n).
+ *
+ * Augmentation: max_size per node per level
+ * -----------------------------------------
+ * Each WT_EXT node stores an additional variable-length array max_size[0..depth-1]
+ * (accessed via WT_EXT_MAX_SIZE) embedded immediately after next[2*depth] in the
+ * same allocation. The WT_EXTLIST also stores max_size_to_head[0..WT_SKIP_MAXDEPTH-1].
+ *
+ * Invariant maintained:
+ *   For each node `ext` and level i (0 <= i < ext->depth):
+ *     WT_EXT_MAX_SIZE(ext, i) == the maximum extent size among all extents
+ *     reachable from ext by following level-0 pointers up to (but not
+ *     including) ext->next[i].
+ *
+ *   For each level i in the WT_EXTLIST:
+ *     max_size_to_head[i] == the maximum extent size among all extents at
+ *     level 0 that appear before el->off[i] (the first node at level i).
+ *
+ * How search uses max_size for O(log n) first-fit
+ * ------------------------------------------------
+ * __block_first_srch_v2 descends the skiplist from the highest level to
+ * level 0. At each level i, it advances the current position as long as
+ * the next node's max_size[i] < requested_size (meaning no extent in that
+ * span is large enough). When it can no longer advance, it drops to level i-1.
+ * After descending all levels, the first qualifying extent is at next[0].
+ *
+ * This is the standard augmented range-search technique applied to skiplists:
+ * prune entire spans when their max size is below the target. Expected
+ * time complexity is O(log n).
+ *
+ * Naming note: the field is called max_size (not span_max or subtree_max)
+ * because it directly stores the maximum extent *size* reachable via a
+ * particular skiplist forward pointer; the name is self-describing in context.
+ *
+ * Update cost
+ * -----------
+ * __block_update_max_size is called after every insert or remove on the avail
+ * list. It recomputes max_size bottom-up for the ancestors of the changed
+ * position. Using a stack-allocated fake head sentinel (depth = WT_SKIP_MAXDEPTH,
+ * off = -1) unifies traversal from the true head without any heap allocation.
+ * Update cost is O(log n) amortized, matching the insert/remove cost.
+ */
+
+/*
  * WT_BLOCK_RET --
  *	Handle extension list errors that would normally panic the system but
  * which should fail gracefully when verifying.
@@ -91,18 +144,28 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 
 /*
  * __block_update_max_size --
- *     Update the max_size arrays for the augmented skiplist after an insert or remove at the given
- *     offset. A stack-allocated fake head node is used to unify traversal from the true head of the
- *     list, avoiding any heap allocation.
+ *     Recompute max_size for the augmented skiplist after an insert or remove.
  *
- * The function finds the rightmost predecessor of `off` at each skiplist level (the search stack),
- *     then recomputes max_size for each stack node bottom-up. At level 0, max_size equals the
- *     node's own size. At level i, max_size is the maximum of all max_size[i-1] values in the span
- *     [stack[i], stack[i]->next[i]).
+ * Called from __block_ext_insert and __block_off_remove immediately after the skiplist pointers are
+ *     updated, passing the offset of the inserted or removed extent. Only avail lists (type 0)
+ *     maintain the max_size augmentation; other extent lists skip this.
  *
- * Edge cases handled by the fake head approach: - Inserting at head: fake becomes stack[i] for all
- *     levels; max_size_head[i] is updated. - Removing the last element: all spans become empty;
- *     max_size_head[i] is set to 0. - Removing the only element: same as removing the last element.
+ * Algorithm: 1. Prepend a stack-allocated fake head node (off=-1, depth=WT_SKIP_MAXDEPTH) by
+ *     splicing it before head[]. This unifies the "insert before the first node" and "update
+ *     max_size_to_head" cases without any heap allocation. 2. Find the rightmost predecessor of
+ *     `off` at each level (the search stack). 3. Recompute max_size bottom-up: - At level 0:
+ *     max_size[0] == the node's own size (it covers a single extent). - At level i: walk from
+ *     stack[i] to stack[i]->next[i] along level i-1, taking the max of all max_size[i-1] values
+ *     encountered. 4. Remove the fake head, propagating its max_size[] back into
+ *     max_size_to_head[].
+ *
+ * Edge cases handled by the fake head: - Inserting at the head of the list: fake becomes stack[i]
+ *     for all levels. - Removing the last element: all spans become empty; max_size_head[i] is set
+ *     to 0. - Removing the only element: handled the same as removing the last element.
+ *
+ * Note: `off` is the offset of the changed extent. For inserts the node is already in the skiplist
+ *     when this is called; for removes it has already been removed from the list. In both cases the
+ *     correct action is to recompute max_size for the ancestors of that position.
  */
 static void
 __block_update_max_size(WT_EXT **head, wt_off_t *max_size_head, wt_off_t off)
@@ -167,20 +230,35 @@ __block_update_max_size(WT_EXT **head, wt_off_t *max_size_head, wt_off_t off)
 
 /*
  * __block_first_srch_v2 --
- *     Search the augmented skiplist for the first (lowest-offset) extent whose size is at least
- *     `size`, using the max_size augmentation to skip spans that contain no large enough extent.
+ *     Search the augmented skiplist for the first (lowest-offset) extent whose size is >= `size`.
  *
- * Algorithm: maintain a "current position" ext (NULL means before the head of the list). At each
- *     skiplist level i (descending from highest to lowest), advance ext by following next[i] as
- *     long as the next node's max_size[i] < size (meaning the span starting at that node contains
- *     no extent large enough). When we cannot advance further at level i, drop to level i-1. After
- *     descending all levels, ext->next[0] is the first qualifying extent.
+ * The max_size augmentation allows entire spans to be skipped when the maximum extent size in that
+ *     span is smaller than the requested size, reducing expected complexity from O(n) to O(log n).
  *
- * Edge cases: - Empty list or no extent large enough: max_size_head[0] < size, return NULL
- *     immediately. - Single node at maximum depth (WT_SKIP_MAXDEPTH): correctly found because we
- *     stop advancing at each level as soon as the candidate's max_size[i] >= size. - All nodes at
- *     depth 1: degrades gracefully to O(n) scan at level 0. - Exact size match: works correctly
- *     (max_size[0] == size >= size).
+ * Key concepts: max_size_to_head[i] --
+ *     the maximum hole size reachable from the head pointer at level i, i.e., the maximum extent
+ *     size among all level-0 extents before el->off[i]. WT_EXT_MAX_SIZE(ext, i) --
+ *     the maximum hole size in the span starting at ext at level i, i.e., the maximum extent size
+ *     reachable from ext by following level-0 links up to (but not including) ext->next[i].
+ *
+ * Algorithm: Maintain a "current position" ext (NULL = before the head). Descend from the highest
+ *     skiplist level to level 0. At each level i, advance ext as far as possible while the next
+ *     node's max_size[i] < size (meaning the entire span contains no large-enough extent). When
+ *     advancement stops at level i, drop to level i-1 for a finer-grained search. After descending
+ *     all levels, ext->next[0] is the first qualifying extent.
+ *
+ * Example: avail list with three extents [off=10,sz=4], [off=20,sz=8], [off=30,sz=2]. max_size[0]
+ *     values: 4, 8, 2. Requesting size=6: Level 2: max_size[2] at head=8 >= 6, stop immediately.
+ *     Level 1: next node max_size[1]=4 < 6, advance past [10,4]; next max_size[1]=8 >= 6, stop.
+ *     Level 0: next node is [20,8], max_size[0]=8 >= 6, stop. Result: ext->next[0] = [20,8].
+ *     Correct: the lowest-offset extent with size >= 6.
+ *
+ * Edge cases: Empty list or no large-enough extent: every node's max_size < size, traversal
+ *     advances past all nodes and returns NULL. All nodes at depth 1: degrades gracefully to O(n)
+ *     scan at level 0. Exact size match: max_size[0] == size >= size, so the node is found
+ *     correctly.
+ *
+ * Time complexity: O(log n) expected, matching a standard augmented range-search on a skiplist.
  */
 static WT_INLINE void
 __block_first_srch_v2(
