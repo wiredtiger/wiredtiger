@@ -3050,6 +3050,10 @@ wtperf_rand(WTPERF_THREAD *thread)
     if (opts->pareto != 0)
         rval = testutil_pareto(rval, end_range - start_range, opts->pareto);
 
+    /* Scatter hot keys across the key space, matching YCSB ScrambledZipfianGenerator behavior. */
+    if (opts->scramble)
+        rval = testutil_fnvhash64(rval) % range;
+
     /*
      * A distribution that selects the record with a higher key with higher probability. This was
      * added to support the YCSB-D workload, which calls for "read latest" selection for records
