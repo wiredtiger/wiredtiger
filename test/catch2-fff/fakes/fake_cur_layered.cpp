@@ -51,7 +51,10 @@ int
 ingest_get_key_va(WT_CURSOR *c, va_list ap)
 {
     const auto item = va_arg(ap, WT_ITEM *);
-    *item = ingest_get_key_item(c);
+
+    if (item != nullptr)
+        *item = ingest_get_key_item(c);
+
     return ingest_get_key_fake.return_val;
 }
 
@@ -59,7 +62,10 @@ int
 stable_get_key_va(WT_CURSOR *c, va_list ap)
 {
     const auto item = va_arg(ap, WT_ITEM *);
-    *item = stable_get_key_item(c);
+
+    if (item != nullptr)
+        *item = stable_get_key_item(c);
+
     return stable_get_key_fake.return_val;
 }
 
@@ -67,7 +73,10 @@ int
 ingest_get_value_va(WT_CURSOR *c, va_list ap)
 {
     const auto item = va_arg(ap, WT_ITEM *);
-    *item = ingest_get_value_item(c);
+
+    if (item != nullptr)
+        *item = ingest_get_value_item(c);
+
     return ingest_get_value_fake.return_val;
 }
 
@@ -75,7 +84,10 @@ int
 stable_get_value_va(WT_CURSOR *c, va_list ap)
 {
     const auto item = va_arg(ap, WT_ITEM *);
-    *item = stable_get_value_item(c);
+
+    if (item != nullptr)
+        *item = stable_get_value_item(c);
+
     return stable_get_value_fake.return_val;
 }
 
