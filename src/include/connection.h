@@ -578,6 +578,21 @@ struct __wt_conn_stat_log {
 };
 
 /*
+ * WT_CONN_SWEEP --
+ *	Handle sweep subsystem fields, grouping the session, thread, and
+ *	configuration that drive the handle sweep server.
+ */
+struct __wt_conn_sweep {
+    WT_SESSION_IMPL *session; /* Handle sweep session */
+    wt_thread_t tid;          /* Handle sweep thread */
+    int tid_set;              /* Handle sweep thread set */
+    WT_CONDVAR *cond;         /* Handle sweep wait mutex */
+    uint64_t idle_time;       /* Handle sweep idle time */
+    uint64_t interval;        /* Handle sweep interval */
+    uint64_t handles_min;     /* Handle sweep minimum open */
+};
+
+/*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
@@ -942,13 +957,7 @@ struct __wt_connection_impl {
      */
     bool modified;
 
-    WT_SESSION_IMPL *sweep_session; /* Handle sweep session */
-    wt_thread_t sweep_tid;          /* Handle sweep thread */
-    int sweep_tid_set;              /* Handle sweep thread set */
-    WT_CONDVAR *sweep_cond;         /* Handle sweep wait mutex */
-    uint64_t sweep_idle_time;       /* Handle sweep idle time */
-    uint64_t sweep_interval;        /* Handle sweep interval */
-    uint64_t sweep_handles_min;     /* Handle sweep minimum open */
+    WT_CONN_SWEEP sweep; /* Handle sweep thread and configuration */
 
     WT_CONN_EXTENSIONS ext; /* Extension interface lists */
 

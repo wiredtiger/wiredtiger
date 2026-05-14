@@ -175,6 +175,8 @@ struct __wt_conn_extensions;
 typedef struct __wt_conn_extensions WT_CONN_EXTENSIONS;
 struct __wt_conn_stat_log;
 typedef struct __wt_conn_stat_log WT_CONN_STAT_LOG;
+struct __wt_conn_sweep;
+typedef struct __wt_conn_sweep WT_CONN_SWEEP;
 struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;
