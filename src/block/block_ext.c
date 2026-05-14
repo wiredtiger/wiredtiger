@@ -87,6 +87,81 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 }
 
 /*
+ * update_max_size --
+ *     Update the max_size arrays for the augmented skiplist after an insert or remove at the given
+ *     offset.
+ */
+static WT_INLINE int
+update_max_size(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t *max_size_head, wt_off_t off)
+{
+    WT_EXT *fake;
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * sizeof(WT_EXT *), &fake));
+    fake->depth = 10;
+    fake->size = 0;
+    fake->off = -1;
+    for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+        fake->next[i] = head[i];
+        fake->max_size[i] = max_size_head[i];
+        head[i] = fake;
+    }
+
+    WT_EXT *ext = head[WT_SKIP_MAXDEPTH - 1];
+    WT_EXT *stack[WT_SKIP_MAXDEPTH];
+    for (int i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
+        while (ext->next[i] != NULL && ext->next[i]->off < off) {
+            ext = ext->next[i];
+        }
+        stack[i] = ext;
+    }
+
+    stack[0]->max_size[0] = stack[0]->size;
+    for (int i = 1; i < WT_SKIP_MAXDEPTH; ++i) {
+        WT_EXT *pre = stack[i];
+        WT_EXT *bound = pre->next[i];
+        wt_off_t maxv = 0;
+        while (pre != bound) {
+            maxv = WT_MAX(pre->max_size[i - 1], maxv);
+            pre = pre->next[i - 1];
+        }
+        stack[i]->max_size[i] = maxv;
+    }
+
+    for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+        head[i] = fake->next[i];
+        max_size_head[i] = fake->max_size[i];
+    }
+    __wt_free(session, fake);
+    return (0);
+}
+
+/*
+ * __block_first_srch_v2 --
+ *     Search the augmented skiplist for the first available slot using max_size metadata to skip
+ *     spans where no extent is large enough.
+ */
+static WT_INLINE void
+__block_first_srch_v2(
+  WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t *max_size_head, wt_off_t size, WT_EXT **retp)
+{
+    int j = 0;
+    WT_EXT *ext = NULL;
+    for (int i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
+        if (ext == NULL && max_size_head[i] >= size)
+            continue;
+        if (ext == NULL)
+            ext = head[i];
+        while (ext != NULL && ext->max_size[i] < size) {
+            j++;
+            ext = ext->next[i];
+        }
+        if (ext == NULL)
+            break;
+    }
+    WT_STAT_CONN_SET(session, block_ext_walked, j);
+    *retp = ext;
+}
+
+/*
  * __block_first_srch --
  *     Search the skiplist for the first available slot.
  */
@@ -224,6 +299,11 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
         *astack[i] = ext;
     }
 
+    if (el->type == 0) {
+        WT_RET(update_max_size(session, el->off, el->max_size_to_head, ext->off));
+        WT_RET(update_max_size(session, el->off, el->max_size_to_head, ext->off + 1));
+    }
+
     ++el->entries;
     __wt_atomic_add_uint64_relaxed(&el->bytes, (uint64_t)ext->size);
 
@@ -357,6 +437,8 @@ __block_off_remove(
         goto corrupt;
     for (i = 0; i < ext->depth; ++i)
         *astack[i] = ext->next[i];
+    if (el->type == 0)
+        WT_RET(update_max_size(session, el->off, el->max_size_to_head, off));
 
     /*
      * Find and remove the record from the size's offset skiplist; if that empties the by-size
@@ -543,7 +625,7 @@ __block_extend(
 int
 __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
 {
-    WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
+    WT_EXT *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
 
@@ -576,9 +658,10 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
     if (block->allocfirst) {
-        if (!__block_first_srch(session, block->live.avail.off, size, estack))
+        __block_first_srch_v2(
+          session, block->live.avail.off, block->live.avail.max_size_to_head, size, &ext);
+        if (ext == NULL)
             goto append;
-        ext = *estack[0];
     } else {
         __block_size_srch(block->live.avail.sz, size, sstack);
         if ((szp = *sstack[0]) == NULL) {
@@ -980,7 +1063,7 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
      * to reduce the amount of work we need to do during the merge. The size lists have to match as
      * well, so this is only possible if both lists are tracking sizes, or neither are.
      */
-    if (a->track_size == b->track_size && a->entries > b->entries) {
+    if (a->type != 0 && b->type != 0 && a->track_size == b->track_size && a->entries > b->entries) {
         tmp = *a;
         a->bytes = b->bytes;
         /* This assignment can run concurrently with `block_reuse_bytes` stats collection. */
@@ -1048,6 +1131,13 @@ __block_append(
         /* Update the cached end-of-list */
         el->last = last_ext;
     }
+
+    if (el->type == 0) {
+        for (i = 0; i < last_ext->depth; i++)
+            last_ext->max_size[i] = last_ext->size;
+        WT_RET(update_max_size(session, el->off, el->max_size_to_head, last_ext->off));
+    }
+
     el->bytes += (uint64_t)size;
 
     return (0);
@@ -1421,6 +1511,14 @@ __wti_block_extlist_init(
 
     el->offset = WT_BLOCK_INVALID_OFFSET;
     el->track_size = track_size;
+    if (WT_PREFIX_MATCH(extname, "avail")) {
+        el->type = 0;
+    } else if (WT_PREFIX_MATCH(extname, "ckpt_avail")) {
+        el->type = 1;
+    } else if (WT_PREFIX_MATCH(extname, "discard")) {
+        el->type = 2;
+    } else
+        el->type = 3;
     return (0);
 }
 
