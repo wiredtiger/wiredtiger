@@ -27,6 +27,9 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->tieredqh); /* Tiered work unit list */
     TAILQ_INIT(&conn->pfqh);     /* Pre-fetch reference list */
 
+    /* Hot backup subsystem. */
+    WT_RET(__wti_conn_backup_init(session));
+
     /* Extension interface lists. */
     WT_RET(__wti_conn_ext_init(session));
 
@@ -60,7 +63,6 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     /* Read-write locks */
     WT_RET(__wt_rwlock_init(session, &conn->log_mgr.debug_log_retention_lock));
     WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->dhandle_lock, dhandle);
-    WT_RET(__wt_rwlock_init(session, &conn->hot_backup_lock));
     WT_RWLOCK_INIT_TRACKED(session, &conn->table_lock, table);
 
     /* Initialize the generation manager. */
@@ -113,7 +115,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_rwlock_destroy(session, &conn->dhandle_lock);
     __wt_spin_destroy(session, &conn->fh_lock);
     __wt_spin_destroy(session, &conn->flush_tier_lock);
-    __wt_rwlock_destroy(session, &conn->hot_backup_lock);
+    __wti_conn_backup_destroy(session);
     __wt_spin_destroy(session, &conn->metadata_lock);
     __wt_spin_destroy(session, &conn->reconfig_lock);
     __wt_spin_destroy(session, &conn->schema_lock);
