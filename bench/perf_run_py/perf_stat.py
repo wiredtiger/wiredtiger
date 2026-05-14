@@ -114,40 +114,49 @@ class PerfStatCount(PerfStat):
 
 
 class PerfStatLatency(PerfStat):
-    def __init__(self, short_label: str, stat_files: List[str], output_label: str, ops: List[str], num_max: int):
+    def __init__(self, short_label: str, stat_files: List[str], output_label: str, ops: List[str],
+                 num_max: int = 1, field: str = "max latency", scale: int = 1,
+                 aggregation: str = 'max'):
         super().__init__(short_label=short_label,
                          stat_files=stat_files,
                          output_label=output_label)
         self.num_max = num_max
         self.ops = ops
+        self.field = field
+        self.scale = scale
+        self.aggregation = aggregation
 
     def find_stat(self, test_stat_path: str):
         values = []
         for line in open(test_stat_path):
             as_dict = json.loads(line)
             for operation in self.ops:
-                values.append(as_dict["wtperf"][operation]["max latency"])
+                values.append(as_dict["wtperf"][operation][self.field] // self.scale)
         return values
 
-    def get_value(self, nth_max: int):
-        """Return the nth maximum number from all the gathered values"""
-        return sorted(self.values)[-nth_max]
+    def get_value(self, nth: int = 1):
+        if self.aggregation == 'avg':
+            return sum(self.values) // len(self.values)
+
+        sorted_vals = sorted(self.values)
+        if self.aggregation == 'min':
+            return sorted_vals[nth - 1]
+        if self.aggregation == 'max':
+            return sorted_vals[-nth]
+
+        raise ValueError(f"Unknown aggregation: '{self.aggregation}'")
 
     def get_value_list(self, brief: bool):
-        as_list = []
-        num_max = min(len(self.values), self.num_max)
-        for i in range(1, num_max + 1):
-            as_dict = {
-                'name': self.output_label + str(i),
-                'value': self.get_value(i)
-            }
-            as_list.append(as_dict)
+        if self.aggregation == 'avg':
+            result = [{'name': self.output_label, 'value': self.get_value()}]
+        else:
+            result = [
+                {'name': self.output_label + str(i), 'value': self.get_value(i)}
+                for i in range(1, min(len(self.values), self.num_max) + 1)
+            ]
         if not brief:
-            as_list.append({
-                'name': "Latencies",
-                'values': sorted(self.values)
-            })
-        return as_list
+            result.append({'name': "Latencies", 'values': sorted(self.values)})
+        return result
 
 
 class PerfStatLatencyWorkgen(PerfStat):
@@ -170,22 +179,6 @@ class PerfStatLatencyWorkgen(PerfStat):
             })
         return as_list
 
-
-class PerfStatMonitorAvg(PerfStat):
-    """Reads a single named field from monitor.json and reports the average across all samples."""
-    def __init__(self, short_label: str, output_label: str, op: str, field: str):
-        super().__init__(short_label=short_label,
-                         stat_files=['monitor.json'],
-                         output_label=output_label)
-        self.op = op
-        self.field = field
-
-    def find_stat(self, test_stat_path: str):
-        values = []
-        for line in open(test_stat_path):
-            as_dict = json.loads(line)
-            values.append(as_dict["wtperf"][self.op][self.field])
-        return values
 
 
 class PerfStatDBSize(PerfStat):
