@@ -402,11 +402,10 @@ __curversion_disk_skip_no_stop(WT_CURSOR_VERSION *version_cursor, WT_TIME_WINDOW
     if (version_cursor->upd_stop_txnid == WT_TXN_ABORTED)
         return (false);
 
-    if (__curversion_stop_uses_prepare_ts(version_cursor))
-        return (tw->start_txn > version_cursor->upd_stop_txnid ||
-          tw->start_ts > version_cursor->upd_stop_prepare_ts);
-    return (tw->start_txn > version_cursor->upd_stop_txnid ||
-      tw->start_ts > version_cursor->curversion_stop_ts);
+    wt_timestamp_t stop_ts = __curversion_stop_uses_prepare_ts(version_cursor) ?
+      version_cursor->upd_stop_prepare_ts :
+      version_cursor->curversion_stop_ts;
+    return (tw->start_txn > version_cursor->upd_stop_txnid || tw->start_ts > stop_ts);
 }
 
 /*
@@ -420,12 +419,9 @@ __curversion_disk_check_with_stop(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *v
     if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
         return;
 
-    if (__wt_txn_tw_start_visible_all(session, tw)) {
+    if (__wt_txn_tw_start_visible_all(session, tw))
         *donep = true;
-        return;
-    }
-
-    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
+    else if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
         *skipp = true;
     else {
         /* See the no-stop branch: skip the comparison after a rolled-back prepared emission. */
@@ -474,36 +470,36 @@ __curversion_disk_finalize_prepared(WT_CURSOR_VERSION *version_cursor, WT_TIME_W
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, tombstone->prepare_state);
         *version_preparedp =
           prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
-        return;
-    }
-
-    if (version_cursor->start_timestamp != WT_TS_NONE) {
-        if (WT_TIME_WINDOW_HAS_STOP(tw)) {
-            /* Done if the on-disk stop durable timestamp is at or before the end timestamp. */
-            if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
-              tw->durable_stop_ts <= version_cursor->start_timestamp)
+    } else {
+        if (version_cursor->start_timestamp != WT_TS_NONE) {
+            if (WT_TIME_WINDOW_HAS_STOP(tw)) {
+                /* Done if the on-disk stop durable timestamp is at or before the end timestamp. */
+                if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
+                  tw->durable_stop_ts <= version_cursor->start_timestamp)
+                    *donep = true;
+            } else if (!WT_TIME_WINDOW_HAS_START_PREPARE(tw) &&
+              tw->durable_start_ts <= version_cursor->start_timestamp)
+                /* No stop side: done if the start durable timestamp is past the end timestamp. */
                 *donep = true;
-        } else if (!WT_TIME_WINDOW_HAS_START_PREPARE(tw) &&
-          tw->durable_start_ts <= version_cursor->start_timestamp)
-            /* No stop side: done if the start durable timestamp is past the end timestamp. */
-            *donep = true;
-    }
+        }
 
-    if (!*donep) {
-        if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) && WT_TIME_WINDOW_HAS_PREPARE(tw)) {
-            if (!WT_TIME_WINDOW_HAS_STOP(tw) || stopp->txn == tw->start_txn)
-                *skipp = true;
-            else {
-                stopp->txn = WT_TXN_MAX;
-                stopp->prepare_ts = WT_TS_MAX;
-                stopp->prepared_id = WT_PREPARED_ID_NONE;
-                stopp->ts = WT_TS_MAX;
-                stopp->durable_ts = WT_TS_NONE;
-                stopp->prepared = false;
-                *version_preparedp = false;
-            }
-        } else
-            *version_preparedp = WT_TIME_WINDOW_HAS_PREPARE(tw);
+        if (!*donep) {
+            if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) &&
+              WT_TIME_WINDOW_HAS_PREPARE(tw)) {
+                if (!WT_TIME_WINDOW_HAS_STOP(tw) || stopp->txn == tw->start_txn)
+                    *skipp = true;
+                else {
+                    stopp->txn = WT_TXN_MAX;
+                    stopp->prepare_ts = WT_TS_MAX;
+                    stopp->prepared_id = WT_PREPARED_ID_NONE;
+                    stopp->ts = WT_TS_MAX;
+                    stopp->durable_ts = WT_TS_NONE;
+                    stopp->prepared = false;
+                    *version_preparedp = false;
+                }
+            } else
+                *version_preparedp = WT_TIME_WINDOW_HAS_PREPARE(tw);
+        }
     }
 }
 
