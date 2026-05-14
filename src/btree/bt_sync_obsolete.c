@@ -620,14 +620,20 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         if (ret == 0)
             addr_size = value.len;
         WT_RET_NOTFOUND_OK(ret);
+        /*
+         * Backward compatibility: pre-WT-13076 metadata uses newest_start_durable_ts and
+         * newest_stop_durable_ts. New metadata also writes these fields, both set to the new
+         * newest_durable_ts as a safe over-estimate. We merge them into newest_durable_ts (not
+         * newest_page_stop_durable_ts) because the old newest_stop_durable_ts tracked the max
+         * durable timestamp of any delete, not full-page deletes only.
+         */
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
         if (ret == 0)
             newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
         if (ret == 0)
-            newest_page_stop_durable_ts =
-              WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)value.val);
+            newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_txn", &value);
         if (ret == 0)
