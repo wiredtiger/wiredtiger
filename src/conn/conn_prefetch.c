@@ -9,6 +9,34 @@
 #include "wt_internal.h"
 
 /*
+ * __wti_conn_prefetch_init --
+ *     Initialize the WT_CONN_PREFETCH structure.
+ */
+int
+__wti_conn_prefetch_init(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    TAILQ_INIT(&conn->prefetch.pfqh); /* Pre-fetch reference list */
+    WT_RET(__wt_spin_init(session, &conn->prefetch.lock, "prefetch"));
+    return (0);
+}
+
+/*
+ * __wti_conn_prefetch_destroy --
+ *     Destroy the WT_CONN_PREFETCH structure.
+ */
+void
+__wti_conn_prefetch_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    __wt_spin_destroy(session, &conn->prefetch.lock);
+}
+
+/*
  * __prefetch_thread_chk --
  *     Check to decide if the pre-fetch thread should continue running.
  */
