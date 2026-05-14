@@ -640,6 +640,20 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
+ * WT_CONN_EVICT_THREADS --
+ *     Eviction thread group configuration and management fields extracted from WT_CONNECTION_IMPL.
+ */
+struct __wt_conn_evict_threads {
+    bool server_running;             /* Eviction server operating */
+    WT_THREAD_GROUP threads;         /* Eviction thread group */
+    uint32_t threads_max;            /* Max eviction threads */
+    uint32_t threads_min;            /* Min eviction threads */
+    bool sample_inmem;               /* Sample in-memory pages */
+    wt_shared bool use_npos;         /* Use npos page visit strategy */
+    bool legacy_page_visit_strategy; /* Use legacy page visit strategy */
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -835,14 +849,7 @@ struct __wt_connection_impl {
 
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
-    bool evict_server_running; /* Eviction server operating */
-
-    WT_THREAD_GROUP evict_threads;
-    uint32_t evict_threads_max; /* Max eviction threads */
-    uint32_t evict_threads_min; /* Min eviction threads */
-    bool evict_sample_inmem;
-    wt_shared bool evict_use_npos;
-    bool evict_legacy_page_visit_strategy;
+    WT_CONN_EVICT_THREADS evict_threads; /* Eviction thread group and configuration */
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
