@@ -218,3 +218,31 @@ the failure type was the deciding factor.
 
 The action the investigation already recommended — restate it here with the score as
 context for how urgently it should be acted on.
+
+---
+
+## Step 4: Apply priority label to JIRA ticket
+
+After outputting the score, stamp the ticket with a single sortable label so tickets
+can be ranked via JQL.
+
+**Label format:** `zzzz` + score zero-padded to 3 digits.
+
+Examples: score 100 → `zzzz100`, score 72 → `zzzz072`, score 5 → `zzzz005`
+
+**Procedure:**
+
+1. Fetch current labels to find any existing `zzzz*` label:
+   ```
+   mcp__devprod-mcp-gateway__jira_get_issue(issue_key="<ticket>")
+   ```
+
+2. Build the new label: `zzzz` + zero-padded score (e.g. `zzzz072`).
+
+3. Update the ticket — replace any existing `zzzz*` label with the new one, keep all
+   other labels unchanged:
+   ```
+   mcp__devprod-mcp-gateway__jira_update_issue(issue_key="<ticket>", labels=[...existing_non_zzzz_labels, "zzzz072"])
+   ```
+
+4. Confirm success. If the update fails, note it but do not block the priority output.
