@@ -3050,7 +3050,7 @@ wtperf_rand(WTPERF_THREAD *thread)
     if (opts->pareto != 0)
         rval = testutil_pareto(rval, end_range - start_range, opts->pareto);
 
-    /* Scatter hot keys across the key space, matching YCSB ScrambledZipfianGenerator behavior. */
+    /* Apply hash to scatter hot keys across the key space. */
     if (opts->scramble)
         rval = testutil_fnvhash64(rval) % range;
 
