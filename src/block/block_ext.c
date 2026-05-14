@@ -27,6 +27,9 @@ static int __block_ext_overlap(
   WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, WT_EXT **, WT_EXTLIST *, WT_EXT **);
 static int __block_extlist_dump_buckets(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *);
 static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
+#ifdef HAVE_DIAGNOSTIC
+static int __block_ext_verify_max_size(WT_SESSION_IMPL *, WT_EXTLIST *);
+#endif
 
 /*
  * __block_off_srch_last --
@@ -90,6 +93,15 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
  * __block_update_max_size --
  *     Update the max_size arrays for the augmented skiplist after an insert or remove at the given
  *     offset. A temporary fake head node is used to unify traversal from the true head of the list.
+ *
+ * The function finds the rightmost predecessor of `off` at each skiplist level (the search stack),
+ *     then recomputes max_size for each stack node bottom-up. At level 0, max_size equals the
+ *     node's own size. At level i, max_size is the maximum of all max_size[i-1] values in the span
+ *     [stack[i], stack[i]->next[i]).
+ *
+ * Edge cases handled by the fake head approach: - Inserting at head: fake becomes stack[i] for all
+ *     levels; max_size_head[i] is updated. - Removing the last element: all spans become empty;
+ *     max_size_head[i] is set to 0. - Removing the only element: same as removing the last element.
  */
 static int
 __block_update_max_size(
@@ -116,6 +128,12 @@ __block_update_max_size(
         stack[i] = ext;
     }
 
+    /*
+     * Recompute max_size bottom-up. At level 0, max_size[0] == the node's own size. At level i,
+     * max_size[i] is the max of all max_size[i-1] values across the span [stack[i],
+     * stack[i]->next[i]). The bottom-up order ensures each level's result is based on already-
+     * updated lower-level values.
+     */
     stack[0]->max_size[0] = stack[0]->size;
     for (i = 1; i < WT_SKIP_MAXDEPTH; ++i) {
         pre = stack[i];
@@ -138,32 +156,56 @@ __block_update_max_size(
 
 /*
  * __block_first_srch_v2 --
- *     Search the augmented skiplist for the first available slot using max_size metadata to skip
- *     spans where no extent is large enough.
+ *     Search the augmented skiplist for the first (lowest-offset) extent whose size is at least
+ *     `size`, using the max_size augmentation to skip spans that contain no large enough extent.
+ *
+ * Algorithm: maintain a "current position" ext (NULL means before the head of the list). At each
+ *     skiplist level i (descending from highest to lowest), advance ext by following next[i] as
+ *     long as the next node's max_size[i] < size (meaning the span starting at that node contains
+ *     no extent large enough). When we cannot advance further at level i, drop to level i-1. After
+ *     descending all levels, ext->next[0] is the first qualifying extent.
+ *
+ * Edge cases: - Empty list or no extent large enough: max_size_head[0] < size, return NULL
+ *     immediately. - Single node at maximum depth (WT_SKIP_MAXDEPTH): correctly found because we
+ *     stop advancing at each level as soon as the candidate's max_size[i] >= size. - All nodes at
+ *     depth 1: degrades gracefully to O(n) scan at level 0. - Exact size match: works correctly
+ *     (max_size[0] == size >= size).
  */
 static WT_INLINE void
 __block_first_srch_v2(
   WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t *max_size_head, wt_off_t size, WT_EXT **retp)
 {
-    WT_EXT *ext;
+    WT_EXT *ext, *next;
     int i, walked;
 
+    /*
+     * max_size_head is maintained for possible future use as a quick-reject optimization; for now
+     * the traversal handles all cases correctly without it.
+     */
+    WT_UNUSED(max_size_head);
+
+    /*
+     * Descend through skiplist levels, advancing at each level as long as the next node's span
+     * contains no extent large enough. After all levels are processed, ext->next[0] (or head[0] if
+     * ext is still NULL) is the first qualifying extent, or NULL if no extent is large enough.
+     *
+     * The empty-list and no-large-enough-extent cases are handled naturally: when head[i] is NULL
+     * or every node's max_size[i] < size, the traversal advances past all nodes and returns NULL.
+     */
     ext = NULL;
     walked = 0;
     for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
-        if (ext == NULL && max_size_head[i] >= size)
-            continue;
-        if (ext == NULL)
-            ext = head[i];
-        while (ext != NULL && ext->max_size[i] < size) {
+        for (;;) {
+            next = (ext == NULL) ? head[i] : ext->next[i];
+            if (next == NULL || next->max_size[i] >= size)
+                break;
+            ext = next;
             ++walked;
-            ext = ext->next[i];
         }
-        if (ext == NULL)
-            break;
     }
+
+    *retp = (ext == NULL) ? head[0] : ext->next[0];
     WT_STAT_CONN_SET(session, block_ext_walked, walked);
-    *retp = ext;
 }
 
 /*
@@ -312,6 +354,11 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
     /* Update the cached end-of-list. */
     if (ext->next[0] == NULL)
         el->last = ext;
+
+#ifdef HAVE_DIAGNOSTIC
+    if (el->type == 0)
+        WT_RET(__block_ext_verify_max_size(session, el));
+#endif
 
     return (0);
 }
@@ -471,6 +518,8 @@ __block_off_remove(
                 not_null = true;
         WT_ASSERT(session, not_null == false);
     }
+    if (el->type == 0)
+        WT_RET(__block_ext_verify_max_size(session, el));
 #endif
 
     --el->entries;
@@ -826,6 +875,76 @@ __wti_block_extlist_check(WT_SESSION_IMPL *session, WT_EXTLIST *al, WT_EXTLIST *
         WT_RET_PANIC(session, EINVAL, "checkpoint merge check: %s list overlaps the %s list",
           al->name, bl->name);
     }
+    return (0);
+}
+
+/*
+ * __block_ext_verify_max_size --
+ *     Verify the max_size augmented skiplist invariants for an extent list.
+ *
+ * Invariants checked: 1. For each node ext and level i (0 <= i < ext->depth), ext->max_size[i] must
+ *     equal the maximum size of all extents reachable from ext by following level-0 pointers up to
+ *     (but not including) ext->next[i]. 2. max_size_to_head[i] must equal the maximum size of all
+ *     extents at level 0 that appear before el->off[i] (the first node at level i). When el->off[i]
+ *     is NULL, this covers all extents (the global maximum).
+ *
+ * Note: max_size_to_head[0] is always 0 because the level-0 head pointer points to the first node;
+ *     there are no level-0 nodes before it, so the span is empty.
+ *
+ * This function is O(n * WT_SKIP_MAXDEPTH^2) and intended for diagnostic use only.
+ */
+static int
+__block_ext_verify_max_size(WT_SESSION_IMPL *session, WT_EXTLIST *el)
+{
+    WT_EXT *ext, *span_ext;
+    wt_off_t expected;
+    int i;
+
+    /* Only avail lists (type 0) maintain the max_size augmentation. */
+    if (el->type != 0)
+        return (0);
+
+    /*
+     * Verify max_size_to_head[i]: it must equal the max size of all level-0 extents that precede
+     * el->off[i] (the first node at level i). When el->off[i] is NULL, all nodes are included.
+     */
+    for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+        expected = 0;
+        for (ext = el->off[0]; ext != el->off[i]; ext = ext->next[0]) {
+            expected = WT_MAX(expected, ext->size);
+            /* el->off[i] is NULL means walk all nodes. */
+            if (ext->next[0] == NULL)
+                break;
+        }
+        if (el->max_size_to_head[i] != expected) {
+            WT_RET_MSG(session, WT_ERROR,
+              "max_size_to_head[%d] = %" PRIdMAX " but expected %" PRIdMAX " in %s", i,
+              (intmax_t)el->max_size_to_head[i], (intmax_t)expected, el->name);
+        }
+    }
+
+    /*
+     * Verify each node's max_size[i]: it must equal the maximum extent size in the span [ext,
+     * ext->next[i]), computed by walking level 0.
+     */
+    for (ext = el->off[0]; ext != NULL; ext = ext->next[0]) {
+        for (i = 0; i < ext->depth; i++) {
+            /* Compute expected max_size[i] by walking level 0 from ext to ext->next[i]. */
+            expected = 0;
+            for (span_ext = ext; span_ext != ext->next[i]; span_ext = span_ext->next[0]) {
+                expected = WT_MAX(expected, span_ext->size);
+                if (span_ext->next[0] == NULL)
+                    break;
+            }
+            if (ext->max_size[i] != expected) {
+                WT_RET_MSG(session, WT_ERROR,
+                  "max_size[%d] = %" PRIdMAX " but expected %" PRIdMAX
+                  " for extent at offset %" PRIdMAX " in %s",
+                  i, (intmax_t)ext->max_size[i], (intmax_t)expected, (intmax_t)ext->off, el->name);
+            }
+        }
+    }
+
     return (0);
 }
 #endif
