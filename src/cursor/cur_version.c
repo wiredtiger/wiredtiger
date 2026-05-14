@@ -570,8 +570,16 @@ __curversion_process_on_disk(
     WT_TIME_WINDOW *tw = &cbt->upd_value->tw;
     stop.version_prepared = false;
 
+    bool skip = false;
+
     if (*upd_foundp || F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED))
         return (0);
+
+    /* No older versions are needed once the previously-returned stop is globally visible. */
+    if (__curversion_stop_globally_visible(session, version_cursor)) {
+        *donep = true;
+        return (0);
+    }
 
     /* Validate the page has an accessible on-disk slot before doing further work. */
     switch (page->type) {
@@ -594,12 +602,6 @@ __curversion_process_on_disk(
         return (__wt_illegal_value(session, page->type));
     }
 
-    /* No older versions are needed once the previously-returned stop is globally visible. */
-    if (__curversion_stop_globally_visible(session, version_cursor)) {
-        *donep = true;
-        return (0);
-    }
-
     /*
      * Get the ondisk value. It is possible to see an overflow-removed value if a concurrent
      * checkpoint freed the underlying overflow blocks. In that case the value either already came
@@ -612,7 +614,6 @@ __curversion_process_on_disk(
     }
     WT_RET(ret);
 
-    bool skip = false;
     if (!WT_TIME_WINDOW_HAS_STOP(tw)) {
         if (__curversion_disk_skip_no_stop(version_cursor, tw)) {
             F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
@@ -636,13 +637,12 @@ __curversion_process_on_disk(
         }
     }
 
-    if (*donep || skip) {
-        if (skip)
-            F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-        return (0);
-    }
-
-    __curversion_disk_finalize_prepared(version_cursor, tw, tombstone, &stop, &skip, donep);
+    /*
+     * Only resolve prepare state when nothing has already marked the record done or skipped; then
+     * perform a single combined done/skip check before emitting the value.
+     */
+    if (!*donep && !skip)
+        __curversion_disk_finalize_prepared(version_cursor, tw, tombstone, &stop, &skip, donep);
     if (*donep || skip) {
         if (skip)
             F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
