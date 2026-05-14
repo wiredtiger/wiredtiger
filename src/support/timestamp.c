@@ -186,8 +186,7 @@ __time_aggregate_validate_parent(
     if (ta->newest_page_stop_durable_ts > parent->newest_page_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest page stop durable time after its parent's; time "
-          "aggregate "
-          "%s, parent %s",
+          "aggregate %s, parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
@@ -215,8 +214,7 @@ __time_aggregate_validate_parent(
     if (ta->newest_stop_txn > parent->newest_stop_txn)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest stop transaction after its parent's; time "
-          "aggregate "
-          "%s, parent %s",
+          "aggregate %s, parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
@@ -244,7 +242,7 @@ __wt_time_aggregate_validate(
      *    newest_durable_ts - The default value is WT_TS_NONE. It tracks the maximum durable
      timestamp of all modifications (inserts, updates, and deletes) performed on a page.
      *    newest_page_stop_durable_ts - The default value is WT_TS_NONE. It tracks the maximum
-     durable stop timestamp, but is only non-zero when all entries in the aggregate are deleted —
+     durable stop timestamp, but is only non-zero when all entries in the aggregate are deleted -
      either via a fast page delete (WT_TIME_AGGREGATE_UPDATE_PAGE_DEL) or because every individual
      key has a tombstone. It is WT_TS_NONE whenever any live (non-deleted) key is present.
      *    oldest_start_ts - The default value is WT_TS_NONE. It tracks the minimum commit timestamp
@@ -318,13 +316,7 @@ __wt_time_aggregate_validate(
     if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_page_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest stop time after its newest page stop durable time; "
-          "time "
-          "aggregate %s",
-          __wt_time_aggregate_to_string(ta, time_string[0]));
-    if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_durable_ts)
-        WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has the newest stop time after its newest durable time; time "
-          "aggregate %s",
+          "time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     /*
@@ -342,16 +334,14 @@ __wt_time_aggregate_validate(
       ta->newest_durable_ts > ta->newest_page_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest page stop durable time after its newest durable "
-          "time; "
-          "time aggregate %s",
+          "time; time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     if (ta->newest_page_stop_durable_ts != WT_TS_NONE &&
       ta->newest_page_stop_durable_ts < ta->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has the newest page stop durable time before its oldest start "
-          "time; time "
-          "aggregate %s",
+          "time; time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     /*
