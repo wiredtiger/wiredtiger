@@ -273,7 +273,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
         __wt_spin_lock(session, &block->live_lock);
         local_locked = true;
     }
-    ret = __wti_block_alloc(session, block, &offset, (wt_off_t)align_size);
+    ret = __wti_block_alloc(session, block, &offset, (wt_off_t)align_size, WT_BLOCK_INVALID_OFFSET);
     if (ret == 0)
         ret = __block_extend(session, block, fh, offset, align_size, &local_locked);
     if (local_locked)

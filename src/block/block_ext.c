@@ -541,11 +541,14 @@ __block_extend(
  *     Alloc a chunk of space from the underlying file.
  */
 int
-__wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
+__wti_block_alloc(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size, wt_off_t old_offset)
 {
     WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
+
+    WT_UNUSED(old_offset); /* Used in C2 to route between divergence branches. */
 
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);

@@ -683,7 +683,7 @@ __wt_block_compact_page_rewrite(
     /* Allocate a replacement block. */
     WT_ERR(__wti_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
-    ret = __wti_block_alloc(session, block, &new_offset, (wt_off_t)size);
+    ret = __wti_block_alloc(session, block, &new_offset, (wt_off_t)size, offset);
     __wt_spin_unlock(session, &block->live_lock);
     WT_ERR(ret);
     discard_block = true;
