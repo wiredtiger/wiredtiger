@@ -30,11 +30,11 @@ import wiredtiger
 import wttest
 
 # For now, this is just making sure the flags are set without errors
-# Test that cache eviction controls can be reconfigured dynamically
+# Test that load controls can be reconfigured dynamically
 # and do not require a connection restart.
 class test_load01(wttest.WiredTigerTestCase):
     conn_config = "cache_size=50MB,statistics=(all)"
-    uri = "table:eviction01"
+    uri = "table:load01"
 
     def test_load_reconfig(self):
         # Create a table and insert baseline data
@@ -44,7 +44,7 @@ class test_load01(wttest.WiredTigerTestCase):
             cursor[i] = "init" + str(i)
         cursor.close()
 
-        # Try different eviction reconfigurations.
+        # Try different load control reconfigurations.
         configs = [
             "load_control=[enable=false,control_threshold=10]",
             "load_control=[enable=false,control_threshold=25]",
@@ -60,7 +60,7 @@ class test_load01(wttest.WiredTigerTestCase):
             "load_control=[enable=true,control_threshold=100]",
         ]
 
-        # Try different eviction failure reconfigurations.
+        # Try different load control failure reconfigurations.
         failure_configs = [
             "load_control=[enable=false,control_threshold=0]",
             "load_control=[enable=true,control_threshold=0]",
