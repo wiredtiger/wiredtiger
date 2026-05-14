@@ -102,13 +102,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(ENABLE_COLORIZE_OUTPUT)
-    # Colorize the build error output
+    # Colorize the build error output.
     if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
-        add_cmake_flag(CMAKE_C_FLAGS "-fdiagnostics-color=always")
-        add_cmake_flag(CMAKE_CXX_FLAGS "-fdiagnostics-color=always")
+        add_compile_options(-fdiagnostics-color=always)
     elseif(CLANG_C_COMPILER OR CLANG_CXX_COMPILER)
-        add_cmake_flag(CMAKE_C_FLAGS "-fcolor-diagnostics")
-        add_cmake_flag(CMAKE_CXX_FLAGS "-fcolor-diagnostics")
+        add_compile_options(-fcolor-diagnostics)
     endif()
 endif()
 
