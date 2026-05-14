@@ -20,7 +20,8 @@ __block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
     size_t skipdepth;
 
     skipdepth = __wt_skip_choose_depth(session);
-    WT_RET(__wt_calloc(session, 1, sizeof(WT_EXT) + skipdepth * 2 * sizeof(WT_EXT *), &ext));
+    WT_RET(__wt_calloc(session, 1,
+      sizeof(WT_EXT) + skipdepth * 2 * sizeof(WT_EXT *) + skipdepth * sizeof(wt_off_t), &ext));
     ext->depth = (uint8_t)skipdepth;
     (*extp) = ext;
 
@@ -48,7 +49,7 @@ __wti_block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
         /* Clear any left-over references. */
         for (i = 0; i < ext->depth; ++i) {
             ext->next[i] = ext->next[i + ext->depth] = NULL;
-            ext->max_size[i] = 0;
+            WT_EXT_MAX_SIZE(ext, i) = 0;
         }
 
         /*

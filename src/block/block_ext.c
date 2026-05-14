@@ -111,13 +111,15 @@ __block_update_max_size(
     wt_off_t maxv;
     int i;
 
-    WT_RET(__wt_calloc(session, 1, sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * sizeof(WT_EXT *), &fake));
+    WT_RET(__wt_calloc(session, 1,
+      sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * sizeof(WT_EXT *) + WT_SKIP_MAXDEPTH * sizeof(wt_off_t),
+      &fake));
     fake->depth = WT_SKIP_MAXDEPTH;
     fake->size = 0;
     fake->off = -1;
     for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
         fake->next[i] = head[i];
-        fake->max_size[i] = max_size_head[i];
+        WT_EXT_MAX_SIZE(fake, i) = max_size_head[i];
         head[i] = fake;
     }
 
@@ -134,21 +136,21 @@ __block_update_max_size(
      * stack[i]->next[i]). The bottom-up order ensures each level's result is based on already-
      * updated lower-level values.
      */
-    stack[0]->max_size[0] = stack[0]->size;
+    WT_EXT_MAX_SIZE(stack[0], 0) = stack[0]->size;
     for (i = 1; i < WT_SKIP_MAXDEPTH; ++i) {
         pre = stack[i];
         bound = pre->next[i];
         maxv = 0;
         while (pre != bound) {
-            maxv = WT_MAX(pre->max_size[i - 1], maxv);
+            maxv = WT_MAX(WT_EXT_MAX_SIZE(pre, i - 1), maxv);
             pre = pre->next[i - 1];
         }
-        stack[i]->max_size[i] = maxv;
+        WT_EXT_MAX_SIZE(stack[i], i) = maxv;
     }
 
     for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
         head[i] = fake->next[i];
-        max_size_head[i] = fake->max_size[i];
+        max_size_head[i] = WT_EXT_MAX_SIZE(fake, i);
     }
     __wt_free(session, fake);
     return (0);
@@ -197,7 +199,7 @@ __block_first_srch_v2(
     for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
         for (;;) {
             next = (ext == NULL) ? head[i] : ext->next[i];
-            if (next == NULL || next->max_size[i] >= size)
+            if (next == NULL || WT_EXT_MAX_SIZE(next, i) >= size)
                 break;
             ext = next;
             ++walked;
@@ -936,11 +938,12 @@ __block_ext_verify_max_size(WT_SESSION_IMPL *session, WT_EXTLIST *el)
                 if (span_ext->next[0] == NULL)
                     break;
             }
-            if (ext->max_size[i] != expected) {
+            if (WT_EXT_MAX_SIZE(ext, i) != expected) {
                 WT_RET_MSG(session, WT_ERROR,
                   "max_size[%d] = %" PRIdMAX " but expected %" PRIdMAX
                   " for extent at offset %" PRIdMAX " in %s",
-                  i, (intmax_t)ext->max_size[i], (intmax_t)expected, (intmax_t)ext->off, el->name);
+                  i, (intmax_t)WT_EXT_MAX_SIZE(ext, i), (intmax_t)expected, (intmax_t)ext->off,
+                  el->name);
             }
         }
     }
@@ -1255,7 +1258,7 @@ __block_append(
 
     if (el->type == 0) {
         for (i = 0; i < last_ext->depth; i++)
-            last_ext->max_size[i] = last_ext->size;
+            WT_EXT_MAX_SIZE(last_ext, i) = last_ext->size;
         WT_RET(__block_update_max_size(session, el->off, el->max_size_to_head, last_ext->off));
     }
 
