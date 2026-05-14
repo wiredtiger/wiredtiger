@@ -318,6 +318,11 @@ __wt_time_aggregate_validate(
           "aggregate time window has the newest stop time after its newest page stop durable time; "
           "time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
+    if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_durable_ts)
+        WT_TIME_VALIDATE_RET(session,
+          "aggregate time window has the newest stop time after its newest durable time; time "
+          "aggregate %s",
+          __wt_time_aggregate_to_string(ta, time_string[0]));
 
     /*
      * In the case of missing timestamps, we assign the start point to the stop point and newest

@@ -216,6 +216,7 @@
                 (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
         } else {                                                                               \
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts);        \
+            (ta)->newest_durable_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_durable_ts);  \
             if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
                 (ta)->newest_page_stop_durable_ts =                                            \
                   WT_MAX((tw)->stop_prepare_ts, (ta)->newest_page_stop_durable_ts);            \
