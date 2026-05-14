@@ -1332,6 +1332,7 @@ mux
 mvcc
 myconn
 mytable
+nS
 nTemp
 namespace
 namespaced
