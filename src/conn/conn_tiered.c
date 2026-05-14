@@ -20,6 +20,36 @@
 #endif
 
 /*
+ * __wti_conn_tiered_init --
+ *     Initialize the WT_CONN_TIERED structure.
+ */
+int
+__wti_conn_tiered_init(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    TAILQ_INIT(&conn->tiered.tieredqh); /* Tiered work unit list */
+    WT_RET(__wt_spin_init(session, &conn->tiered.tiered_lock, "tiered work unit list"));
+    WT_RET(__wt_spin_init(session, &conn->tiered.flush_tier_lock, "flush tier"));
+    return (0);
+}
+
+/*
+ * __wti_conn_tiered_destroy --
+ *     Destroy the WT_CONN_TIERED structure.
+ */
+void
+__wti_conn_tiered_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    __wt_spin_destroy(session, &conn->tiered.tiered_lock);
+    __wt_spin_destroy(session, &conn->tiered.flush_tier_lock);
+}
+
+/*
  * __tiered_server_run_chk --
  *     Check to decide if the tiered storage server should continue running.
  */
