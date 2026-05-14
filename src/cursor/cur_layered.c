@@ -15,13 +15,6 @@ static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
-/* Operations passed to __clayered_put. */
-typedef enum {
-    WT_CLAYERED_PUT_INSERT,
-    WT_CLAYERED_PUT_UPDATE,
-    WT_CLAYERED_PUT_RESERVE,
-} WT_CLAYERED_PUT_OP;
-
 /*
  * __clayered_is_deleted_encoded --
  *     Check if the value starts with the tombstone.
@@ -1613,7 +1606,7 @@ __clayered_reopen(WT_CURSOR *cursor, bool sweep_check_only)
  * __clayered_lookup_constituent --
  *     The cursor-agnostic parts of layered table lookups.
  */
-static int
+int
 __clayered_lookup_constituent(WT_CURSOR *c, WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
 {
     WT_CURSOR *cursor;
@@ -2046,7 +2039,7 @@ err:
  * __clayered_put --
  *     Put an entry into the desired tree.
  */
-static WT_INLINE int
+int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
   const WT_ITEM *value, WT_CLAYERED_PUT_OP op)
 {
@@ -2156,7 +2149,7 @@ err:
  * __clayered_remove_leader --
  *     Remove an entry from the stable table.
  */
-static WT_INLINE int
+int
 __clayered_remove_leader(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {

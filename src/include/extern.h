@@ -2648,3 +2648,11 @@ extern void __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS
 #endif
 
 /* DO NOT EDIT: automatically built by prototypes.py: END */
+
+extern int __clayered_lookup_constituent(WT_CURSOR *, WT_CURSOR_LAYERED *, WT_ITEM *)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __clayered_put(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM *,
+  const WT_ITEM *, WT_CLAYERED_PUT_OP) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __clayered_remove_leader(
+  WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM *, bool)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
