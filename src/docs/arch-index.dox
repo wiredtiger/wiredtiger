@@ -311,8 +311,6 @@ The block manager manages the reading and writing of disk blocks.
 
 The format of the data file is given by structures in \c block.h .
 
-
-
 @subpage arch-prefetch
 
 Pre-fetch is a performance optimization that aims to reduce I/O latency by reading pages from disk
