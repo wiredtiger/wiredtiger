@@ -389,7 +389,7 @@ __wti_evict_app_assist_worker(
                 break;
         } else if (ret == WT_NOTFOUND) {
             /* Allow the queue to re-populate before retrying. */
-            __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+            __wt_cond_wait(session, conn->evict_config.threads.wait_cond, 10 * WT_THOUSAND, NULL);
             __wt_tsan_suppress_add_uint64(&evict->app_waits, 1);
         } else if (ret != EBUSY)
             WT_ERR(ret);
@@ -526,7 +526,7 @@ done:
     if (queued) {
         WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent);
         if (WT_EVICT_HAS_WORKERS(session))
-            __wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
+            __wt_cond_signal(session, S2C(session)->evict_config.threads.wait_cond);
         else
             __wt_evict_server_wake(session);
     }
