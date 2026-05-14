@@ -18,7 +18,7 @@ static int __layered_last_checkpoint_order(
  */
 static WT_INLINE void
 __layered_assert_tombstone_has_value_on_stable_btree(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upds, WT_UPDATE *last_upd)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
 {
     bool has_value;
 
@@ -51,21 +51,6 @@ __layered_assert_tombstone_has_value_on_stable_btree(
     }
 
     /*
-     * A prepared in-progress tombstone may be preceded in the same drain chain by a prepared
-     * in-progress value insert for the same key. In that case the value is being written to the
-     * stable table in the same __wt_row_modify call, so the tombstone has something to delete even
-     * though the stable btree does not yet contain it. Walk the chain from the head to find any
-     * non-aborted, non-tombstone update that precedes last_upd.
-     */
-    if (!has_value && last_upd->prepare_state == WT_PREPARE_INPROGRESS) {
-        for (WT_UPDATE *upd = upds; upd != last_upd; upd = upd->next)
-            if (upd->type != WT_UPDATE_TOMBSTONE && upd->txnid != WT_TXN_ABORTED) {
-                has_value = true;
-                break;
-            }
-    }
-
-    /*
      * If a globally visible tombstone is observed at the end, the update it deletes may have been
      * removed during the obsolete check.
      */
@@ -94,7 +79,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, upds, last_upd);
+    __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
 
     /* Apply the modification. */
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
@@ -430,6 +415,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
           &durable_start_ts, &start_prepare_ts, &start_prepared_id, &stop_txn, &stop_ts,
           &durable_stop_ts, &stop_prepare_ts, &stop_prepared_id, &type, &prepare, &flags, &location,
           value));
+
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /*
          * It is possible to see a full value that is smaller than or equal to the last checkpoint
