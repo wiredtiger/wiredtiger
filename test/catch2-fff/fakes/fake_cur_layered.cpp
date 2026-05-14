@@ -43,6 +43,8 @@ DEFINE_FAKE_VOID_FUNC(ingest_set_value_item, WT_CURSOR *, WT_ITEM);
 DEFINE_FAKE_VOID_FUNC(stable_set_value_item, WT_CURSOR *, WT_ITEM);
 }
 
+namespace {
+
 // Hooks to pack/unpack between va_list and WT_ITEM:
 
 int
@@ -104,6 +106,8 @@ stable_set_value_va(WT_CURSOR *c, va_list ap)
     const auto item = va_arg(ap, const WT_ITEM *);
     stable_set_value_item(c, *item);
 }
+
+} // namespace
 
 void
 reset_cur_layered_fakes()
