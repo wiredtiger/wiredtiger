@@ -438,3 +438,32 @@ __wt_ext_scr_free(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, void *p)
         }
     __wt_errx(session, "extension free'd non-existent scratch buffer");
 }
+
+/*
+ * __wt_buf_set --
+ *     Set the contents of the buffer.
+ */
+int
+__wt_buf_set(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t size)
+{
+    /*
+     * The buffer grow function does what we need, but expects the data to be referenced by the
+     * buffer. If we're copying data from outside the buffer, set it up so it makes sense to the
+     * buffer grow function. (No test needed, this works if WT_ITEM.data is already set to "data".)
+     */
+    buf->data = data;
+    buf->size = size;
+    return (__wt_buf_grow(session, buf, size));
+}
+
+/*
+ * __wt_buf_free --
+ *     Free a buffer.
+ */
+void
+__wt_buf_free(WT_SESSION_IMPL *session, WT_ITEM *buf)
+{
+    __wt_free(session, buf->mem);
+
+    memset(buf, 0, sizeof(WT_ITEM));
+}

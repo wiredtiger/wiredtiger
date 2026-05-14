@@ -72,23 +72,6 @@ __wt_buf_initsize(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 }
 
 /*
- * __wt_buf_set --
- *     Set the contents of the buffer.
- */
-static WT_INLINE int
-__wt_buf_set(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t size)
-{
-    /*
-     * The buffer grow function does what we need, but expects the data to be referenced by the
-     * buffer. If we're copying data from outside the buffer, set it up so it makes sense to the
-     * buffer grow function. (No test needed, this works if WT_ITEM.data is already set to "data".)
-     */
-    buf->data = data;
-    buf->size = size;
-    return (__wt_buf_grow(session, buf, size));
-}
-
-/*
  * __wt_buf_set_and_grow --
  *     Set the contents of the buffer and grow the buffer to the maximum of the specified size and
  *     the content size.
@@ -110,18 +93,6 @@ static WT_INLINE int
 __wt_buf_setstr(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *s)
 {
     return (__wt_buf_set(session, buf, s, strlen(s) + 1));
-}
-
-/*
- * __wt_buf_free --
- *     Free a buffer.
- */
-static WT_INLINE void
-__wt_buf_free(WT_SESSION_IMPL *session, WT_ITEM *buf)
-{
-    __wt_free(session, buf->mem);
-
-    memset(buf, 0, sizeof(WT_ITEM));
 }
 
 /*
