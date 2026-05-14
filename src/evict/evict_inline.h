@@ -842,7 +842,7 @@ __wt_evict_app_assist_worker_check(
 
     /* It is not safe to proceed if the eviction server threads aren't setup yet. */
     WT_CONNECTION_IMPL *conn = S2C(session);
-    if (!__wt_atomic_load_bool_relaxed(&conn->evict_threads.server_running))
+    if (!__wt_atomic_load_bool_relaxed(&conn->evict_config.server_running))
         return (0);
 
     /* Checkpoint reconciliation workers cannot participate in eviction. */

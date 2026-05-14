@@ -640,10 +640,10 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
- * WT_CONN_EVICT_THREADS --
+ * WT_CONN_EVICT_CONFIG --
  *     Eviction thread group configuration and management fields extracted from WT_CONNECTION_IMPL.
  */
-struct __wt_conn_evict_threads {
+struct __wt_conn_evict_config {
     bool server_running;             /* Eviction server operating */
     WT_THREAD_GROUP threads;         /* Eviction thread group */
     uint32_t threads_max;            /* Max eviction threads */
@@ -849,7 +849,7 @@ struct __wt_connection_impl {
 
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
-    WT_CONN_EVICT_THREADS evict_threads; /* Eviction thread group and configuration */
+    WT_CONN_EVICT_CONFIG evict_config; /* Eviction thread group and configuration */
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
