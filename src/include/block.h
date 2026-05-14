@@ -68,9 +68,17 @@ struct __wt_extlist {
 
     WT_EXT *last; /* Cached last element */
 
+    /*
+     * Extent list type: 0 = avail (supports augmented skiplist), 1 = ckpt_avail, 2 = discard, 3 =
+     * alloc or other. Only avail lists maintain the max_size augmentation.
+     */
     uint32_t type;
     WT_EXT *off[WT_SKIP_MAXDEPTH]; /* Size/offset skiplists */
     WT_SIZE *sz[WT_SKIP_MAXDEPTH];
+    /*
+     * Augmented skiplist: max_size_to_head[i] stores the maximum extent size reachable from the
+     * head pointer at level i. Enables O(log n) first-fit search by skipping entire spans.
+     */
     wt_off_t max_size_to_head[WT_SKIP_MAXDEPTH];
 };
 
@@ -84,6 +92,11 @@ struct __wt_ext {
     wt_off_t size; /* Extent's Size */
 
     uint8_t depth; /* Skip list depth */
+    /*
+     * Augmented skiplist metadata: max_size[i] stores the maximum extent size among all extents
+     * reachable by following the next[i] pointer from this node. Used by __block_first_srch_v2 to
+     * skip spans that contain no extent large enough to satisfy an allocation request.
+     */
     wt_off_t max_size[WT_SKIP_MAXDEPTH];
 
     /*
