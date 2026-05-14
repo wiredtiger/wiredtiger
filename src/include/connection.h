@@ -514,6 +514,30 @@ struct __wt_named_storage_source {
 };
 
 /*
+ * WT_CONN_EXTENSIONS --
+ *	Extension interface lists and their associated locks, grouped by subsystem.
+ */
+struct __wt_conn_extensions {
+    /* Locked: collator list */
+    TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
+
+    /* Locked: compressor list */
+    TAILQ_HEAD(__wt_comp_qh, __wt_named_compressor) compqh;
+
+    /* Locked: encryptor list */
+    WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
+    TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
+
+    /* Locked: page log list */
+    WT_SPINLOCK page_log_lock; /* Page log list lock */
+    TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
+
+    /* Locked: storage source list */
+    WT_SPINLOCK storage_lock; /* Storage source list lock */
+    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
+};
+
+/*
  * WT_NAME_FLAG --
  *	Simple structure for name and flag configuration searches
  */
@@ -725,6 +749,8 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_dhandle_qh, __wt_data_handle) dhqh;
     /* Locked: dynamic library handle list */
     TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
+    /* Locked: data source list */
+    TAILQ_HEAD(__wt_dsrc_qh, __wt_named_data_source) dsrcqh;
     /* Locked: file list */
     TAILQ_HEAD(__wt_fhhash, __wt_fh) * fhhash;
     TAILQ_HEAD(__wt_fh_qh, __wt_fh) fhqh;
@@ -915,26 +941,7 @@ struct __wt_connection_impl {
     uint64_t sweep_interval;        /* Handle sweep interval */
     uint64_t sweep_handles_min;     /* Handle sweep minimum open */
 
-    /* Locked: collator list */
-    TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
-
-    /* Locked: compressor list */
-    TAILQ_HEAD(__wt_comp_qh, __wt_named_compressor) compqh;
-
-    /* Locked: data source list */
-    TAILQ_HEAD(__wt_dsrc_qh, __wt_named_data_source) dsrcqh;
-
-    /* Locked: encryptor list */
-    WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
-    TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
-
-    /* Locked: page log list */
-    WT_SPINLOCK page_log_lock; /* Page log list lock */
-    TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
-
-    /* Locked: storage source list */
-    WT_SPINLOCK storage_lock; /* Storage source list lock */
-    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
+    WT_CONN_EXTENSIONS ext; /* Extension interface lists */
 
     void *lang_private; /* Language specific private storage */
 
