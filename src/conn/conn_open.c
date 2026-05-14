@@ -137,6 +137,9 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
         WT_TRET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
 
+    /* Shut down load control subsystem. */
+    __wti_conn_load_control_destroy(session);
+
     /* Shut down disaggregated storage. */
     WT_TRET(__wti_disagg_destroy(session));
 

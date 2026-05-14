@@ -72,8 +72,8 @@ __conn_load_control_init(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_cache_config --
- *     Configure or reconfigure the current cache and shared cache.
+ * __wti_conn_load_control_config --
+ *     Configure or reconfigure the load control.
  */
 int
 __wti_conn_load_control_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
@@ -119,4 +119,20 @@ __wti_conn_load_control_init(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_conn_load_control_config(session, cfg, false));
 
     return (0);
+}
+
+/*
+ * __wti_conn_load_control_destroy --
+ *     Destroy the connection load subsystem.
+ */
+void
+__wti_conn_load_control_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    if (conn->load_control != NULL)
+        __wt_free(session, conn->load_control);
+
+    return;
 }
