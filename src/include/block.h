@@ -307,9 +307,12 @@ struct __wt_block {
     bool readonly;              /* Underlying file was opened only for reading */
 
     /* Configuration information, set when the file is opened. */
-    wt_shared uint32_t allocfirst; /* Allocation is first-fit */
-    uint32_t allocsize;            /* Allocation size */
-    size_t os_cache;               /* System buffer cache flush max */
+    wt_off_t compact_first_fit_threshold; /* While compact runs on this block, the lowest
+                                           * offset of the high region compact intends to
+                                           * drain. 0 when compact is not running.
+                                           * Protected by live_lock. */
+    uint32_t allocsize;                   /* Allocation size */
+    size_t os_cache;                      /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 

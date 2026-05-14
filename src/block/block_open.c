@@ -143,24 +143,6 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 }
 
 /*
- * __wti_block_configure_first_fit --
- *     Configure first-fit allocation.
- */
-void
-__wti_block_configure_first_fit(WT_BLOCK *block, bool on)
-{
-    /*
-     * Switch to first-fit allocation so we rewrite blocks at the start of the file; use atomic
-     * instructions because checkpoints also configure first-fit allocation, and this way we stay on
-     * first-fit allocation as long as any operation wants it.
-     */
-    if (on)
-        (void)__wt_atomic_add_uint32(&block->allocfirst, 1);
-    else
-        (void)__wt_atomic_sub_uint32(&block->allocfirst, 1);
-}
-
-/*
  * __wt_block_open --
  *     Open a block handle.
  */
@@ -211,8 +193,14 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     }
     block->allocsize = allocsize;
 
+    /*
+     * The "block_allocation=first" config knob historically forced first-fit globally; with
+     * compact-allocator divergence the threshold is the per-block knob and this config has no
+     * effect. Parse for compatibility; threshold starts at 0.
+     */
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
-    block->allocfirst = WT_CONFIG_LIT_MATCH("first", cval) ? 1 : 0;
+    WT_UNUSED(cval);
+    block->compact_first_fit_threshold = 0;
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));

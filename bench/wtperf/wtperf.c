@@ -3039,16 +3039,54 @@ static void
 compact_stats_dump(WTPERF *wtperf)
 {
     CONFIG_OPTS *opts;
+    WT_CONNECTION *conn;
+    WT_CURSOR *stat_cursor;
+    WT_SESSION *stat_session;
     FILE *fp;
-    const char *uri;
+    const char *desc, *str_val, *uri;
     char path[1024];
-    uint64_t ops_during, lat_sum_during;
+    uint64_t alloc_first_fit_count, alloc_restricted_best_fit_count, first_srch_walk_time_max;
+    uint64_t ops_during, lat_sum_during, stat_val;
+    int ret;
     double reduction_pct, avg_lat_us;
 
     opts = wtperf->opts;
+    conn = wtperf->conn;
+    stat_session = NULL;
+    stat_cursor = NULL;
+    alloc_first_fit_count = alloc_restricted_best_fit_count = first_srch_walk_time_max = 0;
 
     if (opts->compact_threads == 0)
         return; /* This benchmark wasn't run; don't emit a misleading file. */
+
+    /*
+     * Read the new conn-level allocator stats once via a statistics cursor. These complement
+     * wtperf->block_first_srch_walk_peak_us (sampled at 100ms by stats_sampler_worker) by exposing
+     * the never-reset max and the branch counters. WT-14196.
+     */
+    if (conn != NULL && (ret = conn->open_session(conn, NULL, NULL, &stat_session)) == 0 &&
+      (ret = stat_session->open_cursor(
+         stat_session, "statistics:", NULL, "statistics=(all)", &stat_cursor)) == 0) {
+        stat_cursor->set_key(stat_cursor, WT_STAT_CONN_BLOCK_ALLOC_FIRST_FIT_COUNT);
+        if (stat_cursor->search(stat_cursor) == 0 &&
+          stat_cursor->get_value(stat_cursor, &desc, &str_val, &stat_val) == 0)
+            alloc_first_fit_count = stat_val;
+        stat_cursor->reset(stat_cursor);
+        stat_cursor->set_key(stat_cursor, WT_STAT_CONN_BLOCK_ALLOC_RESTRICTED_BEST_FIT_COUNT);
+        if (stat_cursor->search(stat_cursor) == 0 &&
+          stat_cursor->get_value(stat_cursor, &desc, &str_val, &stat_val) == 0)
+            alloc_restricted_best_fit_count = stat_val;
+        stat_cursor->reset(stat_cursor);
+        stat_cursor->set_key(stat_cursor, WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME_MAX);
+        if (stat_cursor->search(stat_cursor) == 0 &&
+          stat_cursor->get_value(stat_cursor, &desc, &str_val, &stat_val) == 0)
+            first_srch_walk_time_max = stat_val;
+    } else if (conn != NULL)
+        lprintf(wtperf, ret, 0, "compact_stats_dump: failed to open statistics cursor");
+    if (stat_cursor != NULL)
+        (void)stat_cursor->close(stat_cursor);
+    if (stat_session != NULL)
+        (void)stat_session->close(stat_session, NULL);
 
     testutil_snprintf(path, sizeof(path), "%s/compact_summary.txt", wtperf->monitor_dir);
     if ((fp = fopen(path, "w")) == NULL) {
@@ -3087,6 +3125,16 @@ compact_stats_dump(WTPERF *wtperf)
       fp, "Block reuse bytes after compact : %" PRIu64 "\n", wtperf->compact_post_reuse_bytes);
     fprintf(fp, "Block first srch walk time peak usecs : %" PRIu64 "\n",
       wtperf->block_first_srch_walk_peak_us);
+    /*
+     * The wtperf-sampled "peak" above is collected every 100ms while compact runs, so it can miss
+     * spikes that fall between samples. The three lines below come directly from WT conn stats: the
+     * branch counters expose how often each allocator path was taken, and "max usecs" is the
+     * never-reset (no_clear) max walk time since connection open. Keep both for cross-validation.
+     */
+    fprintf(fp, "Block alloc first fit count : %" PRIu64 "\n", alloc_first_fit_count);
+    fprintf(
+      fp, "Block alloc restricted best fit count : %" PRIu64 "\n", alloc_restricted_best_fit_count);
+    fprintf(fp, "Block first srch walk time max usecs : %" PRIu64 "\n", first_srch_walk_time_max);
     fprintf(fp, "\n");
     fprintf(
       fp, "Post-populate remove records : %" PRIu64 "\n", wtperf->post_populate_remove_records);

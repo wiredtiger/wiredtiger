@@ -273,9 +273,6 @@ __wt_block_checkpoint(
 
     ci = &block->live;
 
-    /* Switch to first-fit allocation. */
-    __wti_block_configure_first_fit(block, true);
-
     /*
      * Write the root page: it's possible for there to be a checkpoint of
      * an empty tree, in which case, we store an illegal root offset.
@@ -306,10 +303,7 @@ __wt_block_checkpoint(
     /* Discard any excessive memory we've allocated. */
     WT_TRET(__wti_block_ext_discard(session, 250));
 
-/* Restore the original allocation plan. */
 err:
-    __wti_block_configure_first_fit(block, false);
-
     return (ret);
 }
 

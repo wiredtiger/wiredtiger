@@ -1899,7 +1899,6 @@ extern void __wti_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, si
   WT_BLKCACHE_ITEM **blkcache_retp, bool *foundp, bool *skip_cache_putp);
 extern void __wti_blkcache_get_read_handle(WT_BLOCK *block);
 extern void __wti_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci);
-extern void __wti_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern void __wti_block_disagg_apply_root_size(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, uint32_t new_root_size);
 extern void __wti_block_disagg_decrease_size(

@@ -1907,6 +1907,9 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Disaggregated block manager put cold page",
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-disagg: Disaggregated block manager read ahead of materialization frontier",
+  "block-manager: allocations that took the first-fit branch (compact relocation under threshold)",
+  "block-manager: allocations that took the restricted best-fit branch (concurrent write under "
+  "threshold)",
   "block-manager: blocks pre-loaded",
   "block-manager: blocks read",
   "block-manager: blocks written",
@@ -1930,6 +1933,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written via system call API",
   "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
+  "block-manager: maximum time spent(usecs) on any linear walk of extents during first-fit "
+  "allocation since connection open (never resets)",
   "block-manager: number of internal page deltas written that were between 0-20 percent the size "
   "of the full image",
   "block-manager: number of internal page deltas written that were between 20-40 percent the size "
@@ -2999,6 +3004,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_put_cold = 0;
     stats->disagg_block_hs_put = 0;
     stats->disagg_block_read_ahead_frontier = 0;
+    stats->block_alloc_first_fit_count = 0;
+    stats->block_alloc_restricted_best_fit_count = 0;
     stats->block_preload = 0;
     stats->block_read = 0;
     stats->block_write = 0;
@@ -3022,6 +3029,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
+    /* not clearing block_first_srch_walk_time_max */
     stats->block_byte_write_intl_delta_lt20 = 0;
     stats->block_byte_write_intl_delta_lt40 = 0;
     stats->block_byte_write_intl_delta_lt60 = 0;
@@ -4025,6 +4033,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_hs_put += WT_STAT_CONN_READ(from, disagg_block_hs_put);
     to->disagg_block_read_ahead_frontier +=
       WT_STAT_CONN_READ(from, disagg_block_read_ahead_frontier);
+    to->block_alloc_first_fit_count += WT_STAT_CONN_READ(from, block_alloc_first_fit_count);
+    to->block_alloc_restricted_best_fit_count +=
+      WT_STAT_CONN_READ(from, block_alloc_restricted_best_fit_count);
     to->block_preload += WT_STAT_CONN_READ(from, block_preload);
     to->block_read += WT_STAT_CONN_READ(from, block_read);
     to->block_write += WT_STAT_CONN_READ(from, block_write);
@@ -4050,6 +4061,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_CONN_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_CONN_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_CONN_READ(from, block_byte_map_read);
+    to->block_first_srch_walk_time_max += WT_STAT_CONN_READ(from, block_first_srch_walk_time_max);
     to->block_byte_write_intl_delta_lt20 +=
       WT_STAT_CONN_READ(from, block_byte_write_intl_delta_lt20);
     to->block_byte_write_intl_delta_lt40 +=

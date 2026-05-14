@@ -257,6 +257,8 @@ conn_stats = [
     ##########################################
     # Block manager statistics
     ##########################################
+    BlockStat('block_alloc_first_fit_count', 'allocations that took the first-fit branch (compact relocation under threshold)'),
+    BlockStat('block_alloc_restricted_best_fit_count', 'allocations that took the restricted best-fit branch (concurrent write under threshold)'),
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_read_intl', 'bytes read for internal pages', 'size'),
@@ -289,6 +291,7 @@ conn_stats = [
     BlockStat('block_byte_write_saved_delta_leaf', 'bytes saved from being written when using leaf page deltas', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
     BlockStat('block_first_srch_walk_time', 'time spent(usecs) on the most recent linear walk of extents during first-fit allocation', 'no_clear,no_scale'),
+    BlockStat('block_first_srch_walk_time_max', 'maximum time spent(usecs) on any linear walk of extents during first-fit allocation since connection open (never resets)', 'no_clear,no_scale'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),

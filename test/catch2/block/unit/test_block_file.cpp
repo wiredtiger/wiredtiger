@@ -49,8 +49,12 @@ void
 validate_block_config(WT_BLOCK *block, config_parser const &cp)
 {
     CHECK(block->allocsize == std::stoi(cp.get_config_value("allocation_size")));
-    uint32_t expected_block_allocation = cp.get_config_value("block_allocation") == "best" ? 0 : 1;
-    CHECK(block->allocfirst == expected_block_allocation);
+    /*
+     * The "block_allocation" config has been retained for backward compatibility but no longer has
+     * any effect; the compact_first_fit_threshold is the per-block knob and starts at 0 regardless
+     * of the config string.
+     */
+    CHECK(block->compact_first_fit_threshold == 0);
     CHECK(block->os_cache_max == std::stoi(cp.get_config_value("os_cache_max")));
     CHECK(block->os_cache_dirty_max == std::stoi(cp.get_config_value("os_cache_dirty_max")));
 }

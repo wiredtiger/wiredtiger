@@ -106,6 +106,14 @@ __block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EX
     uint64_t time_stop = __wt_clock(session);
     uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
     WT_STAT_CONN_SET(session, block_first_srch_walk_time, elapsed);
+    /*
+     * Track the max walk time since connection open. The "max" stat never resets (no_clear) and we
+     * only update it when we observe a larger value. The read/update is not atomic; under
+     * concurrent updates the worst case is a slightly stale max for a transient window, which is
+     * acceptable for a diagnostic counter.
+     */
+    if (elapsed > (uint64_t)WT_STAT_CONN_READ(S2C(session)->stats, block_first_srch_walk_time_max))
+        WT_STAT_CONN_SET(session, block_first_srch_walk_time_max, elapsed);
 
     if (ext == NULL)
         return (false);
@@ -547,8 +555,7 @@ __wti_block_alloc(
     WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
-
-    WT_UNUSED(old_offset); /* Used in C2 to route between divergence branches. */
+    wt_off_t threshold;
 
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
@@ -567,35 +574,75 @@ __wti_block_alloc(
           (intmax_t)size, block->allocsize);
 
     /*
-     * Allocation is either first-fit (lowest offset), or best-fit (best size). If it's first-fit,
-     * walk the offset list linearly until we find an entry that will work.
+     * Three-branch allocation:
      *
-     * If it's best-fit by size, search the by-size skiplist for the size and take the first entry
-     * on the by-size offset list. This means we prefer best-fit over lower offset, but within a
-     * size we'll prefer an offset appearing earlier in the file.
+     *  - Threshold == 0: today's behavior, best-fit on the full avail list.
+     *  - Threshold set, old_offset != INVALID and old_offset >= threshold: compact's own
+     *    relocation. First-fit within [0, threshold) so compact packs blocks toward the file
+     *    start.
+     *  - Threshold set, old_offset < threshold OR old_offset == INVALID: concurrent write
+     *    during compact. Best-fit within [0, threshold) so writers do not pay the linear-walk
+     *    cost.
      *
-     * If we don't have anything big enough, extend the file.
+     * Both restricted branches fall back to best-fit on the full avail list, then __block_extend,
+     * if no fit exists in [0, threshold).
      */
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
-    if (block->allocfirst) {
-        if (!__block_first_srch(session, block->live.avail.off, size, estack))
-            goto append;
-        ext = *estack[0];
-    } else {
+    threshold = block->compact_first_fit_threshold;
+    if (threshold == 0) {
+        /* Today's behavior: best-fit on the full by-size skip list. */
         __block_size_srch(block->live.avail.sz, size, sstack);
-        if ((szp = *sstack[0]) == NULL) {
-append:
-            el = &block->live.alloc;
-            WT_RET(__block_extend(session, block, el, offp, size));
-            WT_RET(__block_append(session, block, el, *offp, (wt_off_t)size));
-            return (0);
-        }
-
-        /* Take the first record. */
+        if ((szp = *sstack[0]) == NULL)
+            goto append;
+        ext = szp->off[0];
+    } else if (old_offset != WT_BLOCK_INVALID_OFFSET && old_offset >= threshold) {
+        /* Compact-relocation: first-fit within [0, threshold). */
+        WT_STAT_CONN_INCR(session, block_alloc_first_fit_count);
+        if (!__block_first_srch(session, block->live.avail.off, size, estack))
+            goto fallback_high;
+        ext = *estack[0];
+        if (ext->off >= threshold)
+            goto fallback_high;
+    } else {
+        /* Concurrent write or no-old-offset: restricted best-fit within [0, threshold). */
+        WT_STAT_CONN_INCR(session, block_alloc_restricted_best_fit_count);
+        __block_size_srch(block->live.avail.sz, size, sstack);
+        szp = *sstack[0];
+        /*
+         * Walk up size classes; within a class, by-size returns lowest-offset first, so if the
+         * lowest-offset entry of the smallest matching class is past the threshold, every entry in
+         * that class is. Step to the next-larger size class.
+         *
+         * Invariant: szp->off[0] is never NULL because __block_off_remove deletes the WT_SIZE
+         * node from the by-size skiplist when its per-size offset sub-list empties.
+         */
+        while (szp != NULL && szp->off[0]->off >= threshold)
+            szp = szp->next[0];
+        if (szp == NULL)
+            goto fallback_high;
         ext = szp->off[0];
     }
+    goto have_ext;
 
+fallback_high:
+    /*
+     * The restricted lookup found no fit in [0, threshold). Try best-fit on the full list; this
+     * picks up entries in [threshold, EOF) as a last resort before extending the file.
+     */
+    __block_size_srch(block->live.avail.sz, size, sstack);
+    if ((szp = *sstack[0]) == NULL)
+        goto append;
+    ext = szp->off[0];
+    goto have_ext;
+
+append:
+    el = &block->live.alloc;
+    WT_RET(__block_extend(session, block, el, offp, size));
+    WT_RET(__block_append(session, block, el, *offp, (wt_off_t)size));
+    return (0);
+
+have_ext:
     /* Remove the record, and set the returned offset. */
     WT_RET(__block_off_remove(session, block, &block->live.avail, ext->off, &ext));
     *offp = ext->off;

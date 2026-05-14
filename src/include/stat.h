@@ -485,6 +485,8 @@ struct __wt_connection_stats {
     int64_t disagg_block_put_cold;
     int64_t disagg_block_hs_put;
     int64_t disagg_block_read_ahead_frontier;
+    int64_t block_alloc_first_fit_count;
+    int64_t block_alloc_restricted_best_fit_count;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
@@ -508,6 +510,7 @@ struct __wt_connection_stats {
     int64_t block_byte_write_syscall;
     int64_t block_map_read;
     int64_t block_byte_map_read;
+    int64_t block_first_srch_walk_time_max;
     int64_t block_byte_write_intl_delta_lt20;
     int64_t block_byte_write_intl_delta_lt40;
     int64_t block_byte_write_intl_delta_lt60;

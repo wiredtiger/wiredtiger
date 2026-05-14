@@ -26,8 +26,13 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
           is_bg_compact ? "Background" : "Foreground", block->name, block->compact_session_id);
     }
 
-    /* Switch to first-fit allocation. */
-    __wti_block_configure_first_fit(block, true);
+    /*
+     * Set the threshold to 0 here; __wt_block_compact_skip computes the real threshold once
+     * compact_pct_tenths is set after the first availability survey.
+     */
+    __wt_spin_lock(session, &block->live_lock);
+    block->compact_first_fit_threshold = 0;
+    __wt_spin_unlock(session, &block->live_lock);
 
     /* Reset the compaction state information. */
     block->compact_bytes_reviewed = 0;
@@ -57,8 +62,10 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 int
 __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    /* Restore the original allocation plan. */
-    __wti_block_configure_first_fit(block, false);
+    /* Clear the divergence threshold; concurrent and compact writes return to today's best-fit. */
+    __wt_spin_lock(session, &block->live_lock);
+    block->compact_first_fit_threshold = 0;
+    __wt_spin_unlock(session, &block->live_lock);
 
     /* Ensure this the same session that started compaction. */
     WT_ASSERT(session, block->compact_session_id == session->id);
@@ -560,6 +567,17 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
         __block_compact_skip_internal(
           session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
     }
+
+    /*
+     * Refresh the divergence threshold from the freshly computed compact_pct_tenths. The threshold
+     * mirrors __compact_page_skip's per-page formula: the lowest offset compact is interested in
+     * rewriting. live_lock is already held.
+     */
+    if (block->compact_pct_tenths != 0)
+        block->compact_first_fit_threshold =
+          block->size - ((block->size / 10) * block->compact_pct_tenths);
+    else
+        block->compact_first_fit_threshold = 0;
 
     block->compact_prev_size = block->size;
 
