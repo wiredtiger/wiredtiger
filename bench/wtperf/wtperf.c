@@ -712,12 +712,12 @@ op_err:
                         goto err;
                     }
                     /*
-                     * Exponential backoff with jitter to break livelock: without a delay, all
+                     * Exponential backoff with noise to break live lock: without a delay, all
                      * threads retrying the same hot key stay synchronized and keep conflicting with
                      * each other indefinitely. The backoff grows up to ~1ms.
                      */
-                    (void)usleep(
-                      (useconds_t)(WT_MIN(1ULL << retry_count, 1000) + __wt_random(&thread->rnd) % 100));
+                    (void)usleep((useconds_t)(WT_MIN(1ULL << retry_count, 1000) +
+                      __wt_random(&thread->rnd) % 100));
                     goto retry;
                 }
                 break;
