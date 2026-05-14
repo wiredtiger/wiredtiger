@@ -1,4 +1,4 @@
-#include "session_dhandle.h"
+#include "fake_session_dhandle.h"
 
 extern "C" {
 DEFINE_FAKE_VALUE_FUNC(int, __wt_session_get_dhandle, WT_SESSION_IMPL *, const char *, const char *,

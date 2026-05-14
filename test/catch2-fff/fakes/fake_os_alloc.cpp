@@ -1,4 +1,4 @@
-#include "os_alloc.h"
+#include "fake_os_alloc.h"
 
 extern "C" {
 DEFINE_FAKE_VALUE_FUNC(int, __wt_calloc, WT_SESSION_IMPL *, size_t, size_t, void *);

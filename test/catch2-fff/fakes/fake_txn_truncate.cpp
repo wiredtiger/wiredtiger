@@ -1,4 +1,4 @@
-#include "txn_truncate.h"
+#include "fake_txn_truncate.h"
 
 extern "C" {
 DEFINE_FAKE_VALUE_FUNC(int, __wt_layered_table_truncate_detect_write_conflict, WT_SESSION_IMPL *,

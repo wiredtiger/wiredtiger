@@ -1,4 +1,4 @@
-#include "mtx_rw.h"
+#include "fake_mtx_rw.h"
 
 extern "C" {
 DEFINE_FAKE_VOID_FUNC(__wt_writelock, WT_SESSION_IMPL *, WT_RWLOCK *);

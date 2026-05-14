@@ -1,4 +1,4 @@
-#include "scratch.h"
+#include "fake_scratch.h"
 
 extern "C" {
 DEFINE_FAKE_VALUE_FUNC(int, __wt_buf_set, WT_SESSION_IMPL *, WT_ITEM *, const void *, size_t);
