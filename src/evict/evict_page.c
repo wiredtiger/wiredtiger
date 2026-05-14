@@ -388,7 +388,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * freeing the page memory or otherwise touching the reference because eviction paths assume
          * a non-NULL reference on the queue is pointing at valid memory.
          */
-        __wti_evict_list_clear_page(session, ref);
+        __wti_evict_queue_clear_page(session, ref);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -904,7 +904,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* If the file is being checkpointed, other threads can't evict dirty pages. */
-    if (__wt_btree_syncing_by_other_session(session))
+    if (__wt_btree_syncing_by_other_sessions(session))
         return (0);
 
     /* The checkpoint cursor dhandle is read-only. Do not mark these pages as dirty. */

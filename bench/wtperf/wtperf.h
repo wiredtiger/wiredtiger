@@ -67,12 +67,7 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #ifndef DIR_STORE_PATH
 #define DIR_STORE_PATH "storage_sources/dir_store/libwiredtiger_dir_store.so"
 #endif
-#ifndef S3_PATH
-#define S3_PATH "storage_sources/s3_store/libwiredtiger_s3_store.so"
-#endif
-
 #define DIR_EXT EXT_PFX EXTPATH DIR_STORE_PATH EXT_SFX
-#define S3_EXT EXT_PFX EXTPATH S3_PATH EXT_SFX
 
 #define MAX_MODIFY_PCT 10
 #define MAX_MODIFY_NUM 16
@@ -223,9 +218,15 @@ struct __wtperf {          /* Per-database structure */
 #define MILLION (1000000ULL)
 #define BILLION (1000000000ULL)
 
+#ifndef NSEC_PER_SEC
 #define NSEC_PER_SEC BILLION
+#endif
+#ifndef USEC_PER_SEC
 #define USEC_PER_SEC MILLION
+#endif
+#ifndef MSEC_PER_SEC
 #define MSEC_PER_SEC THOUSAND
+#endif
 
 #define ns_to_ms(v) ((v) / MILLION)
 #define ns_to_sec(v) ((v) / BILLION)

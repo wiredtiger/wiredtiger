@@ -73,20 +73,19 @@
  * prepared rollback. If we read an aborted transaction id in the first attempt, get the transaction
  * id from the saved transaction id.
  */
-#define WT_TIME_WINDOW_SET_START(tw, upd, write_prepare)    \
-    do {                                                    \
-        (tw)->start_txn = (upd)->txnid;                     \
-        if (write_prepare) {                                \
-            (tw)->start_prepare_ts = (upd)->prepare_ts;     \
-            (tw)->start_prepared_id = (upd)->prepared_id;   \
-            if ((tw)->start_txn == WT_TXN_ABORTED) {        \
-                WT_ACQUIRE_BARRIER();                       \
-                (tw)->start_txn = (upd)->upd_saved_txnid;   \
-            }                                               \
-        } else {                                            \
-            (tw)->start_ts = (upd)->upd_start_ts;           \
-            (tw)->durable_start_ts = (upd)->upd_durable_ts; \
-        }                                                   \
+#define WT_TIME_WINDOW_SET_START(tw, upd, write_prepare)                                    \
+    do {                                                                                    \
+        if (write_prepare) {                                                                \
+            (tw)->start_txn = __wt_atomic_load_uint64_v_acquire(&(upd)->txnid);             \
+            (tw)->start_prepare_ts = (upd)->prepare_ts;                                     \
+            (tw)->start_prepared_id = (upd)->prepared_id;                                   \
+            if ((tw)->start_txn == WT_TXN_ABORTED)                                          \
+                (tw)->start_txn = __wt_atomic_load_uint64_relaxed(&(upd)->upd_saved_txnid); \
+        } else {                                                                            \
+            (tw)->start_txn = __wt_atomic_load_uint64_v_relaxed(&(upd)->txnid);             \
+            (tw)->start_ts = (upd)->upd_start_ts;                                           \
+            (tw)->durable_start_ts = (upd)->upd_durable_ts;                                 \
+        }                                                                                   \
     } while (0)
 
 /*
@@ -94,20 +93,19 @@
  * rollback. If we read an aborted transaction id in the first attempt, get the transaction id from
  * the saved transaction id.
  */
-#define WT_TIME_WINDOW_SET_STOP(tw, upd, write_prepare)    \
-    do {                                                   \
-        (tw)->stop_txn = (upd)->txnid;                     \
-        if (write_prepare) {                               \
-            (tw)->stop_prepare_ts = (upd)->prepare_ts;     \
-            (tw)->stop_prepared_id = (upd)->prepared_id;   \
-            if ((tw)->stop_txn == WT_TXN_ABORTED) {        \
-                WT_ACQUIRE_BARRIER();                      \
-                (tw)->stop_txn = (upd)->upd_saved_txnid;   \
-            }                                              \
-        } else {                                           \
-            (tw)->stop_ts = (upd)->upd_start_ts;           \
-            (tw)->durable_stop_ts = (upd)->upd_durable_ts; \
-        }                                                  \
+#define WT_TIME_WINDOW_SET_STOP(tw, upd, write_prepare)                                    \
+    do {                                                                                   \
+        if (write_prepare) {                                                               \
+            (tw)->stop_txn = __wt_atomic_load_uint64_v_acquire(&(upd)->txnid);             \
+            (tw)->stop_prepare_ts = (upd)->prepare_ts;                                     \
+            (tw)->stop_prepared_id = (upd)->prepared_id;                                   \
+            if ((tw)->stop_txn == WT_TXN_ABORTED)                                          \
+                (tw)->stop_txn = __wt_atomic_load_uint64_relaxed(&(upd)->upd_saved_txnid); \
+        } else {                                                                           \
+            (tw)->stop_txn = __wt_atomic_load_uint64_v_relaxed(&(upd)->txnid);             \
+            (tw)->stop_ts = (upd)->upd_start_ts;                                           \
+            (tw)->durable_stop_ts = (upd)->upd_durable_ts;                                 \
+        }                                                                                  \
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
@@ -322,4 +320,20 @@ __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
     return (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp) ?
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp) :
         txn_global->recovery_timestamp);
+}
+
+/*
+ * __wt_get_stable_disaggregated_schema_epoch --
+ *     Return the stable disaggregated schema epoch with acquire memory ordering guarantees. This
+ *     function is also used in contexts where the synchronization is not required, for simplicity.
+ */
+static WT_INLINE wt_timestamp_t
+__wt_get_stable_disaggregated_schema_epoch(WT_SESSION_IMPL *session)
+{
+    WT_TXN_GLOBAL *txn_global;
+
+    txn_global = &S2C(session)->txn_global;
+    return (__wt_atomic_load_bool_acquire(&txn_global->has_stable_disaggregated_schema_epoch) ?
+        __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch) :
+        WT_TS_NONE);
 }

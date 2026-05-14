@@ -73,17 +73,14 @@ struct __wt_table {
  *	Queue to track truncate entries in the layered table handle.
  */
 struct __wt_truncate {
-    /*
-     * The uri is used to grab the layered table handle.
-     *
-     * FIXME-WT-16789: Investigate if there is more efficient way to get the dhandle.
-     */
-    const char *uri;
+    WT_LAYERED_TABLE *layered_table;
     uint64_t txn_id;
     wt_timestamp_t start_ts;
     wt_timestamp_t durable_ts;
     wt_timestamp_t prepare_ts; /* Not currently supported. */
     uint64_t prepare_id;       /* Not currently supported. */
+
+    wt_shared bool committed; /* Whether the truncate entry has been committed. */
 
     WT_ITEM start_key;
     WT_ITEM stop_key;
@@ -115,12 +112,20 @@ struct __wt_layered_table {
     /*
      * Queue head for fast truncate logic.
      *
-     * FIXME-WT-16789: Make list sorted by start key or start timestamp for performance
-     * optimization.
+     * FIXME-WT-17330: Evaluate data structure for performance optimization.
      */
     TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
 
-    WT_RWLOCK truncate_lock; /* R/W Lock used for managing changes to truncate list.*/
+    /*
+     * Protects truncate list membership (insert/remove/clear). Per-entry visibility is synchronized
+     * lock-free via WT_TRUNCATE.committed.
+     */
+    WT_RWLOCK truncate_lock;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_LAYERED_TABLE_OPEN 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /* Holds metadata entry name and the associated config string. */

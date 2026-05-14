@@ -21,6 +21,7 @@ src/block_disagg/block_disagg_addr.c
 src/block_disagg/block_disagg_ckpt.c
 src/block_disagg/block_disagg_mgr.c
 src/block_disagg/block_disagg_open.c
+src/block_disagg/block_disagg_size.c
 src/block_disagg/block_disagg_read.c
 src/block_disagg/block_disagg_unsup.c
 src/block_disagg/block_disagg_write.c
@@ -59,6 +60,7 @@ src/cache/cache_pool.c
 src/call_log/call_log.c
 src/checkpoint/checkpoint_ckptlist.c
 src/checkpoint/checkpoint_conn.c
+src/checkpoint/checkpoint_parallel.c
 src/checkpoint/checkpoint_stats.c
 src/checkpoint/checkpoint_txn.c
 src/checksum/arm64/crc32-arm64.c                ARM64_HOST
@@ -117,10 +119,15 @@ src/cursor/cur_std.c
 src/cursor/cur_table.c
 src/cursor/cur_version.c
 src/evict/evict_conn.c
+src/evict/evict_dispatch.c
+src/evict/evict_exclusive.c
 src/evict/evict_file.c
-src/evict/evict_lru.c
 src/evict/evict_page.c
+src/evict/evict_queue.c
 src/evict/evict_stat.c
+src/evict/evict_thread.c
+src/evict/evict_verbose.c
+src/evict/evict_walk.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_verify.c
@@ -151,8 +158,9 @@ src/os_common/os_fstream_stdio.c
 src/os_common/os_getopt.c
 src/os_common/os_strtouq.c
 src/os_darwin/os_futex.c         DARWIN_HOST
+src/os_darwin/os_mtx_sem.c       DARWIN_HOST
 src/os_linux/os_futex.c          LINUX_HOST
-src/os_win/os_futex.c            WINDOWS_HOST
+src/os_linux/os_mtx_sem.c        LINUX_HOST
 src/os_posix/os_dir.c            POSIX_HOST
 src/os_posix/os_dlopen.c         POSIX_HOST
 src/os_posix/os_fallocate.c      POSIX_HOST
@@ -173,9 +181,11 @@ src/os_posix/os_yield.c          POSIX_HOST
 src/os_win/os_dir.c              WINDOWS_HOST
 src/os_win/os_dlopen.c           WINDOWS_HOST
 src/os_win/os_fs.c               WINDOWS_HOST
+src/os_win/os_futex.c            WINDOWS_HOST
 src/os_win/os_getenv.c           WINDOWS_HOST
 src/os_win/os_map.c              WINDOWS_HOST
 src/os_win/os_mtx_cond.c         WINDOWS_HOST
+src/os_win/os_mtx_sem.c          WINDOWS_HOST
 src/os_win/os_once.c             WINDOWS_HOST
 src/os_win/os_pagesize.c         WINDOWS_HOST
 src/os_win/os_path.c             WINDOWS_HOST

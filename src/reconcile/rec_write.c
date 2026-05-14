@@ -230,10 +230,10 @@ __reconcile_post_wrapup(
     /*
      * When threads perform eviction, don't cache block manager structures (even across calls), we
      * can have a significant number of threads doing eviction at the same time with large items.
-     * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
-     * discarded.
+     * Ignore the main checkpoint thread, once the checkpoint completes, all unnecessary session
+     * resources will be discarded. Checkpoint worker threads need to clean up their own resources.
      */
-    if (!WT_SESSION_IS_CHECKPOINT(session)) {
+    if (!WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         /*
          * Clean up the underlying block manager memory too: it's not reconciliation, but threads
          * discarding reconciliation structures want to clean up the block manager's structures as
@@ -302,7 +302,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     case WT_PAGE_ROW_LEAF:
         /* Track whether checkpoint is re-reconciling a page with an unresolved multiblock split. */
-        if (WT_REC_RESULT_MULTIBLOCK_SPLIT(page) && F_ISSET(r, WT_REC_CHECKPOINT))
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && WT_REC_RESULT_MULTIBLOCK_SPLIT(page) &&
+          F_ISSET(r, WT_REC_CHECKPOINT))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_split_re_reconciled);
         /*
          * It's important we wrap this call in a page index guard, the ikey on the ref may still be
@@ -2395,7 +2396,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
      * unless we're the checkpoint thread. Big pages take a lot of writes, avoid wasting work.
      */
-    if (!last_block && __wt_btree_syncing_by_other_session(session)) {
+    if (!last_block && __wt_btree_syncing_by_other_sessions(session)) {
         WT_STAT_CONN_DSRC_INCR(
           session, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
         return (__wt_set_return(session, EBUSY));
@@ -2952,7 +2953,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         if (disagg_page_is_valid && !disagg_page_free_required &&
           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
+            __wt_block_disagg_obsolete_delta_chain(
+              session, ref->page->disagg_info->block_meta.cumulative_size);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3000,7 +3002,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         if (disagg_page_is_valid && !disagg_page_free_required &&
                           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
                           r->multi->block_meta->delta_count == 0)
-                            __wt_btree_decrease_size(
+                            __wt_block_disagg_obsolete_delta_chain(
                               session, ref->page->disagg_info->block_meta.cumulative_size);
                     }
                 }
@@ -3043,7 +3045,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         WT_ASSERT(
                           session, cookie.size == page->disagg_info->block_meta.cumulative_size);
 #endif
-                        __wt_btree_decrease_size(
+                        __wt_block_disagg_obsolete_delta_chain(
                           session, page->disagg_info->block_meta.cumulative_size);
                     }
                 }
@@ -3326,12 +3328,16 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * Delete the updates left in the history store by prepared rollback first before moving updates
      * to the history store.
      */
-    WT_ERR(__wti_rec_hs_delete_updates(session, r));
+    WT_ERR_MSG_CHK(session, __wti_rec_hs_delete_updates(session, r),
+      "failed to delete updates from history store during wrapup: btree=%" PRIu32, btree->id);
 
     is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
-            WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
+            WT_ERR_MSG_CHK(session, __wti_rec_hs_insert_updates(session, r, multi),
+              "failed to insert updates into history store during wrapup: btree=%" PRIu32
+              " supd_entries=%" PRIu32,
+              btree->id, multi->supd_entries);
             /* FIXME-WT-15709: build delta for split pages. */
             if (!is_disagg && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
                 __wt_free(session, multi->supd);
