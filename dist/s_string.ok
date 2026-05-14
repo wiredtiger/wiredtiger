@@ -249,6 +249,7 @@ Idempotence
 InitializeCriticalSectionAndSpinCount
 Instantiation
 Intra
+Invariants
 Iu
 JIRA
 JSON
@@ -294,6 +295,7 @@ LogSystemInterface
 LoggerPipe
 MADV
 MALLOC
+MAXDEPTH
 MByte
 MEM
 MERCHANTABILITY
