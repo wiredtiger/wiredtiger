@@ -17,4 +17,4 @@ add_library(wt-fakes ${_sources})
 target_link_libraries(wt-fakes PUBLIC wt::wiredtiger fff::fff)
 
 target_include_directories(wt-fakes PUBLIC ${CMAKE_SOURCE_DIR}/src/include
-                                           ${CMAKE_BINARY_DIR}/config)
+                                           ${CMAKE_BINARY_DIR}/config .)
