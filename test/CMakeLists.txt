@@ -17,6 +17,7 @@ add_subdirectory(packing)
 
 if(HAVE_UNITTEST)
     add_subdirectory(catch2)
+    add_subdirectory(catch2-fff)
 endif()
 
 # We currently don't support these tests on non-POSIX systems since they are designed around the
