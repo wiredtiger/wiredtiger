@@ -173,6 +173,8 @@ struct __wt_config_parser_impl;
 typedef struct __wt_config_parser_impl WT_CONFIG_PARSER_IMPL;
 struct __wt_conn_extensions;
 typedef struct __wt_conn_extensions WT_CONN_EXTENSIONS;
+struct __wt_conn_prefetch;
+typedef struct __wt_conn_prefetch WT_CONN_PREFETCH;
 struct __wt_conn_stat_log;
 typedef struct __wt_conn_stat_log WT_CONN_STAT_LOG;
 struct __wt_connection_impl;
