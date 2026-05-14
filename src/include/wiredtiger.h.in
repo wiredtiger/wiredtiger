@@ -2416,6 +2416,15 @@ struct __wt_connection {
      * are given as a list\, where each option specifies an event handler category e.g.  'error'
      * represents the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values
      * chosen from the following options: \c "error"\, \c "message"; default \c [].}
+     * @config{load_control = (, control the load behavior., a set of related configuration options
+     * defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;control_threshold, Threshold at which
+     * load control will actively start rejecting the work., an integer between \c 10 and \c 100;
+     * default \c 50.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enable, Load control will actively reject the
+     * work\, based on other settings\, to keep the system healthy., a boolean flag; default \c
+     * false.}
+     * @config{ ),,}
      * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
      * session_max., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\,
@@ -3389,6 +3398,14 @@ struct __wt_connection {
  * WiredTiger will start to migrate data from the backup to the running WiredTiger database.  Each
  * worker thread uses a session handle from the configured session_max., an integer between \c 0 and
  * \c 12; default \c 8.}
+ * @config{ ),,}
+ * @config{load_control = (, control the load behavior., a set of related configuration options
+ * defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;control_threshold, Threshold at which load
+ * control will actively start rejecting the work., an integer between \c 10 and \c 100; default \c
+ * 50.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enable, Load control will actively reject the work\, based
+ * on other settings\, to keep the system healthy., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined as follows.}

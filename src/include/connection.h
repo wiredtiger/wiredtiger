@@ -792,10 +792,11 @@ struct __wt_connection_impl {
 
     size_t session_scratch_max; /* Max scratch memory per session */
 
-    WT_CACHE *cache;                        /* Page cache */
-    wt_shared volatile uint64_t cache_size; /* Cache size (either statically
-                                     configured or the current size
-                                     within a cache pool). */
+    WT_CACHE *cache;                          /* Page cache */
+    wt_shared volatile uint64_t cache_size;   /* Cache size (either statically
+                                       configured or the current size
+                                       within a cache pool). */
+    WT_CONNECTION_LOAD_CONTROL *load_control; /* connection level load control */
     WT_EVICT *evict;
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */

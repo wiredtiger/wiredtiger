@@ -175,6 +175,8 @@ struct __wt_conn_extensions;
 typedef struct __wt_conn_extensions WT_CONN_EXTENSIONS;
 struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
+struct __wt_connection_load_control;
+typedef struct __wt_connection_load_control WT_CONNECTION_LOAD_CONTROL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
 struct __wt_crypt_header;
@@ -619,8 +621,9 @@ typedef uint64_t wt_timestamp_t;
 #include "txn.h" /* required by checkpoint.h */
 #include "../checkpoint/checkpoint.h"
 
-#include "session.h" /* required by connection.h */
-#include "version.h" /* required by connection.h */
+#include "load_control.h" /* required by connection.h */
+#include "session.h"      /* required by connection.h */
+#include "version.h"      /* required by connection.h */
 #include "connection.h"
 
 #include "extern.h"
