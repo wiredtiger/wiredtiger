@@ -543,13 +543,13 @@ struct __wt_conn_extensions {
  *	configuration that drive the prefetch server.
  */
 struct __wt_conn_prefetch {
-    WT_SPINLOCK lock;       /* Prefetch queue lock */
+    WT_SPINLOCK lock;        /* Prefetch queue lock */
     WT_THREAD_GROUP threads; /* Prefetch thread group */
-    uint64_t queue_count;   /* Prefetch queue entry count */
+    uint64_t queue_count;    /* Prefetch queue entry count */
     /* Locked: queue of refs to pre-fetch */
     TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh;
-    bool auto_on;     /* Prefetch auto-enabled */
-    bool available;   /* Prefetch available */
+    bool auto_on;   /* Prefetch auto-enabled */
+    bool available; /* Prefetch available */
 };
 
 /*
