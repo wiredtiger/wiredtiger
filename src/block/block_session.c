@@ -46,8 +46,10 @@ __wti_block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
         bms->ext_cache = ext->next[0];
 
         /* Clear any left-over references. */
-        for (i = 0; i < ext->depth; ++i)
+        for (i = 0; i < ext->depth; ++i) {
             ext->next[i] = ext->next[i + ext->depth] = NULL;
+            ext->max_size[i] = 0;
+        }
 
         /*
          * The count is advisory to minimize our exposure to bugs, but don't let it go negative.
