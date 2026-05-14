@@ -115,8 +115,7 @@ class PerfStatCount(PerfStat):
 
 class PerfStatLatency(PerfStat):
     def __init__(self, short_label: str, stat_files: List[str], output_label: str, ops: List[str],
-                 num_max: int = 1, field: str = "max latency", scale: int = 1,
-                 aggregation: str = 'max'):
+                 field: str, aggregation: str, num_max: int = 1, scale: int = 1):
         super().__init__(short_label=short_label,
                          stat_files=stat_files,
                          output_label=output_label)

@@ -184,7 +184,7 @@ track_operation(TRACK *trk, uint64_t nsecs)
 {
     uint64_t v;
 
-    /* average microseconds per call */
+    /* average nanoseconds per call */
     v = (uint64_t)nsecs;
 
     trk->latency += nsecs; /* track total latency */
@@ -1260,22 +1260,21 @@ monitor(void *arg)
             }
             (void)fprintf(jfp, "\"localTime\":\"%s\",\"wtperf\":{", buf);
             /* Note does not have initial comma before "insert" */
-            // TODO: Consider adding (nS) labels
             (void)fprintf(jfp,
-              "\"insert\":{\"ops per sec\":%" PRIu64 ",\"average latency\":%" PRIu64
-              ",\"min latency\":%" PRIu64 ",\"max latency\":%" PRIu64 "}",
+              "\"insert\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
+              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
               cur_inserts, insert_avg, insert_min, insert_max);
             (void)fprintf(jfp,
-              ",\"modify\":{\"ops per sec\":%" PRIu64 ",\"average latency\":%" PRIu64
-              ",\"min latency\":%" PRIu64 ",\"max latency\":%" PRIu64 "}",
+              ",\"modify\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
+              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
               cur_modifies, modify_avg, modify_min, modify_max);
             (void)fprintf(jfp,
-              ",\"read\":{\"ops per sec\":%" PRIu64 ",\"average latency\":%" PRIu64
-              ",\"min latency\":%" PRIu64 ",\"max latency\":%" PRIu64 "}",
+              ",\"read\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
+              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
               cur_reads, read_avg, read_min, read_max);
             (void)fprintf(jfp,
-              ",\"update\":{\"ops per sec\":%" PRIu64 ",\"average latency\":%" PRIu64
-              ",\"min latency\":%" PRIu64 ",\"max latency\":%" PRIu64 "}",
+              ",\"update\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
+              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
               cur_updates, update_avg, update_min, update_max);
             fprintf(jfp, "}}\n");
         }
@@ -2913,7 +2912,7 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
          */
         thread->backup.min_latency = thread->ckpt.min_latency = thread->flush.min_latency =
           thread->scan.min_latency = thread->insert.min_latency = thread->modify.min_latency =
-            thread->read.min_latency = thread->update.min_latency = UINT32_MAX;
+            thread->read.min_latency = thread->update.min_latency = UINT64_MAX;
         thread->backup.max_latency = thread->ckpt.max_latency = thread->flush.max_latency =
           thread->scan.max_latency = thread->insert.max_latency = thread->modify.max_latency =
             thread->read.max_latency = thread->update.max_latency = 0;

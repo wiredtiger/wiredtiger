@@ -91,50 +91,54 @@ class PerfStatCollection:
 
     @staticmethod
     def latency_stats():
-        # scale=1000 converts nanoseconds (monitor.json) to microseconds to preserve
-        # historical benchmark comparability.
         return [
             PerfStatLatency(short_label="top5_latencies_read_update",
                             stat_files=['monitor.json'],
                             output_label='Latency(read, update) Max',
                             ops=['read', 'update'],
+                            field='max latency (nS)',
+                            aggregation='max',
                             num_max=5,
-                            scale=1000),  # ns -> us
+                            scale=1000), # ns -> us
             PerfStatLatency(short_label="max_latency_insert",
                             stat_files=['monitor.json'],
                             output_label='Latency(insert) Max',
                             ops=['insert'],
+                            field='max latency (nS)',
+                            aggregation='max',
                             num_max=1,
-                            scale=1000),  # ns -> us
+                            scale=1000), # ns -> us
             PerfStatLatency(short_label="max_latency_read_update",
                             stat_files=['monitor.json'],
                             output_label='Latency(read, update) Max',
                             ops=['read', 'update'],
+                            field='max latency (nS)',
+                            aggregation='max',
                             num_max=1,
-                            scale=1000),  # ns -> us
+                            scale=1000), # ns -> us
             PerfStatLatency(short_label="avg_latency_read",
                             stat_files=['monitor.json'],
                             output_label='Read average latency (in nano sec)',
                             ops=['read'],
-                            field='average latency',
+                            field='average latency (nS)',
                             aggregation='avg'),
             PerfStatLatency(short_label="avg_latency_insert",
                             stat_files=['monitor.json'],
                             output_label='Insert average latency (in nano sec)',
                             ops=['insert'],
-                            field='average latency',
+                            field='average latency (nS)',
                             aggregation='avg'),
             PerfStatLatency(short_label="avg_latency_modify",
                             stat_files=['monitor.json'],
                             output_label='Modify average latency (in nano sec)',
                             ops=['modify'],
-                            field='average latency',
+                            field='average latency (nS)',
                             aggregation='avg'),
             PerfStatLatency(short_label="avg_latency_update",
                             stat_files=['monitor.json'],
                             output_label='Update average latency (in nano sec)',
                             ops=['update'],
-                            field='average latency',
+                            field='average latency (nS)',
                             aggregation='avg'),
         ]
 
