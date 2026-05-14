@@ -369,8 +369,8 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
      */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &conn->evict_config.threads, "eviction-server",
-      conn->evict_config.threads_min, conn->evict_config.threads_max, session_flags, __evict_thread_chk,
-      __evict_thread_run, __evict_thread_stop));
+      conn->evict_config.threads_min, conn->evict_config.threads_max, session_flags,
+      __evict_thread_chk, __evict_thread_run, __evict_thread_stop));
 
 /*
  * Ensure the cache stuck timer is initialized when starting eviction.
@@ -844,7 +844,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      */
     if (eviction_progress_rate > evict->evict_tune_progress_rate_max) {
         evict->evict_tune_progress_rate_max = eviction_progress_rate;
-        current_threads = __wt_atomic_load_uint32_relaxed(&conn->evict_config.threads.current_threads);
+        current_threads =
+          __wt_atomic_load_uint32_relaxed(&conn->evict_config.threads.current_threads);
         __wt_atomic_store_uint32_relaxed(&evict->evict_tune_workers_best, current_threads);
     }
 
@@ -856,7 +857,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      * back to the best observed number of workers and settle into a stable state.
      */
     if (evict->evict_tune_num_points >= evict->evict_tune_datapts_needed) {
-        current_threads = __wt_atomic_load_uint32_relaxed(&conn->evict_config.threads.current_threads);
+        current_threads =
+          __wt_atomic_load_uint32_relaxed(&conn->evict_config.threads.current_threads);
         if (evict->evict_tune_workers_best == current_threads &&
           current_threads < conn->evict_config.threads_max) {
             /*
@@ -869,8 +871,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
              * We are past the inflection point. Choose the best number of eviction workers observed
              * and settle into a stable state.
              */
-            thread_surplus =
-              (int32_t)__wt_atomic_load_uint32_relaxed(&conn->evict_config.threads.current_threads) -
+            thread_surplus = (int32_t)__wt_atomic_load_uint32_relaxed(
+                               &conn->evict_config.threads.current_threads) -
               (int32_t)evict->evict_tune_workers_best;
 
             for (i = 0; i < thread_surplus; i++)
@@ -892,7 +894,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
     if (F_ISSET(evict, WT_EVICT_CACHE_ALL)) {
         cur_threads =
           (int32_t)__wt_atomic_load_uint32_relaxed(&conn->evict_config.threads.current_threads);
-        target_threads = WT_MIN(cur_threads + EVICT_TUNE_BATCH, (int32_t)conn->evict_config.threads_max);
+        target_threads =
+          WT_MIN(cur_threads + EVICT_TUNE_BATCH, (int32_t)conn->evict_config.threads_max);
         /*
          * Start the new threads.
          */
