@@ -92,7 +92,8 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 /*
  * __block_update_max_size --
  *     Update the max_size arrays for the augmented skiplist after an insert or remove at the given
- *     offset. A temporary fake head node is used to unify traversal from the true head of the list.
+ *     offset. A stack-allocated fake head node is used to unify traversal from the true head of the
+ *     list, avoiding any heap allocation.
  *
  * The function finds the rightmost predecessor of `off` at each skiplist level (the search stack),
  *     then recomputes max_size for each stack node bottom-up. At level 0, max_size equals the
@@ -103,18 +104,27 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
  *     levels; max_size_head[i] is updated. - Removing the last element: all spans become empty;
  *     max_size_head[i] is set to 0. - Removing the only element: same as removing the last element.
  */
-static int
-__block_update_max_size(
-  WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t *max_size_head, wt_off_t off)
+static void
+__block_update_max_size(WT_EXT **head, wt_off_t *max_size_head, wt_off_t off)
 {
+    /*
+     * Stack-allocated storage for the fake head node. The fake head requires the same layout as a
+     * heap-allocated WT_EXT: the struct itself, followed by next[0..2*depth-1] (WT_EXT * pointers),
+     * followed by max_size[0..depth-1] (wt_off_t values). We use a union to ensure proper alignment
+     * for both pointer and wt_off_t accesses.
+     */
+    union {
+        WT_EXT ext;
+        /* Ensure sufficient size and alignment for next[] and max_size[] arrays. */
+        uint8_t buf[sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * 2 * sizeof(WT_EXT *) +
+          WT_SKIP_MAXDEPTH * sizeof(wt_off_t)];
+    } fake_storage;
     WT_EXT *bound, *ext, *fake, *pre, *stack[WT_SKIP_MAXDEPTH];
     wt_off_t maxv;
     int i;
 
-    WT_RET(__wt_calloc(session, 1,
-      sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * 2 * sizeof(WT_EXT *) +
-        WT_SKIP_MAXDEPTH * sizeof(wt_off_t),
-      &fake));
+    memset(&fake_storage, 0, sizeof(fake_storage));
+    fake = &fake_storage.ext;
     fake->depth = WT_SKIP_MAXDEPTH;
     fake->size = 0;
     fake->off = -1;
@@ -153,8 +163,6 @@ __block_update_max_size(
         head[i] = fake->next[i];
         max_size_head[i] = WT_EXT_MAX_SIZE(fake, i);
     }
-    __wt_free(session, fake);
-    return (0);
 }
 
 /*
@@ -347,8 +355,8 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
     }
 
     if (el->type == 0) {
-        WT_RET(__block_update_max_size(session, el->off, el->max_size_to_head, ext->off));
-        WT_RET(__block_update_max_size(session, el->off, el->max_size_to_head, ext->off + 1));
+        __block_update_max_size(el->off, el->max_size_to_head, ext->off);
+        __block_update_max_size(el->off, el->max_size_to_head, ext->off + 1);
     }
 
     ++el->entries;
@@ -490,7 +498,7 @@ __block_off_remove(
     for (i = 0; i < ext->depth; ++i)
         *astack[i] = ext->next[i];
     if (el->type == 0)
-        WT_RET(__block_update_max_size(session, el->off, el->max_size_to_head, off));
+        __block_update_max_size(el->off, el->max_size_to_head, off);
 
     /*
      * Find and remove the record from the size's offset skiplist; if that empties the by-size
@@ -1260,7 +1268,7 @@ __block_append(
     if (el->type == 0) {
         for (i = 0; i < last_ext->depth; i++)
             WT_EXT_MAX_SIZE(last_ext, i) = last_ext->size;
-        WT_RET(__block_update_max_size(session, el->off, el->max_size_to_head, last_ext->off));
+        __block_update_max_size(el->off, el->max_size_to_head, last_ext->off);
     }
 
     el->bytes += (uint64_t)size;
