@@ -18,27 +18,124 @@ Returns: all structured triage fields (Jira context, BFG data, log evidence, fai
 
 ## Investigation
 
-## Step 1: Git History
+**Philosophy:** Run every tool. Skip nothing unless it is physically impossible (e.g. no test command exists at all). Partial inputs are not a reason to skip — attempt with what you have and record what came back. Iterate until every cross-feed in the table below has been tried and no tool returns new evidence.
 
-→ **@paths/git-history.md** — read the file and spawn its `Agent()` block. Pass last-good/first-bad SHAs, failing file/function, and assertion text (from triage).
+### Tools — all mandatory unless the hard skip condition is met
 
-Returns: suspect commit list (SHA, date, ticket, reason flagged).
+**Git History** → **@paths/git-history.md**
+Finds suspect commits in the failure window.
+- Hard skip only if: no SHAs, no dates, no file, no function, and no assertion text — nothing to search on.
+- If window is unknown: use a 90-day lookback from the first observed failure date.
+- If file/function unknown: search by assertion text string alone.
+- Inputs: last-good/first-bad SHAs (or 90-day window), failing file/function, assertion text.
+- Returns: suspect commit list (SHA, date, ticket, reason flagged).
 
-## Step 2: Codebase Lookup
+**Codebase Lookup** → **@paths/codebase-lookup.md**
+Locates the assertion in source, reads the surrounding code, identifies the subsystem.
+- Hard skip only if: no assertion text, no function name, no `file:line`, and no unique keywords from the error — nothing to grep for.
+- If `file:line` unknown: grep the assertion text string or unique error keywords across the whole source tree.
+- Inputs: assertion text, function name, file:line (use whatever subset is available).
+- Returns: assertion location (file:line), 5 lines above (verbatim), subsystem, prior tickets.
 
-Skip if triage produced no concrete signal (no assertion text, no function name, no `file:line`). Record "Codebase: skipped — no signal" and proceed to Output.
+**Sibling & Prior Ticket Review**
+Read every ticket listed in CAUSES links, every sibling from BFG, and every prior ticket returned by Codebase Lookup.
+- Hard skip only if: zero related tickets exist anywhere.
+- For each ticket: read the description, resolution, and any fix commits linked.
+- Returns: prior fix pattern     (if any), whether this is a regression of a known issue.
 
-→ **@paths/codebase-lookup.md** — read the file and spawn its `Agent()` block. Pass assertion text, function name, and file:line (from triage).
+**Reproduction** → **@paths/reproduction.md**
+Attempts local reproduction.
+- Hard skip only if: no test command can be determined at all.
+- Do not skip because subsystem is unknown or signal is weak — a reproduction result (pass or fail) is itself evidence.
+- If failure is already explained by a suspect commit: still reproduce to confirm, then record "Already fixed — confirmed at N iterations."
+- Inputs: test command, build variant, min iterations, suspect commit (context only).
+- Returns: result, failure rate, first error line, log path.
 
-Returns: assertion location (file:line), 5 lines above (verbatim), subsystem, prior tickets.
+### Cross-feeds — re-invoke when new signal arrives
 
-## Step 3: Reproduction
+Every row below is mandatory when the trigger condition is met. Each re-invocation must add at least one new row to the Evidence Ledger. Stop only when no row below triggers.
 
-Skip if any of the following hold: triage has no concrete error signal / Step 2 subsystem is "unknown" / failure is already explained by a known fix commit. Record "Reproduction: skipped — `<reason>`".
+| Trigger | Re-invoke | What to pass |
+|---|---|---|
+| Git History finds a suspect commit | Codebase Lookup | Changed files + functions from that commit |
+| Codebase Lookup finds `file:line` | Git History | Narrow `git log -p` to that specific file |
+| Codebase Lookup returns a prior ticket | Sibling & Prior Ticket Review | Read that ticket's fix commits and resolution |
+| Reproduction gives a stack trace different from triage | Codebase Lookup | New top frame as the assertion text |
+| Reproduction gives a stack trace different from triage | Git History | New file:function as the failing location |
+| Reproduction passes on HEAD but triage showed failures | Git History | Check for a fix commit between triage date and HEAD |
+| Sibling ticket has a fix commit | Git History | Confirm whether that commit is in the failure window |
+| Sibling ticket has a fix commit | Codebase Lookup | Read the changed lines in that commit |
+| Any tool returns a new function name not yet looked up | Codebase Lookup | That function name |
+| Any tool returns a new file:line not yet read | Codebase Lookup | That file:line |
 
-→ **@paths/reproduction.md** — read the file and spawn its `Agent()` block. Pass test command, build variant, min iterations (from triage), and suspect commit (from Step 1).
+**Cross-feed logging — mandatory:** Each time a cross-feed is triggered (Triggered = yes), before re-invoking the tool, append one line to `/tmp/wt_<ticket>_crossfeed_log.md`:
+```
+TRIGGER: <trigger text from table> | REINVOKED: yes | RESULT: <one-line result>
+```
+If a trigger does not fire (Triggered = no), append:
+```
+TRIGGER: <trigger text from table> | REINVOKED: n/a | JUSTIFICATION: <why trigger did not apply>
+```
+Create the file if it does not exist. This log is read by the audit agent to verify compliance — it is not self-reported.
 
-Returns: result, failure rate, first error line, log path.
+---
+
+## Step 4: Fix + Verify
+
+**Gate — run this step only if ALL of the following hold:**
+1. `reproduction_result = reproduced`
+2. Working Theory confidence will be High or Very High (enough evidence to act on)
+3. The relevant source file(s) were read in Codebase Lookup
+
+If the gate is not met, skip this step and record "skipped — <which gate failed>" in the Fix + Verify section of the Output.
+
+**Do not skip this step just because the fix feels obvious or small.** The whole point of having a reproducer is to verify, not just propose.
+
+### 4a. Read the exact source at the bug location
+
+Read the full function containing the bug (not just ±5 lines — the whole function). You need to understand:
+- What the function is supposed to do
+- Exactly what is missing or wrong
+- What the fix must preserve (invariants, error handling, caller contract)
+
+Also read any prior fix commit that was reverted or partially applied — the diff is a strong pattern to follow.
+
+### 4b. Write the exact diff
+
+Write the complete code change. Not a description — the actual lines to add, remove, or modify. Follow the exact style and pattern of adjacent code (same timestamp-set pattern, same error-check idiom, same variable names the function already uses).
+
+If a prior fix commit exists: match its pattern exactly for the unfixed call site. Do not invent a new approach when a validated one exists nearby.
+
+### 4c. Apply the fix
+
+Use the Edit tool to apply the diff to the source file. Do not modify any other file.
+
+### 4d. Rebuild
+
+Use the build commands from @paths/build.md. Build only the target that changed — if the fix is in `test/format/`, rebuild only `t`:
+```bash
+cd /data/bbb-bot/wiredtiger/build && ninja t
+```
+
+If the build fails: record the error, revert the change, mark Step 4 result as "build failed."
+
+### 4e. Verify — re-run the reproducer
+
+Run the same CONFIG and command used in the successful reproduction, using the synchronous `& wait` pattern from @paths/reproduction.md.
+
+Use fresh RUNDIRs (e.g. `RUNDIR_fix_0` through `RUNDIR_fix_3`). Set Bash timeout to `(runs.timer + 4) * 60 * 1000` ms.
+
+Run at least as many instances as the original reproduction (minimum 4). If the original failure rate was low (1/4), run 8 instances to get a stronger signal.
+
+Record:
+- Instances run
+- Failures seen (with first error line if any)
+- Pass rate
+
+**Verification result:**
+- `verified` — zero failures across all instances (minimum 4)
+- `not verified` — failures still occur with the fix applied
+- `inconclusive` — no failures but fewer instances than needed for confidence
 
 ---
 
@@ -53,6 +150,15 @@ Populate every field. Write "unknown" or "insufficient data" rather than omittin
 - **Status / Priority / Assignee:** `<values>`
 - **CAUSES links:** `<list, or none>`
 - **Prior investigation:** `<yes — summary | no | partial — summary>`
+
+### Structured fields
+- **ci_blocker:** `yes / no / unknown`
+- **variants:** N
+- **total_failures:** N
+- **failures_last_7d:** N
+- **suspect_commit:** `yes / no`
+- **reproduction_result:** `reproduced / not reproduced / inconclusive / skipped`
+- **working_theory_confidence:** `Very High / High / Medium / Insufficient evidence`
 
 ### Occurrence analysis
 - **Total failures:** N over X days across Y variants
@@ -86,55 +192,119 @@ Populate every field. Write "unknown" or "insufficient data" rather than omittin
 - **Failure rate:** X/N
 - **First failure log:** `<path, or "n/a">`
 
+---
+
+### Evidence ledger
+
+**Complete this before writing Working Theory or Recommended Fix. List only facts that were directly observed — quoted log lines, exact file:line assertions, specific commit SHAs, reproduction counts. No inferences here.**
+
+| # | Fact | Source | Step |
+|---|------|--------|------|
+| E1 | `<exact quoted text or data>` | `<log URL / file:line / commit SHA>` | `<0/1/2/3>` |
+| E2 | ... | ... | ... |
+
+If fewer than two evidence items exist, write:
+> **Working Theory: Insufficient evidence — see Unknowns.**
+> Do not write a Working Theory or Recommended Fix.
+
+---
+
 ### Unknowns
-- ...
 
-**Before writing any field as "unknown", confirm you have exhausted these sources:**
+List every gap that blocks narrowing the root cause.
 
-| Source | Done? | Notes |
+| Gap | Why it blocks progress | How to fill it |
 |---|---|---|
-| Jira description + comments (triage Step 1) | | |
-| Evergreen log (triage Step 3) | | |
-| Build Baron failure group (triage Step 2) | | |
-| Sibling tickets (triage Step 2) | | |
+| `<what is unknown>` | `<what it would unlock>` | `<concrete next step>` |
+
+**Checklist — confirm each source was exhausted before marking a gap as unresolvable:**
+
+| Source | Checked? | Notes |
+|---|---|---|
+| Jira description + comments (triage Step 0) | | |
+| Evergreen log (triage Step 0) | | |
+| Build Baron failure group (triage Step 0) | | |
+| Sibling tickets (triage Step 0) | | |
 | Source code for failing function / assertion (Step 2) | | |
 | Git history in failure window (Step 1) | | |
 | Local build + test run (Step 3) | | |
 
-### Working theory
-*Only write this if log and code evidence directly support it. Otherwise write: "Insufficient evidence — see unknowns."*
+---
 
-**Confidence:** Low / Medium / High / Very High
-**What would confirm or refute this:** `<one specific thing>`
+### Cross-feed completion
+
+**Gate: fill this table before writing Working Theory. Every triggered row must show a re-invocation result. Mark "not triggered" only if the trigger condition provably did not fire.**
+
+| Trigger | Triggered? | Re-invoked? | Result (one line) |
+|---|---|---|---|
+| Git History found suspect commit → Codebase Lookup on changed files | yes / no | yes / no / n/a | |
+| Codebase Lookup found `file:line` → Git History narrowed to that file | yes / no | yes / no / n/a | |
+| Codebase Lookup returned prior ticket → Sibling review | yes / no | yes / no / n/a | |
+| Reproduction gave different stack trace → Codebase Lookup on new frame | yes / no | yes / no / n/a | |
+| Reproduction gave different stack trace → Git History on new file:function | yes / no | yes / no / n/a | |
+| Reproduction passed on HEAD, triage showed failures → Git History for fix commit | yes / no | yes / no / n/a | |
+| Sibling ticket had fix commit → Git History confirmed in window | yes / no | yes / no / n/a | |
+| Sibling ticket had fix commit → Codebase Lookup on changed lines | yes / no | yes / no / n/a | |
+| New function name returned by any tool → Codebase Lookup | yes / no | yes / no / n/a | |
+| New `file:line` returned by any tool → Codebase Lookup | yes / no | yes / no / n/a | |
+
+---
+
+### Working theory
+
+**Gate:** Only write this section if the Evidence Ledger contains ≥ 2 items AND every sentence below cites at least one ledger item by number (e.g. [E1]). If the gate is not met, write:
+> "Insufficient evidence — see Unknowns."
+> and stop. Do not continue to Recommended Fix.
+
+**Prohibited language:** Do not use "likely", "possibly", "may", "might", "could", "suggests", "appears to", "seems", or any other hedging. Every sentence is either a direct inference from cited evidence or it is not written.
+
+State only what the evidence ledger items, taken together, directly establish about the root cause. One paragraph maximum.
+
+**Confidence:** Medium / High / Very High — write your honest assessment; audit will cap if needed.
+
+**What would confirm or refute this:** `<one specific, falsifiable thing>`
+
+---
 
 ### Recommended fix
 
-Only write this section if confidence is Medium or High AND you have read the relevant source file(s). If you have not:
-- Write: `"Not proposed — relevant source not read. Read <file> before proposing a fix."`
+**Gate:** Only write this section if:
+1. Working Theory is written (not "Insufficient evidence"), AND
+2. The relevant source file(s) were read in Codebase Lookup, AND
+3. Reproduction result is `reproduced` or `not reproduced` with a clear code-path reason.
 
-If you have read the code:
+If any gate condition is not met, write:
+> `"Not proposed — <which gate failed>."`
+
+If all gates are met:
 - **File:** `<path:line range>`
-- **Change:** one or two sentences — what specifically changes and why
+- **Exact diff:** the complete code change (verbatim lines, not a description)
+- **Pattern followed:** `<prior fix commit or adjacent code pattern used>`
 - **Risk:** one clause on regression risk
 
-**Fix confidence cap:**
+---
 
-| Reproduction status | Max fix confidence |
-|---|---|
-| Original test reproduced AND fix verified | Very High |
-| Targeted reproducer AND fix verified | High |
-| Reproduced but fix not yet tested | Medium |
-| Fix proposed from source only | Medium |
-| Cannot reproduce | Low |
+### Fix + Verify
+
+- **Result:** `verified | not verified | inconclusive | skipped — <reason>`
+- **Diff applied:** `<file:line range changed>`
+- **Verification command:** `<exact command>`
+- **Instances run:** N
+- **Failures after fix:** N (first error line if any, or "none")
+- **Pass rate:** N/N
+
+---
 
 ### Next action
 
 Pick exactly one:
 
-- **Reproduced — needs fix** — Step 3 reproduced; root cause identified: `@paths/build.md`
-- **Reproduced — root cause unclear** — reproduced but mechanism not understood: continue source investigation
+- **Fix verified** — Step 4 applied fix and confirmed zero failures at ≥ min iterations
+- **Fix proposed — verification inconclusive** — diff written and applied but not enough iterations to confirm; re-run with more instances
+- **Fix proposed — verification failed** — diff applied but failures persist; root cause may be incomplete
+- **Reproduced — root cause unclear** — reproduced but mechanism not understood well enough to fix: continue source investigation
 - **Not reproduced** — Step 3 met minimum iterations with zero failures: flag for CI monitoring
-- **Repro skipped** — Step 3 preconditions not met: `@paths/build.md`
+- **Repro skipped** — Step 3 preconditions not met
 - **Needs data inspection** — failure points to persisted state: `@skills/wt-cli/SKILL.md`
 - **Needs owner** — assign to `<team>` because `<reason>`
 - **Infra issue** — evidence: `<log lines>`

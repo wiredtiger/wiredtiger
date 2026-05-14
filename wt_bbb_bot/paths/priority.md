@@ -50,19 +50,19 @@ The investigation output from `@paths/investigate.md` for the ticket, containing
 
 ## Step 1: Map investigation output fields to score signals
 
-For each ticket, extract these values directly from the investigation output:
+First, read the `### Structured fields` block in the investigation output. These are the authoritative machine-readable values — use them directly without re-parsing prose sections:
 
-| Score signal | Investigation output field |
+| Score signal | Structured field |
 |---|---|
-| Jira priority | Jira context → Status / Priority |
-| Failure type | Log evidence → first error line + stack trace |
-| Root cause origin | Working theory → narrative + confidence |
-| Suspect commit | Git history → Suspect commit |
-| Failures last 7 days | Occurrence analysis → Failures in last 7 days |
-| Distinct variants | Occurrence analysis → Variants |
-| CI blocker | Occurrence analysis → CI blocker |
-| Assignee | Jira context → Assignee |
-| Age | Jira context → ticket creation date vs today |
+| CI blocker | `ci_blocker` |
+| Distinct variants | `variants` |
+| Total failures | `total_failures` |
+| Failures last 7 days | `failures_last_7d` |
+| Suspect commit | `suspect_commit` |
+| Reproduction result | `reproduction_result` |
+| Working theory confidence | `working_theory_confidence` |
+
+For signals not in structured fields (Jira priority, failure type, assignee, age), read the relevant prose sections as before.
 
 ---
 
