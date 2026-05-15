@@ -25,8 +25,10 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->dsrcqh);                                   /* Data source list */
     TAILQ_INIT(&conn->fhqh);                                     /* File list */
     TAILQ_INIT(&conn->tieredqh);                                 /* Tiered work unit list */
-    TAILQ_INIT(&conn->pfqh);                                     /* Pre-fetch reference list */
     TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh); /* Shared metadata list */
+
+    /* Prefetch. */
+    WT_RET(__wti_conn_prefetch_init(session));
 
     /* Extension interface lists. */
     WT_RET(__wti_conn_ext_init(session));
@@ -53,7 +55,6 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_SPIN_INIT_SESSION_TRACKED(session, &conn->schema_lock, schema);
     WT_RET(__wt_spin_init(session, &conn->tiered_lock, "tiered work unit list"));
     WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
-    WT_RET(__wt_spin_init(session, &conn->prefetch_lock, "prefetch"));
 
     /* Read-write locks */
     WT_RET(__wt_rwlock_init(session, &conn->log_mgr.debug_log_retention_lock));
@@ -120,7 +121,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_rwlock_destroy(session, &conn->table_lock);
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
-    __wt_spin_destroy(session, &conn->prefetch_lock);
+    __wti_conn_prefetch_destroy(session);
 
     /* Extension interface lists. */
     __wti_conn_ext_destroy(session);

@@ -3519,19 +3519,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->mmap_all = cval.val != 0;
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
-    conn->prefetch_available = cval.val != 0;
+    conn->prefetch.available = cval.val != 0;
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
-    conn->prefetch_auto_on = cval.val != 0;
+    conn->prefetch.auto_on = cval.val != 0;
 
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch_available || conn->prefetch_auto_on)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch.available || conn->prefetch.auto_on)) {
         __wt_verbose(session, WT_VERB_PREFETCH, "%s",
           "prefetch configuration is incompatible with in-memory configuration");
         WT_CONFIG_DEBUG(session, "%s", "setting prefetch.available and prefetch.default to false");
-        conn->prefetch_auto_on = false;
-        conn->prefetch_available = false;
+        conn->prefetch.auto_on = false;
+        conn->prefetch.available = false;
     }
 
-    if (conn->prefetch_auto_on && !conn->prefetch_available)
+    if (conn->prefetch.auto_on && !conn->prefetch.available)
         WT_ERR_MSG(session, EINVAL,
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 

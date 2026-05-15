@@ -335,12 +335,6 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_AZURE
-    "Build the Azure storage extension"
-    DEFAULT OFF
-)
-
-config_bool(
     ENABLE_PALITE
     "Build the PALite storage extension (mock implementation of the PALI)"
     DEFAULT ON
