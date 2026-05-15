@@ -646,21 +646,23 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
  * __rec_hs_select_newest --
  *     Called when no newest history store candidate has been selected yet: decide whether the
  *     current update becomes the newest history store candidate, advances the tombstone reference,
- *     or is squashed. Returns true only when the update is squashed and should be skipped.
+ *     or is squashed. Sets *skipp to true only when the update is squashed and should be skipped.
  *     Tombstone updates that advance the reference pointer are NOT skipped so they reach the work
  *     stack: a no-timestamp tombstone at the end of the chain must be present as the oldest entry
  *     so that the caller can trigger history store key deletion, and the tombstone must also reach
  *     the no-timestamp tracking path.
  */
-static bool
+static void
 __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
   uint64_t txnid_prepared, bool *check_preparedp, WT_UPDATE **newest_hsp,
-  WT_UPDATE **newest_hs_tombstonep, bool *squashedp, uint64_t *cache_hs_write_squashp)
+  WT_UPDATE **newest_hs_tombstonep, bool *squashedp, uint64_t *cache_hs_write_squashp, bool *skipp)
 {
+    *skipp = false;
     if (*check_preparedp) {
         if (txnid_prepared == txnid) {
             *squashedp = true;
-            return (true);
+            *skipp = true;
+            return;
         }
 
         *check_preparedp = false;
@@ -680,10 +682,8 @@ __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
         }
     } else {
         *squashedp = true;
-        return (true);
+        *skipp = true;
     }
-
-    return (false);
 }
 
 /*
@@ -701,7 +701,7 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
     WT_DECL_RET;
     WT_UPDATE *prev_upd, *upd;
     uint64_t txnid, txnid_prepared;
-    bool check_prepared;
+    bool check_prepared, skip;
 
     *squashedp = false;
     check_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
@@ -761,8 +761,9 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
          * the on-page value)
          */
         if (*newest_hsp == NULL) {
-            if (__rec_hs_select_newest(upd, &ref_upd, txnid, txnid_prepared, &check_prepared,
-                  newest_hsp, newest_hs_tombstonep, squashedp, cache_hs_write_squashp))
+            __rec_hs_select_newest(upd, &ref_upd, txnid, txnid_prepared, &check_prepared,
+              newest_hsp, newest_hs_tombstonep, squashedp, cache_hs_write_squashp, &skip);
+            if (skip)
                 continue;
         }
 
@@ -852,10 +853,10 @@ err:
 
 /*
  * __rec_hs_build_tw --
- *     Construct the WT_TIME_WINDOW for one history store record: fills the start side from the
- *     current update, the stop side from the previous update, and handles the no-timestamp and
- *     prepared-max-stop cases. Returns the tombstone pointer when the previous update is a
- *     tombstone, otherwise NULL.
+ *     Construct the WT_TIME_WINDOW for one history store record: fills the start time point from
+ *     the current update, the stop time point from the previous update, and handles the
+ *     no-timestamp and prepared-max-stop cases. Returns the tombstone pointer when the previous
+ *     update is a tombstone, otherwise NULL.
  */
 static void
 __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
@@ -969,7 +970,7 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
             prev_upd = newest_hs_tombstone != NULL ? newest_hs_tombstone : list->onpage_upd;
 
         /*
-         * Reset the update without a timestamp pointer once all the previous updates are inserted
+         * Reset the update pointer without a timestamp once all the previous updates are inserted
          * into the history store.
          */
         if (upd == *no_ts_updp)
