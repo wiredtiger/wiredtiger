@@ -1907,8 +1907,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Disaggregated block manager put cold page",
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-disagg: Disaggregated block manager read ahead of materialization frontier",
-  "block-manager: allocations that took the first-fit branch (compact relocation under threshold)",
-  "block-manager: allocations that took the restricted best-fit branch (concurrent write under "
+  "block-manager: allocations that took the restricted best-fit branch (write under compact "
   "threshold)",
   "block-manager: blocks pre-loaded",
   "block-manager: blocks read",
@@ -3004,7 +3003,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_put_cold = 0;
     stats->disagg_block_hs_put = 0;
     stats->disagg_block_read_ahead_frontier = 0;
-    stats->block_alloc_first_fit_count = 0;
     stats->block_alloc_restricted_best_fit_count = 0;
     stats->block_preload = 0;
     stats->block_read = 0;
@@ -4033,7 +4031,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_hs_put += WT_STAT_CONN_READ(from, disagg_block_hs_put);
     to->disagg_block_read_ahead_frontier +=
       WT_STAT_CONN_READ(from, disagg_block_read_ahead_frontier);
-    to->block_alloc_first_fit_count += WT_STAT_CONN_READ(from, block_alloc_first_fit_count);
     to->block_alloc_restricted_best_fit_count +=
       WT_STAT_CONN_READ(from, block_alloc_restricted_best_fit_count);
     to->block_preload += WT_STAT_CONN_READ(from, block_preload);

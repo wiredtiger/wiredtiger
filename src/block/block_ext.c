@@ -552,10 +552,12 @@ int
 __wti_block_alloc(
   WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size, wt_off_t old_offset)
 {
-    WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
+    WT_EXT *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
     wt_off_t threshold;
+
+    WT_UNUSED(old_offset);
 
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
@@ -574,18 +576,15 @@ __wti_block_alloc(
           (intmax_t)size, block->allocsize);
 
     /*
-     * Three-branch allocation:
+     * Two-branch allocation:
      *
      *  - Threshold == 0: today's behavior, best-fit on the full avail list.
-     *  - Threshold set, old_offset != INVALID and old_offset >= threshold: compact's own
-     *    relocation. First-fit within [0, threshold) so compact packs blocks toward the file
-     *    start.
-     *  - Threshold set, old_offset < threshold OR old_offset == INVALID: concurrent write
-     *    during compact. Best-fit within [0, threshold) so writers do not pay the linear-walk
-     *    cost.
+     *  - Threshold set: compact is running. Restricted best-fit within [0, threshold) for all
+     *    callers, including compact's own relocations. Falls back to best-fit on the full avail
+     *    list, then __block_extend, if no fit exists in [0, threshold).
      *
-     * Both restricted branches fall back to best-fit on the full avail list, then __block_extend,
-     * if no fit exists in [0, threshold).
+     * old_offset is carried through the API signature for potential future use but is not
+     * consulted here; all callers pay the same cheap by-size walk.
      */
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
@@ -596,16 +595,8 @@ __wti_block_alloc(
         if ((szp = *sstack[0]) == NULL)
             goto append;
         ext = szp->off[0];
-    } else if (old_offset != WT_BLOCK_INVALID_OFFSET && old_offset >= threshold) {
-        /* Compact-relocation: first-fit within [0, threshold). */
-        WT_STAT_CONN_INCR(session, block_alloc_first_fit_count);
-        if (!__block_first_srch(session, block->live.avail.off, size, estack))
-            goto fallback_high;
-        ext = *estack[0];
-        if (ext->off >= threshold)
-            goto fallback_high;
     } else {
-        /* Concurrent write or no-old-offset: restricted best-fit within [0, threshold). */
+        /* Concurrent write or compact-relocation: restricted best-fit within [0, threshold). */
         WT_STAT_CONN_INCR(session, block_alloc_restricted_best_fit_count);
         __block_size_srch(block->live.avail.sz, size, sstack);
         szp = *sstack[0];
@@ -614,8 +605,8 @@ __wti_block_alloc(
          * lowest-offset entry of the smallest matching class is past the threshold, every entry in
          * that class is. Step to the next-larger size class.
          *
-         * Invariant: szp->off[0] is never NULL because __block_off_remove deletes the WT_SIZE
-         * node from the by-size skiplist when its per-size offset sub-list empties.
+         * Invariant: szp->off[0] is never NULL because __block_off_remove deletes the WT_SIZE node
+         * from the by-size skiplist when its per-size offset sub-list empties.
          */
         while (szp != NULL && szp->off[0]->off >= threshold)
             szp = szp->next[0];

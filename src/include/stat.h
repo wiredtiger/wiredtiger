@@ -485,7 +485,6 @@ struct __wt_connection_stats {
     int64_t disagg_block_put_cold;
     int64_t disagg_block_hs_put;
     int64_t disagg_block_read_ahead_frontier;
-    int64_t block_alloc_first_fit_count;
     int64_t block_alloc_restricted_best_fit_count;
     int64_t block_preload;
     int64_t block_read;

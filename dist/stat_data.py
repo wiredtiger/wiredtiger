@@ -257,8 +257,7 @@ conn_stats = [
     ##########################################
     # Block manager statistics
     ##########################################
-    BlockStat('block_alloc_first_fit_count', 'allocations that took the first-fit branch (compact relocation under threshold)'),
-    BlockStat('block_alloc_restricted_best_fit_count', 'allocations that took the restricted best-fit branch (concurrent write under threshold)'),
+    BlockStat('block_alloc_restricted_best_fit_count', 'allocations that took the restricted best-fit branch (write under compact threshold)'),
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_read_intl', 'bytes read for internal pages', 'size'),

@@ -9,16 +9,14 @@
 /*
  * [block][alloc]: block_ext.c
  *
- * Tests for the compact-allocator-divergence three-branch routing in __wti_block_alloc:
+ * Tests for the compact-allocator-divergence two-branch routing in __wti_block_alloc:
  *
  *  - Threshold == 0: today's best-fit on the full avail list.
- *  - Threshold set, old_offset != INVALID and old_offset >= threshold: compact-relocation
- *    first-fit within [0, threshold), falls back to high region best-fit then __block_extend.
- *  - Threshold set, old_offset < threshold or old_offset == INVALID: concurrent-write
- *    restricted best-fit within [0, threshold), same fallback chain.
+ *  - Threshold set: compact is running; all callers (including compact's own relocations) use
+ *    restricted best-fit within [0, threshold), falling back to full-list best-fit then
+ *    __block_extend. old_offset is not consulted.
  *
- * These tests encode the design contract from
- * dev-notes/compact-perf-fix/specs/2026-05-14-compact-allocator-divergence-design.md.
+ * These tests encode the design contract from the compact-allocator-divergence design spec.
  */
 
 #include <catch2/catch.hpp>
@@ -44,7 +42,7 @@ const std::string ACCESS_PATTERN = "random";
 /*
  * Build a WT_BM with a real WT_BLOCK, populate block->live.avail with the supplied (off, size)
  * entries, set block->size and block->compact_first_fit_threshold, and acquire block->live_lock so
- * __wti_block_alloc's spinlock-owned assertion passes.
+ * the spinlock ownership assertion in __wti_block_alloc passes.
  *
  * Caller must invoke teardown_block() to release the lock, close the block, and drop the underlying
  * file.
@@ -71,7 +69,7 @@ setup_block_with_avail(test_block_ctx &ctx, const std::vector<std::pair<wt_off_t
 
     /*
      * WT_BM contains a WT_RWLOCK that cannot be copy-assigned in C++, so memset the memory directly
-     * instead of using struct-initialiser assignment. setup_bm() will memset again internally
+     * instead of using struct-initializer assignment. setup_bm() will memset again internally
      * before populating the methods, so this is just defensive.
      */
     std::memset(&ctx.bm, 0, sizeof(ctx.bm));
@@ -125,12 +123,14 @@ TEST_CASE("Block alloc threshold: threshold=0 falls through to today's best-fit"
     teardown_block(ctx);
 }
 
-TEST_CASE("Block alloc threshold: old_offset >= threshold takes first-fit branch", "[block][alloc]")
+TEST_CASE(
+  "Block alloc threshold: old_offset >= threshold still uses restricted-best-fit", "[block][alloc]")
 {
     test_block_ctx ctx;
     /*
      * File: [0, 32768). Threshold T=16384. Avail: (4096,4096), (8192,8192), (20480,4096). Old
-     * offset 24576 >= T: compact-relocation path, first-fit in [0, T).
+     * offset 24576 >= T: old_offset is ignored; restricted best-fit in [0, T) picks the
+     * smallest-fit extent => offset 4096. Same outcome as the concurrent-write test.
      */
     setup_block_with_avail(ctx, {{4096, 4096}, {8192, 8192}, {20480, 4096}}, /*threshold=*/16384,
       /*file_size=*/32768);
@@ -138,7 +138,7 @@ TEST_CASE("Block alloc threshold: old_offset >= threshold takes first-fit branch
     wt_off_t offset = 0;
     REQUIRE(__wti_block_alloc(ctx.session->get_wt_session_impl(), ctx.bm.block, &offset, 4096,
               /*old_offset=*/24576) == 0);
-    /* First-fit in [0,16384) returns the lowest-offset extent of size >= 4096 => offset 4096. */
+    /* Restricted best-fit in [0,16384): smallest-fit class has entry at offset 4096. */
     REQUIRE(offset == 4096);
 
     teardown_block(ctx);
@@ -185,8 +185,8 @@ TEST_CASE("Block alloc threshold: low region full, falls back to high region", "
     test_block_ctx ctx;
     /*
      * Avail in low region is too small to satisfy size=8192. High region has a fit at offset
-     * 20480. Compact path (old_offset=24576 >= threshold=16384) should first-fit in [0, T),
-     * find nothing >=8192, then fall back to the full-list best-fit which picks 20480.
+     * 20480. With threshold=16384, restricted best-fit in [0, T) finds nothing >=8192, then
+     * falls back to the full-list best-fit which picks 20480. old_offset is ignored.
      */
     setup_block_with_avail(
       ctx, {{4096, 4096}, {20480, 8192}}, /*threshold=*/16384, /*file_size=*/32768);
@@ -221,7 +221,7 @@ TEST_CASE(
       /*file_size=*/32768);
 
     wt_off_t offset = 0;
-    /* Call 1: threshold=8192, old=12288 => first-fit in [0, 8192). */
+    /* Call 1: threshold=8192, old=12288 (ignored) => restricted best-fit in [0, 8192). */
     REQUIRE(__wti_block_alloc(ctx.session->get_wt_session_impl(), ctx.bm.block, &offset, 4096,
               /*old_offset=*/12288) == 0);
     REQUIRE(offset == 4096);

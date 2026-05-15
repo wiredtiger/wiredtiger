@@ -1136,6 +1136,7 @@ inflateInit
 infmt
 informations
 init
+initializer
 initn
 initsize
 initval
@@ -1273,6 +1274,7 @@ madvise
 majorp
 malloc
 mappable
+materialise
 maxdbs
 maxdiff
 maxruns
@@ -1556,6 +1558,7 @@ refp
 regen
 regionp
 reinstantiated
+relocations
 relocked
 repl
 repo
@@ -1722,6 +1725,7 @@ syscalls
 syscrypto
 sysinfo
 sz
+szp
 t's
 tIf
 tV
@@ -1893,6 +1897,7 @@ waitpid
 waker
 wakeup
 wakeups
+wallclock
 warmup
 whitespace
 wiredTiger
