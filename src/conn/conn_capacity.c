@@ -28,9 +28,9 @@
 static int
 __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_THROTTLE *cap;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_THROTTLE *cap;
     uint64_t total;
 
     conn = S2C(session);
@@ -86,10 +86,10 @@ __capacity_server_run_chk(WT_SESSION_IMPL *session)
 static WT_THREAD_RET
 __capacity_server(void *arg)
 {
-    WT_THROTTLE *cap;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_THROTTLE *cap;
     uint64_t start, stop, time_ms;
 
     session = arg;
@@ -230,8 +230,8 @@ __wti_capacity_server_destroy(WT_SESSION_IMPL *session)
 static void
 __capacity_signal(WT_SESSION_IMPL *session)
 {
-    WT_THROTTLE *cap;
     WT_CONNECTION_IMPL *conn;
+    WT_THROTTLE *cap;
 
     conn = S2C(session);
     cap = &conn->capacity.throttle;
@@ -280,8 +280,8 @@ void
 __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 {
     struct timespec now;
-    WT_THROTTLE *cap;
     WT_CONNECTION_IMPL *conn;
+    WT_THROTTLE *cap;
     uint64_t best_res, capacity, new_res, now_ns, sleep_us, res_total_value;
     uint64_t res_value, steal_capacity, stolen_bytes, this_res;
     uint64_t *reservation, *steal;
