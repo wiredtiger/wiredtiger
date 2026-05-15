@@ -86,26 +86,37 @@ struct __wt_extlist {
  * WT_EXT --
  *	Encapsulation of an extent, either allocated or freed within the
  * checkpoint.
+ *
+ * Memory layout after the struct (all arrays sized by depth):
+ *   next[0..depth-1]        -- offset skiplist forward pointers
+ *   next[depth..2*depth-1]  -- size skiplist forward pointers
+ *   max_size[0..depth-1]    -- augmented skiplist max extent size per level
+ *                              (stored as wt_off_t immediately after next[])
+ *
+ * Use WT_EXT_MAX_SIZE(ext, i) to access max_size[i].
  */
 struct __wt_ext {
     wt_off_t off;  /* Extent's file offset */
     wt_off_t size; /* Extent's Size */
 
     uint8_t depth; /* Skip list depth */
-    /*
-     * Augmented skiplist metadata: max_size[i] stores the maximum extent size among all extents
-     * reachable by following the next[i] pointer from this node. Used by __block_first_srch_v2 to
-     * skip spans that contain no extent large enough to satisfy an allocation request.
-     */
-    wt_off_t max_size[WT_SKIP_MAXDEPTH];
 
     /*
      * Variable-length array, sized by the number of skiplist elements. The first depth array
-     * entries are the address skiplist elements, the second depth array entries are the size
-     * skiplist.
+     * entries are the offset skiplist, the second depth array entries are the size skiplist.
+     * Immediately following next[2*depth] is the variable-length max_size array (wt_off_t[depth]),
+     * accessed via WT_EXT_MAX_SIZE.
      */
     WT_EXT *next[0]; /* Offset, size skiplists */
 };
+
+/*
+ * WT_EXT_MAX_SIZE --
+ *	Access the variable-length max_size array for a WT_EXT node.
+ *	max_size[i] stores the maximum extent size among all extents reachable
+ *	by following next[i] from this node. Used by __block_first_srch_v2.
+ */
+#define WT_EXT_MAX_SIZE(ext, i) (((wt_off_t *)(&(ext)->next[2 * (ext)->depth]))[i])
 
 /*
  * WT_SIZE --
