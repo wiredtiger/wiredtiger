@@ -70,8 +70,10 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
             for i in range(self.nitems):
                 self.session.begin_transaction()
                 cursor[self.key(i)] = 'value'
-                self.session.commit_transaction()
+                self.session.commit_transaction(
+                    f'commit_timestamp={self.timestamp_str(10)}')
             cursor.close()
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
         self.session.checkpoint()
 
         follower_config = (
@@ -80,14 +82,14 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
         )
         self.reopen_conn(config=follower_config)
 
-    def truncate_range(self, start, stop):
+    def truncate_range(self, start, stop, ts):
         c1 = self.session.open_cursor(self.uri)
         c1.set_key(self.key(start))
         c2 = self.session.open_cursor(self.uri)
         c2.set_key(self.key(stop))
         self.session.begin_transaction()
         self.session.truncate(None, c1, c2, None)
-        self.session.commit_transaction()
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts)}')
         c1.close()
         c2.close()
 
@@ -107,10 +109,10 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(self.nitems):
             cursor[self.key(i)] = 'value'
-        self.session.commit_transaction()
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)}')
         cursor.close()
 
-        self.truncate_range(0, self.nitems - 1)
+        self.truncate_range(0, self.nitems - 1, 30)
         self.assert_random_notfound()
 
     # Tombstones genuinely scattered across both constituents:
@@ -128,11 +130,12 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
         for i in range(2 * self.nitems):
             self.session.begin_transaction()
             cursor[self.key(i)] = 'value'
-            self.session.commit_transaction()
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
         cursor.close()
 
         # Leader-side truncate: tombstones land in stable on checkpoint.
-        self.truncate_range(0, self.nitems - 1)
+        self.truncate_range(0, self.nitems - 1, 20)
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
         self.session.checkpoint()
 
         follower_config = (
@@ -142,5 +145,5 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
         self.reopen_conn(config=follower_config)
 
         # Follower-side truncate: tombstones land in ingest.
-        self.truncate_range(self.nitems, 2 * self.nitems - 1)
+        self.truncate_range(self.nitems, 2 * self.nitems - 1, 30)
         self.assert_random_notfound()
