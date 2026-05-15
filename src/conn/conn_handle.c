@@ -20,21 +20,16 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
 
     session = conn->default_session;
 
-    TAILQ_INIT(&conn->dhqh);     /* Data handle list */
-    TAILQ_INIT(&conn->dlhqh);    /* Library list */
-    TAILQ_INIT(&conn->dsrcqh);   /* Data source list */
-    TAILQ_INIT(&conn->fhqh);     /* File list */
-    TAILQ_INIT(&conn->tieredqh); /* Tiered work unit list */
-    TAILQ_INIT(&conn->pfqh);     /* Pre-fetch reference list */
-
-    /* Hot backup subsystem. */
-    WT_RET(__wti_conn_backup_init(session));
+    TAILQ_INIT(&conn->dhqh);                                     /* Data handle list */
+    TAILQ_INIT(&conn->dlhqh);                                    /* Library list */
+    TAILQ_INIT(&conn->dsrcqh);                                   /* Data source list */
+    TAILQ_INIT(&conn->fhqh);                                     /* File list */
+    TAILQ_INIT(&conn->tieredqh);                                 /* Tiered work unit list */
+    TAILQ_INIT(&conn->pfqh);                                     /* Pre-fetch reference list */
+    TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh); /* Shared metadata list */
 
     /* Extension interface lists. */
     WT_RET(__wti_conn_ext_init(session));
-
-    /* Disaggregated storage. */
-    TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh);
 
     /* Random numbers. */
     __wt_session_rng_init_once(session);
@@ -64,6 +59,9 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_rwlock_init(session, &conn->log_mgr.debug_log_retention_lock));
     WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->dhandle_lock, dhandle);
     WT_RWLOCK_INIT_TRACKED(session, &conn->table_lock, table);
+
+    /* Hot backup subsystem. */
+    WT_RET(__wti_conn_backup_init(session));
 
     /* Initialize the generation manager. */
     __wt_gen_init(session);
