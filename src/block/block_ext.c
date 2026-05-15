@@ -294,7 +294,7 @@ __block_first_srch_v2(
     }
 
     *retp = (ext == NULL) ? head[0] : ext->next[0];
-    WT_STAT_CONN_SET(session, block_ext_walked, walked);
+    WT_STAT_CONN_INCRV(session, block_ext_walked, walked);
 }
 
 /*
@@ -1988,5 +1988,11 @@ __ut_block_merge(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
     return (__block_merge(session, block, el, off, size));
+}
+
+void
+__ut_block_first_srch_v2(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t size, WT_EXT **retp)
+{
+    __block_first_srch_v2(session, el->off, el->max_size_to_head, size, retp);
 }
 #endif

@@ -2638,6 +2638,8 @@ extern int __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_ite
 extern int __ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids,
   size_t num_btree, const uint64_t *pali_ids, size_t num_pali)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __ut_block_first_srch_v2(
+  WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t size, WT_EXT **retp);
 extern void __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off);
 extern void __ut_block_off_srch_pair(
   WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **afterp);

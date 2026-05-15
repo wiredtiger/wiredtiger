@@ -8,7 +8,7 @@
 
 /*
  * block_ext.c: [extent_list] Test extent list search functions: __block_off_srch_last,
- * __block_off_srch, __block_first_srch, and __block_size_srch.
+ * __block_off_srch, __block_first_srch, __block_first_srch_v2, and __block_size_srch.
  */
 
 #include <memory>
@@ -349,6 +349,90 @@ TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
         head[2]->size = 30;
 
         REQUIRE(__ut_block_first_srch(session, &head[0], 4, &stack[0]) == true);
+    }
+}
+
+TEST_CASE("Extent Lists: block_first_srch_v2", "[extent_list]")
+{
+    std::shared_ptr<mock_session> session_wrapper = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *session = session_wrapper->get_wt_session_impl();
+
+    SECTION("empty list returns NULL")
+    {
+        WT_EXTLIST extlist = {};
+        WT_EXT *result = (WT_EXT *)0x1; /* Non-NULL sentinel. */
+
+        __ut_block_first_srch_v2(session, &extlist, 4096, &result);
+
+        REQUIRE(result == nullptr);
+    }
+
+    SECTION("single extent, size matches exactly, returns it")
+    {
+        WT_EXTLIST extlist = {};
+        WT_EXT *result = nullptr;
+
+        REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 4096) == 0);
+
+        __ut_block_first_srch_v2(session, &extlist, 4096, &result);
+
+        REQUIRE(result != nullptr);
+        REQUIRE(result->off == 4096);
+        REQUIRE(result->size == 4096);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("single extent, size too small, returns NULL")
+    {
+        WT_EXTLIST extlist = {};
+        WT_EXT *result = (WT_EXT *)0x1; /* Non-NULL sentinel. */
+
+        REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 1024) == 0);
+
+        __ut_block_first_srch_v2(session, &extlist, 4096, &result);
+
+        REQUIRE(result == nullptr);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("multiple extents, only one large enough, returns correct one")
+    {
+        /*
+         * Insert three extents: [off=4096,sz=1024], [off=8192,sz=8192], [off=16384,sz=512]. Request
+         * size=4096 only the middle extent qualifies.
+         */
+        WT_EXTLIST extlist = {};
+        WT_EXT *result = nullptr;
+
+        REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 1024) == 0);
+        REQUIRE(__ut_block_off_insert(session, &extlist, 8192, 8192) == 0);
+        REQUIRE(__ut_block_off_insert(session, &extlist, 16384, 512) == 0);
+
+        __ut_block_first_srch_v2(session, &extlist, 4096, &result);
+
+        REQUIRE(result != nullptr);
+        REQUIRE(result->off == 8192);
+        REQUIRE(result->size == 8192);
+
+        extlist_free(session, extlist);
+    }
+
+    SECTION("all extents too small, returns NULL")
+    {
+        WT_EXTLIST extlist = {};
+        WT_EXT *result = (WT_EXT *)0x1; /* Non-NULL sentinel. */
+
+        REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 512) == 0);
+        REQUIRE(__ut_block_off_insert(session, &extlist, 8192, 512) == 0);
+        REQUIRE(__ut_block_off_insert(session, &extlist, 16384, 512) == 0);
+
+        __ut_block_first_srch_v2(session, &extlist, 4096, &result);
+
+        REQUIRE(result == nullptr);
+
+        extlist_free(session, extlist);
     }
 }
 
