@@ -276,55 +276,6 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
 }
 
 /*
- * __txn_next_op --
- *     Mark a WT_UPDATE object modified by the current transaction.
- */
-static WT_INLINE int
-__txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
-{
-    WT_BTREE *btree;
-    WT_TXN *txn;
-    WT_TXN_OP *op;
-    uint64_t btree_txn_id_prev, txn_id;
-
-    *opp = NULL;
-
-    txn = session->txn;
-
-    /*
-     * We're about to perform an update. Make sure we have allocated a transaction ID.
-     */
-    WT_RET(__wt_txn_id_check(session));
-    WT_ASSERT(session, F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
-
-    WT_RET(__wt_realloc_def(session, &txn->mod_alloc, txn->mod_count + 1, &txn->mod));
-
-    op = &txn->mod[txn->mod_count++];
-    WT_CLEAR(*op);
-    btree = S2BT(session);
-    op->btree = btree;
-
-    /*
-     * Store the ID of the latest transaction that is making an update. It can be used to determine
-     * if there is an active transaction on the btree. Only try to update the shared value if this
-     * transaction is newer than the last transaction that updated it.
-     */
-    btree_txn_id_prev = __wt_tsan_suppress_load_uint64(&btree->max_upd_txn);
-    txn_id = txn->time_point.id;
-    WT_ASSERT_ALWAYS(session, txn_id != WT_TXN_ABORTED,
-      "Assert failure: session: %s: txn_id == WT_TXN_ABORTED", session->name);
-    while (btree_txn_id_prev < txn_id) {
-        if (__wt_atomic_cas_uint64(&op->btree->max_upd_txn, btree_txn_id_prev, txn_id))
-            break;
-        btree_txn_id_prev = op->btree->max_upd_txn;
-    }
-
-    (void)__wt_atomic_add_int32(&session->dhandle->session_inuse, 1);
-    *opp = op;
-    return (0);
-}
-
-/*
  * __wt_pending_prepared_next_op --
  *     Get the next transaction operation slot for a pending prepared transaction.
  */
@@ -347,7 +298,7 @@ __wt_pending_prepared_next_op(
 
     /*
      * Increment the session use count for the data handle. This counter always increases in
-     * __txn_next_op decreased in __wt_txn_op_free so we need to match that here.
+     * __wt_txn_next_op decreased in __wt_txn_op_free so we need to match that here.
      */
     (void)__wt_atomic_add_int32(&session->dhandle->session_inuse, 1);
 
@@ -758,7 +709,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
     }
 
-    WT_RET(__txn_next_op(session, &op));
+    WT_RET(__wt_txn_next_op(session, &op));
 
     upd->txnid = session->txn->time_point.id;
     ret = __wt_op_modify(session, upd, op);
@@ -785,7 +736,7 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
     if (F_ISSET(txn, WT_TXN_READONLY))
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
 
-    WT_RET(__txn_next_op(session, &op));
+    WT_RET(__wt_txn_next_op(session, &op));
     op->type = WT_TXN_OP_FOLLOWER_TRUNCATE;
     WT_ASSERT(session, t->txn_id == WT_TXN_NONE);
     t->txn_id = session->txn->time_point.id;
@@ -833,7 +784,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     txn = session->txn;
 
-    WT_RET(__txn_next_op(session, &op));
+    WT_RET(__wt_txn_next_op(session, &op));
     op->type = WT_TXN_OP_REF_DELETE;
     op->u.ref = ref;
 

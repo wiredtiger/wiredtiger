@@ -9,6 +9,55 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_txn_next_op --
+ *     Mark a WT_UPDATE object modified by the current transaction.
+ */
+int
+__wt_txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
+{
+    WT_BTREE *btree;
+    WT_TXN *txn;
+    WT_TXN_OP *op;
+    uint64_t btree_txn_id_prev, txn_id;
+
+    *opp = NULL;
+
+    txn = session->txn;
+
+    /*
+     * We're about to perform an update. Make sure we have allocated a transaction ID.
+     */
+    WT_RET(__wt_txn_id_check(session));
+    WT_ASSERT(session, F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
+
+    WT_RET(__wt_realloc_def(session, &txn->mod_alloc, txn->mod_count + 1, &txn->mod));
+
+    op = &txn->mod[txn->mod_count++];
+    WT_CLEAR(*op);
+    btree = S2BT(session);
+    op->btree = btree;
+
+    /*
+     * Store the ID of the latest transaction that is making an update. It can be used to determine
+     * if there is an active transaction on the btree. Only try to update the shared value if this
+     * transaction is newer than the last transaction that updated it.
+     */
+    btree_txn_id_prev = __wt_tsan_suppress_load_uint64(&btree->max_upd_txn);
+    txn_id = txn->time_point.id;
+    WT_ASSERT_ALWAYS(session, txn_id != WT_TXN_ABORTED,
+      "Assert failure: session: %s: txn_id == WT_TXN_ABORTED", session->name);
+    while (btree_txn_id_prev < txn_id) {
+        if (__wt_atomic_cas_uint64(&op->btree->max_upd_txn, btree_txn_id_prev, txn_id))
+            break;
+        btree_txn_id_prev = op->btree->max_upd_txn;
+    }
+
+    (void)__wt_atomic_add_int32(&session->dhandle->session_inuse, 1);
+    *opp = op;
+    return (0);
+}
+
+/*
  * __snapsort_partition --
  *     Custom quick sort partitioning for snapshots.
  */

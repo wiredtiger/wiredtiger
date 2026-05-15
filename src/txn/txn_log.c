@@ -591,7 +591,7 @@ __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)
     start_recno = WT_RECNO_OOB;
     stop_recno = WT_RECNO_OOB;
 
-    WT_RET(__txn_next_op(session, &op));
+    WT_RET(__wt_txn_next_op(session, &op));
 
     if (btree->type == BTREE_ROW) {
         op->type = WT_TXN_OP_TRUNCATE_ROW;

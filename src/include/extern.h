@@ -1175,6 +1175,8 @@ extern int __wt_txn_is_blocking(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_parse_prepared_id(WT_SESSION_IMPL *session, uint64_t *prepared_id,
   WT_CONFIG_ITEM *cval) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
@@ -2651,8 +2653,7 @@ extern void __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS
 
 extern int __clayered_lookup_constituent(WT_CURSOR *, WT_CURSOR_LAYERED *, WT_ITEM *)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __clayered_put(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM *,
-  const WT_ITEM *, WT_CLAYERED_PUT_OP) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __clayered_remove_leader(
-  WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM *, bool)
+extern int __clayered_put(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM *, const WT_ITEM *,
+  WT_CLAYERED_PUT_OP) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __clayered_remove_leader(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM *, bool)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
