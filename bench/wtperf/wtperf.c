@@ -1188,18 +1188,18 @@ monitor(void *arg)
       "update ops per second,"
       "checkpoints,"
       "scans,"
-      "insert average latency(nS),"
-      "insert min latency(nS),"
-      "insert maximum latency(nS),"
-      "modify average latency(nS),"
-      "modify min latency(nS),"
-      "modify maximum latency(nS),"
-      "read average latency(nS),"
-      "read minimum latency(nS),"
-      "read maximum latency(nS),"
-      "update average latency(nS),"
-      "update min latency(nS),"
-      "update maximum latency(nS)"
+      "insert average latency(ns),"
+      "insert min latency(ns),"
+      "insert maximum latency(ns),"
+      "modify average latency(ns),"
+      "modify min latency(ns),"
+      "modify maximum latency(ns),"
+      "read average latency(ns),"
+      "read minimum latency(ns),"
+      "read maximum latency(ns),"
+      "update average latency(ns),"
+      "update min latency(ns),"
+      "update maximum latency(ns)"
       "\n");
     last_inserts = last_modifies = last_reads = last_updates = 0;
     while (!wtperf->stop) {
@@ -1261,20 +1261,20 @@ monitor(void *arg)
             (void)fprintf(jfp, "\"localTime\":\"%s\",\"wtperf\":{", buf);
             /* Note does not have initial comma before "insert" */
             (void)fprintf(jfp,
-              "\"insert\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
-              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
+              "\"insert\":{\"ops per sec\":%" PRIu64 ",\"average latency (ns)\":%" PRIu64
+              ",\"min latency (ns)\":%" PRIu64 ",\"max latency (ns)\":%" PRIu64 "}",
               cur_inserts, insert_avg, insert_min, insert_max);
             (void)fprintf(jfp,
-              ",\"modify\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
-              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
+              ",\"modify\":{\"ops per sec\":%" PRIu64 ",\"average latency (ns)\":%" PRIu64
+              ",\"min latency (ns)\":%" PRIu64 ",\"max latency (ns)\":%" PRIu64 "}",
               cur_modifies, modify_avg, modify_min, modify_max);
             (void)fprintf(jfp,
-              ",\"read\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
-              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
+              ",\"read\":{\"ops per sec\":%" PRIu64 ",\"average latency (ns)\":%" PRIu64
+              ",\"min latency (ns)\":%" PRIu64 ",\"max latency (ns)\":%" PRIu64 "}",
               cur_reads, read_avg, read_min, read_max);
             (void)fprintf(jfp,
-              ",\"update\":{\"ops per sec\":%" PRIu64 ",\"average latency (nS)\":%" PRIu64
-              ",\"min latency (nS)\":%" PRIu64 ",\"max latency (nS)\":%" PRIu64 "}",
+              ",\"update\":{\"ops per sec\":%" PRIu64 ",\"average latency (ns)\":%" PRIu64
+              ",\"min latency (ns)\":%" PRIu64 ",\"max latency (ns)\":%" PRIu64 "}",
               cur_updates, update_avg, update_min, update_max);
             fprintf(jfp, "}}\n");
         }

@@ -256,7 +256,7 @@ typedef struct {
      */
     uint64_t ops;         /* Total operations */
     uint64_t latency_ops; /* Total ops sampled for latency */
-    uint64_t latency;     /* Total latency (nS) */
+    uint64_t latency;     /* Total latency (ns) */
 
     uint64_t last_latency_ops; /* Last read by monitor thread */
     uint64_t last_latency;
@@ -265,8 +265,8 @@ typedef struct {
      * Minimum/maximum latency, shared with the monitor thread, that is, the monitor thread clears
      * it so it's recalculated again for each period.
      */
-    uint64_t min_latency; /* Minimum latency (nS) */
-    uint64_t max_latency; /* Maximum latency (nS) */
+    uint64_t min_latency; /* Minimum latency (ns) */
+    uint64_t max_latency; /* Maximum latency (ns) */
 
     /*
      * Latency buckets.
