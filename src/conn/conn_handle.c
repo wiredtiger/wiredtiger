@@ -29,6 +29,9 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     /* Tiered storage. */
     WT_RET(__wti_conn_tiered_init(session));
 
+    /* I/O capacity subsystem. */
+    __wti_conn_capacity_init(session);
+
     /* Extension interface lists. */
     WT_RET(__wti_conn_ext_init(session));
 
@@ -121,6 +124,9 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
 
     /* Tiered storage. */
     __wti_conn_tiered_destroy(session);
+
+    /* I/O capacity subsystem. */
+    __wti_conn_capacity_destroy(session);
 
     /* Extension interface lists. */
     __wti_conn_ext_destroy(session);

@@ -572,6 +572,20 @@ struct __wt_layered_drain_entry {
 };
 
 /*
+ * WT_CONN_CAPACITY --
+ *	I/O capacity subsystem fields, grouping the WT_THROTTLE throttle
+ *	configuration with the session, thread, and condition variable that drive the
+ *	capacity server.
+ */
+struct __wt_conn_capacity {
+    WT_THROTTLE throttle;     /* I/O capacity throttle configuration */
+    WT_SESSION_IMPL *session; /* Capacity thread session */
+    wt_thread_t tid;          /* Capacity thread */
+    bool tid_set;             /* Capacity thread set */
+    WT_CONDVAR *cond;         /* Capacity wait mutex */
+};
+
+/*
  * WT_CONN_STAT_LOG --
  *	Statistics logging subsystem fields, grouping the session, thread, and
  *	configuration that drive the statistics log server.
@@ -934,11 +948,7 @@ struct __wt_connection_impl {
     WT_CONNECTION_STATS *stats[WT_STAT_CONN_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
 
-    WT_CAPACITY capacity;              /* Capacity structure */
-    WT_SESSION_IMPL *capacity_session; /* Capacity thread session */
-    wt_thread_t capacity_tid;          /* Capacity thread */
-    bool capacity_tid_set;             /* Capacity thread set */
-    WT_CONDVAR *capacity_cond;         /* Capacity wait mutex */
+    WT_CONN_CAPACITY capacity; /* I/O capacity subsystem */
 
 #define WT_CONN_TIERED_STORAGE_ENABLED(conn) ((conn)->bstorage != NULL)
     WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
