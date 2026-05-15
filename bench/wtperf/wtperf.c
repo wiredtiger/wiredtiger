@@ -574,7 +574,7 @@ worker(void *arg)
                 /*
                  * Copy as much of the previous value as is safe, and be sure to NUL-terminate.
                  */
-                strncpy(value_buf, value, opts->value_sz_max - 1);
+                snprintf(value_buf, opts->value_sz_max, "%s", value);
 
                 if (*op == WORKER_MODIFY)
                     delta = workload->modify_delta;
@@ -2328,9 +2328,7 @@ create_tiered_bucket(WTPERF *wtperf)
     }
 
     if (bucket_len != 0) {
-        strcpy(buf, wtperf->home);
-        strcat(buf, "/");
-        strcat(buf, opts->tiered_bucket);
+        snprintf(buf, sizeof(buf), "%s/%s", wtperf->home, opts->tiered_bucket);
         testutil_mkdir(buf);
     }
 
@@ -2637,8 +2635,8 @@ main(int argc, char *argv[])
             else {
                 user_cconfig =
                   drealloc(user_cconfig, strlen(user_cconfig) + strlen(__wt_optarg) + 2);
-                strcat(user_cconfig, ",");
-                strcat(user_cconfig, __wt_optarg);
+                snprintf(user_cconfig + strlen(user_cconfig), strlen(__wt_optarg) + 2,
+                  ",%s", __wt_optarg);
             }
             break;
         case 'h':
@@ -2659,8 +2657,8 @@ main(int argc, char *argv[])
             else {
                 user_tconfig =
                   drealloc(user_tconfig, strlen(user_tconfig) + strlen(__wt_optarg) + 2);
-                strcat(user_tconfig, ",");
-                strcat(user_tconfig, __wt_optarg);
+                snprintf(user_tconfig + strlen(user_tconfig), strlen(__wt_optarg) + 2,
+                  ",%s", __wt_optarg);
             }
             break;
         case '?':
