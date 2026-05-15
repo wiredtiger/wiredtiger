@@ -608,6 +608,30 @@ struct __wt_conn_sweep {
 };
 
 /*
+ * WT_CONN_TIERED --
+ *	Fields for the tiered storage server thread and its associated queue and locks.
+ */
+struct __wt_conn_tiered {
+    /* Locked: tiered system work queue */
+    TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
+
+    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
+    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
+
+    WT_SESSION_IMPL *session;           /* Tiered thread session */
+    wt_thread_t tid;                    /* Tiered thread */
+    bool tid_set;                       /* Tiered thread set */
+    WT_CONDVAR *flush_cond;             /* Flush wait mutex */
+    WT_CONDVAR *cond;                   /* Tiered wait mutex */
+    uint64_t interval;                  /* Tiered work interval */
+    bool server_running;                /* Internal tiered server operating */
+    wt_shared bool flush_ckpt_complete; /* Checkpoint after flush completed */
+    uint64_t flush_most_recent;         /* Clock value of last flush_tier */
+    uint32_t flush_state;               /* State of last flush tier */
+    wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
+};
+
+/*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
@@ -744,12 +768,10 @@ struct __wt_connection_impl {
     WT_SPINLOCK api_lock;        /* Connection API spinlock */
     WT_SPINLOCK checkpoint_lock; /* Checkpoint spinlock */
     WT_SPINLOCK fh_lock;         /* File handle queue spinlock */
-    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
     WT_SPINLOCK metadata_lock;   /* Metadata update spinlock */
     WT_SPINLOCK reconfig_lock;   /* Single thread reconfigure */
     WT_SPINLOCK schema_lock;     /* Schema operation spinlock */
     WT_RWLOCK table_lock;        /* Table list lock */
-    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
     WT_SPINLOCK turtle_lock;     /* Turtle file spinlock */
     WT_RWLOCK dhandle_lock;      /* Data handle list lock */
 
@@ -819,8 +841,6 @@ struct __wt_connection_impl {
     /* Locked: file list */
     TAILQ_HEAD(__wt_fhhash, __wt_fh) * fhhash;
     TAILQ_HEAD(__wt_fh_qh, __wt_fh) fhqh;
-    /* Locked: Tiered system work queue. */
-    TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
 
     WT_SPINLOCK block_lock; /* Locked: block manager list */
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
@@ -951,17 +971,7 @@ struct __wt_connection_impl {
 
     WT_CONN_STAT_LOG stat_log; /* Statistics logging subsystem */
 
-    WT_SESSION_IMPL *tiered_session;    /* Tiered thread session */
-    wt_thread_t tiered_tid;             /* Tiered thread */
-    bool tiered_tid_set;                /* Tiered thread set */
-    WT_CONDVAR *flush_cond;             /* Flush wait mutex */
-    WT_CONDVAR *tiered_cond;            /* Tiered wait mutex */
-    uint64_t tiered_interval;           /* Tiered work interval */
-    bool tiered_server_running;         /* Internal tiered server operating */
-    wt_shared bool flush_ckpt_complete; /* Checkpoint after flush completed */
-    uint64_t flush_most_recent;         /* Clock value of last flush_tier */
-    uint32_t flush_state;               /* State of last flush tier */
-    wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
+    WT_CONN_TIERED tiered; /* Tiered storage server thread fields */
 
     WT_LOG_MANAGER log_mgr;
 
