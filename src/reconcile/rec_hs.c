@@ -817,6 +817,34 @@ err:
 }
 
 /*
+ * __rec_hs_handle_oldest_tombstone --
+ *     If the oldest collected update is a globally-visible no-timestamp tombstone, clear all
+ *     timestamped history store records for the key before new records are inserted.
+ */
+static int
+__rec_hs_handle_oldest_tombstone(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, bool error_on_ts_ordering, bool hs_flag_set, WT_UPDATE *oldest_upd,
+  WT_UPDATE **no_ts_updp)
+{
+    WT_DECL_RET;
+
+    if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
+      oldest_upd->upd_start_ts == WT_TS_NONE) {
+        WT_ERR_MSG_CHK(session,
+          __wti_rec_hs_delete_key(session, hs_cursor, btree_id, key, false, error_on_ts_ordering),
+          "failed to clear stale history store entries before insert: btree=%" PRIu32, btree_id);
+
+        WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
+
+        /* Reset the update without a timestamp if it is the last update in the chain. */
+        if (oldest_upd == *no_ts_updp)
+            *no_ts_updp = NULL;
+    }
+err:
+    return (ret);
+}
+
+/*
  * __wti_rec_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table if they haven't been
  *     moved there. Whether the function fails or succeeds, if there is a successful write to
@@ -958,27 +986,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             WT_ASSERT(session,
               oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
 
-            /*
-             * Fix the history store record here if the oldest update is a tombstone without a
-             * timestamp. This situation is possible only when the tombstone is globally visible.
-             * Delete all the updates of the key in the history store with timestamps. In the rare
-             * case we have a modify update already written to the history store (we saved the state
-             * in hs_flag_set), deal with it here and skip the deletion as there is nothing to do
-             */
-            if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
-              oldest_upd->upd_start_ts == WT_TS_NONE) {
-                WT_ERR_MSG_CHK(session,
-                  __wti_rec_hs_delete_key(
-                    session, hs_cursor, btree->id, key, false, error_on_ts_ordering),
-                  "failed to clear stale history store entries before insert: btree=%" PRIu32,
-                  btree->id);
-
-                WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
-
-                /* Reset the update without a timestamp if it is the last update in the chain. */
-                if (oldest_upd == no_ts_upd)
-                    no_ts_upd = NULL;
-            }
+            WT_ERR(__rec_hs_handle_oldest_tombstone(session, hs_cursor, btree->id, key,
+              error_on_ts_ordering, hs_flag_set, oldest_upd, &no_ts_upd));
         }
 
         /* Skip if we have nothing to insert to the history store. */
