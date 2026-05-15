@@ -223,16 +223,14 @@ static void
 __clayered_seed_random(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_CURSOR *constituent)
 {
-    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)constituent;
 
-    cbt = (WT_CURSOR_BTREE *)constituent;
     if (clayered->next_random_seed != 0)
-        __wt_random_init_seed(&cbt->rnd, (uint64_t)clayered->next_random_seed);
+        __wt_random_init_seed(&cbt->rnd, clayered->next_random_seed);
     else
         __wt_random_init(session, &cbt->rnd);
 
-    if (clayered->next_random_sample_size != 0)
-        cbt->next_random_sample_size = clayered->next_random_sample_size;
+    cbt->next_random_sample_size = clayered->next_random_sample_size;
 }
 
 /*
@@ -2901,7 +2899,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
         cursor->next = __clayered_next_random;
 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_seed", 0, &cval));
-        clayered->next_random_seed = cval.val;
+        clayered->next_random_seed = (uint64_t)cval.val;
 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));
         clayered->next_random_sample_size = (u_int)cval.val;
