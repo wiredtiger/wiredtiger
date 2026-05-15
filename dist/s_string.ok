@@ -1104,6 +1104,7 @@ homedir
 hotspot
 hpp
 hs
+hsp
 html
 huffman
 hw
@@ -1760,6 +1761,7 @@ tokstart
 toktype
 tolower
 tombstoned
+tombstonep
 toml
 toolchain
 totalsec
