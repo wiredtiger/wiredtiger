@@ -28,7 +28,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->pfqh);     /* Pre-fetch reference list */
 
     /* I/O capacity subsystem. */
-    WT_RET(__wti_conn_capacity_init(session));
+    __wti_conn_capacity_init(session);
 
     /* Extension interface lists. */
     WT_RET(__wti_conn_ext_init(session));

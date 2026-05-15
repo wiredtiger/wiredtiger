@@ -442,11 +442,10 @@ again:
  * __wti_conn_capacity_init --
  *     Initialize the WT_CONN_CAPACITY structure embedded in a connection.
  */
-int
+void
 __wti_conn_capacity_init(WT_SESSION_IMPL *session)
 {
     WT_UNUSED(session);
-    return (0);
 }
 
 /*
