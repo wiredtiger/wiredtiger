@@ -644,12 +644,13 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
 
 /*
  * __rec_hs_select_newest --
- *     Called when newest_hsp is still NULL: decide whether the current update becomes the newest
- *     history store candidate, advances the tombstone reference, or is squashed. Returns true only
- *     when the update is squashed and should be skipped. Tombstone updates that advance the
- *     reference pointer are NOT skipped so they reach the work stack: a no-timestamp tombstone at
- *     the end of the chain must be present as the oldest entry so that the caller can trigger
- *     history store key deletion, and the tombstone must also reach the no-timestamp tracking path.
+ *     Called when no newest history store candidate has been selected yet: decide whether the
+ *     current update becomes the newest history store candidate, advances the tombstone reference,
+ *     or is squashed. Returns true only when the update is squashed and should be skipped.
+ *     Tombstone updates that advance the reference pointer are NOT skipped so they reach the work
+ *     stack: a no-timestamp tombstone at the end of the chain must be present as the oldest entry
+ *     so that the caller can trigger history store key deletion, and the tombstone must also reach
+ *     the no-timestamp tracking path.
  */
 static bool
 __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
@@ -851,9 +852,10 @@ err:
 
 /*
  * __rec_hs_build_tw --
- *     Construct the WT_TIME_WINDOW for one history store record: fills the start side from upd, the
- *     stop side from prev_upd, and handles the no-timestamp and prepared-max-stop cases. Returns
- *     the tombstone pointer if prev_upd is a tombstone (else NULL via *tombstonep).
+ *     Construct the WT_TIME_WINDOW for one history store record: fills the start side from the
+ *     current update, the stop side from the previous update, and handles the no-timestamp and
+ *     prepared-max-stop cases. Returns the tombstone pointer when the previous update is a
+ *     tombstone, otherwise NULL.
  */
 static void
 __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
