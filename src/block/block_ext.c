@@ -265,7 +265,8 @@ __block_first_srch_v2(
   WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t *max_size_head, wt_off_t size, WT_EXT **retp)
 {
     WT_EXT *ext, *next;
-    int i, walked;
+    uint64_t walked;
+    int i;
 
     /*
      * max_size_head is maintained for possible future use as a quick-reject optimization; for now
@@ -1728,8 +1729,9 @@ __wti_block_extlist_init(
         el->type = 1;
     } else if (WT_PREFIX_MATCH(extname, "discard")) {
         el->type = 2;
-    } else
+    } else {
         el->type = 3;
+    }
     return (0);
 }
 

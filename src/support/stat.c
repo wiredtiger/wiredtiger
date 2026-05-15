@@ -1930,7 +1930,6 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written via system call API",
   "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
-  "block-manager: number of extents last walked during allocation",
   "block-manager: number of internal page deltas written that were between 0-20 percent the size "
   "of the full image",
   "block-manager: number of internal page deltas written that were between 20-40 percent the size "
@@ -1958,6 +1957,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "block-manager: skiplist nodes examined during first-fit block allocation",
   "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
@@ -3021,7 +3021,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
-    stats->block_ext_walked = 0;
     stats->block_byte_write_intl_delta_lt20 = 0;
     stats->block_byte_write_intl_delta_lt40 = 0;
     stats->block_byte_write_intl_delta_lt60 = 0;
@@ -3036,6 +3035,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_leaf_delta_gt100 = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->block_ext_walked = 0;
     stats->eviction_interupted_by_app = 0;
     stats->eviction_app_time = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
@@ -4049,7 +4049,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_CONN_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_CONN_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_CONN_READ(from, block_byte_map_read);
-    to->block_ext_walked += WT_STAT_CONN_READ(from, block_ext_walked);
     to->block_byte_write_intl_delta_lt20 +=
       WT_STAT_CONN_READ(from, block_byte_write_intl_delta_lt20);
     to->block_byte_write_intl_delta_lt40 +=
@@ -4076,6 +4075,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_gt100);
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
+    to->block_ext_walked += WT_STAT_CONN_READ(from, block_ext_walked);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
     to->eviction_app_time += WT_STAT_CONN_READ(from, eviction_app_time);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
