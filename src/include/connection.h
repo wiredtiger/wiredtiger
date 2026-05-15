@@ -558,12 +558,12 @@ struct __wt_layered_drain_entry {
 
 /*
  * WT_CONN_CAPACITY --
- *	I/O capacity subsystem fields, grouping the WT_CAPACITY throttle
+ *	I/O capacity subsystem fields, grouping the WT_THROTTLE throttle
  *	configuration with the session, thread, and condition variable that drive the
  *	capacity server.
  */
 struct __wt_conn_capacity {
-    WT_CAPACITY throttle;     /* I/O capacity throttle configuration */
+    WT_THROTTLE throttle;     /* I/O capacity throttle configuration */
     WT_SESSION_IMPL *session; /* Capacity thread session */
     wt_thread_t tid;          /* Capacity thread */
     bool tid_set;             /* Capacity thread set */
