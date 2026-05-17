@@ -584,6 +584,20 @@ struct __wt_layered_drain_entry {
 };
 
 /*
+ * WT_CONN_CAPACITY --
+ *	I/O capacity subsystem fields, grouping the WT_THROTTLE throttle
+ *	configuration with the session, thread, and condition variable that drive the
+ *	capacity server.
+ */
+struct __wt_conn_capacity {
+    WT_THROTTLE throttle;     /* I/O capacity throttle configuration */
+    WT_SESSION_IMPL *session; /* Capacity thread session */
+    wt_thread_t tid;          /* Capacity thread */
+    bool tid_set;             /* Capacity thread set */
+    WT_CONDVAR *cond;         /* Capacity wait mutex */
+};
+
+/*
  * WT_CONN_STAT_LOG --
  *	Statistics logging subsystem fields, grouping the session, thread, and
  *	configuration that drive the statistics log server.
@@ -617,6 +631,30 @@ struct __wt_conn_sweep {
     uint64_t idle_time;       /* Handle sweep idle time */
     uint64_t interval;        /* Handle sweep interval */
     uint64_t handles_min;     /* Handle sweep minimum open */
+};
+
+/*
+ * WT_CONN_TIERED --
+ *	Fields for the tiered storage server thread and its associated queue and locks.
+ */
+struct __wt_conn_tiered {
+    /* Locked: tiered system work queue */
+    TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
+
+    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
+    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
+
+    WT_SESSION_IMPL *session;           /* Tiered thread session */
+    wt_thread_t tid;                    /* Tiered thread */
+    bool tid_set;                       /* Tiered thread set */
+    WT_CONDVAR *flush_cond;             /* Flush wait mutex */
+    WT_CONDVAR *cond;                   /* Tiered wait mutex */
+    uint64_t interval;                  /* Tiered work interval */
+    bool server_running;                /* Internal tiered server operating */
+    wt_shared bool flush_ckpt_complete; /* Checkpoint after flush completed */
+    uint64_t flush_most_recent;         /* Clock value of last flush_tier */
+    uint32_t flush_state;               /* State of last flush tier */
+    wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
 };
 
 /*
@@ -756,12 +794,10 @@ struct __wt_connection_impl {
     WT_SPINLOCK api_lock;        /* Connection API spinlock */
     WT_SPINLOCK checkpoint_lock; /* Checkpoint spinlock */
     WT_SPINLOCK fh_lock;         /* File handle queue spinlock */
-    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
     WT_SPINLOCK metadata_lock;   /* Metadata update spinlock */
     WT_SPINLOCK reconfig_lock;   /* Single thread reconfigure */
     WT_SPINLOCK schema_lock;     /* Schema operation spinlock */
     WT_RWLOCK table_lock;        /* Table list lock */
-    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
     WT_SPINLOCK turtle_lock;     /* Turtle file spinlock */
     WT_RWLOCK dhandle_lock;      /* Data handle list lock */
 
@@ -831,8 +867,6 @@ struct __wt_connection_impl {
     /* Locked: file list */
     TAILQ_HEAD(__wt_fhhash, __wt_fh) * fhhash;
     TAILQ_HEAD(__wt_fh_qh, __wt_fh) fhqh;
-    /* Locked: Tiered system work queue. */
-    TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
 
     WT_SPINLOCK block_lock; /* Locked: block manager list */
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
@@ -921,11 +955,7 @@ struct __wt_connection_impl {
     WT_CONNECTION_STATS *stats[WT_STAT_CONN_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
 
-    WT_CAPACITY capacity;              /* Capacity structure */
-    WT_SESSION_IMPL *capacity_session; /* Capacity thread session */
-    wt_thread_t capacity_tid;          /* Capacity thread */
-    bool capacity_tid_set;             /* Capacity thread set */
-    WT_CONDVAR *capacity_cond;         /* Capacity wait mutex */
+    WT_CONN_CAPACITY capacity; /* I/O capacity subsystem */
 
 #define WT_CONN_TIERED_STORAGE_ENABLED(conn) ((conn)->bstorage != NULL)
     WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
@@ -958,17 +988,7 @@ struct __wt_connection_impl {
 
     WT_CONN_STAT_LOG stat_log; /* Statistics logging subsystem */
 
-    WT_SESSION_IMPL *tiered_session;    /* Tiered thread session */
-    wt_thread_t tiered_tid;             /* Tiered thread */
-    bool tiered_tid_set;                /* Tiered thread set */
-    WT_CONDVAR *flush_cond;             /* Flush wait mutex */
-    WT_CONDVAR *tiered_cond;            /* Tiered wait mutex */
-    uint64_t tiered_interval;           /* Tiered work interval */
-    bool tiered_server_running;         /* Internal tiered server operating */
-    wt_shared bool flush_ckpt_complete; /* Checkpoint after flush completed */
-    uint64_t flush_most_recent;         /* Clock value of last flush_tier */
-    uint32_t flush_state;               /* State of last flush tier */
-    wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
+    WT_CONN_TIERED tiered; /* Tiered storage server thread fields */
 
     WT_LOG_MANAGER log_mgr;
 
