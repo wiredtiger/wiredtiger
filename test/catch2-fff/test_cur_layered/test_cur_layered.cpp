@@ -5,6 +5,7 @@
 #include <catch2/catch.hpp>
 
 #include "fake_cur_layered.h"
+#include "fake_os_alloc.h"
 #include "fake_txn_truncate.h"
 #include "mock_session.h"
 
@@ -47,10 +48,11 @@ class layered_cursor_fixture {
 protected:
     layered_cursor_fixture()
     {
+        reset_fakes();
+
         mock_session = mock_session::build_test_mock_session();
         session = mock_session->get_wt_session_impl();
 
-        reset_fakes();
         wire_cursors();
         set_follower();
     }
@@ -58,6 +60,9 @@ protected:
     void
     reset_fakes()
     {
+        // os_alloc must be first: build_test_mock_session calls __wt_calloc.
+        // FIXME: remove once mock_session no longer depends on WT allocation functions.
+        reset_os_alloc_fakes();
         reset_txn_truncate_fakes();
         reset_cur_layered_fakes();
     }

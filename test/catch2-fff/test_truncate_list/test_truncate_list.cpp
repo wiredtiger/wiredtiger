@@ -99,6 +99,7 @@ private:
     reset_fakes()
     {
         // os_alloc must be first: build_test_mock_session calls __wt_calloc.
+        // FIXME: remove mock dependency on WT allocation functions.
         reset_os_alloc_fakes();
         reset_scratch_fakes();
         reset_session_dhandle_fakes();
