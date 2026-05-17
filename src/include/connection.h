@@ -754,7 +754,7 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 
 /*
  * WT_CONN_DEBUG --
- *     Debug-mode fields extracted from WT_CONNECTION_IMPL.
+ *     Connection debug-mode configuration and state.
  */
 struct __wt_conn_debug {
     /* Access to these fields is protected by conn->log_mgr.debug_log_retention_lock. */
