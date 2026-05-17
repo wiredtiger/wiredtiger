@@ -2,7 +2,7 @@
 
 #include <fff.h>
 
-#include "wiredtiger.h"
+#include "wt_internal.h"
 
 extern "C" {
 DECLARE_FAKE_VALUE_FUNC(int, ingest_search, WT_CURSOR *);
@@ -43,6 +43,8 @@ DECLARE_FAKE_VOID_FUNC_VARARG(stable_set_value, WT_CURSOR *, ...);
 
 DECLARE_FAKE_VOID_FUNC(ingest_set_value_item, WT_CURSOR *, WT_ITEM);
 DECLARE_FAKE_VOID_FUNC(stable_set_value_item, WT_CURSOR *, WT_ITEM);
+
+DECLARE_FAKE_VALUE_FUNC(int, __clayered_reserve_constituent, WT_SESSION_IMPL *, WT_CURSOR *);
 }
 
 void reset_cur_layered_fakes();

@@ -41,6 +41,8 @@ DEFINE_FAKE_VOID_FUNC_VARARG(stable_set_value, WT_CURSOR *, ...);
 
 DEFINE_FAKE_VOID_FUNC(ingest_set_value_item, WT_CURSOR *, WT_ITEM);
 DEFINE_FAKE_VOID_FUNC(stable_set_value_item, WT_CURSOR *, WT_ITEM);
+
+DEFINE_FAKE_VALUE_FUNC(int, __clayered_reserve_constituent, WT_SESSION_IMPL *, WT_CURSOR *);
 }
 
 namespace {
@@ -150,6 +152,7 @@ reset_cur_layered_fakes()
     RESET_FAKE(stable_set_value);
     RESET_FAKE(ingest_set_value_item);
     RESET_FAKE(stable_set_value_item);
+    RESET_FAKE(__clayered_reserve_constituent);
 
     ingest_get_key_fake.custom_fake = ingest_get_key_va;
     stable_get_key_fake.custom_fake = stable_get_key_va;

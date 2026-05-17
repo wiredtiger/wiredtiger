@@ -2015,7 +2015,7 @@ err:
  * __clayered_reserve_constituent --
  *     Reserve a key in the constituent cursor.
  */
-static int
+int
 __clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR *constituent)
 {
     WT_DECL_RET;

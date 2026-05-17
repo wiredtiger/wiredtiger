@@ -2657,3 +2657,5 @@ extern int __clayered_put(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM 
   WT_CLAYERED_PUT_OP) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __clayered_remove_leader(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, const WT_ITEM *, bool)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __clayered_reserve_constituent(WT_SESSION_IMPL *, WT_CURSOR *)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

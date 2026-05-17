@@ -9,6 +9,14 @@
 #include "fake_txn_truncate.h"
 #include "mock_session.h"
 
+bool
+operator==(const WT_ITEM &lhs, const WT_ITEM &rhs)
+{
+    // Pointer comparison, not deep equality.
+    return (lhs.size == rhs.size) && (lhs.data == rhs.data) && (lhs.memsize == rhs.memsize) &&
+      (lhs.mem == rhs.mem);
+}
+
 namespace {
 
 WT_ITEM
@@ -37,13 +45,6 @@ make_value()
 
 } // namespace
 
-bool
-operator==(const WT_ITEM &lhs, const WT_ITEM &rhs)
-{
-    return (lhs.size == rhs.size) && (lhs.data == rhs.data) && (lhs.memsize == rhs.memsize) &&
-      (lhs.mem == rhs.mem);
-}
-
 class layered_cursor_fixture {
 protected:
     layered_cursor_fixture()
@@ -54,14 +55,11 @@ protected:
         session = mock_session->get_wt_session_impl();
 
         wire_cursors();
-        set_follower();
     }
 
     void
     reset_fakes()
     {
-        // os_alloc must be first: build_test_mock_session calls __wt_calloc.
-        // FIXME: remove once mock_session no longer depends on WT allocation functions.
         reset_os_alloc_fakes();
         reset_txn_truncate_fakes();
         reset_cur_layered_fakes();
@@ -79,17 +77,17 @@ protected:
         ingest.remove = ingest_remove;
         ingest.reset = ingest_reset;
 
-        stable_cursor.set_key = stable_set_key;
-        stable_cursor.set_value = stable_set_value;
-        stable_cursor.get_value = stable_get_value;
-        stable_cursor.search = stable_search;
-        stable_cursor.insert = stable_insert;
-        stable_cursor.update = stable_update;
-        stable_cursor.remove = stable_remove;
-        stable_cursor.reset = stable_reset;
+        stable.set_key = stable_set_key;
+        stable.set_value = stable_set_value;
+        stable.get_value = stable_get_value;
+        stable.search = stable_search;
+        stable.insert = stable_insert;
+        stable.update = stable_update;
+        stable.remove = stable_remove;
+        stable.reset = stable_reset;
 
         layered.ingest_cursor = &ingest;
-        layered.stable_cursor = &stable_cursor;
+        layered.stable_cursor = &stable;
         layered.current_cursor = nullptr;
 
         layered.iface.session = reinterpret_cast<WT_SESSION *>(session);
@@ -98,71 +96,40 @@ protected:
     }
 
     void
-    set_follower()
+    set_leader(bool leader)
     {
-        S2C(session)->layered_table_manager.leader = false;
-    }
-
-    void
-    set_leader()
-    {
-        S2C(session)->layered_table_manager.leader = true;
+        S2C(session)->layered_table_manager.leader = leader;
     }
 
     std::shared_ptr<mock_session> mock_session;
-    WT_SESSION_IMPL *session = nullptr;
-    WT_CURSOR ingest = {};
-    WT_CURSOR stable_cursor = {};
-    WT_CURSOR_LAYERED layered = {};
+    WT_SESSION_IMPL *session;
+    WT_CURSOR ingest{};
+    WT_CURSOR stable{};
+    WT_CURSOR_LAYERED layered{};
 };
 
 SCENARIO("clayered_deleted correctly identifies tombstone values", "[layered_cursor][tombstone]")
 {
     GIVEN("a WT_ITEM")
     {
-        WT_ITEM item{};
+        const auto [description, value, deleted] =
+          GENERATE(table<std::string_view, std::string_view, bool>({
+            {"is NULL", {}, false},
+            {"is zero-length", "", false},
+            {"contains the exact two-byte tombstone value", "\x14\x14", true},
+            {"has the tombstone bytes but with extra data", "\x14\x14\x01", false},
+            {"has the right size but the wrong bytes", "\x14\x15", false},
+          }));
 
-        WHEN("the item is zero-length")
+        WHEN("the item " << description)
         {
-            item.data = nullptr;
-            item.size = 0;
+            WT_ITEM item{};
+            item.data = value.data();
+            item.size = value.size();
 
-            THEN("it is not considered deleted")
+            THEN("it is " << (deleted ? "" : "not ") << "considered deleted")
             {
-                REQUIRE(__wt_clayered_deleted(&item) == false);
-            }
-        }
-
-        WHEN("the item contains the exact two-byte tombstone value")
-        {
-            item.data = "\x14\x14";
-            item.size = 2;
-
-            THEN("it is considered deleted")
-            {
-                REQUIRE(__wt_clayered_deleted(&item) == true);
-            }
-        }
-
-        WHEN("the item has tombstone bytes followed by a trailing byte")
-        {
-            item.data = "\x14\x14\x01";
-            item.size = 3;
-
-            THEN("it is not considered deleted")
-            {
-                REQUIRE(__wt_clayered_deleted(&item) == false);
-            }
-        }
-
-        WHEN("the item has the right size but wrong bytes")
-        {
-            item.data = "\x14\x15";
-            item.size = 2;
-
-            THEN("it is not considered deleted")
-            {
-                REQUIRE(__wt_clayered_deleted(&item) == false);
+                REQUIRE(__wt_clayered_deleted(&item) == deleted);
             }
         }
     }
@@ -177,12 +144,13 @@ SCENARIO_METHOD(layered_cursor_fixture,
         auto *iface = &layered.iface;
         iface->key = make_key();
 
-        WHEN("any search outcome occurs")
+        WHEN("a search is performed")
         {
             const auto outcome = GENERATE(0, WT_NOTFOUND, WT_PANIC);
             ingest_search_fake.return_val = outcome;
 
-            const auto ret = __clayered_lookup_constituent(&ingest, &layered, nullptr);
+            WT_ITEM value{};
+            const auto ret = __clayered_lookup_constituent(&ingest, &layered, &value);
 
             THEN("the key is forwarded to the constituent cursor")
             {
@@ -190,16 +158,22 @@ SCENARIO_METHOD(layered_cursor_fixture,
             }
         }
 
-        WHEN("any unsuccessful search outcome occurs")
+        WHEN("the search is unsuccessful")
         {
             const auto outcome = GENERATE(WT_NOTFOUND, WT_PANIC);
             ingest_search_fake.return_val = outcome;
 
-            const auto ret = __clayered_lookup_constituent(&ingest, &layered, nullptr);
+            WT_ITEM value{};
+            const auto ret = __clayered_lookup_constituent(&ingest, &layered, &value);
 
             THEN("the current cursor is not updated")
             {
                 REQUIRE(layered.current_cursor == nullptr);
+            }
+
+            AND_THEN("the search error is returned")
+            {
+                REQUIRE(ret == outcome);
             }
         }
 
@@ -211,12 +185,7 @@ SCENARIO_METHOD(layered_cursor_fixture,
             WT_ITEM value{};
             const auto ret = __clayered_lookup_constituent(&ingest, &layered, &value);
 
-            THEN("0 is returned")
-            {
-                REQUIRE(ret == 0);
-            }
-
-            AND_THEN("the current cursor is updated to the constituent cursor")
+            THEN("the current cursor is updated to the constituent cursor")
             {
                 REQUIRE(layered.current_cursor == &ingest);
             }
@@ -225,36 +194,20 @@ SCENARIO_METHOD(layered_cursor_fixture,
             {
                 REQUIRE(value == ingest_get_value_item_fake.return_val);
             }
-        }
 
-        WHEN("the constituent cursor does not find the key")
-        {
-            ingest_search_fake.return_val = WT_NOTFOUND;
-            const auto ret = __clayered_lookup_constituent(&ingest, &layered, nullptr);
-
-            THEN("WT_NOTFOUND is returned")
+            AND_THEN("0 is returned")
             {
-                REQUIRE(ret == WT_NOTFOUND);
+                REQUIRE(ret == 0);
             }
         }
 
-        WHEN("a hard error occurs during the search")
-        {
-            ingest_search_fake.return_val = WT_PANIC;
-            const auto ret = __clayered_lookup_constituent(&ingest, &layered, nullptr);
-
-            THEN("the error is returned")
-            {
-                REQUIRE(ret == WT_PANIC);
-            }
-        }
-
-        WHEN("search succeeds but there is an error getting the value")
+        WHEN("search succeeds but getting the value fails")
         {
             ingest_search_fake.return_val = 0;
             ingest_get_value_fake.return_val = WT_ROLLBACK;
 
-            const auto ret = __clayered_lookup_constituent(&ingest, &layered, nullptr);
+            WT_ITEM value{};
+            const auto ret = __clayered_lookup_constituent(&ingest, &layered, &value);
 
             THEN("the error is returned")
             {
@@ -268,40 +221,27 @@ SCENARIO_METHOD(layered_cursor_fixture,
   "clayered_put forwards the caller's key to the correct constituent cursor",
   "[layered_cursor][put]")
 {
-    const auto op = GENERATE(WT_CLAYERED_PUT_INSERT, WT_CLAYERED_PUT_UPDATE);
+    const auto [is_leader, forwarded_key] = GENERATE(table<bool, WT_ITEM *>({
+      {false, &ingest_set_key_item_fake.arg1_val},
+      {true, &stable_set_key_item_fake.arg1_val},
+    }));
 
-    GIVEN("a follower cursor")
+    GIVEN("a " << (is_leader ? "leader" : "follower"))
     {
-        set_follower();
+        set_leader(is_leader);
+
+        const auto op = GENERATE(WT_CLAYERED_PUT_INSERT, WT_CLAYERED_PUT_UPDATE);
 
         WHEN("a write operation is performed")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
+            const auto key = make_key();
+            const auto value = make_value();
 
             CHECK(__clayered_put(session, &layered, &key, &value, op) == 0);
 
-            THEN("the caller's key is forwarded to the ingest cursor")
+            THEN("the caller's key is forwarded to the correct constituent cursor")
             {
-                REQUIRE(ingest_set_key_item_fake.arg1_val == key);
-            }
-        }
-    }
-
-    GIVEN("a leader cursor")
-    {
-        set_leader();
-
-        WHEN("a write operation is performed")
-        {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
-
-            CHECK(__clayered_put(session, &layered, &key, &value, op) == 0);
-
-            THEN("the caller's key is forwarded to the stable cursor")
-            {
-                REQUIRE(stable_set_key_item_fake.arg1_val == key);
+                REQUIRE(*forwarded_key == key);
             }
         }
     }
@@ -311,31 +251,51 @@ SCENARIO_METHOD(layered_cursor_fixture,
   "clayered_put dispatches the correct operation to the constituent cursor",
   "[layered_cursor][put]")
 {
-    GIVEN("a follower cursor")
+    const auto is_leader = GENERATE(false, true);
+
+    GIVEN("a " << (is_leader ? "leader" : "follower"))
     {
+        set_leader(is_leader);
+
+        const auto key = make_key();
+        const auto value = make_value();
+
         WHEN("the op is INSERT")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
-
             CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_INSERT) == 0);
 
-            THEN("an insert is performed on the constituent cursor")
+            THEN("an insert is performed on the correct constituent cursor")
             {
-                REQUIRE(ingest_insert_fake.call_count == 1);
+                const auto call_count =
+                  is_leader ? stable_insert_fake.call_count : ingest_insert_fake.call_count;
+
+                REQUIRE(call_count == 1);
             }
         }
 
         WHEN("the op is UPDATE")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
-
             CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_UPDATE) == 0);
 
-            THEN("an update is performed on the constituent cursor")
+            THEN("an update is performed on the correct constituent cursor")
             {
-                REQUIRE(ingest_update_fake.call_count == 1);
+                const auto call_count =
+                  is_leader ? stable_update_fake.call_count : ingest_update_fake.call_count;
+
+                REQUIRE(call_count == 1);
+            }
+        }
+
+        WHEN("the op is RESERVE")
+        {
+            CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_RESERVE) == 0);
+
+            THEN("a reserve is performed on the correct constituent cursor")
+            {
+                const auto *cursor = is_leader ? &stable : &ingest;
+
+                REQUIRE(__clayered_reserve_constituent_fake.call_count == 1);
+                REQUIRE(__clayered_reserve_constituent_fake.arg1_val == cursor);
             }
         }
     }
@@ -345,20 +305,27 @@ SCENARIO_METHOD(layered_cursor_fixture,
   "clayered_put forwards the caller's value to the constituent cursor for write operations",
   "[layered_cursor][put]")
 {
-    const auto op = GENERATE(WT_CLAYERED_PUT_INSERT, WT_CLAYERED_PUT_UPDATE);
+    const auto [is_leader, forwarded_value] = GENERATE(table<bool, WT_ITEM *>({
+      {false, &ingest_set_value_item_fake.arg1_val},
+      {true, &stable_set_value_item_fake.arg1_val},
+    }));
 
-    GIVEN("a follower cursor")
+    GIVEN("a " << (is_leader ? "leader" : "follower"))
     {
+        set_leader(is_leader);
+
+        const auto op = GENERATE(WT_CLAYERED_PUT_INSERT, WT_CLAYERED_PUT_UPDATE);
+
         WHEN("a write operation is performed")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
+            const auto key = make_key();
+            const auto value = make_value();
 
             CHECK(__clayered_put(session, &layered, &key, &value, op) == 0);
 
             THEN("the caller's value is forwarded to the constituent cursor")
             {
-                REQUIRE(ingest_set_value_item_fake.arg1_val == value);
+                REQUIRE(*forwarded_value == value);
             }
         }
     }
@@ -367,15 +334,15 @@ SCENARIO_METHOD(layered_cursor_fixture,
 SCENARIO_METHOD(layered_cursor_fixture,
   "clayered_put establishes cursor position for non-insert operations", "[layered_cursor][put]")
 {
+    const auto key = make_key();
+    const auto value = make_value();
+
     GIVEN("a follower cursor")
     {
-        set_follower();
+        set_leader(false);
 
         WHEN("an UPDATE succeeds")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
-
             CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_UPDATE) == 0);
 
             THEN("current_cursor is the ingest cursor")
@@ -385,15 +352,12 @@ SCENARIO_METHOD(layered_cursor_fixture,
         }
     }
 
-    GIVEN("a leader cursor")
+    GIVEN("a leader")
     {
-        set_leader();
+        set_leader(true);
 
         WHEN("an UPDATE succeeds")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
-
             CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_UPDATE) == 0);
 
             THEN("current_cursor is the stable cursor")
@@ -406,17 +370,10 @@ SCENARIO_METHOD(layered_cursor_fixture,
     GIVEN("a cursor in any role")
     {
         const auto leader = GENERATE(false, true);
-
-        if (leader)
-            set_leader();
-        else
-            set_follower();
+        set_leader(leader);
 
         WHEN("an INSERT succeeds")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
-
             CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_INSERT) == 0);
 
             THEN("current_cursor is not updated")
@@ -430,17 +387,17 @@ SCENARIO_METHOD(layered_cursor_fixture,
 SCENARIO_METHOD(layered_cursor_fixture,
   "clayered_put performs follower-specific setup before writing", "[layered_cursor][put]")
 {
+    const auto key = make_key();
+    const auto value = make_value();
+
     GIVEN("a follower cursor with the stable cursor positioned")
     {
-        F_SET(&stable_cursor, WT_CURSTD_KEY_SET);
+        F_SET(&stable, WT_CURSTD_KEY_SET);
 
         mock_session->get_mock_connection();
 
         WHEN("a write operation is issued")
         {
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
-
             CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_INSERT) == 0);
 
             THEN("the stable cursor is reset before the write")
@@ -455,9 +412,6 @@ SCENARIO_METHOD(layered_cursor_fixture,
         WHEN("conflict detection rejects the write")
         {
             __wt_layered_table_truncate_detect_write_conflict_fake.return_val = WT_ROLLBACK;
-
-            WT_ITEM key = make_key();
-            WT_ITEM value = make_value();
 
             const auto ret =
               __clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_INSERT);
@@ -504,7 +458,7 @@ SCENARIO_METHOD(layered_cursor_fixture,
 {
     GIVEN("a leader cursor that is not positioned")
     {
-        set_leader();
+        set_leader(true);
 
         WHEN("remove_leader is called")
         {
@@ -530,8 +484,8 @@ SCENARIO_METHOD(layered_cursor_fixture,
 {
     GIVEN("a leader cursor that is positioned on the stable cursor")
     {
-        set_leader();
-        F_SET(&stable_cursor, WT_CURSTD_KEY_INT);
+        set_leader(true);
+        F_SET(&stable, WT_CURSTD_KEY_INT);
 
         WHEN("remove_leader is called")
         {
@@ -555,9 +509,9 @@ SCENARIO_METHOD(layered_cursor_fixture,
   "clayered_remove_leader sets current_cursor and propagates errors",
   "[layered_cursor][remove_leader]")
 {
-    GIVEN("a leader cursor")
+    GIVEN("a leader")
     {
-        set_leader();
+        set_leader(true);
 
         WHEN("remove succeeds")
         {
@@ -567,7 +521,7 @@ SCENARIO_METHOD(layered_cursor_fixture,
             THEN("current_cursor is set to the stable cursor")
             {
                 REQUIRE(ret == 0);
-                REQUIRE(layered.current_cursor == &stable_cursor);
+                REQUIRE(layered.current_cursor == &stable);
             }
         }
 
