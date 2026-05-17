@@ -1,3 +1,4 @@
 add_subdirectory(helpers)
 add_subdirectory(fakes)
 add_subdirectory(test_cur_layered)
+add_subdirectory(test_truncate_list)
