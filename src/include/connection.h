@@ -538,6 +538,18 @@ struct __wt_conn_extensions {
 };
 
 /*
+ * WT_CONN_OPTRACK --
+ *	Operation tracking subsystem fields, grouping the spinlock, path,
+ *	map file handle, and cached PID used by the optrack server.
+ */
+struct __wt_conn_optrack {
+    WT_SPINLOCK map_spinlock; /* Translation file spinlock */
+    const char *path;         /* Directory for operation logs */
+    WT_FH *map_fh;            /* Name to id translation file */
+    uintmax_t pid;            /* Cache the process ID */
+};
+
+/*
  * WT_CONN_PREFETCH --
  *	Prefetch subsystem fields, grouping the thread group, queue, lock, and
  *	configuration that drive the prefetch server.
@@ -823,10 +835,7 @@ struct __wt_connection_impl {
 
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
 
-    const char *optrack_path;         /* Directory for operation logs */
-    WT_FH *optrack_map_fh;            /* Name to id translation file. */
-    WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
-    uintmax_t optrack_pid;            /* Cache the process ID. */
+    WT_CONN_OPTRACK optrack; /* Operation tracking subsystem */
 
 #ifdef HAVE_CALL_LOG
     /* File stream used for writing to the call log. */
