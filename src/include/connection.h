@@ -784,6 +784,10 @@ struct __wt_conn_debug {
 #define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+    /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE disagg_address_cookie_upgrade;
+    bool disagg_address_cookie_optional_field;
 };
 
 /*
@@ -1077,10 +1081,6 @@ struct __wt_connection_impl {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     /* Categories of assertions that can be runtime enabled. */
     uint64_t extra_diagnostics_flags;
-
-    /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
-    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE debug_disagg_address_cookie_upgrade;
-    bool debug_disagg_address_cookie_optional_field;
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
