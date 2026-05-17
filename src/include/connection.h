@@ -753,6 +753,34 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
+ * WT_CONN_DEBUG --
+ *     Debug-mode fields extracted from WT_CONNECTION_IMPL.
+ */
+struct __wt_conn_debug {
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
+#define WT_CONN_DEBUG_CONFIGURATION 0x00002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x00004u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x00008u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x00010u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x00020u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00200u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00400u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x00800u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x01000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x02000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x04000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x08000u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x10000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
+};
+
+/*
  * WT_CONN_EVICT_CONFIG --
  *     Eviction thread group configuration and management fields extracted from WT_CONNECTION_IMPL.
  */
@@ -1026,33 +1054,13 @@ struct __wt_connection_impl {
     bool mmap_all; /* use mmap for all I/O on data files */
     int page_size; /* OS page size for mmap alignment */
 
+    WT_CONN_DEBUG debug; /* Debug-mode configuration */
+
     /* Access to these fields is protected by the debug_log_retention_lock. */
     WT_LSN *debug_ckpt;                /* Debug mode checkpoint LSNs. */
     size_t debug_ckpt_alloc;           /* Checkpoint retention allocated. */
     wt_shared uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
     wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
-
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
-#define WT_CONN_DEBUG_CONFIGURATION 0x00002u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x00004u
-#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x00008u
-#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x00010u
-#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x00020u
-#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00200u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00400u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x00800u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x01000u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x02000u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x04000u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x08000u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x10000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t debug_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001ull
