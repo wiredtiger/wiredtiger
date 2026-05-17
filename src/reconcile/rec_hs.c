@@ -742,10 +742,9 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
              * the history store checkpoint inconsistent.
              */
             if (error_on_ts_ordering) {
-                ret = EBUSY;
-                __wt_err(session, ret, "out-of-order timestamp update detected, aborting eviction");
                 WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
-                goto err;
+                WT_ERR_MSG(
+                  session, EBUSY, "out-of-order timestamp update detected, aborting eviction");
             }
 
             /*
