@@ -2278,17 +2278,17 @@ __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
      * value. Once it was on in the past and then turned off, you cannot turn it back on again.
      */
     if (cval.val != 0) {
-        if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
+        if (conn->debug.ckpt_cnt != 0 && cval.val != conn->debug.ckpt_cnt)
             WT_ERR_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
         WT_ERR(
-          __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
+          __wt_realloc_def(session, &conn->debug.ckpt_alloc, (size_t)cval.val, &conn->debug.ckpt));
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CKPT_RETAIN);
     } else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CKPT_RETAIN);
-    conn->debug_ckpt_cnt = (uint32_t)cval.val;
+    conn->debug.ckpt_cnt = (uint32_t)cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
-    conn->debug_log_cnt = (uint32_t)cval.val;
+    conn->debug.log_cnt = (uint32_t)cval.val;
 
 err:
     __wt_writeunlock(session, &conn->log_mgr.debug_log_retention_lock);

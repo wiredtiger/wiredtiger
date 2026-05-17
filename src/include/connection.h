@@ -757,6 +757,12 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
  *     Debug-mode fields extracted from WT_CONNECTION_IMPL.
  */
 struct __wt_conn_debug {
+    /* Access to these fields is protected by conn->log_mgr.debug_log_retention_lock. */
+    WT_LSN *ckpt;                /* Debug mode checkpoint LSNs. */
+    size_t ckpt_alloc;           /* Checkpoint retention allocated. */
+    wt_shared uint32_t ckpt_cnt; /* Checkpoint retention number. */
+    wt_shared uint32_t log_cnt;  /* Log file retention count */
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
 #define WT_CONN_DEBUG_CONFIGURATION 0x00002u
@@ -1055,12 +1061,6 @@ struct __wt_connection_impl {
     int page_size; /* OS page size for mmap alignment */
 
     WT_CONN_DEBUG debug; /* Debug-mode configuration */
-
-    /* Access to these fields is protected by the debug_log_retention_lock. */
-    WT_LSN *debug_ckpt;                /* Debug mode checkpoint LSNs. */
-    size_t debug_ckpt_alloc;           /* Checkpoint retention allocated. */
-    wt_shared uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
-    wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001ull
