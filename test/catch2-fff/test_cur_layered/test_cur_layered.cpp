@@ -207,7 +207,12 @@ SCENARIO_METHOD(layered_cursor_fixture,
 
             const auto ret = __clayered_lookup_constituent(&ingest, &layered, &value);
 
-            THEN("the error is returned")
+            THEN("current_cursor is not updated")
+            {
+                REQUIRE(layered.current_cursor == nullptr);
+            }
+
+            AND_THEN("the error is returned")
             {
                 REQUIRE(ret == WT_ROLLBACK);
             }
@@ -238,6 +243,7 @@ SCENARIO_METHOD(layered_cursor_fixture,
             {
                 const auto *cursor = is_leader ? &stable : &ingest;
                 REQUIRE(cursor_set_key_item_fake.arg0_val == cursor);
+                REQUIRE(cursor_set_key_item_fake.arg1_val == key);
             }
         }
     }
@@ -312,6 +318,32 @@ SCENARIO_METHOD(layered_cursor_fixture,
             {
                 const auto *cursor = is_leader ? &stable : &ingest;
                 REQUIRE(cursor_set_value_item_fake.arg0_val == cursor);
+                REQUIRE(cursor_set_value_item_fake.arg1_val == value);
+            }
+        }
+    }
+}
+
+SCENARIO_METHOD(layered_cursor_fixture,
+  "clayered_put does not call set_value for a reserve operation",
+  "[layered_cursor][put]")
+{
+    const auto is_leader = GENERATE(false, true);
+
+    GIVEN("a " << (is_leader ? "leader" : "follower"))
+    {
+        set_leader(is_leader);
+
+        WHEN("a reserve operation is performed")
+        {
+            const auto key = make_key();
+            const auto value = make_value();
+
+            CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_RESERVE) == 0);
+
+            THEN("set_value is not called on the constituent cursor")
+            {
+                REQUIRE(cursor_set_value_fake.call_count == 0);
             }
         }
     }
@@ -398,6 +430,23 @@ SCENARIO_METHOD(layered_cursor_fixture,
             }
         }
     }
+
+    GIVEN("a follower with an active iteration")
+    {
+        set_leader(false);
+        F_SET(&stable, WT_CURSTD_KEY_SET);
+        F_SET(&layered, WT_CLAYERED_ITERATE_NEXT);
+
+        WHEN("a write operation is issued")
+        {
+            CHECK(__clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_INSERT) == 0);
+
+            THEN("the stable cursor is not reset before the write")
+            {
+                REQUIRE(cursor_reset_fake.call_count == 0);
+            }
+        }
+    }
 }
 
 SCENARIO_METHOD(layered_cursor_fixture,
@@ -415,14 +464,56 @@ SCENARIO_METHOD(layered_cursor_fixture,
             const auto ret =
               __clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_INSERT);
 
-            THEN("the error is returned to the caller")
+            THEN("current_cursor is not updated")
+            {
+                REQUIRE(layered.current_cursor == nullptr);
+            }
+
+            AND_THEN("the error is returned to the caller")
             {
                 REQUIRE(ret == WT_PANIC);
             }
+        }
 
-            AND_THEN("current_cursor is not updated")
+        WHEN("the constituent update fails")
+        {
+            cursor_update_fake.return_val = WT_PANIC;
+
+            const auto key = make_key();
+            const auto value = make_value();
+
+            const auto ret =
+              __clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_UPDATE);
+
+            THEN("current_cursor is not updated")
             {
                 REQUIRE(layered.current_cursor == nullptr);
+            }
+
+            AND_THEN("the error is returned to the caller")
+            {
+                REQUIRE(ret == WT_PANIC);
+            }
+        }
+
+        WHEN("the constituent reserve fails")
+        {
+            __clayered_reserve_constituent_fake.return_val = WT_PANIC;
+
+            const auto key = make_key();
+            const auto value = make_value();
+
+            const auto ret =
+              __clayered_put(session, &layered, &key, &value, WT_CLAYERED_PUT_RESERVE);
+
+            THEN("current_cursor is not updated")
+            {
+                REQUIRE(layered.current_cursor == nullptr);
+            }
+
+            AND_THEN("the error is returned to the caller")
+            {
+                REQUIRE(ret == WT_PANIC);
             }
         }
     }
@@ -507,7 +598,12 @@ SCENARIO_METHOD(layered_cursor_fixture,
             const auto key = make_key();
             const auto ret = __clayered_remove_leader(session, &layered, &key, false);
 
-            THEN("the error is returned to the caller")
+            THEN("current_cursor is not updated")
+            {
+                REQUIRE(layered.current_cursor == nullptr);
+            }
+
+            AND_THEN("the error is returned to the caller")
             {
                 REQUIRE(ret == WT_PANIC);
             }
