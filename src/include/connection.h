@@ -1014,12 +1014,25 @@ struct __wt_connection_impl {
 
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
-    WT_CONN_EVICT_CONFIG evict_config; /* Eviction thread group and configuration */
+    bool evict_server_running; /* Eviction server operating */
+
+    WT_THREAD_GROUP evict_threads;
+    uint32_t evict_threads_max; /* Max eviction threads */
+    uint32_t evict_threads_min; /* Min eviction threads */
+    bool evict_sample_inmem;
+    wt_shared bool evict_use_npos;
+    bool evict_legacy_page_visit_strategy;
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
 #define WT_PREFETCH_THREAD_COUNT 8
-    WT_CONN_PREFETCH prefetch; /* Prefetch thread group and configuration */
+    WT_SPINLOCK prefetch_lock;
+    WT_THREAD_GROUP prefetch_threads;
+    uint64_t prefetch_queue_count;
+    /* Queue of refs to pre-fetch from */
+    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
+    bool prefetch_auto_on;
+    bool prefetch_available;
 
     /* Data pertaining to disaggregated storage step up. */
     struct __wt_layered_drain_data {
@@ -1051,7 +1064,13 @@ struct __wt_connection_impl {
      */
     bool modified;
 
-    WT_CONN_SWEEP sweep; /* Handle sweep thread and configuration */
+    WT_SESSION_IMPL *sweep_session; /* Handle sweep session */
+    wt_thread_t sweep_tid;          /* Handle sweep thread */
+    int sweep_tid_set;              /* Handle sweep thread set */
+    WT_CONDVAR *sweep_cond;         /* Handle sweep wait mutex */
+    uint64_t sweep_idle_time;       /* Handle sweep idle time */
+    uint64_t sweep_interval;        /* Handle sweep interval */
+    uint64_t sweep_handles_min;     /* Handle sweep minimum open */
 
     WT_CONN_EXTENSIONS ext; /* Extension interface lists */
 

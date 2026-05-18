@@ -873,7 +873,7 @@ __rec_hs_handle_oldest_tombstone(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   const WT_ITEM *key, bool error_on_ts_ordering, bool hs_flag_set, WT_UPDATE *oldest_upd,
   WT_UPDATE **no_ts_updp)
 {
-    int ret;
+    WT_DECL_RET;
 
     if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
       oldest_upd->upd_start_ts == WT_TS_NONE) {

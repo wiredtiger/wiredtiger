@@ -45,12 +45,12 @@ class PerfStatCollection:
 
     def find_stats(self, test_home: str):
         for stat in self.to_report:
-            values = []
+            values = None
             for f in stat.stat_files:
                 v = stat.find_stat(create_test_stat_path(test_home, f))
                 if v and values:
                     raise RuntimeError(f"Stat '{stat.short_label}' matched in more than one file: {stat.stat_files}")
-                values = v or values
+                values = v
             stat.add_values(values=values)
 
 

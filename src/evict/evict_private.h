@@ -18,7 +18,7 @@
 
 /* True if there are eviction worker threads beyond the server thread itself. */
 #define WT_EVICT_HAS_WORKERS(s) \
-    (__wt_atomic_load_uint32_relaxed(&S2C(s)->evict_config.threads.current_threads) > 1)
+    (__wt_atomic_load_uint32_relaxed(&S2C(s)->evict_threads.current_threads) > 1)
 
 /*
  * WTI_EVICT_ENTRY --

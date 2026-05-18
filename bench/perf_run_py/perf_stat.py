@@ -134,8 +134,6 @@ class PerfStatLatency(PerfStat):
         self.aggregation = aggregation
 
     def find_stat(self, test_stat_path: str):
-        if not os.path.exists(test_stat_path):
-            return []
         values = []
         for line in open(test_stat_path):
             as_dict = json.loads(line)

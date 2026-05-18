@@ -145,7 +145,7 @@ __wti_evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 
     /* If a worker thread found the queue empty, pause. */
     if (ret == WT_NOTFOUND && !is_server && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION))
-        __wt_cond_wait(session, conn->evict_config.threads.wait_cond, 10 * WT_THOUSAND, NULL);
+        __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
 
     WT_TRACK_OP_END(session);
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -320,7 +320,7 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
     __wt_spin_unlock(session, &queue->evict_lock);
 
     /* Signal any application or helper threads that may be waiting to help with eviction. */
-    __wt_cond_signal(session, conn->evict_config.threads.wait_cond);
+    __wt_cond_signal(session, conn->evict_threads.wait_cond);
 
 err:
     WT_TRACK_OP_END(session);
