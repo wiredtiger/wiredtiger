@@ -2292,6 +2292,9 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: fsync duration after allocating the transaction ID (usecs)",
   "checkpoint: generation",
   "checkpoint: max time (msecs)",
+  "checkpoint: metadata operations applied during disaggregated checkpoint",
+  "checkpoint: metadata operations skipped during disaggregated checkpoint because they were not "
+  "stable",
   "checkpoint: min time (msecs)",
   "checkpoint: most recent duration for checkpoint dropping all handles (usecs)",
   "checkpoint: most recent duration for gathering all handles (usecs)",
@@ -2789,6 +2792,8 @@ static const char *const __stats_connection_desc[] = {
   "session: table create with import successful calls",
   "session: table drop failed calls",
   "session: table drop successful calls",
+  "session: table publish failed calls",
+  "session: table publish successful calls",
   "session: table salvage failed calls",
   "session: table salvage successful calls",
   "session: table truncate failed calls",
@@ -3344,6 +3349,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_fsync_post_duration */
     /* not clearing checkpoint_generation */
     /* not clearing checkpoint_time_max */
+    /* not clearing checkpoint_disagg_metadata_apply */
+    /* not clearing checkpoint_disagg_metadata_unstable */
     /* not clearing checkpoint_time_min */
     /* not clearing checkpoint_handle_drop_duration */
     /* not clearing checkpoint_handle_duration */
@@ -3834,6 +3841,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_create_import_success */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
+    /* not clearing session_table_publish_fail */
+    /* not clearing session_table_publish_success */
     /* not clearing session_table_salvage_fail */
     /* not clearing session_table_salvage_success */
     /* not clearing session_table_truncate_fail */
@@ -4494,6 +4503,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_fsync_post_duration += WT_STAT_CONN_READ(from, checkpoint_fsync_post_duration);
     to->checkpoint_generation += WT_STAT_CONN_READ(from, checkpoint_generation);
     to->checkpoint_time_max += WT_STAT_CONN_READ(from, checkpoint_time_max);
+    to->checkpoint_disagg_metadata_apply +=
+      WT_STAT_CONN_READ(from, checkpoint_disagg_metadata_apply);
+    to->checkpoint_disagg_metadata_unstable +=
+      WT_STAT_CONN_READ(from, checkpoint_disagg_metadata_unstable);
     to->checkpoint_time_min += WT_STAT_CONN_READ(from, checkpoint_time_min);
     to->checkpoint_handle_drop_duration += WT_STAT_CONN_READ(from, checkpoint_handle_drop_duration);
     to->checkpoint_handle_duration += WT_STAT_CONN_READ(from, checkpoint_handle_duration);
@@ -5105,6 +5118,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, session_table_create_import_success);
     to->session_table_drop_fail += WT_STAT_CONN_READ(from, session_table_drop_fail);
     to->session_table_drop_success += WT_STAT_CONN_READ(from, session_table_drop_success);
+    to->session_table_publish_fail += WT_STAT_CONN_READ(from, session_table_publish_fail);
+    to->session_table_publish_success += WT_STAT_CONN_READ(from, session_table_publish_success);
     to->session_table_salvage_fail += WT_STAT_CONN_READ(from, session_table_salvage_fail);
     to->session_table_salvage_success += WT_STAT_CONN_READ(from, session_table_salvage_success);
     to->session_table_truncate_fail += WT_STAT_CONN_READ(from, session_table_truncate_fail);

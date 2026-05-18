@@ -75,7 +75,7 @@ __collator_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_COLLATOR 
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (ncoll, &conn->collqh, q)
+    TAILQ_FOREACH (ncoll, &conn->ext.collqh, q)
         if (WT_CONFIG_MATCH(ncoll->name, *cname)) {
             *collatorp = ncoll->collator;
             return (0);
@@ -138,7 +138,7 @@ __conn_add_collator(
     ncoll->collator = collator;
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->collqh, ncoll, q);
+    TAILQ_INSERT_TAIL(&conn->ext.collqh, ncoll, q);
     ncoll = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -164,9 +164,9 @@ __wti_conn_remove_collator(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((ncoll = TAILQ_FIRST(&conn->collqh)) != NULL) {
+    while ((ncoll = TAILQ_FIRST(&conn->ext.collqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->collqh, ncoll, q);
+        TAILQ_REMOVE(&conn->ext.collqh, ncoll, q);
         /* Call any termination method. */
         if (ncoll->collator->terminate != NULL)
             WT_TRET(ncoll->collator->terminate(ncoll->collator, (WT_SESSION *)session));
@@ -194,7 +194,7 @@ __compressor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRESS
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (ncomp, &conn->compqh, q)
+    TAILQ_FOREACH (ncomp, &conn->ext.compqh, q)
         if (WT_CONFIG_MATCH(ncomp->name, *cval)) {
             *compressorp = ncomp->compressor;
             return (0);
@@ -239,7 +239,7 @@ __conn_add_compressor(
     ncomp->compressor = compressor;
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->compqh, ncomp, q);
+    TAILQ_INSERT_TAIL(&conn->ext.compqh, ncomp, q);
     ncomp = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -265,9 +265,9 @@ __wti_conn_remove_compressor(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((ncomp = TAILQ_FIRST(&conn->compqh)) != NULL) {
+    while ((ncomp = TAILQ_FIRST(&conn->ext.compqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->compqh, ncomp, q);
+        TAILQ_REMOVE(&conn->ext.compqh, ncomp, q);
         /* Call any termination method. */
         if (ncomp->compressor->terminate != NULL)
             WT_TRET(ncomp->compressor->terminate(ncomp->compressor, (WT_SESSION *)session));
@@ -362,7 +362,7 @@ __encryptor_confchk(
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (nenc, &conn->encryptqh, q)
+    TAILQ_FOREACH (nenc, &conn->ext.encryptqh, q)
         if (WT_CONFIG_MATCH(nenc->name, *cval)) {
             if (nencryptorp != NULL)
                 *nencryptorp = nenc;
@@ -392,7 +392,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     kenc = NULL;
     conn = S2C(session);
 
-    __wt_spin_lock(session, &conn->encryptor_lock);
+    __wt_spin_lock(session, &conn->ext.encryptor_lock);
 
     WT_ERR(__encryptor_confchk(session, cval, &nenc));
     if (nenc == NULL) {
@@ -430,7 +430,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     TAILQ_INSERT_HEAD(&nenc->keyedhashqh[bucket], kenc, hashq);
 
 out:
-    __wt_spin_unlock(session, &conn->encryptor_lock);
+    __wt_spin_unlock(session, &conn->ext.encryptor_lock);
     *kencryptorp = kenc;
     return (0);
 
@@ -439,7 +439,7 @@ err:
         __wt_free(session, kenc->keyid);
         __wt_free(session, kenc);
     }
-    __wt_spin_unlock(session, &conn->encryptor_lock);
+    __wt_spin_unlock(session, &conn->ext.encryptor_lock);
     return (ret);
 }
 
@@ -485,7 +485,7 @@ __conn_add_encryptor(
     for (i = 0; i < conn->hash_size; i++)
         TAILQ_INIT(&nenc->keyedhashqh[i]);
 
-    TAILQ_INSERT_TAIL(&conn->encryptqh, nenc, q);
+    TAILQ_INSERT_TAIL(&conn->ext.encryptqh, nenc, q);
     nenc = NULL;
 
 err:
@@ -512,9 +512,9 @@ __wti_conn_remove_encryptor(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((nenc = TAILQ_FIRST(&conn->encryptqh)) != NULL) {
+    while ((nenc = TAILQ_FIRST(&conn->ext.encryptqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->encryptqh, nenc, q);
+        TAILQ_REMOVE(&conn->ext.encryptqh, nenc, q);
         while ((kenc = TAILQ_FIRST(&nenc->keyedqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nenc->keyedqh, kenc, q);
@@ -560,7 +560,7 @@ __conn_add_page_log(
     WT_ERR(__wt_strdup(session, name, &npl->name));
     npl->page_log = page_log;
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->pagelogqh, npl, q);
+    TAILQ_INSERT_TAIL(&conn->ext.pagelogqh, npl, q);
     npl = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -589,7 +589,7 @@ __conn_get_page_log(WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG **page
     *page_logp = NULL;
 
     ret = EINVAL;
-    TAILQ_FOREACH (npage_log, &conn->pagelogqh, q)
+    TAILQ_FOREACH (npage_log, &conn->ext.pagelogqh, q)
         if (WT_STREQ(npage_log->name, name)) {
             page_log = npage_log->page_log;
             WT_RET(page_log->pl_add_reference(page_log));
@@ -617,9 +617,9 @@ __wti_conn_remove_page_log(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((npl = TAILQ_FIRST(&conn->pagelogqh)) != NULL) {
+    while ((npl = TAILQ_FIRST(&conn->ext.pagelogqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->pagelogqh, npl, q);
+        TAILQ_REMOVE(&conn->ext.pagelogqh, npl, q);
 
         /* Call any termination method. */
         pl = npl->page_log;
@@ -683,7 +683,7 @@ __conn_add_storage_source(
         TAILQ_INIT(&nstorage->buckethashqh[i]);
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->storagesrcqh, nstorage, q);
+    TAILQ_INSERT_TAIL(&conn->ext.storagesrcqh, nstorage, q);
     nstorage = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -713,7 +713,7 @@ __conn_get_storage_source(
     *storage_sourcep = NULL;
 
     ret = EINVAL;
-    TAILQ_FOREACH (nstorage_source, &conn->storagesrcqh, q)
+    TAILQ_FOREACH (nstorage_source, &conn->ext.storagesrcqh, q)
         if (WT_STREQ(nstorage_source->name, name)) {
             storage_source = nstorage_source->storage_source;
             WT_RET(storage_source->ss_add_reference(storage_source));
@@ -742,9 +742,9 @@ __wti_conn_remove_storage_source(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    while ((nstorage = TAILQ_FIRST(&conn->storagesrcqh)) != NULL) {
+    while ((nstorage = TAILQ_FIRST(&conn->ext.storagesrcqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->storagesrcqh, nstorage, q);
+        TAILQ_REMOVE(&conn->ext.storagesrcqh, nstorage, q);
         while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
@@ -770,6 +770,63 @@ __wti_conn_remove_storage_source(WT_SESSION_IMPL *session)
     }
 
     return (ret);
+}
+
+/*
+ * __wti_conn_backup_init --
+ *     Initialize the WT_CONN_BACKUP structure.
+ */
+int
+__wti_conn_backup_init(WT_SESSION_IMPL *session)
+{
+    WT_RET(__wt_rwlock_init(session, &S2C(session)->backup.lock));
+    return (0);
+}
+
+/*
+ * __wti_conn_backup_destroy --
+ *     Destroy the WT_CONN_BACKUP structure.
+ */
+void
+__wti_conn_backup_destroy(WT_SESSION_IMPL *session)
+{
+    __wt_rwlock_destroy(session, &S2C(session)->backup.lock);
+}
+
+/*
+ * __wti_conn_ext_init --
+ *     Initialize the WT_CONN_EXTENSIONS structure.
+ */
+int
+__wti_conn_ext_init(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    TAILQ_INIT(&conn->ext.collqh);       /* Collator list */
+    TAILQ_INIT(&conn->ext.compqh);       /* Compressor list */
+    TAILQ_INIT(&conn->ext.encryptqh);    /* Encryptor list */
+    TAILQ_INIT(&conn->ext.pagelogqh);    /* Page log list */
+    TAILQ_INIT(&conn->ext.storagesrcqh); /* Storage source list */
+    WT_RET(__wt_spin_init(session, &conn->ext.encryptor_lock, "encryptor"));
+    WT_RET(__wt_spin_init(session, &conn->ext.page_log_lock, "page log"));
+    WT_RET(__wt_spin_init(session, &conn->ext.storage_lock, "tiered storage"));
+    return (0);
+}
+
+/*
+ * __wti_conn_ext_destroy --
+ *     Destroy the WT_CONN_EXTENSIONS structure.
+ */
+void
+__wti_conn_ext_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    __wt_spin_destroy(session, &conn->ext.encryptor_lock);
+    __wt_spin_destroy(session, &conn->ext.page_log_lock);
+    __wt_spin_destroy(session, &conn->ext.storage_lock);
 }
 
 /*
@@ -2242,17 +2299,17 @@ __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
      * value. Once it was on in the past and then turned off, you cannot turn it back on again.
      */
     if (cval.val != 0) {
-        if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
+        if (conn->debug.ckpt_cnt != 0 && cval.val != conn->debug.ckpt_cnt)
             WT_ERR_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
         WT_ERR(
-          __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
+          __wt_realloc_def(session, &conn->debug.ckpt_alloc, (size_t)cval.val, &conn->debug.ckpt));
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CKPT_RETAIN);
     } else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
-    conn->debug_ckpt_cnt = (uint32_t)cval.val;
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CKPT_RETAIN);
+    conn->debug.ckpt_cnt = (uint32_t)cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
-    conn->debug_log_cnt = (uint32_t)cval.val;
+    conn->debug.log_cnt = (uint32_t)cval.val;
 
 err:
     __wt_writeunlock(session, &conn->log_mgr.debug_log_retention_lock);
@@ -2311,108 +2368,108 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CONFIGURATION);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CONFIGURATION);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.before_insert_colgroup", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.before_insert_file", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.after_drop_colgroup", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.after_drop_file", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CURSOR_COPY);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CURSOR_COPY);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CURSOR_COPY);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_COPY);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_reposition", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_exact", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_REALLOC_EXACT);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_REALLOC_EXACT);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_malloc", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_REALLOC_MALLOC);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_REALLOC_MALLOC);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.rollback_error", &cval));
     txn_global->debug_rollback = (uint64_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_checkpoint", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_SLOW_CKPT);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_SLOW_CKPT);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.stress_skiplist", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_STRESS_SKIPLIST);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_STRESS_SKIPLIST);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.table_logging", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.tiered_flush_error_continue", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction_checkpoint_ts_ordering", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
     return (0);
 }
 
@@ -2718,12 +2775,12 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_address_cookie_upgrade: '%.*s'",
           (int)cval.len, cval.str);
-    conn->debug_disagg_address_cookie_upgrade = address_cookie_upgrade;
+    conn->debug.disagg_address_cookie_upgrade = address_cookie_upgrade;
 
     /* Check whether we are pretending to have an optional field. */
     WT_RET(
       __wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_optional_field", &cval));
-    conn->debug_disagg_address_cookie_optional_field = cval.val != 0;
+    conn->debug.disagg_address_cookie_optional_field = cval.val != 0;
 
     return (0);
 }
@@ -3462,19 +3519,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->mmap_all = cval.val != 0;
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
-    conn->prefetch_available = cval.val != 0;
+    conn->prefetch.available = cval.val != 0;
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
-    conn->prefetch_auto_on = cval.val != 0;
+    conn->prefetch.auto_on = cval.val != 0;
 
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch_available || conn->prefetch_auto_on)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch.available || conn->prefetch.auto_on)) {
         __wt_verbose(session, WT_VERB_PREFETCH, "%s",
           "prefetch configuration is incompatible with in-memory configuration");
         WT_CONFIG_DEBUG(session, "%s", "setting prefetch.available and prefetch.default to false");
-        conn->prefetch_auto_on = false;
-        conn->prefetch_available = false;
+        conn->prefetch.auto_on = false;
+        conn->prefetch.available = false;
     }
 
-    if (conn->prefetch_auto_on && !conn->prefetch_available)
+    if (conn->prefetch.auto_on && !conn->prefetch.available)
         WT_ERR_MSG(session, EINVAL,
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 
@@ -3700,8 +3757,8 @@ err:
      * to happen on tables to clean up the entries in the creation of the metadata file.
      */
     F_CLR(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
-    if (conn->partial_backup_remove_ids != NULL)
-        __wt_free(session, conn->partial_backup_remove_ids);
+    if (conn->backup.partial_remove_ids != NULL)
+        __wt_free(session, conn->backup.partial_remove_ids);
 
     if (ret != 0) {
         if (conn->default_session->event_handler->handle_general != NULL &&
