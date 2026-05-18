@@ -1208,4 +1208,4 @@ __ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri
     return (__layered_derive_layered_uri(session, ingest_uri, buf));
 }
 
-#endif /* HAVE_UNITTEST */
+#endif
