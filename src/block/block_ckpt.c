@@ -614,8 +614,9 @@ __ckpt_validate_state(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 /*
  * __ckpt_init_extlist --
- *     Clean up and reinitialize the checkpoint-related extent lists on the live checkpoint
- *     structure (ckpt_avail, ckpt_alloc, ckpt_discard).
+ *     Clean up the checkpoint-related extent lists on the live checkpoint structure: reinitialize
+ *     ckpt_avail (free then re-init), and free ckpt_alloc and ckpt_discard (left invalid until the
+ *     resolve step).
  */
 static int
 __ckpt_init_extlist(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
