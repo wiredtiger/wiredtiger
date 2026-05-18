@@ -6,7 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "timestamp_inline.h"
 #include "wt_internal.h"
 
 static int __layered_last_checkpoint_order(
