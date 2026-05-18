@@ -9,11 +9,11 @@
 #pragma once
 
 struct __wt_connection_load_control {
-    uint8_t control_threshold; /* threshold when the load control starts rejecting work */
-    uint8_t read_load;         /* connection read load */
-    uint8_t write_load;        /* connection write load */
-    uint64_t read_load_max;    /* cache max bytes equivalent eviction trigger */
-    uint64_t write_load_max;   /* cache max dirty bytes equivalent to dirty trigger */
+    uint8_t control_threshold;         /* threshold when the load control starts rejecting work */
+    wt_shared uint8_t read_load;       /* connection read load */
+    wt_shared uint8_t write_load;      /* connection write load */
+    wt_shared uint64_t read_load_max;  /* cache max bytes equivalent eviction trigger */
+    wt_shared uint64_t write_load_max; /* cache max dirty bytes equivalent to dirty trigger */
 
     /* cache eviction controls bit positions */
 #define WT_CONN_LOAD_CONTROL 0x1u

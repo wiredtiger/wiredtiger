@@ -1425,8 +1425,6 @@ extern int __wti_conn_ext_init(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_load_control_config(WT_SESSION_IMPL *session, const char *cfg[],
   bool reconfig) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_conn_load_control_init(WT_SESSION_IMPL *session, const char *cfg[])
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
@@ -1934,7 +1932,6 @@ extern void __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const 
 extern void __wti_conn_capacity_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_capacity_init(WT_SESSION_IMPL *session);
 extern void __wti_conn_ext_destroy(WT_SESSION_IMPL *session);
-extern void __wti_conn_load_control_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_prefetch_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_tiered_destroy(WT_SESSION_IMPL *session);
 extern void __wti_connection_destroy(WT_CONNECTION_IMPL *conn);

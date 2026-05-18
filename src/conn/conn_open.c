@@ -62,7 +62,7 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     WT_STAT_CONN_SET(session, dh_conn_handle_size, sizeof(WT_DATA_HANDLE));
 
     /* Depends on the cache and eviction configuration, should initialize after them. */
-    WT_RET(__wti_conn_load_control_init(session, cfg));
+    WT_RET(__wti_conn_load_control_config(session, cfg, false));
     return (0);
 }
 
@@ -136,9 +136,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
       F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
         WT_TRET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
-
-    /* Shut down load control subsystem. */
-    __wti_conn_load_control_destroy(session);
 
     /* Shut down disaggregated storage. */
     WT_TRET(__wti_disagg_destroy(session));

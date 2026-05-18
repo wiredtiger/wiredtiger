@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __conn_load_control_init --
- *     Initialize the load thresholds and limits.
+ * __conn_load_control_configure --
+ *     Configure the load control constructs.
  */
 static void
-__conn_load_control_init(WT_SESSION_IMPL *session)
+__conn_load_control_configure(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_LOAD_CONTROL *load_control;
@@ -25,33 +25,24 @@ __conn_load_control_init(WT_SESSION_IMPL *session)
     bytes_max = conn->cache_size + 1;
     evict = conn->evict;
 
-    load_control = conn->load_control;
+    load_control = &conn->load_control;
 
     /*
-     * Load range is mapped to cache thresholds (target, trigger).
-     * Read load is mapped to (eviction_target, eviction_trigger) and
-     * write load is mapped to (eviction_dirty_target).
+     * Load range is mapped to cache thresholds. Read load of 100% is mapped to eviction_trigger,
+     * configured max cache fill ratio, and write load of 100% is mapped to eviction_dirty_trigger,
+     * configured max dirty cache fill ratio.
      *
-     * For eg:- if eviction_target is 80 and eviction_trigger is 95, then
-     * Cache management will start when cache fill ratio reaches eviction_target (80%).
-     * Goal of cache management is to keep the cache fill ratio under eviction_trigger (95%).
-     * As cache management range is between eviction_target and eviction_trigger,
-     * read load will be mapped to this range.
-     * load_control_threshold specifies when the load management will be activated within a
-     * a load range.
-     * !!!
-     * For default cache fill thresholds, target is 80 and trigger is 95.
-     *    read load range is (80% - 95%), with a load control threshold of 100%,
-     * read load control will start rejecting work when cache fill ratio of reaches 95%.
-     *
-     * For default cache dirty thresholds, target is 5 and trigger is 20.
-     *     write load range is (5% - 20%), with a load control threshold of 100%
-     * write load control will start rejecting work when cache fill ratio of reaches 20%.
+     * Load control subsystem will start rejecting the work based on the configured load control
+     * threshold. Default load control threshold is 100%, which means load control will start
+     * rejecting the work when cache fill ratio reaches eviction_trigger (i.e., 95%) for read and
+     * eviction_dirty_trigger (i.e., 20%) for write.
      */
 
     /* Calculate max accepted for both read and write */
-    load_control->read_load_max = (uint64_t)(bytes_max * evict->eviction_trigger / 100.0);
-    load_control->write_load_max = (uint64_t)(bytes_max * evict->eviction_dirty_trigger / 100.0);
+    __wt_atomic_store_uint64_relaxed(
+      &load_control->read_load_max, (uint64_t)(bytes_max * evict->eviction_trigger / 100.0));
+    __wt_atomic_store_uint64_relaxed(
+      &load_control->write_load_max, (uint64_t)(bytes_max * evict->eviction_dirty_trigger / 100.0));
 
     return;
 }
@@ -67,7 +58,7 @@ __wti_conn_load_control_config(WT_SESSION_IMPL *session, const char *cfg[], bool
     WT_CONNECTION_LOAD_CONTROL *load_control;
     WT_UNUSED(reconfig);
 
-    load_control = S2C(session)->load_control;
+    load_control = &S2C(session)->load_control;
 
     WT_RET(__wt_config_gets(session, cfg, "load_control.enable", &cval));
     if (cval.val != 0)
@@ -84,40 +75,7 @@ __wti_conn_load_control_config(WT_SESSION_IMPL *session, const char *cfg[], bool
      * well as eviction. Hence they should be adjusted whenever the configuration of either eviction
      * or load control is changed.
      */
-    __conn_load_control_init(session);
+    __conn_load_control_configure(session);
 
     return (0);
-}
-
-/*
- * __wti_conn_load_control_init --
- *     Initialize the connection load subsystem.
- */
-int
-__wti_conn_load_control_init(WT_SESSION_IMPL *session, const char *cfg[])
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    WT_RET(__wt_calloc_one(session, &conn->load_control));
-
-    WT_RET(__wti_conn_load_control_config(session, cfg, false));
-
-    return (0);
-}
-
-/*
- * __wti_conn_load_control_destroy --
- *     Destroy the connection load subsystem.
- */
-void
-__wti_conn_load_control_destroy(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    if (conn->load_control != NULL)
-        __wt_free(session, conn->load_control);
-
-    return;
 }
