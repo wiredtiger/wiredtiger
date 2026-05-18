@@ -701,6 +701,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table = NULL;
     WT_TRUNCATE **sorted_truncates = NULL;
+    wt_timestamp_t prev_ts = WT_TS_NONE;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
@@ -726,7 +727,6 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
-    wt_timestamp_t prev_ts = WT_TS_NONE;
     for (size_t i = 0; i < ntruncates; i++) {
         WT_TRUNCATE *t = sorted_truncates[i];
         WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
