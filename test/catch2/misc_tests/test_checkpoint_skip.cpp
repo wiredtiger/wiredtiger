@@ -21,8 +21,7 @@ make_ckpt(WT_CKPT *ckpt, const char *name, uint32_t flags)
 }
 
 /* Empty list: only the NULL sentinel, no real entries. */
-TEST_CASE(
-  "__checkpoint_skip_ckptlist: empty list returns false", "[checkpoint_mark_skip]")
+TEST_CASE("__checkpoint_skip_ckptlist: empty list returns false", "[checkpoint_mark_skip]")
 {
     WT_CKPT list[1];
     make_ckpt(&list[0], NULL, 0);
@@ -30,8 +29,7 @@ TEST_CASE(
 }
 
 /* Single entry: cannot compare two names. */
-TEST_CASE(
-  "__checkpoint_skip_ckptlist: single entry returns false", "[checkpoint_mark_skip]")
+TEST_CASE("__checkpoint_skip_ckptlist: single entry returns false", "[checkpoint_mark_skip]")
 {
     WT_CKPT list[2];
     make_ckpt(&list[0], "WiredTigerCheckpoint.1", 0);
@@ -73,8 +71,7 @@ TEST_CASE(
 }
 
 /* Two or more deletions: may reclaim space, do not skip. */
-TEST_CASE(
-  "__checkpoint_skip_ckptlist: two deletions returns false", "[checkpoint_mark_skip]")
+TEST_CASE("__checkpoint_skip_ckptlist: two deletions returns false", "[checkpoint_mark_skip]")
 {
     WT_CKPT list[4];
     make_ckpt(&list[0], "my_checkpoint", WT_CKPT_DELETE);
@@ -97,8 +94,7 @@ TEST_CASE(
 }
 
 /* Three entries where the last two differ: do not skip. */
-TEST_CASE(
-  "__checkpoint_skip_ckptlist: three entries last two differ returns false",
+TEST_CASE("__checkpoint_skip_ckptlist: three entries last two differ returns false",
   "[checkpoint_mark_skip]")
 {
     WT_CKPT list[4];
@@ -110,8 +106,7 @@ TEST_CASE(
 }
 
 /* One deletion with matching last-two names: single deletion still allows skip. */
-TEST_CASE(
-  "__checkpoint_skip_ckptlist: one deletion same last-two names returns true",
+TEST_CASE("__checkpoint_skip_ckptlist: one deletion same last-two names returns true",
   "[checkpoint_mark_skip]")
 {
     WT_CKPT list[4];

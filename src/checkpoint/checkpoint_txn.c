@@ -2558,8 +2558,8 @@ static bool
 __checkpoint_skip_ckptlist(WT_CKPT *ckptbase, u_int *countp)
 {
     WT_CKPT *ckpt;
-    const char *name;
     int deleted;
+    const char *name;
 
     deleted = 0;
     WT_CKPT_FOREACH (ckptbase, ckpt) {
@@ -2570,11 +2570,11 @@ __checkpoint_skip_ckptlist(WT_CKPT *ckptbase, u_int *countp)
     if (countp != NULL)
         *countp = (u_int)(ckpt - ckptbase);
 
-    /* Need at least two entries to compare names; guard before any dereference. */
+    /* Need at least two entries to compare names; guard before accessing entries. */
     if (ckpt <= ckptbase + 1 || deleted >= 2)
         return (false);
 
-    /* List has at least two real entries: dereferences are safe. */
+    /* List has at least two real entries: accesses are safe. */
     name = (ckpt - 1)->name;
     return (strcmp(name, (ckpt - 2)->name) == 0 ||
       (WT_PREFIX_MATCH(name, WT_CHECKPOINT) && WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)));
