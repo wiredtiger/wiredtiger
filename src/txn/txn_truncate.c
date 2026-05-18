@@ -143,6 +143,7 @@ __txn_insert_truncate_entry_helper(
 {
     WT_DECL_RET;
     WT_TRUNCATE *entry = *tp;
+    wt_timestamp_t prune_timestamp = 0;
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
     WT_ERR(__wt_txn_truncate(session, entry));
@@ -152,9 +153,7 @@ __txn_insert_truncate_entry_helper(
 
     __wt_writelock(session, &layered_table->truncate_lock);
 
-    const wt_timestamp_t prune_timestamp =
-      __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
-
+    prune_timestamp = __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
     __layered_table_truncate_gc(session, layered_table, prune_timestamp);
 
     if (TAILQ_EMPTY(&layered_table->truncateqh))
