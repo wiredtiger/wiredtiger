@@ -643,6 +643,33 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
 #define MAX_REVERSE_MODIFY_NUM 16
 
 /*
+ * Bundled per-key mutable state threaded through chain-collection and flush helpers. Using a struct
+ * keeps individual helper signatures short.
+ */
+typedef struct {
+    WT_UPDATE *newest_hs;           /* Newest update to write to the history store */
+    WT_UPDATE *newest_hs_tombstone; /* Tombstone paired with the newest entry */
+    WT_UPDATE *no_ts_upd;           /* First update in the chain without a timestamp */
+    bool enable_reverse_modify;     /* Reverse-modify encoding is permitted */
+    bool squashed;                  /* At least one update was squashed */
+    bool hs_flag_set;               /* A partial (delta) history store update was seen */
+} WT_REC_HS_KEY_STATE;
+
+/*
+ * Accumulates history store insertion counters for one reconciliation pass. Bundled so the flush
+ * helper and its caller share a single pointer rather than seven individual out-parameters.
+ */
+typedef struct {
+    uint64_t insert_cnt;
+    uint64_t cache_hs_insert_full_update;
+    uint64_t cache_hs_insert_reverse_modify;
+    uint64_t cache_hs_write_squash;
+    uint64_t cache_hs_key_processed;
+    uint64_t cache_hs_update_processed;
+    bool hs_stats_updated;
+} WT_REC_HS_STATS;
+
+/*
  * __rec_hs_select_newest --
  *     Called when no newest history store candidate has been selected yet: decide whether the
  *     current update becomes the newest history store candidate, advances the tombstone reference,
@@ -654,13 +681,13 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
  */
 static void
 __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
-  uint64_t txnid_prepared, bool *check_preparedp, WT_UPDATE **newest_hsp,
-  WT_UPDATE **newest_hs_tombstonep, bool *squashedp, uint64_t *cache_hs_write_squashp, bool *skipp)
+  uint64_t txnid_prepared, bool *check_preparedp, WT_REC_HS_KEY_STATE *state,
+  WT_REC_HS_STATS *stats, bool *skipp)
 {
     *skipp = false;
     if (*check_preparedp) {
         if (txnid_prepared == txnid) {
-            *squashedp = true;
+            state->squashed = true;
             *skipp = true;
             return;
         }
@@ -672,16 +699,16 @@ __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
         if (upd->type == WT_UPDATE_TOMBSTONE)
             *ref_updp = upd;
         else {
-            *newest_hsp = upd;
+            state->newest_hs = upd;
             if ((*ref_updp)->type == WT_UPDATE_TOMBSTONE)
-                *newest_hs_tombstonep = *ref_updp;
+                state->newest_hs_tombstone = *ref_updp;
         }
-        if (*squashedp) {
-            ++(*cache_hs_write_squashp);
-            *squashedp = false;
+        if (state->squashed) {
+            ++stats->cache_hs_write_squash;
+            state->squashed = false;
         }
     } else {
-        *squashedp = true;
+        state->squashed = true;
         *skipp = true;
     }
 }
@@ -694,16 +721,15 @@ __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
  */
 static int
 __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDATE *ref_upd,
-  bool error_on_ts_ordering, WT_UPDATE_VECTOR *updates, WT_UPDATE **newest_hsp,
-  WT_UPDATE **newest_hs_tombstonep, WT_UPDATE **no_ts_updp, bool *enable_reverse_modifyp,
-  bool *squashedp, bool *hs_flag_setp, uint64_t *cache_hs_write_squashp)
+  bool error_on_ts_ordering, WT_UPDATE_VECTOR *updates, WT_REC_HS_KEY_STATE *state,
+  WT_REC_HS_STATS *stats)
 {
     WT_DECL_RET;
     WT_UPDATE *prev_upd, *upd;
     uint64_t txnid, txnid_prepared;
     bool check_prepared, skip;
 
-    *squashedp = false;
+    state->squashed = false;
     check_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
       WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
     if (check_prepared) {
@@ -751,26 +777,26 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
              * Always insert full update to the history store if we detect update without a
              * timestamp.
              */
-            *enable_reverse_modifyp = false;
+            state->enable_reverse_modify = false;
         }
 
         /*
          * Find the first update to insert to the history store. (The value that is just older than
          * the on-page value)
          */
-        if (*newest_hsp == NULL) {
-            __rec_hs_select_newest(upd, &ref_upd, txnid, txnid_prepared, &check_prepared,
-              newest_hsp, newest_hs_tombstonep, squashedp, cache_hs_write_squashp, &skip);
+        if (state->newest_hs == NULL) {
+            __rec_hs_select_newest(
+              upd, &ref_upd, txnid, txnid_prepared, &check_prepared, state, stats, &skip);
             if (skip)
                 continue;
         }
 
-        WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE || *newest_hsp != NULL);
+        WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE || state->newest_hs != NULL);
 
         /* Insert full update to the history store if we need to squash the updates. */
-        if (*newest_hsp != NULL && prev_upd != NULL && prev_upd->txnid == upd->txnid &&
+        if (state->newest_hs != NULL && prev_upd != NULL && prev_upd->txnid == upd->txnid &&
           prev_upd->upd_start_ts == upd->upd_start_ts)
-            *enable_reverse_modifyp = false;
+            state->enable_reverse_modify = false;
 
         /*
          * Only push the updates that will be inserted to the history store to the stack. They are
@@ -805,16 +831,16 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
              * finish the loop to construct the full update.
              */
             if (F_ISSET(upd, WT_UPDATE_HS))
-                *hs_flag_setp = true;
+                state->hs_flag_set = true;
         }
 
         /*
          * Save the first update without a timestamp in the update chain. This is used to remove all
          * the following updates' timestamps in the chain.
          */
-        if (*no_ts_updp == NULL && upd->upd_start_ts == WT_TS_NONE) {
+        if (state->no_ts_upd == NULL && upd->upd_start_ts == WT_TS_NONE) {
             WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
-            *no_ts_updp = upd;
+            state->no_ts_upd = upd;
         }
     }
 err:
@@ -905,20 +931,6 @@ __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
             *tombstonep = prev_upd;
     }
 }
-
-/*
- * Accumulates history store insertion counters for one reconciliation pass. Bundled so the flush
- * helper and its caller share a single pointer rather than seven individual out-parameters.
- */
-typedef struct {
-    uint64_t insert_cnt;
-    uint64_t cache_hs_insert_full_update;
-    uint64_t cache_hs_insert_reverse_modify;
-    uint64_t cache_hs_write_squash;
-    uint64_t cache_hs_key_processed;
-    uint64_t cache_hs_update_processed;
-    bool hs_stats_updated;
-} WT_REC_HS_STATS;
 
 /*
  * __rec_hs_flush_upd_chain --
@@ -1121,18 +1133,18 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(prev_full_value);
     WT_DECL_RET;
+    WT_REC_HS_KEY_STATE key_state;
     WT_REC_HS_STATS stats;
     WT_REF *ref;
     WT_SAVE_UPD *list;
-    WT_UPDATE *newest_hs, *newest_hs_tombstone, *no_ts_upd, *oldest_upd, *ref_upd, *upd;
+    WT_UPDATE *oldest_upd, *ref_upd, *upd;
     WT_UPDATE_VECTOR updates;
     wt_off_t hs_size;
     uint64_t max_hs_size;
     uint32_t i;
-    bool enable_reverse_modify, error_on_ts_ordering, hs_flag_set, squashed;
+    bool error_on_ts_ordering;
 
     conn = S2C(session);
-    hs_flag_set = false;
     r->cache_write_hs = false;
     btree = S2BT(session);
     ref = r->ref;
@@ -1184,7 +1196,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         /* History store table key component: source key. */
         WT_ERR(__rec_hs_pack_key(session, btree, r, list->ins, list->rip, key));
 
-        no_ts_upd = newest_hs = newest_hs_tombstone = NULL;
+        memset(&key_state, 0, sizeof(key_state));
         ref_upd = list->onpage_upd;
 
         __wt_update_vector_clear(&updates);
@@ -1195,7 +1207,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * Reverse modifies are only supported on 'S' and 'u' value formats. Disable reverse
          * modifies if we write a prepared update to disk.
          */
-        enable_reverse_modify =
+        key_state.enable_reverse_modify =
           ((WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"))) &&
           !WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
 
@@ -1205,18 +1217,17 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * store.
          */
         if (list->onpage_tombstone != NULL && list->onpage_tombstone->upd_start_ts == WT_TS_NONE)
-            no_ts_upd = list->onpage_tombstone;
+            key_state.no_ts_upd = list->onpage_tombstone;
 
         /*
          * If the onpage update is a tombstone without a timestamp, we can use it to clear the
          * timestamps of all the updates that are inserted into the history store.
          */
-        if (no_ts_upd == NULL && list->onpage_upd->upd_start_ts == WT_TS_NONE)
-            no_ts_upd = list->onpage_upd;
+        if (key_state.no_ts_upd == NULL && list->onpage_upd->upd_start_ts == WT_TS_NONE)
+            key_state.no_ts_upd = list->onpage_upd;
 
-        WT_ERR(__rec_hs_collect_upd_chain(session, list, ref_upd, error_on_ts_ordering, &updates,
-          &newest_hs, &newest_hs_tombstone, &no_ts_upd, &enable_reverse_modify, &squashed,
-          &hs_flag_set, &stats.cache_hs_write_squash));
+        WT_ERR(__rec_hs_collect_upd_chain(
+          session, list, ref_upd, error_on_ts_ordering, &updates, &key_state, &stats));
 
         __wt_verbose_debug1(session, WT_VERB_RECONCILE,
           "moving %" WT_SIZET_FMT " updates to the history store in saved update list %u of ref %p",
@@ -1231,20 +1242,22 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
               oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
 
             WT_ERR(__rec_hs_handle_oldest_tombstone(session, hs_cursor, btree->id, key,
-              error_on_ts_ordering, hs_flag_set, oldest_upd, &no_ts_upd));
+              error_on_ts_ordering, key_state.hs_flag_set, oldest_upd, &key_state.no_ts_upd));
         }
 
         /* Skip if we have nothing to insert to the history store. */
-        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS | WT_UPDATE_HS_MAX_STOP)) {
+        if (key_state.newest_hs == NULL ||
+          F_ISSET(key_state.newest_hs, WT_UPDATE_HS | WT_UPDATE_HS_MAX_STOP)) {
             /* The onpage value is squashed. */
-            if (newest_hs == NULL && squashed)
+            if (key_state.newest_hs == NULL && key_state.squashed)
                 ++stats.cache_hs_write_squash;
             continue;
         }
 
-        WT_ERR(__rec_hs_flush_upd_chain(session, hs_cursor, btree, ref, key, &updates, newest_hs,
-          newest_hs_tombstone, list, full_value, prev_full_value, enable_reverse_modify,
-          error_on_ts_ordering, &no_ts_upd, &squashed, &stats));
+        WT_ERR(__rec_hs_flush_upd_chain(session, hs_cursor, btree, ref, key, &updates,
+          key_state.newest_hs, key_state.newest_hs_tombstone, list, full_value, prev_full_value,
+          key_state.enable_reverse_modify, error_on_ts_ordering, &key_state.no_ts_upd,
+          &key_state.squashed, &stats));
     }
 
     hs_btree = __wt_curhs_get_btree(hs_cursor);
