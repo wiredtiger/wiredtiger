@@ -1697,7 +1697,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
         /* Only consult the truncate list when ingest has no entry for this key. */
         if (!found) {
             WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session,
-                                 (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL),
+                                 (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL, NULL),
               true);
             if (ret == 0) {
                 found = true;
@@ -1876,7 +1876,7 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
          */
         if (ret == 0 &&
           __wt_truncate_delete_visible_check(session, (WT_LAYERED_TABLE *)clayered->dhandle,
-            &clayered->stable_cursor->key, NULL) == 0) {
+            &clayered->stable_cursor->key, NULL, NULL) == 0) {
             WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
 
             WT_ERR_NOTFOUND_OK(

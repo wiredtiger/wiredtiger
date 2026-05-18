@@ -453,13 +453,27 @@ SCENARIO("inserting an entry triggers garbage collection", "[truncate_list][inse
         truncate_list_head(connection.layered_table())->durable_ts = prune_ts - 1u;
         connection.set_prune_timestamp(prune_ts);
 
+        const auto expected_size = truncate_list_size(connection.layered_table());
+
         WHEN("a new entry is inserted")
         {
-            CHECK(insert_one_entry(connection) == 0);
+            auto expected_start_key = make_item("key001");
+            auto expected_stop_key = make_item("key004");
+            CHECK(__wt_insert_truncate_entry(&connection.session(), &connection.layered_table(),
+                    &expected_start_key, &expected_stop_key) == 0);
 
             THEN("the eligible entry is garbage collected")
             {
-                REQUIRE(truncate_list_size(connection.layered_table()) == 1u);
+                REQUIRE(truncate_list_size(connection.layered_table()) == expected_size);
+            }
+
+            THEN("the surviving entry is the newly inserted one")
+            {
+                const auto *const head = truncate_list_head(connection.layered_table());
+                REQUIRE(head != nullptr);
+
+                REQUIRE(as_view(head->start_key) == as_view(expected_start_key));
+                REQUIRE(as_view(head->stop_key) == as_view(expected_stop_key));
             }
         }
     }

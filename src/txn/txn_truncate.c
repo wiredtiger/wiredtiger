@@ -400,6 +400,10 @@ int
 __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
   WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
 {
+    /* We either want the full range or no range at all. */
+    const bool keys_wanted = (start_keyp != NULL && stop_keyp != NULL);
+    WT_ASSERT(session, (start_keyp == NULL && stop_keyp == NULL) || keys_wanted);
+
     WT_DECL_RET;
     WT_TRUNCATE *tp = NULL;
     bool is_found = false;
@@ -423,14 +427,18 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
     WT_ERR(
       __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, &tp, &is_found));
 
-    const bool keys_wanted = (start_keyp != NULL && stop_keyp != NULL);
-
     if (is_found && keys_wanted)
         WT_ERR(__truncate_entry_copy_keys(session, tp, start_keyp, stop_keyp));
 
 err:
     __wt_readunlock(session, &layered_table->truncate_lock);
-    return (is_found ? 0 : WT_NOTFOUND);
+
+    WT_RET(ret);
+
+    if (!is_found)
+        return (WT_NOTFOUND);
+
+    return (0);
 }
 
 /*
