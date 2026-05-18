@@ -833,7 +833,6 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    bool ckpt_running;
 
     conn = S2C(session);
     cursor = NULL;
@@ -864,13 +863,12 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
-     * When WiredTiger is running a checkpoint, prevent drop updates from entering the shared
-     * metadata table for that checkpoint. We defer these metadata operations to the next checkpoint
-     * to keep the checkpoints metadata and table state consistent.
+     * Each entry starts as deferred. At the beginning of each checkpoint, all existing entries are
+     * undeferred and then applied to the shared metadata table at the end of the checkpoint. In
+     * this way, only entries that were created concurrently with the checkpoint will remain
+     * deferred and be applied to the shared metadata table at the next checkpoint.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
-    if (ckpt_running && (metadata_op == WT_SHARED_METADATA_REMOVE))
-        entry->deferred = true;
+    entry->deferred = true;
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
