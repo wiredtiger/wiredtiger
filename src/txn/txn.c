@@ -1028,6 +1028,7 @@ __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key
     /* We resolve each prepared key exactly once. We should always find an update. */
     WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
+
     return (0);
 }
 
