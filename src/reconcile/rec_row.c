@@ -953,9 +953,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
         case WT_UPDATE_TOMBSTONE:
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
                 /*
-                 * Ingest btree: value lives in the stable btree. Write a delete cell so the
-                 * tombstone survives GC re-instantiation. Once the tombstone becomes globally
-                 * visible, subsequent GC drops the key.
+                 * Ingest btree: value lives in the stable btree. Write a zero-length value cell to
+                 * anchor the tombstone on disk so it survives GC re-instantiation. Once the
+                 * tombstone becomes globally visible, subsequent GC pass drops the key.
                  */
                 WT_ERR(__wti_rec_cell_build_val(session, r, NULL, 0, &tw, 0, NULL));
             break;
