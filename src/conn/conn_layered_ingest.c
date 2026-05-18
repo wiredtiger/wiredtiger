@@ -192,14 +192,15 @@ __layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, W
     static const char file_prefix[] = "file:";
     static const char ingest_suffix[] = ".wt_ingest";
     size_t uri_len = strlen(ingest_uri);
+    size_t prefix_len = strlen(file_prefix);
+    size_t suffix_len = strlen(ingest_suffix);
 
     if (!WT_PREFIX_MATCH(ingest_uri, file_prefix) || !WT_URI_IS_INGEST(ingest_uri))
         WT_RET_MSG(session, EINVAL,
           "Ingest URI \"%s\" does not match expected file:<name>.wt_ingest shape", ingest_uri);
-    WT_ASSERT(session, uri_len > (sizeof(file_prefix) - 1) + (sizeof(ingest_suffix) - 1));
-    size_t name_len = uri_len - (sizeof(file_prefix) - 1) - (sizeof(ingest_suffix) - 1);
-    return (__wt_buf_fmt(
-      session, buf, "layered:%.*s", (int)name_len, ingest_uri + sizeof(file_prefix) - 1));
+    WT_ASSERT(session, uri_len > prefix_len + suffix_len);
+    size_t name_len = uri_len - prefix_len - suffix_len;
+    return (__wt_buf_fmt(session, buf, "layered:%.*s", (int)name_len, ingest_uri + prefix_len));
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -350,7 +351,6 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 static int
 __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 {
-    WT_CURSOR *trunc_start = NULL, *trunc_stop = NULL;
     WT_DECL_RET;
 
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
@@ -358,6 +358,7 @@ __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
     WT_ASSERT(session, t->durable_ts >= t->start_ts);
 
     const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
+    WT_CURSOR *trunc_start = NULL, *trunc_stop = NULL;
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_start));
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
 
@@ -648,43 +649,46 @@ __truncate_cmp_by_start_ts(const void *a, const void *b)
 
 /*
  * __layered_build_sorted_truncates --
- *     Snapshot committed truncates from the truncate list into a sorted array.
+ *     Create a sorted array of committed truncates from the table's truncate list.
  */
 static int
 __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
   WT_TRUNCATE ***sortedp, size_t *ntruncatesp)
 {
     WT_DECL_RET;
-    WT_TRUNCATE *t, **sorted;
-    size_t ntruncates;
+    WT_TRUNCATE **sorted = NULL;
+    size_t ntruncates = 0;
 
     *sortedp = NULL;
     *ntruncatesp = 0;
-    sorted = NULL;
-    ntruncates = 0;
 
     __wt_readlock(session, &layered_table->truncate_lock);
+    WT_TRUNCATE *t;
     TAILQ_FOREACH (t, &layered_table->truncateqh, q)
         if (t->txn_id != WT_TXN_NONE)
             ++ntruncates;
-    if (ntruncates == 0) {
-        __wt_readunlock(session, &layered_table->truncate_lock);
-        return (0);
-    }
-    ret = __wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted);
-    if (ret == 0) {
-        size_t i = 0;
-        TAILQ_FOREACH (t, &layered_table->truncateqh, q)
-            if (t->txn_id != WT_TXN_NONE)
-                sorted[i++] = t;
-    }
-    __wt_readunlock(session, &layered_table->truncate_lock);
 
-    WT_RET(ret);
+    /* Early exit if there are no committed truncates. */
+    if (ntruncates == 0)
+        goto err;
+
+    WT_ERR(__wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted));
+    /* Populate the array with committed truncates. */
+    size_t i = 0;
+    TAILQ_FOREACH (t, &layered_table->truncateqh, q)
+        if (t->txn_id != WT_TXN_NONE)
+            sorted[i++] = t;
+
+    /* Sort the array of committed truncates by start timestamp. */
     __wt_qsort(sorted, ntruncates, sizeof(WT_TRUNCATE *), __truncate_cmp_by_start_ts);
     *sortedp = sorted;
     *ntruncatesp = ntruncates;
-    return (0);
+
+err:
+    __wt_readunlock(session, &layered_table->truncate_lock);
+    if (ret != 0)
+        __wt_free(session, sorted);
+    return (ret);
 }
 
 /*
@@ -694,17 +698,11 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 static int
 __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const char *ingest_uri)
 {
-    WT_DATA_HANDLE *layered_dhandle;
+    WT_DATA_HANDLE *layered_dhandle = NULL;
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
-    WT_LAYERED_TABLE *layered_table;
-    WT_TRUNCATE **sorted_truncates;
-    size_t ntruncates;
-
-    layered_dhandle = NULL;
-    layered_table = NULL;
-    sorted_truncates = NULL;
-    ntruncates = 0;
+    WT_LAYERED_TABLE *layered_table = NULL;
+    WT_TRUNCATE **sorted_truncates = NULL;
 
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
@@ -726,6 +724,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
      */
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
+    size_t ntruncates = 0;
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
