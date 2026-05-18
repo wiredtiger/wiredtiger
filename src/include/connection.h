@@ -516,6 +516,18 @@ struct __wt_named_storage_source {
 };
 
 /*
+ * WT_CONN_BACKUP --
+ *     Hot backup state for a connection.
+ */
+struct __wt_conn_backup {
+    WT_RWLOCK lock;               /* Hot backup serialization */
+    wt_shared uint64_t start;     /* Clock value of most recent checkpoint needed by hot backup */
+    wt_timestamp_t timestamp;     /* Stable timestamp of checkpoint for the open backup */
+    char **list;                  /* Hot backup file list */
+    uint32_t *partial_remove_ids; /* Remove btree id list for partial backup */
+};
+
+/*
  * WT_CONN_EXTENSIONS --
  *	Extension interface lists and their associated locks, grouped by subsystem.
  */
@@ -719,9 +731,9 @@ struct __wt_conn_tiered {
 #define WT_CONN_HOTBACKUP_START(conn)                                                          \
     do {                                                                                       \
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE)); \
-        (conn)->hot_backup_timestamp = (conn)->txn_global.last_ckpt_timestamp;                 \
-        __wt_atomic_store_uint64_relaxed(&(conn)->hot_backup_start, (conn)->ckpt.most_recent); \
-        (conn)->hot_backup_list = NULL;                                                        \
+        (conn)->backup.timestamp = (conn)->txn_global.last_ckpt_timestamp;                     \
+        __wt_atomic_store_uint64_relaxed(&(conn)->backup.start, (conn)->ckpt.most_recent);     \
+        (conn)->backup.list = NULL;                                                            \
     } while (0)
 
 /*
@@ -953,12 +965,7 @@ struct __wt_connection_impl {
     uint64_t *recovery_ckpt_snapshot;
     uint32_t recovery_ckpt_snapshot_count;
 
-    WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
-    wt_shared uint64_t
-      hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
-    wt_timestamp_t hot_backup_timestamp; /* Stable timestamp of checkpoint for the open backup */
-    char **hot_backup_list;              /* Hot backup file list */
-    uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
+    WT_CONN_BACKUP backup; /* Hot backup subsystem */
 
     WT_CKPT_CONNECTION ckpt;
 
