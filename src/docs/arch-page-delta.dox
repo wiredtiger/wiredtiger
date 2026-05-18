@@ -16,7 +16,7 @@ On disk the block for a page therefore contains either:
 - A full page image plus one or more delta images.
 
 A <i>delta chain</i> is the sequence of deltas that must be applied to the most
-recent full image (the "base image") to reconstruct the latest page state. Its
+recent full page image (the "base image") to reconstruct the latest page state. Its
 maximum length is bounded by the \c page_delta.max_consecutive_delta configuration
 option.
 
@@ -37,7 +37,7 @@ Page delta behavior is controlled via the \c page_delta sub-config at
   full page write.
 - \c page_delta.max_consecutive_delta (int): maximum number of deltas in a chain
   for a single page. When this limit would be exceeded, reconciliation writes a
-  full image and resets the chain.
+  full page image and resets the chain.
 
 These settings are stored at the connection level in \c WT_PAGE_DELTA_CONFIG
 (see \c src/include/connection.h). The flags \c WT_LEAF_PAGE_DELTA and
@@ -56,16 +56,16 @@ types follow different paths:
   is called if the page has not undergone an in-memory split and the reconciliation
   produced a single block result.
 - For an internal page: the delta decision and entry packing happen concurrently
-  with building the full image. Modified children are packed into the delta buffer
-  as the child-walk proceeds. Once the full image is complete, the write generation
-  field is stamped onto the already-populated delta buffer.
+  with building the full page image. Modified children are packed into the delta buffer
+  as the child-walk proceeds. Once the full page image is complete, the write generation
+  field is updated onto the already-populated delta buffer.
 
 After a candidate delta is built, the write path validates whether the delta can
-be written or whether a full page write is required, and takes the decision accordingly:
+be written or whether a full page image is required, and takes the decision accordingly:
 
 1. If \c block_meta->delta_count has reached \c max_consecutive_delta, the delta
-   is rejected and a full image is written instead, resetting the chain.
-2. If the built delta's size exceeds \c delta_pct percent of the full image, it
+   is rejected and a full page image is written instead, resetting the chain.
+2. If the built delta's size exceeds \c delta_pct percent of the full page image, it
    is also rejected.
 3. Several structural reasons can also prevent a delta from being used: the
    reconcile produced multiple blocks, the page has no stable LSN yet, the
@@ -83,7 +83,7 @@ reconciliation (\c __rec_selected_key_changed), it packs a key/value entry into
 the delta buffer via \c __wti_rec_pack_delta_row_leaf. Only keys that actually
 changed are included, making the delta compact for workloads with sparse updates.
 Each packed entry carries full MVCC time-window metadata so reconstruction can
-respect visibility rules identically to a full image.
+respect visibility rules identically to a full page image.
 
 @subsection pd_internal Internal page deltas
 
