@@ -273,6 +273,7 @@ retry:
          * the stale name and look up the latest one again before retrying. FIXME-WT-16476: no need
          * to yield if we no longer take the checkpoint lock.
          */
+        WT_STAT_CONN_INCR(session, layered_gc_verify_stable_cursor_busy);
         __wt_free(session, checkpoint_name);
         __wt_yield();
         goto retry;
@@ -281,12 +282,10 @@ retry:
 
     stable_cursor->set_key(stable_cursor, key);
     ret = stable_cursor->search(stable_cursor);
-    WT_ERR_NOTFOUND_OK(ret, true);
-
-    if (ret != 0)
-        WT_ERR_PANIC(session, WT_PANIC,
+    if (ret == WT_NOTFOUND)
+        WT_ERR_MSG(session, WT_ERROR,
           "GC verify: last update is a data value but key is missing on the stable table");
-    ret = 0;
+    WT_ERR(ret);
 
 err:
     if (stable_cursor != NULL)

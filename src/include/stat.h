@@ -1011,6 +1011,7 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
+    int64_t layered_gc_verify_stable_cursor_busy;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_follower;
     int64_t layered_table_manager_tables;
     int64_t live_restore_bytes_copied;

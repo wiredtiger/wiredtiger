@@ -620,6 +620,8 @@ conn_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
+    LayeredStat('layered_gc_verify_stable_cursor_busy',
+        'layered GC verify: retries opening stable checkpoint cursor due to concurrent checkpoint'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 
