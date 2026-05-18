@@ -742,7 +742,6 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
   bool error_on_ts_ordering, WT_UPDATE_VECTOR *updates, WT_REC_HS_KEY_STATE *state,
   WT_REC_HS_STATS *stats)
 {
-    WT_DECL_RET;
     WT_UPDATE *prev_upd, *upd;
     uint64_t txnid, txnid_prepared;
     bool check_prepared, skip;
@@ -787,7 +786,7 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
              */
             if (error_on_ts_ordering) {
                 WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
-                WT_ERR_MSG(
+                WT_RET_MSG(
                   session, EBUSY, "out-of-order timestamp update detected, aborting eviction");
             }
 
@@ -822,7 +821,7 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
          * with prepared commit and rollback. We always insert the newest history store value as a
          * full value and there is also no need to push the onpage value to the stack.
          */
-        WT_ERR(__wt_update_vector_push(updates, upd));
+        WT_RET(__wt_update_vector_push(updates, upd));
 
         prev_upd = upd;
 
@@ -861,8 +860,7 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
             state->no_ts_upd = upd;
         }
     }
-err:
-    return (ret);
+    return (0);
 }
 
 /*
@@ -875,13 +873,16 @@ __rec_hs_handle_oldest_tombstone(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   const WT_ITEM *key, bool error_on_ts_ordering, bool hs_flag_set, WT_UPDATE *oldest_upd,
   WT_UPDATE **no_ts_updp)
 {
-    WT_DECL_RET;
+    int ret;
 
     if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
       oldest_upd->upd_start_ts == WT_TS_NONE) {
-        WT_ERR_MSG_CHK(session,
-          __wti_rec_hs_delete_key(session, hs_cursor, btree_id, key, false, error_on_ts_ordering),
-          "failed to clear stale history store entries before insert: btree=%" PRIu32, btree_id);
+        ret =
+          __wti_rec_hs_delete_key(session, hs_cursor, btree_id, key, false, error_on_ts_ordering);
+        if (ret != 0)
+            WT_RET_MSG(session, ret,
+              "failed to clear stale history store entries before insert: btree=%" PRIu32,
+              btree_id);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
 
@@ -889,8 +890,7 @@ __rec_hs_handle_oldest_tombstone(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         if (oldest_upd == *no_ts_updp)
             *no_ts_updp = NULL;
     }
-err:
-    return (ret);
+    return (0);
 }
 
 /*
