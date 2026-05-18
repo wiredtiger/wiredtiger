@@ -667,7 +667,7 @@ typedef struct {
     uint64_t cache_hs_key_processed;
     uint64_t cache_hs_update_processed;
     bool hs_stats_updated;
-} WT_REC_HS_STATS;
+} __rec_hs_stats;
 
 /*
  * __rec_hs_select_newest --
@@ -681,8 +681,8 @@ typedef struct {
  */
 static void
 __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
-  uint64_t txnid_prepared, bool *check_preparedp, WT_REC_HS_KEY_STATE *state,
-  WT_REC_HS_STATS *stats, bool *skipp)
+  uint64_t txnid_prepared, bool *check_preparedp, WT_REC_HS_KEY_STATE *state, __rec_hs_stats *stats,
+  bool *skipp)
 {
     *skipp = false;
     /*
@@ -740,7 +740,7 @@ __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
 static int
 __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDATE *ref_upd,
   bool error_on_ts_ordering, WT_UPDATE_VECTOR *updates, WT_REC_HS_KEY_STATE *state,
-  WT_REC_HS_STATS *stats)
+  __rec_hs_stats *stats)
 {
     WT_UPDATE *prev_upd, *upd;
     uint64_t txnid, txnid_prepared;
@@ -961,7 +961,7 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
   WT_REF *ref, const WT_ITEM *key, WT_UPDATE_VECTOR *updates, WT_UPDATE *newest_hs,
   WT_UPDATE *newest_hs_tombstone, WT_SAVE_UPD *list, WT_ITEM *full_value, WT_ITEM *prev_full_value,
   bool enable_reverse_modify, bool error_on_ts_ordering, WT_UPDATE **no_ts_updp, bool *squashedp,
-  WT_REC_HS_STATS *statsp)
+  __rec_hs_stats *statsp)
 {
     WT_DECL_RET;
     WT_ITEM *modify_value, *tmp;
@@ -1152,7 +1152,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     WT_DECL_ITEM(prev_full_value);
     WT_DECL_RET;
     WT_REC_HS_KEY_STATE key_state;
-    WT_REC_HS_STATS stats;
+    __rec_hs_stats stats;
     WT_REF *ref;
     WT_SAVE_UPD *list;
     WT_UPDATE *oldest_upd, *ref_upd, *upd;
