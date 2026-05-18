@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __ckpt_init_extlists(WT_SESSION_IMPL *, WT_BLOCK_CKPT *);
+static int __ckpt_init_extlist(WT_SESSION_IMPL *, WT_BLOCK_CKPT *);
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
 static int __ckpt_validate_state(WT_SESSION_IMPL *, WT_BLOCK *);
@@ -613,12 +613,12 @@ __ckpt_validate_state(WT_SESSION_IMPL *session, WT_BLOCK *block)
 }
 
 /*
- * __ckpt_init_extlists --
+ * __ckpt_init_extlist --
  *     Clean up and reinitialize the checkpoint-related extent lists on the live checkpoint
  *     structure (ckpt_avail, ckpt_alloc, ckpt_discard).
  */
 static int
-__ckpt_init_extlists(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
+__ckpt_init_extlist(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
     /*
      * Extents newly available as a result of deleting previous checkpoints are added to a list of
@@ -676,7 +676,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * This function is the first step, the second step is in the resolve function.
      */
     WT_RET(__ckpt_validate_state(session, block));
-    WT_RET(__ckpt_init_extlists(session, ci));
+    WT_RET(__ckpt_init_extlist(session, ci));
 
     /*
      * To delete a checkpoint, we need checkpoint information for it and the subsequent checkpoint
