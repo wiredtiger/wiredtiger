@@ -41,14 +41,14 @@ class PerfStat:
                  input_offset: int = 0,
                  output_precision: int = 0,
                  pattern: str = None,
-                 stat_file: str = 'test.stat',
+                 stat_files: List[str] = None,
                  conversion_function=int):
         self.short_label: str = short_label
         self.output_label: str = output_label
         self.input_offset: int = input_offset
         self.output_precision: int = output_precision
         self.pattern: str = pattern
-        self.stat_file = stat_file
+        self.stat_files: List[str] = stat_files if stat_files is not None else ['test.stat']
         self.conversion_function = conversion_function
         self.values = []
 
@@ -58,6 +58,9 @@ class PerfStat:
             self.values.append(converted_value)
 
     def find_stat(self, test_stat_path: str):
+        if not os.path.exists(test_stat_path):
+            return []
+
         matches = []
         for line in open(test_stat_path):
             match = re.search(self.pattern, line)
@@ -104,8 +107,13 @@ class PerfStatMinMax(PerfStat):
 class PerfStatCount(PerfStat):
     def find_stat(self, test_stat_path: str):
         """Return the total number of times a pattern matched"""
+
+        paths = glob.glob(test_stat_path)
+        if not paths:
+            return []
+
+        test_stat_path = paths[0]
         total = 0
-        test_stat_path = glob.glob(test_stat_path)[0]
         for line in open(test_stat_path):
             match = re.search(self.pattern, line)
             if match:
@@ -114,14 +122,16 @@ class PerfStatCount(PerfStat):
 
 
 class PerfStatLatency(PerfStat):
-    def __init__(self, short_label: str, stat_file: str, output_label: str, ops: List[str], num_max: int):
+    def __init__(self, short_label: str, stat_files: List[str], output_label: str, ops: List[str], num_max: int):
         super().__init__(short_label=short_label,
-                         stat_file=stat_file,
+                         stat_files=stat_files,
                          output_label=output_label)
         self.num_max = num_max
         self.ops = ops
 
     def find_stat(self, test_stat_path: str):
+        if not os.path.exists(test_stat_path):
+            return []
         values = []
         for line in open(test_stat_path):
             as_dict = json.loads(line)
@@ -169,6 +179,25 @@ class PerfStatLatencyWorkgen(PerfStat):
                 'values': sorted(self.values)
             })
         return as_list
+
+
+class PerfStatMonitorAvg(PerfStat):
+    """Reads a single named field from monitor.json and reports the average across all samples."""
+    def __init__(self, short_label: str, output_label: str, op: str, field: str):
+        super().__init__(short_label=short_label,
+                         stat_files=['monitor.json'],
+                         output_label=output_label)
+        self.op = op
+        self.field = field
+
+    def find_stat(self, test_stat_path: str):
+        if not os.path.exists(test_stat_path):
+            return []
+        values = []
+        for line in open(test_stat_path):
+            as_dict = json.loads(line)
+            values.append(as_dict["wtperf"][self.op][self.field])
+        return values
 
 
 class PerfStatDBSize(PerfStat):

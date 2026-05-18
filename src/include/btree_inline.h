@@ -23,7 +23,7 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
      * Once a tree is no longer empty, eviction should pay attention to it, and it's no longer
      * possible to bulk-load into it.
      */
-    if (!btree->original)
+    if (!__wt_atomic_load_uint8_acquire(&btree->original))
         return;
 
     /*
@@ -2487,7 +2487,7 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
     probability = WT_SKIP_PROBABILITY;
 #ifdef HAVE_DIAGNOSTIC
     /* Go from 1/4 chance of having a link to the next element to ~90%. */
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
         probability = 0xe6666665; /* ~90% of the value of uint32 max. */
 #endif
 
