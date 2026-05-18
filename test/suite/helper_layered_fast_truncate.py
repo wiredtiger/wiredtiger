@@ -100,9 +100,8 @@ class LayeredFastTruncateConfigMixin:
     def truncate(self, start_key=None, stop_key=None, commit_timestamp=None):
         """
         Truncate [start_key, stop_key] inclusive on self.uri. Either bound
-        may be None for an open-ended side (WT resolves NULL to the
-        first/last visible key). If commit_timestamp is set, the truncate
-        transaction commits at that timestamp.
+        may be None for an open-ended side. If commit_timestamp is set,
+        the truncate transaction commits at that timestamp.
         """
         start = stop = None
         try:
