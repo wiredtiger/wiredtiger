@@ -2547,6 +2547,48 @@ skip:
 }
 
 /*
+ * __checkpoint_skip_ckptlist --
+ *     Return true if the checkpoint list indicates the checkpoint can be skipped: the last two
+ *     entries share the same name (or both use the internal name prefix) and fewer than two
+ *     checkpoints are being deleted. Requires at least two entries; returns false for shorter lists
+ *     so callers need not guard against out-of-bounds reads. If countp is non-NULL it is set to the
+ *     number of entries in the list regardless of the return value.
+ */
+static bool
+__checkpoint_skip_ckptlist(WT_CKPT *ckptbase, u_int *countp)
+{
+    WT_CKPT *ckpt;
+    const char *name;
+    int deleted;
+
+    deleted = 0;
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_DELETE))
+            ++deleted;
+    }
+
+    if (countp != NULL)
+        *countp = (u_int)(ckpt - ckptbase);
+
+    /* Need at least two entries to compare names; guard before any dereference. */
+    if (ckpt <= ckptbase + 1 || deleted >= 2)
+        return (false);
+
+    /* List has at least two real entries: dereferences are safe. */
+    name = (ckpt - 1)->name;
+    return (strcmp(name, (ckpt - 2)->name) == 0 ||
+      (WT_PREFIX_MATCH(name, WT_CHECKPOINT) && WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)));
+}
+
+#ifdef HAVE_UNITTEST
+bool
+__ut_checkpoint_skip_ckptlist(WT_CKPT *ckptbase)
+{
+    return (__checkpoint_skip_ckptlist(ckptbase, NULL));
+}
+#endif
+
+/*
  * __checkpoint_mark_skip --
  *     Figure out whether the checkpoint can be skipped for a tree.
  */
@@ -2578,42 +2620,25 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
     if (!btree->modified && !force && !bm->can_truncate(bm, session)) {
-        WT_CKPT *ckpt = NULL;
-        int deleted = 0;
+        u_int count = 0;
 
-        WT_CKPT_FOREACH (ckptbase, ckpt) {
-            if (F_ISSET(ckpt, WT_CKPT_DELETE))
-                ++deleted;
-        }
-
-        /*
-         * Complicated test: if the tree is clean and last two checkpoints have the same name
-         * (correcting for internal checkpoint names with their generational suffix numbers), we can
-         * skip the checkpoint, there's nothing to do. The exception is if we're deleting two or
-         * more checkpoints: then we may save space.
-         */
-        if (ckpt > ckptbase + 1 && deleted < 2) {
-            const char *name = (ckpt - 1)->name;
-            if (strcmp(name, (ckpt - 2)->name) == 0 ||
-              (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
-                WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT))) {
-                F_SET(btree, WT_BTREE_SKIP_CKPT);
-                /*
-                 * If there are potentially extra checkpoints to delete, we set the timer to recheck
-                 * later. If there are at most two checkpoints, the current one and possibly a
-                 * previous one, then we know there are no additional ones to delete. In that case,
-                 * set the timer to forever. If the table gets dirtied or a checkpoint is forced
-                 * that will clear the timer.
-                 */
-                if (ckpt - ckptbase > 2) {
-                    uint64_t timer = 0;
-                    __wt_seconds(session, &timer);
-                    timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
-                    WT_BTREE_CLEAN_CKPT(session, btree, timer);
-                } else
-                    WT_BTREE_CLEAN_CKPT(session, btree, WT_BTREE_CLEAN_CKPT_FOREVER);
-                return (0);
-            }
+        if (__checkpoint_skip_ckptlist(ckptbase, &count)) {
+            F_SET(btree, WT_BTREE_SKIP_CKPT);
+            /*
+             * If there are potentially extra checkpoints to delete, we set the timer to recheck
+             * later. If there are at most two checkpoints, the current one and possibly a previous
+             * one, then we know there are no additional ones to delete. In that case, set the timer
+             * to forever. If the table gets dirtied or a checkpoint is forced that will clear the
+             * timer.
+             */
+            if (count > 2) {
+                uint64_t timer = 0;
+                __wt_seconds(session, &timer);
+                timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
+                WT_BTREE_CLEAN_CKPT(session, btree, timer);
+            } else
+                WT_BTREE_CLEAN_CKPT(session, btree, WT_BTREE_CLEAN_CKPT_FOREVER);
+            return (0);
         }
     }
 
