@@ -309,6 +309,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
 
+  {"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0,
+    V_GLOBAL_PREFETCH_DEFAULT},
+
   {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0, V_GLOBAL_PRECISE_CHECKPOINT},
 
   {"preserve_prepared", "Preserve prepared", C_BOOL, 50, 0, 0, V_GLOBAL_PRESERVE_PREPARED},
@@ -422,8 +425,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50,
     100, V_GLOBAL_TIERED_STORAGE_FLUSH_FREQUENCY},
 
-  {"tiered_storage.storage_source",
-    "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)",
+  {"tiered_storage.storage_source", "storage source used (dir_store | none | off)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_TIERED_STORAGE_STORAGE_SOURCE},
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,

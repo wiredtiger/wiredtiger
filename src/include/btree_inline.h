@@ -23,7 +23,7 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
      * Once a tree is no longer empty, eviction should pay attention to it, and it's no longer
      * possible to bulk-load into it.
      */
-    if (!btree->original)
+    if (!__wt_atomic_load_uint8_acquire(&btree->original))
         return;
 
     /*
@@ -292,50 +292,13 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
     *shared = false;
 
     WT_RET(__wt_config_gets(session, bt_cfg, "block_manager", &cval));
-    *shared = (WT_SUFFIX_MATCH(uri, ".wt_stable") || WT_CONFIG_LIT_MATCH("disagg", cval));
+    *shared = (WT_URI_IS_STABLE(uri) || WT_CONFIG_LIT_MATCH("disagg", cval));
 
     /* Ingest btrees must never be shared. */
-    WT_ASSERT_ALWAYS(session, !(*shared && WT_SUFFIX_MATCH(uri, ".wt_ingest")),
-      "Ingest btree incorrectly created as shared.");
+    WT_ASSERT_ALWAYS(
+      session, !(*shared && WT_URI_IS_INGEST(uri)), "Ingest btree incorrectly created as shared.");
 
     return (0);
-}
-
-/*
- * __wt_btree_set_size --
- *     Set the size of the tree.
- */
-static WT_INLINE void
-__wt_btree_set_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    (void)__wt_atomic_store_uint64(&S2BT(session)->bytes_total, size);
-}
-
-/*
- * __wt_btree_increase_size --
- *     Increase the size of the tree.
- */
-static WT_INLINE void
-__wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    (void)__wt_atomic_add_uint64(&S2BT(session)->bytes_total, size);
-}
-
-/*
- * __wt_btree_decrease_size --
- *     Decrease the size of the tree.
- */
-static WT_INLINE void
-__wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
-{
-    /*
-     * FIXME WT-16660: re-enable this assert once the disagg delta block size accounting bug is
-     * fixed.
-     */
-    if (__wt_atomic_load_uint64(&S2BT(session)->bytes_total) < size)
-        __wt_atomic_store_uint64(&S2BT(session)->bytes_total, 0);
-    else
-        (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
 }
 
 /*
@@ -2541,7 +2504,7 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
     probability = WT_SKIP_PROBABILITY;
 #ifdef HAVE_DIAGNOSTIC
     /* Go from 1/4 chance of having a link to the next element to ~90%. */
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
         probability = 0xe6666665; /* ~90% of the value of uint32 max. */
 #endif
 

@@ -499,6 +499,8 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
+    CheckpointStat('checkpoint_disagg_metadata_apply', 'metadata operations applied during disaggregated checkpoint', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_disagg_metadata_unstable', 'metadata operations skipped during disaggregated checkpoint because they were not stable', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_generation', 'generation', 'no_clear,no_scale'),
@@ -536,6 +538,7 @@ conn_stats = [
     CheckpointStat('checkpoint_state', 'progress state', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_stop_stress_active', 'stop timing stress active', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_sync', 'number of files synced'),
+    CheckpointStat('checkpoint_sync_rec_pct', 'the percentage of checkpoint sync time spent in reconciliation across all threads', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_max', 'max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_min', 'min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_time_recent', 'most recent time (msecs)', 'no_clear,no_scale'),
@@ -590,8 +593,10 @@ conn_stats = [
     ##########################################
     DisaggStat('disagg_abandon_checkpoint_failed', 'abandon checkpoints failed'),
     DisaggStat('disagg_abandon_checkpoint_succeed', 'abandon checkpoints succeeded'),
+    DisaggStat('disagg_apply_checkpoint_meta_time', 'apply checkpoint metadata most recent time (msecs)'),
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
+    DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
@@ -625,6 +630,8 @@ conn_stats = [
     ##########################################
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
+    LayeredStat('layered_truncate_list_search_calls', 'the number of times the truncate list was searched'),
+    LayeredStat('layered_truncate_list_search_entries_walked', 'the number of truncate list entries walked during search'),
 
     ##########################################
     # Live Restore statistics
@@ -823,19 +830,20 @@ conn_stats = [
     ##########################################
     # Prefetch statistics
     ##########################################
-    PrefetchStat('prefetch_attempts', 'pre-fetch triggered by page read'),
+    PrefetchStat('prefetch_attempts', 'pre-fetch attempted, session has pre-fetching enabled'),
+    PrefetchStat('prefetch_attempts_succeeded', 'pre-fetch session check passed, pre-fetch work issued to btree'),
     PrefetchStat('prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
-    PrefetchStat('prefetch_failed_start', 'number of times pre-fetch failed to start'),
     PrefetchStat('prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
     PrefetchStat('prefetch_pages_queued', 'pre-fetch pages queued'),
     PrefetchStat('prefetch_pages_read', 'pre-fetch pages read in background'),
-    PrefetchStat('prefetch_skipped', 'pre-fetch not triggered by page read'),
     PrefetchStat('prefetch_skipped_disk_read_count', 'pre-fetch not triggered due to disk read count'),
     PrefetchStat('prefetch_skipped_error_ok', 'pre-fetch skipped reading in a page due to harmless error'),
     PrefetchStat('prefetch_skipped_internal_page', 'could not perform pre-fetch on internal page'),
     PrefetchStat('prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
+    PrefetchStat('prefetch_skipped_internal_split_gen', 'pre-fetch skipped traversal of internal page due to active split generation'),
     PrefetchStat('prefetch_skipped_no_flag_set', 'could not perform pre-fetch on ref without the pre-fetch flag set'),
     PrefetchStat('prefetch_skipped_no_valid_dhandle', 'pre-fetch not triggered as there is no valid dhandle'),
+    PrefetchStat('prefetch_skipped_queue_full', 'pre-fetch not triggered, pre-fetch queue is full'),
     PrefetchStat('prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
     PrefetchStat('prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
 
@@ -877,6 +885,8 @@ conn_stats = [
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_publish_fail', 'table publish failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_publish_success', 'table publish successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_success', 'table salvage successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
@@ -953,6 +963,8 @@ conn_stats = [
     TxnStat('txn_set_ts_oldest_upd', 'set timestamp oldest updates'),
     TxnStat('txn_set_ts_out_of_order', 'set timestamp global oldest timestamp set to be more recent than the global stable timestamp'),
     TxnStat('txn_set_ts_stable', 'set timestamp stable calls'),
+    TxnStat('txn_set_ts_stable_disagg_epoch', 'set timestamp stable disaggregated schema epoch calls'),
+    TxnStat('txn_set_ts_stable_disagg_epoch_upd', 'set timestamp stable disaggregated schema epoch updates'),
     TxnStat('txn_set_ts_stable_upd', 'set timestamp stable updates'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
     TxnStat('txn_walk_sessions', 'transaction walk of concurrent sessions'),

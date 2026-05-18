@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- * 	All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -111,8 +111,6 @@ struct __wt_cache_eviction_controls;
 typedef struct __wt_cache_eviction_controls WT_CACHE_EVICTION_CONTROLS;
 struct __wt_cache_pool;
 typedef struct __wt_cache_pool WT_CACHE_POOL;
-struct __wt_capacity;
-typedef struct __wt_capacity WT_CAPACITY;
 struct __wt_cell;
 typedef struct __wt_cell WT_CELL;
 struct __wt_cell_kv;
@@ -171,6 +169,22 @@ struct __wt_config_entry;
 typedef struct __wt_config_entry WT_CONFIG_ENTRY;
 struct __wt_config_parser_impl;
 typedef struct __wt_config_parser_impl WT_CONFIG_PARSER_IMPL;
+struct __wt_conn_capacity;
+typedef struct __wt_conn_capacity WT_CONN_CAPACITY;
+struct __wt_conn_debug;
+typedef struct __wt_conn_debug WT_CONN_DEBUG;
+struct __wt_conn_evict_config;
+typedef struct __wt_conn_evict_config WT_CONN_EVICT_CONFIG;
+struct __wt_conn_extensions;
+typedef struct __wt_conn_extensions WT_CONN_EXTENSIONS;
+struct __wt_conn_prefetch;
+typedef struct __wt_conn_prefetch WT_CONN_PREFETCH;
+struct __wt_conn_stat_log;
+typedef struct __wt_conn_stat_log WT_CONN_STAT_LOG;
+struct __wt_conn_sweep;
+typedef struct __wt_conn_sweep WT_CONN_SWEEP;
+struct __wt_conn_tiered;
+typedef struct __wt_conn_tiered WT_CONN_TIERED;
 struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;
@@ -413,6 +427,8 @@ struct __wt_thread_check;
 typedef struct __wt_thread_check WT_THREAD_CHECK;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_throttle;
+typedef struct __wt_throttle WT_THROTTLE;
 struct __wt_tiered;
 typedef struct __wt_tiered WT_TIERED;
 struct __wt_tiered_object;

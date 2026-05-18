@@ -220,6 +220,7 @@ GetLastError
 GetModuleHandleExW
 GetProcAddress
 Getters
+Gh
 Github
 Golomb
 HANDLEOPS
@@ -272,6 +273,7 @@ LOGREC
 LOGSCAN
 LOGSLOT
 LRU
+LSAN
 LSB
 LSBs
 LSM
@@ -686,6 +688,8 @@ blkcache
 blkincr
 blkmod
 blkmods
+blockhash
+blockqh
 bm
 bmd
 bms
@@ -907,6 +911,7 @@ dirlist
 dirstore
 disagg
 disaggregated
+discoverable
 disproportionally
 distros
 disttop
@@ -1088,6 +1093,7 @@ handleops
 handlep
 hardcoded
 hashmap
+hashq
 hashsize
 hashtable
 havesize
@@ -1156,6 +1162,7 @@ intr
 intrinsics
 ints
 inuse
+invariants
 io
 ip
 isalnum
@@ -1384,6 +1391,7 @@ np
 npos
 nrecords
 nrows
+ns
 nsec
 nsecs
 nset
@@ -1434,6 +1442,7 @@ pR
 pT
 packv
 pagesize
+pali
 palite
 param
 params
@@ -1757,6 +1766,7 @@ tombstoned
 toml
 toolchain
 totalsec
+tp
 traceapi
 tracepat
 transactional
@@ -1784,7 +1794,6 @@ txp
 txt
 typedef
 typeof
-uS
 ubuntu
 uid
 uint

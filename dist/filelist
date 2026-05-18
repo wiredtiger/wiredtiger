@@ -21,6 +21,7 @@ src/block_disagg/block_disagg_addr.c
 src/block_disagg/block_disagg_ckpt.c
 src/block_disagg/block_disagg_mgr.c
 src/block_disagg/block_disagg_open.c
+src/block_disagg/block_disagg_size.c
 src/block_disagg/block_disagg_read.c
 src/block_disagg/block_disagg_unsup.c
 src/block_disagg/block_disagg_write.c
@@ -119,10 +120,15 @@ src/cursor/cur_std.c
 src/cursor/cur_table.c
 src/cursor/cur_version.c
 src/evict/evict_conn.c
+src/evict/evict_dispatch.c
+src/evict/evict_exclusive.c
 src/evict/evict_file.c
-src/evict/evict_lru.c
 src/evict/evict_page.c
+src/evict/evict_queue.c
 src/evict/evict_stat.c
+src/evict/evict_thread.c
+src/evict/evict_verbose.c
+src/evict/evict_walk.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_verify.c
@@ -214,6 +220,7 @@ src/schema/schema_open.c
 src/schema/schema_plan.c
 src/schema/schema_project.c
 src/schema/schema_stat.c
+src/schema/schema_publish.c
 src/schema/schema_truncate.c
 src/schema/schema_util.c
 src/schema/schema_worker.c
