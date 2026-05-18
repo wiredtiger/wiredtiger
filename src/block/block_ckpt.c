@@ -621,19 +621,6 @@ __ckpt_validate_state(WT_SESSION_IMPL *session, WT_BLOCK *block)
 static int
 __ckpt_reinit_extlists(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
-    /*
-     * Extents newly available as a result of deleting previous checkpoints are added to a list of
-     * extents. The list should be empty, but as described above, there is no "free the checkpoint
-     * information" call into the block manager; if there was an error in an upper level that
-     * resulted in some previous checkpoint never being resolved, the list may not be empty. We
-     * should have caught that with the "checkpoint in progress" test, but it doesn't cost us
-     * anything to be cautious.
-     *
-     * We free the checkpoint's allocation and discard extent lists as part of the resolution step,
-     * not because they're needed at that time, but because it's potentially a lot of work, and
-     * waiting allows the btree layer to continue eviction sooner. As for the checkpoint-available
-     * list, make sure they get cleaned out.
-     */
     __wti_block_extlist_free(session, &ci->ckpt_avail);
     WT_RET(__wti_block_extlist_init(session, &ci->ckpt_avail, "live", "ckpt_avail", true));
     __wti_block_extlist_free(session, &ci->ckpt_alloc);
@@ -677,6 +664,20 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * This function is the first step, the second step is in the resolve function.
      */
     WT_RET(__ckpt_validate_state(session, block));
+
+    /*
+     * Extents newly available as a result of deleting previous checkpoints are added to a list of
+     * extents. The list should be empty, but as described above, there is no "free the checkpoint
+     * information" call into the block manager; if there was an error in an upper level that
+     * resulted in some previous checkpoint never being resolved, the list may not be empty. We
+     * should have caught that with the "checkpoint in progress" test, but it doesn't cost us
+     * anything to be cautious.
+     *
+     * We free the checkpoint's allocation and discard extent lists as part of the resolution step,
+     * not because they're needed at that time, but because it's potentially a lot of work, and
+     * waiting allows the btree layer to continue eviction sooner. As for the checkpoint-available
+     * list, make sure they get cleaned out.
+     */
     WT_RET(__ckpt_reinit_extlists(session, ci));
 
     /*
