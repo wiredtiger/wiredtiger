@@ -351,8 +351,7 @@ TEST_CASE_METHOD(layered_truncate_visibility_fixture,
     const wt_timestamp_t overlapping_durable_ts = 40;
 
     /* Truncate at txn 10: already committed, over 0150-0300. */
-    WT_TRUNCATE *overlapping = add_truncate(
-      overlapping_txn_id, overlapping_start_ts, overlapping_durable_ts, "0150", "0300");
+    add_truncate(overlapping_txn_id, overlapping_start_ts, overlapping_durable_ts, "0150", "0300");
 
     txn_id = 60;
     wt_timestamp_t read_timestamp = 30;
