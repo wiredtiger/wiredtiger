@@ -45,9 +45,15 @@ __layered_assert_tombstone_has_value_on_stable_btree(
               "During ingest drain, aborted updates on the stable btree must be "
               "rolled-back preserved prepared transactions");
 
-        if (upd != NULL)
+        if (upd != NULL) {
             has_value = upd->type != WT_UPDATE_TOMBSTONE;
-        else {
+            WT_ASSERT_ALWAYS(session,
+              !has_value ||
+                (upd->prepared_id != WT_PREPARED_ID_NONE &&
+                  upd->prepare_state == WT_PREPARE_RESOLVED),
+              "During ingest drain, a value on the stable btree must be a resolved preserved "
+              "prepared transaction");
+        } else {
             WT_TIME_WINDOW tw;
             bool tw_found = __wt_read_cell_time_window(cbt, &tw);
             has_value = tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw);
