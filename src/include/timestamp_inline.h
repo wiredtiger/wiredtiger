@@ -333,5 +333,5 @@ __wt_get_stable_disaggregated_schema_epoch(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
     return (__wt_atomic_load_bool_acquire(&txn_global->has_stable_disaggregated_schema_epoch) ?
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch) :
-        WT_TS_NONE);
+        WT_SCHEMA_EPOCH_NONE);
 }
