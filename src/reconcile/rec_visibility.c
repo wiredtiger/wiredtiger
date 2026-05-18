@@ -1270,7 +1270,6 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
       upd_select->upd->prepared_id != WT_PREPARED_ID_NONE) {
         *has_newer_updatesp = true;
         upd_select->upd = NULL;
-        found_last_upd_to_keep = false;
     }
 
     /*
