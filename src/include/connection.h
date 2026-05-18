@@ -191,10 +191,12 @@ struct __wt_disagg_metadata_op {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
-    /* Metadata type operation. */
-    WT_SHARED_METADATA_OP metadata_op;
+    WT_SHARED_METADATA_OP metadata_op; /* The type of the metadata operation. */
+    wt_timestamp_t schema_epoch;       /* The schema epoch of the metadata operation. */
+
     /* Skip the drop operation in the next checkpoint and defer it to the one after. */
     bool deferred;
+
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
@@ -538,6 +540,18 @@ struct __wt_conn_extensions {
 };
 
 /*
+ * WT_CONN_OPTRACK --
+ *	Operation tracking subsystem fields, grouping the spinlock, path,
+ *	map file handle, and cached PID used by the optrack server.
+ */
+struct __wt_conn_optrack {
+    WT_SPINLOCK map_spinlock; /* Translation file spinlock */
+    const char *path;         /* Directory for operation logs */
+    WT_FH *map_fh;            /* Name to id translation file */
+    uintmax_t pid;            /* Cache the process ID */
+};
+
+/*
  * WT_CONN_PREFETCH --
  *	Prefetch subsystem fields, grouping the thread group, queue, lock, and
  *	configuration that drive the prefetch server.
@@ -753,6 +767,44 @@ typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
 } WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
+ * WT_CONN_DEBUG --
+ *     Connection debug-mode configuration and state.
+ */
+struct __wt_conn_debug {
+    /* Access to these fields is protected by conn->log_mgr.debug_log_retention_lock. */
+    WT_LSN *ckpt;                /* Debug mode checkpoint LSNs. */
+    size_t ckpt_alloc;           /* Checkpoint retention allocated. */
+    wt_shared uint32_t ckpt_cnt; /* Checkpoint retention number. */
+    wt_shared uint32_t log_cnt;  /* Log file retention count */
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
+#define WT_CONN_DEBUG_CONFIGURATION 0x00002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x00004u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x00008u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x00010u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x00020u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00200u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00400u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x00800u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x01000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x02000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x04000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x08000u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x10000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
+
+    /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE disagg_address_cookie_upgrade;
+    bool disagg_address_cookie_optional_field;
+};
+
+/*
  * WT_CONN_EVICT_CONFIG --
  *     Eviction thread group configuration and management fields extracted from WT_CONNECTION_IMPL.
  */
@@ -823,10 +875,7 @@ struct __wt_connection_impl {
 
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
 
-    const char *optrack_path;         /* Directory for operation logs */
-    WT_FH *optrack_map_fh;            /* Name to id translation file. */
-    WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
-    uintmax_t optrack_pid;            /* Cache the process ID. */
+    WT_CONN_OPTRACK optrack; /* Operation tracking subsystem */
 
 #ifdef HAVE_CALL_LOG
     /* File stream used for writing to the call log. */
@@ -1026,33 +1075,7 @@ struct __wt_connection_impl {
     bool mmap_all; /* use mmap for all I/O on data files */
     int page_size; /* OS page size for mmap alignment */
 
-    /* Access to these fields is protected by the debug_log_retention_lock. */
-    WT_LSN *debug_ckpt;                /* Debug mode checkpoint LSNs. */
-    size_t debug_ckpt_alloc;           /* Checkpoint retention allocated. */
-    wt_shared uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
-    wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
-
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
-#define WT_CONN_DEBUG_CONFIGURATION 0x00002u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x00004u
-#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x00008u
-#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x00010u
-#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x00020u
-#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00200u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00400u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x00800u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x01000u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x02000u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x04000u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x08000u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x10000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t debug_flags;
+    WT_CONN_DEBUG debug; /* Debug-mode configuration */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001ull
@@ -1069,10 +1092,6 @@ struct __wt_connection_impl {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     /* Categories of assertions that can be runtime enabled. */
     uint64_t extra_diagnostics_flags;
-
-    /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
-    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE debug_disagg_address_cookie_upgrade;
-    bool debug_disagg_address_cookie_optional_field;
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];

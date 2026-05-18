@@ -1387,6 +1387,7 @@ np
 npos
 nrecords
 nrows
+ns
 nsec
 nsecs
 nset
@@ -1789,7 +1790,6 @@ txp
 txt
 typedef
 typeof
-uS
 ubuntu
 uid
 uint

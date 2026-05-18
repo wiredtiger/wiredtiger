@@ -824,6 +824,8 @@ struct __wt_connection_stats {
     int64_t checkpoint_fsync_post_duration;
     int64_t checkpoint_generation;
     int64_t checkpoint_time_max;
+    int64_t checkpoint_disagg_metadata_apply;
+    int64_t checkpoint_disagg_metadata_unstable;
     int64_t checkpoint_time_min;
     int64_t checkpoint_handle_drop_duration;
     int64_t checkpoint_handle_duration;
@@ -1313,6 +1315,8 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
+    int64_t session_table_publish_fail;
+    int64_t session_table_publish_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
