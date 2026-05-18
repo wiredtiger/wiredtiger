@@ -196,8 +196,9 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
             /* This can happen if the "file:" is created without a suffix in our tests. */
             WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
 
-        /* Update the metadata of the stable/shared table in the current schema epoch. */
         /*
+         * Update the metadata of the stable/shared table in the current schema epoch.
+         *
          * These entries must be applied in the current checkpoint, not deferred to the next one, as
          * they capture the checkpoint state of the stable table that was just checkpointed.
          */

@@ -1113,7 +1113,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
 
     __wt_writeunlock(session, &txn_global->rwlock);
 
-    /* Bring all entries in the disaggregated schema queue to this checkpoint. */
+    /* Bring all entries in the disaggregated schema operations queue to this checkpoint. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
         entry->deferred = false;
