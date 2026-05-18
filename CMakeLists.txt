@@ -62,7 +62,6 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
-include(cmake/third_party/gcp_sdk.cmake)
 include(cmake/third_party/lazyfs.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/memkind.cmake)
@@ -73,11 +72,6 @@ include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/iaa.cmake)
 include(cmake/third_party/voidstar.cmake)
 include(cmake/third_party/sqlite3.cmake)
-
-# Skip the AZURE SDK build step if the extension is not enabled.
-if(ENABLE_AZURE)
-    include(cmake/third_party/azure_sdk.cmake)
-endif()
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. "
