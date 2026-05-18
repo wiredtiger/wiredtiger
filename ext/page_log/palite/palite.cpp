@@ -2431,7 +2431,7 @@ public:
     }
 
     int
-    get_complete_checkpoint_ext(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
+    get_complete_checkpoint(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
       uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata)
     {
         if (checkpoint_lsn)
@@ -2555,7 +2555,7 @@ static int
 palite_get_complete_checkpoint(
   WT_PAGE_LOG *page_log, WT_SESSION *sess, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args)
 {
-    return safe_call<Palite>(sess, page_log, &Palite::get_complete_checkpoint_ext,
+    return safe_call<Palite>(sess, page_log, &Palite::get_complete_checkpoint,
       &args->checkpoint_lsn, &args->checkpoint_id, &args->checkpoint_timestamp,
       &args->checkpoint_metadata);
 }
