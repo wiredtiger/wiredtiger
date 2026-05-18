@@ -296,9 +296,8 @@ struct __wt_session_impl {
  * Unit testing assertions requires overriding abort logic and instead capturing this information to
  * be checked by the unit test.
  */
-#define WT_SESSION_UNITTEST_BUF_LEN 100
     bool unittest_assert_hit;
-    char unittest_assert_msg[WT_SESSION_UNITTEST_BUF_LEN];
+    char unittest_assert_msg[WT_ERR_MSG_BUF_LEN];
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
