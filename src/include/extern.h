@@ -342,6 +342,8 @@ extern int __wt_ckpt_last_size(WT_SESSION_IMPL *session, const char *config, uin
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
   const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_close_connection_close(WT_SESSION_IMPL *session)
@@ -2649,6 +2651,8 @@ extern int __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item,
   WT_CRYPT_HEADER **header) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri,
+  WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids,
   size_t num_btree, const uint64_t *pali_ids, size_t num_pali)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
