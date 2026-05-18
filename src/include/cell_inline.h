@@ -36,9 +36,6 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 static WT_INLINE void
 __cell_assert_tw_has_ts_for_garbage_collection_table(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    WT_UNUSED(session);
-    WT_UNUSED(tw);
-
     /*
      * For tombstone-only chains on ingest btrees the start side is unknown, so
      * WT_TIME_WINDOW_HAS_STOP allows the start side to be empty provided the stop side carries
