@@ -93,6 +93,15 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
         c1.close()
         c2.close()
 
+    def remove_range(self, start, stop, ts):
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for i in range(start, stop + 1):
+            cursor.set_key(self.key(i))
+            self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts)}')
+        cursor.close()
+
     def assert_random_notfound(self):
         cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
         self.session.begin_transaction()
@@ -113,6 +122,22 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
         cursor.close()
 
         self.truncate_range(0, self.nitems - 1, 30)
+        self.assert_random_notfound()
+
+    # Same as test_all_tombstones_ingest_only but deletes via per-key remove()
+    # instead of session.truncate(), since the two paths produce tombstones
+    # through different code.
+    def test_all_tombstones_ingest_only_remove(self):
+        self.setup_follower(populate=False)
+
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for i in range(self.nitems):
+            cursor[self.key(i)] = 'value'
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)}')
+        cursor.close()
+
+        self.remove_range(0, self.nitems - 1, 30)
         self.assert_random_notfound()
 
     # Tombstones genuinely scattered across both constituents:
@@ -146,4 +171,31 @@ class test_cursor_random04(wttest.WiredTigerTestCase):
 
         # Follower-side truncate: tombstones land in ingest.
         self.truncate_range(self.nitems, 2 * self.nitems - 1, 30)
+        self.assert_random_notfound()
+
+    # Same as test_all_tombstones_scattered but using per-key remove() on both
+    # the leader and follower sides.
+    def test_all_tombstones_scattered_remove(self):
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(2 * self.nitems):
+            self.session.begin_transaction()
+            cursor[self.key(i)] = 'value'
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
+        cursor.close()
+
+        # Leader-side remove: tombstones land in stable on checkpoint.
+        self.remove_range(0, self.nitems - 1, 20)
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
+        self.session.checkpoint()
+
+        follower_config = (
+            'disaggregated=(role="follower",'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+        )
+        self.reopen_conn(config=follower_config)
+
+        # Follower-side remove: tombstones land in ingest.
+        self.remove_range(self.nitems, 2 * self.nitems - 1, 30)
         self.assert_random_notfound()
