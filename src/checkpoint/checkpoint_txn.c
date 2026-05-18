@@ -920,6 +920,15 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
     }
 
     /*
+     * Clamp: if database_size was zero-initialized (no prior checkpoint pickup) and a concurrent
+     * drop caused a net-negative delta, report the minimum rather than a sub-1MB value to the page
+     * log. The floor is safe because the checkpoint buffer always occupies at least this much
+     * space.
+     */
+    if (conn->disaggregated_storage.database_size < WT_DISAGG_CHECKPOINT_SIZE_BUFFER)
+        __wt_disagg_set_database_size(session, WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+
+    /*
      * The database size must never drop below the checkpoint buffer because the checkpoint metadata
      * itself occupies space that must always be accounted for.
      */

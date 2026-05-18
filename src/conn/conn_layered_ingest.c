@@ -360,7 +360,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
 
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-    WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor));
+    ret = __wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor);
+    if (ret == ENOENT) {
+        ret = WT_NOTFOUND; /* signal caller: table was concurrently dropped, skip */
+        goto err;
+    }
+    WT_ERR(ret);
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     stable_btree = CUR2BT(cbt);
     if (last_checkpoint_timestamp != WT_TS_NONE)
@@ -373,7 +378,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
       "show_prepared_rollback=%s,%s))",
       preserve_prepared ? "true" : "false", buf2));
     cfg[1] = buf;
-    WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cfg, &ingest_version_cursor));
+    ret = __wt_open_cursor(session, ingest_uri, NULL, cfg, &ingest_version_cursor);
+    if (ret == ENOENT) {
+        ret = WT_NOTFOUND; /* signal caller: table was concurrently dropped, skip */
+        goto err;
+    }
+    WT_ERR(ret);
     ingest_btree_cursor = ((WT_CURSOR_VERSION *)ingest_version_cursor)->file_cursor;
     ingest_btree = CUR2BT(ingest_btree_cursor);
 
@@ -581,8 +591,13 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
     const char *ingest_uri = work_item->ingest_dhandle->name;
-    WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(session, ingest_uri),
-      "Failed to copy ingest table \"%s\" to stable", ingest_uri);
+    ret = __layered_copy_ingest_table(session, ingest_uri);
+    if (ret == WT_NOTFOUND) {
+        /* Table was concurrently dropped during step-up; nothing left to clear. */
+        ret = 0;
+        goto err;
+    }
+    WT_ERR_MSG_CHK(session, ret, "Failed to copy ingest table \"%s\" to stable", ingest_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, ingest_uri),
       "Failed to clear ingest table \"%s\"", ingest_uri);
 
