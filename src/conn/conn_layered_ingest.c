@@ -656,14 +656,13 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
   WT_TRUNCATE ***sortedp, size_t *ntruncatesp)
 {
     WT_DECL_RET;
-    WT_TRUNCATE **sorted = NULL;
-    size_t ntruncates = 0;
+    WT_TRUNCATE *t = NULL, **sorted = NULL;
+    size_t i = 0, ntruncates = 0;
 
     *sortedp = NULL;
     *ntruncatesp = 0;
 
     __wt_readlock(session, &layered_table->truncate_lock);
-    WT_TRUNCATE *t;
     TAILQ_FOREACH (t, &layered_table->truncateqh, q)
         if (t->txn_id != WT_TXN_NONE)
             ++ntruncates;
@@ -674,7 +673,6 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 
     WT_ERR(__wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted));
     /* Populate the array with committed truncates. */
-    size_t i = 0;
     TAILQ_FOREACH (t, &layered_table->truncateqh, q)
         if (t->txn_id != WT_TXN_NONE)
             sorted[i++] = t;
@@ -724,7 +722,7 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
      */
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
-    size_t ntruncates = 0;
+    size_t ntruncates;
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
