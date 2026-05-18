@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, sys
+import os, re, shutil, sys
 from compatibility_config import BRANCHES, BRANCHES_DIR
 
 # Remember the top-level test directory and the top-level project directory.
@@ -115,20 +115,19 @@ def prepare_branch(branch, config):
         if not standalone:
             cmake_args += ' -DWT_STANDALONE_BUILD=0'
 
-        # Older release branches (mongodb-7.0 and earlier) don't build with modern mongodb
-        # toolchains (v5+/GCC 14+); they need v4. Replace any /opt/mongodbtoolchain/vN/ entry
-        # in PATH with v4 so this stays correct when the default toolchain is bumped.
-        path_override = ''
+        # Always use master's CMakePresets.json so preset names are consistent
+        # regardless of the branch's own CMake setup.
+        preset_dst = os.path.join(path, 'CMakePresets.json')
+        shutil.copy(os.path.join(DIST_TOP_DIR, 'CMakePresets.json'), preset_dst)
+
+        # Branches mongodb-7.0 and older require the v4 toolchain (incompatible with GCC 14+).
         if branch.startswith('mongodb-') and \
                 int(branch.split('-')[1].split('.')[0]) <= 7:
-            current_path = os.environ.get('PATH', '')
-            new_path = re.sub(r'/opt/mongodbtoolchain/v\d+/',
-                              '/opt/mongodbtoolchain/v4/', current_path)
-            if '/opt/mongodbtoolchain/v4/' not in new_path:
-                new_path = '/opt/mongodbtoolchain/v4/bin:' + new_path
-            path_override = f'PATH="{new_path}" '
+            preset = 'linux-v4-gcc'
+        else:
+            preset = 'linux-gcc'
 
-        system(f'cd "{build_path}" && env {path_override}CC=gcc CXX=g++ cmake {cmake_args} -G Ninja ../.')
+        system(f'cd "{build_path}" && cmake --preset {preset} {cmake_args} -G Ninja ../.')
 
     print(f'Building {path}')
     system(f'cd "{build_path}" && ninja')

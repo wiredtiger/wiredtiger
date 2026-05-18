@@ -37,7 +37,7 @@ echo `pwd`
 
 curdir=`pwd`
 
-compilers=(gcc clang)
+compilers=(linux-gcc linux-clang)
 
 options=(
     "-DHAVE_DIAGNOSTIC=ON"
@@ -55,14 +55,47 @@ saved_IFS=$IFS
 cr_IFS="
 "
 
+# Discover the C compiler path that cmake resolves when using a given preset.
+# Runs a minimal cmake project in a temp directory with the preset file copied in.
+discover_compiler() {
+    local preset="$1"
+    local temp_dir=$(mktemp -d)
+    local cmake_file="$temp_dir/CMakeLists.txt"
+    local original_dir=$(pwd)
+
+    cat > "$cmake_file" << 'EOF'
+cmake_minimum_required(VERSION 3.21)
+project(CompilerPath)
+file(WRITE ${CMAKE_BINARY_DIR}/compiler_path.txt "${CMAKE_C_COMPILER}")
+EOF
+    cp "$curdir/CMakePresets.json" "$temp_dir/"
+
+    cd "$temp_dir"
+    if eval $CMAKE_BIN --preset "$preset" -B . -S . > /dev/null 2>&1; then
+        if [ -f "./compiler_path.txt" ]; then
+            discovered_compiler=$(cat "./compiler_path.txt")
+            cd "$original_dir"
+            rm -rf "$temp_dir"
+            echo "$discovered_compiler"
+            return 0
+        fi
+    fi
+
+    cd "$original_dir"
+    rm -rf "$temp_dir"
+    return 1
+}
+
 # This function may alter the current directory on failure
 BuildTest() {
-        local options="$1"
-        echo "Building: CC=$CC CXX=$CXX, $options"
+        local compiler="$1"
+        local options="$2"
+        local compiler_path="$3"
+        echo "Building: $compiler, $options"
         rm -rf ./build || return 1
         mkdir build || return 1
         cd ./build
-        eval $CMAKE_BIN "$options" \
+        eval $CMAKE_BIN --preset "$compiler" "$options" \
                  -DCMAKE_INSTALL_PREFIX="$insdir" -G $GENERATOR ../. || return 1
         eval $GENERATOR_CMD $PARALLEL || return 1
         if [ "$GENERATOR" == "Unix\ Makefiles" ]; then
@@ -74,8 +107,8 @@ BuildTest() {
         (echo $options | grep "ENABLE_SHARED=OFF") && wt_build="--static" || wt_build=""
         cflags=`pkg-config wiredtiger $wt_build --cflags --libs`
 
-        echo $CC -o ./smoke ../examples/c/ex_smoke.c $cflags
-        $CC -o ./smoke ../examples/c/ex_smoke.c $cflags || return 1
+        echo $compiler_path -o ./smoke ../examples/c/ex_smoke.c $cflags
+        $compiler_path -o ./smoke ../examples/c/ex_smoke.c $cflags || return 1
         LD_LIBRARY_PATH="$insdir/lib:$insdir/lib64" ./smoke || return 1
         return 0
 }
@@ -84,22 +117,17 @@ ecode=0
 insdir=`pwd`/installed
 export PKG_CONFIG_PATH="$insdir/lib/pkgconfig:$insdir/lib64/pkgconfig"
 IFS="$cr_IFS"
-for cc in "${compilers[@]}" ; do
-        case "$cc" in
-            gcc)   cxx=g++ ;;
-            clang) cxx=clang++ ;;
-            *)     echo "*** ERROR: unknown compiler $cc"; exit 1 ;;
-        esac
-        export CC=$cc CXX=$cxx
-        echo "Using compiler: CC=$CC CXX=$CXX"
+for compiler in "${compilers[@]}" ; do
+        compiler_path=$(discover_compiler "$compiler")
+        echo "Using compiler: $compiler_path for preset: $compiler"
 
         for option in "${options[@]}" ; do
                cd "$curdir"
                IFS="$saved_IFS"
                option="$option $always"
-               if ! BuildTest "$option"; then
+               if ! BuildTest "$compiler" "$option" "$compiler_path"; then
                        ecode=1
-                       echo "*** ERROR: $CC, $option"
+                       echo "*** ERROR: $compiler, $option"
                fi
                IFS="$cr_IFS"
        done
