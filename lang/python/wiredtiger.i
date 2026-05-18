@@ -763,6 +763,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *);
 %ignore __wt_page_log::get_open_checkpoint(WT_PAGE_LOG *, int *);
 %ignore __wt_page_log_complete_checkpoint_args::checkpoint_metadata;
+%ignore __wt_page_log_get_complete_checkpoint_args;
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
