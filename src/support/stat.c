@@ -29,6 +29,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-manager: minor version number",
   "btree: btree checkpoint generation",
   "btree: btree clean tree checkpoint expiration time",
+  "btree: btree compact in-memory pages selected for rewrite",
   "btree: btree compact pages reviewed",
   "btree: btree compact pages rewritten",
   "btree: btree compact pages skipped",
@@ -498,6 +499,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->block_minor = 0;
     /* not clearing btree_checkpoint_generation */
     /* not clearing btree_clean_checkpoint_timer */
+    /* not clearing btree_compact_pages_selected_inmem */
     /* not clearing btree_compact_pages_reviewed */
     /* not clearing btree_compact_pages_rewritten */
     /* not clearing btree_compact_pages_skipped */
@@ -918,6 +920,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
         to->block_minor = from->block_minor;
     to->btree_checkpoint_generation += from->btree_checkpoint_generation;
     to->btree_clean_checkpoint_timer += from->btree_clean_checkpoint_timer;
+    to->btree_compact_pages_selected_inmem += from->btree_compact_pages_selected_inmem;
     to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
     to->btree_compact_pages_rewritten += from->btree_compact_pages_rewritten;
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
@@ -1370,6 +1373,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
         to->block_minor = v;
     to->btree_checkpoint_generation += WT_STAT_DSRC_READ(from, btree_checkpoint_generation);
     to->btree_clean_checkpoint_timer += WT_STAT_DSRC_READ(from, btree_clean_checkpoint_timer);
+    to->btree_compact_pages_selected_inmem +=
+      WT_STAT_DSRC_READ(from, btree_compact_pages_selected_inmem);
     to->btree_compact_pages_reviewed += WT_STAT_DSRC_READ(from, btree_compact_pages_reviewed);
     to->btree_compact_pages_rewritten += WT_STAT_DSRC_READ(from, btree_compact_pages_rewritten);
     to->btree_compact_pages_skipped += WT_STAT_DSRC_READ(from, btree_compact_pages_skipped);
@@ -2773,6 +2778,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table compact dhandle successful calls",
   "session: table compact failed calls",
   "session: table compact failed calls due to cache pressure",
+  "session: table compact in-memory page footprint rewritten by compaction",
   "session: table compact passes",
   "session: table compact pulled into eviction",
   "session: table compact running",
@@ -3821,6 +3827,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->session_table_compact_dhandle_success = 0;
     /* not clearing session_table_compact_fail */
     /* not clearing session_table_compact_fail_cache_pressure */
+    /* not clearing session_table_compact_bytes_rewrite_inmem */
     stats->session_table_compact_passes = 0;
     /* not clearing session_table_compact_eviction */
     /* not clearing session_table_compact_running */
@@ -5093,6 +5100,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_compact_fail += WT_STAT_CONN_READ(from, session_table_compact_fail);
     to->session_table_compact_fail_cache_pressure +=
       WT_STAT_CONN_READ(from, session_table_compact_fail_cache_pressure);
+    to->session_table_compact_bytes_rewrite_inmem +=
+      WT_STAT_CONN_READ(from, session_table_compact_bytes_rewrite_inmem);
     to->session_table_compact_passes += WT_STAT_CONN_READ(from, session_table_compact_passes);
     to->session_table_compact_eviction += WT_STAT_CONN_READ(from, session_table_compact_eviction);
     to->session_table_compact_running += WT_STAT_CONN_READ(from, session_table_compact_running);
