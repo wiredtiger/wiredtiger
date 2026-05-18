@@ -847,7 +847,7 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
              * state to deal with this later. We cannot break here as there are scenarios we need to
              * finish the loop to construct the full update.
              */
-            if (F_ISSET(upd, WT_UPDATE_HS))
+            if (upd->type != WT_UPDATE_STANDARD)
                 state->hs_flag_set = true;
         }
 
@@ -897,8 +897,8 @@ __rec_hs_handle_oldest_tombstone(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
  * __rec_hs_build_tw --
  *     Construct the WT_TIME_WINDOW for one history store record: fills the start time point from
  *     the current update, the stop time point from the previous update, and handles the
- *     no-timestamp and prepared-max-stop cases. Returns the tombstone pointer when the previous
- *     update is a tombstone, otherwise NULL.
+ *     no-timestamp and prepared-max-stop cases. Sets the output tombstone pointer to the previous
+ *     update when it is a tombstone, otherwise to NULL.
  */
 static void
 __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
@@ -1107,8 +1107,9 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
         if (upd == newest_hs)
             break;
 
-        /* Periodically flush the hs stats in case there is a long reconciliation to check
-         * progress. */
+        /*
+         * Periodically flush the hs stats in case there is a long reconciliation to check progress.
+         */
         if (statsp->insert_cnt >= 1000) {
             WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, statsp->insert_cnt);
             WT_STAT_CONN_DSRC_INCRV(
