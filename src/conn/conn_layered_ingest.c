@@ -1195,3 +1195,17 @@ __layered_last_checkpoint_order(
 
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+
+/*
+ * __ut_layered_derive_layered_uri --
+ *     Unit test wrapper for __layered_derive_layered_uri.
+ */
+int
+__ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, WT_ITEM *buf)
+{
+    return __layered_derive_layered_uri(session, ingest_uri, buf);
+}
+
+#endif /* HAVE_UNITTEST */
