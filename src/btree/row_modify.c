@@ -432,12 +432,13 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
          * else. To avoid this problem, skip these globally visible tombstones from the update
          * obsolete check.
          */
-        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK))
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK)) {
+            first = NULL;
             continue;
+        }
 
         /*
-         * If a table has garbage collection enabled, then trim updates as possible. We should check
-         * the logic here - it might be possible to do something more aggressive?
+         * If a table has garbage collection enabled, then trim updates as possible.
          */
         if (__wt_txn_upd_visible_all(session, upd) ||
           (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&

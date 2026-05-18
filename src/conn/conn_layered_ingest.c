@@ -206,16 +206,17 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
+#endif
 
 /*
  * __wt_layered_verify_gc_update --
- *     Diagnostic check: during checkpoint reconciliation of an ingest btree, before a key is
- *     dropped by garbage collection, verify its state against the latest stable-table checkpoint.
- *     If is_tombstone is true the key must not exist in the stable table; otherwise the key must
- *     exist. Called from reconciliation only, where stable pages are guaranteed to be materialized.
+ *     Diagnostic check: during checkpoint reconciliation of an ingest btree, before a data value is
+ *     dropped by garbage collection, verify that the key exists in the latest stable-table
+ *     checkpoint. Called from reconciliation only, where stable pages are guaranteed to be
+ *     materialized.
  */
 int
-__wt_layered_verify_gc_update(WT_SESSION_IMPL *session, const WT_ITEM *key, bool is_tombstone)
+__wt_layered_verify_gc_update(WT_SESSION_IMPL *session, const WT_ITEM *key)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *stable_cursor;
@@ -282,15 +283,9 @@ retry:
     ret = stable_cursor->search(stable_cursor);
     WT_ERR_NOTFOUND_OK(ret, true);
 
-    if (is_tombstone) {
-        if (ret != WT_NOTFOUND)
-            WT_ERR_MSG(session, WT_ERROR,
-              "GC verify: last update is a tombstone but key still exists on the stable table");
-    } else {
-        if (ret != 0)
-            WT_ERR_MSG(session, WT_ERROR,
-              "GC verify: last update is a data value but key is missing on the stable table");
-    }
+    if (ret != 0)
+        WT_ERR_PANIC(session, WT_PANIC,
+          "GC verify: last update is a data value but key is missing on the stable table");
     ret = 0;
 
 err:
@@ -300,7 +295,6 @@ err:
     __wt_scr_free(session, &stable_uri_buf);
     return (ret);
 }
-#endif
 
 /*
  * __layered_fix_prepared_transaction_callback --

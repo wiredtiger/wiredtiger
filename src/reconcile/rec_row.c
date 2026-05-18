@@ -900,12 +900,12 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
             /*
              * The insert chain is being dropped with no update written to disk or saved for update
              * restore. On a GC btree during checkpoint reconciliation this means the most recent
-             * update was pruned by GC; verify it existed in the latest stable checkpoint. Only
-             * check data values (non-tombstone, non-sentinel) for the same reasons as the
-             * __rec_row_leaf site above.
+             * update was pruned by GC; verify the key exists in the latest stable checkpoint. Only
+             * check standard data values; skip the layered delete sentinel.
              */
-            if (!upd_select.upd_saved && F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) &&
-              F_ISSET(r, WT_REC_CHECKPOINT) && ins->upd != NULL && WT_UPDATE_DATA_VALUE(ins->upd)) {
+            if (!upd_select.upd_saved && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+              F_ISSET(r, WT_REC_CHECKPOINT) && ins->upd != NULL &&
+              ins->upd->type == WT_UPDATE_STANDARD) {
                 WT_ITEM val_item;
                 WT_ITEM key_item;
                 WT_CLEAR(val_item);
@@ -915,7 +915,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
                 if (!__wt_clayered_deleted(&val_item)) {
                     key_item.data = WT_INSERT_KEY(ins);
                     key_item.size = WT_INSERT_KEY_SIZE(ins);
-                    WT_ERR(__wt_layered_verify_gc_update(session, &key_item, false));
+                    WT_ERR(__wt_layered_verify_gc_update(session, &key_item));
                 }
             }
 #endif
@@ -1196,14 +1196,14 @@ __wti_rec_row_leaf(
                 WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
 #ifdef HAVE_DIAGNOSTIC
                 /*
-                 * Verify data values being GC'd against the latest stable checkpoint. Only check
-                 * non-tombstone cells (no stop time window) during checkpoint reconciliation; the
-                 * tombstone case requires additional analysis, and eviction-time checks are skipped
-                 * because stable pages may not yet be materialized at that point.
+                 * Verify that a data value being garbage collected exists in the latest stable
+                 * checkpoint. Only check cells without a stop time window (non-tombstone) during
+                 * checkpoint reconciliation; eviction-time checks are skipped because stable pages
+                 * may not yet be materialized at that point.
                  */
                 if (F_ISSET(r, WT_REC_CHECKPOINT) && !WT_TIME_WINDOW_HAS_STOP(twp)) {
                     WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
-                    WT_ERR(__wt_layered_verify_gc_update(session, tmpkey, false));
+                    WT_ERR(__wt_layered_verify_gc_update(session, tmpkey));
                 }
 #endif
             }
