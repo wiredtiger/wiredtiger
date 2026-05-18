@@ -3048,9 +3048,12 @@ wtperf_rand(WTPERF_THREAD *thread)
     rval = __wt_random(&thread->rnd);
     /* Use Pareto distribution to give 80/20 hot/cold values. */
     if (opts->pareto != 0)
-        rval = testutil_pareto(rval, end_range - start_range, opts->pareto);
+        rval = testutil_pareto(rval, range, opts->pareto);
 
-    /* Apply hash to scatter hot keys across the key space. */
+    /*
+     * Hash keys to scatter them across the key space (especially useful for non-uniform
+     * distributions like pareto).
+     */
     if (opts->scramble)
         rval = testutil_fnvhash64(rval) % range;
 

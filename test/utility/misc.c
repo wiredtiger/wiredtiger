@@ -537,7 +537,7 @@ testutil_fnv1a_add_bytes(uint64_t hash, const uint8_t *data, size_t sz)
 
 /*
  * testutil_fnvhash64 --
- *     FNV-1a 64-bit hash of a uint64 value, treating it as 8 bytes little-endian.
+ *     FNV-1a 64-bit hash of a uint64 value.
  */
 uint64_t
 testutil_fnvhash64(uint64_t val)
