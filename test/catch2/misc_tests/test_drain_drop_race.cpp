@@ -10,22 +10,13 @@
  * Regression test for BF-42866: drain worker racing with a concurrent drop of the same layered
  * table during follower -> leader step-up.
  *
- * The race:
- *  1. A follower is promoted to leader via conn->reconfigure("disaggregated=(role=leader)").
- *  2. __wti_layered_drain_ingest_tables enqueues all open ingest dhandles and releases the
- *     handle-list lock, then begins copying each ingest table to stable.
- *  3. Concurrently, a thread calls session->drop() on the same layered table.
- *  4. The drop acquires an exclusive dhandle lock (not blocked by the drain worker's
- *     session_inuse pin), closes the btree, and removes the metadata entry.
- *  5. The drain worker wakes up, tries to open a cursor on the now-dead/missing ingest file,
- *     gets ENOENT, and (before the fix) panics with WT_PANIC.
+ * During step-up, __wti_layered_drain_ingest_tables enqueues open ingest dhandles and begins
+ * copying each to stable. A concurrent drop acquires an exclusive dhandle lock (not blocked by
+ * the drain worker's session_inuse pin), closes the btree, and removes the metadata entry. The
+ * drain worker must detect the missing table and skip it rather than panicking.
  *
- * The timing stress flag WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW injects a 300 ms sleep at
- * the start of __layered_copy_ingest_table, before any cursor is opened, widening the race
- * window to make the test deterministic.
- *
- * This test currently FAILS (the child process panics with SIGABRT) because the bug is not
- * yet fixed. After the fix it should pass cleanly.
+ * WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW injects a 300 ms sleep at the start of
+ * __layered_copy_ingest_table, before any cursors are opened, to widen the race window.
  */
 
 #ifndef _WIN32
@@ -65,10 +56,9 @@ leader_cfg()
 
 /*
  * follower_cfg --
- *     Connection config for the follower that will be promoted. The drain_ingest_table_slow flag
- *     injects a 300 ms sleep at the start of __layered_copy_ingest_table before any cursors are
- *     opened. This reliably widens the race window so that a concurrent drop lands while the drain
- *     worker is mid-copy.
+ *     Connection config for the follower that will be promoted. drain_ingest_table_slow injects a
+ *     300 ms sleep before any cursors are opened in __layered_copy_ingest_table, widening the race
+ *     window so a concurrent drop reliably lands mid-copy.
  */
 static std::string
 follower_cfg()
@@ -138,25 +128,15 @@ run_race(const std::string &home)
     }
     cursor->close(cursor);
 
-    /*
-     * Thread 1 (background): trigger follower -> leader step-up. This calls
-     * __wti_layered_drain_ingest_tables, which enqueues the ingest dhandle and then calls
-     * __layered_copy_ingest_table. With the stress flag set that function sleeps 300 ms before
-     * opening any cursors, creating a wide window for the concurrent drop.
-     */
+    /* Trigger follower -> leader step-up in the background. */
     int reconfig_ret = 0;
     std::thread reconfig_thread(
       [&]() { reconfig_ret = conn->reconfigure(conn, "disaggregated=(role=leader)"); });
 
     /*
-     * Main thread: spin until the drain has started (layered_drain_data.running becomes true),
-     * then immediately drop the layered table. Using the running flag rather than a fixed sleep
-     * ensures the drop races with the drain worker while it is inside the 300 ms stress sleep in
-     * __layered_copy_ingest_table, not with the earlier checkpoint-restart phase of step-up.
-     *
-     * Before the fix: the drain worker wakes from its sleep, opens a cursor on the now-dead/missing
-     * ingest file, gets ENOENT, and panics. The process is killed by SIGABRT.
-     * After the fix: the drain worker detects the dead dhandle and skips it gracefully.
+     * Wait until drain has started (layered_drain_data.running becomes true), then drop the table.
+     * Keying off the running flag ensures the drop lands while the drain worker is inside the
+     * 300 ms stress sleep, not during the earlier checkpoint-restart phase of step-up.
      */
     WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
     for (int i = 0; i < 500; ++i) {
@@ -173,11 +153,7 @@ run_race(const std::string &home)
     reconfig_thread.join();
     (void)conn->close(conn, nullptr);
 
-    /*
-     * A non-zero reconfig_ret means the drain worker encountered an error (e.g. ENOENT because the
-     * concurrent drop removed the ingest file). Treat this as a test failure even when the process
-     * did not panic the drain should complete cleanly with no error after any correct fix.
-     */
+    /* Non-zero means the drain worker returned an error instead of skipping the dropped table. */
     return reconfig_ret != 0 ? 1 : 0;
 }
 
@@ -211,11 +187,6 @@ TEST_CASE(
     const std::string home = "WT_TEST.drain_drop_race";
     setup_db(home);
 
-    /*
-     * This CHECK currently FAILS (race_crashes returns true) because BF-42866 is not yet fixed.
-     * After the fix the drain worker should handle the dropped ident gracefully and the child
-     * should exit cleanly.
-     */
     CHECK(!race_crashes(home));
 
     utils::wiredtiger_cleanup(home);
