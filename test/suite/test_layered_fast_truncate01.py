@@ -28,12 +28,13 @@
 
 import unittest, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 
 # test_layered_fast_truncate01.py
 #   Test basic fast truncate functionality.
 @disagg_test_class
-class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate01(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader"),'
 
@@ -48,10 +49,8 @@ class test_layered_fast_truncate01(wttest.WiredTigerTestCase):
 
     nitems = 1000
 
-    def setUp(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled.")
-        super().setUp()
+    def _key(self, n):
+        return str(n)
 
     def session_create_config(self):
         cfg = 'key_format=S,value_format=S'
