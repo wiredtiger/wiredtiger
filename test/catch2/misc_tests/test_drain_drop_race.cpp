@@ -11,12 +11,13 @@
  * table during follower -> leader step-up.
  *
  * During step-up, __wti_layered_drain_ingest_tables enqueues open ingest dhandles and begins
- * copying each to stable. A concurrent drop acquires an exclusive dhandle lock (not blocked by
- * the drain worker's session_inuse pin), closes the btree, and removes the metadata entry. The
- * drain worker must detect the missing table and skip it rather than panicking.
+ * copying each to stable. A concurrent drop tries to acquire an exclusive dhandle lock. The drain
+ * worker holds a read lock on the dhandle for the duration of the copy, which blocks the drop
+ * until the copy finishes. If the dhandle is already dead when the drain worker acquires the read
+ * lock (drop completed first), the worker skips the table cleanly.
  *
  * WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW injects a 300 ms sleep at the start of
- * __layered_copy_ingest_table, before any cursors are opened, to widen the race window.
+ * __layered_copy_ingest_table, after the read lock is acquired, to widen the race window.
  */
 
 #ifndef _WIN32
@@ -57,8 +58,8 @@ leader_cfg()
 /*
  * follower_cfg --
  *     Connection config for the follower that will be promoted. drain_ingest_table_slow injects a
- *     300 ms sleep before any cursors are opened in __layered_copy_ingest_table, widening the race
- *     window so a concurrent drop reliably lands mid-copy.
+ *     300 ms sleep at the start of __layered_copy_ingest_table (after the read lock is held),
+ *     giving the concurrent drop thread time to attempt the exclusive lock and block.
  */
 static std::string
 follower_cfg()
@@ -134,9 +135,9 @@ run_race(const std::string &home)
       [&]() { reconfig_ret = conn->reconfigure(conn, "disaggregated=(role=leader)"); });
 
     /*
-     * Wait until drain has started (layered_drain_data.running becomes true), then drop the table.
-     * Keying off the running flag ensures the drop lands while the drain worker is inside the
-     * 300 ms stress sleep, not during the earlier checkpoint-restart phase of step-up.
+     * Wait until drain has started (layered_drain_data.running becomes true), then attempt to drop
+     * the table. Keying off the running flag ensures the drop races with the drain worker while it
+     * holds the read lock inside the 300 ms stress sleep, not during checkpoint-restart.
      */
     WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
     for (int i = 0; i < 500; ++i) {
