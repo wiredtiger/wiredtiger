@@ -115,7 +115,8 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
              * for followers.
              */
             WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri,
-              layered_uri + strlen("layered:"), WT_SHARED_METADATA_UPDATE, WT_SCHEMA_EPOCH_NONE));
+              layered_uri + strlen("layered:"), WT_SHARED_METADATA_UPDATE, WT_SCHEMA_EPOCH_NONE,
+              true));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -827,7 +828,8 @@ err:
  */
 int
 __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
-  const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch)
+  const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch,
+  bool deferred)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -863,12 +865,14 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
-     * Each entry starts as deferred. At the beginning of each checkpoint, all existing entries are
-     * undeferred and then applied to the shared metadata table at the end of the checkpoint. In
-     * this way, only entries that were created concurrently with the checkpoint will remain
-     * deferred and be applied to the shared metadata table at the next checkpoint.
+     * Schema operations (create, drop) start deferred: __checkpoint_prepare clears the deferred
+     * flag on all existing entries so they are applied at the end of that checkpoint. Entries
+     * enqueued after prepare including concurrent schema ops will not be processed until the
+     * following checkpoint. The one exception is block manager checkpoint_resolve callbacks for
+     * stable tables, which pass deferred=false so that the updated checkpoint metadata is written
+     * to the shared metadata table in the same checkpoint.
      */
-    entry->deferred = true;
+    entry->deferred = deferred;
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
