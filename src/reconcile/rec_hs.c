@@ -847,8 +847,7 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
              * state to deal with this later. We cannot break here as there are scenarios we need to
              * finish the loop to construct the full update.
              */
-            if (upd->type != WT_UPDATE_STANDARD)
-                state->hs_flag_set = true;
+            state->hs_flag_set = true;
         }
 
         /*
