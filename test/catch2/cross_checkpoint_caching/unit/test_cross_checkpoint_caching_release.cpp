@@ -12,7 +12,7 @@
 
 using namespace utils;
 
-TEST_CASE("cross_checkpoint_caching_release: decrementing non-zero ref_count keeps the item",
+TEST_CASE("cross_checkpoint_caching_release: releasing when ref_count > 1 keeps the item",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_release]")
 {
     // hash_size=1 so we can inspect the single bucket directly.
@@ -31,7 +31,7 @@ TEST_CASE("cross_checkpoint_caching_release: decrementing non-zero ref_count kee
     REQUIRE(put_item->ref_count == 1);
     REQUIRE(env.bucket_size(0) == 1);
 
-    // The item should still be there.
+    // Releasing when ref_count > 1 keeps the item in the cache.
     WT_SHARED_DSK_ITEM *got_again = nullptr;
     __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_again);
     REQUIRE(got_again == put_item);
