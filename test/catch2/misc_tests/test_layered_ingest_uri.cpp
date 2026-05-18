@@ -62,8 +62,7 @@ TEST_CASE("layered_derive_layered_uri: invalid inputs", "[layered_ingest_uri]")
 
     SECTION("wrong prefix, correct suffix")
     {
-        REQUIRE(
-          __ut_layered_derive_layered_uri(session, "layered:foo.wt_ingest", &buf) == EINVAL);
+        REQUIRE(__ut_layered_derive_layered_uri(session, "layered:foo.wt_ingest", &buf) == EINVAL);
     }
 
     SECTION("stable suffix instead of ingest suffix")
