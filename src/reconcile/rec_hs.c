@@ -685,6 +685,13 @@ __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
   WT_REC_HS_STATS *stats, bool *skipp)
 {
     *skipp = false;
+    /*
+     * When preserve-prepared is enabled the on-page entry may be a prepared update. The very next
+     * committed update in the chain belongs to the same transaction and must not be written to the
+     * history store as a separate entry. Squash and skip it. Once we encounter an update from a
+     * different transaction, no later update can be from the prepared transaction either, so we
+     * stop the check.
+     */
     if (*check_preparedp) {
         if (txnid_prepared == txnid) {
             state->squashed = true;
@@ -695,6 +702,17 @@ __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
         *check_preparedp = false;
     }
 
+    /*
+     * A different txnid or start timestamp means we have crossed a logical version boundary and
+     * found a distinct update to track. A tombstone at this boundary advances the reference pointer
+     * so it can later pair as the stop time of the next non-tombstone candidate; a non-tombstone
+     * becomes the newest history store candidate. Any updates that were squashed since the previous
+     * boundary are now finalized, so increment the counter and reset the flag.
+     *
+     * The same txnid and timestamp means this update is a duplicate within one transaction (e.g. a
+     * prepare/commit pair written twice). Mark it squashed and skip it to avoid inserting identical
+     * records into the history store.
+     */
     if (upd->txnid != (*ref_updp)->txnid || upd->upd_start_ts != (*ref_updp)->upd_start_ts) {
         if (upd->type == WT_UPDATE_TOMBSTONE)
             *ref_updp = upd;
