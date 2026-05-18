@@ -112,6 +112,7 @@ Coverity
 Cppsuite
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -217,6 +218,7 @@ GetLastError
 GetModuleHandleExW
 GetProcAddress
 Getters
+Gh
 Github
 Golomb
 HANDLEOPS
@@ -269,6 +271,7 @@ LOGREC
 LOGSCAN
 LOGSLOT
 LRU
+LSAN
 LSB
 LSBs
 LSM
@@ -423,6 +426,8 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+RelWithDebInfo
+ReleaseSemaphore
 Rogerio
 Runtime
 RuntimeError
@@ -521,7 +526,6 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
-Upd
 Uryyb
 VARCHAR
 VLCS
@@ -573,6 +577,7 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerShared
 WiredTigerSharedHS
+WiredTigerStat
 WiredTigerTestCase
 WiredTigerTimestamp
 WiredTigerTmplog
@@ -632,7 +637,6 @@ asan
 ascii
 assertEqual
 assertGreater
-assertGreaterEqual
 assertTrue
 assertfmt
 asymptote
@@ -682,6 +686,8 @@ blkcache
 blkincr
 blkmod
 blkmods
+blockhash
+blockqh
 bm
 bmd
 bms
@@ -887,6 +893,7 @@ designator
 dest
 destSize
 destructor
+deterministically
 dev
 dh
 dhandle
@@ -902,6 +909,7 @@ dirlist
 dirstore
 disagg
 disaggregated
+discoverable
 disproportionally
 distros
 disttop
@@ -1017,6 +1025,7 @@ fnv
 foc
 fopen
 forceerror
+foreach
 formatmessage
 forw
 foward
@@ -1081,6 +1090,7 @@ handleops
 handlep
 hardcoded
 hashmap
+hashq
 hashsize
 hashtable
 havesize
@@ -1148,6 +1158,7 @@ intr
 intrinsics
 ints
 inuse
+invariants
 io
 ip
 isalnum
@@ -1376,6 +1387,7 @@ np
 npos
 nrecords
 nrows
+ns
 nsec
 nsecs
 nset
@@ -1426,6 +1438,7 @@ pR
 pT
 packv
 pagesize
+pali
 palite
 param
 params
@@ -1749,6 +1762,7 @@ tombstoned
 toml
 toolchain
 totalsec
+tp
 traceapi
 tracepat
 transactional
@@ -1776,7 +1790,6 @@ txp
 txt
 typedef
 typeof
-uS
 ubuntu
 uid
 uint

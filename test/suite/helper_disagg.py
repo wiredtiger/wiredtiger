@@ -63,11 +63,7 @@ def gen_disagg_storages(test_name='', disagg_only = False):
 
 # For disaggregated test cases, we generally want to ignore verbose warnings about RTS at shutdown.
 def disagg_ignore_expected_output(testcase):
-    existing = getattr(testcase, 'ignore_regex', None)
-    if existing is not None:
-        testcase.ignoreStdoutPattern(existing.pattern + '|WT_VERB_RTS')
-    else:
-        testcase.ignoreStdoutPattern('WT_VERB_RTS')
+    testcase.ignoreStdoutPattern('WT_VERB_RTS')
 
 # Several tests access pages data directly by table id.
 # This function computes the shard id for a given table id, which is needed to
@@ -201,7 +197,7 @@ class DisaggConfigMixin:
         elif config != '':
             config = f'=(config=\"({config})\")'
 
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        # The page log extension is optional and not all test environments build it.
         if not self.is_local_storage:
             extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.

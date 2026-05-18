@@ -48,10 +48,6 @@ class test_layered37(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern(r"oldest id .* pinned in session")
-
     def test_ping_ingest_table(self):
         # Create the oplog
         oplog = Oplog()

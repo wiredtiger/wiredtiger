@@ -34,6 +34,7 @@
 # truncate state (entries in its in-memory truncate list), as doing so would discard the truncate
 # entries and corrupt visibility (WT-16798).
 
+import unittest
 import time, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wiredtiger import stat

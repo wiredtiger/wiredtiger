@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wiredtiger import disagg_fast_truncate_build, WiredTigerError
+from wiredtiger import WiredTigerError
 from wtscenario import make_scenarios
 
 # test_truncate05.py
@@ -41,11 +41,6 @@ class test_truncate05(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(format_values)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     def test_truncate_read_older_than_newest(self):
         uri = 'table:test_truncate05'

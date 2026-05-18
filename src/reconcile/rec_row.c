@@ -1181,31 +1181,36 @@ __wti_rec_row_leaf(
          * the table, and the value has become obsolete.
          */
         if (upd == NULL) {
-            /*
-             * Prepared updates are never written to the disk image for the ingest btree. Therefore,
-             * we can safely discard the key if the delete operation is globally visible, even if it
-             * hasn't been included in the oldest checkpoint currently in use.
-             */
-            if (__wt_txn_tw_stop_visible_all(session, twp)) {
-                upd = &upd_tombstone;
-                r->key_removed_from_disk_image = true;
-            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              __rec_row_garbage_collect_tw_eligible(r, twp)) {
-                upd = &upd_tombstone;
-                r->key_removed_from_disk_image = true;
-                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                if (__rec_row_garbage_collect_tw_eligible(r, twp)) {
+                    upd = &upd_tombstone;
+                    r->key_removed_from_disk_image = true;
+                    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
 #ifdef HAVE_DIAGNOSTIC
-                /*
-                 * Verify that a data value being garbage collected exists in the latest stable
-                 * checkpoint. Only check cells without a stop time window (non-tombstone) during
-                 * checkpoint reconciliation; eviction-time checks are skipped because stable pages
-                 * may not yet be materialized at that point.
-                 */
-                if (F_ISSET(r, WT_REC_CHECKPOINT) && !WT_TIME_WINDOW_HAS_STOP(twp)) {
-                    WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
-                    WT_ERR(__wt_layered_verify_gc_update(session, tmpkey));
-                }
+                    /*
+                     * Verify that a data value being garbage collected exists in the latest stable
+                     * checkpoint. Only check cells without a stop time window (non-tombstone) during
+                     * checkpoint reconciliation; eviction-time checks are skipped because stable
+                     * pages may not yet be materialized at that point.
+                     */
+                    if (F_ISSET(r, WT_REC_CHECKPOINT) && !WT_TIME_WINDOW_HAS_STOP(twp)) {
+                        WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
+                        WT_ERR(__wt_layered_verify_gc_update(session, tmpkey));
+                    }
 #endif
+                }
+            } else if (__wt_txn_tw_stop_visible_all(session, twp)) {
+                /*
+                 * Keep the on-disk cell when the chain still has an unstable aborted prepared
+                 * update that we skipped this round: the cell is its only rollback fallback, and
+                 * dropping it now would strand the prepared update with nothing to fall back to on
+                 * a later reconciliation.
+                 */
+                if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
+                  !upd_select.skip_aborted_prepared_value) {
+                    upd = &upd_tombstone;
+                    r->key_removed_from_disk_image = true;
+                }
             }
         }
 
