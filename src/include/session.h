@@ -292,10 +292,10 @@ struct __wt_session_impl {
 #endif
 
 #ifdef HAVE_UNITTEST_ASSERTS
-/*
- * Unit testing assertions requires overriding abort logic and instead capturing this information to
- * be checked by the unit test.
- */
+    /*
+     * Unit testing assertions requires overriding abort logic and instead capturing this
+     * information to be checked by the unit test.
+     */
     bool unittest_assert_hit;
     char unittest_assert_msg[WT_ERR_MSG_BUF_LEN];
 #endif

@@ -15,7 +15,8 @@
 
 #if defined(HAVE_DIAGNOSTIC) && defined(HAVE_UNITTEST_ASSERTS)
 
-TEST_CASE("Single thread check: concurrent access with NULL fields produces valid assertion message",
+TEST_CASE(
+  "Single thread check: concurrent access with NULL fields produces valid assertion message",
   "[single_thread_check]")
 {
     std::shared_ptr<mock_session> ms = mock_session::build_test_mock_session();
@@ -36,14 +37,14 @@ TEST_CASE("Single thread check: concurrent access with NULL fields produces vali
     uintmax_t current_tid;
     __wt_thread_id(&current_tid);
 
-    /* name, lastop, dhandle remain NULL — owning_thread is also 0 (calloc'd). */
+    /* name, last op, dhandle remain NULL, owning_thread is also 0. */
     std::string expected = std::string("WiredTiger assertion failed: 'ret == 0'. ") +
-      "Session 1 is accessed concurrently by multiple threads: " +
-      "current thread " + std::to_string(current_tid) +
+      "Session 1 is accessed concurrently by multiple threads: " + "current thread " +
+      std::to_string(current_tid) +
       ", owning thread 0 (active op: none, last op: none, api depth: 0, dhandle: none)";
     REQUIRE(std::string(session->unittest_assert_msg) == expected);
 
     __wt_spin_unlock(session, &session->thread_check.lock);
 }
 
-#endif /* HAVE_DIAGNOSTIC && HAVE_UNITTEST_ASSERTS */
+#endif

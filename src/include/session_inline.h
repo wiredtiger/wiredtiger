@@ -15,7 +15,7 @@
  *     having the thread take a lock on first API access. Failing to take the lock implies another
  *     thread holds it and we're attempting concurrent access of the session.
  *
- *     The default session (ID == 0) is an exception where concurrent access is allowed. We can also
+ * The default session (ID == 0) is an exception where concurrent access is allowed. We can also
  *     skip taking the lock if we're re-entrant and already hold it.
  */
 static WT_INLINE void
@@ -26,19 +26,20 @@ __wt_single_thread_check_start(WT_SESSION_IMPL *s)
     return;
 #else
     uintmax_t current_tid;
-    int ret;
+    WT_DECL_RET;
 
     __wt_thread_id(&current_tid);
     if (!WT_SESSION_IS_DEFAULT(s) && s->thread_check.owning_thread != current_tid) {
         ret = __wt_spin_trylock(s, &s->thread_check.lock);
 
         WT_ASSERT_ALWAYS(s, ret == 0,
-          "Session %" PRIu32 " is accessed concurrently by multiple threads: "
+          "Session %" PRIu32
+          " is accessed concurrently by multiple threads: "
           "current thread %" PRIuMAX ", owning thread %" PRIuMAX
           " (active op: %s, last op: %s, api depth: %u, dhandle: %s)",
-          s->id, current_tid, s->thread_check.owning_thread,
-          s->name != NULL ? s->name : "none", s->lastop != NULL ? s->lastop : "none",
-          s->api_call_counter, s->dhandle != NULL ? s->dhandle->name : "none");
+          s->id, current_tid, s->thread_check.owning_thread, s->name != NULL ? s->name : "none",
+          s->lastop != NULL ? s->lastop : "none", s->api_call_counter,
+          s->dhandle != NULL ? s->dhandle->name : "none");
 
         s->thread_check.owning_thread = current_tid;
     }
