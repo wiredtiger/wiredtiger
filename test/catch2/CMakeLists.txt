@@ -10,6 +10,7 @@ else()
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_disagg_meta_config.cpp
+        misc_tests/test_drain_drop_race.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
@@ -20,7 +21,7 @@ else()
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_layered_incomplete_table.cpp
-        misc_tests/test_drain_drop_race.cpp
+        misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
