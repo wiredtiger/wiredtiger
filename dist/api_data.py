@@ -1007,8 +1007,8 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'drain_ingest_table_slow', 'evict_reposition',
-        'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
+        'compact_slow', 'conn_close_stress_log_printf', 'drain_ingest_table_slow',
+        'evict_reposition', 'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
         'history_store_checkpoint_delay', 'history_store_search',
