@@ -17,7 +17,7 @@
  * lock (drop completed first), the worker skips the table cleanly.
  *
  * WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW injects a 300 ms sleep at the start of
- * __layered_copy_ingest_table, after the read lock is acquired, to widen the race window.
+ * __layered_copy_ingest_table, while the read lock is held, to widen the race window.
  */
 
 #ifndef _WIN32
@@ -98,6 +98,52 @@ setup_db(const std::string &home)
 }
 
 /*
+ * sync_leader_checkpoint --
+ *     Pick up the leader's last checkpoint so database_size is correctly initialized before
+ *     step-up. In production a follower tracks the leader's checkpoints continuously; this
+ *     replicates that before we trigger the race.
+ */
+static bool
+sync_leader_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
+{
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    std::string follower_config = follower_cfg();
+    const char *cfg[] = {follower_config.c_str(), nullptr};
+    WT_ITEM checkpoint_meta;
+    WT_CLEAR(checkpoint_meta);
+    uint64_t checkpoint_lsn = 0;
+    wt_timestamp_t checkpoint_ts = 0;
+
+    int ret = __wti_layered_get_disagg_checkpoint(
+      session_impl, cfg, &checkpoint_lsn, &checkpoint_ts, &checkpoint_meta);
+    if (ret != 0 || checkpoint_meta.size == 0) {
+        __wt_buf_free(session_impl, &checkpoint_meta);
+        return true;
+    }
+
+    std::string meta_str((const char *)checkpoint_meta.data, checkpoint_meta.size);
+    __wt_buf_free(session_impl, &checkpoint_meta);
+    std::string reconfig = std::string("disaggregated=(checkpoint_meta=\"") + meta_str + "\")";
+    return conn->reconfigure(conn, reconfig.c_str()) == 0;
+}
+
+/*
+ * wait_for_drain --
+ *     Spin until the drain worker sets layered_drain_data.running. Keying off this flag ensures the
+ *     drop races with the drain worker while it holds the read lock inside the stress sleep.
+ */
+static void
+wait_for_drain(WT_CONNECTION *conn)
+{
+    WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
+    for (int i = 0; i < 500; ++i) {
+        if (__wt_atomic_load_bool_relaxed(&conn_impl->layered_drain_data.running))
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+/*
  * run_race --
  *     Runs the racy scenario in the current process. Called only from a forked child so a panic
  *     (SIGABRT) doesn't kill the test runner.
@@ -117,10 +163,14 @@ run_race(const std::string &home)
         return 1;
     }
 
+    if (!sync_leader_checkpoint(conn, session)) {
+        conn->close(conn, nullptr);
+        return 1;
+    }
+
     /*
-     * Open a cursor on the layered table to trigger lazy-open of the ingest dhandle. The drain
-     * worker only queues dhandles that are already marked WT_DHANDLE_OPEN, so we must touch the
-     * table before triggering step-up.
+     * Open a cursor to trigger lazy-open of the ingest dhandle. The drain worker only queues
+     * dhandles that are already marked WT_DHANDLE_OPEN, so we must touch the table before step-up.
      */
     WT_CURSOR *cursor = nullptr;
     if (session->open_cursor(session, TABLE_URI.c_str(), nullptr, nullptr, &cursor) != 0) {
@@ -129,22 +179,12 @@ run_race(const std::string &home)
     }
     cursor->close(cursor);
 
-    /* Trigger follower -> leader step-up in the background. */
     int reconfig_ret = 0;
     std::thread reconfig_thread(
       [&]() { reconfig_ret = conn->reconfigure(conn, "disaggregated=(role=leader)"); });
 
-    /*
-     * Wait until drain has started (layered_drain_data.running becomes true), then attempt to drop
-     * the table. Keying off the running flag ensures the drop races with the drain worker while it
-     * holds the read lock inside the 300 ms stress sleep, not during checkpoint-restart.
-     */
-    WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
-    for (int i = 0; i < 500; ++i) {
-        if (__wt_atomic_load_bool_relaxed(&conn_impl->layered_drain_data.running))
-            break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
+    wait_for_drain(conn);
+
     /*
      * Use checkpoint_wait=false so the drop does not block on the checkpoint lock held by the
      * reconfigure thread throughout __disagg_step_up.
@@ -161,7 +201,7 @@ run_race(const std::string &home)
 /*
  * race_crashes --
  *     Fork a child that runs the racy scenario. Returns true if the child was killed by a signal
- *     (i.e. WT_PANIC abort() SIGABRT), false if it exited cleanly.
+ *     (i.e. WT_PANIC abort() -> SIGABRT), false if it exited cleanly.
  */
 static bool
 race_crashes(const std::string &home)
@@ -176,10 +216,7 @@ race_crashes(const std::string &home)
 
     int status = 0;
     waitpid(pid, &status, 0);
-
-    if (WIFSIGNALED(status))
-        return true;
-    return !WIFEXITED(status) || WEXITSTATUS(status) != 0;
+    return WIFSIGNALED(status) || !WIFEXITED(status) || WEXITSTATUS(status) != 0;
 }
 
 TEST_CASE(
