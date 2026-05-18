@@ -355,7 +355,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri)
     struct timespec tsp;
     bool is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
-    /* Pause before opening any cursors to allow concurrent drops to race in. */
+    /* Sleep while the caller holds the ingest dhandle read lock, widening the race window for concurrent drops. */
     tsp.tv_sec = 0;
     tsp.tv_nsec = 300 * WT_MILLION;
     __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW, &tsp);

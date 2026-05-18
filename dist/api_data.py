@@ -1007,7 +1007,7 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
+        'compact_slow', 'conn_close_stress_log_printf', 'drain_ingest_table_slow', 'evict_reposition',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
@@ -1016,8 +1016,7 @@ connection_runtime_config = [
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
         'prepare_resolution_1', 'prepare_resolution_2', 'session_alter_slow',
         'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4',
-        'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish',
-        'drain_ingest_table_slow']),
+        'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as

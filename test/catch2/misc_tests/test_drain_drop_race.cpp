@@ -116,7 +116,11 @@ sync_leader_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
 
     int ret = __wti_layered_get_disagg_checkpoint(
       session_impl, cfg, &checkpoint_lsn, &checkpoint_ts, &checkpoint_meta);
-    if (ret != 0 || checkpoint_meta.size == 0) {
+    if (ret != 0) {
+        __wt_buf_free(session_impl, &checkpoint_meta);
+        return false;
+    }
+    if (checkpoint_meta.size == 0) {
         __wt_buf_free(session_impl, &checkpoint_meta);
         return true;
     }
