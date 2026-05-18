@@ -15,6 +15,7 @@
  * WT_PROCESS --
  *	Per-process information for the library.
  */
+#include "wt_internal.h"
 struct __wt_process {
     WT_SPINLOCK spinlock; /* Per-process spinlock */
 
@@ -935,6 +936,8 @@ struct __wt_connection_impl {
     wt_shared volatile uint64_t cache_size; /* Cache size (either statically
                                      configured or the current size
                                      within a cache pool). */
+
+    WT_CONNECTION_LOAD_CONTROL *load_control;
     WT_EVICT *evict;
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
