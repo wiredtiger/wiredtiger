@@ -177,6 +177,8 @@ struct __wt_conn_evict_config;
 typedef struct __wt_conn_evict_config WT_CONN_EVICT_CONFIG;
 struct __wt_conn_extensions;
 typedef struct __wt_conn_extensions WT_CONN_EXTENSIONS;
+struct __wt_conn_optrack;
+typedef struct __wt_conn_optrack WT_CONN_OPTRACK;
 struct __wt_conn_prefetch;
 typedef struct __wt_conn_prefetch WT_CONN_PREFETCH;
 struct __wt_conn_stat_log;
