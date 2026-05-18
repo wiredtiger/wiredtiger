@@ -85,6 +85,8 @@ struct __wt_page_log_discard_args;
 typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
 struct __wt_page_log_complete_checkpoint_args;
 typedef struct __wt_page_log_complete_checkpoint_args WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS;
+struct __wt_page_log_get_complete_checkpoint_args;
+typedef struct __wt_page_log_get_complete_checkpoint_args WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS;
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_key_provider;    typedef struct __wt_key_provider WT_KEY_PROVIDER;
@@ -5629,32 +5631,16 @@ struct __wt_page_log {
         WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args);
 
     /*!
-     * Get the most recent completed checkpoint number.
-     *
-     * @errors
-     *
-     * @param page_log the WT_PAGE_LOG
-     * @param session the current WiredTiger session
-     * @param checkpoint_id the checkpoint id returned
-     */
-    int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
-        uint64_t *checkpoint_id);
-
-    /*!
      * Get information about the most recently completed checkpoint.
      *
      * @errors
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param checkpoint_lsn the checkpoint LSN
-     * @param checkpoint_id the checkpoint ID
-     * @param checkpoint_timestamp the checkpoint timestamp
-     * @param checkpoint_metadata the checkpoint metadata
+     * @param args arguments
      */
-    int (*pl_get_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
-        uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp,
-        WT_ITEM *checkpoint_metadata);
+    int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
+        WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args);
 
     /*!
      * Get the last written page LSN. This is an optional function used for testing only.
@@ -5855,6 +5841,19 @@ struct __wt_page_log_complete_checkpoint_args {
          * Output arguments, returned by the call
          */
         uint64_t lsn;
+};
+
+/*!
+ * WT_PAGE_LOG::pl_get_complete_checkpoint interface.
+ */
+struct __wt_page_log_get_complete_checkpoint_args {
+        /*
+         * Output arguments, returned by the call
+         */
+        uint64_t checkpoint_lsn;
+        uint64_t checkpoint_id;
+        uint64_t checkpoint_timestamp;
+        WT_ITEM checkpoint_metadata;
 };
 
 /*!
