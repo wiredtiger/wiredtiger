@@ -1205,7 +1205,9 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
 
 /*
  * __disagg_begin_checkpoint --
- *     Begin the next checkpoint.
+ *     Prepare WiredTiger's internal state for the next checkpoint. This snapshots the metadata-put
+ *     counter used to detect whether checkpoint metadata was written, and loads the encryption key
+ *     into the key provider if one is configured.
  */
 static int
 __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
@@ -1227,9 +1229,6 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
         WT_DISAGG_METADATA metadata = {0};
         WT_RET(__wti_disagg_load_crypt_key(session, &metadata));
     }
-
-    WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
-      disagg->npage_log->page_log, &session->iface, 0));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Begin next disaggregated storage checkpoint: num_meta_put=%" PRIu64, disagg->num_meta_put);
