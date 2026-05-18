@@ -39,7 +39,7 @@ __layered_assert_tombstone_has_value_on_stable_btree(
         if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
 
-        /* Skip aborted prepared updates  rolled-back preserved prepared transactions. */
+        /* Skip aborted prepared updates. */
         for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
             WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
               "During ingest drain, aborted updates on the stable btree must be "
