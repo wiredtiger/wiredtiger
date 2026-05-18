@@ -80,8 +80,9 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_ERR(ret);
 
     /*
-     * We only need to check on the first pass. The check assertions if the oldest update in the
-     * whole chain has a tombstone and may produce consecutive tombstone situation.
+     * We only need to check on the first pass. The check asserts that if the oldest update in the
+     * whole chain is a tombstone, applying it would not produce consecutive tombstones on the
+     * stable btree.
      */
     if (from_ts == WT_TS_NONE)
         __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
@@ -190,13 +191,13 @@ __layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri, W
 {
     static const char file_prefix[] = "file:";
     static const char ingest_suffix[] = ".wt_ingest";
-    size_t name_len, uri_len;
+    size_t uri_len = strlen(ingest_uri);
 
-    uri_len = strlen(ingest_uri);
-    WT_ASSERT_ALWAYS(session,
-      WT_PREFIX_MATCH(ingest_uri, file_prefix) && WT_URI_IS_INGEST(ingest_uri),
-      "Ingest URI does not match expected file:<name>.wt_ingest shape");
-    name_len = uri_len - (sizeof(file_prefix) - 1) - (sizeof(ingest_suffix) - 1);
+    if (!WT_PREFIX_MATCH(ingest_uri, file_prefix) || !WT_URI_IS_INGEST(ingest_uri))
+        WT_RET_MSG(session, EINVAL,
+          "Ingest URI \"%s\" does not match expected file:<name>.wt_ingest shape", ingest_uri);
+    WT_ASSERT(session, uri_len > (sizeof(file_prefix) - 1) + (sizeof(ingest_suffix) - 1));
+    size_t name_len = uri_len - (sizeof(file_prefix) - 1) - (sizeof(ingest_suffix) - 1);
     return (__wt_buf_fmt(
       session, buf, "layered:%.*s", (int)name_len, ingest_uri + sizeof(file_prefix) - 1));
 }
@@ -349,16 +350,14 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
 static int
 __layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 {
-    WT_CURSOR *trunc_start, *trunc_stop;
+    WT_CURSOR *trunc_start = NULL, *trunc_stop = NULL;
     WT_DECL_RET;
-    const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
 
     WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
     WT_ASSERT(session, t->start_ts > WT_TS_NONE);
     WT_ASSERT(session, t->durable_ts >= t->start_ts);
 
-    trunc_start = trunc_stop = NULL;
-
+    const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_start));
     WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
 
@@ -649,7 +648,7 @@ __truncate_cmp_by_start_ts(const void *a, const void *b)
 
 /*
  * __layered_build_sorted_truncates --
- *     Snapshot committed truncates from the truncate list into a sorted array. The
+ *     Snapshot committed truncates from the truncate list into a sorted array.
  */
 static int
 __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
@@ -657,8 +656,10 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 {
     WT_DECL_RET;
     WT_TRUNCATE *t, **sorted;
-    size_t i, ntruncates;
+    size_t ntruncates;
 
+    *sortedp = NULL;
+    *ntruncatesp = 0;
     sorted = NULL;
     ntruncates = 0;
 
@@ -666,20 +667,21 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
     TAILQ_FOREACH (t, &layered_table->truncateqh, q)
         if (t->txn_id != WT_TXN_NONE)
             ++ntruncates;
-    if (ntruncates > 0) {
-        ret = __wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted);
-        if (ret == 0) {
-            i = 0;
-            TAILQ_FOREACH (t, &layered_table->truncateqh, q)
-                if (t->txn_id != WT_TXN_NONE)
-                    sorted[i++] = t;
-        }
+    if (ntruncates == 0) {
+        __wt_readunlock(session, &layered_table->truncate_lock);
+        return (0);
+    }
+    ret = __wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted);
+    if (ret == 0) {
+        size_t i = 0;
+        TAILQ_FOREACH (t, &layered_table->truncateqh, q)
+            if (t->txn_id != WT_TXN_NONE)
+                sorted[i++] = t;
     }
     __wt_readunlock(session, &layered_table->truncate_lock);
 
     WT_RET(ret);
-    if (ntruncates > 0)
-        __wt_qsort(sorted, ntruncates, sizeof(WT_TRUNCATE *), __truncate_cmp_by_start_ts);
+    __wt_qsort(sorted, ntruncates, sizeof(WT_TRUNCATE *), __truncate_cmp_by_start_ts);
     *sortedp = sorted;
     *ntruncatesp = ntruncates;
     return (0);
@@ -696,9 +698,8 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
-    WT_TRUNCATE *t, **sorted_truncates;
-    wt_timestamp_t prev_ts;
-    size_t i, ntruncates;
+    WT_TRUNCATE **sorted_truncates;
+    size_t ntruncates;
 
     layered_dhandle = NULL;
     layered_table = NULL;
@@ -712,25 +713,25 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
       __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
     if (ret == WT_NOTFOUND) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "No layered handle found for ingest table \"%s\" only performing ingest drain",
+          "No layered handle found for ingest table \"%s\", only performing ingest drain",
           ingest_uri);
         WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX));
         ret = 0;
         goto err;
     }
     /*
-     * For each committed truncate, copy ingest updates with lower bound and upper bound. The lower
-     * bound is timestamp of previous truncate and upper is timestamp of current truncate. After
-     * copying ingest updates, apply the range truncate.
+     * For each committed truncate, copy ingest updates with upper and lower bounds. The lower bound
+     * is the timestamp of the previous truncate and the upper bound is the timestamp of the current
+     * truncate. After copying ingest updates, apply the range truncate.
      */
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
-    prev_ts = WT_TS_NONE;
-    for (i = 0; i < ntruncates; i++) {
-        t = sorted_truncates[i];
+    wt_timestamp_t prev_ts = WT_TS_NONE;
+    for (size_t i = 0; i < ntruncates; i++) {
+        WT_TRUNCATE *t = sorted_truncates[i];
         WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
         WT_ERR(__layered_apply_truncate_to_stable(session, t));
         prev_ts = t->start_ts;
