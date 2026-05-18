@@ -1205,9 +1205,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
 
 /*
  * __disagg_begin_checkpoint --
- *     Prepare WiredTiger's internal state for the next checkpoint. This snapshots the metadata-put
- *     counter used to detect whether checkpoint metadata was written, and loads the encryption key
- *     into the key provider if one is configured.
+ *     Begin the next checkpoint.
  */
 static int
 __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
