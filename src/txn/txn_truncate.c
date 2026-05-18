@@ -22,8 +22,6 @@ typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_T
 static void
 __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
-
     if (entry == NULL || *entry == NULL)
         return;
 
@@ -133,7 +131,6 @@ __wt_insert_truncate_entry(
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, F_ISSET(&layered_table->iface, WT_DHANDLE_OPEN));
 
@@ -239,9 +236,6 @@ __wt_layered_table_truncate_detect_write_conflict(
     WT_DECL_RET;
     bool is_found = false;
 
-    if (!__wt_process.disagg_fast_truncate_2026)
-        return (0);
-
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
     /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
@@ -278,9 +272,6 @@ __wt_truncate_delete_visible_check(
     WT_DECL_RET;
     bool is_found = false;
 
-    if (!__wt_process.disagg_fast_truncate_2026)
-        return (WT_NOTFOUND);
-
     /* The truncate list is only populated on followers; leaders truncate stable directly. */
     if (S2C(session)->layered_table_manager.leader)
         return (WT_NOTFOUND);
@@ -314,7 +305,6 @@ __disagg_truncate_apply(WT_SESSION_IMPL *session, WT_TXN_OP *op,
     WT_ASSERT(session, op != NULL);
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
     WT_ASSERT(session, entry != NULL);
     WT_ASSERT(session, entry->layered_table != NULL);
     WT_ASSERT(
@@ -333,7 +323,6 @@ __wti_mark_committed_truncate_table_apply(
 {
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, entry != NULL);
     WT_ASSERT(session, entry->txn_id == session->txn->time_point.id);

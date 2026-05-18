@@ -15,7 +15,6 @@
  *   - single-key ranges (start == stop)
  *   - multiple non-overlapping and overlapping ranges
  *   - the optional output pointer is filled on a match
- *   - the feature flag early-return path
  *   - lock discipline: read lock is always released
  */
 
@@ -33,8 +32,6 @@ struct TruncVisibleCheckFixture {
     TruncVisibleCheckFixture() : mock(mock_session::build_test_mock_session())
     {
         session = mock->get_wt_session_impl();
-
-        __wt_process.disagg_fast_truncate_2026 = true;
 
         /* Allocate a zeroed transaction and shared list. */
         WT_TXN_SHARED *txn_shared_list;
@@ -305,22 +302,5 @@ TEST_CASE_METHOD(
         WT_TRUNCATE *tp = nullptr;
         CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, &tp) == WT_NOTFOUND);
         CHECK(tp == nullptr);
-    }
-}
-
-TEST_CASE_METHOD(
-  TruncVisibleCheckFixture, "truncate_delete_visible_check: feature flag disabled", "[truncate]")
-{
-    /*
-     * When disagg_fast_truncate_2026 is false the function must return WT_NOTFOUND immediately
-     * without consulting the truncate list
-     */
-    SECTION("returns WT_NOTFOUND even when a matching entry exists")
-    {
-        add_truncate_entry("key100", "key200");
-        __wt_process.disagg_fast_truncate_2026 = false;
-        WT_ITEM key = make_key("key150");
-        CHECK(
-          __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
     }
 }

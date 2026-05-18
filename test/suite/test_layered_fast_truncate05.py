@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import unittest
-import wttest, wiredtiger
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -51,11 +51,6 @@ class test_layered_fast_truncate05(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate05', disagg_only=True)
 
     scenarios = make_scenarios(disagg_storages, uris)
-
-    def setUp(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     # Total number of keys inserted. String keys are zero-padded to four
     # digits so that lexicographic order matches numeric order.
