@@ -324,7 +324,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         }
     }
 
-    if (shared_dsk_cache->enabled) {
+    if (shared_dsk_cache->enabled && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         __wt_shared_dsk_cache_get(session, addr.addr, addr.size, &shared_dsk_item);
         if (shared_dsk_item != NULL) {
             /* Disagg always owns the disk image, so stamp the ownership flag directly. */
@@ -406,7 +406,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     disk_image_buf = build_full_disk_image_from_deltas ? &new_image_copy : &tmp[0];
 
-    if (shared_dsk_cache->enabled) {
+    if (shared_dsk_cache->enabled && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         bool shared_dsk_inserted = false;
 
         /* A cache hit takes the skip_disk_read path, so we can't already have an item here. */
@@ -433,8 +433,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         }
     }
 
-    WT_ASSERT(
-      session, shared_dsk_cache->enabled ? shared_dsk_item != NULL : shared_dsk_item == NULL);
+    WT_ASSERT(session,
+      (shared_dsk_cache->enabled && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) ?
+        shared_dsk_item != NULL :
+        shared_dsk_item == NULL);
     WT_ERR(__wti_page_inmem(session, ref,
       shared_dsk_item != NULL ? shared_dsk_item->data : disk_image_buf->data, page_flags,
       shared_dsk_item, &page, &instantiate_upd));
