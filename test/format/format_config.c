@@ -353,13 +353,6 @@ config_table(TABLE *table, void *arg)
 #endif
 
     /*
-     * FIXME-WT-17135: Fast truncate currently conflicts with concurrent point removes on the same
-     * key range. Force ops.pct.delete to 0 whenever truncate is enabled.
-     */
-    if (TV(OPS_TRUNCATE))
-        config_single(table, "ops.pct.delete=0", true);
-
-    /*
      * Key/value minimum/maximum are related, correct unless specified by the configuration. Key
      * sizes are a row-store consideration: column-store doesn't store keys, a constant of 8 will
      * reserve a small amount of additional space.
