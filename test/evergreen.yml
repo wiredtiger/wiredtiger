@@ -4893,10 +4893,13 @@ tasks:
           run_test_checkpoint_args: -e -x -s 7 -C cache_size=1000MB
 
   - name: format-failure-configs-test
-    depends_on:
-    - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
+        vars:
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/evergreen"
