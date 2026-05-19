@@ -238,7 +238,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         t.session.close()
 
     def _do_write(self, session, op, key, ts):
-        # Apply a single-key upsert or remove at ts and mirror it in the
+        # Apply a single-key insert/update/remove at ts and mirror it in the
         # ValidationModel. The model update is deferred via mirror so it
         # only runs after commit_transaction succeeds -- this keeps the
         # mirror in lock-step with what WT actually committed.
