@@ -164,7 +164,7 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
     cache_inserted = true;
 
     /* Update disk image statistics.*/
-    __wt_cache_inmem_incr(session, ((WT_PAGE_HEADER *)data)->type, data_size);
+    __wt_cache_shared_dsk_inmem_incr(session, ((WT_PAGE_HEADER *)data)->type, data_size);
     __wt_cache_image_incr(session, ((WT_PAGE_HEADER *)data)->type, WT_STORE_SIZE(data_size));
 
     __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,

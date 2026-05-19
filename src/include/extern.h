@@ -2514,10 +2514,6 @@ static WT_INLINE void __wt_cache_image_decr(
   WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size);
 static WT_INLINE void __wt_cache_image_incr(
   WT_SESSION_IMPL *session, uint8_t image_type, uint32_t image_size);
-static WT_INLINE void __wt_cache_inmem_decr(
-  WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
-static WT_INLINE void __wt_cache_inmem_incr(
-  WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
 static WT_INLINE void __wt_cache_page_byte_dirty_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_page_byte_updates_decr(
@@ -2530,6 +2526,10 @@ static WT_INLINE void __wt_cache_page_inmem_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_page_inmem_incr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update);
+static WT_INLINE void __wt_cache_shared_dsk_inmem_decr(
+  WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
+static WT_INLINE void __wt_cache_shared_dsk_inmem_incr(
+  WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
 static WT_INLINE void __wt_cell_build_addr_kv(WT_SESSION_IMPL *session, WT_CELL_KV *val_kv,
   uint8_t cell_type, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, const void *data,
   size_t data_size);

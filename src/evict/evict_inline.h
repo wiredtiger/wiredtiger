@@ -279,7 +279,7 @@ __wt_evict_shared_dsk_cache_bytes_decr(
   WT_SESSION_IMPL *session, uint8_t dsk_type, uint32_t dsk_size)
 {
     (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_evict, dsk_size);
-    __wt_cache_inmem_decr(session, dsk_type, dsk_size);
+    __wt_cache_shared_dsk_inmem_decr(session, dsk_type, dsk_size);
 }
 
 /* !!!
