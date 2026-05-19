@@ -48,7 +48,8 @@
  *   1. Opening as a follower with the timing stress enabled.
  *   2. Reconfiguring to leader (step-up) on a background thread.
  *   3. Spinning on layered_drain_data.running (accessible via wt_internal.h, included through
- *      test_util.h) to detect when the drain worker holds the read lock inside the stress sleep.
+ *      test_util.h) to detect when the drain worker has started; the 300 ms stress sleep then
+ *      widens the window enough for the drop to race with the read lock.
  *   4. Calling session->drop(force=true, checkpoint_wait=false) from the main thread to race
  *      against the drain worker.
  *
@@ -97,8 +98,8 @@ stepup_thread(void *arg)
 
 /*
  * wait_for_drain --
- *     Spin until the drain worker sets layered_drain_data.running. Keying off this flag ensures
- *     the drop races with the drain worker while it holds the read lock inside the stress sleep.
+ *     Spin until the drain worker sets layered_drain_data.running. The 300 ms stress sleep inside
+ *     __layered_copy_ingest_table widens the window enough for the drop to race with the read lock.
  */
 static void
 wait_for_drain(WT_CONNECTION *conn)
@@ -118,21 +119,21 @@ wait_for_drain(WT_CONNECTION *conn)
  * sync_leader_checkpoint --
  *     Fetch the leader's last checkpoint metadata from the page log and reconfigure the follower
  *     connection with it, so database_size is correctly initialized before step-up. In production,
- *     a follower tracks the leader's checkpoints continuously; this replicates that before the
- *     race is triggered.
+ *     a follower tracks the leader's checkpoints continuously; this replicates that before the race
+ *     is triggered.
  *
- *     Returns true on success or when no checkpoint is available yet, false on error.
+ * Returns true on success or when no checkpoint is available yet, false on error.
  */
 static bool
 sync_leader_checkpoint(WT_CONNECTION *conn, WT_SESSION *session, const char *follower_config)
 {
     WT_ITEM checkpoint_meta;
     WT_SESSION_IMPL *session_impl;
+    wt_timestamp_t checkpoint_ts;
+    uint64_t checkpoint_lsn;
+    int ret;
     char reconfig[8192];
     const char *cfg[2];
-    uint64_t checkpoint_lsn;
-    wt_timestamp_t checkpoint_ts;
-    int ret;
 
     session_impl = (WT_SESSION_IMPL *)session;
     cfg[0] = follower_config;
@@ -239,8 +240,8 @@ setup_db(TEST_OPTS *opts)
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_SESSION *session;
-    char leader_config[2048];
     int i;
+    char leader_config[2048];
 
     testutil_recreate_dir(opts->home);
 
@@ -253,8 +254,8 @@ setup_db(TEST_OPTS *opts)
 
     testutil_check(wiredtiger_open(opts->home, NULL, leader_config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->create(session, TABLE_URI,
-      "key_format=i,value_format=S,block_manager=disagg,type=layered"));
+    testutil_check(session->create(
+      session, TABLE_URI, "key_format=i,value_format=S,block_manager=disagg,type=layered"));
 
     testutil_check(session->open_cursor(session, TABLE_URI, NULL, NULL, &cursor));
     for (i = 0; i < NUM_ROWS; ++i) {
@@ -304,11 +305,8 @@ main(int argc, char *argv[])
     testutil_assert(WIFEXITED(status));
     if (WEXITSTATUS(status) == EXIT_SUCCESS) {
         printf("Child exited successfully: drain/drop race did not panic\n");
-    } else if (WEXITSTATUS(status) == EXIT_FAILURE) {
-        fprintf(stderr, "Child exited with failure: step-up returned non-zero\n");
-        return (EXIT_FAILURE);
     } else {
-        fprintf(stderr, "Child exited with unexpected status %d\n", WEXITSTATUS(status));
+        fprintf(stderr, "Child exited with failure: step-up returned non-zero\n");
         return (EXIT_FAILURE);
     }
 
