@@ -564,21 +564,6 @@ struct __wt_conn_optrack {
 };
 
 /*
- * WT_CONN_PREFETCH --
- *	Prefetch subsystem fields, grouping the thread group, queue, lock, and
- *	configuration that drive the prefetch server.
- */
-struct __wt_conn_prefetch {
-    WT_SPINLOCK lock;        /* Prefetch queue lock */
-    WT_THREAD_GROUP threads; /* Prefetch thread group */
-    uint64_t queue_count;    /* Prefetch queue entry count */
-    /* Locked: queue of refs to pre-fetch */
-    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh;
-    bool auto_on;   /* Prefetch auto-enabled */
-    bool available; /* Prefetch available */
-};
-
-/*
  * WT_NAME_FLAG --
  *	Simple structure for name and flag configuration searches
  */
@@ -630,21 +615,6 @@ struct __wt_conn_stat_log {
     char **sources;    /* Statistics log list of objects */
     const char *stamp; /* Statistics log entry timestamp */
     uint64_t usecs;    /* Statistics log period */
-};
-
-/*
- * WT_CONN_SWEEP --
- *	Handle sweep subsystem fields, grouping the session, thread, and
- *	configuration that drive the handle sweep server.
- */
-struct __wt_conn_sweep {
-    WT_SESSION_IMPL *session; /* Handle sweep session */
-    wt_thread_t tid;          /* Handle sweep thread */
-    int tid_set;              /* Handle sweep thread set */
-    WT_CONDVAR *cond;         /* Handle sweep wait mutex */
-    uint64_t idle_time;       /* Handle sweep idle time */
-    uint64_t interval;        /* Handle sweep interval */
-    uint64_t handles_min;     /* Handle sweep minimum open */
 };
 
 /*
@@ -814,20 +784,6 @@ struct __wt_conn_debug {
     /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE disagg_address_cookie_upgrade;
     bool disagg_address_cookie_optional_field;
-};
-
-/*
- * WT_CONN_EVICT_CONFIG --
- *     Eviction thread group configuration and management fields extracted from WT_CONNECTION_IMPL.
- */
-struct __wt_conn_evict_config {
-    bool server_running;             /* Eviction server operating */
-    WT_THREAD_GROUP threads;         /* Eviction thread group */
-    uint32_t threads_max;            /* Max eviction threads */
-    uint32_t threads_min;            /* Min eviction threads */
-    bool sample_inmem;               /* Sample in-memory pages */
-    wt_shared bool use_npos;         /* Use npos page visit strategy */
-    bool legacy_page_visit_strategy; /* Use legacy page visit strategy */
 };
 
 /*
