@@ -1302,15 +1302,21 @@ rollback_retry:
         }
 
         /*
-         * Truncates are mutually exclusive with all other read/write ops across all tables -- see
-         * the comment on g.truncate_lock for the rationale. Held for the duration of this op
-         * iteration (including mirrors) and released at skip_operation / the rollback label.
+         * In disagg "switch" mode the follower-side truncate path doesn't symmetrically
+         * conflict-check against in-flight writes inside its range, so a writer that allocated its
+         * txn id after the truncate transaction's but committed at an earlier timestamp can leave
+         * the drain with a txn-id-inverted chain on stable (trips __timestamp_no_ts_fix during
+         * reconcile). Serialize truncates against everything else for the duration of this op
+         * iteration (released at skip_operation / the rollback label). Only enabled for switch
+         * mode -- other modes don't exhibit the asymmetric-conflict gap.
          */
-        if (op == TRUNCATE)
-            lock_writelock(session, &g.truncate_lock);
-        else
-            lock_readlock(session, &g.truncate_lock);
-        op_lock_held = true;
+        if (disagg_is_mode_switch()) {
+            if (op == TRUNCATE)
+                lock_writelock(session, &g.truncate_lock);
+            else
+                lock_readlock(session, &g.truncate_lock);
+            op_lock_held = true;
+        }
 
         ret = 0;
         skip1 = skip2 = NULL;
