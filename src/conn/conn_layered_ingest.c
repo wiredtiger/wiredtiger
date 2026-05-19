@@ -419,7 +419,6 @@ __layered_copy_ingest_table(
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-    struct timespec tsp;
     bool in_ts_range, is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
@@ -431,6 +430,7 @@ __layered_copy_ingest_table(
      * Sleep while the caller holds the ingest dhandle read lock, widening the window for the drop
      * to block on the exclusive lock and return EBUSY.
      */
+    struct timespec tsp;
     tsp.tv_sec = 0;
     tsp.tv_nsec = 300 * WT_MILLION;
     __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW, &tsp);
@@ -792,12 +792,12 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
     const char *ingest_uri = work_item->ingest_dhandle->name;
-    struct timespec tsp;
 
     /*
      * Sleep before acquiring the read lock to widen the window for a concurrent drop to win the
      * exclusive lock first, exercising the WT_DHANDLE_DEAD skip path below.
      */
+    struct timespec tsp;
     tsp.tv_sec = 0;
     tsp.tv_nsec = 300 * WT_MILLION;
     __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_PRE_LOCK_SLOW, &tsp);
@@ -817,7 +817,6 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     WT_ERR_MSG_CHK(session, __layered_drain_ingest_table_and_truncate_list(session, ingest_uri),
       "Failed to drain ingest and truncate list for \"%s\"", ingest_uri);
-
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, ingest_uri),
       "Failed to clear ingest table \"%s\"", ingest_uri);
 
