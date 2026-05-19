@@ -213,7 +213,7 @@ config_bool(
 
 config_bool(
     WT_DISAGG_SLOW_TRUNCATE_BUILD
-    "Use the slow (non-fast) truncate path on follower mode"
+    "Use slow truncate path on follower mode"
     DEFAULT OFF
 )
 
