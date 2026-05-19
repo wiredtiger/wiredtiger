@@ -1248,7 +1248,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     }
 
     /*
-     * If there's an on-page value, we only want to write the selected update if the oldest update
+     * If there's an on-page value, we only want to write the selected update if the selected update
      * is globally visible, otherwise we will lose the on-page update. Check if there's an on-page
      * update and clear the selected update if it is not visible.
      *
