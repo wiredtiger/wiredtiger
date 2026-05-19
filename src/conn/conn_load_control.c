@@ -87,15 +87,10 @@ __wti_conn_load_control_config(WT_SESSION_IMPL *session, const char *cfg[], bool
 static WT_INLINE uint8_t
 __conn_calc_load_pct(uint64_t part, uint64_t whole)
 {
-    uint8_t spill_pct = 0;
     if (whole == 0)
         return (0);
 
-    if (part > whole) {
-        part = part - whole;
-        spill_pct = 100;
-    }
-    return (((uint8_t)WT_MIN((part * 100) / whole, 100)) + spill_pct);
+    return (((uint8_t)WT_MIN((part / whole) * 100, 200)));
 }
 
 /*
@@ -117,8 +112,8 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
     bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
 
     load = __conn_calc_load_pct(bytes_inuse, bytes_max);
-    WT_STAT_CONN_SET(session, read_load, load);
     __wt_atomic_store_uint8_relaxed(&load_control->read_load, load);
+    WT_STAT_CONN_SET(session, read_load, load);
     return;
 }
 
@@ -141,7 +136,7 @@ __wt_conn_calc_write_load(WT_SESSION_IMPL *session)
     bytes_dirty = __wt_cache_dirty_inuse(S2C(session)->cache);
 
     load = __conn_calc_load_pct(bytes_dirty, bytes_max);
-    WT_STAT_CONN_SET(session, write_load, load);
     __wt_atomic_store_uint8_relaxed(&load_control->write_load, load);
+    WT_STAT_CONN_SET(session, write_load, load);
     return;
 }
