@@ -741,14 +741,17 @@ static int
 __rec_hs_check_ts_order(WT_SESSION_IMPL *session, WT_UPDATE *prev_upd, bool error_on_ts_ordering,
   WT_REC_HS_KEY_STATE *state)
 {
+    WT_DECL_RET;
+
     WT_ASSERT_ALWAYS(
       session, prev_upd->upd_start_ts == WT_TS_NONE, "out-of-order timestamp update detected");
     if (error_on_ts_ordering) {
         WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
-        WT_RET_MSG(session, EBUSY, "out-of-order timestamp update detected, aborting eviction");
+        WT_ERR_MSG(session, EBUSY, "out-of-order timestamp update detected, aborting eviction");
     }
     state->enable_reverse_modify = false;
-    return (0);
+err:
+    return (ret);
 }
 
 /*
