@@ -399,3 +399,13 @@ define_c_test(
 if(TARGET test_wt16990_disagg_checkpoint_panic)
     set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
 endif()
+
+define_c_test(
+    TARGET test_wt17445_disagg_drain_drop_race
+    SOURCES wt17445_disagg_drain_drop_race/main.c
+    DIR_NAME wt17445_disagg_drain_drop_race
+    ARGUMENTS -b ${CMAKE_BINARY_DIR}
+    DEPENDS "WT_POSIX"
+    LABEL "disagg"
+    CXX
+)

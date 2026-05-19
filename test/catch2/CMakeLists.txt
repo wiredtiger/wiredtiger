@@ -10,7 +10,6 @@ else()
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_disagg_meta_config.cpp
-        misc_tests/test_drain_drop_race.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp

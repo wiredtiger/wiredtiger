@@ -251,12 +251,8 @@ def function_scoping():
             sys.exit(1)
 
         # If the path is in src, the module is the subdirectory under src.
-        # If the path is test/unittest, the module is unittest.
         # Otherwise it is the top-level directory, such as "test."
         if parts[1] == 'src':
-            module = parts[2]
-        elif parts[1] == "test" and parts[2] == "catch2":
-            # Treat test/unittests special since they are allowed to call __wti_ functions.
             module = parts[2]
         else:
             module = parts[1]
@@ -355,8 +351,9 @@ def function_scoping():
                     fn.used_outside_of_file = True
 
                 # Check whether a "__wti" function is used outside of its module.
-                # Exception: Unittest files are allowed to call __wti_ functions.
-                if fn.visibility_module and module != fn.module and module != "catch2":
+                # Exception: Any file under test/ is allowed to call __wti_ functions.
+                in_test = source_file.startswith('../test/')
+                if fn.visibility_module and module != fn.module and not in_test:
                     print(f'{source_file}:{line_no}: {fn_name} is used outside of its module ' +
                           f'"{fn.module}"')
                     failed = True
