@@ -1698,6 +1698,10 @@ variables:
           format_args: disagg.mode=leader runs.timer=5:10
           times: 1
 
+  - &s-all-dep
+    - name: s-all
+      variant: ubuntu2004
+
   - &format-stress-test-disagg-follower
     depends_on:
       - name: compile
@@ -1709,13 +1713,13 @@ variables:
           times: 5
 
   - &format-stress-test-disagg-switch
-    depends_on:
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
-      - name: compile-slow-truncate
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
         vars:
-          dependent_task: compile-slow-truncate
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
@@ -1729,13 +1733,13 @@ variables:
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
   - &format-stress-test-disagg-switch-data-validation
-    depends_on:
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
-      - name: compile-slow-truncate
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
         vars:
-          dependent_task: compile-slow-truncate
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
@@ -1749,13 +1753,13 @@ variables:
           times: 5
 
   - &format-stress-test-disagg-switch-pull-request
-    depends_on:
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
-      - name: compile-slow-truncate
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
         vars:
-          dependent_task: compile-slow-truncate
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # run for 10 minutes.
@@ -1776,9 +1780,7 @@ tasks:
   # Base compile task on posix flavors
   - name: compile
     tags: ["pull_request"]
-    depends_on: &s-all-dep
-      - name: s-all
-        variant: ubuntu2004
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1790,19 +1792,6 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger develop"
-      - func: "upload artifact"
-      - func: "cleanup"
-
-  # Build with the slow (non-fast) truncate path enabled. Used by the
-  # disagg switch-mode format tests, which need the slow code path for now.
-  # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
-  - name: compile-slow-truncate
-    depends_on: *s-all-dep
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -5329,13 +5318,13 @@ tasks:
 
   - name: format-stress-test-disagg-switch-tsan
     tags: ["pull_request"]
-    depends_on:
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
-      - name: compile-slow-truncate
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
         vars:
-          dependent_task: compile-slow-truncate
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test disagg"
         vars:
           # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
