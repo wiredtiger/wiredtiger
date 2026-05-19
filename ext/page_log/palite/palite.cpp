@@ -2390,13 +2390,6 @@ public:
         return 0;
     }
 
-    int
-    begin_checkpoint(uint64_t checkpoint_id)
-    {
-        LOG_DEBUG("checkpoint_id={}", checkpoint_id);
-        return 0;
-    }
-
     /*
      * Abandon (delete) all page log entries and checkpoint records with an LSN greater than the
      * given LSN.
@@ -2538,12 +2531,6 @@ palite_abandon_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *sess)
 }
 
 static int
-palite_begin_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t checkpoint_id)
-{
-    return safe_call<Palite>(sess, page_log, &Palite::begin_checkpoint, checkpoint_id);
-}
-
-static int
 palite_complete_checkpoint(
   WT_PAGE_LOG *page_log, WT_SESSION *sess, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args)
 {
@@ -2598,7 +2585,6 @@ Palite::initialize_interface()
 {
     pl_add_reference = palite_add_reference;
     pl_abandon_checkpoint = palite_abandon_checkpoint;
-    pl_begin_checkpoint = palite_begin_checkpoint;
     pl_complete_checkpoint = palite_complete_checkpoint;
     pl_get_complete_checkpoint_ext = palite_get_complete_checkpoint_ext;
     pl_get_last_lsn = palite_get_last_lsn;

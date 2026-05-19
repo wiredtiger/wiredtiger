@@ -5640,6 +5640,7 @@ struct __wt_page_log {
      * @param checkpoint_id the checkpoint id to use. Must be greater than any other
      *        checkpoint_id used with this call.
      */
+    /* FIXME-WT-17548 will be removed. */
     int (*pl_begin_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id);
 
     /*!
