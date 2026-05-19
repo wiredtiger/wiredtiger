@@ -360,6 +360,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
     bool is_disagg = __wt_conn_is_disagg(session);
 
     (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem, size);
+    __wt_conn_calc_read_load(session);
     if (is_disagg) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem_ingest, size);
@@ -413,6 +414,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
                 (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
             }
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
+            __wt_conn_calc_write_load(session);
         }
     }
 }
