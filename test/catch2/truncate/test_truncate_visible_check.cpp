@@ -316,11 +316,9 @@ TEST_CASE_METHOD(
     SECTION("returns WT_NOTFOUND even when a matching entry exists")
     {
         add_truncate_entry("key100", "key200");
-        const bool previous = __wt_process.disagg_slow_truncate_2026;
         __wt_process.disagg_slow_truncate_2026 = true;
         WT_ITEM key = make_key("key150");
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
-        __wt_process.disagg_slow_truncate_2026 = previous;
     }
 }
