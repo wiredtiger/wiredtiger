@@ -560,10 +560,16 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
         cell_type = WT_CELL_ADDR_DEL;
 
-        /* We should never be in an in-progress prepared state. */
+        /*
+         * In-progress prepared states are only written to disk when preserve_prepared is enabled,
+         * so that the prepared fast-truncate survives a restart and can be committed or rolled back
+         * during recovery.
+         */
         WT_ASSERT(session,
           page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED);
+            page_del->prepare_state == WT_PREPARE_RESOLVED ||
+            (page_del->prepare_state == WT_PREPARE_INPROGRESS &&
+              F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)));
     }
 
     /* Just pack and return the cell size. */
@@ -584,19 +590,36 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_addr_validity(session, &p, ta);
-
     /*
      * If passed fast-delete information, append the fast-delete information after the aggregated
-     * timestamp information.
+     * timestamp information. For an in-progress prepared fast-truncate (written only when
+     * preserve_prepared is enabled), use a local TA copy with prepare=1 so that
+     * __cell_pack_addr_validity emits WT_CELL_SECOND_DESC and WT_CELL_PREPARE  the signal the
+     * unpack path uses to distinguish prepared from committed fast-truncate payloads. Then encode
+     * prepare_ts and prepared_id rather than the committed-layout timestamps. For committed
+     * fast-truncates (and all other cells), use the caller's TA unchanged.
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
-    }
+        if (page_del->prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_TIME_AGGREGATE local_ta;
+            WT_TIME_AGGREGATE_COPY(&local_ta, ta);
+            local_ta.prepare = 1;
+            __cell_pack_addr_validity(session, &p, &local_ta);
+
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepare_ts));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepared_id));
+        } else {
+            __cell_pack_addr_validity(session, &p, ta);
+
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
+        }
+    } else
+        __cell_pack_addr_validity(session, &p, ta);
 
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */

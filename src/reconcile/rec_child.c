@@ -94,6 +94,21 @@ __rec_child_deleted(
     }
 
     /*
+     * When preserve_prepared is enabled, an in-progress prepared fast-truncate must be written to
+     * disk as a proxy cell so the prepared state survives a crash and can be recovered.
+     */
+    prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
+    if (!page_del->committed && prepare_state == WT_PREPARE_INPROGRESS &&
+      F_ISSET(conn, WT_CONN_PRESERVE_PREPARED)) {
+        WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
+          "In-progress prepared fast-truncate should never be seen during eviction");
+        cmsp->del = *page_del;
+        cmsp->state = WTI_CHILD_PROXY;
+        page_del->selected_for_write = true;
+        return (0);
+    }
+
+    /*
      * The truncate may not yet be visible to us. In that case, we proceed as with any change not
      * visible during reconciliation by ignoring the change for the purposes of writing the internal
      * page.
