@@ -599,7 +599,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_ERR(__page_init_dsk_leaf_merge_state(session, btree, new_image, &disk_s));
     new_image->size = WT_PTRDIFF(disk_s.p_ptr, new_image->mem);
 
-    /* We never prefix compress
+    /* We never prefix compress aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
      the first key. */
     disk_s.key_pfx_compress = false;
     for (;;) {
