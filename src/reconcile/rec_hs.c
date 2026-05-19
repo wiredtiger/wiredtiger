@@ -732,6 +732,26 @@ __rec_hs_select_newest(WT_UPDATE *upd, WT_UPDATE **ref_updp, uint64_t txnid,
 }
 
 /*
+ * __rec_hs_check_ts_order --
+ *     Assert that the chain's timestamps are non-decreasing and handle a detected out-of-order
+ *     timestamp: abort eviction when the error flag demands it, and disable reverse-modify encoding
+ *     so the no-timestamp update is always written as a full value.
+ */
+static int
+__rec_hs_check_ts_order(WT_SESSION_IMPL *session, WT_UPDATE *prev_upd, bool error_on_ts_ordering,
+  WT_REC_HS_KEY_STATE *state)
+{
+    WT_ASSERT_ALWAYS(
+      session, prev_upd->upd_start_ts == WT_TS_NONE, "out-of-order timestamp update detected");
+    if (error_on_ts_ordering) {
+        WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
+        WT_RET_MSG(session, EBUSY, "out-of-order timestamp update detected, aborting eviction");
+    }
+    state->enable_reverse_modify = false;
+    return (0);
+}
+
+/*
  * __rec_hs_collect_upd_chain --
  *     Walk the in-memory update chain for one key and push onto the work stack every update that
  *     must be written to the history store. Out-of-order timestamp detection and squash tracking
@@ -776,26 +796,8 @@ __rec_hs_collect_upd_chain(WT_SESSION_IMPL *session, WT_SAVE_UPD *list, WT_UPDAT
           !F_ISSET(upd, WT_UPDATE_HS_MAX_STOP) || WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw));
 
         /* Detect any update without a timestamp. */
-        if (prev_upd != NULL && prev_upd->upd_start_ts < upd->upd_start_ts) {
-            WT_ASSERT_ALWAYS(session, prev_upd->upd_start_ts == WT_TS_NONE,
-              "out-of-order timestamp update detected");
-            /*
-             * Fail the eviction if we detect any timestamp ordering issue and the error flag is
-             * set. We cannot modify the history store to fix the updates' timestamps as it may make
-             * the history store checkpoint inconsistent.
-             */
-            if (error_on_ts_ordering) {
-                WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
-                WT_RET_MSG(
-                  session, EBUSY, "out-of-order timestamp update detected, aborting eviction");
-            }
-
-            /*
-             * Always insert full update to the history store if we detect update without a
-             * timestamp.
-             */
-            state->enable_reverse_modify = false;
-        }
+        if (prev_upd != NULL && prev_upd->upd_start_ts < upd->upd_start_ts)
+            WT_RET(__rec_hs_check_ts_order(session, prev_upd, error_on_ts_ordering, state));
 
         /*
          * Find the first update to insert to the history store. (The value that is just older than
@@ -950,10 +952,81 @@ __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
 }
 
 /*
+ * __rec_hs_flush_stats_periodic --
+ *     Drain accumulated history store insertion counters to global statistics once per thousand
+ *     inserts, keeping progress visible during long reconciliations without the cost of a
+ *     per-record atomic increment.
+ */
+static void
+__rec_hs_flush_stats_periodic(WT_SESSION_IMPL *session, __rec_hs_stats *statsp)
+{
+    if (statsp->insert_cnt < 1000)
+        return;
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, statsp->insert_cnt);
+    WT_STAT_CONN_DSRC_INCRV(
+      session, cache_hs_insert_full_update, statsp->cache_hs_insert_full_update);
+    WT_STAT_CONN_DSRC_INCRV(
+      session, cache_hs_insert_reverse_modify, statsp->cache_hs_insert_reverse_modify);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, statsp->cache_hs_write_squash);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, statsp->cache_hs_key_processed);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_update_processed, statsp->cache_hs_update_processed);
+    statsp->insert_cnt = 0;
+    statsp->cache_hs_insert_full_update = 0;
+    statsp->cache_hs_insert_reverse_modify = 0;
+    statsp->cache_hs_write_squash = 0;
+    statsp->cache_hs_key_processed = 0;
+    statsp->cache_hs_update_processed = 0;
+    statsp->hs_stats_updated = true;
+}
+
+/*
+ * __rec_hs_write_upd --
+ *     Write one update to the history store as a reverse-modify or full-update record. Chooses
+ *     reverse-modify when permitted and within the consecutive-modify budget, and falls back to a
+ *     full value otherwise.
+ */
+static int
+__rec_hs_write_upd(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btree, WT_REF *ref,
+  const WT_ITEM *key, WT_UPDATE *upd, WT_UPDATE *newest_hs, WT_ITEM *full_value,
+  WT_ITEM *prev_full_value, WT_TIME_WINDOW *tw, bool enable_reverse_modify,
+  bool error_on_ts_ordering, uint64_t *modify_cntp, __rec_hs_stats *statsp)
+{
+    WT_DECL_RET;
+    WT_ITEM *modify_value;
+    WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
+    int nentries;
+    char tw_string[WT_TIME_STRING_SIZE];
+
+    modify_value = NULL;
+    nentries = MAX_REVERSE_MODIFY_NUM;
+    if (upd != newest_hs && enable_reverse_modify &&
+      *modify_cntp < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
+      __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10, entries,
+        &nentries) == 0) {
+        WT_ERR_MSG_CHK(session, __wt_modify_pack(hs_cursor, entries, nentries, &modify_value),
+          "failed to pack modify value for history store insertion: btree=%" PRIu32
+          " time_window=%s",
+          btree->id, __wt_time_window_to_string(tw, tw_string));
+        WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_MODIFY,
+          modify_value, tw, error_on_ts_ordering));
+        ++statsp->cache_hs_insert_reverse_modify;
+        __wt_scr_free(session, &modify_value);
+        ++(*modify_cntp);
+    } else {
+        *modify_cntp = 0;
+        WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_STANDARD,
+          full_value, tw, error_on_ts_ordering));
+        ++statsp->cache_hs_insert_full_update;
+    }
+err:
+    __wt_scr_free(session, &modify_value);
+    return (ret);
+}
+
+/*
  * __rec_hs_flush_upd_chain --
  *     Pop updates off the collected stack and write each to the history store, deciding between
- *     full-update and reverse-modify encoding. Periodically flushes in-flight statistics to avoid
- *     losing progress visibility during long reconciliations.
+ *     full-update and reverse-modify encoding.
  */
 static int
 __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btree,
@@ -963,16 +1036,12 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
   __rec_hs_stats *statsp)
 {
     WT_DECL_RET;
-    WT_ITEM *modify_value, *tmp;
-    WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
+    WT_ITEM *tmp;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prev_upd, *tombstone, *upd;
     uint64_t modify_cnt;
-    int nentries;
-    char tw_string[WT_TIME_STRING_SIZE];
     bool hs_inserted;
 
-    modify_value = NULL;
     hs_inserted = false;
     modify_cnt = 0;
     WT_TIME_WINDOW_INIT(&tw);
@@ -1054,38 +1123,8 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
         else
             WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
-        /*
-         * Calculate reverse modify and clear the history store records with timestamps when
-         * inserting the first update. Always write the newest update in the history store as a full
-         * update. We don't want to handle the edge cases that the reverse modifies be applied to
-         * the wrong on-disk base value. This also limits the number of consecutive reverse modifies
-         * for standard updates. We want to ensure we do not store a large chain of reverse modifies
-         * as to impact read performance.
-         *
-         * Due to concurrent operation of checkpoint and eviction, it is possible that history store
-         * may have more recent versions of a key than the on-disk version. Without a proper base
-         * value in the history store, it can lead to wrong value being restored by the RTS.
-         */
-        nentries = MAX_REVERSE_MODIFY_NUM;
-        if (upd != newest_hs && enable_reverse_modify &&
-          modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
-          __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
-            entries, &nentries) == 0) {
-            WT_ERR_MSG_CHK(session, __wt_modify_pack(hs_cursor, entries, nentries, &modify_value),
-              "failed to pack modify value for history store insertion: btree=%" PRIu32
-              " time_window=%s",
-              btree->id, __wt_time_window_to_string(&tw, tw_string));
-            WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_MODIFY,
-              modify_value, &tw, error_on_ts_ordering));
-            ++statsp->cache_hs_insert_reverse_modify;
-            __wt_scr_free(session, &modify_value);
-            ++modify_cnt;
-        } else {
-            modify_cnt = 0;
-            WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_STANDARD,
-              full_value, &tw, error_on_ts_ordering));
-            ++statsp->cache_hs_insert_full_update;
-        }
+        WT_ERR(__rec_hs_write_upd(session, hs_cursor, btree, ref, key, upd, newest_hs, full_value,
+          prev_full_value, &tw, enable_reverse_modify, error_on_ts_ordering, &modify_cnt, statsp));
 
         /* Flag the update as now in the history store. */
         if (tombstone != NULL) {
@@ -1106,32 +1145,9 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
         if (upd == newest_hs)
             break;
 
-        /*
-         * Periodically flush the hs stats in case there is a long reconciliation to check progress.
-         */
-        if (statsp->insert_cnt >= 1000) {
-            WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, statsp->insert_cnt);
-            WT_STAT_CONN_DSRC_INCRV(
-              session, cache_hs_insert_full_update, statsp->cache_hs_insert_full_update);
-            WT_STAT_CONN_DSRC_INCRV(
-              session, cache_hs_insert_reverse_modify, statsp->cache_hs_insert_reverse_modify);
-            WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, statsp->cache_hs_write_squash);
-            WT_STAT_CONN_DSRC_INCRV(
-              session, cache_hs_key_processed, statsp->cache_hs_key_processed);
-            WT_STAT_CONN_DSRC_INCRV(
-              session, cache_hs_update_processed, statsp->cache_hs_update_processed);
-            statsp->insert_cnt = 0;
-            statsp->cache_hs_insert_full_update = 0;
-            statsp->cache_hs_insert_reverse_modify = 0;
-            statsp->cache_hs_write_squash = 0;
-            statsp->cache_hs_key_processed = 0;
-            statsp->cache_hs_update_processed = 0;
-            statsp->hs_stats_updated = true;
-        }
+        __rec_hs_flush_stats_periodic(session, statsp);
     }
 err:
-    if (modify_value != NULL)
-        __wt_scr_free(session, &modify_value);
     return (ret);
 }
 
