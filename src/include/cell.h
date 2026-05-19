@@ -253,3 +253,29 @@ struct __wt_cell_kv {
     size_t cell_len;
     size_t len; /* Total length of cell + data */
 };
+
+/*
+ * WTI_DELTA_INT_MERGE_STATE --
+ *	Per-stream state for progressive internal delta merging. Tracks the current position in a
+ *	single delta byte stream; the head entry is unpacked on demand.
+ */
+struct __wti_delta_int_merge_state {
+    WT_CELL_UNPACK_DELTA_INT unpack; /* Current unpacked key+value entry */
+    uint8_t *cell;                   /* Current position in the delta byte stream */
+    uint32_t entries;                /* Remaining cell count (key+value pairs each count as 2) */
+    bool unpacked;                   /* true when unpack holds a valid entry */
+};
+
+/*
+ * WTI_BASE_INT_MERGE_STATE --
+ *	Base page state for progressive internal page merging. Tracks the current position in the
+ *	base page byte stream; the head key+value pair is unpacked on demand.
+ */
+struct __wti_base_int_merge_state {
+    WT_CELL_UNPACK_ADDR unpack_key; /* Current unpacked key cell */
+    WT_CELL_UNPACK_ADDR unpack_val; /* Current unpacked value cell */
+    WT_PAGE_HEADER *dsk;            /* Base page disk header */
+    uint8_t *cell;                  /* Current position in the base page byte stream */
+    uint32_t entries;               /* Remaining cell count */
+    bool unpacked;                  /* true when unpack_key/unpack_val are valid */
+};

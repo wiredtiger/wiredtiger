@@ -1879,28 +1879,40 @@ __wt_page_cell_data_ref_kv(
     return (__cell_data_ref(session, page, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
-/*
- * WT_CELL_FOREACH --
- *	Walk the cells on a page.
- */
-#define WT_CELL_FOREACH_DELTA_INT(session, page_dsk, dsk, unpack)                               \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __i -= 2) {                                                                        \
-            WT_CELL_UNPACK_DELTA_INT *t_unpack = &unpack;                                       \
-            __wt_cell_unpack_kv(session, page_dsk, (WT_CELL *)__cell, &t_unpack->key);          \
-            __cell += t_unpack->key.__len;                                                      \
-            __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)__cell, &t_unpack->value);      \
-            __cell += t_unpack->value.__len;
-
 #define WT_CELL_DELTA_LEAF_UNPACK(session, dsk, unpack, cell)                     \
     do {                                                                          \
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)cell, &(unpack)->delta_key); \
         cell += (unpack)->delta_key.__len;                                        \
         __wt_cell_unpack_delta_leaf_value(session, dsk, (WT_CELL *)cell, unpack); \
         cell += (unpack)->delta_value.__len;                                      \
+    } while (0)
+
+/*
+ * WT_CELL_DELTA_INT_UNPACK --
+ *	Unpack one key+value entry from the head of an internal delta stream, advancing the cell
+ *	pointer past both cells and marking the state as unpacked.
+ */
+#define WT_CELL_DELTA_INT_UNPACK(session, base_dsk, s)                                      \
+    do {                                                                                    \
+        __wt_cell_unpack_kv(session, base_dsk, (WT_CELL *)(s)->cell, &(s)->unpack.key);     \
+        (s)->cell += (s)->unpack.key.__len;                                                 \
+        __wt_cell_unpack_addr(session, base_dsk, (WT_CELL *)(s)->cell, &(s)->unpack.value); \
+        (s)->cell += (s)->unpack.value.__len;                                               \
+        (s)->unpacked = true;                                                               \
+    } while (0)
+
+/*
+ * WT_CELL_BASE_INT_UNPACK --
+ *	Unpack one key+value pair from the base internal page, advancing the cell pointer past both
+ *	cells and marking the state as unpacked.
+ */
+#define WT_CELL_BASE_INT_UNPACK(session, s)                                               \
+    do {                                                                                  \
+        __wt_cell_unpack_addr(session, (s)->dsk, (WT_CELL *)(s)->cell, &(s)->unpack_key); \
+        (s)->cell += (s)->unpack_key.__len;                                               \
+        __wt_cell_unpack_addr(session, (s)->dsk, (WT_CELL *)(s)->cell, &(s)->unpack_val); \
+        (s)->cell += (s)->unpack_val.__len;                                               \
+        (s)->unpacked = true;                                                             \
     } while (0)
 
 #define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                        \
