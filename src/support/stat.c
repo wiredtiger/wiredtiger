@@ -2482,8 +2482,6 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
-  "layered: layered GC verify: retries opening stable checkpoint cursor due to concurrent "
-  "checkpoint",
   "layered: number of checkpoints picked up by a follower",
   "layered: the number of tables the layered table manager has open",
   "layered: the number of times the truncate list was searched",
@@ -3537,7 +3535,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
-    stats->layered_gc_verify_stable_cursor_busy = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_follower = 0;
     stats->layered_table_manager_tables = 0;
     stats->layered_truncate_list_search_calls = 0;
@@ -4711,8 +4708,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_logops_skipped +=
       WT_STAT_CONN_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_CONN_READ(from, layered_table_manager_skip_lsn);
-    to->layered_gc_verify_stable_cursor_busy +=
-      WT_STAT_CONN_READ(from, layered_gc_verify_stable_cursor_busy);
     to->layered_table_manager_checkpoints_disagg_pick_up_follower +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_follower);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);

@@ -734,6 +734,8 @@ extern int __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype
   const char **tokstart, size_t *toklen) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_key_return(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_gc_open_stable_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_truncate_detect_write_conflict(
@@ -741,8 +743,8 @@ extern int __wt_layered_table_truncate_detect_write_conflict(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_layered_verify_gc_update(WT_SESSION_IMPL *session, const WT_ITEM *key)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_verify_gc_update(WT_SESSION_IMPL *session, WT_CURSOR *stable_cursor,
+  const WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_library_init(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

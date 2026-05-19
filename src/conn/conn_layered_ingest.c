@@ -200,76 +200,40 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 #endif
 
 /*
- * __wt_layered_verify_gc_update --
- *     Diagnostic check: during checkpoint reconciliation of an ingest btree, before a data value is
- *     dropped by garbage collection, verify that the key exists in the latest stable-table
- *     checkpoint. Called from reconciliation only, where stable pages are guaranteed to be
- *     materialized.
+ * __wt_layered_gc_open_stable_cursor --
+ *     Open a read-uncommitted cursor on the stable constituent of the current btree's layered
+ *     table. Callers must close the returned cursor when done. Returns WT_NOTFOUND if the stable
+ *     table does not yet exist, which the caller may treat as "nothing to verify against."
  */
 int
-__wt_layered_verify_gc_update(WT_SESSION_IMPL *session, const WT_ITEM *key)
+__wt_layered_gc_open_stable_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *stable_cursor;
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    uint32_t ingest_id;
-    const char *checkpoint_name;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL};
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
+      "isolation=read-uncommitted", "readonly", NULL};
 
-    stable_cursor = NULL;
-    checkpoint_name = NULL;
+    *cursorp = NULL;
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+    WT_ERR(__layered_derive_stable_uri(session, S2BT(session)->dhandle->name, stable_uri_buf));
+    WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, cfg, cursorp));
 
-    conn = S2C(session);
+err:
+    __wt_scr_free(session, &stable_uri_buf);
+    return (ret);
+}
 
-    /*
-     * When preserve_prepared is active the stable table may contain unresolved prepared cells that
-     * a non-prepare-aware reader cannot see past; skip the check to avoid false positives.
-     */
-    if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
-        return (0);
-
-    WT_ASSERT(session, conn->layered_table_manager.init);
-
-    ingest_id = S2BT(session)->id;
-    entry = conn->layered_table_manager.entries[ingest_id];
-    WT_ASSERT(session, entry != NULL);
-
-retry:
-    /*
-     * Look up the most recent stable-table checkpoint. If no checkpoint exists yet, there is
-     * nothing to verify against.
-     */
-    WT_ERR_NOTFOUND_OK(
-      __wt_meta_checkpoint_last_name(session, entry->stable_uri, &checkpoint_name, NULL, NULL),
-      true);
-    if (ret == WT_NOTFOUND) {
-        ret = 0;
-        goto err;
-    }
-
-    /*
-     * Build a URI with a "/<checkpoint name>" suffix. This reads from the stable checkpoint without
-     * going through the traditional checkpoint-cursor path.
-     */
-    if (stable_uri_buf == NULL)
-        WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
-    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "%s/%s", entry->stable_uri, checkpoint_name));
-
-    ret = __wt_open_cursor(session, stable_uri_buf->data, NULL, cfg, &stable_cursor);
-    if (ret == EBUSY) {
-        /*
-         * The named checkpoint we picked may have been replaced by a concurrent checkpoint. Drop
-         * the stale name and look up the latest one again before retrying. FIXME-WT-16476: no need
-         * to yield if we no longer take the checkpoint lock.
-         */
-        WT_STAT_CONN_INCR(session, layered_gc_verify_stable_cursor_busy);
-        __wt_free(session, checkpoint_name);
-        __wt_yield();
-        goto retry;
-    }
-    WT_ERR(ret);
+/*
+ * __wt_layered_verify_gc_update --
+ *     Diagnostic check: verify that a key being garbage collected from the ingest btree exists in
+ *     the stable table. The caller opens stable_cursor once per reconciliation and reuses it across
+ *     all keys on the page.
+ */
+int
+__wt_layered_verify_gc_update(
+  WT_SESSION_IMPL *session, WT_CURSOR *stable_cursor, const WT_ITEM *key)
+{
+    WT_DECL_RET;
 
     stable_cursor->set_key(stable_cursor, key);
     ret = stable_cursor->search(stable_cursor);
@@ -279,10 +243,7 @@ retry:
     WT_ERR(ret);
 
 err:
-    if (stable_cursor != NULL)
-        WT_TRET(stable_cursor->close(stable_cursor));
-    __wt_free(session, checkpoint_name);
-    __wt_scr_free(session, &stable_uri_buf);
+    WT_TRET(stable_cursor->reset(stable_cursor));
     return (ret);
 }
 

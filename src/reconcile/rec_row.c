@@ -896,29 +896,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
-#ifdef HAVE_DIAGNOSTIC
-            /*
-             * The insert chain is being dropped with no update written to disk or saved for update
-             * restore. On a GC btree during checkpoint reconciliation this means the most recent
-             * update was pruned by GC; verify the key exists in the latest stable checkpoint. Only
-             * check standard data values; skip the layered delete sentinel.
-             */
-            if (!upd_select.upd_saved && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              F_ISSET(r, WT_REC_CHECKPOINT) && ins->upd != NULL &&
-              ins->upd->type == WT_UPDATE_STANDARD) {
-                WT_ITEM val_item;
-                WT_ITEM key_item;
-                WT_CLEAR(val_item);
-                WT_CLEAR(key_item);
-                val_item.data = ins->upd->data;
-                val_item.size = ins->upd->size;
-                if (!__wt_clayered_deleted(&val_item)) {
-                    key_item.data = WT_INSERT_KEY(ins);
-                    key_item.size = WT_INSERT_KEY_SIZE(ins);
-                    WT_ERR(__wt_layered_verify_gc_update(session, &key_item));
-                }
-            }
-#endif
             /*
              * In cases where a page has grown so large we are trying to force evict it (there is
              * content, but none of the content can be evicted), we set up fake split points, to
@@ -1090,6 +1067,9 @@ __wti_rec_row_leaf(
     bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
     const void *key_data;
+#ifdef HAVE_DIAGNOSTIC
+    WT_CURSOR *gc_stable_cursor;
+#endif
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -1126,6 +1106,21 @@ __wti_rec_row_leaf(
 
     /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need. */
     WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Open a read-uncommitted cursor on the stable table once for the whole page so that per-key GC
+     * verification doesn't pay repeated open/close overhead. Only open during eviction (the only
+     * path where GC actually prunes keys), and skip during step-up (where the entire ingest btree
+     * is drained) and when preserve_prepared is active (unresolved prepared cells cause false
+     * positives).
+     */
+    gc_stable_cursor = NULL;
+    if (F_ISSET(r, WT_REC_EVICT) && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+      !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
+      !F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))
+        WT_ERR(__wt_layered_gc_open_stable_cursor(session, &gc_stable_cursor));
+#endif
 
     /* For each entry in the page... */
     WT_ROW_FOREACH (page, rip, i) {
@@ -1188,14 +1183,14 @@ __wti_rec_row_leaf(
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
 #ifdef HAVE_DIAGNOSTIC
                     /*
-                     * Verify that a data value being garbage collected exists in the latest stable
-                     * checkpoint. Only check cells without a stop time window (non-tombstone) during
-                     * checkpoint reconciliation; eviction-time checks are skipped because stable
-                     * pages may not yet be materialized at that point.
+                     * Verify that a non-tombstone key being garbage collected from the ingest btree
+                     * exists on the stable table. GC only prunes during eviction, so
+                     * gc_stable_cursor is non-NULL only on the eviction path (set up above). Skip
+                     * tombstones: a deleted key need not exist on the stable side.
                      */
-                    if (F_ISSET(r, WT_REC_CHECKPOINT) && !WT_TIME_WINDOW_HAS_STOP(twp)) {
+                    if (gc_stable_cursor != NULL && !WT_TIME_WINDOW_HAS_STOP(twp)) {
                         WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
-                        WT_ERR(__wt_layered_verify_gc_update(session, tmpkey));
+                        WT_ERR(__wt_layered_verify_gc_update(session, gc_stable_cursor, tmpkey));
                     }
 #endif
                 }
@@ -1445,6 +1440,10 @@ leaf_insert:
     ret = __wti_rec_split_finish(session, r);
 
 err:
+#ifdef HAVE_DIAGNOSTIC
+    if (gc_stable_cursor != NULL)
+        WT_TRET(gc_stable_cursor->close(gc_stable_cursor));
+#endif
     __wt_scr_free(session, &lastkey);
     __wt_scr_free(session, &tmpkey);
     return (ret);
