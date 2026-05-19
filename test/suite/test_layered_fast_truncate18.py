@@ -131,9 +131,8 @@ class test_layered_fast_truncate18(wttest.WiredTigerTestCase):
 
         # The transaction committed; no WT_ROLLBACK raised.
 
-    # FIXME-WT-17272: There needs to be a write-conflict check inside
-    # `__txn_insert_truncate_entry_helper` when inserting into the truncate
-    # list.
+    # FIXME-WT-17272: Overlapping uncommitted truncates are not detected as
+    # write conflicts even when ingest keys exist in the truncated range.
     @unittest.skip("FIXME-WT-17272")
     def test_overlapping_truncates_conflict_with_ingest(self):
         # A follower with stable keys 1-100 and ingest key 45.
@@ -156,9 +155,8 @@ class test_layered_fast_truncate18(wttest.WiredTigerTestCase):
                 self.CONFLICT_MSG,
             )
 
-    # FIXME-WT-17272: There needs to be a write-conflict check inside
-    # `__txn_insert_truncate_entry_helper` when inserting into the truncate
-    # list.
+    # FIXME-WT-17272: Overlapping uncommitted truncates are not detected as
+    # write conflicts when there are no ingest keys in the truncated range.
     @unittest.skip("FIXME-WT-17272")
     def test_overlapping_truncates_conflict_no_ingest(self):
         # A follower with stable keys 1-100 and an empty ingest table.
@@ -215,9 +213,8 @@ class test_layered_fast_truncate18(wttest.WiredTigerTestCase):
         ):
             self.truncate(session_b, 30, 60)
 
-    # FIXME-WT-17272: There needs to be a write-conflict check inside
-    # `__txn_insert_truncate_entry_helper` when inserting into the truncate
-    # list.
+    # FIXME-WT-17272: Truncates that are committed but invisible due to
+    # read-timestamp differences are not detected as write conflicts.
     @unittest.skip("FIXME-WT-17272")
     def test_invisible_committed_truncate_conflicts(self):
         # A follower with stable keys 1-100.
