@@ -1015,7 +1015,7 @@ ops(void *arg)
     uint32_t max_rows, ntries, range, rnd;
     u_int i, throttle_delay_max;
     const char *iso_config;
-    bool greater_than, intxn, prepared, mirrored_truncate;
+    bool greater_than, intxn, op_lock_held, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
@@ -1065,6 +1065,7 @@ ops(void *arg)
 rollback_retry:
         prepared = false;
         mirrored_truncate = false;
+        op_lock_held = false;
         if (tinfo->quit)
             break;
 
@@ -1300,6 +1301,17 @@ rollback_retry:
             modify_build(tinfo);
         }
 
+        /*
+         * Truncates are mutually exclusive with all other read/write ops across all tables -- see
+         * the comment on g.truncate_lock for the rationale. Held for the duration of this op
+         * iteration (including mirrors) and released at skip_operation / the rollback label.
+         */
+        if (op == TRUNCATE)
+            lock_writelock(session, &g.truncate_lock);
+        else
+            lock_readlock(session, &g.truncate_lock);
+        op_lock_held = true;
+
         ret = 0;
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
@@ -1354,6 +1366,15 @@ rollback_retry:
         }
 skip_operation:
         table = tinfo->table = NULL;
+
+        /* Release the per-op truncate lock if still held. */
+        if (op_lock_held) {
+            if (op == TRUNCATE)
+                lock_writeunlock(session, &g.truncate_lock);
+            else
+                lock_readunlock(session, &g.truncate_lock);
+            op_lock_held = false;
+        }
 
         /* Release the truncate operation counter. */
         if (op == TRUNCATE)
@@ -1431,6 +1452,17 @@ skip_operation:
             break;
         case 5: /* 10% */
 rollback:
+            /*
+             * If we jumped here from inside the op execution block (before reaching
+             * skip_operation), the per-op truncate lock is still held -- release it now.
+             */
+            if (op_lock_held) {
+                if (op == TRUNCATE)
+                    lock_writeunlock(session, &g.truncate_lock);
+                else
+                    lock_readunlock(session, &g.truncate_lock);
+                op_lock_held = false;
+            }
             if (GV(RUNS_PREDICTABLE_REPLAY)) {
                 if (tinfo->quit)
                     goto loop_exit;

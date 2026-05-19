@@ -261,6 +261,16 @@ typedef struct {
     bool background_compaction_running; /* Background compaction running */
 
     RWLOCK backup_lock; /* Backup running */
+
+    /*
+     * Truncates run with the write lock; every other read/write operation runs with the read lock.
+     * Truncates are therefore mutually exclusive with all other ops across all tables. Needed for
+     * layered/disagg runs where a follower-side truncate doesn't symmetrically conflict-check
+     * against concurrent writes inside its range: a write that allocated its txn id after the
+     * truncate transaction did but committed at an earlier timestamp can leave drain with a
+     * txn-id-inverted chain on stable, tripping __timestamp_no_ts_fix during reconcile.
+     */
+    RWLOCK truncate_lock;
     uint64_t backup_id; /* Block incremental id */
     bool backup_incr;   /* Incremental backup */
     bool backup_verify; /* Verifying backup */
