@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
@@ -46,49 +46,9 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
     disagg_storages = gen_disagg_storages('test_layered_ft_replay', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def populate_on_leader(self, ts=10):
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[i] = 'v'
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        cursor.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
-                                ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()
-
     def setup_follower(self):
-        self.conn_follow = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
-        self.session.create(self.uri, self.table_config)
-        self.session_follow.create(self.uri, self.table_config)
-        self.populate_on_leader()
-        self.disagg_advance_checkpoint(self.conn_follow)
-
-    def truncate_range(self, start_key, stop_key, ts):
-        c_start = self.session_follow.open_cursor(self.uri)
-        c_start.set_key(start_key)
-        c_stop = self.session_follow.open_cursor(self.uri)
-        c_stop.set_key(stop_key)
-        self.session_follow.begin_transaction()
-        self.session_follow.truncate(None, c_start, c_stop, None)
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        c_start.close()
-        c_stop.close()
-
-    def assert_ranges_deleted(self, ranges, ts):
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
-        cursor = self.session_follow.open_cursor(self.uri)
-        for k in range(self.nitems):
-            cursor.set_key(k)
-            in_range = any(lo <= k <= hi for lo, hi in ranges)
-            expected = wiredtiger.WT_NOTFOUND if in_range else 0
-            self.assertEqual(cursor.search(), expected,
-                f'key {k} {"should be deleted" if in_range else "should be visible"} at ts={ts}')
-        cursor.close()
-        self.session_follow.rollback_transaction()
+        self.setup_dual_conn_follower(
+            table_config=self.table_config, statistics=True, set_oldest=True)
 
     def assert_fast_truncate_fired(self, msg):
         before = self.get_stat(self.conn_follow, stat.conn.rec_page_delete_fast)
@@ -100,15 +60,16 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_follower()
         # Leave boundary pages untouched so interior pages are eligible for fast-delete.
         trunc_start, trunc_stop = 200, self.nitems - 200 - 1
-        self.truncate_range(trunc_start, trunc_stop, ts=20)
+        self.truncate(trunc_start, trunc_stop, commit_timestamp=20, session=self.session_follow)
         self.assert_fast_truncate_fired("Fast truncate did not happen.")
-        self.assert_ranges_deleted([(trunc_start, trunc_stop)], ts=30)
+        self.assert_ranges_deleted(self.session_follow, [(trunc_start, trunc_stop)], ts=30)
 
     def test_fast_truncate_multiple_ranges(self):
         self.setup_follower()
-        self.truncate_range(200, 1199, ts=20)
-        self.truncate_range(1700, 2699, ts=20)
-        self.truncate_range(3200, 4199, ts=20)
+        self.truncate(200, 1199, commit_timestamp=20, session=self.session_follow)
+        self.truncate(1700, 2699, commit_timestamp=20, session=self.session_follow)
+        self.truncate(3200, 4199, commit_timestamp=20, session=self.session_follow)
         self.assert_fast_truncate_fired(
             "fast truncate did not increase for multi-range truncate.")
-        self.assert_ranges_deleted([(200, 1199), (1700, 2699), (3200, 4199)], ts=30)
+        self.assert_ranges_deleted(self.session_follow,
+            [(200, 1199), (1700, 2699), (3200, 4199)], ts=30)

@@ -97,24 +97,27 @@ class LayeredFastTruncateConfigMixin:
         if keys is not None:
             self.populate(keys)
 
-    def truncate(self, start_key=None, stop_key=None, commit_timestamp=None):
+    def truncate(self, start_key=None, stop_key=None, commit_timestamp=None, session=None):
         """
         Truncate [start_key, stop_key] inclusive on self.uri. Either bound
         may be None for an open-ended side. If commit_timestamp is set,
-        the truncate transaction commits at that timestamp.
+        the truncate transaction commits at that timestamp. session
+        defaults to self.session; pass an alternate session for tests
+        that drive a separate follower connection.
         """
+        sess = session or self.session
         start = stop = None
         try:
             if start_key is not None:
-                start = self.session.open_cursor(self.uri)
+                start = sess.open_cursor(self.uri)
                 start.set_key(self._key(start_key))
             if stop_key is not None:
-                stop = self.session.open_cursor(self.uri)
+                stop = sess.open_cursor(self.uri)
                 stop.set_key(self._key(stop_key))
             # session.truncate() needs a URI iff both cursors are NULL.
             uri = self.uri if (start is None and stop is None) else None
-            with self.transaction(commit_timestamp=commit_timestamp):
-                self.session.truncate(uri, start, stop, None)
+            with self.transaction(session=sess, commit_timestamp=commit_timestamp):
+                sess.truncate(uri, start, stop, None)
         finally:
             if start is not None:
                 start.close()
@@ -207,3 +210,106 @@ class LayeredFastTruncateConfigMixin:
         val = s.open_cursor('statistics:')[stat_key][2]
         s.close()
         return val
+
+    # Step-up flow shared by tests 16, 17 (separate follower connection that
+    # later gets promoted to leader).
+
+    def populate_on_leader_timestamped(self, value='v', ts=10, set_oldest=False, n=None):
+        """
+        Per-key timestamped writes on the leader, then advance stable
+        (and optionally oldest) and checkpoint. value may be a callable
+        producing the value from the key index.
+        """
+        n = n if n is not None else self.nitems
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(n):
+            self.session.begin_transaction()
+            cursor[i] = value(i) if callable(value) else value
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        cursor.close()
+        ts_cfg = 'stable_timestamp=' + self.timestamp_str(ts)
+        if set_oldest:
+            ts_cfg += ',oldest_timestamp=' + self.timestamp_str(1)
+        self.conn.set_timestamp(ts_cfg)
+        self.session.checkpoint()
+
+    def setup_dual_conn_follower(self, table_config='key_format=i,value_format=S',
+                                 statistics=False, value='v', ts=10, set_oldest=False):
+        """
+        Open a separate follower connection, create the table on both
+        sides, populate the leader with per-key timestamped writes, and
+        advance the follower's checkpoint. Sets self.conn_follow and
+        self.session_follow.
+        """
+        conn_extra = ',statistics=(all)' if statistics else ''
+        self.conn_follow = self.wiredtiger_open(
+            'follower',
+            self.extensionsConfig() + ',create' + conn_extra +
+            ',disaggregated=(role="follower")')
+        self.session_follow = self.conn_follow.open_session('')
+        self.session.create(self.uri, table_config)
+        self.session_follow.create(self.uri, table_config)
+        self.populate_on_leader_timestamped(value=value, ts=ts, set_oldest=set_oldest)
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+    def write_kv(self, session, key, value, ts):
+        """Write a single key/value pair on session at the given commit ts."""
+        cursor = session.open_cursor(self.uri)
+        session.begin_transaction()
+        cursor[key] = value
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        cursor.close()
+
+    def remove_kv(self, session, key, ts):
+        """Remove a single key on session at the given commit ts."""
+        cursor = session.open_cursor(self.uri)
+        cursor.set_key(key)
+        session.begin_transaction()
+        cursor.remove()
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        cursor.close()
+
+    def assert_visible(self, session, keys, value=None, ts=None):
+        """Open a read_timestamp transaction on session and assert each key is visible."""
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+        cursor = session.open_cursor(self.uri)
+        for k in keys:
+            cursor.set_key(k)
+            self.assertEqual(cursor.search(), 0, f"key {k} should be visible at ts={ts}")
+            if value is not None:
+                expected = value(k) if callable(value) else value
+                self.assertEqual(cursor.get_value(), expected)
+        cursor.close()
+        session.rollback_transaction()
+
+    def assert_deleted(self, session, keys, ts):
+        """Open a read_timestamp transaction on session and assert each key is NOTFOUND."""
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+        cursor = session.open_cursor(self.uri)
+        for k in keys:
+            cursor.set_key(k)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND,
+                f"key {k} should be deleted at ts={ts}")
+        cursor.close()
+        session.rollback_transaction()
+
+    def assert_ranges_deleted(self, session, ranges, ts=None, n=None):
+        """
+        Sweep keys 0..n on session. Keys inside any (lo, hi) inclusive
+        range must be NOTFOUND, others must be visible. If ts is set,
+        the sweep runs at that read_timestamp.
+        """
+        n = n if n is not None else self.nitems
+        if ts is not None:
+            session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+        cursor = session.open_cursor(self.uri)
+        for k in range(n):
+            cursor.set_key(k)
+            in_range = any(lo <= k <= hi for lo, hi in ranges)
+            expected = wiredtiger.WT_NOTFOUND if in_range else 0
+            self.assertEqual(cursor.search(), expected,
+                f'key {k} {"should be deleted" if in_range else "should be visible"}'
+                + (f' at ts={ts}' if ts is not None else ''))
+        cursor.close()
+        if ts is not None:
+            session.rollback_transaction()
