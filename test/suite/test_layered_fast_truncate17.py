@@ -53,9 +53,7 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
             cursor[i] = 'v'
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         cursor.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
-                                ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()
+        self.leader_checkpoint(ts)
 
     def setup_follower(self):
         self.conn_follow = self.wiredtiger_open(
