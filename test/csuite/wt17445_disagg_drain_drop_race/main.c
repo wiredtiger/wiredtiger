@@ -94,9 +94,7 @@ typedef struct {
 static void *
 stepup_thread(void *arg)
 {
-    STEPUP_ARG *a;
-
-    a = (STEPUP_ARG *)arg;
+    STEPUP_ARG *a = (STEPUP_ARG *)arg;
     a->result = a->conn->reconfigure(a->conn, "disaggregated=(role=leader)");
     return (NULL);
 }
@@ -109,14 +107,11 @@ stepup_thread(void *arg)
 static void
 wait_for_drain(WT_CONNECTION *conn)
 {
-    WT_CONNECTION_IMPL *conn_impl;
-    int i;
-
-    conn_impl = (WT_CONNECTION_IMPL *)conn;
-    for (i = 0; i < 500; ++i) {
+    WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
+    for (int i = 0; i < 1000; ++i) {
         if (__wt_atomic_load_bool_relaxed(&conn_impl->layered_drain_data.running))
             return;
-        __wt_sleep(0, 10 * WT_THOUSAND); /* 10 ms */
+        __wt_sleep(0, 10 * WT_THOUSAND);
     }
 }
 
@@ -132,23 +127,13 @@ wait_for_drain(WT_CONNECTION *conn)
 static bool
 sync_leader_checkpoint(WT_CONNECTION *conn, WT_SESSION *session, const char *follower_config)
 {
-    WT_ITEM checkpoint_meta;
-    WT_SESSION_IMPL *session_impl;
-    wt_timestamp_t checkpoint_ts;
-    uint64_t checkpoint_lsn;
-    int ret;
-    char reconfig[8192];
-    const char *cfg[2];
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    const char *cfg[2] = {follower_config, NULL};
+    WT_ITEM checkpoint_meta = {0};
+    uint64_t checkpoint_lsn = 0;
+    wt_timestamp_t checkpoint_ts = 0;
 
-    session_impl = (WT_SESSION_IMPL *)session;
-    cfg[0] = follower_config;
-    cfg[1] = NULL;
-
-    WT_CLEAR(checkpoint_meta);
-    checkpoint_lsn = 0;
-    checkpoint_ts = 0;
-
-    ret = __wti_layered_get_disagg_checkpoint(
+    int ret = __wti_layered_get_disagg_checkpoint(
       session_impl, cfg, &checkpoint_lsn, &checkpoint_ts, &checkpoint_meta);
     if (ret != 0) {
         __wt_buf_free(session_impl, &checkpoint_meta);
@@ -159,6 +144,7 @@ sync_leader_checkpoint(WT_CONNECTION *conn, WT_SESSION *session, const char *fol
         return (true);
     }
 
+    char reconfig[8192];
     testutil_snprintf(reconfig, sizeof(reconfig), "disaggregated=(checkpoint_meta=\"%.*s\")",
       (int)checkpoint_meta.size, (const char *)checkpoint_meta.data);
     __wt_buf_free(session_impl, &checkpoint_meta);
@@ -178,19 +164,11 @@ sync_leader_checkpoint(WT_CONNECTION *conn, WT_SESSION *session, const char *fol
 static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
   subtest_run(TEST_OPTS *opts, const char *stress_flag, bool expect_ebusy)
 {
-    struct rlimit rlim;
-    WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
-    WT_SESSION *session;
-    STEPUP_ARG stepup_arg;
-    pthread_t tid;
-    int drop_ret;
-    char follower_config[2048];
-
     /* No core files; a panic may trigger diagnostic assertions during cleanup. */
-    memset(&rlim, 0, sizeof(rlim));
+    struct rlimit rlim = {0};
     testutil_check(setrlimit(RLIMIT_CORE, &rlim));
 
+    char follower_config[2048];
     testutil_snprintf(follower_config, sizeof(follower_config),
       "statistics=(all),"
       "extensions=[\"%s/ext/page_log/palite/libwiredtiger_palite.so\"],"
@@ -198,9 +176,11 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
       "timing_stress_for_test=[%s]",
       opts->build_dir, stress_flag);
 
+    WT_CONNECTION *conn;
     if (wiredtiger_open(opts->home, NULL, follower_config, &conn) != 0)
         _exit(EXIT_FAILURE);
 
+    WT_SESSION *session;
     if (conn->open_session(conn, NULL, NULL, &session) != 0) {
         conn->close(conn, NULL);
         _exit(EXIT_FAILURE);
@@ -215,14 +195,15 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
      * Open a cursor to trigger lazy-open of the ingest dhandle. The drain worker only queues
      * dhandles that are already marked WT_DHANDLE_OPEN, so we must touch the table before step-up.
      */
+    WT_CURSOR *cursor;
     if (session->open_cursor(session, TABLE_URI, NULL, NULL, &cursor) != 0) {
         conn->close(conn, NULL);
         _exit(EXIT_FAILURE);
     }
     testutil_check(cursor->close(cursor));
 
-    stepup_arg.conn = conn;
-    stepup_arg.result = 0;
+    STEPUP_ARG stepup_arg = {.conn = conn, .result = 0};
+    pthread_t tid;
     testutil_check(pthread_create(&tid, NULL, stepup_thread, &stepup_arg));
 
     wait_for_drain(conn);
@@ -236,7 +217,7 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
      * drop wins (expect_ebusy=false): drain has not yet acquired the read lock; the drop wins the
      *   exclusive lock, sets WT_DHANDLE_DEAD, and returns 0. No retry needed.
      */
-    drop_ret = session->drop(session, TABLE_URI, "force=true,checkpoint_wait=false");
+    int drop_ret = session->drop(session, TABLE_URI, "force=true,checkpoint_wait=false");
     fprintf(stderr, "drop (checkpoint_wait=false): %s\n", wiredtiger_strerror(drop_ret));
 
     testutil_check(pthread_join(tid, NULL));
@@ -263,14 +244,9 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
 static void
 setup_db(TEST_OPTS *opts)
 {
-    WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
-    WT_SESSION *session;
-    int i;
-    char leader_config[2048];
-
     testutil_recreate_dir(opts->home);
 
+    char leader_config[2048];
     testutil_snprintf(leader_config, sizeof(leader_config),
       "create,"
       "statistics=(all),"
@@ -278,13 +254,16 @@ setup_db(TEST_OPTS *opts)
       "disaggregated=(role=leader,page_log=palite,drain_threads=1)",
       opts->build_dir);
 
+    WT_CONNECTION *conn;
     testutil_check(wiredtiger_open(opts->home, NULL, leader_config, &conn));
+    WT_SESSION *session;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(
       session, TABLE_URI, "key_format=i,value_format=S,block_manager=disagg,type=layered"));
 
+    WT_CURSOR *cursor;
     testutil_check(session->open_cursor(session, TABLE_URI, NULL, NULL, &cursor));
-    for (i = 0; i < NUM_ROWS; ++i) {
+    for (int i = 0; i < NUM_ROWS; ++i) {
         cursor->set_key(cursor, i);
         cursor->set_value(cursor, "value");
         testutil_check(cursor->insert(cursor));
@@ -300,19 +279,17 @@ setup_db(TEST_OPTS *opts)
 static bool
 run_scenario(TEST_OPTS *opts, const char *label, const char *stress_flag, bool expect_ebusy)
 {
-    pid_t pid;
-    int status;
-
     printf("Scenario: %s\n", label);
 
     setup_db(opts);
 
-    pid = fork();
+    pid_t pid = fork();
     testutil_assert(pid >= 0);
 
     if (pid == 0)
         subtest_run(opts, stress_flag, expect_ebusy);
 
+    int status;
     testutil_assert(waitpid(pid, &status, 0) == pid);
 
     if (WIFSIGNALED(status)) {
@@ -337,21 +314,17 @@ run_scenario(TEST_OPTS *opts, const char *label, const char *stress_flag, bool e
 int
 main(int argc, char *argv[])
 {
-    TEST_OPTS *opts;
-    int ch;
-    bool ok;
-
-    opts = &_opts;
+    TEST_OPTS *opts = &_opts;
     opts->table_type = TABLE_ROW;
 
     testutil_parse_begin_opt(argc, argv, GETOPTS, opts);
-    while ((ch = __wt_getopt(opts->progname, argc, argv, GETOPTS)) != EOF)
+    for (int ch; (ch = __wt_getopt(opts->progname, argc, argv, GETOPTS)) != EOF;)
         if (testutil_parse_single_opt(opts, ch) != 0)
             testutil_die(EINVAL, "unexpected option");
     testutil_parse_end_opt(opts);
 
     /* Drain wins: drop blocks on the exclusive lock and must retry. */
-    ok = run_scenario(opts, "drain wins", "drain_ingest_table_slow", true);
+    bool ok = run_scenario(opts, "drain wins", "drain_ingest_table_slow", true);
 
     /* Drop wins: drop acquires the exclusive lock before drain and succeeds immediately. */
     ok = run_scenario(opts, "drop wins", "drain_ingest_table_pre_lock_slow", false) && ok;
