@@ -32,7 +32,7 @@
 #   Schema operations (create, drop) on a leader do not get included in the next checkpoint
 #   until they are published with a schema epoch.
 
-import time
+import os, time
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
@@ -248,7 +248,11 @@ class test_layered104(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(1) +
             ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()  # Expected to panic.
+        try:
+            self.session.checkpoint()  # Expected to panic.
+        except wiredtiger.WiredTigerError:
+            # Exit immediately to avoid hanging in tearDown when closing a panicked connection.
+            os._exit(1)
 
     def test_checkpoint_fails_without_publish(self):
         """
@@ -300,7 +304,11 @@ class test_layered104(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(1) +
             ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()  # Expected to panic.
+        try:
+            self.session.checkpoint()  # Expected to panic.
+        except wiredtiger.WiredTigerError:
+            # Exit immediately to avoid hanging in tearDown when closing a panicked connection.
+            os._exit(1)
 
     def test_checkpoint_fails_with_publish_at_later_epoch(self):
         """
