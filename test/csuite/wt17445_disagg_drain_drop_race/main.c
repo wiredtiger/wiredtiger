@@ -207,6 +207,7 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
     testutil_check(pthread_create(&tid, NULL, stepup_thread, &stepup_arg));
 
     wait_for_drain(conn);
+    __wt_sleep(0, 50 * WT_THOUSAND);
 
     /*
      * Use checkpoint_wait=false so the drop does not block on the checkpoint lock held by the
