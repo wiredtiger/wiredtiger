@@ -24,10 +24,8 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->dlhqh);                                    /* Library list */
     TAILQ_INIT(&conn->dsrcqh);                                   /* Data source list */
     TAILQ_INIT(&conn->fhqh);                                     /* File list */
+    TAILQ_INIT(&conn->pfqh);                                     /* Pre-fetch reference list */
     TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh); /* Shared metadata list */
-
-    /* Prefetch. */
-    WT_RET(__wti_conn_prefetch_init(session));
 
     /* Tiered storage. */
     WT_RET(__wti_conn_tiered_init(session));
