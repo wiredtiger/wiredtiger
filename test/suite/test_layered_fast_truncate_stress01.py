@@ -34,7 +34,7 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# Long-running stress test for fast truncate correctness across step-up in 
+# Long-running stress test for fast truncate correctness across step-up in
 # disaggregated WiredTiger.
 #
 # Two disaggregated nodes share one database. Each round:
@@ -307,11 +307,11 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         ckpt = self.follower_conn.open_session('')
         ckpt.checkpoint()
         ckpt.close()
-        
+
         self.reopen_conn(directory=self.leader_dir,
                          config=self.follower_config())
         self.disagg_advance_checkpoint(self.conn, self.follower_conn)
-        
+
         # Swap self.conn and self.follower_conn. The old leader is now the follower and vice versa.
         self.session.close()
         self.conn, self.follower_conn = self.follower_conn, self.conn
