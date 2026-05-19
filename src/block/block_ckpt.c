@@ -587,7 +587,6 @@ __ckpt_read_deletion_extlists(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, bool *deletingp)
 {
     WT_CKPT *ckpt, *next_ckpt;
-    WT_DECL_RET;
     bool local;
 
     *deletingp = false;
@@ -606,9 +605,8 @@ __ckpt_read_deletion_extlists(
          * checkpoints that are not local to the live object.
          */
         if (ckpt->bpriv == NULL) {
-            if ((ret = __ckpt_extlist_read(session, block, ckpt, &local)) != 0)
-                WT_RET_MSG(
-                  session, ret, "reading extent lists for deleted checkpoint %s", ckpt->name);
+            WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, ckpt, &local),
+              "reading extent lists for deleted checkpoint %s", ckpt->name);
             if (!local)
                 continue;
         }
@@ -623,9 +621,8 @@ __ckpt_read_deletion_extlists(
          * The subsequent checkpoint may be the live tree, which has no extent blocks to read.
          */
         if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD)) {
-            if ((ret = __ckpt_extlist_read(session, block, next_ckpt, &local)) != 0)
-                WT_RET_MSG(session, ret,
-                  "reading extent lists for checkpoint %s following deletion", next_ckpt->name);
+            WT_RET_MSG_CHK(session, __ckpt_extlist_read(session, block, next_ckpt, &local),
+              "reading extent lists for checkpoint %s following deletion", next_ckpt->name);
             WT_RET_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_PANIC,
               "tiered storage checkpoint follows local checkpoint");
         }
