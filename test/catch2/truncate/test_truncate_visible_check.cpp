@@ -320,5 +320,6 @@ TEST_CASE_METHOD(
         WT_ITEM key = make_key("key150");
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr) == WT_NOTFOUND);
+        __wt_process.disagg_slow_truncate_2026 = false;
     }
 }
