@@ -1891,6 +1891,14 @@ __wt_page_cell_data_ref_kv(
  * WT_CELL_DELTA_INT_UNPACK --
  *	Unpack one key+value entry from the head of an internal delta stream, advancing the cell
  *	pointer past both cells and marking the state as unpacked.
+ *
+ * Called only when s->unpacked is false. After this macro, s->cell points at the NEXT entry in
+ *	the stream (ready for the subsequent unpack), while s->unpack holds the current entry.
+ *	The caller clears s->unpacked and decrements s->entries by 2 when the entry is consumed or
+ *	discarded, triggering a fresh unpack on the next call.
+ *
+ * `base_dsk` is the base page header, passed to the unpack helpers so they can resolve
+ *	timestamps that are stored relative to the base page.
  */
 #define WT_CELL_DELTA_INT_UNPACK(session, base_dsk, s)                                      \
     do {                                                                                    \
@@ -1905,6 +1913,10 @@ __wt_page_cell_data_ref_kv(
  * WT_CELL_BASE_INT_UNPACK --
  *	Unpack one key+value pair from the base internal page, advancing the cell pointer past both
  *	cells and marking the state as unpacked.
+ *
+ * Same advance-on-unpack, consume-on-decrement contract as WT_CELL_DELTA_INT_UNPACK. Internal
+ *	page keys are never prefix-compressed (see __rec_cell_build_int_key), so unpack_key.data
+ *	always contains the full key and no decompression step is needed before comparison.
  */
 #define WT_CELL_BASE_INT_UNPACK(session, s)                                               \
     do {                                                                                  \

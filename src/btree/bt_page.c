@@ -41,6 +41,12 @@ __page_find_min_delta_int(WT_SESSION_IMPL *session, WTI_DELTA_INT_MERGE_STATE s[
         if (s[i].entries == 0)
             continue;
 
+        /*
+         * Unpack on demand: WT_CELL_DELTA_INT_UNPACK advances s[i].cell past both the key and
+         * value cells and sets s[i].unpacked = true.  On subsequent calls for the same stream,
+         * `unpacked` is still true (the head entry has not been consumed), so we skip unpacking
+         * and compare the already-decoded key directly.
+         */
         if (!s[i].unpacked)
             WT_CELL_DELTA_INT_UNPACK(session, base_page_header, &s[i]);
 
@@ -62,7 +68,9 @@ __page_find_min_delta_int(WT_SESSION_IMPL *session, WTI_DELTA_INT_MERGE_STATE s[
         else if (cmp == 0) {
             /*
              * Keys are equal. Because we iterate from latest --> earliest, j (higher-indexed) is
-             * the latest. Discard this older duplicate by advancing past it.
+             * the latest. Discard this older duplicate: clear `unpacked` so the next call to this
+             * function re-enters WT_CELL_DELTA_INT_UNPACK for stream i, which (because `cell` was
+             * already advanced during the unpack above) will decode the entry after the duplicate.
              */
             WT_ASSERT(session, s[i].entries >= 2);
             s[i].unpacked = false;
@@ -482,13 +490,30 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     /* Retrieve the latest write generation from the last delta. */
     latest_write_gen = ((WT_PAGE_HEADER *)deltas[delta_size - 1].data)->write_gen;
 
-    /* Initialize base page state for progressive unpacking. */
+    /*
+     * Initialize base page state for progressive unpacking.
+     *
+     * State invariant: `cell` advances during unpack (via WT_CELL_BASE_INT_UNPACK), not during
+     * consume.  After a k/v pair is packed into the new image, we clear `unpacked` and decrement
+     * `entries` by 2 (one for the key cell, one for the value cell).  The next loop iteration
+     * calls WT_CELL_BASE_INT_UNPACK which reads from the already-advanced `cell` pointer,
+     * delivering the next pair.
+     */
     base_s.dsk = base_image_header;
     base_s.cell = WT_PAGE_HEADER_BYTE(btree, base_image_header);
     base_s.entries = base_image_header->u.entries;
     base_s.unpacked = false;
 
-    /* Initialize one state per delta stream for progressive unpacking. */
+    /*
+     * Initialize one state struct per delta stream for progressive unpacking.
+     *
+     * Same invariant as the base state: WT_CELL_DELTA_INT_UNPACK advances `cell` past both cells
+     * of the current entry and sets `unpacked = true`.  Consuming or discarding an entry clears
+     * `unpacked` and decrements `entries` by 2 so the next unpack reads the following entry.
+     * Duplicate resolution inside __page_find_min_delta_int uses the same mechanism: when an
+     * older duplicate is dropped, its `unpacked` is cleared and `entries` decremented so that
+     * stream's next call unpacks the entry that follows the duplicate.
+     */
     WT_RET(__wt_calloc_def(session, delta_size, &delta_s));
     for (size_t i = 0; i < delta_size; ++i) {
         WT_PAGE_HEADER *dhdr = (WT_PAGE_HEADER *)deltas[i].data;
@@ -578,7 +603,8 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
               "(base_entries_remaining=%" PRIu32 ")",
               base_s.entries);
 
-        /* Determine which stream's entry wins. */
+        /* Determine which stream's
+        entry wins. */
         if (base_s.entries == 0)
             cmp = 1;
         else if (j == -1)
