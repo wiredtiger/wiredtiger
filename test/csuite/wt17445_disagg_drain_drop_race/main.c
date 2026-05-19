@@ -41,19 +41,24 @@
  * until the copy finishes. If the dhandle is already dead when the drain worker acquires the read
  * lock (drop completed first), the worker skips the table cleanly.
  *
- * WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW injects a 300 ms sleep at the start of
- * __layered_copy_ingest_table, while the read lock is held, to widen the race window.
+ * Two timing stress flags exercise the two orderings:
+ *
+ *   drain_ingest_table_slow: 300 ms sleep inside __layered_copy_ingest_table while the read lock
+ *     is held. The drop blocks on the exclusive lock and returns EBUSY; the retry after step-up
+ *     completes succeeds. Drain wins the lock.
+ *
+ *   drain_ingest_table_pre_lock_slow: 300 ms sleep in __layered_drain_worker_run before acquiring
+ *     the read lock. The drop wins the exclusive lock, sets WT_DHANDLE_DEAD, and returns 0.
+ *     Drain then acquires the read lock, sees DEAD, and skips cleanly. Drop wins the lock.
  *
  * The race is triggered by:
  *   1. Opening as a follower with the timing stress enabled.
  *   2. Reconfiguring to leader (step-up) on a background thread.
  *   3. Spinning on layered_drain_data.running (accessible via wt_internal.h, included through
- *      test_util.h) to detect when the drain worker has started; the 300 ms stress sleep then
- *      widens the window enough for the drop to race with the read lock.
- *   4. Calling session->drop(force=true, checkpoint_wait=false) from the main thread to race
- *      against the drain worker.
+ *      test_util.h) to detect when the drain worker has started.
+ *   4. Calling session->drop(force=true, checkpoint_wait=false) to race against the drain worker.
  *
- * A forked child runs the race so that a WT_PANIC / SIGABRT in the buggy code path is caught
+ * A forked child runs each scenario so that a WT_PANIC / SIGABRT in the buggy code path is caught
  * as a child signal and reported as a test failure without killing the test runner.
  */
 
@@ -98,8 +103,8 @@ stepup_thread(void *arg)
 
 /*
  * wait_for_drain --
- *     Spin until the drain worker sets layered_drain_data.running. The 300 ms stress sleep inside
- *     __layered_copy_ingest_table widens the window enough for the drop to race with the read lock.
+ *     Spin until the drain worker sets layered_drain_data.running. The 300 ms stress sleep then
+ *     widens the window enough for the drop to race with the drain worker.
  */
 static void
 wait_for_drain(WT_CONNECTION *conn)
@@ -165,8 +170,13 @@ sync_leader_checkpoint(WT_CONNECTION *conn, WT_SESSION *session, const char *fol
  * subtest_run --
  *     Run the racy scenario in the current process. Called only from a forked child so a panic
  *     (SIGABRT) doesn't kill the test runner. Calls _exit: never returns.
+ *
+ * expect_ebusy: true if drain wins the lock (drain_ingest_table_slow), meaning the first drop
+ *     should return EBUSY and succeed on retry. False if drop wins
+ *     (drain_ingest_table_pre_lock_slow), meaning the first drop should succeed immediately.
  */
-static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn)) subtest_run(TEST_OPTS *opts)
+static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
+  subtest_run(TEST_OPTS *opts, const char *stress_flag, bool expect_ebusy)
 {
     struct rlimit rlim;
     WT_CONNECTION *conn;
@@ -174,6 +184,7 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn)) subtest_run(TEST_OPTS *opts)
     WT_SESSION *session;
     STEPUP_ARG stepup_arg;
     pthread_t tid;
+    int drop_ret;
     char follower_config[2048];
 
     /* No core files; a panic may trigger diagnostic assertions during cleanup. */
@@ -184,8 +195,8 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn)) subtest_run(TEST_OPTS *opts)
       "statistics=(all),"
       "extensions=[\"%s/ext/page_log/palite/libwiredtiger_palite.so\"],"
       "disaggregated=(role=follower,page_log=palite,drain_threads=2),"
-      "timing_stress_for_test=[drain_ingest_table_slow]",
-      opts->build_dir);
+      "timing_stress_for_test=[%s]",
+      opts->build_dir, stress_flag);
 
     if (wiredtiger_open(opts->home, NULL, follower_config, &conn) != 0)
         _exit(EXIT_FAILURE);
@@ -219,13 +230,28 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn)) subtest_run(TEST_OPTS *opts)
     /*
      * Use checkpoint_wait=false so the drop does not block on the checkpoint lock held by the
      * step-up thread throughout __disagg_step_up.
+     *
+     * drain wins (expect_ebusy=true): drain holds the read lock; the drop tries __wt_try_writelock,
+     *   fails immediately, and returns EBUSY. Retry after step-up completes.
+     * drop wins (expect_ebusy=false): drain has not yet acquired the read lock; the drop wins the
+     *   exclusive lock, sets WT_DHANDLE_DEAD, and returns 0. No retry needed.
      */
-    (void)session->drop(session, TABLE_URI, "force=true,checkpoint_wait=false");
+    drop_ret = session->drop(session, TABLE_URI, "force=true,checkpoint_wait=false");
+    fprintf(stderr, "drop (checkpoint_wait=false): %s\n", wiredtiger_strerror(drop_ret));
 
     testutil_check(pthread_join(tid, NULL));
+
+    if (expect_ebusy) {
+        testutil_assert(drop_ret == EBUSY);
+        drop_ret = session->drop(session, TABLE_URI, "force=true");
+        fprintf(stderr, "drop retry: %s\n", wiredtiger_strerror(drop_ret));
+        testutil_assert(drop_ret == 0);
+    } else {
+        testutil_assert(drop_ret == 0);
+    }
+
     (void)conn->close(conn, NULL);
 
-    /* Non-zero means the drain worker returned an error instead of skipping the dropped table. */
     _exit(stepup_arg.result != 0 ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
@@ -268,15 +294,52 @@ setup_db(TEST_OPTS *opts)
 }
 
 /*
+ * run_scenario --
+ *     Set up a fresh database and fork a child to run the race scenario. Returns true on success.
+ */
+static bool
+run_scenario(TEST_OPTS *opts, const char *label, const char *stress_flag, bool expect_ebusy)
+{
+    pid_t pid;
+    int status;
+
+    printf("Scenario: %s\n", label);
+
+    setup_db(opts);
+
+    pid = fork();
+    testutil_assert(pid >= 0);
+
+    if (pid == 0)
+        subtest_run(opts, stress_flag, expect_ebusy);
+
+    testutil_assert(waitpid(pid, &status, 0) == pid);
+
+    if (WIFSIGNALED(status)) {
+        fprintf(stderr, "  FAIL: child killed by signal %d -- likely WT_PANIC\n", WTERMSIG(status));
+        return (false);
+    }
+
+    testutil_assert(WIFEXITED(status));
+    if (WEXITSTATUS(status) == EXIT_SUCCESS) {
+        printf("  PASS\n");
+        return (true);
+    }
+
+    fprintf(stderr, "  FAIL: child exited with failure\n");
+    return (false);
+}
+
+/*
  * main --
- *     Test that a concurrent drop during step-up drain does not panic.
+ *     Test that a concurrent drop during step-up drain does not panic, in both race orderings.
  */
 int
 main(int argc, char *argv[])
 {
     TEST_OPTS *opts;
-    pid_t pid;
-    int ch, status;
+    int ch;
+    bool ok;
 
     opts = &_opts;
     opts->table_type = TABLE_ROW;
@@ -287,31 +350,14 @@ main(int argc, char *argv[])
             testutil_die(EINVAL, "unexpected option");
     testutil_parse_end_opt(opts);
 
-    setup_db(opts);
+    /* Drain wins: drop blocks on the exclusive lock and must retry. */
+    ok = run_scenario(opts, "drain wins", "drain_ingest_table_slow", true);
 
-    pid = fork();
-    testutil_assert(pid >= 0);
-
-    if (pid == 0)
-        subtest_run(opts);
-
-    testutil_assert(waitpid(pid, &status, 0) == pid);
-
-    if (WIFSIGNALED(status)) {
-        fprintf(stderr, "Child killed by signal %d -- likely WT_PANIC\n", WTERMSIG(status));
-        return (EXIT_FAILURE);
-    }
-
-    testutil_assert(WIFEXITED(status));
-    if (WEXITSTATUS(status) == EXIT_SUCCESS) {
-        printf("Child exited successfully: drain/drop race did not panic\n");
-    } else {
-        fprintf(stderr, "Child exited with failure: step-up returned non-zero\n");
-        return (EXIT_FAILURE);
-    }
+    /* Drop wins: drop acquires the exclusive lock before drain and succeeds immediately. */
+    ok = run_scenario(opts, "drop wins", "drain_ingest_table_pre_lock_slow", false) && ok;
 
     if (!opts->preserve)
         testutil_remove(opts->home);
     testutil_cleanup(opts);
-    return (EXIT_SUCCESS);
+    return (ok ? EXIT_SUCCESS : EXIT_FAILURE);
 }

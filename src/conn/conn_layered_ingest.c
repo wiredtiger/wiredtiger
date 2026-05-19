@@ -422,18 +422,18 @@ __layered_copy_ingest_table(
     struct timespec tsp;
     bool in_ts_range, is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
 
-    /*
-     * Sleep while the caller holds the ingest dhandle read lock, widening the race window for
-     * concurrent drops.
-     */
-    tsp.tv_sec = 0;
-    tsp.tv_nsec = 300 * WT_MILLION;
-    __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW, &tsp);
-
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
+
+    /*
+     * Sleep while the caller holds the ingest dhandle read lock, widening the window for the drop
+     * to block on the exclusive lock and return EBUSY.
+     */
+    tsp.tv_sec = 0;
+    tsp.tv_nsec = 300 * WT_MILLION;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW, &tsp);
 
     WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
     WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
@@ -792,16 +792,28 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
     const char *ingest_uri = work_item->ingest_dhandle->name;
+    struct timespec tsp;
+
+    /*
+     * Sleep before acquiring the read lock to widen the window for a concurrent drop to win the
+     * exclusive lock first, exercising the WT_DHANDLE_DEAD skip path below.
+     */
+    tsp.tv_sec = 0;
+    tsp.tv_nsec = 300 * WT_MILLION;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_PRE_LOCK_SLOW, &tsp);
 
     /*
      * Hold a read lock on the ingest dhandle for the duration of the copy. The drop path acquires
-     * an exclusive write lock via __wt_session_get_dhandle(WT_DHANDLE_EXCLUSIVE), so this blocks
-     * any concurrent drop until we finish. session_inuse only protects against the sweep server; it
-     * does not block the exclusive lock taken by the drop path.
+     * an exclusive write lock, so this blocks any concurrent drop until we finish. Check
+     * WT_DHANDLE_DEAD after acquiring the lock: if the drop already completed and set the flag,
+     * skip this table cleanly rather than operating on a dead handle.
      */
     __wt_readlock(session, &work_item->ingest_dhandle->rwlock);
-    if (F_ISSET(work_item->ingest_dhandle, WT_DHANDLE_DEAD))
+    if (F_ISSET(work_item->ingest_dhandle, WT_DHANDLE_DEAD)) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
+          "skipping drain of dropped ingest table \"%s\"", ingest_uri);
         goto err;
+    }
 
     WT_ERR_MSG_CHK(session, __layered_drain_ingest_table_and_truncate_list(session, ingest_uri),
       "Failed to drain ingest and truncate list for \"%s\"", ingest_uri);

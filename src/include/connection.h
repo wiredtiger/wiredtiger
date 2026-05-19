@@ -1148,6 +1148,8 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x8000000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
+/* Appended manually to avoid renumbering auto-generated flags above. */
+#define WT_TIMING_STRESS_DRAIN_INGEST_TABLE_PRE_LOCK_SLOW 0x10000000000ull
 
 #define WT_STDERR(s) (&S2C(s)->wt_stderr)
 #define WT_STDOUT(s) (&S2C(s)->wt_stdout)

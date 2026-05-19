@@ -34,6 +34,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"conn_close_stress_log_printf", WT_TIMING_STRESS_CLOSE_STRESS_LOG},
+  {"drain_ingest_table_pre_lock_slow", WT_TIMING_STRESS_DRAIN_INGEST_TABLE_PRE_LOCK_SLOW},
   {"drain_ingest_table_slow", WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
   {"failpoint_disagg_checkpoint_queue_drain",
