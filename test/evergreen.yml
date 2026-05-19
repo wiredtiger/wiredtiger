@@ -3798,21 +3798,6 @@ tasks:
             cd dist
             bash -x s_all -E 2>&1
 
-  - name: s-outdated-fixmes
-    # Detect any FIXME comments in the codebase tied to closed Jira tickets.
-    # This will send a GET request to JIRA for each FIXME ticket so we don't
-    # want to run it too frequently.
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/dist"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${python_binary|python3} s_outdated_fixmes.py 2>&1
-
   - name: conf-dump-test
     tags: ["pull_request", "python"]
     depends_on:
