@@ -90,7 +90,7 @@ __conn_calc_load_pct(uint64_t part, uint64_t whole)
     if (whole == 0)
         return (0);
 
-    return (((uint8_t)WT_MIN((part / whole) * 100, 200)));
+    return (((uint8_t)WT_MIN((part * 100) / whole, 200)));
 }
 
 /*
