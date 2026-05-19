@@ -1710,6 +1710,7 @@ variables:
 
   - &format-stress-test-disagg-switch
     depends_on:
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - name: compile-slow-truncate
     commands:
       - func: "fetch artifacts"
@@ -1727,6 +1728,7 @@ variables:
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
   - &format-stress-test-disagg-switch-data-validation
     depends_on:
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - name: compile-slow-truncate
     commands:
       - func: "fetch artifacts"
@@ -1744,6 +1746,7 @@ variables:
 
   - &format-stress-test-disagg-switch-pull-request
     depends_on:
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - name: compile-slow-truncate
     commands:
       - func: "fetch artifacts"
@@ -1785,7 +1788,8 @@ tasks:
       - func: "cleanup"
 
   # Build with the slow (non-fast) truncate path enabled. Used by the
-  # disagg switch-mode format tests, which need the slow code path covered.
+  # disagg switch-mode format tests, which need the slow code path for now.
+  # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
   - name: compile-slow-truncate
     depends_on: *s-all-dep
     commands:
@@ -5320,6 +5324,7 @@ tasks:
   - name: format-stress-test-disagg-switch-tsan
     tags: ["pull_request"]
     depends_on:
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - name: compile-slow-truncate
     commands:
       - func: "fetch artifacts"
