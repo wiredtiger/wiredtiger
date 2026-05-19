@@ -69,6 +69,13 @@ do_in_uncommitted_transaction(WT_SESSION_IMPL *session, const Op operation)
     return operation();
 }
 
+void
+set_read_timestamp(WT_SESSION_IMPL *session, const wt_timestamp_t ts)
+{
+    WT_SESSION_TXN_SHARED(session)->read_timestamp = ts;
+    F_SET(session->txn, WT_TXN_SHARED_TS_READ);
+}
+
 // Scope guard that ensures that transactions are always rolled back.
 [[nodiscard]] auto
 rollback_on_exit(WT_SESSION_IMPL *session)
@@ -523,6 +530,52 @@ SCENARIO("write conflict read lock is always released", "[truncate_list][write_c
             THEN("the truncate lock is not held")
             {
                 REQUIRE(lock_is_released(*f.session(), *f.layered_table()));
+            }
+        }
+    }
+}
+
+SCENARIO("write conflict returns WT_ROLLBACK when read_timestamp predates a committed truncate",
+  "[truncate_list][write_conflict]")
+{
+    GIVEN("a committed truncate range [100, 200] with timestamp 30")
+    {
+        write_conflict_fixture f;
+
+        do_in_committed_transaction(
+          f.session(), [&] { return f.insert_truncate_entry(f.session(), 100, 200); });
+
+        WT_TRUNCATE *entry = truncate_list_head(*f.layered_table());
+        entry->start_ts = 30;
+        entry->durable_ts = 30;
+
+        WHEN("the conflict check is called with read_timestamp before the truncate timestamp")
+        {
+            auto *session_2 = f.create_session();
+
+            const auto result = do_in_rolled_back_transaction(session_2, [&] {
+                set_read_timestamp(session_2, 29);
+                return f.detect_conflict(session_2, 150);
+            });
+
+            THEN("it returns WT_ROLLBACK (truncate is not visible at this read timestamp)")
+            {
+                REQUIRE(result == WT_ROLLBACK);
+            }
+        }
+
+        WHEN("the conflict check is called with read_timestamp equal to the truncate timestamp")
+        {
+            auto *session_2 = f.create_session();
+
+            const auto result = do_in_rolled_back_transaction(session_2, [&] {
+                set_read_timestamp(session_2, 30);
+                return f.detect_conflict(session_2, 150);
+            });
+
+            THEN("it returns 0 (truncate is visible at this read timestamp)")
+            {
+                REQUIRE(result == 0);
             }
         }
     }
