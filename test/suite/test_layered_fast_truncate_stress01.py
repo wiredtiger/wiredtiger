@@ -47,7 +47,7 @@ from wtscenario import make_scenarios
 #      mirrored history.
 #
 # FIXME-WT-17272: write-conflict scenarios are deliberately avoided. The
-# round schedule filters upsert/remove keys that fall inside any in-flight
+# round schedule filters insert/update/remove keys that fall inside any in-flight
 # truncate range.
 #
 # The RNG seed is logged at the start so failures can be reproduced.
@@ -55,9 +55,10 @@ from wtscenario import make_scenarios
 TOMBSTONE = None
 
 class operations(Enum):
-    UPSERT = 1
-    REMOVE = 2
-    TRUNCATE = 3
+    INSERT = 1
+    UPDATE = 2
+    REMOVE = 3
+    TRUNCATE = 4
 
 # Descriptor for an in-flight truncate transaction: the session and the two
 # cursors holding the [lo, hi] range, kept open until commit.
@@ -186,7 +187,8 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
 
     # Create a random stream of inserts/removes/truncates operations at random positions.
     def _build_op_stream(self):
-        stream = [random.choice([operations.UPSERT, operations.REMOVE])
+        stream = [random.choice([operations.INSERT, operations.UPDATE,
+                                 operations.REMOVE])
                   for _ in range(self.ops_per_round)]
         for _ in range(self.truncates_per_round):
             stream.insert(random.randrange(len(stream) + 1),
@@ -239,23 +241,29 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
 
     def _do_write(self, session, op, key, ts):
         # Apply a single-key insert/update/remove at ts and mirror it in the
-        # ValidationModel. The model update is deferred via mirror so it
-        # only runs after commit_transaction succeeds -- this keeps the
-        # mirror in lock-step with what WT actually committed.
+        # ValidationModel. insert only proceeds if the key is absent in the
+        # model; update only proceeds if the key is present. remove no-ops
+        # if the key is absent. The model update is deferred via mirror so
+        # it only runs after commit_transaction succeeds.
+        latest = self.model.latest(key)
+        key_present = latest is not None and latest is not TOMBSTONE
+        if op is operations.INSERT and key_present:
+            return
+        if op is operations.UPDATE and not key_present:
+            return
+        if op is operations.REMOVE and not key_present:
+            return
         cursor = session.open_cursor(self.uri)
         try:
             session.begin_transaction()
-            if op is operations.UPSERT:
+            if op is operations.REMOVE:
+                cursor.set_key(key)
+                self.assertEqual(cursor.remove(), 0)
+                mirror = lambda: self.model.remove(key, ts)
+            else:
                 value = self._gen_value()
                 cursor[key] = value
                 mirror = lambda: self.model.insert(key, value, ts)
-            else:
-                cursor.set_key(key)
-                if cursor.remove() != 0:
-                    # REMOVE on a key that doesn't exist: nothing to mirror.
-                    session.rollback_transaction()
-                    return
-                mirror = lambda: self.model.remove(key, ts)
             session.commit_transaction(
                 'commit_timestamp=' + self.timestamp_str(ts))
             mirror()
@@ -350,9 +358,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         self.populate_initial_leader()
         self.setup_follower()
 
-        # The follower may re-attach to the same checkpoint after a switch;
-        # this is benign and is filtered the same way sibling tests do (see
-        # test_layered_fast_truncate{16,17}.py).
+        # The follower may re-attach to the same checkpoint after a switch.
         self.ignoreStdoutPattern('Picking up the same checkpoint')
         self.ignoreStderrPatternIfExists('Picking up the same checkpoint')
 
