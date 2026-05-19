@@ -1770,6 +1770,7 @@ tasks:
     depends_on: &s-all-dep
       - name: s-all
         variant: ubuntu2004
+        patch_optional: true
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
