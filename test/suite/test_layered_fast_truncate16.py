@@ -28,13 +28,14 @@
 
 import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 
 # test_layered_fast_truncate16.py
 #   Verify that pending follower truncates land on stable when the follower steps up,
 #   across the variety of per-key shapes and edge cases.
 @disagg_test_class
-class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate_stepup(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader")'
     uri = 'layered:test_layered_fast_truncate_stepup'
@@ -42,11 +43,6 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate_stepup', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
-
-    def setUp(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled.")
-        super().setUp()
 
     def populate_on_leader(self, ts=10):
         cursor = self.session.open_cursor(self.uri)
@@ -69,11 +65,6 @@ class test_layered_fast_truncate_stepup(wttest.WiredTigerTestCase):
         self.session_follow.create(self.uri, 'key_format=i,value_format=S')
         self.populate_on_leader()
         self.disagg_advance_checkpoint(self.conn_follow)
-
-    # Step up the follower (which becomes the new leader) and step the original leader down.
-    def step_up(self):
-        self.ignoreStdoutPattern('Picking up the same checkpoint')
-        self.disagg_switch_follower_and_leader(self.conn_follow)
 
     def write_kv(self, key, value, ts):
         cursor = self.session_follow.open_cursor(self.uri)

@@ -28,6 +28,7 @@
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
@@ -35,7 +36,7 @@ from wiredtiger import stat
 #   Verify that step-up replay uses fast page truncation (WT_REF_DELETED) when
 #   replaying follower truncates.
 @disagg_test_class
-class test_layered_fast_truncate17(wttest.WiredTigerTestCase):
+class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader")'
     uri = 'layered:test_layered_ft_replay'
@@ -44,17 +45,6 @@ class test_layered_fast_truncate17(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_layered_ft_replay', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
-
-    def setUp(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled.")
-        super().setUp()
-
-    def get_stat(self, conn, stat_key):
-        s = conn.open_session('')
-        val = s.open_cursor('statistics:')[stat_key][2]
-        s.close()
-        return val
 
     def populate_on_leader(self, ts=10):
         cursor = self.session.open_cursor(self.uri)
@@ -76,10 +66,6 @@ class test_layered_fast_truncate17(wttest.WiredTigerTestCase):
         self.session_follow.create(self.uri, self.table_config)
         self.populate_on_leader()
         self.disagg_advance_checkpoint(self.conn_follow)
-
-    def step_up(self):
-        self.ignoreStdoutPattern('Picking up the same checkpoint')
-        self.disagg_switch_follower_and_leader(self.conn_follow)
 
     def truncate_range(self, start_key, stop_key, ts):
         c_start = self.session_follow.open_cursor(self.uri)

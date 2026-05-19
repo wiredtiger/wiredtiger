@@ -160,6 +160,11 @@ class LayeredFastTruncateConfigMixin:
                                     ',oldest_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
 
+    def step_up(self):
+        """Promote self.conn_follow to leader; the original leader steps down."""
+        self.ignoreStdoutPattern('Picking up the same checkpoint')
+        self.disagg_switch_follower_and_leader(self.conn_follow)
+
     def open_follower(self):
         """
         Open a separate follower connection (distinct from setup_follower
