@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 # disaggregated WiredTiger.
 #
 # Two disaggregated nodes share one database. Each round:
-#   1. Apply a randomised mix of UPSERTs, REMOVEs, and concurrent range
+#   1. Apply a randomized mix of inserts, updates, removes, and range
 #      truncates on the follower, mirroring every op into ValidationModel.
 #   2. Switch roles -- promote the follower, restart the previous leader as
 #      a fresh follower.
@@ -47,7 +47,7 @@ from wtscenario import make_scenarios
 #      mirrored history.
 #
 # FIXME-WT-17272: write-conflict scenarios are deliberately avoided. The
-# round schedule filters UPSERT/REMOVE keys that fall inside any in-flight
+# round schedule filters upsert/remove keys that fall inside any in-flight
 # truncate range.
 #
 # The RNG seed is logged at the start so failures can be reproduced.
@@ -114,7 +114,7 @@ class ValidationModel:
             f'full-scan mismatch (seed={testcase.seed})')
 
     # Point reads at a few random past timestamps must match value_at(k, ts).
-    # Tries to catch step-up bugs that break MVCC visibility for older timestamps.
+    # Tries to catch step-up bugs that break mvcc visibility for older timestamps.
     def assert_history_matches(self, testcase, session, uri,
                                sample_size=200, ts_samples=8):
         if self.max_ts <= 1 or not self.history:
@@ -184,7 +184,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         self.next_ts += 1
         return ts
 
-    # Create a random stream of inserts/removes/truncates oeprations at random positions.
+    # Create a random stream of inserts/removes/truncates operations at random positions.
     def _build_op_stream(self):
         stream = [random.choice([operations.UPSERT, operations.REMOVE])
                   for _ in range(self.ops_per_round)]
@@ -238,8 +238,8 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         t.session.close()
 
     def _do_write(self, session, op, key, ts):
-        # Apply a single-key UPSERT or REMOVE at ts and mirror it in the
-        # ValidationModel. The model update is deferred via `mirror` so it
+        # Apply a single-key upsert or remove at ts and mirror it in the
+        # ValidationModel. The model update is deferred via mirror so it
         # only runs after commit_transaction succeeds -- this keeps the
         # mirror in lock-step with what WT actually committed.
         cursor = session.open_cursor(self.uri)
