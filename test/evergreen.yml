@@ -1710,7 +1710,8 @@ variables:
           times: 1
 
   - &s-all-dep
-    - name: s-all
+    - &s-all-dep-item
+      name: s-all
       variant: ubuntu2004
       patch_optional: true
 
@@ -1788,9 +1789,7 @@ variables:
   - &format-stress-test-disagg-switch-fast-truncate
     depends_on:
       - name: compile
-      - name: s-all
-        variant: ubuntu2004
-        patch_optional: true
+      - *s-all-dep-item
     commands:
       - func: "fetch artifacts"
       - func: "format test script"
@@ -1808,9 +1807,7 @@ variables:
   - &format-stress-test-disagg-switch-fast-truncate-data-validation
     depends_on:
       - name: compile
-      - name: s-all
-        variant: ubuntu2004
-        patch_optional: true
+      - *s-all-dep-item
     commands:
       - func: "fetch artifacts"
       - func: "format test script"
