@@ -23,6 +23,7 @@ namespace {
 
 class layered_truncate_visibility_fixture {
     WT_TXN_SHARED *txn_shared_list;
+    bool fast_truncate_enabled;
 
 public:
     std::shared_ptr<mock_session> session_wrapper;
@@ -31,7 +32,8 @@ public:
 
     layered_truncate_visibility_fixture()
         : session_wrapper(mock_session::build_test_mock_session()),
-          session(session_wrapper->get_wt_session_impl())
+          session(session_wrapper->get_wt_session_impl()),
+          fast_truncate_enabled(__wt_process.disagg_fast_truncate_2026)
     {
         session->id = 0;
 
@@ -43,6 +45,8 @@ public:
         layered_table.iface.name = "layered:test_layered_truncate_visibility";
         TAILQ_INIT(&layered_table.truncateqh);
         REQUIRE(__wt_rwlock_init(session, &layered_table.truncate_lock) == 0);
+
+        __wt_process.disagg_fast_truncate_2026 = true;
     }
 
     ~layered_truncate_visibility_fixture()
@@ -51,6 +55,7 @@ public:
         __wt_rwlock_destroy(session, &layered_table.truncate_lock);
         __wt_free(session, session->txn);
         __wt_free(session, txn_shared_list);
+        __wt_process.disagg_fast_truncate_2026 = fast_truncate_enabled;
     }
 
     /*
