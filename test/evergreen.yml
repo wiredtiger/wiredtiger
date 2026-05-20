@@ -1786,10 +1786,10 @@ variables:
   # Switch mode with fast truncate (the default build option). Exercises the test/format
   # truncate_lock (test/format/ops.c) by emphasizing truncate ops alongside disagg switching.
   - &format-stress-test-disagg-switch-fast-truncate
-    depends_on: *s-all-dep
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
@@ -1803,10 +1803,10 @@ variables:
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
   - &format-stress-test-disagg-switch-fast-truncate-data-validation
-    depends_on: *s-all-dep
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
