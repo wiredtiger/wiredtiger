@@ -1783,8 +1783,6 @@ variables:
           format_args: disagg.mode=switch ops.prepare=0 runs.timer=3
           times: 1
 
-  # Switch mode with fast truncate (the default build option). Exercises the test/format
-  # truncate_lock (test/format/ops.c) by emphasizing truncate ops alongside disagg switching.
   - &format-stress-test-disagg-switch-fast-truncate
     depends_on:
       - name: compile
@@ -5320,18 +5318,11 @@ tasks:
   - <<: *format-stress-test-disagg-switch-pull-request
     name: format-stress-test-disagg-switch-pull-request-2
     tags: ["pull_request"]
-
   - <<: *format-stress-test-disagg-switch-fast-truncate
-    name: format-stress-test-disagg-switch-fast-truncate-1
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-switch-fast-truncate
-    name: format-stress-test-disagg-switch-fast-truncate-2
+    name: format-stress-test-disagg-switch-fast-truncate
     tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-switch-fast-truncate-data-validation
-    name: format-stress-test-disagg-switch-fast-truncate-validation-1
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-switch-fast-truncate-data-validation
-    name: format-stress-test-disagg-switch-fast-truncate-validation-2
+    name: format-stress-test-disagg-switch-fast-truncate-validation
     tags: ["stress-test-disagg"]
 
   - name: format-stress-test-disagg-follower-pull-request
