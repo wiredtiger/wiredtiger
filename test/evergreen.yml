@@ -318,10 +318,6 @@ functions:
           ${CODE_COVERAGE_FLAGS} \
           ${HAVE_DIAGNOSTIC|} \
           ${WORDS_BIGENDIAN|} \
-          ${GNU_C_VERSION|} \
-          ${GNU_CXX_VERSION|} \
-          ${CLANG_C_VERSION|} \
-          ${CLANG_CXX_VERSION|} \
           ${ENABLE_CPPSUITE|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
@@ -1547,7 +1543,7 @@ variables:
   # Template for Mac tests
   - &mac_test_template
     expansions: &mac_test_template_expansions
-      # macOS uses XCode's clang (no mongodb toolchain).
+      # macOS uses Xcode's clang (no mongodb toolchain).
       CC: clang
       CXX: clang++
       CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
