@@ -41,21 +41,17 @@
 #       before acquiring the read lock.  The drop wins the exclusive lock first,
 #       sets WT_DHANDLE_DEAD, and returns 0.  Drain then sees DEAD and skips.
 #
-#   A forked child runs each scenario so that a WT_PANIC / SIGABRT is caught as
-#   a non-zero exit code without killing the test runner.
+#   Each scenario runs in a subprocess via run_subprocess_function so that a
+#   WT_PANIC / crash is caught as a non-zero exit code without killing the test
+#   runner.  This approach works cross-platform (no os.fork required).
 
-import errno, os, shutil, threading, time, traceback, wiredtiger, wttest
-
-try:
-    import resource
-except ImportError:
-    pass
+import errno, os, threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
-
 @disagg_test_class
-class test_layered105(wttest.WiredTigerTestCase):
+class test_layered105(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_layered105'
     uri = 'layered:' + tablename
     num_rows = 100
@@ -63,110 +59,93 @@ class test_layered105(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered105', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    # Used only by the framework's self.conn; the test manages its own DB.
     conn_config = 'disaggregated=(role="leader",drain_threads=1)'
 
-    def _setup_leader(self, home):
-        """Create a fresh leader DB, write rows, and close to flush a checkpoint."""
-        shutil.rmtree(home, ignore_errors=True)
-        os.makedirs(os.path.join(home, 'kv_home'))
+    def _race_scenario(self, stress_flag, expect_ebusy):
+        """
+        Set up leader data using the framework conn, then reopen as a follower
+        with the timing stress flag and run the drop/drain race.
 
-        cfg = ('create,statistics=(all)'
-               + self.extensionsConfig()
-               + ',disaggregated=(role=leader,drain_threads=1)')
-        conn = wiredtiger.wiredtiger_open(home, cfg)
-        session = conn.open_session('')
-        session.create(self.uri,
-                       'key_format=i,value_format=S,block_manager=disagg,type=layered')
-        cursor = session.open_cursor(self.uri)
+        Called inside a subprocess (via subprocess_drain_wins / subprocess_drop_wins)
+        so WT_PANIC exits the subprocess with a non-zero code.
+        """
+        # Create and populate the table via the framework's leader connection.
+        self.session.create(self.uri,
+                            'key_format=i,value_format=S,block_manager=disagg,type=layered')
+        cursor = self.session.open_cursor(self.uri)
         for i in range(self.num_rows):
             cursor[i] = 'value'
         cursor.close()
+
+        # Close the leader connection, flushing a checkpoint.
+        self.close_conn()
+
+        # Reopen as a follower with the timing stress flag.
+        conn = wiredtiger.wiredtiger_open(
+            self.home,
+            'statistics=(all)'
+            + self.extensionsConfig()
+            + ',disaggregated=(role=follower,drain_threads=2)'
+            + f',timing_stress_for_test=[{stress_flag}]')
+        session = conn.open_session('')
+
+        # Sync the leader's last checkpoint so database_size is correct before step-up.
+        meta = self.disagg_get_complete_checkpoint_meta(conn)
+        if meta:
+            conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
+
+        # Touch the table to lazy-open the ingest dhandle before step-up.
+        session.open_cursor(self.uri).close()
+
+        # Step up to leader in a thread; the race happens here.
+        t = threading.Thread(
+            target=lambda: conn.reconfigure('disaggregated=(role=leader)'),
+            daemon=True)
+        t.start()
+
+        # Sleep 100 ms to land inside the 300 ms stress window for both scenarios.
+        # drain_ingest_table_slow: lock held from ~50 ms; 100 ms is safely inside.
+        # drain_ingest_table_pre_lock_slow: pre-lock sleep from ~50 ms; 100 ms drops
+        #   while drain is still sleeping before the lock, so drop wins the exclusive lock.
+        # Without the sleep, the drop runs before drain has even started, so the race
+        # is never triggered.
+        time.sleep(0.1)
+
+        ebusy = False
+        try:
+            session.drop(self.uri, 'force=true,checkpoint_wait=false')
+        except wiredtiger.WiredTigerError as e:
+            if os.strerror(errno.EBUSY) in str(e):
+                ebusy = True
+            else:
+                raise
+
+        t.join()
+
+        if expect_ebusy:
+            self.assertTrue(ebusy, 'drain wins: expected EBUSY but drop succeeded')
+            session.drop(self.uri, 'force=true')
+        else:
+            self.assertFalse(ebusy, 'drop wins: expected success but got EBUSY')
+
         conn.close()
 
-    def _run_scenario(self, label, stress_flag, expect_ebusy):
-        """
-        Fork a child to run the race scenario.  WT_PANIC (SIGABRT) appears as
-        a negative exit code and is reported as a failure without killing the
-        test runner.
-        """
-        if not hasattr(os, 'fork'):
-            self.skipTest('requires POSIX fork()')
+    def subprocess_drain_wins(self):
+        self._race_scenario('drain_ingest_table_slow', expect_ebusy=True)
 
-        home = os.path.join(self.home, 'scenario_db')
-        ext_config = self.extensionsConfig()
-
-        def child():
-            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-
-            conn = wiredtiger.wiredtiger_open(
-                home,
-                'statistics=(all)'
-                + ext_config
-                + ',disaggregated=(role=follower,drain_threads=2)'
-                + f',timing_stress_for_test=[{stress_flag}]')
-            session = conn.open_session('')
-
-            # Sync the leader's last checkpoint so database_size is correct before step-up.
-            meta = self.disagg_get_complete_checkpoint_meta(conn)
-            if meta:
-                conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
-
-            # Touch the table to lazy-open the ingest dhandle before step-up.
-            session.open_cursor(self.uri).close()
-
-            t = threading.Thread(
-                target=lambda: conn.reconfigure('disaggregated=(role=leader)'),
-                daemon=True)
-            t.start()
-
-            # Sleep 100 ms to land inside the 300 ms stress window for both scenarios.
-            # drain_ingest_table_slow: lock held from ~50 ms; 100 ms is safely inside.
-            # drain_ingest_table_pre_lock_slow: pre-lock sleep from ~50 ms; 100 ms drops
-            #   while drain is still sleeping before the lock, so drop wins the exclusive lock.
-            # Without the sleep, the drop runs before drain has even started, so the race
-            # is never triggered.
-            time.sleep(0.1)
-
-            ebusy = False
-            try:
-                session.drop(self.uri, 'force=true,checkpoint_wait=false')
-            except wiredtiger.WiredTigerError as e:
-                if os.strerror(errno.EBUSY) in str(e):
-                    ebusy = True
-                else:
-                    raise
-
-            t.join()
-
-            if expect_ebusy:
-                assert ebusy, 'drain wins: expected EBUSY but drop succeeded'
-                session.drop(self.uri, 'force=true')
-            else:
-                assert not ebusy, 'drop wins: expected 0 but got EBUSY'
-
-            conn.close()
-
-        self._setup_leader(home)
-
-        pid = os.fork()
-        if pid == 0:
-            try:
-                child()
-                os._exit(0)
-            except Exception:
-                traceback.print_exc()
-                os._exit(1)
-
-        _, status = os.waitpid(pid, 0)
-        if os.WIFSIGNALED(status):
-            self.fail(f'{label}: child killed by signal {os.WTERMSIG(status)} (likely WT_PANIC)')
-        self.assertEqual(os.WEXITSTATUS(status), 0, f'{label}: child exited with failure')
+    def subprocess_drop_wins(self):
+        self._race_scenario('drain_ingest_table_pre_lock_slow', expect_ebusy=False)
 
     def test_drain_wins(self):
         # Drain holds the read lock; drop blocks and returns EBUSY, then retries.
-        self._run_scenario('drain wins', 'drain_ingest_table_slow', True)
+        [rc, _] = self.run_subprocess_function(
+            'SUBPROCESS',
+            'test_layered105.test_layered105.subprocess_drain_wins')
+        self.assertEqual(rc, 0, 'drain wins: subprocess exited non-zero (likely WT_PANIC)')
 
     def test_drop_wins(self):
         # Drop wins the exclusive lock before drain; drain sees DHANDLE_DEAD and skips.
-        self._run_scenario('drop wins', 'drain_ingest_table_pre_lock_slow', False)
+        [rc, _] = self.run_subprocess_function(
+            'SUBPROCESS',
+            'test_layered105.test_layered105.subprocess_drop_wins')
+        self.assertEqual(rc, 0, 'drop wins: subprocess exited non-zero (likely WT_PANIC)')
