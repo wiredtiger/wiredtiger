@@ -117,15 +117,30 @@ build_branch()
         # Disable cppsuite - not all versions build with the toolchain
         config+="-DENABLE_CPPSUITE=0 "
 
-        # Use the stable MongoDB toolchain if it exists
-        toolchain="$PWD/cmake/toolchains/mongodbtoolchain_stable_gcc.cmake"
-        if [ ! -f $toolchain ]; then
-            toolchain="$PWD/cmake/toolchains/mongodbtoolchain_v4_gcc.cmake"
-        fi
-        config+="-DCMAKE_TOOLCHAIN_FILE=$toolchain "
+        # Always use master's CMakePresets.json so preset names are consistent
+        # regardless of the branch's own CMake setup.
+        cp "$PROJECT_ROOT/CMakePresets.json" CMakePresets.json
 
-        (mkdir -p build && cd build &&
-            $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+        # Branches mongodb-7.0 and older require the v4 toolchain (incompatible with GCC 14+).
+        local cmake_preset
+        case "$1" in
+            mongodb-*)
+                local major=$(echo "$1" | cut -d- -f2 | cut -d. -f1)
+                if [ "$major" -le 7 ]; then
+                    cmake_preset="linux-v4-gcc"
+                else
+                    cmake_preset="linux-gcc"
+                fi
+                ;;
+            *)
+                cmake_preset="linux-gcc"
+                ;;
+        esac
+
+        (
+            mkdir -p build && cd build &&
+                $CMAKE --preset "$cmake_preset" $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)
+        ) > /dev/null
     else
         config+="--enable-snappy "
         config+="--disable-standalone-build "
@@ -828,6 +843,7 @@ gittags['mongodb-4.2']="mongodb-4.2"
 # Use relative folder to locate the meta file
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
+PROJECT_ROOT="$(realpath "$SCRIPT_DIR/../..")"
 VERSIONS_FILE="$SCRIPT_DIR/meta/versions.sh"
 source "$VERSIONS_FILE"
 

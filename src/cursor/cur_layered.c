@@ -749,7 +749,7 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TRUNCATE *t;
 
-    if (!__wt_process.disagg_fast_truncate_2026)
+    if (__wt_process.disagg_slow_truncate_2026)
         return (0);
 
     __clayered_get_collator(clayered, &collator);
@@ -993,7 +993,7 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     if (S2C(session)->layered_table_manager.leader)
         WT_RET(__clayered_truncate_leader(trunc_info));
     else {
-        WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+        WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
         WT_RET(__clayered_truncate_follower(trunc_info));
     }
 
@@ -2921,11 +2921,14 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
     if (cval.len != 0)
-        WT_RET_MSG(session, EINVAL, "Layered trees do not support opening by checkpoint");
+        WT_RET_MSG(session, ENOTSUP, "Layered trees do not support opening by checkpoint");
 
     WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
     if (cval.val != 0)
-        WT_RET_MSG(session, EINVAL, "Layered trees do not support bulk loading");
+        WT_RET_MSG(session, ENOTSUP, "Layered trees do not support bulk loading");
+
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION))
+        WT_RET_MSG(session, ENOTSUP, "Layered trees do not support cursor reposition");
 
     /* Get the layered tree, and hold a reference to it until the cursor is closed. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, cfg, 0));
