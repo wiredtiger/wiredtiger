@@ -206,8 +206,8 @@ __drop_layered(
 
     /*
      * Drop the layered table constituents. The stable table may not exist locally on a follower
-     * (followers don't create stable tables); that is fine because the shared metadata removal
-     * is handled by the enqueued REMOVE operation above.
+     * (followers don't create stable tables); that is fine because the shared metadata removal is
+     * handled by the enqueued REMOVE operation above.
      */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, false);
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));

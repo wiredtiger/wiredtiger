@@ -906,7 +906,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
      */
     __wt_config_subinit(session, &pkcols, &table->colconf);
     for (i = 0; i < table->nkey_columns && (ret = __wt_config_next(&pkcols, &ckey, &cval)) == 0;
-      i++) {
+         i++) {
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
@@ -1221,8 +1221,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     /*
      * Update the shared metadata for the disaggregated storage.
      *
-     * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a
-     * part of a table creation, it would result in doing extra work.
+     * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a part
+     * of a table creation, it would result in doing extra work.
      */
     WT_ERR(__wt_disagg_enqueue_metadata_operation(
       session, stable_uri, tablename, WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED));
