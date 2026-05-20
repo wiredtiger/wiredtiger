@@ -1168,6 +1168,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(__page_inmem_update(session, value, &unpack, &upd, &size));
 
             cbt.slot = WT_ROW_SLOT(page, rip);
+            cbt.ref = ref;
             WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true));
             total_size += size;
             upd = NULL;
