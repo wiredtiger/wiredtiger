@@ -561,9 +561,7 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
         cell_type = WT_CELL_ADDR_DEL;
 
         /*
-         * In-progress prepared states are only written to disk when preserve_prepared is enabled,
-         * so that the prepared fast-truncate survives a restart and can be committed or rolled back
-         * during recovery.
+         * In-progress prepared states are only written to disk when preserve_prepared is enabled
          */
         WT_ASSERT(session,
           page_del->prepare_state == WT_PREPARE_INIT ||
@@ -592,12 +590,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
     /*
      * If passed fast-delete information, append the fast-delete information after the aggregated
-     * timestamp information. For an in-progress prepared fast-truncate (written only when
-     * preserve_prepared is enabled), use a local TA copy with prepare=1 so that
-     * __cell_pack_addr_validity emits WT_CELL_SECOND_DESC and WT_CELL_PREPARE  the signal the
-     * unpack path uses to distinguish prepared from committed fast-truncate payloads. Then encode
-     * prepare_ts and prepared_id rather than the committed-layout timestamps. For committed
-     * fast-truncates (and all other cells), use the caller's TA unchanged.
+     * timestamp information. For an in-progress prepared fast-truncate, use a local TA copy with
+     * prepare=1.
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
