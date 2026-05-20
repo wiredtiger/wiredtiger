@@ -1783,6 +1783,42 @@ variables:
           format_args: disagg.mode=switch ops.prepare=0 runs.timer=3
           times: 1
 
+  # Switch mode with fast truncate (the default build option). Exercises the test/format
+  # truncate_lock (test/format/ops.c) by emphasizing truncate ops alongside disagg switching.
+  - &format-stress-test-disagg-switch-fast-truncate
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.truncate=1 runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_args: disagg.mode=switch ops.prepare=0 ops.truncate=1 runs.timer=5:10
+          times: 5
+
+  # FIXME-WT-16113: Consolidate this logic in test/format itself.
+  - &format-stress-test-disagg-switch-fast-truncate-data-validation
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.truncate=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_args: disagg.mode=switch ops.prepare=0 ops.truncate=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          times: 5
+
 #######################################
 #               Tasks                 #
 #######################################
@@ -5284,6 +5320,19 @@ tasks:
   - <<: *format-stress-test-disagg-switch-pull-request
     name: format-stress-test-disagg-switch-pull-request-2
     tags: ["pull_request"]
+
+  - <<: *format-stress-test-disagg-switch-fast-truncate
+    name: format-stress-test-disagg-switch-fast-truncate-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-fast-truncate
+    name: format-stress-test-disagg-switch-fast-truncate-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-fast-truncate-data-validation
+    name: format-stress-test-disagg-switch-fast-truncate-validation-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-fast-truncate-data-validation
+    name: format-stress-test-disagg-switch-fast-truncate-validation-2
+    tags: ["stress-test-disagg"]
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
