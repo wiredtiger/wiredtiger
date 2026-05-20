@@ -682,6 +682,7 @@ __ckpt_reinit_extlists(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
     WT_RET(__wti_block_extlist_init(session, &ci->ckpt_avail, "live", "ckpt_avail", true));
     __wti_block_extlist_free(session, &ci->ckpt_alloc);
     __wti_block_extlist_free(session, &ci->ckpt_discard);
+
     return (0);
 }
 
