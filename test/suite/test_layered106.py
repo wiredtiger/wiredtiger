@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered105.py
+# test_layered106.py
 #   Regression test for a drain worker racing with a concurrent
 #   session.drop(force=True) during follower->leader step-up.  The drain
 #   worker must not panic in either race ordering.
@@ -51,17 +51,21 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered105(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_layered105'
+class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
+    tablename = 'test_layered106'
     uri = 'layered:' + tablename
     num_rows = 100
 
-    disagg_storages = gen_disagg_storages('test_layered105', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    disagg_storages = gen_disagg_storages('test_layered106', disagg_only=True)
+    race_scenarios = [
+        ('drain_wins', dict(stress_flag='drain_ingest_table_slow', expect_ebusy=True)),
+        ('drop_wins', dict(stress_flag='drain_ingest_table_pre_lock_slow', expect_ebusy=False)),
+    ]
+    scenarios = make_scenarios(disagg_storages, race_scenarios)
 
     conn_config = 'disaggregated=(role="leader",drain_threads=1)'
 
-    def _race_scenario(self, stress_flag, expect_ebusy):
+    def _race_scenario(self):
         # Set up leader data, reopen as follower, and run the drop/drain race.
         # Called inside a subprocess so WT_PANIC exits non-zero.
 
@@ -82,20 +86,20 @@ class test_layered105(wttest.WiredTigerTestCase, suite_subprocess):
             'statistics=(all)'
             + self.extensionsConfig()
             + ',disaggregated=(role=follower,drain_threads=2)'
-            + f',timing_stress_for_test=[{stress_flag}]')
+            + f',timing_stress_for_test=[{self.stress_flag}]')
         session = conn.open_session('')
 
-        # Sync the leader's last checkpoint so database_size is correct before step-up.
+        # We closed a leader that wrote rows, so a complete checkpoint must exist.
         meta = self.disagg_get_complete_checkpoint_meta(conn)
-        if meta:
-            conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
+        self.assertIsNotNone(meta, 'expected a complete checkpoint from the leader')
 
         # Touch the table to lazy-open the ingest dhandle before step-up.
         session.open_cursor(self.uri).close()
 
         # Step up to leader in a thread; the race happens here.
         t = threading.Thread(
-            target=lambda: conn.reconfigure('disaggregated=(role=leader)'),
+            target=lambda: conn.reconfigure(
+                f'disaggregated=(role=leader,checkpoint_meta="{meta}")'),
             daemon=True)
         t.start()
 
@@ -118,30 +122,23 @@ class test_layered105(wttest.WiredTigerTestCase, suite_subprocess):
 
         t.join()
 
-        if expect_ebusy:
+        if self.expect_ebusy:
             self.assertTrue(ebusy, 'drain wins: expected EBUSY but drop succeeded')
-            session.drop(self.uri, 'force=true')
+            session.drop(self.uri, 'force=true,checkpoint_wait=false')
         else:
             self.assertFalse(ebusy, 'drop wins: expected success but got EBUSY')
 
+        # Check that the table was successfully dropped.
+        with self.assertRaises(wiredtiger.WiredTigerError):
+            session.open_cursor(self.uri)
+
         conn.close()
 
-    def subprocess_drain_wins(self):
-        self._race_scenario('drain_ingest_table_slow', expect_ebusy=True)
+    def subprocess_race(self):
+        self._race_scenario()
 
-    def subprocess_drop_wins(self):
-        self._race_scenario('drain_ingest_table_pre_lock_slow', expect_ebusy=False)
-
-    def test_drain_wins(self):
-        # Drain holds the read lock; drop blocks and returns EBUSY, then retries.
-        [rc, _] = self.run_subprocess_function(
+    def test_race(self):
+        rc, _ = self.run_subprocess_function(
             'SUBPROCESS',
-            'test_layered105.test_layered105.subprocess_drain_wins')
-        self.assertEqual(rc, 0, 'drain wins: subprocess exited non-zero (likely WT_PANIC)')
-
-    def test_drop_wins(self):
-        # Drop wins the exclusive lock before drain; drain sees DHANDLE_DEAD and skips.
-        [rc, _] = self.run_subprocess_function(
-            'SUBPROCESS',
-            'test_layered105.test_layered105.subprocess_drop_wins')
-        self.assertEqual(rc, 0, 'drop wins: subprocess exited non-zero (likely WT_PANIC)')
+            'test_layered106.test_layered106.subprocess_race')
+        self.assertEqual(rc, 0, f'{self.stress_flag}: subprocess exited non-zero (likely abort)')
