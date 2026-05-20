@@ -998,6 +998,50 @@ ops_session_open(TINFO *tinfo)
     tinfo->session = session;
 }
 
+/* Per-thread tracking of which mode of the truncate lock this thread holds, if any. */
+typedef enum { LOCK_HELD_NONE, LOCK_HELD_READ, LOCK_HELD_WRITE } truncate_lock_state_t;
+
+/*
+ * truncate_lock_acquire_read --
+ *     Acquire g.truncate_lock for a non-TRUNCATE write under switch mode. No-op otherwise.
+ */
+static WT_INLINE void
+truncate_lock_acquire_read(WT_SESSION *session, truncate_lock_state_t *state)
+{
+    if (disagg_is_mode_switch() && *state == LOCK_HELD_NONE) {
+        lock_readlock(session, &g.truncate_lock);
+        *state = LOCK_HELD_READ;
+    }
+}
+
+/*
+ * truncate_lock_acquire_write --
+ *     Acquire g.truncate_lock exclusively for a TRUNCATE under switch mode. Caller must have
+ *     released any held rdlock first (otherwise this is a self-deadlock).
+ */
+static WT_INLINE void
+truncate_lock_acquire_write(WT_SESSION *session, truncate_lock_state_t *state)
+{
+    if (disagg_is_mode_switch() && *state == LOCK_HELD_NONE) {
+        lock_writelock(session, &g.truncate_lock);
+        *state = LOCK_HELD_WRITE;
+    }
+}
+
+/*
+ * truncate_lock_release --
+ *     Release g.truncate_lock, dispatching by held mode. No-op if not held.
+ */
+static WT_INLINE void
+truncate_lock_release(WT_SESSION *session, truncate_lock_state_t *state)
+{
+    if (*state == LOCK_HELD_READ)
+        lock_readunlock(session, &g.truncate_lock);
+    else if (*state == LOCK_HELD_WRITE)
+        lock_writeunlock(session, &g.truncate_lock);
+    *state = LOCK_HELD_NONE;
+}
+
 /*
  * ops --
  *     Per-thread operations.
@@ -1015,10 +1059,12 @@ ops(void *arg)
     uint32_t max_rows, ntries, range, rnd;
     u_int i, throttle_delay_max;
     const char *iso_config;
-    bool greater_than, intxn, op_lock_held, prepared, mirrored_truncate;
+    bool greater_than, intxn, prepared, mirrored_truncate;
+    truncate_lock_state_t lock_state;
 
     tinfo = arg;
     mirrored_truncate = false;
+    lock_state = LOCK_HELD_NONE;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -1065,7 +1111,6 @@ ops(void *arg)
 rollback_retry:
         prepared = false;
         mirrored_truncate = false;
-        op_lock_held = false;
         if (tinfo->quit)
             break;
 
@@ -1088,6 +1133,7 @@ rollback_retry:
          */
         if (intxn && GV(RUNS_PREDICTABLE_REPLAY)) {
             commit_transaction(tinfo, false);
+            truncate_lock_release(session, &lock_state);
             intxn = false;
         }
 
@@ -1100,6 +1146,7 @@ rollback_retry:
             /* Resolve any running transaction. */
             if (intxn) {
                 commit_transaction(tinfo, false);
+                truncate_lock_release(session, &lock_state);
                 intxn = false;
             }
 
@@ -1302,20 +1349,24 @@ rollback_retry:
         }
 
         /*
-         * In disagg "switch" mode the follower-side truncate path doesn't symmetrically
-         * conflict-check against in-flight writes inside its range, so a writer that allocated its
-         * txn id after the truncate transaction's but committed at an earlier timestamp can leave
-         * the drain with a txn-id-inverted chain on stable (trips __timestamp_no_ts_fix during
-         * reconcile). Serialize truncates against everything else for the duration of this op
-         * iteration (released at skip_operation / the rollback label). Only enabled for switch
-         * mode -- other modes don't exhibit the asymmetric-conflict gap.
+         * Switch-mode only: TRUNCATE is the writer -- it commits any in-flight txn, drops its
+         * reader lock, takes the writer lock and re-begins under it so its snapshot drains every
+         * concurrent reader's commit. Every other write op is a reader. Reads bypass.
          */
         if (disagg_is_mode_switch()) {
-            if (op == TRUNCATE)
-                lock_writelock(session, &g.truncate_lock);
-            else
-                lock_readlock(session, &g.truncate_lock);
-            op_lock_held = true;
+            if (op == TRUNCATE) {
+                if (intxn) {
+                    commit_transaction(tinfo, false);
+                    snap_repeat_update(tinfo, true);
+                    intxn = false;
+                }
+                truncate_lock_release(session, &lock_state);
+                truncate_lock_acquire_write(session, &lock_state);
+                /* Switch mode implies disagg, which forces transaction.timestamps=on. */
+                begin_transaction_ts(tinfo);
+                intxn = true;
+            } else if (op != READ)
+                truncate_lock_acquire_read(session, &lock_state);
         }
 
         ret = 0;
@@ -1373,14 +1424,9 @@ rollback_retry:
 skip_operation:
         table = tinfo->table = NULL;
 
-        /* Release the per-op truncate lock if still held. */
-        if (op_lock_held) {
-            if (op == TRUNCATE)
-                lock_writeunlock(session, &g.truncate_lock);
-            else
-                lock_readunlock(session, &g.truncate_lock);
-            op_lock_held = false;
-        }
+        /* Implicit txn: no later commit, release here. Explicit txn keeps the lock until commit. */
+        if (!intxn)
+            truncate_lock_release(session, &lock_state);
 
         /* Release the truncate operation counter. */
         if (op == TRUNCATE)
@@ -1454,27 +1500,18 @@ skip_operation:
         case 4:           /* 40% */
             __wt_yield(); /* Encourage races */
             commit_transaction(tinfo, prepared);
+            truncate_lock_release(session, &lock_state);
             snap_repeat_update(tinfo, true);
             break;
         case 5: /* 10% */
 rollback:
-            /*
-             * If we jumped here from inside the op execution block (before reaching
-             * skip_operation), the per-op truncate lock is still held -- release it now.
-             */
-            if (op_lock_held) {
-                if (op == TRUNCATE)
-                    lock_writeunlock(session, &g.truncate_lock);
-                else
-                    lock_readunlock(session, &g.truncate_lock);
-                op_lock_held = false;
-            }
             if (GV(RUNS_PREDICTABLE_REPLAY)) {
                 if (tinfo->quit)
                     goto loop_exit;
                 /* Force a rollback */
                 testutil_assert(intxn);
                 rollback_transaction(tinfo, prepared);
+                truncate_lock_release(session, &lock_state);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1483,6 +1520,7 @@ rollback:
             }
             __wt_yield(); /* Encourage races */
             rollback_transaction(tinfo, prepared);
+            truncate_lock_release(session, &lock_state);
             snap_repeat_update(tinfo, false);
             break;
         }
@@ -1498,6 +1536,8 @@ rollback:
     }
 
 loop_exit:
+    /* Defensive: release lock on any unexpected exit path. */
+    truncate_lock_release(session, &lock_state);
     if (session != NULL)
         testutil_check(session->close(session, NULL));
     tinfo->session = NULL;

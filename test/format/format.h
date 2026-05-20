@@ -263,13 +263,10 @@ typedef struct {
     RWLOCK backup_lock; /* Backup running */
 
     /*
-     * Only acquired in disagg "switch" mode (see disagg_is_mode_switch). Truncates run with the
-     * write lock; every other read/write operation runs with the read lock. Truncates are
-     * therefore mutually exclusive with all other ops across all tables. Needed because the
-     * follower-side truncate path doesn't symmetrically conflict-check against concurrent writes
-     * inside its range: a write that allocated its txn id after the truncate transaction did but
-     * committed at an earlier timestamp can leave drain with a txn-id-inverted chain on stable,
-     * tripping __timestamp_no_ts_fix during reconcile.
+     * Only acquired in disagg "switch" mode. TRUNCATE takes the write lock; other
+     * writers take the read lock; readers bypass. Both lock types are held from begin_transaction*
+     * through commit/rollback so that TRUNCATE's wrlock-wait drains every in-flight writer's
+     * commit before TRUNCATE's snapshot is taken.
      */
     RWLOCK truncate_lock;
     uint64_t backup_id; /* Block incremental id */
