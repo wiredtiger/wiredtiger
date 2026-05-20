@@ -52,8 +52,6 @@ from wtscenario import make_scenarios
 #
 # The RNG seed is logged at the start so failures can be reproduced.
 
-TOMBSTONE = None
-
 class operations(Enum):
     INSERT = 1
     UPDATE = 2
@@ -66,8 +64,8 @@ OpenTruncate = namedtuple('OpenTruncate',
                           ['session', 'cursor_lo', 'cursor_hi', 'lo', 'hi'])
 
 # Create validation model that mirrors the table contents. For every key
-# we keep a history of all operations, so we can verification both the
-# latest state and the value visible at any past timestamp.
+# we keep a history of all operations, so we can verify both the latest
+# state and the value visible at any past timestamp.
 HistoryEntry = namedtuple('HistoryEntry', ['ts', 'value'])
 
 class ValidationModel:
@@ -92,20 +90,25 @@ class ValidationModel:
         self.history.setdefault(key, []).append(HistoryEntry(ts, value))
         self.max_ts = max(self.max_ts, ts)
 
+    # A history entry's value is None when the key is deleted at that
+    # timestamp; otherwise it's the string the user wrote.
+    def is_present(self, key):
+        return self.latest(key) is not None
+
     def remove(self, key, ts):
-        if self.latest(key) is not None:
-            self.history.setdefault(key, []).append(HistoryEntry(ts, TOMBSTONE))
+        if self.is_present(key):
+            self.history.setdefault(key, []).append(HistoryEntry(ts, None))
             self.max_ts = max(self.max_ts, ts)
 
     def truncate(self, lo, hi, ts):
         for k in range(lo, hi + 1):
-            if self.latest(k) is not None:
-                self.history.setdefault(k, []).append(HistoryEntry(ts, TOMBSTONE))
+            if self.is_present(k):
+                self.history.setdefault(k, []).append(HistoryEntry(ts, None))
         self.max_ts = max(self.max_ts, ts)
 
     def latest_snapshot(self):
         return {k: h[-1].value for k, h in self.history.items()
-                if h[-1].value is not TOMBSTONE}
+                if h[-1].value is not None}
 
     def assert_latest_matches(self, testcase, session, uri):
         cursor = session.open_cursor(uri)
@@ -136,7 +139,7 @@ class ValidationModel:
         cursor.set_key(key)
         ret = cursor.search()
         expected = self.value_at(key, ts)
-        if expected is None or expected is TOMBSTONE:
+        if expected is None:
             testcase.assertEqual(ret, wiredtiger.WT_NOTFOUND,
                 f'k={key} ts={ts} should be deleted (seed={testcase.seed})')
             return
@@ -245,8 +248,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         # model; update only proceeds if the key is present. remove no-ops
         # if the key is absent. The model update is deferred via mirror so
         # it only runs after commit_transaction succeeds.
-        latest = self.model.latest(key)
-        key_present = latest is not None and latest is not TOMBSTONE
+        key_present = self.model.is_present(key)
         if op is operations.INSERT and key_present:
             return
         if op is operations.UPDATE and not key_present:
