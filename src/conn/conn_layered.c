@@ -865,12 +865,13 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
-     * Schema operations (create, drop) start deferred: __checkpoint_prepare clears the deferred
-     * flag on all existing entries so they are applied at the end of that checkpoint. Entries
-     * enqueued after prepare including concurrent schema ops will not be processed until the
-     * following checkpoint. The one exception is block manager checkpoint_resolve callbacks for
-     * stable tables, which pass deferred=false so that the updated checkpoint metadata is written
-     * to the shared metadata table in the same checkpoint.
+     * Schema operations (create, drop) start deferred: at the start of each checkpoint, while the
+     * schema lock is held, the deferred flag is cleared on all existing entries so they are applied
+     * at the end of that checkpoint. Entries enqueued after that point, including concurrent schema
+     * ops, will not be processed until the following checkpoint. The one exception is the block
+     * manager callback that records the new checkpointed state of each stable table: those entries
+     * pass deferred=false so that the updated checkpoint metadata is written to the shared metadata
+     * table in the same checkpoint.
      */
     entry->deferred = deferred;
 
