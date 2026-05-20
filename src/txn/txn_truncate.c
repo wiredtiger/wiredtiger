@@ -92,8 +92,10 @@ __layered_table_truncate_gc(
     {
         const bool is_committed = __wt_atomic_load_bool_acquire(&entry->committed);
 
-        /* Committed entries with durable_ts == WT_TS_NONE are never pruned here. Without a
-         * timestamp, we cannot determine whether the follower has picked up these changes yet. */
+        /*
+         * Committed entries with durable_ts == WT_TS_NONE are never pruned here. Without a
+         * timestamp, we cannot determine whether the follower has picked up these changes yet.
+         */
         const bool is_time =
           entry->durable_ts != WT_TS_NONE && entry->durable_ts <= prune_timestamp;
 
