@@ -442,8 +442,8 @@ __layered_copy_ingest_table(
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
     /*
-     * Sleep while the caller holds the ingest dhandle read lock, widening the window for the drop
-     * to block on the exclusive lock and return EBUSY.
+     * Sleep while the drain worker holds the ingest dhandle read lock, widening the window for the
+     * drop to block on the exclusive lock and return EBUSY.
      */
     struct timespec tsp;
     tsp.tv_sec = 0;
@@ -818,7 +818,7 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_PRE_LOCK_SLOW, &tsp);
 
     /*
-     * Hold a read lock on the ingest dhandle for the duration of the copy. The drop path acquires
+     * Hold a read lock on the ingest dhandle for the duration of the drain. The drop path acquires
      * an exclusive write lock, so this blocks any concurrent drop until we finish. Check
      * WT_DHANDLE_DEAD after acquiring the lock: if the drop already completed and set the flag,
      * skip this table cleanly rather than operating on a dead handle.
