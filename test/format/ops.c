@@ -1349,11 +1349,11 @@ rollback_retry:
         }
 
         /*
-         * Switch-mode only, fast-truncate only: TRUNCATE is the writer -- it commits any
-         * in-flight txn, drops its reader lock, takes the writer lock and re-begins under it so
-         * its snapshot drains every concurrent reader's commit. Every other write op is a reader.
-         * Reads bypass. The slow-truncate path doesn't hit the engine gap we're working around,
-         * so leave it on the original code path with no lock activity.
+         * Switch-mode only, fast-truncate only: TRUNCATE is the writer -- it commits any in-flight
+         * txn, drops its reader lock, takes the writer lock and re-begins under it so its snapshot
+         * drains every concurrent reader's commit. Every other write op is a reader. Reads bypass.
+         * The slow-truncate path doesn't hit the engine gap we're working around, so leave it on
+         * the original code path with no lock activity.
          */
         if (disagg_is_mode_switch() && !__wt_process.disagg_slow_truncate_2026) {
             if (op == TRUNCATE) {
