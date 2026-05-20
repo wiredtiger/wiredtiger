@@ -724,6 +724,13 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_search);
 
+    if (!F_ISSET(
+          session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_RET(WT_ROLLBACK);
+        }
+    }
     WT_RET(__wt_txn_search_check(session));
     __cursor_state_save(cursor, &state);
 
