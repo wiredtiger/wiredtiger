@@ -1081,6 +1081,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_UPDATE *upd;
+    bool prev_skip_cache_incr;
     size_t size, total_size;
     uint64_t recno, rle;
     uint32_t i;
@@ -1104,6 +1105,8 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_btcur_open(&cbt);
 
     WT_ERR(__wt_scr_alloc(session, 0, &value));
+    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SKIP_CACHE_INCR));
+    prev_skip_cache_incr = F_ISSET(session, WT_SESSION_SKIP_CACHE_INCR);
     F_SET(session, WT_SESSION_SKIP_CACHE_INCR);
     if (page->type == WT_PAGE_COL_VAR) {
         recno = ref->ref_recno;
@@ -1174,12 +1177,14 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * updates to avoid reconciling the page every time.
      */
     __wt_page_modify_clear(session, page);
-    F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
+    if (!prev_skip_cache_incr)
+        F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
     __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
-        F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
+        if (!prev_skip_cache_incr)
+            F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
         __wt_cache_page_inmem_incr(session, page, total_size, false);
         __wt_free_update_list(session, &upd);
     }
