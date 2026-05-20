@@ -10,7 +10,9 @@
 
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_read_deletion_extlists(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, bool *);
+static int __ckpt_reinit_extlists(WT_SESSION_IMPL *, WT_BLOCK_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
+static int __ckpt_validate_state(WT_SESSION_IMPL *, WT_BLOCK *);
 
 /*
  * __block_extlist_setup --
@@ -627,7 +629,59 @@ __ckpt_read_deletion_extlists(
               "tiered storage checkpoint follows local checkpoint");
         }
     }
+    return (0);
+}
 
+/*
+ * __ckpt_validate_state --
+ *     Validate the checkpoint state and advance it to WT_CKPT_PANIC_ON_FAILURE. Returns an error if
+ *     the state is inconsistent.
+ */
+static int
+__ckpt_validate_state(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_DECL_RET;
+
+    /*
+     * If we're called to checkpoint the same file twice (without the second resolution step), or
+     * re-entered for any reason, it's an error in our caller, and our choices are all bad: leak
+     * blocks or potentially crash with our caller not yet having saved previous checkpoint
+     * information to stable storage.
+     */
+    __wt_spin_lock(session, &block->live_lock);
+    switch (block->ckpt_state) {
+    case WT_CKPT_INPROGRESS:
+        block->ckpt_state = WT_CKPT_PANIC_ON_FAILURE;
+        break;
+    case WT_CKPT_NONE:
+    case WT_CKPT_PANIC_ON_FAILURE:
+        ret = __wt_panic(session, EINVAL,
+          "%s: an unexpected checkpoint attempt: the checkpoint was never started or has already "
+          "completed",
+          block->name);
+        __wt_bm_set_readonly(session);
+        break;
+    case WT_CKPT_SALVAGE:
+        /* Salvage doesn't use the standard checkpoint APIs. */
+        break;
+    }
+    __wt_spin_unlock(session, &block->live_lock);
+    return (ret);
+}
+
+/*
+ * __ckpt_reinit_extlists --
+ *     Clean up the checkpoint-related extent lists on the live checkpoint structure: reinitialize
+ *     the available extent list (free then re-init), and free the alloc and discard extent lists
+ *     (left invalid until the resolve step).
+ */
+static int
+__ckpt_reinit_extlists(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
+{
+    __wti_block_extlist_free(session, &ci->ckpt_avail);
+    WT_RET(__wti_block_extlist_init(session, &ci->ckpt_avail, "live", "ckpt_avail", true));
+    __wti_block_extlist_free(session, &ci->ckpt_alloc);
+    __wti_block_extlist_free(session, &ci->ckpt_discard);
     return (0);
 }
 
@@ -664,31 +718,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * newly available blocks into the live system's available list.
      *
      * This function is the first step, the second step is in the resolve function.
-     *
-     * If we're called to checkpoint the same file twice (without the second resolution step), or
-     * re-entered for any reason, it's an error in our caller, and our choices are all bad: leak
-     * blocks or potentially crash with our caller not yet having saved previous checkpoint
-     * information to stable storage.
      */
-    __wt_spin_lock(session, &block->live_lock);
-    switch (block->ckpt_state) {
-    case WT_CKPT_INPROGRESS:
-        block->ckpt_state = WT_CKPT_PANIC_ON_FAILURE;
-        break;
-    case WT_CKPT_NONE:
-    case WT_CKPT_PANIC_ON_FAILURE:
-        ret = __wt_panic(session, EINVAL,
-          "%s: an unexpected checkpoint attempt: the checkpoint was never started or has already "
-          "completed",
-          block->name);
-        __wt_bm_set_readonly(session);
-        break;
-    case WT_CKPT_SALVAGE:
-        /* Salvage doesn't use the standard checkpoint APIs. */
-        break;
-    }
-    __wt_spin_unlock(session, &block->live_lock);
-    WT_RET(ret);
+    WT_RET(__ckpt_validate_state(session, block));
 
     /*
      * Extents newly available as a result of deleting previous checkpoints are added to a list of
@@ -703,10 +734,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * waiting allows the btree layer to continue eviction sooner. As for the checkpoint-available
      * list, make sure they get cleaned out.
      */
-    __wti_block_extlist_free(session, &ci->ckpt_avail);
-    WT_RET(__wti_block_extlist_init(session, &ci->ckpt_avail, "live", "ckpt_avail", true));
-    __wti_block_extlist_free(session, &ci->ckpt_alloc);
-    __wti_block_extlist_free(session, &ci->ckpt_discard);
+    WT_RET(__ckpt_reinit_extlists(session, ci));
 
     /*
      * To delete a checkpoint, we need extent list information for it and the subsequent checkpoint
