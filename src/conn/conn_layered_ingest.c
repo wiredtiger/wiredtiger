@@ -114,9 +114,6 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
         WT_ASSERT(session, last_upd->prepared_id != WT_PREPARED_ID_NONE);
         WT_UPDATE *tombstone;
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        tombstone->txnid = WT_TXN_NONE;
-        tombstone->upd_start_ts = WT_TS_NONE;
-        tombstone->upd_durable_ts = WT_TS_NONE;
         last_upd->next = tombstone;
     }
 
