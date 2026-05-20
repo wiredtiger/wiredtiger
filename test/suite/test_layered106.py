@@ -35,10 +35,11 @@
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered106(wttest.WiredTigerTestCase):
+class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
@@ -204,7 +205,7 @@ class test_layered106(wttest.WiredTigerTestCase):
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
-    def test_create_then_drop_on_follower_step_up(self):
+    def test_create_drop_on_follower_step_up(self):
         """A table created then dropped on a follower must not exist after a role swap."""
         self.setup_leader_with_epoch()
 
@@ -349,8 +350,8 @@ class test_layered106(wttest.WiredTigerTestCase):
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
-    def test_create_drop_epoch_gated(self):
-        """A create and a drop queued at different epochs leave no trace in shared metadata."""
+    def subprocess_create_drop_split_epochs(self):
+        """Subprocess body for test_create_drop_split_epochs; expected to panic/abort."""
         self.setup_leader_with_epoch()
 
         conn_follow, session_follow = self.open_follower()
@@ -367,22 +368,38 @@ class test_layered106(wttest.WiredTigerTestCase):
         #   by REMOVE uri (epoch 30).
         self.swap_roles(conn_follow)
 
-        # After step-up: CREATE followed by REMOVE cancels stable constituent creation.
+        # After step-up: CREATE followed by REMOVE causes step-up to skip stable constituent
+        # creation, leaving no local trace.
         self.assertNotInLocal(conn_follow, self.uri)
         self.assertNotInShared(conn_follow, self.uri)
 
-        self.checkpoint_and_advance(20, 2, conn_follow)
-        # After checkpoint at epoch=20: CREATE flushed into shared metadata; but the stable
-        # file was never created locally, so uri is not accessible to self.conn.
-        self.assertInShared(conn_follow, self.uri)
-        self.assertNotInLocal(self.conn, self.uri)
+        # Checkpoint at epoch=20: the stable epoch falls between CREATE (epoch=20) and
+        # DROP (epoch=30), so the table must be visible in shared metadata at this checkpoint.
+        # But the stable constituent was never created, so WiredTiger panics.
+        self.set_stable_epoch(20, conn_follow)
+        conn_follow.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(2) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        session_ck = conn_follow.open_session('')
+        session_ck.checkpoint()  # Expected to panic.
 
-        self.checkpoint_and_advance(30, 3, conn_follow)
-        # After checkpoint at epoch=30: REMOVE flushed; uri gone from shared metadata.
-        self.assertNotInShared(conn_follow, self.uri)
-        self.assertNotInLocal(self.conn, self.uri)
+    def test_create_drop_split_epochs(self):
+        """
+        Publishing CREATE and DROP at different epochs is an API violation that panics.
 
-        conn_follow.close('debug=(skip_checkpoint=true)')
+        The stable epoch falls between CREATE (epoch=20) and DROP (epoch=30), so this checkpoint
+        must include the table in shared metadata. But the table was dropped and its stable
+        constituent was never created, so we have no data to write. WiredTiger detects this and
+        panics.
+        """
+        # Initialize self.conn so tearDown can close it cleanly; the real test runs
+        # in a subprocess so that the panic/abort does not kill the test runner.
+        self.setup_leader_with_epoch()
+        subdir = 'SUBPROCESS_create_drop_split_epochs'
+        [returncode, _] = self.run_subprocess_function(subdir,
+            'test_layered106.test_layered106.subprocess_create_drop_split_epochs',
+            silent=True)
+        self.assertNotEqual(returncode, 0)
 
     def test_unpublished_create_not_flushed(self):
         """

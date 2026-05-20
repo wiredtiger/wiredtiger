@@ -183,6 +183,11 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
             {
                 if (tmp->metadata_op == WT_SHARED_METADATA_REMOVE &&
                   strcmp(tmp->stable_uri, entry->stable_uri) == 0) {
+                    /*
+                     * Assert queue ordering: the REMOVE must be at the same or later epoch as the
+                     * CREATE. A REMOVE at an earlier epoch than the CREATE is a bug in the queue.
+                     */
+                    WT_ASSERT(session, tmp->schema_epoch >= entry->schema_epoch);
                     skip = true;
                     break;
                 }
@@ -1182,11 +1187,14 @@ err:
 int
 __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
 {
+    TAILQ_HEAD(, __wt_disagg_metadata_op) skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *tmp;
+    WT_DISAGG_METADATA_OP *entry, *skipped, *skipped_tmp, *tmp;
+    bool found;
 
     conn = S2C(session);
+    TAILQ_INIT(&skipped_creates);
 
     /*
      * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
@@ -1218,6 +1226,49 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
             continue;
         }
 
+        /*
+         * A CREATE entry with no stable_value means the stable constituent was never created:
+         * step-up skipped it because a DROP follows in the queue, so the table no longer exists and
+         * we have no data to include in shared metadata. Park it in a local list.
+         *
+         * A matching REMOVE in the same checkpoint is the only valid resolution -- both epochs are
+         * stable so the table was never visible to any checkpoint, and we can safely skip both
+         * entries. Anything else is an API violation detected below.
+         */
+        if (entry->metadata_op == WT_SHARED_METADATA_CREATE && entry->stable_value == NULL) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Tracking CREATE for \"%s\" with no stable value (epoch %" PRIu64
+              ") for API violation detection",
+              entry->stable_uri, entry->schema_epoch);
+            TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+            TAILQ_INSERT_TAIL(&skipped_creates, entry, q);
+            continue;
+        }
+
+        /*
+         * For a REMOVE, cancel any parked CREATE entry for the same URI. When both land in the same
+         * checkpoint, the table was created and dropped before any checkpoint required it to exist,
+         * so we can safely skip both without writing anything to shared metadata.
+         */
+        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE) {
+            found = false;
+            TAILQ_FOREACH_SAFE(skipped, &skipped_creates, q, skipped_tmp)
+            if (strcmp(skipped->stable_uri, entry->stable_uri) == 0) {
+                TAILQ_REMOVE(&skipped_creates, skipped, q);
+                __disagg_shared_metadata_queue_free(session, &skipped);
+                found = true;
+            }
+            if (found) {
+                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Skipping CREATE and REMOVE for \"%s\" (epoch %" PRIu64
+                  "): table created and dropped before any checkpoint required it to exist",
+                  entry->stable_uri, entry->schema_epoch);
+                TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+                __disagg_shared_metadata_queue_free(session, &entry);
+                continue;
+            }
+        }
+
         /* Failpoint: inject error to test panic handling during queue processing. */
         if (FLD_ISSET(conn->timing_stress_flags,
               WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN)) {
@@ -1232,9 +1283,26 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
         __disagg_shared_metadata_queue_free(session, &entry);
     }
 
+    /*
+     * Any unmatched parked CREATE entry is an API violation: the stable epoch falls between the
+     * CREATE and DROP epochs, so this checkpoint must include the table in shared metadata. But the
+     * table was dropped and its stable constituent was never created, so we have no data to write.
+     * Publish CREATE and DROP at the same epoch to avoid this window.
+     */
+    if (!TAILQ_EMPTY(&skipped_creates))
+        WT_ERR_PANIC(session, EINVAL,
+          "API violation: table \"%s\" was published with CREATE at epoch %" PRIu64
+          " and DROP at a later epoch. This checkpoint must include the table in shared metadata, "
+          "but the table was dropped and we have no data to write.",
+          TAILQ_FIRST(&skipped_creates)->table_name, TAILQ_FIRST(&skipped_creates)->schema_epoch);
+
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
+    while (!TAILQ_EMPTY(&skipped_creates)) {
+        skipped = TAILQ_FIRST(&skipped_creates);
+        TAILQ_REMOVE(&skipped_creates, skipped, q);
+        __disagg_shared_metadata_queue_free(session, &skipped);
+    }
     return (ret);
 }
 
