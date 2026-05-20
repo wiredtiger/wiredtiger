@@ -462,6 +462,7 @@ struct __wt_txn {
 #define WT_TXN_TS_ROUND_PREPARED 0x04000u
 #define WT_TXN_TS_ROUND_READ 0x08000u
 #define WT_TXN_UPDATE 0x10000u
+#define WT_TXN_WRITE 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 

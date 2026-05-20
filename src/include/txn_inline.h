@@ -298,6 +298,14 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
     WT_ASSERT(session, F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
 
     WT_RET(__wt_realloc_def(session, &txn->mod_alloc, txn->mod_count + 1, &txn->mod));
+    /*
+     * Set the transaction as write transaction. Setting the transaction as write transaction will
+     * help in load control, to distinguish even if the transaction is performing a read operation.
+     * We start with not blocking the internal sessions and checkpoint session, we can add more
+     * exceptions here if we find more use cases where we don't want to block critical operations.
+     */
+    if (txn->mod_count == 0 && !F_ISSET(session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT))
+        F_SET(txn, WT_TXN_WRITE);
 
     op = &txn->mod[txn->mod_count++];
     WT_CLEAR(*op);
