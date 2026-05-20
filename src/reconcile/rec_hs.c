@@ -1183,7 +1183,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     btree = S2BT(session);
     ref = r->ref;
     error_on_ts_ordering = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING) ||
-      FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
+      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
     memset(&stats, 0, sizeof(stats));
 
     WT_RET(__wt_curhs_open(session, btree->id, NULL, NULL, &hs_cursor));

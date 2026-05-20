@@ -964,7 +964,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
+        if (!S2C(session)->evict_config.legacy_page_visit_strategy && evict_ref == NULL &&
           (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_prev so that the start of the tree is visited more often */
@@ -975,7 +975,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
         break;
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
+        if (!S2C(session)->evict_config.legacy_page_visit_strategy && evict_ref == NULL &&
           (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_next so that the end of the tree is visited more often */
@@ -1173,7 +1173,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      * being skipped for walks), or we are in eviction debug mode. The goal here is that if trees
      * become completely idle, we eventually push them out of cache completely.
      */
-    if (!FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
+    if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
       F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         if (page == last_parent) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_with_active_child);

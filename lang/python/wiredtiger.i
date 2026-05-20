@@ -241,36 +241,44 @@ from packing import pack, unpack
 }
 
 /*
- * This typemap removes the argument for pl_get_complete_checkpoint and allocates a local
- * WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS struct instead.
+ * This typemap removes the three last arguments for pl_get_complete_checkpoint_ext, and uses local
+ * variables for them instead.
+ * The local variables will be used in the matching argout typemap.
  * Code in this typemap appears before the call to the API function.
  */
-%typemap(in,numinputs=0) WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *
-  (WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args) {
-	memset(&args, 0, sizeof(args));
-	$1 = &args;
+%typemap(in,numinputs=0) (uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
+  uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata)
+  (uint64_t lsn, uint64_t id, uint64_t timestamp, WT_ITEM metadata) {
+	memset(&metadata, 0, sizeof(metadata));
+	$1 = &lsn;
+	$2 = &id;
+	$3 = &timestamp;
+	$4 = &metadata;
 }
 
 /*
- * This typemap is for pl_get_complete_checkpoint, and is used in conjunction with the previous
+ * This typemap is for pl_get_complete_checkpoint_ext, and is used in conjunction with the previous
  * typemap. Code in this typemap appears after the call to the API function.
- * The output fields in WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS are converted to a python tuple.
+ * Using the local variables set up previously, and used in the call to
+ * pl_get_complete_checkpoint_ext now are converted to a python tuple.
  */
-%typemap(argout) WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS * {
-	PyObject *pbo;
-	WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args = $1;
+%typemap(argout)(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp,
+  WT_ITEM *checkpoint_metadata) {
+	PyBytesObject *pbo;
+	WT_ITEM *checkpoint_metadata;
 
-	if (args->checkpoint_metadata.data != NULL) {
-		pbo = PyUnicode_FromStringAndSize(
-		  args->checkpoint_metadata.data, args->checkpoint_metadata.size);
-		free(args->checkpoint_metadata.mem);
+	checkpoint_metadata = $4;
+
+	if (checkpoint_metadata->data != NULL) {
+		pbo = PyUnicode_FromStringAndSize(checkpoint_metadata->data, checkpoint_metadata->size);
+		free(checkpoint_metadata->mem);
 	} else
 		pbo = PyUnicode_FromStringAndSize("", 0);
 
 	$result = PyTuple_New(4);
-	PyTuple_SetItem($result, 0, PyLong_FromUnsignedLongLong(args->checkpoint_lsn));
-	PyTuple_SetItem($result, 1, PyLong_FromUnsignedLongLong(args->checkpoint_id));
-	PyTuple_SetItem($result, 2, PyLong_FromUnsignedLongLong(args->checkpoint_timestamp));
+	PyTuple_SetItem($result, 0, PyLong_FromUnsignedLongLong(*$1));
+	PyTuple_SetItem($result, 1, PyLong_FromUnsignedLongLong(*$2));
+	PyTuple_SetItem($result, 2, PyLong_FromUnsignedLongLong(*$3));
 	PyTuple_SetItem($result, 3, pbo);
 }
 
@@ -760,10 +768,9 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
-%ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *);
+%ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, int *);
 %ignore __wt_page_log::get_open_checkpoint(WT_PAGE_LOG *, int *);
 %ignore __wt_page_log_complete_checkpoint_args::checkpoint_metadata;
-%ignore __wt_page_log_get_complete_checkpoint_args;
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
@@ -1212,8 +1219,13 @@ SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
   (self, session, args))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
-  (WT_SESSION *session, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args),
-  (self, session, args))
+  (WT_SESSION *session, int *checkpoint_id),
+  (self, session, checkpoint_id))
+
+SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint_ext,
+  (WT_SESSION *session, uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
+    uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata),
+  (self, session, checkpoint_lsn, checkpoint_id, checkpoint_timestamp, checkpoint_metadata))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_last_lsn,
   (WT_SESSION *session, uint64_t *lsn),

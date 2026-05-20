@@ -29,7 +29,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os
-from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMinMax, PerfStatLatencyWorkgen, PerfStatDBSize
+from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMinMax, PerfStatLatencyWorkgen, PerfStatDBSize, PerfStatMonitorAvg
 from typing import List
 
 
@@ -45,12 +45,12 @@ class PerfStatCollection:
 
     def find_stats(self, test_home: str):
         for stat in self.to_report:
-            values = None
+            values = []
             for f in stat.stat_files:
                 v = stat.find_stat(create_test_stat_path(test_home, f))
                 if v and values:
                     raise RuntimeError(f"Stat '{stat.short_label}' matched in more than one file: {stat.stat_files}")
-                values = v
+                values = v or values
             stat.add_values(values=values)
 
 
@@ -78,59 +78,6 @@ class PerfStatCollection:
                      input_offset=4,
                      output_label='Cache dirty trigger'),
             ]
-
-    @staticmethod
-    def latency_stats():
-        return [
-            PerfStatLatency(short_label="top5_latencies_read_update",
-                            stat_files=['monitor.json'],
-                            output_label='Latency(read, update) Max',
-                            ops=['read', 'update'],
-                            field='max latency (ns)',
-                            aggregation='max',
-                            num_max=5,
-                            scale=1000), # ns -> us
-            PerfStatLatency(short_label="max_latency_insert",
-                            stat_files=['monitor.json'],
-                            output_label='Latency(insert) Max',
-                            ops=['insert'],
-                            field='max latency (ns)',
-                            aggregation='max',
-                            num_max=1,
-                            scale=1000), # ns -> us
-            PerfStatLatency(short_label="max_latency_read_update",
-                            stat_files=['monitor.json'],
-                            output_label='Latency(read, update) Max',
-                            ops=['read', 'update'],
-                            field='max latency (ns)',
-                            aggregation='max',
-                            num_max=1,
-                            scale=1000), # ns -> us
-            PerfStatLatency(short_label="avg_latency_read",
-                            stat_files=['monitor.json'],
-                            output_label='Read average latency (ns)',
-                            ops=['read'],
-                            field='average latency (ns)',
-                            aggregation='avg'),
-            PerfStatLatency(short_label="avg_latency_insert",
-                            stat_files=['monitor.json'],
-                            output_label='Insert average latency (ns)',
-                            ops=['insert'],
-                            field='average latency (ns)',
-                            aggregation='avg'),
-            PerfStatLatency(short_label="avg_latency_modify",
-                            stat_files=['monitor.json'],
-                            output_label='Modify average latency (ns)',
-                            ops=['modify'],
-                            field='average latency (ns)',
-                            aggregation='avg'),
-            PerfStatLatency(short_label="avg_latency_update",
-                            stat_files=['monitor.json'],
-                            output_label='Update average latency (ns)',
-                            ops=['update'],
-                            field='average latency (ns)',
-                            aggregation='avg'),
-        ]
 
     @staticmethod
     def all_stats():
@@ -227,10 +174,25 @@ class PerfStatCollection:
             PerfStatCount(short_label="warnings",
                           pattern='WARN',
                           output_label='Latency warnings'),
+            PerfStatLatency(short_label="top5_latencies_read_update",
+                            stat_files=['monitor.json'],
+                            output_label='Latency(read, update) Max',
+                            ops=['read', 'update'],
+                            num_max=5),
             PerfStatCount(short_label="eviction_page_seen",
                           stat_files=['WiredTigerStat*'],
                           pattern='[0-9].wt cache: pages seen by eviction',
                           output_label='Pages seen by eviction'),
+            PerfStatLatency(short_label="max_latency_insert",
+                            stat_files=['monitor.json'],
+                            output_label='Latency(insert) Max',
+                            ops=['insert'],
+                            num_max=1),
+            PerfStatLatency(short_label="max_latency_read_update",
+                            stat_files=['monitor.json'],
+                            output_label='Latency(read, update) Max',
+                            ops=['read', 'update'],
+                            num_max=1),
             PerfStatMinMax(short_label="min_max_read_throughput",
                            pattern=r'updates,',
                            input_offset=4,
@@ -295,4 +257,20 @@ class PerfStatCollection:
                                    input_offset=11),
             PerfStatDBSize(short_label="database_size",
                            output_label='Database Size (in bytes)'),
-        ] + PerfStatCollection.cache_eviction_stats() + PerfStatCollection.latency_stats()
+            PerfStatMonitorAvg(short_label="avg_latency_read",
+                               output_label='Read average latency (in micro sec)',
+                               op='read',
+                               field='average latency'),
+            PerfStatMonitorAvg(short_label="avg_latency_insert",
+                               output_label='Insert average latency (in micro sec)',
+                               op='insert',
+                               field='average latency'),
+            PerfStatMonitorAvg(short_label="avg_latency_modify",
+                               output_label='Modify average latency (in micro sec)',
+                               op='modify',
+                               field='average latency'),
+            PerfStatMonitorAvg(short_label="avg_latency_update",
+                               output_label='Update average latency (in micro sec)',
+                               op='update',
+                               field='average latency'),
+        ] + PerfStatCollection.cache_eviction_stats()

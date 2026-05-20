@@ -329,6 +329,12 @@ config_bool(
 )
 
 config_bool(
+    ENABLE_GCP
+    "Build the Google Cloud Platform storage extension"
+    DEFAULT OFF
+)
+
+config_bool(
     ENABLE_PALITE
     "Build the PALite storage extension (mock implementation of the PALI)"
     DEFAULT ON

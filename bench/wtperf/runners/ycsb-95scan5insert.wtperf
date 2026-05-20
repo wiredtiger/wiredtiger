@@ -7,12 +7,10 @@
 
 conn_config="cache_size=16G,log=(enabled=true)"
 pareto=20
-scramble=true
 table_config="type=file"
 key_sz=100
 value_sz=1024
 icount=30000000
-retry_writes=true
 run_time=1800
 threads=((count=16,reads=95,inserts=5))
 read_range=100

@@ -177,19 +177,19 @@ sum_update_ops(WTPERF *wtperf)
  *     Get average, minimum and maximum latency for this period for a particular operation.
  */
 static void
-latency_op(WTPERF *wtperf, size_t field_offset, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
+latency_op(WTPERF *wtperf, size_t field_offset, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
 {
     CONFIG_OPTS *opts;
     TRACK *track;
     WTPERF_THREAD *thread;
     uint64_t ops, latency, tmp;
     int64_t i, th_cnt;
-    uint64_t max, min;
+    uint32_t max, min;
 
     opts = wtperf->opts;
     ops = latency = 0;
     max = 0;
-    min = UINT64_MAX;
+    min = UINT32_MAX;
 
     if (wtperf->popthreads == NULL) {
         thread = wtperf->workers;
@@ -209,7 +209,7 @@ latency_op(WTPERF *wtperf, size_t field_offset, uint64_t *avgp, uint64_t *minp, 
 
         if (min > track->min_latency)
             min = track->min_latency;
-        track->min_latency = UINT64_MAX;
+        track->min_latency = UINT32_MAX;
         if (max < track->max_latency)
             max = track->max_latency;
         track->max_latency = 0;
@@ -220,13 +220,13 @@ latency_op(WTPERF *wtperf, size_t field_offset, uint64_t *avgp, uint64_t *minp, 
     else {
         *minp = min;
         *maxp = max;
-        *avgp = latency / ops;
+        *avgp = (uint32_t)(latency / ops);
     }
 }
 void
-latency_insert(WTPERF *wtperf, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
+latency_insert(WTPERF *wtperf, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
 {
-    static uint64_t last_avg = 0, last_max = 0, last_min = 0;
+    static uint32_t last_avg = 0, last_max = 0, last_min = 0;
 
     latency_op(wtperf, offsetof(WTPERF_THREAD, insert), avgp, minp, maxp);
 
@@ -245,9 +245,9 @@ latency_insert(WTPERF *wtperf, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
     }
 }
 void
-latency_modify(WTPERF *wtperf, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
+latency_modify(WTPERF *wtperf, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
 {
-    static uint64_t last_avg = 0, last_max = 0, last_min = 0;
+    static uint32_t last_avg = 0, last_max = 0, last_min = 0;
 
     latency_op(wtperf, offsetof(WTPERF_THREAD, modify), avgp, minp, maxp);
 
@@ -266,9 +266,9 @@ latency_modify(WTPERF *wtperf, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
     }
 }
 void
-latency_read(WTPERF *wtperf, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
+latency_read(WTPERF *wtperf, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
 {
-    static uint64_t last_avg = 0, last_max = 0, last_min = 0;
+    static uint32_t last_avg = 0, last_max = 0, last_min = 0;
 
     latency_op(wtperf, offsetof(WTPERF_THREAD, read), avgp, minp, maxp);
 
@@ -287,9 +287,9 @@ latency_read(WTPERF *wtperf, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
     }
 }
 void
-latency_update(WTPERF *wtperf, uint64_t *avgp, uint64_t *minp, uint64_t *maxp)
+latency_update(WTPERF *wtperf, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
 {
-    static uint64_t last_avg = 0, last_max = 0, last_min = 0;
+    static uint32_t last_avg = 0, last_max = 0, last_min = 0;
 
     latency_op(wtperf, offsetof(WTPERF_THREAD, update), avgp, minp, maxp);
 

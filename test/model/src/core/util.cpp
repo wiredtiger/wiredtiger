@@ -522,8 +522,10 @@ wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, model::timestamp_t &che
     }
     wiredtiger_session_guard wiredtiger_session_guard(session);
 
-    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args{};
-    ret = page_log->pl_get_complete_checkpoint(page_log, session, &args);
+    WT_ITEM metadata{};
+    wt_timestamp_t timestamp;
+    ret = page_log->pl_get_complete_checkpoint_ext(
+      page_log, session, nullptr, nullptr, &timestamp, &metadata);
 
     page_log->terminate(page_log, NULL); /* dereference */
     page_log = NULL;
@@ -532,9 +534,8 @@ wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, model::timestamp_t &che
         return false;
     if (ret != 0)
         throw wiredtiger_exception("Cannot get checkpoint metadata", ret);
-    char *checkpoint_meta =
-      strndup((const char *)args.checkpoint_metadata.data, args.checkpoint_metadata.size);
-    free(args.checkpoint_metadata.mem);
+    char *checkpoint_meta = strndup((const char *)metadata.data, metadata.size);
+    free(metadata.mem);
 
     std::ostringstream config;
     config << "disaggregated=(checkpoint_meta=\"" << checkpoint_meta << "\")";
@@ -545,7 +546,7 @@ wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, model::timestamp_t &che
     if (ret != 0)
         throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
 
-    checkpoint_timestamp = model::timestamp_t(args.checkpoint_timestamp);
+    checkpoint_timestamp = model::timestamp_t(timestamp);
     return true;
 }
 

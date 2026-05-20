@@ -62,6 +62,7 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
+include(cmake/third_party/gcp_sdk.cmake)
 include(cmake/third_party/lazyfs.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/memkind.cmake)
