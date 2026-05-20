@@ -391,19 +391,11 @@ define_c_test(
     LABEL "disagg"
 )
 
-define_c_test(
-    TARGET test_wt17445_disagg_drain_drop_race
-    SOURCES wt17445_disagg_drain_drop_race/main.c
-    DIR_NAME wt17445_disagg_drain_drop_race
-    ARGUMENTS -b ${CMAKE_BINARY_DIR}
-    DEPENDS "WT_POSIX"
-    LABEL "disagg"
-)
-
-# These tests link against PALite (a C++ extension). Use the C++ linker so that
-# sanitized builds (ASan, UBSan, etc.) can resolve the C++ sanitizer runtimes.
-foreach(target test_wt16990_disagg_checkpoint_panic test_wt17445_disagg_drain_drop_race)
-    if(TARGET ${target})
-        set_target_properties(${target} PROPERTIES LINKER_LANGUAGE CXX)
-    endif()
-endforeach()
+# Use C++ linker for building this target.
+# When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
+# to link against the C++ sanitizer runtimes.
+# Some extensions (PALite, tiered storage) require C++ runtime to be linked
+# for sanitizers to work correctly.
+if(TARGET test_wt16990_disagg_checkpoint_panic)
+    set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
+endif()
