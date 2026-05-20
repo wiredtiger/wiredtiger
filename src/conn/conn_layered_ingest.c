@@ -199,6 +199,7 @@ __layered_assert_ingest_table_empty(WT_SESSION_IMPL *session, const char *uri)
 }
 #endif
 
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __wt_layered_gc_open_stable_cursor --
  *     Open a read-uncommitted cursor on the stable constituent of the current btree's layered
@@ -219,14 +220,14 @@ __wt_layered_gc_open_stable_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp
     WT_ERR(__layered_derive_stable_uri(session, S2BT(session)->dhandle->name, stable_uri_buf));
     /*
      * Save and restore session->dhandle: __wt_open_cursor sets it to the stable table's handle via
-     * __wt_session_get_btree_ckpt and does not restore it. The opened cursor holds its own dhandle
+     * __wt_session_get_btree and does not restore it. The opened cursor holds its own dhandle
      * reference, so restoring here does not affect cursor validity.
      */
     saved_dhandle = session->dhandle;
     ret = __wt_open_cursor(session, stable_uri_buf->data, NULL, cfg, cursorp);
     session->dhandle = saved_dhandle;
     if (ret == WT_NOTFOUND || ret == ENOENT) {
-        ret = 0; /* No stable table yet caller's NULL check skips verification. */
+        ret = 0; /* No stable table yet; caller's NULL check skips verification. */
         goto err;
     }
     WT_ERR(ret);
@@ -240,7 +241,8 @@ err:
  * __wt_layered_verify_gc_update --
  *     Diagnostic check: verify that a key being garbage collected from the ingest btree exists in
  *     the stable table. The caller opens stable_cursor once per reconciliation and reuses it across
- *     all keys on the page.
+ *     all keys on the page. Panics if the invariant is violated --
+ *     losing a key here is silent data loss.
  */
 int
 __wt_layered_verify_gc_update(
@@ -251,7 +253,7 @@ __wt_layered_verify_gc_update(
     stable_cursor->set_key(stable_cursor, key);
     ret = stable_cursor->search(stable_cursor);
     if (ret == WT_NOTFOUND)
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_PANIC(session, WT_PANIC,
           "GC verify: last update is a data value but key is missing on the stable table");
     WT_ERR(ret);
 
@@ -259,6 +261,7 @@ err:
     WT_TRET(stable_cursor->reset(stable_cursor));
     return (ret);
 }
+#endif
 
 /*
  * __layered_fix_prepared_transaction_callback --
