@@ -20,13 +20,13 @@ static WT_INLINE bool
 __wt_conn_load_control_write_overload(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_LOAD_CONTROL *load_control = &S2C(session)->load_control;
-    bool overloaded = false;
 
+    /* If load control is enabled, check if the write load crossed the control threshold. */
     if (F_ISSET(load_control, WT_CONN_LOAD_CONTROL))
-        overloaded = (load_control->control_threshold <=
+        return (load_control->control_threshold <=
           __wt_atomic_load_uint8_relaxed(&load_control->write_load));
 
-    return (overloaded);
+    return (false);
 }
 
 #if defined(__cplusplus)
