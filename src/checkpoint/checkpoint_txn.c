@@ -968,6 +968,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_CONNECTION_IMPL *conn;
     WT_DECL_CONF(WT_SESSION, begin_transaction, txn_conf);
     WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
@@ -1111,6 +1112,12 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         __wt_atomic_store_uint64_release(&txn_global->checkpoint_disagg_schema_epoch, WT_TS_NONE);
 
     __wt_writeunlock(session, &txn_global->rwlock);
+
+    /* Bring all entries in the disaggregated schema operations queue to this checkpoint. */
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        entry->deferred = false;
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /* Wait for the commit generation to drain before bumping the snapshot. */
     __wt_gen_next_drain(session, WT_GEN_TXN_COMMIT);
@@ -2549,6 +2556,48 @@ skip:
 }
 
 /*
+ * __checkpoint_skip_ckptlist --
+ *     Return true if the checkpoint list indicates the checkpoint can be skipped: the last two
+ *     entries share the same name (or both use the internal name prefix) and fewer than two
+ *     checkpoints are being deleted. Requires at least two entries; returns false for shorter lists
+ *     so callers need not guard against out-of-bounds reads. If countp is non-NULL it is set to the
+ *     number of entries in the list regardless of the return value.
+ */
+static bool
+__checkpoint_skip_ckptlist(WT_CKPT *ckptbase, u_int *countp)
+{
+    WT_CKPT *ckpt;
+    int deleted;
+    const char *name;
+
+    deleted = 0;
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_DELETE))
+            ++deleted;
+    }
+
+    if (countp != NULL)
+        *countp = (u_int)(ckpt - ckptbase);
+
+    /* Need at least two entries to compare names; guard before accessing entries. */
+    if (ckpt <= ckptbase + 1 || deleted >= 2)
+        return (false);
+
+    /* List has at least two real entries: accesses are safe. */
+    name = (ckpt - 1)->name;
+    return (strcmp(name, (ckpt - 2)->name) == 0 ||
+      (WT_PREFIX_MATCH(name, WT_CHECKPOINT) && WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)));
+}
+
+#ifdef HAVE_UNITTEST
+bool
+__ut_checkpoint_skip_ckptlist(WT_CKPT *ckptbase)
+{
+    return (__checkpoint_skip_ckptlist(ckptbase, NULL));
+}
+#endif
+
+/*
  * __checkpoint_mark_skip --
  *     Figure out whether the checkpoint can be skipped for a tree.
  */
@@ -2580,25 +2629,9 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
     if (!btree->modified && !force && !bm->can_truncate(bm, session)) {
-        WT_CKPT *ckpt = NULL;
-        int deleted = 0;
+        u_int count = 0;
 
-        WT_CKPT_FOREACH (ckptbase, ckpt) {
-            if (F_ISSET(ckpt, WT_CKPT_DELETE))
-                ++deleted;
-        }
-
-        /*
-         * Complicated test: if the tree is clean and last two checkpoints have the same name
-         * (correcting for internal checkpoint names with their generational suffix numbers), we can
-         * skip the checkpoint, there's nothing to do. The exception is if we're deleting two or
-         * more checkpoints: then we may save space.
-         */
-        const char *name = (ckpt - 1)->name;
-        if (ckpt > ckptbase + 1 && deleted < 2 &&
-          (strcmp(name, (ckpt - 2)->name) == 0 ||
-            (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
-              WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
+        if (__checkpoint_skip_ckptlist(ckptbase, &count)) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             /*
              * If there are potentially extra checkpoints to delete, we set the timer to recheck
@@ -2607,7 +2640,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * to forever. If the table gets dirtied or a checkpoint is forced that will clear the
              * timer.
              */
-            if (ckpt - ckptbase > 2) {
+            if (count > 2) {
                 uint64_t timer = 0;
                 __wt_seconds(session, &timer);
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
