@@ -1104,6 +1104,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_btcur_open(&cbt);
 
     WT_ERR(__wt_scr_alloc(session, 0, &value));
+    F_SET(session, WT_SESSION_SKIP_CACHE_INCR);
     if (page->type == WT_PAGE_COL_VAR) {
         recno = ref->ref_recno;
         WT_COL_FOREACH (page, cip, i) {
@@ -1173,10 +1174,13 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * updates to avoid reconciling the page every time.
      */
     __wt_page_modify_clear(session, page);
+    F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
     __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
+        F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
+        __wt_cache_page_inmem_incr(session, page, total_size, false);
         __wt_free_update_list(session, &upd);
     }
     WT_TRET(__wt_btcur_close(&cbt, true));
