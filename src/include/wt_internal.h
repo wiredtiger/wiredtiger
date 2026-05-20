@@ -169,6 +169,8 @@ struct __wt_config_entry;
 typedef struct __wt_config_entry WT_CONFIG_ENTRY;
 struct __wt_config_parser_impl;
 typedef struct __wt_config_parser_impl WT_CONFIG_PARSER_IMPL;
+struct __wt_conn_backup;
+typedef struct __wt_conn_backup WT_CONN_BACKUP;
 struct __wt_conn_capacity;
 typedef struct __wt_conn_capacity WT_CONN_CAPACITY;
 struct __wt_conn_debug;
@@ -189,6 +191,8 @@ struct __wt_conn_tiered;
 typedef struct __wt_conn_tiered WT_CONN_TIERED;
 struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
+struct __wt_connection_load_control;
+typedef struct __wt_connection_load_control WT_CONNECTION_LOAD_CONTROL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
 struct __wt_crypt_header;
@@ -635,6 +639,7 @@ typedef uint64_t wt_timestamp_t;
 #include "txn.h" /* required by checkpoint.h */
 #include "../checkpoint/checkpoint.h"
 
+#include "load_control.h"
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */
 #include "connection.h"

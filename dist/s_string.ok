@@ -71,10 +71,12 @@ CGs
 CKPT
 CLAYERED
 CLOEXEC
+CMAKE
 CMP
 CMake
 CMakeFiles
 CMakeLists
+CMakePresets
 CONF
 CONFIG
 CPP
@@ -85,6 +87,7 @@ CTest
 CURSORs
 CURSTD
 CURVERSION
+CXX
 CallsCustDate
 Canonicalize
 Castagnoli
@@ -967,6 +970,7 @@ execfn
 existp
 extern
 extlist
+extlists
 extraconfig
 fadvise
 fahrenheit
@@ -1005,6 +1009,7 @@ floatnum
 fmt
 fmterr
 fnv
+fnvhash
 foc
 fopen
 forceerror
@@ -1537,6 +1542,7 @@ reentrant
 refp
 regen
 regionp
+reinit
 reinstantiated
 relocked
 repl
@@ -1739,6 +1745,7 @@ tolower
 tombstoned
 toml
 toolchain
+toolchains
 totalsec
 tp
 traceapi
@@ -1846,6 +1853,7 @@ valuep
 valuesize
 valuev
 variadic
+vcvars
 vd
 vdata
 vec
