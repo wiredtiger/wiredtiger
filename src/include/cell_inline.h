@@ -486,31 +486,38 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
   bool is_delta, uint8_t **pp)
 {
     WT_CELL_KV key_kv, val_kv;
+    WT_DECL_RET;
     WT_PAGE_DELETED *page_del = NULL;
+    WT_TIME_AGGREGATE *ta;
+    const void *key_data, *val_data;
     size_t packed_size;
+    size_t key_size, val_size;
+    uint8_t cell_type, *p;
 
     WT_CLEAR(key_kv);
     WT_CLEAR(val_kv);
 
-    /* Build packed key */
-    if (is_delta)
-        WT_RET(__cell_build_int_key_from_kv(session, &key_kv, delta->key.data, delta->key.size));
-    else
-        WT_RET(__cell_build_int_key_from_kv(session, &key_kv, base_key->data, base_key->size));
-
-    /* Build packed value */
     if (is_delta) {
-        page_del = (delta->value.type == WT_CELL_ADDR_DEL) ? &delta->value.page_del : NULL;
-
-        __wt_cell_build_addr_kv(session, &val_kv, delta->value.type, page_del, &delta->value.ta,
-          delta->value.data, delta->value.size);
-
+        key_data = delta->key.data;
+        key_size = delta->key.size;
+        cell_type = delta->value.type;
+        page_del = (cell_type == WT_CELL_ADDR_DEL) ? &delta->value.page_del : NULL;
+        ta = &delta->value.ta;
+        val_data = delta->value.data;
+        val_size = delta->value.size;
     } else {
-        page_del = (base_val->type == WT_CELL_ADDR_DEL) ? &base_val->page_del : NULL;
-
-        __wt_cell_build_addr_kv(session, &val_kv, base_val->type, page_del, &base_val->ta,
-          base_val->data, base_val->size);
+        key_data = base_key->data;
+        key_size = base_key->size;
+        cell_type = base_val->type;
+        page_del = (cell_type == WT_CELL_ADDR_DEL) ? &base_val->page_del : NULL;
+        ta = &base_val->ta;
+        val_data = base_val->data;
+        val_size = base_val->size;
     }
+
+    /* Build packed key/value. */
+    WT_ERR(__cell_build_int_key_from_kv(session, &key_kv, key_data, key_size));
+    __wt_cell_build_addr_kv(session, &val_kv, cell_type, page_del, ta, val_data, val_size);
 
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
@@ -518,12 +525,12 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
      */
     packed_size = key_kv.len + val_kv.len;
     if (new_image->size + packed_size > new_image->memsize)
-        WT_RET(__wt_buf_grow(session, new_image, new_image->size + packed_size));
+        WT_ERR(__wt_buf_grow(session, new_image, new_image->size + packed_size));
 
     /* Recompute write pointer after possible realloc */
     WT_ASSERT(session, new_image->mem != NULL);
 
-    uint8_t *p = (uint8_t *)new_image->mem + new_image->size;
+    p = (uint8_t *)new_image->mem + new_image->size;
     __wt_cell_kv_copy(session, p, &key_kv);
     p += key_kv.len;
     __wt_cell_kv_copy(session, p, &val_kv);
@@ -532,9 +539,10 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
     *pp = p;
     new_image->size += packed_size;
 
+err:
     __wt_buf_free(session, &key_kv.buf);
     __wt_buf_free(session, &val_kv.buf);
-    return (0);
+    return (ret);
 }
 
 /*

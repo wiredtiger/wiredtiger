@@ -37,13 +37,13 @@ __page_find_min_delta_int(WT_SESSION_IMPL *session, WTI_DELTA_INT_MERGE_STATE s[
      * Iterate backward from the latest delta stream (highest index) to the earliest (lowest index).
      * This ensures that when we encounter a duplicate key, the one we already have is the LATEST.
      */
-    for (int32_t i = (int32_t)delta_count - 1; i >= 0; --i) {
+    for (int32_t i = delta_count - 1; i >= 0; --i) {
         if (s[i].entries == 0)
             continue;
 
         /*
          * Unpack on demand: WT_CELL_DELTA_INT_UNPACK advances s[i].cell past both the key and
-         * value cells and sets s[i].unpacked = true.  On subsequent calls for the same stream,
+         * value cells and sets s[i].unpacked = true. On subsequent calls for the same stream,
          * `unpacked` is still true (the head entry has not been consumed), so we skip unpacking
          * and compare the already-decoded key directly.
          */
@@ -494,8 +494,8 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
      * Initialize base page state for progressive unpacking.
      *
      * State invariant: `cell` advances during unpack (via WT_CELL_BASE_INT_UNPACK), not during
-     * consume.  After a k/v pair is packed into the new image, we clear `unpacked` and decrement
-     * `entries` by 2 (one for the key cell, one for the value cell).  The next loop iteration
+     * consume. After a k/v pair is packed into the new image, we clear `unpacked` and decrement
+     * `entries` by 2 (one for the key cell, one for the value cell). The next loop iteration
      * calls WT_CELL_BASE_INT_UNPACK which reads from the already-advanced `cell` pointer,
      * delivering the next pair.
      */
@@ -508,7 +508,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
      * Initialize one state struct per delta stream for progressive unpacking.
      *
      * Same invariant as the base state: WT_CELL_DELTA_INT_UNPACK advances `cell` past both cells
-     * of the current entry and sets `unpacked = true`.  Consuming or discarding an entry clears
+     * of the current entry and sets `unpacked = true`. Consuming or discarding an entry clears
      * `unpacked` and decrements `entries` by 2 so the next unpack reads the following entry.
      * Duplicate resolution inside __page_find_min_delta_int uses the same mechanism: when an
      * older duplicate is dropped, its `unpacked` is cleared and `entries` decremented so that
@@ -533,8 +533,8 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
 
     p_ptr = WT_PAGE_HEADER_BYTE(btree, new_image->data);
     /*
-     * Initialize new_image->size here since __wt_cell_pack_internal_key_addr uses it to calculate
-     * where to begin writing the first packed key and value data.
+     * Initialize the size here since the cell packing function uses it to calculate where to begin
+     * writing the first packed key and value data.
      */
     new_image->size = WT_PTRDIFF(p_ptr, new_image->data);
 
@@ -559,9 +559,9 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
      *   D3:    [3, 5, 9]
      *
      * Processing steps:
-     *   1. __page_find_min_delta_int() scans D3 -> D2 -> D1 (latest -> oldest) and unpacks the
-     *      head entry of each stream on demand to find the smallest key. When duplicates are found,
-     *      newer deltas (higher index) take precedence.
+     *   1. Scan from latest to oldest delta stream, unpacking the head entry of each on demand to
+     *      find the smallest key. When duplicates are found, newer deltas (higher index) take
+     *      precedence.
      *
      *   2. Initially:
      *        - Base points to 3 (1 was already written as the first key)
@@ -575,7 +575,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
      *        Emit D3(3), D2(4), D3(5) [base 5 overridden], D1(6), base(7), D2(8), D3(9)
      *
      * Final merged output:
-     *   [1(base), 2(D1), 3(D3), 4(D2), 5(D3), 6(D1), 7(base), 8(D2), 9(D3)]
+     *   [1(base), 2(D1), 3(D3), 4(D2), 5(D3), 6(D2), 7(base), 8(D2), 9(D3)]
      */
     for (;;) {
         /* Find the minimum delta entry only when needed. */
@@ -603,8 +603,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
               "(base_entries_remaining=%" PRIu32 ")",
               base_s.entries);
 
-        /* Determine which stream's
-        entry wins. */
+        /* Determine which stream's entry wins. */
         if (base_s.entries == 0)
             cmp = 1;
         else if (j == -1)
