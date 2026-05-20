@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 static void __disagg_shared_metadata_queue_prune(
   WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch);
 
@@ -87,6 +88,14 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
     stable_uri = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    /*
+     * Clear all existing queue entries: the legacy path rebuilds shared metadata by scanning local
+     * metadata directly rather than replaying queue entries, so stale entries (e.g. those enqueued
+     * on the follower when the stable constituent did not yet exist) must be cleared before new
+     * entries are added below.
+     */
+    __disagg_shared_metadata_queue_clear(session);
 
     WT_ERR(__wt_metadata_cursor(session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(session, &cursor_scan));

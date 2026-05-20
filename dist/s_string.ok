@@ -961,6 +961,7 @@ endptr
 engflow
 enomem
 enqueue
+enqueued
 entindex
 entlist
 enum
