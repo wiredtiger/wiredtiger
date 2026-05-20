@@ -897,13 +897,12 @@ __rec_hs_handle_oldest_tombstone(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
  *     update when it is a tombstone, otherwise to NULL.
  */
 static void
-__rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
-  WT_UPDATE *newest_hs, WT_UPDATE *newest_hs_tombstone, WT_SAVE_UPD *list, WT_UPDATE **no_ts_updp,
-  WT_TIME_WINDOW *twp, WT_UPDATE **tombstonep)
+__rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd, WT_SAVE_UPD *list,
+  WT_REC_HS_KEY_STATE *key_state, WT_TIME_WINDOW *twp, WT_UPDATE **tombstonep)
 {
     *tombstonep = NULL;
 
-    if (*no_ts_updp != NULL) {
+    if (key_state->no_ts_upd != NULL) {
         twp->durable_start_ts = WT_TS_NONE;
         twp->start_ts = WT_TS_NONE;
     } else {
@@ -917,7 +916,7 @@ __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
      * the history store without a pairing tombstone should be with max visibility to protect its
      * removal by checkpoint garbage collection until the data store update is committed.
      */
-    if (upd == newest_hs && newest_hs_tombstone == NULL &&
+    if (upd == key_state->newest_hs && key_state->newest_hs_tombstone == NULL &&
       WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw)) {
         WT_ASSERT(session,
           list->onpage_upd->txnid == prev_upd->txnid &&
@@ -932,7 +931,7 @@ __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
          */
         WT_ASSERT(session, prev_upd->upd_start_ts <= prev_upd->upd_durable_ts);
 
-        if (*no_ts_updp != NULL) {
+        if (key_state->no_ts_upd != NULL) {
             twp->durable_stop_ts = WT_TS_NONE;
             twp->stop_ts = WT_TS_NONE;
         } else {
@@ -1025,11 +1024,11 @@ err:
  */
 static int
 __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btree,
-  WT_REF *ref, const WT_ITEM *key, WT_UPDATE_VECTOR *updates, WT_UPDATE *newest_hs,
-  WT_UPDATE *newest_hs_tombstone, WT_SAVE_UPD *list, WT_ITEM *full_value, WT_ITEM *prev_full_value,
-  bool enable_reverse_modify, bool error_on_ts_ordering, WT_UPDATE **no_ts_updp, bool *squashedp,
-  WT_REC_HS_STAT *statsp)
+  WT_REF *ref, const WT_ITEM *key, WT_UPDATE_VECTOR *updates, WT_SAVE_UPD *list,
+  bool error_on_ts_ordering, WT_REC_HS_KEY_STATE *key_state, WT_REC_HS_STAT *statsp)
 {
+    WT_DECL_ITEM(full_value);
+    WT_DECL_ITEM(prev_full_value);
     WT_DECL_RET;
     WT_ITEM *tmp;
     WT_TIME_WINDOW tw;
@@ -1040,6 +1039,9 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
     hs_inserted = false;
     modify_cnt = 0;
     WT_TIME_WINDOW_INIT(&tw);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &full_value));
+    WT_ERR(__wt_scr_alloc(session, 0, &prev_full_value));
 
     /* Construct the oldest full update. */
     WT_ERR(__rec_hs_next_upd_full_value(session, updates, NULL, full_value, &upd));
@@ -1055,29 +1057,29 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
         WT_ASSERT(session,
           upd->prepare_state != WT_PREPARE_INPROGRESS && upd->prepare_state != WT_PREPARE_LOCKED);
 
-        if (upd != newest_hs)
+        if (upd != key_state->newest_hs)
             __wt_update_vector_peek(updates, &prev_upd);
         else
-            prev_upd = newest_hs_tombstone != NULL ? newest_hs_tombstone : list->onpage_upd;
+            prev_upd = key_state->newest_hs_tombstone != NULL ? key_state->newest_hs_tombstone :
+                                                                list->onpage_upd;
 
         /*
          * Reset the update pointer without a timestamp once all the previous updates are inserted
          * into the history store.
          */
-        if (upd == *no_ts_updp)
-            *no_ts_updp = NULL;
+        if (upd == key_state->no_ts_upd)
+            key_state->no_ts_upd = NULL;
 
-        __rec_hs_build_tw(session, upd, prev_upd, newest_hs, newest_hs_tombstone, list, no_ts_updp,
-          &tw, &tombstone);
+        __rec_hs_build_tw(session, upd, prev_upd, list, key_state, &tw, &tombstone);
 
         /*
          * Reset the non timestamped update pointer once all the previous updates are inserted into
          * the history store.
          */
-        if (prev_upd == *no_ts_updp)
-            *no_ts_updp = NULL;
+        if (prev_upd == key_state->no_ts_upd)
+            key_state->no_ts_upd = NULL;
 
-        if (upd != newest_hs)
+        if (upd != key_state->newest_hs)
             WT_ERR(__rec_hs_next_upd_full_value(
               session, updates, full_value, prev_full_value, &prev_upd));
         else
@@ -1086,7 +1088,7 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
         /* Squash the updates from the same transaction. */
         if (prev_upd != NULL && upd->upd_start_ts == prev_upd->upd_start_ts &&
           upd->txnid == prev_upd->txnid) {
-            *squashedp = true;
+            key_state->squashed = true;
             continue;
         }
 
@@ -1118,8 +1120,9 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
         else
             WT_ASSERT(session, __wt_txn_visible_id(session, upd->txnid));
 #endif
-        WT_ERR(__rec_hs_write_upd(session, hs_cursor, btree, ref, key, upd, newest_hs, full_value,
-          prev_full_value, &tw, enable_reverse_modify, error_on_ts_ordering, &modify_cnt, statsp));
+        WT_ERR(__rec_hs_write_upd(session, hs_cursor, btree, ref, key, upd, key_state->newest_hs,
+          full_value, prev_full_value, &tw, key_state->enable_reverse_modify, error_on_ts_ordering,
+          &modify_cnt, statsp));
 
         /* Flag the update as now in the history store. */
         if (tombstone != NULL) {
@@ -1132,17 +1135,19 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
 
         hs_inserted = true;
         ++statsp->insert_cnt;
-        if (*squashedp) {
+        if (key_state->squashed) {
             ++statsp->cache_hs_write_squash;
-            *squashedp = false;
+            key_state->squashed = false;
         }
 
-        if (upd == newest_hs)
+        if (upd == key_state->newest_hs)
             break;
 
         __rec_hs_flush_stats_periodic(session, statsp);
     }
 err:
+    __wt_scr_free(session, &full_value);
+    __wt_scr_free(session, &prev_full_value);
     return (ret);
 }
 
@@ -1158,9 +1163,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     WT_BTREE *btree, *hs_btree;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *hs_cursor;
-    WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
-    WT_DECL_ITEM(prev_full_value);
     WT_DECL_RET;
     WT_REC_HS_KEY_STATE key_state;
     WT_REC_HS_STAT stats;
@@ -1191,10 +1194,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-    WT_ERR(__wt_scr_alloc(session, 0, &full_value));
-
-    WT_ERR(__wt_scr_alloc(session, 0, &prev_full_value));
 
     /* Enter each update in the boundary's list into the history store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
@@ -1283,10 +1282,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             continue;
         }
 
-        WT_ERR(__rec_hs_flush_upd_chain(session, hs_cursor, btree, ref, key, &updates,
-          key_state.newest_hs, key_state.newest_hs_tombstone, list, full_value, prev_full_value,
-          key_state.enable_reverse_modify, error_on_ts_ordering, &key_state.no_ts_upd,
-          &key_state.squashed, &stats));
+        WT_ERR(__rec_hs_flush_upd_chain(session, hs_cursor, btree, ref, key, &updates, list,
+          error_on_ts_ordering, &key_state, &stats));
     }
 
     hs_btree = __wt_curhs_get_btree(hs_cursor);
@@ -1310,8 +1307,6 @@ err:
 
     __wt_scr_free(session, &key);
     __wt_update_vector_free(&updates);
-    __wt_scr_free(session, &full_value);
-    __wt_scr_free(session, &prev_full_value);
 
     WT_TRET(hs_cursor->close(hs_cursor));
 
