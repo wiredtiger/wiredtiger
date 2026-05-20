@@ -964,6 +964,7 @@ endptr
 engflow
 enomem
 enqueue
+enqueued
 entindex
 entlist
 enum
@@ -1812,6 +1813,8 @@ uncheckpointed
 unconfigured
 uncustomized
 undef
+undeferred
+undefers
 undeleted
 underflowed
 unencoded
