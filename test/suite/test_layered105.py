@@ -44,7 +44,12 @@
 #   A forked child runs each scenario so that a WT_PANIC / SIGABRT is caught as
 #   a non-zero exit code without killing the test runner.
 
-import errno, os, resource, shutil, threading, time, traceback, wiredtiger, wttest
+import errno, os, shutil, threading, time, traceback, wiredtiger, wttest
+
+try:
+    import resource
+except ImportError:
+    pass
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -85,6 +90,9 @@ class test_layered105(wttest.WiredTigerTestCase):
         a negative exit code and is reported as a failure without killing the
         test runner.
         """
+        if not hasattr(os, 'fork'):
+            self.skipTest('requires POSIX fork()')
+
         home = os.path.join(self.home, 'scenario_db')
         ext_config = self.extensionsConfig()
 
