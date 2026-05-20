@@ -1068,7 +1068,7 @@ __wti_rec_row_leaf(
     void *copy;
     const void *key_data;
 #ifdef HAVE_DIAGNOSTIC
-    WT_CURSOR *gc_stable_cursor;
+    WT_CURSOR *gc_stable_cursor = NULL;
 #endif
 
     btree = S2BT(session);
