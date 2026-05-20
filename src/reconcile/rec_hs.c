@@ -1118,10 +1118,10 @@ __rec_hs_flush_upd_chain(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTRE
          */
 #ifdef HAVE_DIAGNOSTIC
         if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
-          !__txn_visible_id(session, list->onpage_upd->txnid))
+          !__wt_txn_visible_id(session, list->onpage_upd->txnid))
             WT_ASSERT(session, !__wt_txn_active(session, upd->txnid));
         else
-            WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
+            WT_ASSERT(session, __wt_txn_visible_id(session, upd->txnid));
 #endif
         WT_ERR(__rec_hs_write_upd(session, hs_cursor, btree, ref, key, upd, newest_hs, full_value,
           prev_full_value, &tw, enable_reverse_modify, error_on_ts_ordering, &modify_cnt, statsp));
