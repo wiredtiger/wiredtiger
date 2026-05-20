@@ -125,6 +125,10 @@ class LiveRestoreStat(Stat):
     prefix = 'live-restore'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, LiveRestoreStat.prefix, desc, flags)
+class LoadControlStat(Stat):
+    prefix = 'load-control'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, LoadControlStat.prefix, desc, flags)
 class LockStat(Stat):
     prefix = 'lock'
     def __init__(self, name, desc, flags=''):
@@ -649,6 +653,12 @@ conn_stats = [
     LiveRestoreStat('live_restore_work_remaining', 'number of files remaining for migration completion', 'no_clear,no_scale'),
 
     ##########################################
+    # Load Control statistics
+    ##########################################
+    LoadControlStat('read_load', 'read load at the system level'),
+    LoadControlStat('write_load', 'write load at the system level'),
+
+    ##########################################
     # Locking statistics
     ##########################################
     LockStat('lock_btree_page_count', 'btree page lock acquisitions'),
@@ -865,6 +875,7 @@ conn_stats = [
     SessionOpStat('session_table_alter_skip', 'table alter unchanged and skipped', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_success', 'table alter successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_trigger_checkpoint', 'table alter triggering checkpoint calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_compact_bytes_rewrite_inmem', 'table compact in-memory page footprint rewritten by compaction', 'no_clear,size'),
     SessionOpStat('session_table_compact_conflicting_checkpoint', 'table compact conflicted with checkpoint', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_dhandle_success', 'table compact dhandle successful calls', 'no_scale'),
     SessionOpStat('session_table_compact_eviction', 'table compact pulled into eviction', 'no_clear,no_scale'),
@@ -1024,6 +1035,7 @@ dsrc_stats = [
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'btree compact pages rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten_expected', 'btree expected number of compact pages rewritten', 'no_clear,no_scale'),
+    BtreeStat('btree_compact_pages_selected_inmem', 'btree compact in-memory pages selected for rewrite', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_skipped', 'btree compact pages skipped', 'no_clear,no_scale'),
     BtreeStat('btree_compact_skipped', 'btree skipped by compaction as process would not reduce size', 'no_clear,no_scale'),
     BtreeStat('btree_entries', 'number of key/value pairs', 'no_scale,tree_walk'),
