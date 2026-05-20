@@ -216,10 +216,10 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
 
     /*
      * Give drain workers time to acquire the read lock before the drop races in. running=true is
-     * set before background threads are created and the queue is populated, so lock acquisition
-     * can lag the flag by up to ~50 ms even on a loaded machine. Sleeping 100 ms puts the drop
-     * safely inside the 300 ms stress window (lock held for 300 ms after acquisition), with 200 ms
-     * of margin on both sides.
+     * set before background threads are created and the queue is populated, so lock acquisition can
+     * lag the flag by up to ~50 ms even on a loaded machine. Sleeping 100 ms puts the drop safely
+     * inside the 300 ms stress window (lock held for 300 ms after acquisition), with 200 ms of
+     * margin on both sides.
      */
     if (expect_ebusy)
         __wt_sleep(0, 100 * WT_THOUSAND);
