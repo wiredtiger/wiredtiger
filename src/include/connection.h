@@ -564,6 +564,21 @@ struct __wt_conn_optrack {
 };
 
 /*
+ * WT_CONN_PREFETCH --
+ *	Prefetch subsystem fields, grouping the thread group, queue, lock, and
+ *	configuration that drive the prefetch server.
+ */
+struct __wt_conn_prefetch {
+    WT_SPINLOCK lock;        /* Prefetch queue lock */
+    WT_THREAD_GROUP threads; /* Prefetch thread group */
+    uint64_t queue_count;    /* Prefetch queue entry count */
+    /* Locked: queue of refs to pre-fetch */
+    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh;
+    bool auto_on;   /* Prefetch auto-enabled */
+    bool available; /* Prefetch available */
+};
+
+/*
  * WT_NAME_FLAG --
  *	Simple structure for name and flag configuration searches
  */
@@ -982,13 +997,7 @@ struct __wt_connection_impl {
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
 #define WT_PREFETCH_THREAD_COUNT 8
-    WT_SPINLOCK prefetch_lock;
-    WT_THREAD_GROUP prefetch_threads;
-    uint64_t prefetch_queue_count;
-    /* Queue of refs to pre-fetch from */
-    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
-    bool prefetch_auto_on;
-    bool prefetch_available;
+    WT_CONN_PREFETCH prefetch; /* Prefetch thread group and configuration */
 
     /* Data pertaining to disaggregated storage step up. */
     struct __wt_layered_drain_data {

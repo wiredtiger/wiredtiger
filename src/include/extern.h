@@ -1437,6 +1437,8 @@ extern int __wti_conn_page_history_config(WT_SESSION_IMPL *session, const char *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_page_history_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_conn_prefetch_init(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_remove_collator(WT_SESSION_IMPL *session)
@@ -1933,6 +1935,7 @@ extern void __wti_conn_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_capacity_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_capacity_init(WT_SESSION_IMPL *session);
 extern void __wti_conn_ext_destroy(WT_SESSION_IMPL *session);
+extern void __wti_conn_prefetch_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_tiered_destroy(WT_SESSION_IMPL *session);
 extern void __wti_connection_destroy(WT_CONNECTION_IMPL *conn);
 extern void __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle);
