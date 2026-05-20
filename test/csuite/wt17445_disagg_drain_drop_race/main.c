@@ -108,10 +108,16 @@ static void
 wait_for_drain(WT_CONNECTION *conn)
 {
     WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
-    for (int i = 0; i < 1000; ++i) {
+    /*
+     * Poll at 1 ms intervals. running=true is set before thread group creation and is cleared when
+     * the work queue becomes empty, so the window may be only a few ms. 10 ms polling missed the
+     * window on loaded CI machines; 1 ms polling provides 5-20 catches over a typical 5-20 ms
+     * window.
+     */
+    for (int i = 0; i < 5000; ++i) {
         if (__wt_atomic_load_bool_relaxed(&conn_impl->layered_drain_data.running))
             return;
-        __wt_sleep(0, 10 * WT_THOUSAND);
+        __wt_sleep(0, WT_THOUSAND);
     }
 }
 
@@ -207,7 +213,16 @@ static void WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
     testutil_check(pthread_create(&tid, NULL, stepup_thread, &stepup_arg));
 
     wait_for_drain(conn);
-    __wt_sleep(0, 50 * WT_THOUSAND);
+
+    /*
+     * Give drain workers time to acquire the read lock before the drop races in. running=true is
+     * set before background threads are created and the queue is populated, so lock acquisition
+     * can lag the flag by up to ~50 ms even on a loaded machine. Sleeping 100 ms puts the drop
+     * safely inside the 300 ms stress window (lock held for 300 ms after acquisition), with 200 ms
+     * of margin on both sides.
+     */
+    if (expect_ebusy)
+        __wt_sleep(0, 100 * WT_THOUSAND);
 
     /*
      * Use checkpoint_wait=false so the drop does not block on the checkpoint lock held by the
