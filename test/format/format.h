@@ -263,10 +263,9 @@ typedef struct {
     RWLOCK backup_lock; /* Backup running */
 
     /*
-     * Only acquired in disagg "switch" mode. TRUNCATE takes the write lock; other writers take the
-     * read lock; readers bypass. Both lock types are held from begin_transaction* through
-     * commit/rollback so that TRUNCATE's wrlock-wait drains every in-flight writer's commit before
-     * TRUNCATE's snapshot is taken.
+     * Only acquired in disagg "switch" mode. Truncate takes the write lock; other writers take the
+     * read lock; readers bypass. Both lock types are held from begin_transaction through
+     * commit/rollback so that truncate operations drain every in-flight writer's commit.
      */
     RWLOCK truncate_lock;
     uint64_t backup_id; /* Block incremental id */
