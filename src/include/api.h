@@ -316,18 +316,6 @@
     TXN_API_CALL(s, WT_SESSION, func_name, NULL, config, cfg); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)
 
-#define CURSOR_API_LOAD_CHECK(s, ret, write, func_name) \
-    do {                                                \
-        if ((s)->api_call_counter == 1) {               \
-            if (write)                                  \
-                F_SET((s)->txn, WT_TXN_WRITE);          \
-            if (__wt_conn_load_control_overload(s)) {   \
-                (ret) = WT_ROLLBACK;                    \
-                goto err;                               \
-            }                                           \
-        }                                               \
-    } while (0)
-
 #define CURSOR_API_CALL(cur, s, ret, func_name, dh)          \
     (s) = CUR2S(cur);                                        \
     API_CALL_NOCONF(s, WT_CURSOR, func_name, dh, true);      \
@@ -368,13 +356,21 @@
 #define CURSOR_REMOVE_API_CALL(cur, s, ret, dh)      \
     (s) = CUR2S(cur);                                \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, remove, (dh)); \
-    CURSOR_API_LOAD_CHECK(s, ret, true, remove);     \
+    if (__wt_conn_load_control_write_overload(s)) {  \
+        WT_STAT_CONN_INCR(s, write_reject_count);    \
+        (ret) = WT_ROLLBACK;                         \
+        goto err;                                    \
+    }                                                \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, remove)
 
 #define CURSOR_UPDATE_API_CALL_BTREE(cur, s, ret, func_name)                                  \
     (s) = CUR2S(cur);                                                                         \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, ((WT_CURSOR_BTREE *)(cur))->dhandle);        \
-    CURSOR_API_LOAD_CHECK(s, ret, true, func_name);                                           \
+    if (__wt_conn_load_control_write_overload(s)) {                                           \
+        WT_STAT_CONN_INCR(s, write_reject_count);                                             \
+        (ret) = WT_ROLLBACK;                                                                  \
+        goto err;                                                                             \
+    }                                                                                         \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                                  \
     if (F_ISSET(S2C(s), WT_CONN_IN_MEMORY) && !F_ISSET(CUR2BT(cur), WT_BTREE_IGNORE_CACHE) && \
       __wt_cache_full(s))                                                                     \
@@ -383,7 +379,11 @@
 #define CURSOR_UPDATE_API_CALL(cur, s, ret, func_name, dh) \
     (s) = CUR2S(cur);                                      \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, dh);      \
-    CURSOR_API_LOAD_CHECK(s, ret, true, func_name);        \
+    if (__wt_conn_load_control_write_overload(s)) {        \
+        WT_STAT_CONN_INCR(s, write_reject_count);          \
+        (ret) = WT_ROLLBACK;                               \
+        goto err;                                          \
+    }                                                      \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name)
 
 #define CURSOR_UPDATE_API_END_RETRY(s, ret, retry) \

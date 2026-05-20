@@ -140,31 +140,3 @@ __wt_conn_calc_write_load(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, write_load, load);
     return;
 }
-
-/*
- * __wt_conn_load_control_overload --
- *     check if the system is overloaded.
- */
-bool
-__wt_conn_load_control_overload(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_LOAD_CONTROL *load_control = &S2C(session)->load_control;
-
-    if (!F_ISSET(load_control, WT_CONN_LOAD_CONTROL))
-        return (false);
-
-    /* check write overload only for write transactions.  */
-    if (load_control->control_threshold <= load_control->write_load &&
-      F_ISSET(session->txn, WT_TXN_WRITE)) {
-        WT_STAT_CONN_INCR(session, write_reject_count);
-        return (true);
-    }
-    /* check read overload for all transactions */
-    if (load_control->control_threshold <= load_control->read_load) {
-        WT_STAT_CONN_INCR(session, read_reject_count);
-        WT_STAT_CONN_INCR(session, write_reject_count);
-        return (true);
-    }
-
-    return (false);
-}
