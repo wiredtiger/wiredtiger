@@ -79,6 +79,7 @@ struct __wt_page_header {
 #define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
 #define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
 #define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
+#define WT_PAGE_FT_PREPARE 0x40u   /* Page contains prepared fast-truncate information */
     uint8_t flags;                 /* 25: flags */
 
     /* FIXME-WT-16512: A byte of padding, reserved to make the header extensible in the future. */

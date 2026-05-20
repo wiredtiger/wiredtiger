@@ -560,10 +560,14 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
         cell_type = WT_CELL_ADDR_DEL;
 
-        /* We should never be in an in-progress prepared state. */
+        /*
+         * In-progress prepared states are only written to disk when preserve_prepared is enabled
+         */
         WT_ASSERT(session,
           page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED);
+            page_del->prepare_state == WT_PREPARE_RESOLVED ||
+            (page_del->prepare_state == WT_PREPARE_INPROGRESS &&
+              F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)));
     }
 
     /* Just pack and return the cell size. */
@@ -584,19 +588,31 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_addr_validity(session, &p, ta);
-
     /*
      * If passed fast-delete information, append the fast-delete information after the aggregated
-     * timestamp information.
+     * timestamp information. For an in-progress prepared fast-truncate, encode prepare_ts and
+     * prepared_id in place of the committed timestamps, then append a 0x01 discriminator byte. The
+     * WT_PAGE_FT_PREPARE flag on the page header tells readers to check for this extra byte.
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
-    }
+        if (page_del->prepare_state == WT_PREPARE_INPROGRESS) {
+            __cell_pack_addr_validity(session, &p, ta);
+
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepare_ts));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepared_id));
+            *p++ = 0x01; /* prepared discriminator byte */
+        } else {
+            __cell_pack_addr_validity(session, &p, ta);
+
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
+        }
+    } else
+        __cell_pack_addr_validity(session, &p, ta);
 
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
@@ -1205,17 +1221,8 @@ copy_cell_restart:
         flags = *p++; /* skip second descriptor byte */
         WT_CELL_LEN_CHK(p, 0, dsk, end);
 
-        if (LF_ISSET(WT_CELL_PREPARE)) {
-            /*
-             * For a prepared fast-truncate, the prepare state is recorded in the time aggregate. We
-             * cannot have a prepared fast-truncate and a prepared time aggregate at the same time.
-             * Otherwise, it would be a write conflict.
-             */
-            if (has_fast_truncate)
-                prepare_fast_truncate = true;
-            else
-                ta->prepare = 1;
-        }
+        if (LF_ISSET(WT_CELL_PREPARE))
+            ta->prepare = 1;
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_ts));
@@ -1377,22 +1384,27 @@ copy_cell_restart:
 
     /* Unpack any fast-truncate information. */
     if (has_fast_truncate) {
+        uint64_t field2, field3;
         page_del = &unpack_addr->page_del;
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &field2));
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &field3));
+
+        /*
+         * If WT_PAGE_FT_PREPARE is set on the page and an extra byte remains in the cell, it is the
+         * prepared discriminator byte written by the new format. A non-zero value means field2
+         * holds prepare_ts and field3 holds prepared_id.
+         */
+        if (end != NULL && p < (const uint8_t *)end && F_ISSET(dsk, WT_PAGE_FT_PREPARE))
+            prepare_fast_truncate = (*p++ != 0);
+
         if (prepare_fast_truncate) {
             page_del->prepare_state = WT_PREPARE_INPROGRESS;
             page_del->committed = false;
-            /*
-             * For prepared fast-truncates, the prepared state is shared with the time aggregate but
-             * the prepare timestamp and the prepared id are stored in the page_del block.
-             */
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->prepare_ts));
+            page_del->prepare_ts = field2;
             page_del->pg_del_start_ts = page_del->prepare_ts;
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->prepared_id));
-            /* Explicitly initialize the durable timestamp to WT_TS_NONE. */
+            page_del->prepared_id = field3;
             page_del->pg_del_durable_ts = WT_TS_NONE;
             WT_ASSERT_ALWAYS(session,
               !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
@@ -1401,10 +1413,8 @@ copy_cell_restart:
         } else {
             page_del->prepare_state = WT_PREPARE_INIT;
             page_del->committed = true;
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_start_ts));
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_durable_ts));
+            page_del->pg_del_start_ts = field2;
+            page_del->pg_del_durable_ts = field3;
         }
         page_del->selected_for_write = true;
     }
