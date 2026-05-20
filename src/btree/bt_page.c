@@ -25,7 +25,7 @@ static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, u
  */
 static int
 __page_find_min_delta_int(WT_SESSION_IMPL *session, WTI_DELTA_INT_MERGE_STATE s[], int32_t *min_d,
-  size_t delta_count, WT_PAGE_HEADER *base_page_header)
+  int32_t delta_count, WT_PAGE_HEADER *base_page_header)
 {
     WT_ITEM cur_key, min_key;
     int32_t j;
@@ -89,7 +89,7 @@ __page_find_min_delta_int(WT_SESSION_IMPL *session, WTI_DELTA_INT_MERGE_STATE s[
  */
 static int
 __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
-  WTI_DELTA_LEAF_MERGE_STATE s[], int32_t *jp, size_t delta_size)
+  WTI_DELTA_LEAF_MERGE_STATE s[], int32_t *jp, int32_t delta_size)
 {
     int cmp;
     int32_t j = *jp;
@@ -98,7 +98,7 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
      * Iterate backward from the latest delta stream (highest index) to the earliest (lowest index).
      * This ensures that when we encounter a duplicate key, the one we already have is the LATEST.
      */
-    for (int32_t i = (int32_t)delta_size - 1; i >= 0; --i) {
+    for (int32_t i = delta_size - 1; i >= 0; --i) {
         if (s[i].entries == 0)
             continue;
         /*
@@ -340,7 +340,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     for (;;) {
         /* Only find next delta when needed. */
         if (j == -1)
-            WT_ERR(__page_find_min_delta_leaf(session, deltas, delta_s, &j, delta_size));
+            WT_ERR(__page_find_min_delta_leaf(session, deltas, delta_s, &j, (int32_t)delta_size));
 
         /* Only find next base when we have entries left and not unpacked yet. */
         if (base_s.entries > 0 && !base_s.unpacked)
@@ -580,7 +580,8 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     for (;;) {
         /* Find the minimum delta entry only when needed. */
         if (j == -1)
-            WT_ERR(__page_find_min_delta_int(session, delta_s, &j, delta_size, base_image_header));
+            WT_ERR(__page_find_min_delta_int(
+              session, delta_s, &j, (int32_t)delta_size, base_image_header));
 
         /* Check if both base and all deltas are exhausted. */
         if (base_s.entries == 0 && j == -1)
