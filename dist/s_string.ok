@@ -74,10 +74,12 @@ CHUNKCACHE
 CKPT
 CLAYERED
 CLOEXEC
+CMAKE
 CMP
 CMake
 CMakeFiles
 CMakeLists
+CMakePresets
 CONF
 CONFIG
 CPP
@@ -88,6 +90,7 @@ CTest
 CURSORs
 CURSTD
 CURVERSION
+CXX
 CallsCustDate
 Canonicalize
 Castagnoli
@@ -984,6 +987,7 @@ execfn
 existp
 extern
 extlist
+extlists
 extraconfig
 fadvise
 fahrenheit
@@ -1022,6 +1026,7 @@ floatnum
 fmt
 fmterr
 fnv
+fnvhash
 foc
 fopen
 forceerror
@@ -1387,6 +1392,7 @@ np
 npos
 nrecords
 nrows
+ns
 nsec
 nsecs
 nset
@@ -1555,6 +1561,7 @@ reentrant
 refp
 regen
 regionp
+reinit
 reinstantiated
 relocked
 repl
@@ -1760,6 +1767,7 @@ tolower
 tombstoned
 toml
 toolchain
+toolchains
 totalsec
 tp
 traceapi
@@ -1789,7 +1797,6 @@ txp
 txt
 typedef
 typeof
-uS
 ubuntu
 uid
 uint
@@ -1868,6 +1875,7 @@ valuep
 valuesize
 valuev
 variadic
+vcvars
 vd
 vdata
 vec

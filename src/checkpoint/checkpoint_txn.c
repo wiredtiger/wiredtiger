@@ -79,7 +79,7 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
      * yield or wait based on how much of the workload has been performed. Flushing operations could
      * take a long time so yielding may not be effective.
      */
-    while (!WT_FLUSH_STATE_DONE(conn->flush_state)) {
+    while (!WT_FLUSH_STATE_DONE(conn->tiered.flush_state)) {
         if (start != 0) {
             __wt_seconds(session, &now);
             if (now - start > timeout)
@@ -88,8 +88,8 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
         else {
-            __wt_cond_signal(session, conn->tiered_cond);
-            __wt_cond_wait(session, conn->flush_cond, 200, NULL);
+            __wt_cond_signal(session, conn->tiered.cond);
+            __wt_cond_wait(session, conn->tiered.flush_cond, 200, NULL);
         }
     }
     return (0);
@@ -129,12 +129,12 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
      * - Do the work to create said objects.
      * - Move the objects.
      */
-    __wt_atomic_store_uint32_v_relaxed(&conn->flush_state, 0);
-    __wt_atomic_store_bool_relaxed(&conn->flush_ckpt_complete, false);
+    __wt_atomic_store_uint32_v_relaxed(&conn->tiered.flush_state, 0);
+    __wt_atomic_store_bool_relaxed(&conn->tiered.flush_ckpt_complete, false);
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
-    conn->flush_most_recent = session->ckpt.current_sec;
+    conn->tiered.flush_most_recent = session->ckpt.current_sec;
     /* Storing the last flush timestamp here for the future and for debugging. */
-    conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
+    conn->tiered.flush_ts = conn->txn_global.last_ckpt_timestamp;
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
      * the user asks for a flush_tier without tiered storage, the loop below is effectively a no-op
@@ -932,10 +932,11 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
  *     Compute the drop size from the shared metadata queue, then process the queue.
  */
 static int
-__checkpoint_process_disagg_metadata(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+__checkpoint_process_disagg_metadata(
+  WT_SESSION_IMPL *session, wt_timestamp_t schema_epoch, uint64_t *drop_sizep)
 {
-    WT_RET(__wt_disagg_shared_metadata_queue_drop_size(session, drop_sizep));
-    WT_RET(__wt_disagg_shared_metadata_queue_process(session));
+    WT_RET(__wt_disagg_shared_metadata_queue_drop_size(session, schema_epoch, drop_sizep));
+    WT_RET(__wt_disagg_shared_metadata_queue_process(session, schema_epoch));
     return (0);
 }
 
@@ -1329,7 +1330,7 @@ __checkpoint_establish_time(WT_SESSION_IMPL *session)
      */
 
     __wt_seconds(session, &ckpt_sec);
-    ckpt_sec = WT_MAX(ckpt_sec, conn->flush_most_recent);
+    ckpt_sec = WT_MAX(ckpt_sec, conn->tiered.flush_most_recent);
 
     for (;;) {
         WT_ACQUIRE_READ_WITH_BARRIER(most_recent, conn->ckpt.most_recent);
@@ -1736,8 +1737,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * adjust the overall database size after the checkpoint completes.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(
-          session, ret = __checkpoint_process_disagg_metadata(session, &drop_size));
+        WT_WITH_SCHEMA_LOCK(session,
+          ret =
+            __checkpoint_process_disagg_metadata(session, ckpt_disagg_schema_epoch, &drop_size));
         WT_ERR_MSG_CHK(session, ret,
           "Disaggregated storage checkpoint failed while processing shared metadata queue");
     }
@@ -1973,9 +1975,9 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
      * Signal the tiered storage thread because it waits for the checkpoint to complete to process
      * flush units. Indicate that the checkpoint has completed.
      */
-    if (conn->tiered_cond != NULL) {
-        __wt_atomic_store_bool_relaxed(&conn->flush_ckpt_complete, true);
-        __wt_cond_signal(session, conn->tiered_cond);
+    if (conn->tiered.cond != NULL) {
+        __wt_atomic_store_bool_relaxed(&conn->tiered.flush_ckpt_complete, true);
+        __wt_cond_signal(session, conn->tiered.cond);
     }
 
     return (ret);
@@ -2263,8 +2265,8 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
          * been created before the backup started. Fail if trying to delete any other named
          * checkpoint.
          */
-        if (__wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) != 0 &&
-          ckpt->sec <= __wt_atomic_load_uint64_relaxed(&conn->hot_backup_start)) {
+        if (__wt_atomic_load_uint64_relaxed(&conn->backup.start) != 0 &&
+          ckpt->sec <= __wt_atomic_load_uint64_relaxed(&conn->backup.start)) {
             if (is_wt_ckpt) {
                 F_CLR(ckpt, WT_CKPT_DELETE);
                 continue;
@@ -2314,8 +2316,8 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
                 continue;
             WT_ASSERT(session,
               !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT) ||
-                __wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) == 0 ||
-                ckpt->sec > __wt_atomic_load_uint64_relaxed(&conn->hot_backup_start));
+                __wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0 ||
+                ckpt->sec > __wt_atomic_load_uint64_relaxed(&conn->backup.start));
             /*
              * We can't delete checkpoints referenced by a cursor. WiredTiger checkpoints are
              * uniquely named and it's OK to have multiple in the system: clear the delete flag for
@@ -2547,6 +2549,48 @@ skip:
 }
 
 /*
+ * __checkpoint_skip_ckptlist --
+ *     Return true if the checkpoint list indicates the checkpoint can be skipped: the last two
+ *     entries share the same name (or both use the internal name prefix) and fewer than two
+ *     checkpoints are being deleted. Requires at least two entries; returns false for shorter lists
+ *     so callers need not guard against out-of-bounds reads. If countp is non-NULL it is set to the
+ *     number of entries in the list regardless of the return value.
+ */
+static bool
+__checkpoint_skip_ckptlist(WT_CKPT *ckptbase, u_int *countp)
+{
+    WT_CKPT *ckpt;
+    int deleted;
+    const char *name;
+
+    deleted = 0;
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_DELETE))
+            ++deleted;
+    }
+
+    if (countp != NULL)
+        *countp = (u_int)(ckpt - ckptbase);
+
+    /* Need at least two entries to compare names; guard before accessing entries. */
+    if (ckpt <= ckptbase + 1 || deleted >= 2)
+        return (false);
+
+    /* List has at least two real entries: accesses are safe. */
+    name = (ckpt - 1)->name;
+    return (strcmp(name, (ckpt - 2)->name) == 0 ||
+      (WT_PREFIX_MATCH(name, WT_CHECKPOINT) && WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)));
+}
+
+#ifdef HAVE_UNITTEST
+bool
+__ut_checkpoint_skip_ckptlist(WT_CKPT *ckptbase)
+{
+    return (__checkpoint_skip_ckptlist(ckptbase, NULL));
+}
+#endif
+
+/*
  * __checkpoint_mark_skip --
  *     Figure out whether the checkpoint can be skipped for a tree.
  */
@@ -2578,25 +2622,9 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
     if (!btree->modified && !force && !bm->can_truncate(bm, session)) {
-        WT_CKPT *ckpt = NULL;
-        int deleted = 0;
+        u_int count = 0;
 
-        WT_CKPT_FOREACH (ckptbase, ckpt) {
-            if (F_ISSET(ckpt, WT_CKPT_DELETE))
-                ++deleted;
-        }
-
-        /*
-         * Complicated test: if the tree is clean and last two checkpoints have the same name
-         * (correcting for internal checkpoint names with their generational suffix numbers), we can
-         * skip the checkpoint, there's nothing to do. The exception is if we're deleting two or
-         * more checkpoints: then we may save space.
-         */
-        const char *name = (ckpt - 1)->name;
-        if (ckpt > ckptbase + 1 && deleted < 2 &&
-          (strcmp(name, (ckpt - 2)->name) == 0 ||
-            (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
-              WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
+        if (__checkpoint_skip_ckptlist(ckptbase, &count)) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             /*
              * If there are potentially extra checkpoints to delete, we set the timer to recheck
@@ -2605,7 +2633,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * to forever. If the table gets dirtied or a checkpoint is forced that will clear the
              * timer.
              */
-            if (ckpt - ckptbase > 2) {
+            if (count > 2) {
                 uint64_t timer = 0;
                 __wt_seconds(session, &timer);
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
