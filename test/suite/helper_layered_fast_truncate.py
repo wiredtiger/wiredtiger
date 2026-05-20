@@ -49,11 +49,6 @@ def range_inclusive(start, stop):
 class LayeredFastTruncateConfigMixin:
     """Shared helpers for the layered fast truncate test suite."""
 
-    def setUp(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
-
     def _key(self, n):
         """Convert an int into the test's key format."""
         return n

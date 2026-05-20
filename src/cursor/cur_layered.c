@@ -749,7 +749,7 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TRUNCATE *t;
 
-    if (!__wt_process.disagg_fast_truncate_2026)
+    if (__wt_process.disagg_slow_truncate_2026)
         return (0);
 
     __clayered_get_collator(clayered, &collator);
@@ -993,7 +993,7 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     if (S2C(session)->layered_table_manager.leader)
         WT_RET(__clayered_truncate_leader(trunc_info));
     else {
-        WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+        WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
         WT_RET(__clayered_truncate_follower(trunc_info));
     }
 
