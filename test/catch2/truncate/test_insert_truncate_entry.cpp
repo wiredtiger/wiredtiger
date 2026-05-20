@@ -116,6 +116,23 @@ insert_n_entries(follower_connection &connection, const size_t count)
     return 0;
 }
 
+int
+insert_gc_eligible_entry(follower_connection &connection)
+{
+    WT_RET(insert_one_entry(connection));
+
+    const wt_timestamp_t prune_ts = 10u;
+    connection.session().txn->time_point.durable_timestamp = prune_ts - 1u;
+    connection.session().txn->time_point.commit_timestamp = prune_ts - 1u;
+
+    auto *op = last_txn_op(connection.session());
+    __wti_mark_committed_truncate_table_apply(
+      &connection.session(), &connection.layered_table(), op);
+
+    connection.set_prune_timestamp(prune_ts);
+    return 0;
+}
+
 } // namespace
 
 SCENARIO("adding an entry successfully returns 0", "[truncate_list][insert]")
@@ -444,21 +461,17 @@ SCENARIO("adding an entry releases the truncate lock", "[truncate_list][insert]"
 // This test only verifies that insert wires up the GC call.
 SCENARIO("inserting an entry triggers garbage collection", "[truncate_list][insert]")
 {
-    GIVEN("a truncate list with one eligible entry eligible for garbage collection")
+    GIVEN("a truncate list with one entry eligible for garbage collection")
     {
         follower_connection connection;
-        CHECK(insert_one_entry(connection) == 0);
-
-        const wt_timestamp_t prune_ts = 10u;
-        truncate_list_head(connection.layered_table())->durable_ts = prune_ts - 1u;
-        connection.set_prune_timestamp(prune_ts);
+        CHECK(insert_gc_eligible_entry(connection) == 0);
 
         const auto expected_size = truncate_list_size(connection.layered_table());
 
         WHEN("a new entry is inserted")
         {
-            auto expected_start_key = make_item("key001");
-            auto expected_stop_key = make_item("key004");
+            auto expected_start_key = make_item("should_survive001");
+            auto expected_stop_key = make_item("should_survive002");
             CHECK(__wt_insert_truncate_entry(&connection.session(), &connection.layered_table(),
                     &expected_start_key, &expected_stop_key) == 0);
 

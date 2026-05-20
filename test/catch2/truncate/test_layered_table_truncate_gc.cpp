@@ -18,9 +18,8 @@ namespace {
 void
 insert_durable_entry(truncate_list_fixture &fixture, const wt_timestamp_t durable_ts)
 {
-    REQUIRE(durable_ts != WT_TS_NONE);
     auto *entry = fixture.add_entry(make_item("a"), make_item("z"));
-    entry->durable_ts = durable_ts;
+    fixture.commit_entry(entry, durable_ts);
 }
 
 } // namespace
@@ -35,7 +34,7 @@ SCENARIO("garbage collection with a zeroed prune timestamp is a no-op", "[trunca
         insert_durable_entry(fixture, durable_ts);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
+        const auto initial_reference_count = fixture.reference_count();
 
         WHEN("garbage collection runs with WT_TS_NONE as the prune timestamp")
         {
@@ -45,7 +44,31 @@ SCENARIO("garbage collection with a zeroed prune timestamp is a no-op", "[trunca
             THEN("the truncate list remains unchanged")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
-                REQUIRE(fixture.reference_count() == initial_ref_count);
+                REQUIRE(fixture.reference_count() == initial_reference_count);
+            }
+        }
+    }
+}
+
+SCENARIO("garbage collection does not remove an uncommitted entry", "[truncate_list][gc]")
+{
+    GIVEN("a truncate list with one uncommitted entry")
+    {
+        truncate_list_fixture fixture;
+        fixture.add_entry(make_item("a"), make_item("z"));
+
+        const auto initial_size = truncate_list_size(fixture.layered_table());
+        const auto initial_reference_count = fixture.reference_count();
+
+        WHEN("garbage collection runs with a valid prune timestamp")
+        {
+            const wt_timestamp_t prune_ts = 10u;
+            __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
+
+            THEN("the truncate list remains unchanged")
+            {
+                REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
+                REQUIRE(fixture.reference_count() == initial_reference_count);
             }
         }
     }
@@ -57,10 +80,10 @@ SCENARIO("garbage collection does not remove an entry with a zeroed durable time
     GIVEN("a truncate list with one entry whose durable timestamp is WT_TS_NONE")
     {
         truncate_list_fixture fixture;
-        fixture.add_entry(make_item("a"), make_item("z"));
+        insert_durable_entry(fixture, WT_TS_NONE);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
+        const auto initial_reference_count = fixture.reference_count();
 
         WHEN("garbage collection runs with a valid prune timestamp")
         {
@@ -70,7 +93,7 @@ SCENARIO("garbage collection does not remove an entry with a zeroed durable time
             THEN("the truncate list remains unchanged")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
-                REQUIRE(fixture.reference_count() == initial_ref_count);
+                REQUIRE(fixture.reference_count() == initial_reference_count);
             }
         }
     }
@@ -87,7 +110,7 @@ SCENARIO(
         insert_durable_entry(fixture, durable_ts);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
+        const auto initial_reference_count = fixture.reference_count();
 
         WHEN("garbage collection runs with a lower prune timestamp")
         {
@@ -97,7 +120,7 @@ SCENARIO(
             THEN("the truncate list remains unchanged")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
-                REQUIRE(fixture.reference_count() == initial_ref_count);
+                REQUIRE(fixture.reference_count() == initial_reference_count);
             }
         }
     }
@@ -112,8 +135,6 @@ SCENARIO("garbage collection removes an entry at the prune timestamp", "[truncat
         const wt_timestamp_t durable_ts = 10u;
         insert_durable_entry(fixture, durable_ts);
 
-        const auto initial_ref_count = fixture.reference_count();
-
         WHEN("garbage collection runs with a matching prune timestamp")
         {
             __ut_layered_table_truncate_gc(
@@ -122,12 +143,6 @@ SCENARIO("garbage collection removes an entry at the prune timestamp", "[truncat
             THEN("the entry is removed")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == 0u);
-            }
-
-            THEN("the dhandle reference is released")
-            {
-                const auto expected_ref_count = initial_ref_count - 1u;
-                REQUIRE(fixture.reference_count() == expected_ref_count);
             }
         }
     }
@@ -142,43 +157,37 @@ SCENARIO("garbage collection removes an entry below the prune timestamp", "[trun
         const wt_timestamp_t durable_ts = 10u;
         insert_durable_entry(fixture, durable_ts);
 
-        const auto initial_ref_count = fixture.reference_count();
-
         WHEN("garbage collection runs with a higher prune timestamp")
         {
             const auto prune_ts = durable_ts + 1u;
             __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
 
-            THEN("the truncate list is empty")
+            THEN("the entry is removed")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == 0u);
-            }
-
-            THEN("the dhandle reference is released")
-            {
-                const auto expected_ref_count = initial_ref_count - 1u;
-                REQUIRE(fixture.reference_count() == expected_ref_count);
             }
         }
     }
 }
 
 SCENARIO(
-  "garbage collection removes eligible entries from a multi-entry list", "[truncate_list][gc]")
+  "garbage collection on a multi-entry list only removes eligible entries", "[truncate_list][gc]")
 {
     GIVEN("a truncate list with one eligible entry and one ineligible entry")
     {
         truncate_list_fixture fixture;
 
         const wt_timestamp_t prune_ts = 10u;
-        const auto expected_durable_ts = prune_ts + 1u;
-        insert_durable_entry(fixture, prune_ts - 1u);
-        insert_durable_entry(fixture, expected_durable_ts);
+
+        const auto eligible_durable_ts = prune_ts - 1u;
+        insert_durable_entry(fixture, eligible_durable_ts);
+
+        const auto surviving_durable_ts = prune_ts + 1u;
+        insert_durable_entry(fixture, surviving_durable_ts);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
 
-        WHEN("garbage collection runs")
+        WHEN("garbage collection runs with a valid prune timestamp")
         {
             __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
 
@@ -188,12 +197,7 @@ SCENARIO(
                 REQUIRE(truncate_list_size(fixture.layered_table()) == expected_size);
 
                 const auto *head = truncate_list_head(fixture.layered_table());
-                REQUIRE(head->durable_ts == expected_durable_ts);
-            }
-
-            THEN("the dhandle reference is not released")
-            {
-                REQUIRE(fixture.reference_count() == initial_ref_count);
+                REQUIRE(head->durable_ts == surviving_durable_ts);
             }
         }
     }
@@ -206,21 +210,13 @@ SCENARIO(
         insert_durable_entry(fixture, prune_ts - 1u);
         insert_durable_entry(fixture, prune_ts);
 
-        const auto initial_ref_count = fixture.reference_count();
-
-        WHEN("garbage collection runs")
+        WHEN("garbage collection runs with a valid prune timestamp")
         {
             __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
 
             THEN("all entries are removed")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == 0u);
-            }
-
-            THEN("the dhandle reference is released")
-            {
-                const auto expected_ref_count = initial_ref_count - 1u;
-                REQUIRE(fixture.reference_count() == expected_ref_count);
             }
         }
     }
@@ -234,16 +230,16 @@ SCENARIO(
         insert_durable_entry(fixture, prune_ts + 2u);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
+        const auto initial_reference_count = fixture.reference_count();
 
-        WHEN("garbage collection runs")
+        WHEN("garbage collection runs with a valid prune timestamp")
         {
             __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
 
             THEN("the truncate list remains unchanged")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
-                REQUIRE(fixture.reference_count() == initial_ref_count);
+                REQUIRE(fixture.reference_count() == initial_reference_count);
             }
         }
     }
@@ -254,27 +250,22 @@ SCENARIO(
 
         const wt_timestamp_t prune_ts = 10u;
         fixture.add_entry(make_item("a"), make_item("z"));
+
         insert_durable_entry(fixture, prune_ts - 1u);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
 
-        WHEN("garbage collection runs")
+        WHEN("garbage collection runs with a valid prune timestamp")
         {
             __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
 
-            THEN("the eligible entry is removed and the uncommitted entry survives")
+            THEN("the eligible entry is removed")
             {
                 const auto expected_size = initial_size - 1u;
                 REQUIRE(truncate_list_size(fixture.layered_table()) == expected_size);
 
                 const auto *head = truncate_list_head(fixture.layered_table());
                 REQUIRE(head->durable_ts == WT_TS_NONE);
-            }
-
-            THEN("the dhandle reference is not released")
-            {
-                REQUIRE(fixture.reference_count() == initial_ref_count);
             }
         }
     }
@@ -283,21 +274,22 @@ SCENARIO(
     {
         truncate_list_fixture fixture;
 
-        const wt_timestamp_t prune_ts = 10u;
         fixture.add_entry(make_item("a"), make_item("z"));
+
+        const wt_timestamp_t prune_ts = 10u;
         insert_durable_entry(fixture, prune_ts + 1u);
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
+        const auto initial_reference_count = fixture.reference_count();
 
-        WHEN("garbage collection runs")
+        WHEN("garbage collection runs with a valid prune timestamp")
         {
             __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
 
             THEN("the truncate list remains unchanged")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
-                REQUIRE(fixture.reference_count() == initial_ref_count);
+                REQUIRE(fixture.reference_count() == initial_reference_count);
             }
         }
     }
@@ -310,7 +302,7 @@ SCENARIO("garbage collection with an empty truncate list is a no-op", "[truncate
         truncate_list_fixture fixture;
 
         const auto initial_size = truncate_list_size(fixture.layered_table());
-        const auto initial_ref_count = fixture.reference_count();
+        const auto initial_reference_count = fixture.reference_count();
 
         WHEN("garbage collection runs with a valid prune timestamp")
         {
@@ -320,7 +312,53 @@ SCENARIO("garbage collection with an empty truncate list is a no-op", "[truncate
             THEN("the truncate list remains unchanged")
             {
                 REQUIRE(truncate_list_size(fixture.layered_table()) == initial_size);
-                REQUIRE(fixture.reference_count() == initial_ref_count);
+                REQUIRE(fixture.reference_count() == initial_reference_count);
+            }
+        }
+    }
+}
+
+SCENARIO("garbage collection does not release the dhandle reference when the list is not cleared",
+  "[truncate_list][gc]")
+{
+    GIVEN("a truncate list with one eligible entry and one ineligible entry")
+    {
+        truncate_list_fixture fixture;
+        const wt_timestamp_t prune_ts = 10u;
+        insert_durable_entry(fixture, prune_ts - 1u);
+        insert_durable_entry(fixture, prune_ts + 1u);
+
+        const auto initial_reference_count = fixture.reference_count();
+
+        WHEN("garbage collection runs with a valid prune timestamp")
+        {
+            __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
+
+            THEN("the dhandle reference count is unchanged")
+            {
+                REQUIRE(fixture.reference_count() == initial_reference_count);
+            }
+        }
+    }
+}
+
+SCENARIO(
+  "garbage collection that empties the list releases the dhandle reference", "[truncate_list][gc]")
+{
+    GIVEN("a truncate list with one eligible entry")
+    {
+        truncate_list_fixture fixture;
+        const wt_timestamp_t prune_ts = 10u;
+        insert_durable_entry(fixture, prune_ts - 1u);
+        const auto initial_reference_count = fixture.reference_count();
+
+        WHEN("garbage collection runs with a valid prune timestamp")
+        {
+            __ut_layered_table_truncate_gc(&fixture.session(), &fixture.layered_table(), prune_ts);
+
+            THEN("the dhandle reference count is decremented by exactly one")
+            {
+                REQUIRE(fixture.reference_count() == initial_reference_count - 1u);
             }
         }
     }

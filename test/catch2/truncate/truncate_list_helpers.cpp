@@ -118,4 +118,22 @@ truncate_list_fixture::add_entry(const WT_ITEM &start, const WT_ITEM &stop)
     return entry;
 }
 
+void
+truncate_list_fixture::commit_entry(WT_TRUNCATE *entry, const wt_timestamp_t durable_ts)
+{
+    WT_TXN txn{};
+    txn.time_point.id = entry->txn_id;
+    txn.time_point.commit_timestamp = durable_ts;
+    txn.time_point.durable_timestamp = durable_ts;
+
+    _session->txn = &txn;
+
+    WT_TXN_OP op{};
+    op.type = WT_TXN_OP_FOLLOWER_TRUNCATE;
+    op.u.follower_truncate.t = entry;
+
+    __wti_mark_committed_truncate_table_apply(_session, &_table, &op);
+    _session->txn = nullptr;
+}
+
 } // namespace truncate_list_helpers

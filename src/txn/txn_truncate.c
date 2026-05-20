@@ -90,10 +90,14 @@ __layered_table_truncate_gc(
 
     TAILQ_FOREACH_SAFE(entry, &layered_table->truncateqh, q, next)
     {
-        const bool is_eligible =
+        const bool is_committed = __wt_atomic_load_bool_acquire(&entry->committed);
+
+        /* Committed entries with durable_ts == WT_TS_NONE are never pruned here. Without a
+         * timestamp, we cannot determine whether the follower has picked up these changes yet. */
+        const bool is_time =
           entry->durable_ts != WT_TS_NONE && entry->durable_ts <= prune_timestamp;
 
-        if (!is_eligible)
+        if (!is_committed || !is_time)
             continue;
 
         __truncate_entry_remove(session, layered_table, entry);
@@ -393,15 +397,14 @@ err:
  * __wt_truncate_delete_visible_check --
  *     Search if the given key has been deleted in the layered table truncate list. start_keyp and
  *     stop_keyp are optional out parameters that represent the truncate range that deleted the key.
- *     Freeing of start_keyp and stop_keyp must be managed by the caller.
+ *     On success, the caller must free start_keyp and stop_keyp.
  */
 int
 __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
   WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
 {
     /* We either want the full range or no range at all. */
-    const bool keys_wanted = (start_keyp != NULL && stop_keyp != NULL);
-    WT_ASSERT(session, (start_keyp == NULL && stop_keyp == NULL) || keys_wanted);
+    WT_ASSERT(session, ((start_keyp != NULL) == (stop_keyp != NULL)));
 
     WT_DECL_RET;
     WT_TRUNCATE *tp = NULL;
@@ -426,18 +429,13 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
     WT_ERR(
       __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, &tp, &is_found));
 
-    if (is_found && keys_wanted)
+    if (is_found && start_keyp != NULL)
         WT_ERR(__truncate_entry_copy_keys(session, tp, start_keyp, stop_keyp));
 
 err:
     __wt_readunlock(session, &layered_table->truncate_lock);
-
     WT_RET(ret);
-
-    if (!is_found)
-        return (WT_NOTFOUND);
-
-    return (0);
+    return (is_found ? 0 : WT_NOTFOUND);
 }
 
 /*
