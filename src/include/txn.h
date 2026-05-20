@@ -17,6 +17,9 @@
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
+#define WT_SCHEMA_EPOCH_NONE 0                /* Beginning of time for schema epoch */
+#define WT_SCHEMA_EPOCH_UNPUBLISHED WT_TS_MAX /* Unpublished schema epoch */
+
 /*
  * A list of reasons for returning a rollback error from the API. These reasons can be queried via
  * the session get rollback reason API call. Users of the API could have a dependency on the format
@@ -181,6 +184,7 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t oldest_id;
 
     wt_shared wt_timestamp_t durable_timestamp;
+    wt_shared wt_timestamp_t last_ckpt_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t last_ckpt_timestamp;
     wt_timestamp_t meta_ckpt_timestamp;
     wt_shared wt_timestamp_t oldest_timestamp;
@@ -216,9 +220,10 @@ struct __wt_txn_global {
     wt_shared volatile bool checkpoint_running; /* Checkpoint running */
     wt_shared volatile bool
       checkpoint_running_hs; /* Checkpoint running and processing history store file */
-    wt_shared volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared;           /* Checkpoint's txn shared state */
-    wt_shared wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
+    wt_shared volatile uint32_t checkpoint_id;               /* Checkpoint's session ID */
+    WT_TXN_SHARED checkpoint_txn_shared;                     /* Checkpoint's txn shared state */
+    wt_shared wt_timestamp_t checkpoint_disagg_schema_epoch; /* Checkpoint's schema epoch */
+    wt_shared wt_timestamp_t checkpoint_timestamp;           /* Checkpoint's timestamp */
 
     wt_shared volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;                     /* Debug mode rollback */

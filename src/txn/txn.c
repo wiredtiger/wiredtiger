@@ -1099,6 +1099,13 @@ __txn_resolve_prepared_update_chain(
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
         __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
+        /*
+         * A release store would only prevent prior writes from being reordered after it; it would
+         * not prevent the subsequent timestamp writes from being reordered before it on
+         * weakly-ordered architectures. The explicit release barrier ensures this prepare state
+         * write is ordered before any timestamp field is modified, so a concurrent reader can never
+         * observe updated timestamps while the prepare state appears unchanged.
+         */
         WT_RELEASE_BARRIER();
         if (F_ISSET(txn_time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
             __wt_atomic_store_uint64_relaxed(
@@ -1645,7 +1652,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_ERR(__wti_mark_committed_truncate_table(session, op));
+            __wti_mark_committed_truncate_table(session, op);
             break;
         }
 
@@ -1912,7 +1919,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * turned on.
      */
     if (txn->txn_log.logrec != NULL &&
-      !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+      !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
@@ -2165,7 +2172,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             WT_TRET(__wt_delete_page_rollback(session, op));
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_RET(__wti_layered_table_truncate_rollback(session, op));
+            __wti_layered_table_truncate_rollback(session, op);
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2641,9 +2648,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * disaggregated storage and the node still consider itself the leader. If it is not the
          * real leader, the storage layer services should return an error as it is not allowed to
          * write.
-         *
-         * FIXME-WT-14739: we should be able to do shutdown checkpoint for followers as well when we
-         * are able to skip the shared tables in checkpoint.
          */
         if (!skip_checkpoint && (!conn_is_disagg || conn->layered_table_manager.leader)) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
@@ -2902,6 +2906,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "stable timestamp: %s",
       __wt_timestamp_to_string(
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp), ts_string)));
+    WT_RET(__wt_msg(session, "stable disaggregated schema epoch: %s",
+      __wt_timestamp_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch),
+        ts_string)));
     WT_RET(__wt_msg(
       session, "has_durable_timestamp: %s", txn_global->has_durable_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
@@ -2910,6 +2918,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "has_stable_disaggregated_schema_epoch: %s",
+      __wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) ? "yes" :
+                                                                                          "no"));
     WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->oldest_is_pinned) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "stable_is_pinned: %s",

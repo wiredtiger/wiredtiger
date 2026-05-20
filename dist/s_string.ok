@@ -74,10 +74,12 @@ CHUNKCACHE
 CKPT
 CLAYERED
 CLOEXEC
+CMAKE
 CMP
 CMake
 CMakeFiles
 CMakeLists
+CMakePresets
 CONF
 CONFIG
 CPP
@@ -88,6 +90,7 @@ CTest
 CURSORs
 CURSTD
 CURVERSION
+CXX
 CallsCustDate
 Canonicalize
 Castagnoli
@@ -218,6 +221,7 @@ GetLastError
 GetModuleHandleExW
 GetProcAddress
 Getters
+Gh
 Github
 Golomb
 HANDLEOPS
@@ -270,6 +274,7 @@ LOGREC
 LOGSCAN
 LOGSLOT
 LRU
+LSAN
 LSB
 LSBs
 LSM
@@ -684,6 +689,8 @@ blkcache
 blkincr
 blkmod
 blkmods
+blockhash
+blockqh
 bm
 bmd
 bms
@@ -1018,6 +1025,7 @@ floatnum
 fmt
 fmterr
 fnv
+fnvhash
 foc
 fopen
 forceerror
@@ -1086,6 +1094,7 @@ handleops
 handlep
 hardcoded
 hashmap
+hashq
 hashsize
 hashtable
 havesize
@@ -1153,6 +1162,7 @@ intr
 intrinsics
 ints
 inuse
+invariants
 io
 ip
 isalnum
@@ -1381,6 +1391,7 @@ np
 npos
 nrecords
 nrows
+ns
 nsec
 nsecs
 nset
@@ -1754,6 +1765,7 @@ tolower
 tombstoned
 toml
 toolchain
+toolchains
 totalsec
 tp
 traceapi
@@ -1783,7 +1795,6 @@ txp
 txt
 typedef
 typeof
-uS
 ubuntu
 uid
 uint
@@ -1862,6 +1873,7 @@ valuep
 valuesize
 valuev
 variadic
+vcvars
 vd
 vdata
 vec

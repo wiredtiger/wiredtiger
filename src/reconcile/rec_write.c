@@ -126,14 +126,17 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      */
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
 
-    /* If writing a page in service of compaction, we're done, clear the flag. */
-    F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
-
     if (ret != 0)
         F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
-    else
-        F_CLR_ATOMIC_16(
-          ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT | WT_PAGE_INTL_PINDEX_UPDATE);
+    else {
+        if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE))
+            WT_STAT_CONN_INCRV(
+              session, session_table_compact_bytes_rewrite_inmem, ref->page->memory_footprint);
+        /* If writing a page in service of compaction, we're done, clear the flag. */
+        F_CLR_ATOMIC_16(ref->page,
+          WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT | WT_PAGE_INTL_PINDEX_UPDATE |
+            WT_PAGE_COMPACTION_WRITE);
+    }
 
 err:
     if (page_locked)
@@ -2950,7 +2953,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         if (disagg_page_is_valid && !disagg_page_free_required &&
           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
+            __wt_block_disagg_obsolete_delta_chain(
+              session, ref->page->disagg_info->block_meta.cumulative_size);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2998,7 +3002,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         if (disagg_page_is_valid && !disagg_page_free_required &&
                           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
                           r->multi->block_meta->delta_count == 0)
-                            __wt_btree_decrease_size(
+                            __wt_block_disagg_obsolete_delta_chain(
                               session, ref->page->disagg_info->block_meta.cumulative_size);
                     }
                 }
@@ -3041,7 +3045,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         WT_ASSERT(
                           session, cookie.size == page->disagg_info->block_meta.cumulative_size);
 #endif
-                        __wt_btree_decrease_size(
+                        __wt_block_disagg_obsolete_delta_chain(
                           session, page->disagg_info->block_meta.cumulative_size);
                     }
                 }
