@@ -1044,6 +1044,11 @@ __disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_t cu
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
+        /*
+         * When EPOCH_NONE is passed (legacy step-up path that doesn't use schema epochs), prune
+         * everything unconditionally. The legacy path rebuilds stable constituents directly from
+         * local metadata rather than replaying queue entries, so the queue is no longer needed.
+         */
         if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
             continue;
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
@@ -1253,10 +1258,12 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
         if (entry->metadata_op == WT_SHARED_METADATA_REMOVE) {
             found = false;
             TAILQ_FOREACH_SAFE(skipped, &skipped_creates, q, skipped_tmp)
-            if (strcmp(skipped->stable_uri, entry->stable_uri) == 0) {
-                TAILQ_REMOVE(&skipped_creates, skipped, q);
-                __disagg_shared_metadata_queue_free(session, &skipped);
-                found = true;
+            {
+                if (strcmp(skipped->stable_uri, entry->stable_uri) == 0) {
+                    TAILQ_REMOVE(&skipped_creates, skipped, q);
+                    __disagg_shared_metadata_queue_free(session, &skipped);
+                    found = true;
+                }
             }
             if (found) {
                 __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
