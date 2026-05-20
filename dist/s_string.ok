@@ -987,6 +987,7 @@ execfn
 existp
 extern
 extlist
+extlists
 extraconfig
 fadvise
 fahrenheit
@@ -1560,6 +1561,7 @@ reentrant
 refp
 regen
 regionp
+reinit
 reinstantiated
 relocked
 repl
