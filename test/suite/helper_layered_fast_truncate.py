@@ -165,7 +165,7 @@ class LayeredFastTruncateConfigMixin:
         self.ignoreStdoutPattern('Picking up the same checkpoint')
         self.disagg_switch_follower_and_leader(self.conn_follow)
 
-    def open_follower(self):
+    def open_follower(self, table_config='key_format=i,value_format=S'):
         """
         Open a separate follower connection (distinct from setup_follower
         which reopens the existing connection). Returns (conn, sess).
@@ -175,7 +175,7 @@ class LayeredFastTruncateConfigMixin:
             self.extensionsConfig() +
             ',create,cache_size=50MB,statistics=(all),disaggregated=(role="follower")')
         sess = conn.open_session('')
-        sess.create(self.uri, 'key_format=i,value_format=S')
+        sess.create(self.uri, table_config)
         self.disagg_advance_checkpoint(conn, self.conn)
         return conn, sess
 

@@ -54,17 +54,10 @@ class test_layered_fast_truncate_stepup(LayeredFastTruncateConfigMixin, wttest.W
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
         self.session.checkpoint()
 
-    # Open a separate follower connection, create the table on both sides, leader populates,
-    # follower picks up the checkpoint. After this, follower-side ops run on session_follow.
     def setup_follower(self):
-        self.conn_follow = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + ',create,disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
         self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.session_follow.create(self.uri, 'key_format=i,value_format=S')
         self.populate_on_leader()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.conn_follow, self.session_follow = self.open_follower()
 
     def write_kv(self, key, value, ts):
         cursor = self.session_follow.open_cursor(self.uri)

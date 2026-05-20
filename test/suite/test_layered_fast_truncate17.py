@@ -56,14 +56,9 @@ class test_layered_fast_truncate17(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.leader_checkpoint(ts)
 
     def setup_follower(self):
-        self.conn_follow = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
         self.session.create(self.uri, self.table_config)
-        self.session_follow.create(self.uri, self.table_config)
         self.populate_on_leader()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.conn_follow, self.session_follow = self.open_follower(self.table_config)
 
     def truncate_range(self, start_key, stop_key, ts):
         c_start = self.session_follow.open_cursor(self.uri)
