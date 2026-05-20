@@ -160,10 +160,6 @@ class test_layered105(wttest.WiredTigerTestCase):
             self.fail(f'{label}: child killed by signal {os.WTERMSIG(status)} (likely WT_PANIC)')
         self.assertEqual(os.WEXITSTATUS(status), 0, f'{label}: child exited with failure')
 
-    def setUp(self):
-        super().setUp()
-        self.ignoreStdoutPattern('WT_VERB_RTS|WT_VERB_DEFAULT|WT_VERB_ERROR_RETURNS')
-
     def test_drain_wins(self):
         # Drain holds the read lock; drop blocks and returns EBUSY, then retries.
         self._run_scenario('drain wins', 'drain_ingest_table_slow', True)
