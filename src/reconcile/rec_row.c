@@ -1118,8 +1118,7 @@ __wti_rec_row_leaf(
     gc_stable_cursor = NULL;
     if (F_ISSET(r, WT_REC_EVICT) && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
       !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
-      !F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) &&
-      conn->layered_table_manager.leader)
+      !F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) && conn->layered_table_manager.leader)
         WT_ERR(__wt_layered_gc_open_stable_cursor(session, &gc_stable_cursor));
 #endif
 

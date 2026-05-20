@@ -226,7 +226,7 @@ __wt_layered_gc_open_stable_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp
     ret = __wt_open_cursor(session, stable_uri_buf->data, NULL, cfg, cursorp);
     session->dhandle = saved_dhandle;
     if (ret == WT_NOTFOUND || ret == ENOENT) {
-        ret = 0; /* No stable table yet — caller's NULL check skips verification. */
+        ret = 0; /* No stable table yet caller's NULL check skips verification. */
         goto err;
     }
     WT_ERR(ret);
