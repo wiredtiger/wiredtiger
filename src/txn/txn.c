@@ -1918,7 +1918,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * turned on.
      */
     if (txn->txn_log.logrec != NULL &&
-      !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+      !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
@@ -2639,9 +2639,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * disaggregated storage and the node still consider itself the leader. If it is not the
          * real leader, the storage layer services should return an error as it is not allowed to
          * write.
-         *
-         * FIXME-WT-14739: we should be able to do shutdown checkpoint for followers as well when we
-         * are able to skip the shared tables in checkpoint.
          */
         if (!skip_checkpoint && (!conn_is_disagg || conn->layered_table_manager.leader)) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));

@@ -54,7 +54,7 @@ __wt_txn_log_op_check(WT_SESSION_IMPL *session)
      * out almost all log records, check it first.
      */
     if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
-      !FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+      !FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         return (false);
 
     /*
@@ -833,6 +833,18 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     txn = session->txn;
 
+    /*
+     * During ingest replay there is no running transaction; timestamp the page delete directly from
+     * the replay context and skip the transaction machinery.
+     */
+    if (F_ISSET(session, WT_SESSION_INGEST_REPLAY)) {
+        ref->page_del->txnid = session->replay_trunc_ctx.txn_id;
+        ref->page_del->pg_del_start_ts = session->replay_trunc_ctx.commit_ts;
+        ref->page_del->pg_del_durable_ts = session->replay_trunc_ctx.durable_ts;
+        ref->page_del->committed = true;
+        return (0);
+    }
+
     WT_RET(__txn_next_op(session, &op));
     op->type = WT_TXN_OP_REF_DELETE;
     op->u.ref = ref;
@@ -952,11 +964,13 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
     bool has_pinned_timestamp;
 
-    txn_global = &S2C(session)->txn_global;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
@@ -968,7 +982,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     }
 
     /* If we have a version cursor open, use the pinned timestamp when it is opened. */
-    if (__wt_atomic_load_uint32_acquire(&S2C(session)->version_cursor_count) > 0) {
+    if (__wt_atomic_load_uint32_acquire(&conn->version_cursor_count) > 0) {
         *pinned_tsp = txn_global->version_cursor_pinned_timestamp;
         return;
     }
@@ -987,13 +1001,26 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * read the pinned timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
      * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
      * we take the minimum of it with the oldest timestamp, which is what we want.
+     *
+     * On a disaggregated storage follower, cap using the last completed checkpoint timestamp to
+     * retain all data on the ingest btree up to that point.
      */
-    checkpoint_ts = txn_global->checkpoint_timestamp;
-
-    if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
-        *pinned_tsp = checkpoint_ts;
-    else
-        *pinned_tsp = pinned_ts;
+    if (__wt_conn_is_disagg(session) &&
+      (!conn->layered_table_manager.leader ||
+        F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
+        checkpoint_ts =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
+        if (checkpoint_ts < pinned_ts)
+            *pinned_tsp = checkpoint_ts;
+        else
+            *pinned_tsp = pinned_ts;
+    } else {
+        checkpoint_ts = txn_global->checkpoint_timestamp;
+        if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
+            *pinned_tsp = checkpoint_ts;
+        else
+            *pinned_tsp = pinned_ts;
+    }
 }
 
 /*

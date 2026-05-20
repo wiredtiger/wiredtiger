@@ -223,7 +223,7 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
      * The only way we should ever get in here without a txn id is if we are recording diagnostic
      * information. In that case, allocate an id.
      */
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
       txn->time_point.id == WT_TXN_NONE)
         WT_RET(__wt_txn_id_check(session));
     else
@@ -274,7 +274,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      * skip it.
      */
     if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
-      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+      FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         FLD_SET(fileid, WT_LOGOP_IGNORE);
 
     WT_RET(__txn_logrec_init(session));
@@ -548,7 +548,7 @@ __wt_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN 
          * connection close, only during a full checkpoint. A clean close may not update any
          * metadata LSN and we do not want to remove log files in that case.
          */
-        if (__wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) == 0 &&
+        if (__wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0 &&
           (!F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DIRTY) ||
             F_ISSET(&conn->log_mgr, WT_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)

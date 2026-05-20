@@ -99,11 +99,13 @@ def dump_update_chain(update_chain):
         if not update_chain:
             print('  λ')
             break
-        #dbg('update', update_chain)
         wt_val = update_chain.dereference()
         obj = None
-        #dbg('wt_val', wt_val)
-        val_bytes = gdb.selected_inferior().read_memory(wt_val['data'], wt_val['size'])
+        # TOMBSTONE/RESERVE entries carry no value: size is 0 and the data
+        # pointer is uninitialized, so skip the read in those cases.
+        val_size = int(wt_val['size'])
+        if val_size > 0:
+            val_bytes = gdb.selected_inferior().read_memory(wt_val['data'], val_size)
         can_bson = wt_val['type'] == 3
         if can_bson:
             try:
