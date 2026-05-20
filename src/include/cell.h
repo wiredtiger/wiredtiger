@@ -277,7 +277,9 @@ struct __wti_delta_int_merge_state {
  *	base page byte stream; the head key+value pair is unpacked on demand via
  *WT_CELL_BASE_INT_UNPACK.
  *
- * Same cell/entries/unpacked invariant as WTI_DELTA_INT_MERGE_STATE above.
+ * The read position advances when an entry is decoded, not when it is consumed. Consuming or
+ * discarding an entry resets the decoded flag and decrements the remaining count by 2, so the
+ * next decode reads the entry that follows.
  */
 struct __wti_base_int_merge_state {
     WT_CELL_UNPACK_ADDR unpack_key; /* Current unpacked key cell */

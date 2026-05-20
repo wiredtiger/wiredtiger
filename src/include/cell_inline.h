@@ -394,13 +394,13 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *k
     /* Recompute write pointer after possible realloc */
     WT_ASSERT(session, new_image->mem != NULL);
 
-    s->p_ptr = (uint8_t *)new_image->mem + new_image->size;
-    __wt_cell_kv_copy(session, s->p_ptr, &key);
-    s->p_ptr += key.len;
+    s->cell_ptr = (uint8_t *)new_image->mem + new_image->size;
+    __wt_cell_kv_copy(session, s->cell_ptr, &key);
+    s->cell_ptr += key.len;
     s->entries++;
     if (!empty_value) {
-        __wt_cell_kv_copy(session, s->p_ptr, &val);
-        s->p_ptr += val.len;
+        __wt_cell_kv_copy(session, s->cell_ptr, &val);
+        s->cell_ptr += val.len;
         s->entries++;
     }
     new_image->size += packed_size;
@@ -516,7 +516,7 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
     }
 
     /* Build packed key/value. */
-    WT_ERR(__cell_build_int_key_from_kv(session, &key_kv, key_data, key_size));
+    WT_RET(__cell_build_int_key_from_kv(session, &key_kv, key_data, key_size));
     __wt_cell_build_addr_kv(session, &val_kv, cell_type, page_del, ta, val_data, val_size);
 
     /*
@@ -1897,16 +1897,16 @@ __wt_page_cell_data_ref_kv(
 
 /*
  * WT_CELL_DELTA_INT_UNPACK --
- *	Unpack one key+value entry from the head of an internal delta stream, advancing the cell
- *	pointer past both cells and marking the state as unpacked.
+ *	Unpack one key+value entry from the head of an internal delta stream, advancing the read
+ *	position past both cells and marking the entry as decoded.
  *
- * Called only when s->unpacked is false. After this macro, s->cell points at the NEXT entry in
- *	the stream (ready for the subsequent unpack), while s->unpack holds the current entry.
- *	The caller clears s->unpacked and decrements s->entries by 2 when the entry is consumed or
- *	discarded, triggering a fresh unpack on the next call.
+ * Called only when the stream has not yet decoded its current head entry. After this macro, the
+ * read position points at the next entry in the stream, while the decoded fields hold the
+ * current entry. The caller resets the decoded flag and decrements the remaining count by 2
+ * when an entry is consumed or discarded, triggering a fresh decode on the next call.
  *
- * `base_dsk` is the base page header, passed to the unpack helpers so they can resolve
- *	timestamps that are stored relative to the base page.
+ * The base page header is passed to the unpack helpers so they can resolve timestamps stored
+ * relative to the base page.
  */
 #define WT_CELL_DELTA_INT_UNPACK(session, base_dsk, s)                                      \
     do {                                                                                    \
@@ -1919,12 +1919,12 @@ __wt_page_cell_data_ref_kv(
 
 /*
  * WT_CELL_BASE_INT_UNPACK --
- *	Unpack one key+value pair from the base internal page, advancing the cell pointer past both
- *	cells and marking the state as unpacked.
+ *	Unpack one key+value pair from the base internal page, advancing the read position past both
+ *	cells and marking the entry as decoded.
  *
- * Same advance-on-unpack, consume-on-decrement contract as WT_CELL_DELTA_INT_UNPACK. Internal
- *	page keys are never prefix-compressed (see __rec_cell_build_int_key), so unpack_key.data
- *	always contains the full key and no decompression step is needed before comparison.
+ * Follows the same advance-on-decode, reset-on-consume contract as the delta stream variant.
+ * Internal page keys are never prefix-compressed, so the decoded key always contains the full
+ * key and no decompression step is needed before comparison.
  */
 #define WT_CELL_BASE_INT_UNPACK(session, s)                                               \
     do {                                                                                  \
