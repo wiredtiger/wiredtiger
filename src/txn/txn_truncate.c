@@ -85,6 +85,8 @@ __layered_table_truncate_gc(
     if (prune_timestamp == WT_TS_NONE)
         return;
 
+    WT_STAT_CONN_INCR(session, layered_truncate_list_gc_runs);
+
     WT_TRUNCATE *entry = NULL;
     WT_TRUNCATE *next = NULL;
 
@@ -104,6 +106,7 @@ __layered_table_truncate_gc(
 
         __truncate_entry_remove(session, layered_table, entry);
         __disagg_truncate_free(session, &entry);
+        WT_STAT_CONN_INCR(session, layered_truncate_list_gc_entries_removed);
     }
 }
 
