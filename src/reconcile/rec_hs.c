@@ -874,16 +874,11 @@ __rec_hs_handle_oldest_tombstone(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   const WT_ITEM *key, bool error_on_ts_ordering, bool hs_flag_set, WT_UPDATE *oldest_upd,
   WT_UPDATE **no_ts_updp)
 {
-    WT_DECL_RET;
-
     if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
       oldest_upd->upd_start_ts == WT_TS_NONE) {
-        ret =
-          __wti_rec_hs_delete_key(session, hs_cursor, btree_id, key, false, error_on_ts_ordering);
-        if (ret != 0)
-            WT_RET_MSG(session, ret,
-              "failed to clear stale history store entries before insert: btree=%" PRIu32,
-              btree_id);
+        WT_RET_MSG_CHK(session,
+          __wti_rec_hs_delete_key(session, hs_cursor, btree_id, key, false, error_on_ts_ordering),
+          "failed to clear stale history store entries before insert: btree=%" PRIu32, btree_id);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
 
