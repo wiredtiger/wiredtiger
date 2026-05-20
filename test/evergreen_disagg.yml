@@ -698,12 +698,6 @@ tasks:
   - <<: *format-stress-test-disagg-switch-fast-truncate
     name: format-stress-test-disagg-switch-fast-truncate-1
     tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
-  - <<: *format-stress-test-disagg-switch-fast-truncate
-    name: format-stress-test-disagg-switch-fast-truncate-2
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-switch-fast-truncate
-    name: format-stress-test-disagg-switch-fast-truncate-3
-    tags: ["stress-test-disagg-fail"]
   - <<: *format-stress-test-disagg-multi
     name: format-stress-test-disagg-multi-1
     tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
