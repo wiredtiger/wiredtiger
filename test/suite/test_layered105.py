@@ -87,7 +87,6 @@ class test_layered105(wttest.WiredTigerTestCase):
         """
         home = os.path.join(self.home, 'scenario_db')
         ext_config = self.extensionsConfig()
-        page_log_name = self.page_log()
 
         def child():
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
@@ -101,11 +100,7 @@ class test_layered105(wttest.WiredTigerTestCase):
             session = conn.open_session('')
 
             # Sync the leader's last checkpoint so database_size is correct before step-up.
-            pl_session = conn.open_session('')
-            page_log = conn.get_page_log(page_log_name)
-            (_, _, _, meta) = page_log.pl_get_complete_checkpoint_ext(pl_session)
-            page_log.terminate(pl_session)
-            pl_session.close()
+            meta = self.disagg_get_complete_checkpoint_meta(conn)
             if meta:
                 conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
 
