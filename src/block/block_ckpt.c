@@ -749,11 +749,11 @@ __ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
      */
     ci->ckpt_alloc = ci->alloc;
     WT_RET_MSG_CHK(session, __wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false),
-      "reinitializing the live alloc extent list after copying it to ckpt_alloc");
+      "resetting the live alloc extent list after copying it to ckpt_alloc");
     ci->ckpt_discard = ci->discard;
     WT_RET_MSG_CHK(session,
       __wti_block_extlist_init(session, &ci->discard, "live", "discard", false),
-      "reinitializing the live discard extent list after copying it to ckpt_discard");
+      "resetting the live discard extent list after copying it to ckpt_discard");
 
 #ifdef HAVE_DIAGNOSTIC
     /*
