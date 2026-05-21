@@ -830,7 +830,7 @@ __ckpt_delete_and_merge(
 static int
 __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 {
-    WT_BLOCK_CKPT *a, *ci;
+    WT_BLOCK_CKPT *ci;
     WT_CKPT *ckpt;
     WT_DECL_RET;
     uint64_t ckpt_size;
@@ -970,6 +970,7 @@ live_update:
      * The first checkpoint in the system should always have an empty discard list. If we've read
      * that checkpoint and/or created it, check.
      */
+    WT_BLOCK_CKPT *a;
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (!F_ISSET(ckpt, WT_CKPT_DELETE))
             break;
