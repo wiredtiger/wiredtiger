@@ -1301,6 +1301,63 @@ __cell_unpack_value_window(
 }
 
 /*
+ * __cell_unpack_data_len --
+ *     Unpack the data length for a cell (all cases except WT_CELL_VALUE_COPY).
+ */
+static WT_INLINE int
+__cell_unpack_data_len(
+  WT_CELL *cell, WT_CELL_UNPACK_COMMON *unpack, const uint8_t **pp, const void *end)
+{
+    uint64_t v;
+
+    switch (unpack->raw) {
+    case WT_CELL_KEY_OVFL:
+    case WT_CELL_KEY_OVFL_RM:
+    case WT_CELL_VALUE_OVFL:
+    case WT_CELL_VALUE_OVFL_RM:
+        /*
+         * Set overflow flag.
+         */
+        F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
+        /* FALLTHROUGH */
+
+    case WT_CELL_ADDR_DEL:
+    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
+    case WT_CELL_ADDR_INT:
+    case WT_CELL_ADDR_LEAF:
+    case WT_CELL_ADDR_LEAF_NO:
+    case WT_CELL_KEY:
+    case WT_CELL_KEY_PFX:
+    case WT_CELL_VALUE:
+        /*
+         * The cell is followed by a 4B data length and a chunk of data.
+         */
+        WT_RET(__wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &v));
+
+        /*
+         * If the size was what prevented us from using a short cell, it's larger than the
+         * adjustment size. Decrement/increment it when packing/unpacking so it takes up less room.
+         */
+        if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
+          (unpack->raw == WT_CELL_VALUE && unpack->v == 0 &&
+            (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
+            v += WT_CELL_SIZE_ADJUST;
+
+        unpack->data = *pp;
+        unpack->size = (uint32_t)v;
+        unpack->__len = WT_PTRDIFF32(*pp, cell) + unpack->size;
+        break;
+
+    case WT_CELL_DEL:
+        unpack->__len = WT_PTRDIFF32(*pp, cell);
+        break;
+    default:
+        return (WT_ERROR); /* Unknown cell type. */
+    }
+    return (0);
+}
+
+/*
  * __wt_cell_unpack_safe --
  *     Unpack a WT_CELL into a structure, with optional boundary checks.
  */
@@ -1453,48 +1510,9 @@ copy_cell_restart:
         cell = (WT_CELL *)((uint8_t *)cell - v);
         goto copy_cell_restart;
 
-    case WT_CELL_KEY_OVFL:
-    case WT_CELL_KEY_OVFL_RM:
-    case WT_CELL_VALUE_OVFL:
-    case WT_CELL_VALUE_OVFL_RM:
-        /*
-         * Set overflow flag.
-         */
-        F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
-        /* FALLTHROUGH */
-
-    case WT_CELL_ADDR_DEL:
-    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
-    case WT_CELL_ADDR_INT:
-    case WT_CELL_ADDR_LEAF:
-    case WT_CELL_ADDR_LEAF_NO:
-    case WT_CELL_KEY:
-    case WT_CELL_KEY_PFX:
-    case WT_CELL_VALUE:
-        /*
-         * The cell is followed by a 4B data length and a chunk of data.
-         */
-        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
-
-        /*
-         * If the size was what prevented us from using a short cell, it's larger than the
-         * adjustment size. Decrement/increment it when packing/unpacking so it takes up less room.
-         */
-        if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
-          (unpack->raw == WT_CELL_VALUE && unpack->v == 0 &&
-            (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
-            v += WT_CELL_SIZE_ADJUST;
-
-        unpack->data = p;
-        unpack->size = (uint32_t)v;
-        unpack->__len = WT_PTRDIFF32(p, cell) + unpack->size;
-        break;
-
-    case WT_CELL_DEL:
-        unpack->__len = WT_PTRDIFF32(p, cell);
-        break;
     default:
-        return (WT_ERROR); /* Unknown cell type. */
+        WT_RET(__cell_unpack_data_len(cell, unpack, &p, end));
+        break;
     }
 
 done:
