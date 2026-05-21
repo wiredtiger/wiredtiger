@@ -146,6 +146,13 @@ connection_disaggregated_config_common = [
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',
         type='boolean', undoc=True),
+    Config('pickup_latest_checkpoint', 'false', r'''
+        if true, and the connection opens in disaggregated follower mode without an
+        explicit \c checkpoint_meta, fetch the latest complete checkpoint from the
+        page log and apply it. Intended for the \c wt CLI when using a CLI-oriented
+        page log such as \c ext_pali. Production page logs that do not implement
+        \c pl_get_complete_checkpoint must not enable this''',
+        type='boolean', undoc=True),
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
