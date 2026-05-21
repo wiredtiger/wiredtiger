@@ -369,9 +369,9 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
 
 /*
  * __wt_block_disagg_debug_read_page_id --
- *     Debug-only entry: fetch a page chain by (page_id, lsn) via plh_get and return the raw
- *     results plus the page-log get-args. No byteswap, no magic/checksum checks here; the
- *     caller (bt_debug.c) owns validation and printing. Not for production code paths.
+ *     Debug-only entry: fetch a page chain by (page_id, lsn) via plh_get and return the raw results
+ *     plus the page-log get-args. No byteswap, no magic/checksum checks here; the caller
+ *     (bt_debug.c) owns validation and printing. Not for production code paths.
  */
 int
 __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t page_id,
@@ -388,8 +388,8 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
         F_SET(get_args, WT_PAGE_LOG_COLD);
 
     tmp_count = (uint32_t)*results_count;
-    WT_RET(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
-      get_args, results_array, &tmp_count));
+    WT_RET(block_disagg->plhandle->plh_get(
+      block_disagg->plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
     WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
     *results_count = tmp_count;
 

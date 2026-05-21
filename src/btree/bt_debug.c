@@ -417,22 +417,22 @@ __wti_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *
 /*
  * __wt_debug_disagg_page_id --
  *     Read and dump a disaggregated-storage page given a (page_id, lsn) pair. Drives the disagg
- *     block manager directly via __wt_block_disagg_debug_read_page_id, bypassing the address
- *     cookie path. Performs per-result structural validation (byteswap + magic + header
- *     checksum) inline. Note that this duplicates a small amount of validation logic from
+ *     block manager directly via __wt_block_disagg_debug_read_page_id, bypassing the address cookie
+ *     path. Performs per-result structural validation (byteswap + magic + header checksum) inline.
+ *     Note that this duplicates a small amount of validation logic from
  *     __block_disagg_read_multiple by design, so the production loop can stay untouched.
  */
 int
-__wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
-  const char *ofile)
+__wt_debug_disagg_page_id(
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     WT_DECL_RET;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_PAGE_LOG_GET_ARGS get_args;
-    u_int count, i;
     uint32_t size;
     uint8_t expected_magic;
+    u_int count, i;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
     memset(results, 0, sizeof(results));
@@ -457,7 +457,12 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
         size = (uint32_t)results[i].size;
 
         blk = WT_BLOCK_HEADER_REF(results[i].data);
-        __wti_block_disagg_header_byteswap_copy(blk, &swap);
+        /*
+         * Equivalent of __wti_block_disagg_header_byteswap_copy, inlined here because that helper
+         * is internal to the block_disagg module. Validation is duplicated by design so the
+         * production read loop (__block_disagg_read_multiple) stays untouched.
+         */
+        swap = *blk;
 
         expected_magic = (i == 0) ? WT_BLOCK_DISAGG_MAGIC_BASE : WT_BLOCK_DISAGG_MAGIC_DELTA;
         if (swap.magic != expected_magic) {

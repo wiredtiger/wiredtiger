@@ -73,6 +73,7 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
+CLI
 CLOEXEC
 CMAKE
 CMP
@@ -124,6 +125,7 @@ DENABLE
 DESC
 DEST
 DHANDLE
+DHAVE
 DISAGG
 DISAGGREGATED
 DNE
@@ -1691,6 +1693,7 @@ strtouq
 struct
 structs
 su
+subcommand
 subconfig
 subconfigs
 subconfiguration
