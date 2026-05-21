@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-// Test the cross-checkpoint cache put function. [cross_checkpoint_caching_put]
+/* Test the cross-checkpoint cache put function. [cross_checkpoint_caching_put] */
 
 #include "../cross_checkpoint_caching_test_env.h"
 
@@ -57,7 +57,7 @@ TEST_CASE(
 
     WT_SHARED_DSK_ITEM *second = env.put(addr, sizeof(addr));
 
-    // Collision: the existing entry is returned with ref_count incremented, no new entry inserted.
+    /* Collision: the existing entry is returned with ref_count incremented, no new entry inserted. */
     REQUIRE(second == first);
     REQUIRE(first->ref_count == 2);
     REQUIRE(env.bucket_size(0) == 1);
@@ -83,7 +83,7 @@ TEST_CASE(
   "cross_checkpoint_caching_put: same addr with different fileid produces two distinct entries",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_put]")
 {
-    // Same addr hashes to the same bucket. Different fid means they are distinct entries.
+    /* Same addr hashes to the same bucket. Different fid means they are distinct entries. */
     cross_checkpoint_caching_test_env env(1);
     const uint8_t addr[] = {0x01, 0x02};
     const uint32_t fid_a = 100;
