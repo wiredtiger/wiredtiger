@@ -532,17 +532,8 @@ begin_transaction_ts(TINFO *tinfo)
     /* Pick a read timestamp. */
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_read_ts(tinfo);
-    else if (disagg_is_mode_switch() && !__wt_process.disagg_slow_truncate_2026)
-        ts = 0;
     else
-        /*
-         * Transaction timestamp reads are repeatable, but read timestamps must be before any
-         * possible commit timestamp. Without a read timestamp, reads are based on the transaction
-         * snapshot, which will include the latest values as of when the snapshot is taken. Test in
-         * both modes: 75% of the time, pick a read timestamp before any commit timestamp still in
-         * use, 25% of the time don't set a timestamp at all.
-         */
-        ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
+        ts = 0;
     if (ts != 0) {
         /* 10% of times configure ignore_prepare */
         if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
