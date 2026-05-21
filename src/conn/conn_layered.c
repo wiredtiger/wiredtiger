@@ -760,8 +760,9 @@ err:
 /*
  * __disagg_pick_up_latest_checkpoint --
  *     Resolve the latest complete checkpoint from the page log and apply it.
- *     On WT_NOTFOUND (no checkpoint exists yet), log and return 0. Propagates
- *     ENOTSUP unchanged so callers can attach context.
+ *     Returns 0 on success or when no checkpoint exists yet (WT_NOTFOUND is
+ *     swallowed and logged). Any other error from the page-log lookup or the
+ *     pickup itself is propagated to the caller.
  */
 static int
 __disagg_pick_up_latest_checkpoint(WT_SESSION_IMPL *session, const char **cfg)
