@@ -157,8 +157,8 @@ __block_disagg_process_results(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_
 
         /*
          * In lenient mode there is no cookie checksum to compare against: go straight to the
-         * self-consistent header checksum check. In strict mode keep the original
-         * outer-then-inner cookie/data check pair.
+         * self-consistent header checksum check. In strict mode keep the original outer-then-inner
+         * cookie/data check pair.
          */
         if (lenient_cookie || F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) ||
           swap.checksum == checksum) {
@@ -197,8 +197,7 @@ __block_disagg_process_results(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_
                     WT_ASSERT(session, get_args->lsn > 0);
                     if (!lenient_cookie && !F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED)) {
                         WT_ASSERT(session,
-                          (results_count > 1) ==
-                            FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
+                          (results_count > 1) == FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
                         WT_ASSERT(session,
                           (get_args->base_lsn == 0 && results_count == 1) ||
                             get_args->base_lsn == base_lsn);
@@ -374,14 +373,14 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
 }
 
 /*
- * __wti_block_disagg_debug_read_page_id --
- *     Debug-only entry point. Read a single page through the disagg page log given a
- *     (page_id, lsn) pair, with no address cookie. Cookie-driven size/checksum/base_lsn
- *     checks are skipped; magic and header checksum still run. Intended exclusively for
- *     the `wt page` CLI; do not call from production code.
+ * __wt_block_disagg_debug_read_page_id --
+ *     Debug-only entry point. Read a single page through the disagg page log given a (page_id, lsn)
+ *     pair, with no address cookie. Cookie-driven size/checksum/base_lsn checks are skipped; magic
+ *     and header checksum still run. Intended exclusively for the `wt page` command; do not call
+ *     from production code.
  */
 int
-__wti_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t page_id,
+__wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t page_id,
   uint64_t lsn, WT_PAGE_BLOCK_META *block_meta, WT_ITEM *results_array, u_int *results_count)
 {
     WT_BLOCK_DISAGG *block_disagg;
@@ -397,8 +396,8 @@ __wti_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint6
         F_SET(&get_args, WT_PAGE_LOG_COLD);
 
     tmp_count = (uint32_t)*results_count;
-    WT_RET(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
-      &get_args, results_array, &tmp_count));
+    WT_RET(block_disagg->plhandle->plh_get(
+      block_disagg->plhandle, &session->iface, page_id, 0, &get_args, results_array, &tmp_count));
     WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
     *results_count = tmp_count;
 
@@ -406,9 +405,9 @@ __wti_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint6
         return (WT_NOTFOUND);
 
     /*
-     * Emit a one-line chain header from get_args. When the caller passed
-     * WT_PAGE_LOG_LSN_MAX as the input LSN, palite preserves it in get_args.lsn, so report
-     * "latest" instead of the raw sentinel.
+     * Emit a one-line chain header from get_args. When the caller passed WT_PAGE_LOG_LSN_MAX as the
+     * input LSN, palite preserves it in get_args.lsn, so report "latest" instead of the raw
+     * sentinel.
      */
     if (lsn == WT_PAGE_LOG_LSN_MAX)
         WT_IGNORE_RET(__wt_msg(session,

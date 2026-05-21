@@ -415,6 +415,56 @@ __wti_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *
 }
 
 /*
+ * __wt_debug_disagg_page_id --
+ *     Read and dump a disaggregated-storage page given a (page_id, lsn) pair. Drives the disagg
+ *     block manager directly via __wti_block_disagg_debug_read_page_id, bypassing the address
+ *     cookie path. The active session has WT_SESSION_QUIET_CORRUPT_FILE set around the call so a
+ *     corrupt page returns WT_ERROR instead of panicking; the same flag also suppresses the
+ *     structured summary and the hex dump on corruption (see the dump/panic-split follow-up).
+ */
+int
+__wt_debug_disagg_page_id(
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
+{
+    WT_DECL_RET;
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
+    WT_PAGE_BLOCK_META block_meta;
+    u_int count, i;
+    bool quiet_was_set;
+
+    WT_ASSERT(session, S2BT_SAFE(session) != NULL);
+    memset(results, 0, sizeof(results));
+    WT_CLEAR(block_meta);
+    count = WT_ELEMENTS(results);
+
+    quiet_was_set = F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+    if (!quiet_was_set)
+        F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+
+    ret = __wt_block_disagg_debug_read_page_id(
+      S2BT(session)->bm, session, page_id, lsn, &block_meta, results, &count);
+
+    if (!quiet_was_set)
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+
+    if (ret == 0) {
+        for (i = 0; i < count; i++) {
+            WT_IGNORE_RET(__wt_msg(session, "--- result %u (%s, size=%" WT_SIZET_FMT ") ---", i,
+              i == 0 ? "base" : "delta", results[i].size));
+            if (i == 0)
+                WT_TRET(__wti_debug_disk(session, results[i].data, ofile, false, false));
+            else
+                __wt_log_data_dump(session, results[i].data, results[i].size,
+                  "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
+        }
+    }
+
+    for (i = 0; i < count; i++)
+        __wt_buf_free(session, &results[i]);
+    return (ret);
+}
+
+/*
  * __wt_debug_offset --
  *     Read and dump a disk page in debugging mode, using a file offset/size/checksum triplet.
  */
