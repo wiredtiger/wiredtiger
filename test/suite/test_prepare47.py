@@ -224,8 +224,9 @@ class test_prepare47(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(stable_unstable))
 
-        # Roll back with rollback_ts ahead of stable; first_committed_upd is NULL but
-        # tw_found is true so no rollback tombstone is appended to the chain.
+        # Roll back with rollback_ts ahead of stable; there is no committed update behind the
+        # prepared insert but the on-disk cell exists, so no rollback tombstone is appended to
+        # the chain.
         self.session.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(rollback_ts))
 
