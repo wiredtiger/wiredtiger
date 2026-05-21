@@ -116,7 +116,7 @@
 #cmakedefine HAVE_RCPC 1
 
 /* Define to 1 to disable any crc32 hardware support. */
-#cmakedefine HAVE_NO_CRC32_HARDWARE
+#cmakedefine HAVE_NO_CRC32_HARDWARE 1
 
 /*
  * Compile-time platform feature flags.
