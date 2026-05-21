@@ -28,23 +28,33 @@
 
 import glob, os, re, subprocess
 import wttest
+from helper_disagg import DisaggConfigMixin
 
 # test_disagg_wt_page.py
 #    Drive the `wt page` command end-to-end through a disagg cell.
-class test_disagg_wt_page(wttest.WiredTigerTestCase):
+#
+#    Uses DisaggConfigMixin (without make_scenarios) so the harness handles extension loading
+#    and injects disaggregated=(page_log=palite) automatically.  We don't use make_scenarios
+#    because this test is palite-only and doesn't need scenario expansion.
+class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
     uri = "file:wt_page_test.wt_stable"
     nrows = 10_000
-
-    conn_config = 'disaggregated=(page_log=palite),disaggregated=(role="leader")'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
 
+    def conn_config(self):
+        # page_log and role must appear in the same disaggregated=(…) block.
+        # extensionsConfig() will add a separate disaggregated=(page_log=…) entry later;
+        # WiredTiger merges duplicate top-level keys, preserving sub-keys from the first
+        # occurrence only when both sub-keys are present together.
+        return f'disaggregated=(page_log={self.vars.page_log},role="leader")'
+
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palite')
+        DisaggConfigMixin.conn_extensions(self, extlist)
 
     def early_setup(self):
         os.mkdir('kv_home')

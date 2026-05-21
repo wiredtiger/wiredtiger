@@ -404,6 +404,10 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
     if (tmp_count == 0)
         return (WT_NOTFOUND);
 
+    /* Warn if the requested LSN is ahead of the materialization frontier. */
+    if (lsn != WT_PAGE_LOG_LSN_MAX)
+        __block_disagg_check_lsn_frontier(session, lsn, block_disagg->tableid);
+
     /*
      * Emit a one-line chain header from get_args. When the caller passed WT_PAGE_LOG_LSN_MAX as the
      * input LSN, palite preserves it in get_args.lsn, so report "latest" instead of the raw
