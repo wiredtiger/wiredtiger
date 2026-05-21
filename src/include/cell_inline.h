@@ -1084,6 +1084,98 @@ __wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
     } while (0)
 
 /*
+ * __cell_unpack_addr_cell --
+ *     Unpack the validity window and optional fast-truncate record for an addr cell.
+ */
+static WT_INLINE int
+__cell_unpack_addr_cell(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
+  const uint8_t **pp, const void *end, WT_CELL_UNPACK_ADDR *unpack_addr)
+{
+    WT_PAGE_DELETED *page_del;
+    WT_TIME_AGGREGATE *ta;
+    uint8_t flags;
+    bool has_fast_truncate, prepare_fast_truncate;
+
+    /* Return an error if we're not unpacking a cell of this type. */
+    if (unpack_addr == NULL)
+        return (WT_ERROR);
+
+    ta = &unpack_addr->ta;
+    has_fast_truncate = unpack_addr->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE);
+    prepare_fast_truncate = false;
+
+    if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) != 0) {
+        flags = *(*pp)++; /* skip second descriptor byte */
+        WT_CELL_LEN_CHK(*pp, 0, dsk, end);
+
+        if (LF_ISSET(WT_CELL_PREPARE)) {
+            if (has_fast_truncate)
+                prepare_fast_truncate = true;
+            else
+                ta->prepare = 1;
+        }
+        if (LF_ISSET(WT_CELL_TS_START))
+            WT_RET(
+              __wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &ta->oldest_start_ts));
+        if (LF_ISSET(WT_CELL_TXN_START))
+            WT_RET(__wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &ta->newest_txn));
+        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
+            WT_RET(__wt_vunpack_uint(
+              pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &ta->newest_start_durable_ts));
+            ta->newest_start_durable_ts += ta->oldest_start_ts;
+        }
+        if (LF_ISSET(WT_CELL_TS_STOP)) {
+            WT_RET(
+              __wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &ta->newest_stop_ts));
+            ta->newest_stop_ts += ta->oldest_start_ts;
+        }
+        if (LF_ISSET(WT_CELL_TXN_STOP)) {
+            WT_RET(
+              __wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &ta->newest_stop_txn));
+            ta->newest_stop_txn += ta->newest_txn;
+        }
+        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
+            WT_RET(__wt_vunpack_uint(
+              pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &ta->newest_stop_durable_ts));
+            ta->newest_stop_durable_ts += ta->newest_stop_ts;
+        }
+        WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
+    }
+
+    if (!has_fast_truncate)
+        return (0);
+
+    /* Unpack the fast-truncate page_del record. */
+    page_del = &unpack_addr->page_del;
+    WT_RET(
+      __wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), (uint64_t *)&page_del->txnid));
+    if (prepare_fast_truncate) {
+        page_del->prepare_state = WT_PREPARE_INPROGRESS;
+        page_del->committed = false;
+        WT_RET(
+          __wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &page_del->prepare_ts));
+        page_del->pg_del_start_ts = page_del->prepare_ts;
+        WT_RET(
+          __wt_vunpack_uint(pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &page_del->prepared_id));
+        /* Explicitly initialize the durable timestamp to WT_TS_NONE. */
+        page_del->pg_del_durable_ts = WT_TS_NONE;
+        WT_ASSERT_ALWAYS(session,
+          !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
+            page_del->prepared_id != WT_PREPARED_ID_NONE,
+          "Read prepared record with no prepared id when preserve prepared is enabled.");
+    } else {
+        page_del->prepare_state = WT_PREPARE_INIT;
+        page_del->committed = true;
+        WT_RET(__wt_vunpack_uint(
+          pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &page_del->pg_del_start_ts));
+        WT_RET(__wt_vunpack_uint(
+          pp, end == NULL ? 0 : WT_PTRDIFF(end, *pp), &page_del->pg_del_durable_ts));
+    }
+    page_del->selected_for_write = true;
+    return (0);
+}
+
+/*
  * __wt_cell_unpack_safe --
  *     Unpack a WT_CELL into a structure, with optional boundary checks.
  */
@@ -1097,15 +1189,13 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_TIME_WINDOW tw;
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
-    WT_PAGE_DELETED *page_del;
-    WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
     uint64_t v;
     const uint8_t *p;
     uint8_t flags;
-    bool copy_cell, has_fast_truncate, prepare_fast_truncate;
+    bool copy_cell;
 
-    copy_cell = has_fast_truncate = prepare_fast_truncate = false;
+    copy_cell = false;
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
@@ -1113,13 +1203,11 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
         tw = &unpack_value->tw;
         WT_TIME_WINDOW_INIT(tw);
-        ta = NULL;
     } else {
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
-        ta = &unpack_addr->ta;
-        WT_TIME_AGGREGATE_INIT(ta);
+        WT_TIME_AGGREGATE_INIT(&unpack_addr->ta);
         tw = NULL;
     }
 
@@ -1189,60 +1277,7 @@ copy_cell_restart:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        /* Return an error if we're not unpacking a cell of this type. */
-        if (unpack_addr == NULL)
-            return (WT_ERROR);
-
-        /*
-         * A committed fast-truncate cell may be written without WT_CELL_SECOND_DESC when its time
-         * aggregate is globally visible. Compute this flag before the SECOND_DESC early-exit so the
-         * page_del block is always unpacked for fast-truncate addr-del cells.
-         */
-        has_fast_truncate = unpack->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE);
-
-        if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
-            break;
-        flags = *p++; /* skip second descriptor byte */
-        WT_CELL_LEN_CHK(p, 0, dsk, end);
-
-        if (LF_ISSET(WT_CELL_PREPARE)) {
-            /*
-             * For a prepared fast-truncate, the prepare state is recorded in the time aggregate. We
-             * cannot have a prepared fast-truncate and a prepared time aggregate at the same time.
-             * Otherwise, it would be a write conflict.
-             */
-            if (has_fast_truncate)
-                prepare_fast_truncate = true;
-            else
-                ta->prepare = 1;
-        }
-        if (LF_ISSET(WT_CELL_TS_START))
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_ts));
-        if (LF_ISSET(WT_CELL_TXN_START))
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_txn));
-        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_start_durable_ts));
-            ta->newest_start_durable_ts += ta->oldest_start_ts;
-        }
-
-        if (LF_ISSET(WT_CELL_TS_STOP)) {
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_ts));
-            ta->newest_stop_ts += ta->oldest_start_ts;
-        }
-        if (LF_ISSET(WT_CELL_TXN_STOP)) {
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_txn));
-            ta->newest_stop_txn += ta->newest_txn;
-        }
-        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_durable_ts));
-            ta->newest_stop_durable_ts += ta->newest_stop_ts;
-        }
-        WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
+        WT_RET(__cell_unpack_addr_cell(session, dsk, cell, &p, end, unpack_addr));
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
@@ -1373,40 +1408,6 @@ copy_cell_restart:
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;
-    }
-
-    /* Unpack any fast-truncate information. */
-    if (has_fast_truncate) {
-        page_del = &unpack_addr->page_del;
-        WT_RET(__wt_vunpack_uint(
-          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
-        if (prepare_fast_truncate) {
-            page_del->prepare_state = WT_PREPARE_INPROGRESS;
-            page_del->committed = false;
-            /*
-             * For prepared fast-truncates, the prepared state is shared with the time aggregate but
-             * the prepare timestamp and the prepared id are stored in the page_del block.
-             */
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->prepare_ts));
-            page_del->pg_del_start_ts = page_del->prepare_ts;
-            WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->prepared_id));
-            /* Explicitly initialize the durable timestamp to WT_TS_NONE. */
-            page_del->pg_del_durable_ts = WT_TS_NONE;
-            WT_ASSERT_ALWAYS(session,
-              !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
-                page_del->prepared_id != WT_PREPARED_ID_NONE,
-              "Read prepared record with no prepared id when preserve prepared is enabled.");
-        } else {
-            page_del->prepare_state = WT_PREPARE_INIT;
-            page_del->committed = true;
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_start_ts));
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_durable_ts));
-        }
-        page_del->selected_for_write = true;
     }
 
     /*
