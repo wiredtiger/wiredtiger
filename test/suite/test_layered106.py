@@ -66,8 +66,8 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'disaggregated=(role="leader",drain_threads=1)'
 
     def _race_scenario(self):
-        # Set up leader data, reopen as follower, and run the drop/drain race.
-        # Called inside a subprocess so WT_PANIC exits non-zero.
+        # Set up leader data, reopen as follower, then race step-up (which drains
+        # ingest tables) against a concurrent drop of the same table.
 
         # Create and populate the table via the framework's leader connection.
         self.session.create(self.uri,
