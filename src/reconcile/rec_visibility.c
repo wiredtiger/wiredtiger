@@ -1263,26 +1263,11 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      */
     if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
         /*
-         * If the bottom non-aborted entry in the saved chain is a MODIFY, that MODIFY's
-         * reconstruction base is the existing on-page value. Clearing upd_select->upd here lets
-         * the GARBAGE_COLLECT path in rec_row.c drop the on-page cell from the rebuilt in-memory
-         * disk image. The saved chain then survives via supd_restore but lands on the insert list
-         * of the new page (the key has no row), and readers walking the MODIFY can no longer fall
-         * back to the on-page value -- they trip the "cbt->slot != UINT32_MAX" assertion in
-         * __wt_modify_reconstruct_from_upd_list.
-         *
-         * Only bypass the guard when the on-page cell is also GC-eligible (its timestamp is at or
-         * below prune_timestamp, meaning it has been committed to the stable btree and no reader
-         * needs it from the ingest btree). In that case, force the MODIFY to be written as a full
-         * reconstructed value now, preserving the key's row in pg_row. When the on-page cell is
-         * not yet GC-eligible, the original guard behaviour is correct and safe: keeping upd_select
-         * NULL causes rec_row.c to leave the on-page cell unchanged (the GC drop does not fire),
-         * and the dependent MODIFY survives in the restored update chain with the on-page value
-         * still available as its reconstruction base.
+         * If the bottom non-aborted entry in the update chain is a MODIFY, that MODIFY's
+         * reconstruction base is the existing on-page value. If the base value is GC-eligible,
+         * force the MODIFY to be written as a full reconstructed value now.
          */
-        bool onpage_gc_eligible = WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ?
-          WT_REC_CAN_PRUNE_UPD(vpack->tw.stop_txn, vpack->tw.durable_stop_ts, r) :
-          WT_REC_CAN_PRUNE_UPD(vpack->tw.start_txn, vpack->tw.durable_start_ts, r);
+        bool onpage_gc_eligible = __rec_row_garbage_collect_tw_eligible(r, &vpack->tw);
         WT_UPDATE *last_non_aborted = NULL;
         if (onpage_gc_eligible) {
             for (WT_UPDATE *u = first_upd; u != NULL; u = u->next) {
