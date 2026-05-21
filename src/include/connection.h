@@ -249,6 +249,7 @@ struct __wt_checkpoint_cleanup {
     int tid_set;              /* checkpoint cleanup thread set */
     WT_CONDVAR *cond;         /* checkpoint cleanup wait mutex */
     uint64_t interval;        /* Checkpoint cleanup interval */
+    bool use_thread;          /* use a dedicated thread instead of inline checkpoint cleanup */
 };
 
 /*

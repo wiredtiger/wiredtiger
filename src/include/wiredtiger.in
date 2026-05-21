@@ -2247,8 +2247,12 @@ struct __wt_connection {
      * control how aggressively obsolete content is removed by reading the internal pages.  Default
      * to none\, which means no additional work is done to find obsolete content., a string\, chosen
      * from the following options: \c "none"\, \c "reclaim_space"; default \c none.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint cleanup., an
-     * integer between \c 60 and \c 100000; default \c 300.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;use_thread, if true\, a dedicated utility thread performs
+     * checkpoint cleanup asynchronously.  When false (default)\, cleanup runs inline during the
+     * checkpoint tree walk., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * wait, seconds to wait between each checkpoint cleanup., an integer between \c 60 and \c
+     * 100000; default \c 300.}
      * @config{ ),,}
      * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
      * version requires that there are no active operations for the duration of the call., a set of
@@ -2993,9 +2997,12 @@ struct __wt_connection {
  * aggressively obsolete content is removed by reading the internal pages.  Default to none\, which
  * means no additional work is done to find obsolete content., a string\, chosen from the following
  * options: \c "none"\, \c "reclaim_space"; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait,
- * seconds to wait between each checkpoint cleanup., an integer between \c 60 and \c 100000; default
- * \c 300.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * use_thread, if true\, a dedicated utility thread performs checkpoint cleanup asynchronously.
+ * When false (default)\, cleanup runs inline during the checkpoint tree walk., a boolean flag;
+ * default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint
+ * cleanup., an integer between \c 60 and \c 100000; default \c 300.}
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}

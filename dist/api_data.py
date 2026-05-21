@@ -553,6 +553,10 @@ connection_runtime_config = [
             control how aggressively obsolete content is removed by reading the internal pages.
             Default to none, which means no additional work is done to find obsolete content.
             ''', choices=['none', 'reclaim_space']),
+        Config('use_thread', 'false', r'''
+            if true, a dedicated utility thread performs checkpoint cleanup asynchronously.
+            When false (default), cleanup runs inline during the checkpoint tree walk.''',
+            type='boolean'),
         Config('wait', '300', r'''
             seconds to wait between each checkpoint cleanup''',
             min='60', max='100000'),

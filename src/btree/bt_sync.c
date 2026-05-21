@@ -139,7 +139,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
-    bool dirty, is_hs, tried_eviction;
+    bool dirty, internal_cleanup, is_hs, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -249,18 +249,48 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
 
-        /* Limit reads to cache-only. */
-        LF_SET(WT_READ_CACHE);
+        /*
+         * When a dedicated cleanup thread is enabled, limit reads to cache only and let the thread
+         * handle obsolete page cleanup asynchronously. Otherwise, perform cleanup inline during the
+         * checkpoint tree walk for row-store and VLCS trees; FLCS cannot fast-delete pages.
+         */
+        if (conn->cc_cleanup.use_thread) {
+            LF_SET(WT_READ_CACHE);
+            internal_cleanup = false;
+        } else if (btree->type == BTREE_ROW || btree->type == BTREE_COL_VAR) {
+            internal_cleanup = !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
+              !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE);
+            /*
+             * When cleanup is suppressed during recovery, shutdown, or RTS, limit reads to cache
+             * only. Reading fast-truncated leaves from disk in those phases would instantiate and
+             * dirty pages, which the dirty-on-shutdown assertion forbids.
+             */
+            if (!internal_cleanup)
+                LF_SET(WT_READ_CACHE);
+        } else {
+            LF_SET(WT_READ_CACHE);
+            internal_cleanup = false;
+        }
 
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        if (internal_cleanup)
+            WT_STAT_CONN_INCR(session, cc_handle_processed);
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-            WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
+            WT_ERR(__wt_tree_walk_custom_skip(session, &walk,
+              internal_cleanup ? __wt_checkpoint_cleanup_page_skip : NULL, NULL, flags));
 
             if (walk == NULL)
                 break;
+
+            if (F_ISSET(walk, WT_REF_FLAG_INTERNAL) && internal_cleanup) {
+                WT_WITH_PAGE_INDEX(
+                  session, ret = __wt_checkpoint_cleanup_obsolete_cleanup(session, walk));
+                WT_ERR(ret);
+            }
 
             page = walk->page;
 

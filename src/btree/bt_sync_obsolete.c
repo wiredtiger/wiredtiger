@@ -263,12 +263,12 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __checkpoint_cleanup_obsolete_cleanup --
+ * __wt_checkpoint_cleanup_obsolete_cleanup --
  *     Traverse an internal page and identify the leaf pages that are obsolete and mark them as
  *     deleted.
  */
-static int
-__checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+int
+__wt_checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -308,11 +308,11 @@ __checkpoint_cleanup_run_chk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __checkpoint_cleanup_page_skip --
+ * __wt_checkpoint_cleanup_page_skip --
  *     Return if checkpoint cleanup should read this page.
  */
-static int
-__checkpoint_cleanup_page_skip(
+int
+__wt_checkpoint_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
@@ -422,10 +422,11 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 
     /* Walk the tree. */
     while ((ret = __wt_tree_walk_custom_skip(
-              session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
+              session, &ref, __wt_checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-            WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
+            WT_WITH_PAGE_INDEX(
+              session, ret = __wt_checkpoint_cleanup_obsolete_cleanup(session, ref));
         WT_ERR(ret);
 
         /* Check if we're quitting. */
@@ -647,12 +648,19 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    /* Set first, the thread might run before we finish up. */
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
+    WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.use_thread", &cval));
+    conn->cc_cleanup.use_thread = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
     if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
         F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
+
+    /* Without a dedicated thread, cleanup runs inline during the checkpoint tree walk. */
+    if (!conn->cc_cleanup.use_thread)
+        return (0);
+
+    /* Set first, the thread might run before we finish up. */
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
     conn->cc_cleanup.interval = (uint64_t)cval.val;
