@@ -137,13 +137,13 @@
 #define HAVE_POSIX_FADVISE 1
 #define HAVE_POSIX_FALLOCATE 1
 #define HAVE_PTHREAD_COND_MONOTONIC 1
+#define HAVE_TIMER_CREATE 1
 #endif
 
 /* Linux-specific syscalls and extensions. */
 #if defined(__linux__)
 #define HAVE_FALLOCATE 1
 #define HAVE_SYNC_FILE_RANGE 1
-#define HAVE_TIMER_CREATE 1
 #endif
 
 /* Architecture-specific intrinsic headers. */
