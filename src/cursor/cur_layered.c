@@ -1313,15 +1313,7 @@ __clayered_next(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
@@ -1355,15 +1347,7 @@ __clayered_prev(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, ret, prev, clayered->dhandle);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
@@ -1759,15 +1743,7 @@ __clayered_search(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, true, true, false));
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
     WT_ERR(__clayered_lookup(session, clayered, &cursor->value));
@@ -2055,15 +2031,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, true, true, false));
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__clayered_search_near_int(session, cursor, exactp));
 
@@ -2098,15 +2066,7 @@ __clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR *constituent)
     WT_DECL_RET;
     CURSOR_UPDATE_API_CALL_BTREE(constituent, session, ret, reserve);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /*
      * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet (it
@@ -2312,15 +2272,7 @@ __clayered_insert(WT_CURSOR *cursor)
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /* Insert doesn't keep the cursor positioned. Always clear the iteration flags. */
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
@@ -2381,15 +2333,7 @@ __clayered_update(WT_CURSOR *cursor)
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /*
      * Update keeps the cursor positioned. Retain the iteration flags if we are in the middle of a
@@ -2464,15 +2408,7 @@ __clayered_remove(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
@@ -2516,15 +2452,7 @@ __clayered_reserve(WT_CURSOR *cursor)
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /*
      * Since a search will be performed afterward that clears the iteration flags, no point to
@@ -2919,15 +2847,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /*
      * Modify keeps the cursor positioned. Retain the iteration flags if we are in the middle of a

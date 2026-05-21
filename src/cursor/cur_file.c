@@ -182,12 +182,7 @@ __curfile_next(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -249,15 +244,7 @@ __curfile_prev(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, prev, cbt->dhandle);
     CURSOR_REPOSITION_ENTER(cursor, session);
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -327,15 +314,7 @@ __curfile_search(WT_CURSOR *cursor)
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -376,15 +355,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -423,15 +394,7 @@ __curfile_insert(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -476,15 +439,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
     tret = 0;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert_check);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -515,15 +470,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, modify);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -564,15 +511,7 @@ __curfile_update(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, update);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -618,15 +557,7 @@ __curfile_remove(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, ret, cbt->dhandle);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -671,15 +602,7 @@ __curfile_reserve(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, reserve);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
