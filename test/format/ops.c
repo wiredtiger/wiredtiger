@@ -532,6 +532,8 @@ begin_transaction_ts(TINFO *tinfo)
     /* Pick a read timestamp. */
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_read_ts(tinfo);
+    else if (disagg_is_mode_switch() && !__wt_process.disagg_slow_truncate_2026)
+        ts = 0;
     else
         /*
          * Transaction timestamp reads are repeatable, but read timestamps must be before any
@@ -1360,9 +1362,7 @@ rollback_retry:
                 }
                 fast_truncate_lock_release(session, &lock_state);
                 fast_truncate_lock_acquire_write(session, &lock_state);
-                tinfo->ignore_prepare = false;
-                wt_wrap_begin_transaction(session, NULL);
-                snap_op_init(tinfo, WT_TS_NONE, false);
+                begin_transaction_ts(tinfo);
                 intxn = true;
             } else if (op != READ)
                 fast_truncate_lock_acquire_read(session, &lock_state);
