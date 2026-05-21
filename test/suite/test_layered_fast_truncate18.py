@@ -34,7 +34,7 @@ import unittest
 from contextlib import closing, nullcontext
 from typing import Iterable
 from helper_disagg import disagg_test_class, gen_disagg_storages
-from wiredtiger import disagg_fast_truncate_build, WiredTigerError
+from wiredtiger import WiredTigerError
 from wtscenario import make_scenarios
 import wttest
 
@@ -61,11 +61,6 @@ class test_layered_fast_truncate18(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader"),'
 
     CONFLICT_MSG = "/conflict between concurrent operations/"
-
-    def setUp(self):
-        if disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     def session_create_config(self) -> str:
         """Return a config string for session.create() based on table URI."""
@@ -131,9 +126,6 @@ class test_layered_fast_truncate18(wttest.WiredTigerTestCase):
 
         # The transaction committed; no WT_ROLLBACK raised.
 
-    # FIXME-WT-17272: Overlapping uncommitted truncates are not detected as
-    # write conflicts even when ingest keys exist in the truncated range.
-    @unittest.skip("FIXME-WT-17272")
     def test_overlapping_truncates_conflict_with_ingest(self):
         # A follower with stable keys 1-100 and ingest key 45.
         self.setup_leader(keys=range_inclusive(1, 100))
@@ -155,9 +147,6 @@ class test_layered_fast_truncate18(wttest.WiredTigerTestCase):
                 self.CONFLICT_MSG,
             )
 
-    # FIXME-WT-17272: Overlapping uncommitted truncates are not detected as
-    # write conflicts when there are no ingest keys in the truncated range.
-    @unittest.skip("FIXME-WT-17272")
     def test_overlapping_truncates_conflict_no_ingest(self):
         # A follower with stable keys 1-100 and an empty ingest table.
         self.setup_leader(keys=range_inclusive(1, 100))
@@ -213,9 +202,6 @@ class test_layered_fast_truncate18(wttest.WiredTigerTestCase):
         ):
             self.truncate(session_b, 30, 60)
 
-    # FIXME-WT-17272: Truncates that are committed but invisible due to
-    # read-timestamp differences are not detected as write conflicts.
-    @unittest.skip("FIXME-WT-17272")
     def test_invisible_committed_truncate_conflicts(self):
         # A follower with stable keys 1-100.
         self.setup_leader(keys=range_inclusive(1, 100))
