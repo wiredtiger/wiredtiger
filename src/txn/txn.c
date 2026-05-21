@@ -1047,7 +1047,6 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UP
 
     WT_ASSERT(session, upd_chain != NULL);
 
-    size = 0;
     WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
 
     /*
