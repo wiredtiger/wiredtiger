@@ -351,7 +351,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         conn_follow.close('debug=(skip_checkpoint=true)')
 
     def subprocess_create_drop_split_epochs(self):
-        """Subprocess body for test_create_drop_split_epochs; expected to panic/abort."""
+        """Subprocess body for the split-epochs panic test; expected to panic/abort."""
         self.setup_leader_with_epoch()
 
         conn_follow, session_follow = self.open_follower()
@@ -392,7 +392,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         constituent was never created, so we have no data to write. WiredTiger detects this and
         panics.
         """
-        # Initialize self.conn so tearDown can close it cleanly; the real test runs
+        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
         # in a subprocess so that the panic/abort does not kill the test runner.
         self.setup_leader_with_epoch()
         subdir = 'SUBPROCESS_create_drop_split_epochs'

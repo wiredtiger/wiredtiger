@@ -126,7 +126,7 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
 
             /*
-             * Enqueue a metadata operations for creating the table. The schema epoch value does not
+             * Enqueue a metadata operation for creating the table. The schema epoch value does not
              * matter, because we can get here only if we are not using schema epochs.
              */
             WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri,
