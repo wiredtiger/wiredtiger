@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(WiredTiger C CXX ASM)
+project(WiredTiger C CXX)
 
 # Generate a compile_commands.json file containing the exact compiler calls for
 # all translation units of the project in machine-readable form.
@@ -16,31 +16,36 @@ include(cmake/gdb_autoloader_setup.cmake)
 # Define installation directory variables
 include(GNUInstallDirs)
 
-# If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
-# we will infer the target from the host. This is checked prior to the config option
-# being defined (in base.cmake) since it will prevent it having a default value.
+# If the user doesn't manually specify the target ARCH and OS, infer them from
+# CMAKE_SYSTEM_PROCESSOR / CMAKE_SYSTEM_NAME. This is checked prior to the
+# config option being defined (in base.cmake) since it will prevent it having
+# a default value.
 if(NOT WT_ARCH)
-    # Defer to our hosts architecture as our target architecture.
     # PROCESSOR_ARCHITECTURE env variable could be unset on certain Windows systems,
     # in that case map the architecture to x86.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
+    if("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
         set(WT_ARCH "x86")
-    elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
+    elseif("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
         set(WT_ARCH "aarch64")
     else()
-        set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
+        set(WT_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
     endif()
 endif()
 if(NOT WT_OS)
-    # Defer to our hosts OS as our target OS.
-    string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}" host_os)
-    set(WT_OS "${host_os}")
+    string(TOLOWER "${CMAKE_SYSTEM_NAME}" WT_OS)
 endif()
 
-set(WT_CONFIG "cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake")
+# If the user explicitly passed -DWT_ARCH=... / -DWT_OS=... these
+# are already cached and the calls below are no-ops.
+set(WT_ARCH "${WT_ARCH}" CACHE STRING "Target architecture for WiredTiger")
+set(WT_OS "${WT_OS}" CACHE STRING "Target OS for WiredTiger")
 
-if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_CONFIG}")
-    message(FATAL_ERROR "${WT_CONFIG} does not exist")
+# Architecture and OS specific configuration files.
+set(WT_ARCH_FILE "cmake/platform/arch/${WT_ARCH}.cmake")
+set(WT_OS_FILE "cmake/platform/os/${WT_OS}.cmake")
+
+if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_OS_FILE}")
+    message(FATAL_ERROR "Unsupported WT_OS '${WT_OS}': ${WT_OS_FILE} does not exist")
 endif()
 
 # Try to use CCACHE if available - speeds up build times.
@@ -54,8 +59,14 @@ if(CCACHE)
     message(STATUS "Using ccache: ${CCACHE}")
 endif()
 
-# Load any configuration variables special to our target.
-include(${WT_CONFIG})
+# OS specific configuration.
+include(${WT_OS_FILE})
+
+# Optional architecture specific configuration.
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_ARCH_FILE}")
+    include(${WT_ARCH_FILE})
+endif()
+
 # Load auto-configure variables (e.g. environment-related configs).
 include(cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
@@ -195,15 +206,6 @@ if(WITH_PIC OR ENABLE_SHARED)
     endif()
     if(ENABLE_ANTITHESIS)
         target_include_directories(wt_objs PRIVATE ${CMAKE_SOURCE_DIR}/tools/voidstar/include)
-    endif()
-    if(HAVE_LIBPTHREAD)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBPTHREAD_INCLUDES})
-    endif()
-    if(HAVE_LIBRT)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBRT_INCLUDES})
-    endif()
-    if(HAVE_LIBDL)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBDL_INCLUDES})
     endif()
     set_property(TARGET wt_objs PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()

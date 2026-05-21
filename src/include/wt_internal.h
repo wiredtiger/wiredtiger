@@ -191,6 +191,8 @@ struct __wt_conn_tiered;
 typedef struct __wt_conn_tiered WT_CONN_TIERED;
 struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
+struct __wt_connection_load_control;
+typedef struct __wt_connection_load_control WT_CONNECTION_LOAD_CONTROL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
 struct __wt_crypt_header;
@@ -637,6 +639,7 @@ typedef uint64_t wt_timestamp_t;
 #include "txn.h" /* required by checkpoint.h */
 #include "../checkpoint/checkpoint.h"
 
+#include "load_control.h"
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */
 #include "connection.h"
@@ -654,6 +657,7 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
+#include "load_control_inline.h"
 #include "cache_inline.h"
 #include "../evict/evict_inline.h" /* required by misc_inline.h */
 #include "ctype_inline.h"          /* required by packing_inline.h */
@@ -667,6 +671,7 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp_inline.h"  /* required by btree_inline.h */
 #include "cell_inline.h"       /* required by btree_inline.h */
 #include "mutex_inline.h"      /* required by btree_inline.h */
+#include "session_inline.h"    /* required by api.h macros */
 #include "txn_inline.h"        /* required by btree_inline.h */
 
 #include "bitstring_inline.h"
