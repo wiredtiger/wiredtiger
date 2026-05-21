@@ -1869,6 +1869,7 @@ valuep
 valuesize
 valuev
 variadic
+varint
 vd
 vdata
 vec

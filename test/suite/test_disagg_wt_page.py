@@ -91,18 +91,18 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase):
         metadata for self.uri.
 
         Cookie wire format (see block_disagg_addr.c __wt_block_disagg_addr_pack):
-          - 4b-packed pair (version, version_min): two nibbles, currently both 0 → byte 0x00
+          - 4b-packed pair (version, version_min): two nibbles, currently both 0  byte 0x00
           - WT unsigned varint: page_id
           - WT unsigned varint: flags
           - ... (lsn, base_lsn_delta, size, checksum)
 
-        4b nibble encoding (int4bitpack_inline.h): bits[2:0] = value chunk, bit[3] = continuation;
-        two nibbles per byte, low nibble first.
+        4b nibble encoding (int4bitpack_inline.h): bits[2:0] = value chunk, bit[3] = continuation
+        (two nibbles per byte, low nibble first).
 
         WT unsigned varint (intpack_inline.h):
-          0x80-0xBF  → 1 byte, value = byte & 0x3F            (0-63)
-          0xC0-0xDF  → 2 bytes, value = ((b & 0x1F)<<8|b2)+64 (64-8255)
-          0xE0+      → larger values (not needed here)
+          0x80-0xBF   1 byte, value = byte & 0x3F            (0-63)
+          0xC0-0xDF   2 bytes, value = ((b & 0x1F)<<8|b2)+64 (64-8255)
+          0xE0+       larger values (not needed here)
         """
         meta_c = self.session.open_cursor('metadata:')
         meta_c.set_key(self.uri)
@@ -115,7 +115,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase):
         data = bytes.fromhex(m.group(1))
 
         # Skip the 4b-packed version prefix (two nibbles = 1 byte when both are 0).
-        # Generalised: advance past both nibble-encoded ints.
+        # Advance past both nibble-encoded ints (generic loop).
         nibble_pos = 0
         for _ in range(2):
             while True:
@@ -182,7 +182,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase):
 
     def test_lsn_ahead_of_frontier(self):
         self._populate()
-        # The frontier sits at the most recent materialised LSN; passing a far-future LSN
+        # The frontier sits at the most recent materialized LSN; passing a far-future LSN
         # should not crash and should still return data (palite returns the chain DESC
         # from the cap), but the BM should emit the WT_VERB_DISAGGREGATED_STORAGE warning.
         page_id = self._root_page_id()
@@ -195,7 +195,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase):
                 capture_output=True, text=True, check=False)
         finally:
             self.reopen_conn()
-        # Either ret 0 with data, or non-zero — the contract is "no panic, no crash".
+        # Either ret 0 with data, or non-zero  the contract is "no panic, no crash".
         self.assertNotIn("PANIC", out.stderr)
 
 if __name__ == '__main__':

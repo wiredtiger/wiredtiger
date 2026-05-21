@@ -8,13 +8,17 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the page command.
+ */
 static int
 usage(void)
 {
-    static const char *options[] = {
-      "-p page_id", "required: numeric page id (decimal or 0x-prefixed hex)",
-      "-l lsn", "optional: LSN (defaults to WT_PAGE_LOG_LSN_MAX, the latest sentinel)",
-      "-?", "show this message", NULL, NULL};
+    static const char *options[] = {"-p page_id",
+      "required: numeric page id (decimal or 0x-prefixed hex)", "-l lsn",
+      "optional: LSN (defaults to WT_PAGE_LOG_LSN_MAX, the latest sentinel)", "-?",
+      "show this message", NULL, NULL};
 
     util_usage("page -p page_id [-l lsn] uri", "options:", options);
     return (1);
@@ -70,11 +74,11 @@ util_page(WT_SESSION *session, int argc, char *argv[])
         return (1);
 
     if (lsn == WT_PAGE_LOG_LSN_MAX)
-        WT_IGNORE_RET(__wt_msg(session_impl,
-          "=== wt page: uri=%s page_id=%" PRIu64 " lsn=latest", uri, page_id));
+        WT_IGNORE_RET(__wt_msg(
+          session_impl, "=== wt page: uri=%s page_id=%" PRIu64 " lsn=latest", uri, page_id));
     else
-        WT_IGNORE_RET(__wt_msg(session_impl,
-          "=== wt page: uri=%s page_id=%" PRIu64 " lsn=%" PRIu64, uri, page_id, lsn));
+        WT_IGNORE_RET(__wt_msg(
+          session_impl, "=== wt page: uri=%s page_id=%" PRIu64 " lsn=%" PRIu64, uri, page_id, lsn));
 
     WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
     ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);

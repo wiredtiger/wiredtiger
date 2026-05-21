@@ -1668,12 +1668,12 @@ struct Pages : public Table<Pages> {
         /*
          * WT_PAGE_LOG_LSN_MAX (UINT64_MAX) is the "get latest" sentinel. Casting UINT64_MAX to
          * int64_t gives -1, and SQLite compares signed integers, so "lsn <= -1" would match no
-         * stored rows (which have small positive LSNs). Map the sentinel to INT64_MAX so that
-         * "lsn <= INT64_MAX" matches all rows and ORDER BY lsn DESC returns the latest.
+         * stored rows (which have small positive LSNs). Map the sentinel to INT64_MAX so that "lsn
+         * <= INT64_MAX" matches all rows and ORDER BY lsn DESC returns the latest.
          */
-        const sqlite3_int64 bind_lsn = (args->lsn == WT_PAGE_LOG_LSN_MAX)
-          ? std::numeric_limits<sqlite3_int64>::max()
-          : static_cast<sqlite3_int64>(args->lsn);
+        const sqlite3_int64 bind_lsn = (args->lsn == WT_PAGE_LOG_LSN_MAX) ?
+          std::numeric_limits<sqlite3_int64>::max() :
+          static_cast<sqlite3_int64>(args->lsn);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, bind_lsn);
