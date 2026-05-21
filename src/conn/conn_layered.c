@@ -196,6 +196,7 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
          * nodes.
          */
         if (checkpoint_time != checkpoint_time_new) {
+            /* FIXME-WT-17599: escalate the warning to an error. */
             __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Checkpoint order should be strictly increasing. "
               "Current checkpoint order: %" PRId64 ", time: %" PRIu64
