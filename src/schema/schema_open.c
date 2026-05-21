@@ -406,7 +406,7 @@ __wt_schema_open_page_log(
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (npage_log, &conn->pagelogqh, q)
+    TAILQ_FOREACH (npage_log, &conn->ext.pagelogqh, q)
         if (WT_CONFIG_MATCH(npage_log->name, *name)) {
             *npage_logp = npage_log;
             return (0);
@@ -432,7 +432,7 @@ __wt_schema_open_storage_source(
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (nstorage, &conn->storagesrcqh, q)
+    TAILQ_FOREACH (nstorage, &conn->ext.storagesrcqh, q)
         if (WT_CONFIG_MATCH(nstorage->name, *name)) {
             *nstoragep = nstorage;
             return (0);
@@ -710,6 +710,8 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_RET(ret);
 
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
+
+    F_SET(layered, WT_LAYERED_TABLE_OPEN);
 
     return (0);
 }

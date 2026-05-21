@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- * All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -97,5 +97,14 @@ struct __wti_ckpt_timer {
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
+extern int __wti_checkpoint_parallel_commit(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_checkpoint_parallel_release_snapshot(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+
+#ifdef HAVE_UNITTEST
+
+#endif
 
 /* DO NOT EDIT: automatically built by prototypes.py: END */

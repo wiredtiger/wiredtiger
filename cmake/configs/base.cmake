@@ -212,8 +212,8 @@ config_bool(
 )
 
 config_bool(
-    WT_DISAGG_FAST_TRUNCATE_BUILD
-    "Support Disaggregated Fast Truncate POC on WT build"
+    WT_DISAGG_SLOW_TRUNCATE_BUILD
+    "Use slow truncate path on follower mode"
     DEFAULT OFF
 )
 
@@ -326,24 +326,6 @@ config_bool(
     ENABLE_MODEL
     "Build the model for lightweight formal verification"
     DEFAULT ON
-)
-
-config_bool(
-    ENABLE_S3
-    "Build the S3 storage extension"
-    DEFAULT OFF
-)
-
-config_bool(
-    ENABLE_GCP
-    "Build the Google Cloud Platform storage extension"
-    DEFAULT OFF
-)
-
-config_bool(
-    ENABLE_AZURE
-    "Build the Azure storage extension"
-    DEFAULT OFF
 )
 
 config_bool(

@@ -93,8 +93,7 @@ __bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 static int
 __bmd_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 {
-    __wti_block_disagg_stat(session, (WT_BLOCK_DISAGG *)bm->block, stats);
-    return (0);
+    return (__wti_block_disagg_stat(session, (WT_BLOCK_DISAGG *)bm->block, stats));
 }
 
 /*

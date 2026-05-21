@@ -65,6 +65,15 @@ def gen_disagg_storages(test_name='', disagg_only = False):
 def disagg_ignore_expected_output(testcase):
     testcase.ignoreStdoutPattern('WT_VERB_RTS')
 
+# Several tests access pages data directly by table id.
+# This function computes the shard id for a given table id, which is needed to
+# find the right database file in kv_home directory.
+def get_shard_id(table_id):
+    # See Storage.NUM_SHARDS in ext/page_log/palite/palite.cpp.
+    # This must be kept in sync with that value.
+    NUM_SHARDS = 17
+    return int(table_id) % NUM_SHARDS
+
 # A decorator for a disaggregated test class, that ignores verbose warnings about RTS at shutdown.
 # The class decorator takes a class as input, and returns a class to take its place.
 def disagg_test_class(cls):
@@ -188,7 +197,7 @@ class DisaggConfigMixin:
         elif config != '':
             config = f'=(config=\"({config})\")'
 
-        # S3 store is built as an optional loadable extension, not all test environments build S3.
+        # The page log extension is optional and not all test environments build it.
         if not self.is_local_storage:
             extlist.skip_if_missing = True
         # Windows doesn't support dynamically loaded extension libraries.
@@ -196,14 +205,14 @@ class DisaggConfigMixin:
             extlist.skip_if_missing = True
         extlist.extension('page_log', self.ds_name + config)
 
-    # Get the information about the last completed checkpoint: ID, LSN, and metadata
+    # Get the information about the last completed checkpoint: LSN, ID, timestamp, and metadata
     def disagg_get_complete_checkpoint_ext(self, conn=None):
         if conn is None:
             conn = self.conn
         page_log = conn.get_page_log(self.vars.page_log)
 
         session = conn.open_session('')
-        r = page_log.pl_get_complete_checkpoint_ext(session)
+        r = page_log.pl_get_complete_checkpoint(session)
         page_log.terminate(session) # dereference
         session.close()
         return r

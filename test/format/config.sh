@@ -151,15 +151,7 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
-{"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0}
-
-{"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 100, 5120, 100 * 1024}
-
-{"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 5, 100 * 1024}
-
-{"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE, 0, 0, 0}
-
-{"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0}
+{"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8}
 
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
@@ -295,6 +287,8 @@ CONFIG configuration_list[] = {
 
 {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
 
+{"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0}
+
 {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0}
 
 {"preserve_prepared", "Preserve prepared", C_BOOL, 50, 0, 0}
@@ -383,7 +377,7 @@ CONFIG configuration_list[] = {
 
 {"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
 
-{"tiered_storage.storage_source", "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)", C_IGNORE | C_STRING, 0, 0, 0}
+{"tiered_storage.storage_source", "storage source used (dir_store | none | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
 

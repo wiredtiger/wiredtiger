@@ -90,7 +90,7 @@
     /*                                                                                   \
      * Reset the err_info struct back to default only if the prior API call had an error \
      */                                                                                  \
-    if ((s)->err_info.err != 0)                                                          \
+    if ((s)->api_call_counter == 1 && (s)->err_info.err != 0)                            \
         __wt_session_reset_last_error((s));                                              \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
@@ -125,37 +125,48 @@
                   (s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0));          \
         }
 
-#define API_END(s, ret)                                                                    \
-    if ((s) != NULL) {                                                                     \
-        WT_TRACK_OP_END(s);                                                                \
-        WT_SINGLE_THREAD_CHECK_STOP(s);                                                    \
-        if ((ret) != 0 && __set_err)                                                       \
-            __wt_txn_err_set(s, (ret));                                                    \
-        /*                                                                                 \
-         * Check if an error code was returned that has not yet been stored in the         \
-         * session. Record this error in the session's WT_ERROR_INFO struct.               \
-         *                                                                                 \
-         * Note that if a different error was recorded earlier in the call, the struct     \
-         * will not be overwritten. The struct can only be overwritten if 0 is passed      \
-         * as the error code (this occurs when the err_info struct is reset).              \
-         */                                                                                \
-        if ((ret) != 0)                                                                    \
-            __wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY);             \
-        if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                \
-            __wt_op_timer_stop(s);                                                         \
-        /*                                                                                 \
-         * FIXME-WT-7247 Ideally we would not leave any history store cursors open when we \
-         * return from an api call. But we cannot do a stricter check due to the way we    \
-         * nest calls to the API macros.                                                   \
-         */                                                                                \
-        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 3);            \
-        /*                                                                                 \
-         * No code after this line, otherwise error handling                               \
-         * won't be correct.                                                               \
-         */                                                                                \
-        API_SESSION_POP(s);                                                                \
-    }                                                                                      \
-    }                                                                                      \
+#define API_END(s, ret)                                                                            \
+    if ((s) != NULL) {                                                                             \
+        WT_TRACK_OP_END(s);                                                                        \
+        WT_SINGLE_THREAD_CHECK_STOP(s);                                                            \
+        if ((ret) != 0 && __set_err)                                                               \
+            __wt_txn_err_set(s, (ret));                                                            \
+        if ((s)->api_call_counter == 1) {                                                          \
+            /*                                                                                     \
+             * Check that the API return value matches what is stored in the err_info struct.      \
+             *                                                                                     \
+             * When we see a mismatch:                                                             \
+             * - If the return value is zero, clear the struct (record success).                   \
+             * - If the return value is an error code and we haven't already recorded any errors,  \
+             * set the error in the struct.                                                        \
+             * - Otherwise, if we have already recorded an error and are now returning a different \
+             * error code, overwrite the err field only with the new code and keep the old         \
+             * sub-level error code and error message.                                             \
+             */                                                                                    \
+            if ((s)->err_info.err != (ret)) {                                                      \
+                if ((ret) == 0)                                                                    \
+                    __wt_session_reset_last_error(s);                                              \
+                else if ((s)->err_info.err == 0)                                                   \
+                    __wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY);             \
+                else                                                                               \
+                    (s)->err_info.err = (ret);                                                     \
+            };                                                                                     \
+            if (!F_ISSET(s, WT_SESSION_INTERNAL))                                                  \
+                __wt_op_timer_stop(s);                                                             \
+        }                                                                                          \
+        /*                                                                                         \
+         * FIXME-WT-7247 Ideally we would not leave any history store cursors open when we         \
+         * return from an api call. But we cannot do a stricter check due to the way we            \
+         * nest calls to the API macros.                                                           \
+         */                                                                                        \
+        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 3);                    \
+        /*                                                                                         \
+         * No code after this line, otherwise error handling                                       \
+         * won't be correct.                                                                       \
+         */                                                                                        \
+        API_SESSION_POP(s);                                                                        \
+    }                                                                                              \
+    }                                                                                              \
     while (0)
 
 /* An API call wrapped in a transaction if necessary. */
@@ -242,18 +253,15 @@
         API_END_RET(s, ret);          \
     } while (0)
 
-#define API_END_RET_NOTFOUND_MAP(s, ret) \
-    API_END(s, ret);                     \
-    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+#define API_END_RET_NOTFOUND_MAP(s, ret) API_END_RET(s, (ret) == WT_NOTFOUND ? ENOENT : (ret));
 
 /*
  * Used in cases where transaction error should not be set, but the error is returned from the API.
- * Success is passed to the API_END macro. If the method is about to return WT_NOTFOUND map it to
- * ENOENT.
+ * If the method is about to return WT_NOTFOUND map it to ENOENT.
  */
 #define API_END_RET_NO_TXN_ERROR(s, ret) \
-    API_END(s, 0);                       \
-    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+    __set_err = false;                   \
+    API_END_RET_NOTFOUND_MAP(s, ret);
 
 #define API_USER_ENTRY(s) (s)->api_call_counter == 1
 
@@ -348,11 +356,21 @@
 #define CURSOR_REMOVE_API_CALL(cur, s, ret, dh)      \
     (s) = CUR2S(cur);                                \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, remove, (dh)); \
+    if (__wt_conn_load_control_write_overload(s)) {  \
+        WT_STAT_CONN_INCR(s, write_reject_count);    \
+        (ret) = WT_ROLLBACK;                         \
+        goto err;                                    \
+    }                                                \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, remove)
 
 #define CURSOR_UPDATE_API_CALL_BTREE(cur, s, ret, func_name)                                  \
     (s) = CUR2S(cur);                                                                         \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, ((WT_CURSOR_BTREE *)(cur))->dhandle);        \
+    if (__wt_conn_load_control_write_overload(s)) {                                           \
+        WT_STAT_CONN_INCR(s, write_reject_count);                                             \
+        (ret) = WT_ROLLBACK;                                                                  \
+        goto err;                                                                             \
+    }                                                                                         \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                                  \
     if (F_ISSET(S2C(s), WT_CONN_IN_MEMORY) && !F_ISSET(CUR2BT(cur), WT_BTREE_IGNORE_CACHE) && \
       __wt_cache_full(s))                                                                     \
@@ -361,6 +379,11 @@
 #define CURSOR_UPDATE_API_CALL(cur, s, ret, func_name, dh) \
     (s) = CUR2S(cur);                                      \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, dh);      \
+    if (__wt_conn_load_control_write_overload(s)) {        \
+        WT_STAT_CONN_INCR(s, write_reject_count);          \
+        (ret) = WT_ROLLBACK;                               \
+        goto err;                                          \
+    }                                                      \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name)
 
 #define CURSOR_UPDATE_API_END_RETRY(s, ret, retry) \
@@ -383,12 +406,12 @@
  * eviction of hot pages. These macros facilitate tracking when that is OK.
  */
 #define CURSOR_REPOSITION_ENTER(c, s)                                      \
-    if (FLD_ISSET(S2C(s)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
+    if (FLD_ISSET(S2C(s)->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
       (s)->api_call_counter == 1)                                          \
     F_SET((c), WT_CURSTD_EVICT_REPOSITION)
 
 #define CURSOR_REPOSITION_END(c, s)                                        \
-    if (FLD_ISSET(S2C(s)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
+    if (FLD_ISSET(S2C(s)->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
       (s)->api_call_counter == 1)                                          \
     F_CLR((c), WT_CURSTD_EVICT_REPOSITION)
 

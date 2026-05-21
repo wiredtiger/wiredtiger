@@ -145,7 +145,7 @@
     (((number) * sizeof(**(addr)) <= *(sizep)) ?                                \
         0 :                                                                     \
         __wt_realloc(session, sizep,                                            \
-          (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT)) ? \
+          (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_REALLOC_EXACT)) ? \
             (number) * sizeof(**(addr)) :                                       \
             WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),        \
           addr))
@@ -292,26 +292,6 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
                 __base = __indx + 1;                                   \
                 --__limit;                                             \
             } else if ((arrayp)[__indx] == (key)) {                    \
-                (found) = true;                                        \
-                break;                                                 \
-            }                                                          \
-        }                                                              \
-    } while (0)
-
-/*
- * Binary search for a string key. Note: For the binary search to function correctly, the array
- * should not contain NULL values.
- */
-#define WT_BINARY_SEARCH_STRING(key, arrayp, n, found)                 \
-    do {                                                               \
-        uint32_t __base, __indx, __limit;                              \
-        (found) = false;                                               \
-        for (__base = 0, __limit = (n); __limit != 0; __limit >>= 1) { \
-            __indx = __base + (__limit >> 1);                          \
-            if (strcmp((arrayp)[__indx], (key)) < 0) {                 \
-                __base = __indx + 1;                                   \
-                --__limit;                                             \
-            } else if (strcmp((arrayp)[__indx], (key)) == 0) {         \
                 (found) = true;                                        \
                 break;                                                 \
             }                                                          \

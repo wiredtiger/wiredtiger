@@ -34,6 +34,7 @@
 # truncate state (entries in its in-memory truncate list), as doing so would discard the truncate
 # entries and corrupt visibility (WT-16798).
 
+import unittest
 import time, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
@@ -117,9 +118,6 @@ class test_layered80(wttest.WiredTigerTestCase):
         If the dhandle were closed during this window, the truncate entries are
         discarded.
         """
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled.")
-
         self.session.create(self.uri, 'key_format=i,value_format=S')
 
         # Write data as follower with timestamps.
