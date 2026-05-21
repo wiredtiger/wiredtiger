@@ -654,18 +654,6 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_next);
 
-    /*
-     * If this is a user cursor call, check for system overload before doing any work.
-     */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
-        if (__wt_conn_load_control_read_overload(session)) {
-            WT_STAT_CONN_INCR(session, read_reject_count);
-            WT_RET(WT_ROLLBACK);
-        }
-    }
-
     /* Track next calls during HS wrapup */
     if (F_ISSET(session, WT_SESSION_HS_WRAPUP))
         session->reconcile_stats.hs_wrapup_next_prev_calls++;

@@ -266,6 +266,19 @@ __curtable_next(WT_CURSOR *cursor)
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, NULL);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
+
     APPLY_CG(ctable, next);
 
 err:
@@ -321,6 +334,19 @@ __curtable_prev(WT_CURSOR *cursor)
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, prev, NULL);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
+
     APPLY_CG(ctable, prev);
 
 err:
@@ -377,6 +403,19 @@ __curtable_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, search, NULL);
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
+
     APPLY_CG(ctable, search);
 
 err:
@@ -402,6 +441,18 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
     CURSOR_API_CALL(cursor, session, ret, search_near, NULL);
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
 
     cp = ctable->cg_cursors;
     primary = *cp;
@@ -437,6 +488,19 @@ __curtable_insert(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, NULL);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
+
     WT_ERR(__curtable_open_indices(ctable));
 
     cp = ctable->cg_cursors;
@@ -515,6 +579,19 @@ __curtable_update(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, NULL);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
+
     WT_ERR(__curtable_open_indices(ctable));
 
     /*
@@ -567,6 +644,19 @@ __curtable_remove(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, ret, NULL);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
+
     WT_ERR(__curtable_open_indices(ctable));
 
     /* Check if the cursor was positioned. */
@@ -612,6 +702,18 @@ __curtable_reserve(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, NULL);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_ERR(WT_ROLLBACK);
+        }
+    }
 
     /*
      * We don't have to open the indices here, but it makes the code similar to other cursor
