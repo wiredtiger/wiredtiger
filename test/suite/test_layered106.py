@@ -92,14 +92,14 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         # We closed a leader that wrote rows, so a complete checkpoint must exist.
         meta = self.disagg_get_complete_checkpoint_meta(conn)
         self.assertIsNotNone(meta, 'expected a complete checkpoint from the leader')
+        conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
 
         # Touch the table to lazy-open the ingest dhandle before step-up.
         session.open_cursor(self.uri).close()
 
         # Step up to leader in a thread; the race happens here.
         t = threading.Thread(
-            target=lambda: conn.reconfigure(
-                f'disaggregated=(role=leader,checkpoint_meta="{meta}")'),
+            target=lambda: conn.reconfigure('disaggregated=(role=leader)'),
             daemon=True)
         t.start()
 
