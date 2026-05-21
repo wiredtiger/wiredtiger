@@ -415,6 +415,87 @@ __wti_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *
 }
 
 /*
+ * __wt_debug_disagg_page_id --
+ *     Read and dump a disaggregated-storage page given a (page_id, lsn) pair. Drives the disagg
+ *     block manager directly via __wt_block_disagg_debug_read_page_id, bypassing the address
+ *     cookie path. Performs per-result structural validation (byteswap + magic + header
+ *     checksum) inline. Note that this duplicates a small amount of validation logic from
+ *     __block_disagg_read_multiple by design, so the production loop can stay untouched.
+ */
+int
+__wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
+  const char *ofile)
+{
+    WT_BLOCK_DISAGG_HEADER *blk, swap;
+    WT_DECL_RET;
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
+    WT_PAGE_LOG_GET_ARGS get_args;
+    u_int count, i;
+    uint32_t size;
+    uint8_t expected_magic;
+
+    WT_ASSERT(session, S2BT_SAFE(session) != NULL);
+    memset(results, 0, sizeof(results));
+    count = WT_ELEMENTS(results);
+
+    WT_ERR(__wt_block_disagg_debug_read_page_id(
+      S2BT(session)->bm, session, page_id, lsn, &get_args, results, &count));
+
+    WT_ERR(__wt_msg(session,
+      "chain: page_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64
+      " base_ckpt=%" PRIu64 " backlink_ckpt=%" PRIu64 " delta_count=%" PRIu64 " results=%u",
+      page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
+      get_args.backlink_checkpoint_id, get_args.delta_count, count));
+
+    if (count > 1)
+        WT_ERR(__wt_msg(session,
+          "note: structured delta decoding is not yet supported; the %u delta result(s) below "
+          "are dumped as raw bytes",
+          count - 1));
+
+    for (i = 0; i < count; i++) {
+        size = (uint32_t)results[i].size;
+
+        blk = WT_BLOCK_HEADER_REF(results[i].data);
+        __wti_block_disagg_header_byteswap_copy(blk, &swap);
+
+        expected_magic = (i == 0) ? WT_BLOCK_DISAGG_MAGIC_BASE : WT_BLOCK_DISAGG_MAGIC_DELTA;
+        if (swap.magic != expected_magic) {
+            __wt_errx(session,
+              "wt page: result %u: magic %" PRIu8 " does not match expected %" PRIu8, i, swap.magic,
+              expected_magic);
+            __wt_log_data_dump(session, results[i].data, size,
+              "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            WT_TRET(WT_ERROR);
+            continue;
+        }
+
+        blk->checksum = 0;
+        if (!__wt_checksum_match(results[i].data,
+              F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
+              swap.checksum)) {
+            __wt_errx(session, "wt page: result %u: header checksum mismatch", i);
+            __wt_log_data_dump(session, results[i].data, size,
+              "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            WT_TRET(WT_ERROR);
+            continue;
+        }
+        __wt_page_header_byteswap((void *)results[i].data);
+
+        if (i == 0)
+            WT_TRET(__wti_debug_disk(session, results[i].data, ofile, false, false));
+        else
+            __wt_log_data_dump(session, results[i].data, size,
+              "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
+    }
+
+err:
+    for (i = 0; i < WT_ELEMENTS(results); i++)
+        __wt_buf_free(session, &results[i]);
+    return (ret);
+}
+
+/*
  * __wt_debug_offset --
  *     Read and dump a disk page in debugging mode, using a file offset/size/checksum triplet.
  */
