@@ -55,7 +55,7 @@ class checkpoint_thread(Thread):
         self.checkpoint_count = 0
 
         if "checkpoint_count_max" in kwargs:
-            count_max = int(kwargs["checkpoint_count_max"])
+            count_max = int(kwargs.pop("checkpoint_count_max"))
             if count_max <= 0:
                 raise ValueError("checkpoint_count_max must be a positive integer")
             self._max_count = count_max
