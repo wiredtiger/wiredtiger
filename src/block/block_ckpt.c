@@ -735,13 +735,11 @@ __ckpt_delete_and_merge(
         /*
          * Set the "to" checkpoint structure, it may be the live tree.
          */
-        if (F_ISSET(next_ckpt, WT_CKPT_ADD)) {
+        if (F_ISSET(next_ckpt, WT_CKPT_ADD))
             b = &block->live;
-            next_name = "live";
-        } else {
+        else
             b = next_ckpt->bpriv;
-            next_name = next_ckpt->name != NULL ? next_ckpt->name : "live";
-        }
+        next_name = next_ckpt->name != NULL ? next_ckpt->name : "live";
 
         /*
          * Free the root page: there's nothing special about this free, the root page is allocated
