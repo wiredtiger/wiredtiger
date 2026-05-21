@@ -392,7 +392,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
      */
     if (upd_select->upd != NULL && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         if (upd_select->tombstone != NULL) {
-            if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
+            if (!F_ISSET(upd_select->tombstone,
+                  WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_DELETE_DURABLE))
                 return (true);
 
             /* Save the update if we overwrite the previous prepared update. */
