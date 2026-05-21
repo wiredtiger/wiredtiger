@@ -59,7 +59,7 @@ usage(void)
       "compact", "compact an object", "copyright", "display copyright information", "create",
       "create an object", "downgrade", "downgrade a database", "drop", "drop an object", "dump",
       "dump an object", "list", "list database objects", "load", "load an object", "loadtext",
-      "load an object from a text file", "printlog", "display the database log", "read",
+      "load an object from a text file", "page", "read a single page through WT_PAGE_LOG", "printlog", "display the database log", "read",
       "read values from an object", "salvage", "salvage a file", "stat",
       "display statistics for an object", "truncate", "truncate an object, removing all content",
       "verify", "verify an object", "write", "write values to an object", NULL, NULL};
@@ -238,7 +238,9 @@ main(int argc, char *argv[])
         }
         break;
     case 'p':
-        if (strcmp(command, "printlog") == 0) {
+        if (strcmp(command, "page") == 0)
+            func = util_page;
+        else if (strcmp(command, "printlog") == 0) {
             func = util_printlog;
             rec_config = REC_LOGOFF;
         }
