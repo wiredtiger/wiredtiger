@@ -596,6 +596,7 @@ XSAN
 XXXX
 XXXXXX
 Xcode
+Xcode's
 XxxxHookCreator
 YCSB
 ZSTD
@@ -964,6 +965,8 @@ endptr
 engflow
 enomem
 enqueue
+enqueued
+enqueues
 entindex
 entlist
 enum
@@ -1197,6 +1200,7 @@ keyid
 keyids
 keylen
 keynum
+keyp
 keystr
 keyv
 kp
@@ -1812,6 +1816,8 @@ uncheckpointed
 unconfigured
 uncustomized
 undef
+undeferred
+undefers
 undeleted
 underflowed
 unencoded
