@@ -795,7 +795,8 @@ __ckpt_delete_and_merge(
          */
         if (F_ISSET(next_ckpt, WT_CKPT_ADD)) {
             /* Clear any possible blocks that are now available after merging. */
-            WT_RET(__ckpt_live_blkmods(session, ckptbase, ci, block, false));
+            WT_RET_MSG_CHK(session, __ckpt_live_blkmods(session, ckptbase, ci, block, false),
+              "clearing live block modifications after merging into %s", next_name);
             continue;
         }
 
