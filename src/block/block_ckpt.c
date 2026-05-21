@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static int __ckpt_delete_and_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_BLOCK_CKPT *);
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_read_deletion_extlists(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, bool *);
 static int __ckpt_reinit_extlists(WT_SESSION_IMPL *, WT_BLOCK_CKPT *);
@@ -687,97 +688,21 @@ __ckpt_reinit_extlists(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 }
 
 /*
- * __ckpt_process --
- *     Process the list of checkpoints.
+ * __ckpt_delete_and_merge --
+ *     Delete checkpoints no longer needed and merge their extent lists into the subsequent
+ *     checkpoint. Handles freeing root pages, freeing extent list blocks, merging alloc and discard
+ *     lists, finding overlapping blocks for reuse, updating checkpoints, and clearing block
+ *     modification tracking. Must be called while the live lock is held.
  */
 static int
-__ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
+__ckpt_delete_and_merge(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci)
 {
-    WT_BLOCK_CKPT *a, *b, *ci;
+    WT_BLOCK_CKPT *a, *b;
     WT_CKPT *ckpt, *next_ckpt;
     WT_DECL_RET;
-    uint64_t ckpt_size;
-    bool deleting, fatal;
 
-    ci = &block->live;
-    fatal = false;
-
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE))
-        WT_RET(__ckpt_verify(session, ckptbase));
-
-    /*
-     * Checkpoints are a two-step process: first, write a new checkpoint to disk (including all the
-     * new extent lists for modified checkpoints and the live system). As part of this, create a
-     * list of file blocks newly available for reallocation, based on checkpoints being deleted. We
-     * then return the locations of the new checkpoint information to our caller. Our caller has to
-     * write that information into some kind of stable storage, and once that's done, we can
-     * actually allocate from that list of newly available file blocks. (We can't allocate from that
-     * list immediately because the allocation might happen before our caller saves the new
-     * checkpoint information, and if we crashed before the new checkpoint location was saved, we'd
-     * have overwritten blocks still referenced by checkpoints in the system.) In summary, there is
-     * a second step: after our caller saves the checkpoint information, we are called to add the
-     * newly available blocks into the live system's available list.
-     *
-     * This function is the first step, the second step is in the resolve function.
-     */
-    WT_RET(__ckpt_validate_state(session, block));
-
-    /*
-     * Extents newly available as a result of deleting previous checkpoints are added to a list of
-     * extents. The list should be empty, but as described above, there is no "free the checkpoint
-     * information" call into the block manager; if there was an error in an upper level that
-     * resulted in some previous checkpoint never being resolved, the list may not be empty. We
-     * should have caught that with the "checkpoint in progress" test, but it doesn't cost us
-     * anything to be cautious.
-     *
-     * We free the checkpoint's allocation and discard extent lists as part of the resolution step,
-     * not because they're needed at that time, but because it's potentially a lot of work, and
-     * waiting allows the btree layer to continue eviction sooner. As for the checkpoint-available
-     * list, make sure they get cleaned out.
-     */
-    WT_RET(__ckpt_reinit_extlists(session, ci));
-
-    /*
-     * To delete a checkpoint, we need extent list information for it and the subsequent checkpoint
-     * into which it gets rolled; read them from disk before we lock things down.
-     */
-    WT_ERR(__ckpt_read_deletion_extlists(session, block, ckptbase, &deleting));
-
-    /*
-     * Failures are now fatal: we can't currently back out the merge of any deleted checkpoint
-     * extent lists into the live system's extent lists, so continuing after error would leave the
-     * live system's extent lists corrupted for any subsequent checkpoint (and potentially, should a
-     * subsequent checkpoint succeed, for recovery).
-     */
-    fatal = true;
-
-    /*
-     * Hold a lock so the live extent lists and the file size can't change underneath us. I suspect
-     * we'll tighten this if checkpoints take too much time away from real work: we read the
-     * historic checkpoint information without a lock, but we could also merge and re-write the
-     * deleted and merged checkpoint information without a lock, except for the final merge of
-     * ranges into the live tree.
-     */
-    __wt_spin_lock(session, &block->live_lock);
-
-    /*
-     * We've allocated our last page, update the checkpoint size. We need to calculate the live
-     * system's checkpoint size before merging checkpoint allocation and discard information from
-     * the checkpoints we're deleting, those operations change the underlying byte counts.
-     */
-    ckpt_size = ci->ckpt_size;
-    ckpt_size += ci->alloc.bytes;
-    ckpt_size -= ci->discard.bytes;
-
-    /*
-     * Record the checkpoint's blocks for backup. Do so before skipping any processing and before
-     * possibly merging in blocks from any previous checkpoint.
-     */
-    WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block, true));
-
-    /* Skip the additional processing if we aren't deleting checkpoints. */
-    if (!deleting)
-        goto live_update;
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /*
      * Delete any no-longer-needed checkpoints: we do this first as it frees blocks to the live
@@ -882,6 +807,106 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_UPDATE))
             WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
+
+err:
+    return (ret);
+}
+
+/*
+ * __ckpt_process --
+ *     Process the list of checkpoints.
+ */
+static int
+__ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
+{
+    WT_BLOCK_CKPT *a, *ci;
+    WT_CKPT *ckpt;
+    WT_DECL_RET;
+    uint64_t ckpt_size;
+    bool deleting, fatal;
+
+    ci = &block->live;
+    fatal = false;
+
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE))
+        WT_RET(__ckpt_verify(session, ckptbase));
+
+    /*
+     * Checkpoints are a two-step process: first, write a new checkpoint to disk (including all the
+     * new extent lists for modified checkpoints and the live system). As part of this, create a
+     * list of file blocks newly available for reallocation, based on checkpoints being deleted. We
+     * then return the locations of the new checkpoint information to our caller. Our caller has to
+     * write that information into some kind of stable storage, and once that's done, we can
+     * actually allocate from that list of newly available file blocks. (We can't allocate from that
+     * list immediately because the allocation might happen before our caller saves the new
+     * checkpoint information, and if we crashed before the new checkpoint location was saved, we'd
+     * have overwritten blocks still referenced by checkpoints in the system.) In summary, there is
+     * a second step: after our caller saves the checkpoint information, we are called to add the
+     * newly available blocks into the live system's available list.
+     *
+     * This function is the first step, the second step is in the resolve function.
+     */
+    WT_RET(__ckpt_validate_state(session, block));
+
+    /*
+     * Extents newly available as a result of deleting previous checkpoints are added to a list of
+     * extents. The list should be empty, but as described above, there is no "free the checkpoint
+     * information" call into the block manager; if there was an error in an upper level that
+     * resulted in some previous checkpoint never being resolved, the list may not be empty. We
+     * should have caught that with the "checkpoint in progress" test, but it doesn't cost us
+     * anything to be cautious.
+     *
+     * We free the checkpoint's allocation and discard extent lists as part of the resolution step,
+     * not because they're needed at that time, but because it's potentially a lot of work, and
+     * waiting allows the btree layer to continue eviction sooner. As for the checkpoint-available
+     * list, make sure they get cleaned out.
+     */
+    WT_RET(__ckpt_reinit_extlists(session, ci));
+
+    /*
+     * To delete a checkpoint, we need extent list information for it and the subsequent checkpoint
+     * into which it gets rolled; read them from disk before we lock things down.
+     */
+    WT_ERR(__ckpt_read_deletion_extlists(session, block, ckptbase, &deleting));
+
+    /*
+     * Failures are now fatal: we can't currently back out the merge of any deleted checkpoint
+     * extent lists into the live system's extent lists, so continuing after error would leave the
+     * live system's extent lists corrupted for any subsequent checkpoint (and potentially, should a
+     * subsequent checkpoint succeed, for recovery).
+     */
+    fatal = true;
+
+    /*
+     * Hold a lock so the live extent lists and the file size can't change underneath us. I suspect
+     * we'll tighten this if checkpoints take too much time away from real work: we read the
+     * historic checkpoint information without a lock, but we could also merge and re-write the
+     * deleted and merged checkpoint information without a lock, except for the final merge of
+     * ranges into the live tree.
+     */
+    __wt_spin_lock(session, &block->live_lock);
+
+    /*
+     * We've allocated our last page, update the checkpoint size. We need to calculate the live
+     * system's checkpoint size before merging checkpoint allocation and discard information from
+     * the checkpoints we're deleting, those operations change the underlying byte counts.
+     */
+    ckpt_size = ci->ckpt_size;
+    ckpt_size += ci->alloc.bytes;
+    ckpt_size -= ci->discard.bytes;
+
+    /*
+     * Record the checkpoint's blocks for backup. Do so before skipping any processing and before
+     * possibly merging in blocks from any previous checkpoint.
+     */
+    WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block, true));
+
+    /* Skip the additional processing if we aren't deleting checkpoints. */
+    if (!deleting)
+        goto live_update;
+
+    /* Delete checkpoints no longer needed and merge their extent lists into subsequent ones. */
+    WT_ERR(__ckpt_delete_and_merge(session, block, ckptbase, ci));
 
 live_update:
     /* Truncate the file if that's possible. */
