@@ -1360,7 +1360,9 @@ rollback_retry:
                 }
                 fast_truncate_lock_release(session, &lock_state);
                 fast_truncate_lock_acquire_write(session, &lock_state);
-                begin_transaction_ts(tinfo);
+                tinfo->ignore_prepare = false;
+                wt_wrap_begin_transaction(session, NULL);
+                snap_op_init(tinfo, WT_TS_NONE, false);
                 intxn = true;
             } else if (op != READ)
                 fast_truncate_lock_acquire_read(session, &lock_state);
