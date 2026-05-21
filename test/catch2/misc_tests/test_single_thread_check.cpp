@@ -9,7 +9,7 @@
 #include <catch2/catch.hpp>
 
 #include "wt_internal.h"
-#include "../wrappers/mock_session.h"
+#include "wrappers/mock_session.h"
 
 /* Tests that __wt_single_thread_check_start assertion failure handles some fields being NULL. */
 
