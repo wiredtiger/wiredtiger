@@ -121,9 +121,8 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ASSERT(session, old_addr != NULL);
 
     /*
-     * Allocate the new block cookie first, before modifying any existing pointers. If any
-     * allocation in this function fails, we jump to the error handler which returns ENOMEM
-     * immediately, leaving the original block cookie completely untouched.
+     * Allocate the new cookie before modifying any existing state. If the allocation fails,
+     * old_addr and its block_cookie are left untouched and the caller's ref remains valid.
      */
     addr = NULL;
     new_cookie = NULL;
