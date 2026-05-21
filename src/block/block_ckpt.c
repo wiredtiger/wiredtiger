@@ -700,7 +700,6 @@ __ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
   uint64_t ckpt_size)
 {
     WT_CKPT *ckpt;
-    WT_DECL_RET;
 #ifdef HAVE_DIAGNOSTIC
     WT_BLOCK_CKPT *a;
 #endif
@@ -767,7 +766,7 @@ __ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
           session, WT_ERROR, "first checkpoint incorrectly has blocks on the discard list");
 #endif
 
-    return (ret);
+    return (0);
 }
 
 /*
