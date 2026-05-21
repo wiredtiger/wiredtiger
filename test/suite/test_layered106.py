@@ -60,7 +60,7 @@ class test_layered106(wttest.WiredTigerTestCase):
     def test_follower_auto_pickup(self):
         # Verbose disagg output from the new code path persists into teardown's
         # layered verify; suppress it so the test only checks behaviour.
-        self.ignoreStdoutPattern(r'\[WT_VERB_DISAGGREGATED_STORAGE\]')
+        self.ignoreStdoutPattern(r'WT_SESSION\.verify: \[WT_VERB_DISAGGREGATED_STORAGE\]')
 
         # Leader: create a table, write some rows, checkpoint.
         self.session.create(self.uri, self.create_session_config)
@@ -70,13 +70,15 @@ class test_layered106(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.checkpoint()
 
+        # Step down before restart so closing the leader does not write an
+        # additional shutdown checkpoint after our explicit one.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+
         # Move the local WiredTiger files aside and reopen as a follower
         # with the new knob and no explicit checkpoint_meta. This mirrors the
-        # wt-CLI scenario: a fresh home directory, just a page log.
-        # Without auto-pickup, the follower has no checkpoint loaded and the
-        # layered table cursor returns zero rows. With auto-pickup, it pulls
-        # the latest checkpoint from the page log and the leader's rows are
-        # visible.
+        # wt-CLI scenario: a fresh home directory, just a page log. With the
+        # auto-pickup knob set, the connection pulls the latest checkpoint
+        # from the page log on open and the leader's rows become visible.
         self.restart_without_local_files(
             config=self._follower_config(pickup_latest=True),
             pickup_checkpoint=False)
