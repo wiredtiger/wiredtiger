@@ -187,8 +187,7 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
 
     WT_RET(__wt_session_release_dhandle(session));
 
-err:
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1104,8 +1103,8 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
      * that it hasn't been opened yet. In that case, we need to skip updating its timestamp for
      * pruning, and we'll get another chance to update the prune timestamp at the next checkpoint.
      */
-    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), ENOENT,
-      true);
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), ENOENT, true);
     if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Handle not found for ingest table uri: %s", layered_table->iface.name,
