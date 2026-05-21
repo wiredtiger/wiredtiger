@@ -240,6 +240,75 @@ class test_layered27(wttest.WiredTigerTestCase):
         # End of test.
         self.conn.close()
 
+    def test_tombstone_only_chain_no_on_disk_value(self):
+        """
+        Regression reproducer for the original WT-17354 crash.
+        The tombstone must NOT be globally visible when reconciliation fires —
+        oldest_timestamp is deliberately held below ts_delete.
+        """
+        key = 'key1'
+        ts_insert = 10
+        ts_delete = 20
+        ingest_uri = 'file:test_layered27.wt_ingest'
+
+        self.session.create(self.uri, "key_format=S,value_format=S")
+
+        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, "key_format=S,value_format=S")
+
+        # Step 1: Insert via leader. Value lands in stable btree only.
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[key] = 'value'
+        self.session.commit_transaction(
+            f'commit_timestamp={self.timestamp_str(ts_insert)}')
+        cursor.close()
+        self.conn.set_timestamp(
+            f'stable_timestamp={self.timestamp_str(ts_insert)}')
+        self.session.checkpoint()
+
+        # Step 2: Follower picks up the checkpoint.
+        self.disagg_advance_checkpoint(conn_follow)
+
+        # Step 3: Delete the key on the follower.
+        # Ingest btree now has a tombstone-only chain; no on-disk value.
+        cursor_follow = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction()
+        cursor_follow.set_key(key)
+        self.assertEqual(cursor_follow.remove(), 0)
+        session_follow.commit_transaction(
+            f'commit_timestamp={self.timestamp_str(ts_delete)}')
+        cursor_follow.close()
+
+        # Step 4: Trigger reconciliation.
+        # oldest_timestamp is NOT advanced past ts_delete — tombstone is
+        # not globally visible. The original assertion fires here without
+        # the fix; with the fix, this should complete cleanly.
+        evict_cursor = session_follow.open_cursor(
+            ingest_uri, None, 'debug=(release_evict)')
+        session_follow.begin_transaction(
+            f'read_timestamp={self.timestamp_str(ts_delete)}')
+        evict_cursor.set_key(key)
+        ret = evict_cursor.search()
+        self.assertTrue(ret == 0 or ret == wiredtiger.WT_NOTFOUND)
+        evict_cursor.reset()
+        session_follow.rollback_transaction()
+        evict_cursor.close()
+
+        # After the fix: deletion should be visible at ts_delete.
+        c = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction(
+            f'read_timestamp={self.timestamp_str(ts_delete)}')
+        c.set_key(key)
+        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND,
+            'key should be absent at ts_delete after fix')
+        session_follow.rollback_transaction()
+        c.close()
+
+        session_follow.close()
+        conn_follow.close()
+
     def test_tombstone_only_gc_cycle(self):
         # Regression test for WT-17354. The bug is not load-sensitive; run once.
         if self.multiplier != 1:
@@ -262,7 +331,6 @@ class test_layered27(wttest.WiredTigerTestCase):
         key = 'key1'
         ts_insert = 10
         ts_delete = 20
-        ingest_uri = 'file:test_layered27.wt_ingest'
 
         self.session.create(self.uri, "key_format=S,value_format=S")
 
@@ -312,31 +380,28 @@ class test_layered27(wttest.WiredTigerTestCase):
             session_follow.rollback_transaction()
             c.close()
 
-        assert_present('before eviction')
-        assert_deleted('before eviction')
+        assert_present('before checkpoint')
+        assert_deleted('before checkpoint')
 
-        # Steps 3-6: two GC reconciliation passes driven by forced eviction.
-        # Pass 1 exercises the fixed __rec_fill_tw_from_upd_select path and
-        # writes a delete cell.  Pass 2 exercises that same delete cell as the
-        # on-disk input to the next reconciliation.
+        # Steps 3-4: two GC reconciliation passes driven by checkpoint.
+        # Checkpoint reconciles the ingest btree with WT_REC_CHECKPOINT|WT_REC_HS
+        # (no scrub), so the tombstone MUST be written to disk.
+        #
+        # rec_visibility.c forces the tombstone to be selected (upd_select->upd =
+        # tombstone) even when the checkpoint stable_timestamp is below ts_delete,
+        # because the ingest btree has no on-disk value for the key.
+        #
+        # Without the fix: __rec_row_leaf_insert writes the key cell but no value
+        # cell (val->len stays 0, __rec_row_zero_len returns false for a tombstone
+        # time window).  entries=2 but only 1 physical cell is on the page.
+        # __wt_verify_dsk_image (HAVE_DIAGNOSTIC) detects the mismatch and aborts.
+        #
+        # With the fix: __wti_rec_cell_build_val writes a proper zero-length delete
+        # cell anchored by the tombstone time window.  verify passes.
         for pass_num in (1, 2):
-            evict_cursor = session_follow.open_cursor(
-                ingest_uri, None, 'debug=(release_evict)')
-            session_follow.begin_transaction(
-                f'read_timestamp={self.timestamp_str(ts_delete)}')
-            evict_cursor.set_key(key)
-            ret = evict_cursor.search()
-            self.assertTrue(ret == 0 or ret == wiredtiger.WT_NOTFOUND,
-                f'GC pass {pass_num}: unexpected eviction search return {ret}')
-            evict_cursor.reset()
-            session_follow.rollback_transaction()
-            evict_cursor.close()
-
-            # Both checks together: tombstone must survive (deletion still
-            # visible) and the stable btree value must be intact (key visible
-            # before the delete).
-            assert_present(f'after GC pass {pass_num}')
-            assert_deleted(f'after GC pass {pass_num}')
+            session_follow.checkpoint()
+            assert_present(f'after checkpoint pass {pass_num}')
+            assert_deleted(f'after checkpoint pass {pass_num}')
 
         # Step 7: step up, drain ingest table into stable btree, verify.
         # Use ts_delete + 1 as the stable timestamp so the tombstone's durable
