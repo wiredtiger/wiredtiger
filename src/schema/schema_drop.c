@@ -207,9 +207,13 @@ __drop_layered(
     /*
      * Drop the layered table constituents. The stable table may not exist locally on a follower
      * (followers don't create stable tables); that is fine because the shared metadata removal is
-     * handled by the enqueued REMOVE operation above.
+     * handled by the enqueued REMOVE operation. Leaders always have the stable constituent, so
+     * treat ENOENT as an error for them.
      */
-    WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, false);
+    WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
+    if (WT_CHECK_AND_RESET(ret, ENOENT) && S2C(session)->layered_table_manager.leader)
+        WT_ERR_MSG(session, ENOENT,
+          "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
 
     /* Now drop the top-level table. */
