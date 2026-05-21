@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "gcc.h"
 #include "wt_internal.h"
 
 /*
@@ -1047,6 +1048,7 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UP
 
     WT_ASSERT(session, upd_chain != NULL);
 
+    size = 0;
     WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
 
     /*
@@ -1061,7 +1063,7 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UP
      * Publish the tombstone with release semantics so any concurrent reader sees a fully
      * initialized tombstone before observing the pointer.
      */
-    WT_RELEASE_WRITE_WITH_BARRIER(upd_chain->next, tombstone);
+    __wt_atomic_store_ptr_release(&upd_chain->next, tombstone);
 
     __wt_cache_page_inmem_incr(session, page, size, false);
 
