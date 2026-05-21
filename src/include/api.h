@@ -270,9 +270,6 @@
 
 #define CURSOR_API_CHECK_SYSTEM_OVERLOAD(s, ret)                                               \
     do {                                                                                       \
-        /*                                                                                     \
-         * If the system is overloaded, reject new read requests from user sessions.           \
-         */                                                                                    \
         if (API_USER_ENTRY(s) &&                                                               \
           (!F_ISSET(                                                                           \
             s, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE))) { \
