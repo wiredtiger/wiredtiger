@@ -121,21 +121,12 @@ build_branch()
         # regardless of the branch's own CMake setup.
         cp "$PROJECT_ROOT/CMakePresets.json" CMakePresets.json
 
+        local cmake_preset="linux-gcc"
+
         # Branches mongodb-7.0 and older require the v4 toolchain (incompatible with GCC 14+).
-        local cmake_preset
-        case "$1" in
-            mongodb-*)
-                local major=$(echo "$1" | cut -d- -f2 | cut -d. -f1)
-                if [ "$major" -le 7 ]; then
-                    cmake_preset="linux-v4-gcc"
-                else
-                    cmake_preset="linux-gcc"
-                fi
-                ;;
-            *)
-                cmake_preset="linux-gcc"
-                ;;
-        esac
+        if [[ "$1" =~ ^mongodb-[0-7]\. ]]; then
+            cmake_preset="linux-v4-gcc"
+        fi
 
         (
             mkdir -p build && cd build &&
