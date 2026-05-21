@@ -436,17 +436,15 @@ __wt_cell_build_addr_kv(WT_SESSION_IMPL *session, WT_CELL_KV *val_kv, uint8_t ce
  * __cell_build_int_key_from_kv --
  *     Build an internal key cell and populate a WTI_REC_KV structure.
  */
-static WT_INLINE int
-__cell_build_int_key_from_kv(
-  WT_SESSION_IMPL *session, WT_CELL_KV *key, const void *data, size_t size)
+static WT_INLINE void
+__cell_build_int_key_from_kv(WT_CELL_KV *key, const void *data, size_t size)
 {
-    WT_RET(__wt_buf_set(session, &key->buf, data, size));
+    key->buf.data = data;
+    key->buf.size = size;
 
     /* Build cell header and compute lengths */
     key->cell_len = __wt_cell_pack_int_key(&key->cell, key->buf.size);
     key->len = key->cell_len + key->buf.size;
-
-    return (0);
 }
 
 /*
@@ -516,7 +514,7 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
     }
 
     /* Build packed key/value. */
-    WT_RET(__cell_build_int_key_from_kv(session, &key_kv, key_data, key_size));
+    __cell_build_int_key_from_kv(&key_kv, key_data, key_size);
     __wt_cell_build_addr_kv(session, &val_kv, cell_type, page_del, ta, val_data, val_size);
 
     /*

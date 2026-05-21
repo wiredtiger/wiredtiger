@@ -495,11 +495,10 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     /*
      * Initialize base page state for progressive unpacking.
      *
-     * State invariant: `cell` advances during unpack (via WT_CELL_BASE_INT_UNPACK), not during
-     * consume. After a k/v pair is packed into the new image, we clear `unpacked` and decrement
-     * `entries` by 2 (one for the key cell, one for the value cell). The next loop iteration
-     * calls WT_CELL_BASE_INT_UNPACK which reads from the already-advanced `cell` pointer,
-     * delivering the next pair.
+     * State invariant: `cell` advances during unpack, not during consume. After a k/v pair is
+     * packed into the new image, we clear `unpacked` and decrement `entries` by 2 (one for the key
+     * cell, one for the value cell). The next loop iteration reads from the already-advanced `cell`
+     * pointer, delivering the next pair.
      */
     base_state.dsk = base_image_header;
     base_state.cell = WT_PAGE_HEADER_BYTE(btree, base_image_header);
