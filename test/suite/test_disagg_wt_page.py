@@ -180,5 +180,23 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase):
         self.assertNotEqual(out.returncode, 0)
         self.assertIn("page", out.stderr.lower())
 
+    def test_lsn_ahead_of_frontier(self):
+        self._populate()
+        # The frontier sits at the most recent materialised LSN; passing a far-future LSN
+        # should not crash and should still return data (palite returns the chain DESC
+        # from the cap), but the BM should emit the WT_VERB_DISAGGREGATED_STORAGE warning.
+        page_id = self._root_page_id()
+        far_future_lsn = 10 ** 12
+        self.close_conn()
+        try:
+            out = subprocess.run(
+                [self._wt_bin(), "-v", "-h", self.home, "-C", self._wt_page_extra_config(),
+                 "page", "-p", str(page_id), "-l", str(far_future_lsn), self.uri],
+                capture_output=True, text=True, check=False)
+        finally:
+            self.reopen_conn()
+        # Either ret 0 with data, or non-zero — the contract is "no panic, no crash".
+        self.assertNotIn("PANIC", out.stderr)
+
 if __name__ == '__main__':
     wttest.run()
