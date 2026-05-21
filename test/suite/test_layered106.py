@@ -34,9 +34,9 @@ from helper_disagg import disagg_test_class
 # auto-applies the latest complete checkpoint from the page log at open time,
 # without requiring an explicit checkpoint_meta.
 #
-# This is the WT-17338 path used by the `wt` CLI against the ext_pali page log:
-# a brand-new WiredTiger home directory with no local files, just a page log
-# pointing at an existing page service.
+# This is the WT-17338 path used by the `wt` utility against the ext_pali page
+# log: a brand-new WiredTiger home directory with no local files, just a page
+# log pointing at an existing page service.
 
 @disagg_test_class
 class test_layered106(wttest.WiredTigerTestCase):
@@ -74,8 +74,8 @@ class test_layered106(wttest.WiredTigerTestCase):
 
         # Move the local WiredTiger files aside and reopen as a follower
         # with the new knob and no explicit checkpoint_meta. This mirrors the
-        # wt-CLI scenario: a fresh home directory, just a page log. With the
-        # auto-pickup knob set, the connection pulls the latest checkpoint
+        # wt utility scenario: a fresh home directory, just a page log. With
+        # the auto-pickup knob set, the connection pulls the latest checkpoint
         # from the page log on open and the leader's rows become visible.
         self.restart_without_local_files(
             config=self._follower_config(pickup_latest=True),
@@ -91,7 +91,7 @@ class test_layered106(wttest.WiredTigerTestCase):
             self.assertEqual(seen[i], 'value' + str(i))
 
     def test_follower_auto_pickup_empty(self):
-        # Verbose output from the new code path persists into teardown's
+        # Verbose output from the new code path persists into the teardown
         # layered verify; suppress the verify-side lines (we keep the open-
         # time verbose because we assert on it below).
         self.ignoreStdoutPattern(r'WT_SESSION\.verify: \[WT_VERB_DISAGGREGATED_STORAGE\]')

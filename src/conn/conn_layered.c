@@ -759,10 +759,9 @@ err:
 
 /*
  * __disagg_pick_up_latest_checkpoint --
- *     Resolve the latest complete checkpoint from the page log and apply it.
- *     Returns 0 on success or when no checkpoint exists yet (WT_NOTFOUND is
- *     swallowed and logged). Any other error from the page-log lookup or the
- *     pickup itself is propagated to the caller.
+ *     Resolve the latest complete checkpoint from the page log and apply it. Returns 0 on success
+ *     or when no checkpoint exists yet (WT_NOTFOUND is swallowed and logged). Any other error from
+ *     the page-log lookup or the pickup itself is propagated to the caller.
  */
 static int
 __disagg_pick_up_latest_checkpoint(WT_SESSION_IMPL *session, const char **cfg)
@@ -772,8 +771,7 @@ __disagg_pick_up_latest_checkpoint(WT_SESSION_IMPL *session, const char **cfg)
 
     WT_CLEAR(complete_checkpoint_meta);
 
-    ret = __wti_layered_get_disagg_checkpoint(
-      session, cfg, NULL, NULL, &complete_checkpoint_meta);
+    ret = __wti_layered_get_disagg_checkpoint(session, cfg, NULL, NULL, &complete_checkpoint_meta);
     WT_ERR_NOTFOUND_OK(ret, true);
     if (ret == 0) {
         ret = __disagg_pick_up_checkpoint_meta(
@@ -1673,10 +1671,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         }
 
         /*
-         * If we are starting as primary (e.g., for internal testing) or an
-         * opt-in follower (e.g., the wt CLI), pick up the latest checkpoint
-         * from the page log. The pickup_latest_checkpoint knob is initial-open
-         * only; the reconfigure path above does not consult it.
+         * If we are starting as primary (e.g., for internal testing) or an opt-in follower (e.g.,
+         * the wt utility), pick up the latest checkpoint from the page log. The
+         * pickup_latest_checkpoint knob is initial-open only; the reconfigure path above does not
+         * consult it.
          */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.pickup_latest_checkpoint", &cval));
         auto_pickup = (cval.val != 0);
