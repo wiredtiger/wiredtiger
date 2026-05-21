@@ -42,11 +42,15 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase):
 
     def test_page_subcommand_help(self):
         """`wt page -?` should be plumbed in: exit 0, print usage to stderr."""
-        out = subprocess.run(
-            [self._wt_bin(), 'page', '-?'],
-            capture_output=True, text=True, check=False)
-        self.assertEqual(out.returncode, 0, msg=out.stderr)
-        self.assertIn('page -p page_id', out.stderr)
+        self.close_conn()
+        try:
+            out = subprocess.run(
+                [self._wt_bin(), '-h', self.home, 'page', '-?'],
+                capture_output=True, text=True, check=False)
+            self.assertEqual(out.returncode, 0, msg=out.stderr)
+            self.assertIn('page -p page_id', out.stderr)
+        finally:
+            self.reopen_conn()
 
 if __name__ == '__main__':
     wttest.run()
