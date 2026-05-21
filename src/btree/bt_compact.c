@@ -8,6 +8,10 @@
 
 #include "wt_internal.h"
 
+#ifdef HAVE_UNITTEST
+bool __ut_compact_fail_strndup = false;
+#endif
+
 /*
  * __compact_page_inmem_check_addrs --
  *     Return if a clean, in-memory page needs to be re-written.
@@ -102,9 +106,10 @@ __compact_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 static int
 __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 {
-    WT_ADDR *addr;
+    WT_ADDR *addr, *old_addr;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_RET;
+    uint8_t *new_cookie;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
@@ -112,15 +117,31 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
      * If there's no address at all (the page has never been written), allocate a new WT_ADDR
      * structure, otherwise, the address has already been instantiated, replace the cookie.
      */
-    addr = ref->addr;
-    WT_ASSERT(session, addr != NULL);
+    old_addr = ref->addr;
+    WT_ASSERT(session, old_addr != NULL);
 
-    if (__wt_off_page(ref->home, addr))
+    /*
+     * Allocate the new block cookie first, before modifying any existing pointers. If any
+     * allocation in this function fails, we jump to the error handler which returns ENOMEM
+     * immediately, leaving the original block cookie completely untouched.
+     */
+    addr = NULL;
+    new_cookie = NULL;
+#ifdef HAVE_UNITTEST
+    if (__ut_compact_fail_strndup)
+        ret = ENOMEM;
+    else
+#endif
+        ret = __wt_strndup(session, copy->addr, copy->size, &new_cookie);
+    WT_ERR(ret);
+
+    if (__wt_off_page(ref->home, old_addr)) {
+        addr = old_addr;
         __wti_ref_addr_safe_free(session, addr->block_cookie, addr->block_cookie_size);
-    else {
-        __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
+    } else {
+        __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)old_addr, &unpack);
 
-        WT_RET(__wt_calloc_one(session, &addr));
+        WT_ERR(__wt_calloc_one(session, &addr));
         addr->ta.newest_start_durable_ts = unpack.ta.newest_start_durable_ts;
         addr->ta.newest_stop_durable_ts = unpack.ta.newest_stop_durable_ts;
         addr->ta.oldest_start_ts = unpack.ta.oldest_start_ts;
@@ -143,17 +164,25 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
         }
     }
 
-    WT_ERR(__wt_strndup(session, copy->addr, copy->size, &addr->block_cookie));
+    addr->block_cookie = new_cookie;
     addr->block_cookie_size = copy->size;
-
     ref->addr = addr;
     return (0);
 
 err:
-    if (addr != ref->addr)
+    __wt_free(session, new_cookie);
+    if (addr != old_addr)
         __wt_free(session, addr);
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
+{
+    return (__compact_page_replace_addr(session, ref, copy));
+}
+#endif
 
 /*
  * __compact_page --
