@@ -48,8 +48,7 @@ class test_layered106(wttest.WiredTigerTestCase):
         return 'disaggregated=(role="leader")'
 
     def _follower_config(self, pickup_latest=False, checkpoint_meta=None):
-        config = 'verbose=[disaggregated_storage:2],' \
-                 'disaggregated=(role="follower"'
+        config = 'disaggregated=(role="follower"'
         if pickup_latest:
             config += ',pickup_latest_checkpoint=true'
         if checkpoint_meta is not None:
@@ -58,10 +57,6 @@ class test_layered106(wttest.WiredTigerTestCase):
         return config
 
     def test_follower_auto_pickup(self):
-        # Verbose disagg output from the new code path persists into teardown's
-        # layered verify; suppress it so the test only checks behaviour.
-        self.ignoreStdoutPattern(r'WT_SESSION\.verify: \[WT_VERB_DISAGGREGATED_STORAGE\]')
-
         # Leader: create a table, write some rows, checkpoint.
         self.session.create(self.uri, self.create_session_config)
         cursor = self.session.open_cursor(self.uri)
