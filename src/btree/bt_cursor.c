@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "wiredtiger.h"
 #include "wt_internal.h"
 
 /*
@@ -585,11 +586,25 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
+    WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
 
     *updp = upd = NULL; /* -Wuninitialized */
     cbt = (WT_CURSOR_BTREE *)cursor;
     btree = CUR2BT(cbt);
+    session = CUR2S(cbt);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_RET(WT_ROLLBACK);
+        }
+    }
 
     /*
      * Set the key only flag to indicate to the search that we don't want to check visibility we
@@ -724,8 +739,12 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_search);
 
-    if (!F_ISSET(
-          session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_RET(WT_ROLLBACK);
@@ -914,6 +933,18 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     valid = false;
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_search_near);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    if (API_USER_ENTRY(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+        if (__wt_conn_load_control_read_overload(session)) {
+            WT_STAT_CONN_INCR(session, read_reject_count);
+            WT_RET(WT_ROLLBACK);
+        }
+    }
 
     WT_RET(__wt_txn_search_check(session));
     __cursor_state_save(cursor, &state);
