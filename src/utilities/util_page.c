@@ -17,10 +17,11 @@ usage(void)
 {
     static const char *options[] = {"-p page_id",
       "required: numeric page id (decimal or 0x-prefixed hex)", "-l lsn",
-      "optional: LSN (defaults to WT_PAGE_LOG_LSN_MAX, the latest sentinel)", "-?",
+      "optional: LSN (defaults to WT_PAGE_LOG_LSN_MAX, the latest sentinel)", "-t table_id",
+      "optional: raw page-log table id (skips the URI/dhandle path; uri then not required)", "-?",
       "show this message", NULL, NULL};
 
-    util_usage("page -p page_id [-l lsn] uri", "options:", options);
+    util_usage("page -p page_id [-l lsn] [-t table_id] [uri]", "options:", options);
     return (1);
 }
 
@@ -33,18 +34,20 @@ util_page(WT_SESSION *session, int argc, char *argv[])
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
-    uint64_t lsn, page_id;
+    uint64_t lsn, page_id, table_id;
     int ch;
     char *uri;
-    bool have_page_id;
+    bool have_page_id, have_table_id;
 
     session_impl = (WT_SESSION_IMPL *)session;
     have_page_id = false;
+    have_table_id = false;
     lsn = WT_PAGE_LOG_LSN_MAX;
     page_id = 0;
+    table_id = 0;
     uri = NULL;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "l:p:?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "l:p:t:?")) != EOF)
         switch (ch) {
         case 'l':
             if (util_str2num(session, __wt_optarg, true, &lsn) != 0)
@@ -54,6 +57,11 @@ util_page(WT_SESSION *session, int argc, char *argv[])
             if (util_str2num(session, __wt_optarg, true, &page_id) != 0)
                 return (usage());
             have_page_id = true;
+            break;
+        case 't':
+            if (util_str2num(session, __wt_optarg, true, &table_id) != 0)
+                return (usage());
+            have_table_id = true;
             break;
         case '?':
             usage();
@@ -68,26 +76,33 @@ util_page(WT_SESSION *session, int argc, char *argv[])
         fprintf(stderr, "%s: page: -p page_id is required\n", progname);
         return (usage());
     }
-    if (argc != 1)
-        return (usage());
-    if ((uri = util_uri(session, *argv, "file")) == NULL)
-        return (1);
 
-    WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
-#ifdef HAVE_DIAGNOSTIC
-    ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
-#else
+#ifndef HAVE_DIAGNOSTIC
     fprintf(stderr,
       "%s: page: this subcommand requires a diagnostic build "
       "(rebuild WiredTiger with -DHAVE_DIAGNOSTIC=1)\n",
       progname);
-    ret = ENOTSUP;
-#endif
-    WT_TRET(__wt_session_release_dhandle(session_impl));
+    return (1);
+#else
+    if (have_table_id) {
+        if (argc != 0)
+            return (usage());
+        ret = __wt_debug_disagg_table_page_id(session_impl, table_id, page_id, lsn, NULL);
+    } else {
+        if (argc != 1)
+            return (usage());
+        if ((uri = util_uri(session, *argv, "file")) == NULL)
+            return (1);
+
+        WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
+        ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
+        WT_TRET(__wt_session_release_dhandle(session_impl));
+    }
 
 err:
     util_free(uri);
     if (ret != 0)
         (void)util_err(session, ret, "page");
     return (ret == 0 ? 0 : 1);
+#endif
 }

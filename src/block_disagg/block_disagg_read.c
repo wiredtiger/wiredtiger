@@ -384,12 +384,12 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
 
     WT_CLEAR(*get_args);
     /*
-     * "Latest" semantics for plh_get are backend-dependent. palite binds the LSN to a signed
-     * int64 column and uses "lsn <= ?", so a huge sentinel works; the remote page service
-     * interprets a future LSN as "wait until that LSN materializes" and times out. Map the
-     * WT_PAGE_LOG_LSN_MAX sentinel to the connection's last_materialized_lsn so we ask for the
-     * latest LSN both backends actually have. Fall back to INT64_MAX if the connection has not
-     * recorded a materialized LSN yet.
+     * "Latest" semantics for plh_get are backend-dependent. palite binds the LSN to a signed int64
+     * column and uses "lsn <= ?", so a huge sentinel works; the remote page service interprets a
+     * future LSN as "wait until that LSN materializes" and times out. Map the WT_PAGE_LOG_LSN_MAX
+     * sentinel to the connection's last_materialized_lsn so we ask for the latest LSN both backends
+     * actually have. Fall back to INT64_MAX if the connection has not recorded a materialized LSN
+     * yet.
      */
     if (lsn == WT_PAGE_LOG_LSN_MAX) {
         get_args->lsn = __wt_atomic_load_uint64_acquire(
@@ -414,4 +414,53 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
         __block_disagg_check_lsn_frontier(session, lsn, block_disagg->tableid);
 
     return (0);
+}
+
+/*
+ * __wt_block_disagg_debug_read_table_page_id --
+ *     Debug-only entry: fetch a page chain by (table_id, page_id, lsn) without a btree dhandle.
+ *     Opens a page-log handle on the connection's configured page log, calls plh_get, then closes
+ *     the handle. Used by the wt page subcommand to target well-known tables such as the turtle
+ *     (table_id 2, page_id 1) that have no file URI.
+ */
+int
+__wt_block_disagg_debug_read_table_page_id(WT_SESSION_IMPL *session, uint64_t table_id,
+  uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
+  u_int *results_count)
+{
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npage_log;
+    WT_PAGE_LOG_HANDLE *handle;
+    uint32_t tmp_count;
+
+    handle = NULL;
+    npage_log = S2C(session)->disaggregated_storage.npage_log;
+    if (npage_log == NULL || npage_log->page_log == NULL)
+        WT_RET_MSG(session, ENOTSUP, "no page log configured on this connection");
+
+    WT_RET(
+      npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface, table_id, &handle));
+
+    WT_CLEAR(*get_args);
+    if (lsn == WT_PAGE_LOG_LSN_MAX) {
+        get_args->lsn = __wt_atomic_load_uint64_acquire(
+          &S2C(session)->disaggregated_storage.last_materialized_lsn);
+        if (get_args->lsn == WT_DISAGG_LSN_NONE)
+            get_args->lsn = (uint64_t)INT64_MAX;
+    } else
+        get_args->lsn = lsn;
+
+    tmp_count = (uint32_t)*results_count;
+    WT_ERR(
+      handle->plh_get(handle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
+    WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+    *results_count = tmp_count;
+
+    if (tmp_count == 0)
+        ret = WT_NOTFOUND;
+
+err:
+    if (handle != NULL)
+        WT_TRET(handle->plh_close(handle, &session->iface));
+    return (ret);
 }
