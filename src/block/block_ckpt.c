@@ -12,6 +12,7 @@ static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_read_deletion_extlists(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, bool *);
 static int __ckpt_reinit_extlists(WT_SESSION_IMPL *, WT_BLOCK_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
+static int __ckpt_update_live(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_BLOCK_CKPT *, uint64_t);
 static int __ckpt_validate_state(WT_SESSION_IMPL *, WT_BLOCK *);
 
 /*
@@ -687,6 +688,89 @@ __ckpt_reinit_extlists(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 }
 
 /*
+ * __ckpt_update_live --
+ *     Update the live checkpoint: truncate the file, calculate the checkpoint size, and call
+ *     __ckpt_update for the ADD checkpoint. Also resets the live system's alloc and discard extent
+ *     lists so that extents freed by the checkpoint are reclaimed outside of the lock.
+ *
+ * The caller must hold block->live_lock.
+ */
+static int
+__ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci,
+  uint64_t ckpt_size)
+{
+    WT_CKPT *ckpt;
+    WT_DECL_RET;
+#ifdef HAVE_DIAGNOSTIC
+    WT_BLOCK_CKPT *a;
+#endif
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
+
+    /* Truncate the file if that's possible. */
+    WT_RET(__wti_block_extlist_truncate(session, block, &ci->avail));
+
+    /* Update the final, added checkpoint based on the live system. */
+    WT_CKPT_FOREACH (ckptbase, ckpt)
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+            /*
+             * !!!
+             * Our caller wants the final checkpoint size. Setting the size here violates layering,
+             * but the alternative is a call for the btree layer to crack the checkpoint cookie into
+             * its components, and that's a fair amount of work.
+             */
+            ckpt->size = ckpt_size;
+
+            /*
+             * Set the rolling checkpoint size for the live system. The current size includes the
+             * current checkpoint's root page size (root pages are on the checkpoint's block
+             * allocation list as root pages are allocated with the usual block allocation
+             * functions). That's correct, but we don't want to include it in the size for the next
+             * checkpoint.
+             */
+            ckpt_size -= ci->root_size;
+
+            /*
+             * Additionally, we had a bug for awhile where the live checkpoint size grew without
+             * bound. We can't sanity check the value, that would require walking the tree as part
+             * of the checkpoint. Bound any bug at the size of the file. It isn't practical to
+             * assert that the value is within bounds since databases created with older versions of
+             * WiredTiger (2.8.0) would likely see an error.
+             */
+            ci->ckpt_size = WT_MIN(ckpt_size, (uint64_t)block->size);
+
+            WT_RET(__ckpt_update(session, block, ckptbase, ckpt, ci));
+        }
+
+    /*
+     * Reset the live system's alloc and discard extent lists, leave the avail list alone. This
+     * includes freeing a lot of extents, so do it outside of the system's lock by copying and
+     * resetting the original, then doing the work later.
+     */
+    ci->ckpt_alloc = ci->alloc;
+    WT_RET(__wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
+    ci->ckpt_discard = ci->discard;
+    WT_RET(__wti_block_extlist_init(session, &ci->discard, "live", "discard", false));
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * The first checkpoint in the system should always have an empty discard list. If we've read
+     * that checkpoint and/or created it, check.
+     */
+    WT_CKPT_FOREACH (ckptbase, ckpt)
+        if (!F_ISSET(ckpt, WT_CKPT_DELETE))
+            break;
+    if ((a = ckpt->bpriv) == NULL)
+        a = &block->live;
+    if (a->discard.entries != 0)
+        WT_RET_MSG(
+          session, WT_ERROR, "first checkpoint incorrectly has blocks on the discard list");
+#endif
+
+    return (ret);
+}
+
+/*
  * __ckpt_process --
  *     Process the list of checkpoints.
  */
@@ -884,65 +968,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
 
 live_update:
-    /* Truncate the file if that's possible. */
-    WT_ERR(__wti_block_extlist_truncate(session, block, &ci->avail));
-
-    /* Update the final, added checkpoint based on the live system. */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
-            /*
-             * !!!
-             * Our caller wants the final checkpoint size. Setting the size here violates layering,
-             * but the alternative is a call for the btree layer to crack the checkpoint cookie into
-             * its components, and that's a fair amount of work.
-             */
-            ckpt->size = ckpt_size;
-
-            /*
-             * Set the rolling checkpoint size for the live system. The current size includes the
-             * current checkpoint's root page size (root pages are on the checkpoint's block
-             * allocation list as root pages are allocated with the usual block allocation
-             * functions). That's correct, but we don't want to include it in the size for the next
-             * checkpoint.
-             */
-            ckpt_size -= ci->root_size;
-
-            /*
-             * Additionally, we had a bug for awhile where the live checkpoint size grew without
-             * bound. We can't sanity check the value, that would require walking the tree as part
-             * of the checkpoint. Bound any bug at the size of the file. It isn't practical to
-             * assert that the value is within bounds since databases created with older versions of
-             * WiredTiger (2.8.0) would likely see an error.
-             */
-            ci->ckpt_size = WT_MIN(ckpt_size, (uint64_t)block->size);
-
-            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ci));
-        }
-
-    /*
-     * Reset the live system's alloc and discard extent lists, leave the avail list alone. This
-     * includes freeing a lot of extents, so do it outside of the system's lock by copying and
-     * resetting the original, then doing the work later.
-     */
-    ci->ckpt_alloc = ci->alloc;
-    WT_ERR(__wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
-    ci->ckpt_discard = ci->discard;
-    WT_ERR(__wti_block_extlist_init(session, &ci->discard, "live", "discard", false));
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * The first checkpoint in the system should always have an empty discard list. If we've read
-     * that checkpoint and/or created it, check.
-     */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (!F_ISSET(ckpt, WT_CKPT_DELETE))
-            break;
-    if ((a = ckpt->bpriv) == NULL)
-        a = &block->live;
-    if (a->discard.entries != 0)
-        WT_ERR_MSG(
-          session, WT_ERROR, "first checkpoint incorrectly has blocks on the discard list");
-#endif
+    WT_ERR(__ckpt_update_live(session, block, ckptbase, ci, ckpt_size));
 
 err:
     if (ret != 0 && fatal) {
