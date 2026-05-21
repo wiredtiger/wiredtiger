@@ -700,6 +700,7 @@ __ckpt_delete_and_merge(
 {
     WT_BLOCK_CKPT *a, *b;
     WT_CKPT *ckpt, *next_ckpt;
+    const char *next_name;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -734,10 +735,13 @@ __ckpt_delete_and_merge(
         /*
          * Set the "to" checkpoint structure, it may be the live tree.
          */
-        if (F_ISSET(next_ckpt, WT_CKPT_ADD))
+        if (F_ISSET(next_ckpt, WT_CKPT_ADD)) {
             b = &block->live;
-        else
+            next_name = "live";
+        } else {
             b = next_ckpt->bpriv;
+            next_name = next_ckpt->name != NULL ? next_ckpt->name : "live";
+        }
 
         /*
          * Free the root page: there's nothing special about this free, the root page is allocated
@@ -747,24 +751,31 @@ __ckpt_delete_and_merge(
          * list and so must be paired in the checkpoint.
          */
         if (a->root_offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(
-              __wti_block_insert_ext(session, block, &a->discard, a->root_offset, a->root_size));
+            WT_RET_MSG_CHK(session,
+              __wti_block_insert_ext(session, block, &a->discard, a->root_offset, a->root_size),
+              "inserting root page into discard list for deleted checkpoint %s", ckpt->name);
 
         /*
          * Free the blocks used to hold the "from" checkpoint's extent lists, including the avail
          * list.
          */
-        WT_RET(__ckpt_extlist_fblocks(session, block, &a->alloc));
-        WT_RET(__ckpt_extlist_fblocks(session, block, &a->avail));
-        WT_RET(__ckpt_extlist_fblocks(session, block, &a->discard));
+        WT_RET_MSG_CHK(session, __ckpt_extlist_fblocks(session, block, &a->alloc),
+          "freeing alloc extent list blocks for deleted checkpoint %s", ckpt->name);
+        WT_RET_MSG_CHK(session, __ckpt_extlist_fblocks(session, block, &a->avail),
+          "freeing avail extent list blocks for deleted checkpoint %s", ckpt->name);
+        WT_RET_MSG_CHK(session, __ckpt_extlist_fblocks(session, block, &a->discard),
+          "freeing discard extent list blocks for deleted checkpoint %s", ckpt->name);
 
         /*
          * Roll the "from" alloc and discard extent lists into the "to" checkpoint's lists.
          */
         if (a->alloc.entries != 0)
-            WT_RET(__wti_block_extlist_merge(session, block, &a->alloc, &b->alloc));
+            WT_RET_MSG_CHK(session, __wti_block_extlist_merge(session, block, &a->alloc, &b->alloc),
+              "merging alloc extent list from deleted checkpoint %s", ckpt->name);
         if (a->discard.entries != 0)
-            WT_RET(__wti_block_extlist_merge(session, block, &a->discard, &b->discard));
+            WT_RET_MSG_CHK(session,
+              __wti_block_extlist_merge(session, block, &a->discard, &b->discard),
+              "merging discard extent list from deleted checkpoint %s", ckpt->name);
 
         /*
          * If the "to" checkpoint is also being deleted, we're done with it, it's merged into some
@@ -778,7 +789,8 @@ __ckpt_delete_and_merge(
          * Find blocks for re-use: wherever the "to" checkpoint's allocate and discard lists
          * overlap, move the range to the live system's checkpoint available list.
          */
-        WT_RET(__wti_block_extlist_overlap(session, block, b));
+        WT_RET_MSG_CHK(session, __wti_block_extlist_overlap(session, block, b),
+          "finding reusable blocks in checkpoint %s", next_name);
 
         /*
          * If we're updating the live system's information, we're done.
@@ -796,8 +808,10 @@ __ckpt_delete_and_merge(
          * Free the blocks used to hold the "to" checkpoint's extent lists; don't include the avail
          * list, it's not changing.
          */
-        WT_RET(__ckpt_extlist_fblocks(session, block, &b->alloc));
-        WT_RET(__ckpt_extlist_fblocks(session, block, &b->discard));
+        WT_RET_MSG_CHK(session, __ckpt_extlist_fblocks(session, block, &b->alloc),
+          "freeing alloc extent list blocks for updated checkpoint %s", next_name);
+        WT_RET_MSG_CHK(session, __ckpt_extlist_fblocks(session, block, &b->discard),
+          "freeing discard extent list blocks for updated checkpoint %s", next_name);
 
         F_SET(next_ckpt, WT_CKPT_UPDATE);
     }
@@ -805,7 +819,8 @@ __ckpt_delete_and_merge(
     /* Update checkpoints marked for update. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_UPDATE))
-            WT_RET(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
+            WT_RET_MSG_CHK(session, __ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv),
+              "updating checkpoint %s after deletion merge", ckpt->name);
 
     return (0);
 }
