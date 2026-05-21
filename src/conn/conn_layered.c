@@ -1305,12 +1305,17 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
      * table was dropped and its stable constituent was never created, so we have no data to write.
      * Publish CREATE and DROP at the same epoch to avoid this window.
      */
-    if (!TAILQ_EMPTY(&skipped_creates))
+    if (!TAILQ_EMPTY(&skipped_creates)) {
+        TAILQ_FOREACH (skipped, &skipped_creates, q)
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
+              " and DROP at a later epoch. This checkpoint must include the table in shared "
+              "metadata, but the table was dropped and we have no data to write.",
+              skipped->table_name, skipped->schema_epoch);
         WT_ERR_PANIC(session, EINVAL,
-          "API violation: table \"%s\" was published with CREATE at epoch %" PRIu64
-          " and DROP at a later epoch. This checkpoint must include the table in shared metadata, "
-          "but the table was dropped and we have no data to write.",
-          TAILQ_FIRST(&skipped_creates)->table_name, TAILQ_FIRST(&skipped_creates)->schema_epoch);
+          "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
+          cur_schema_epoch);
+    }
 
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
