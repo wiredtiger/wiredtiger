@@ -700,7 +700,6 @@ __ckpt_delete_and_merge(
 {
     WT_BLOCK_CKPT *a, *b;
     WT_CKPT *ckpt, *next_ckpt;
-    WT_DECL_RET;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -748,24 +747,24 @@ __ckpt_delete_and_merge(
          * list and so must be paired in the checkpoint.
          */
         if (a->root_offset != WT_BLOCK_INVALID_OFFSET)
-            WT_ERR(
+            WT_RET(
               __wti_block_insert_ext(session, block, &a->discard, a->root_offset, a->root_size));
 
         /*
          * Free the blocks used to hold the "from" checkpoint's extent lists, including the avail
          * list.
          */
-        WT_ERR(__ckpt_extlist_fblocks(session, block, &a->alloc));
-        WT_ERR(__ckpt_extlist_fblocks(session, block, &a->avail));
-        WT_ERR(__ckpt_extlist_fblocks(session, block, &a->discard));
+        WT_RET(__ckpt_extlist_fblocks(session, block, &a->alloc));
+        WT_RET(__ckpt_extlist_fblocks(session, block, &a->avail));
+        WT_RET(__ckpt_extlist_fblocks(session, block, &a->discard));
 
         /*
          * Roll the "from" alloc and discard extent lists into the "to" checkpoint's lists.
          */
         if (a->alloc.entries != 0)
-            WT_ERR(__wti_block_extlist_merge(session, block, &a->alloc, &b->alloc));
+            WT_RET(__wti_block_extlist_merge(session, block, &a->alloc, &b->alloc));
         if (a->discard.entries != 0)
-            WT_ERR(__wti_block_extlist_merge(session, block, &a->discard, &b->discard));
+            WT_RET(__wti_block_extlist_merge(session, block, &a->discard, &b->discard));
 
         /*
          * If the "to" checkpoint is also being deleted, we're done with it, it's merged into some
@@ -779,14 +778,14 @@ __ckpt_delete_and_merge(
          * Find blocks for re-use: wherever the "to" checkpoint's allocate and discard lists
          * overlap, move the range to the live system's checkpoint available list.
          */
-        WT_ERR(__wti_block_extlist_overlap(session, block, b));
+        WT_RET(__wti_block_extlist_overlap(session, block, b));
 
         /*
          * If we're updating the live system's information, we're done.
          */
         if (F_ISSET(next_ckpt, WT_CKPT_ADD)) {
             /* Clear any possible blocks that are now available after merging. */
-            WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block, false));
+            WT_RET(__ckpt_live_blkmods(session, ckptbase, ci, block, false));
             continue;
         }
 
@@ -797,8 +796,8 @@ __ckpt_delete_and_merge(
          * Free the blocks used to hold the "to" checkpoint's extent lists; don't include the avail
          * list, it's not changing.
          */
-        WT_ERR(__ckpt_extlist_fblocks(session, block, &b->alloc));
-        WT_ERR(__ckpt_extlist_fblocks(session, block, &b->discard));
+        WT_RET(__ckpt_extlist_fblocks(session, block, &b->alloc));
+        WT_RET(__ckpt_extlist_fblocks(session, block, &b->discard));
 
         F_SET(next_ckpt, WT_CKPT_UPDATE);
     }
@@ -806,10 +805,9 @@ __ckpt_delete_and_merge(
     /* Update checkpoints marked for update. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_UPDATE))
-            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
+            WT_RET(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
 
-err:
-    return (ret);
+    return (0);
 }
 
 /*
