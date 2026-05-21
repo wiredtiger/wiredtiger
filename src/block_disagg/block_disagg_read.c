@@ -383,7 +383,12 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
     WT_CLEAR(*get_args);
-    get_args->lsn = lsn;
+    /*
+     * Page-log backends (e.g. palite) bind the LSN to a signed int64 column, so passing the
+     * WT_PAGE_LOG_LSN_MAX (UINT64_MAX) sentinel as the upper bound matches no rows. Map it to
+     * INT64_MAX so the underlying SQL "lsn <= ?" predicate selects the latest entry.
+     */
+    get_args->lsn = (lsn == WT_PAGE_LOG_LSN_MAX) ? (uint64_t)INT64_MAX : lsn;
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
         F_SET(get_args, WT_PAGE_LOG_COLD);
 
