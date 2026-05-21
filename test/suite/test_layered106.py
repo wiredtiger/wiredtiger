@@ -32,18 +32,11 @@
 #   worker must not panic in either race ordering.
 #
 #   Two timing stress flags exercise the two orderings:
+#     drain_ingest_table_slow:          drain holds the read lock; drop returns EBUSY.
+#     drain_ingest_table_pre_lock_slow: drop wins first; drain sees a dead handle and skips.
 #
-#     drain_ingest_table_slow: 300 ms sleep inside __layered_copy_ingest_table
-#       while the ingest dhandle read lock is held.  The drop blocks on the
-#       exclusive write lock and returns EBUSY; a retry after step-up succeeds.
-#
-#     drain_ingest_table_pre_lock_slow: 300 ms sleep in __layered_drain_worker_run
-#       before acquiring the read lock.  The drop wins the exclusive lock first,
-#       sets WT_DHANDLE_DEAD, and returns 0.  Drain then sees DEAD and skips.
-#
-#   Each scenario runs in a subprocess via run_subprocess_function so that a
-#   WT_PANIC / crash is caught as a non-zero exit code without killing the test
-#   runner.  This approach works cross-platform (no os.fork required).
+#   Each scenario runs in a subprocess so that an abort is caught as a non-zero
+#   exit code without killing the test runner.
 
 import errno, os, threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -69,7 +62,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         # Set up leader data, reopen as follower, then race step-up (which drains
         # ingest tables) against a concurrent drop of the same table.
 
-        # Create and populate the table via the framework's leader connection.
+        # Create and populate the table via the leader connection.
         self.session.create(self.uri,
                             'key_format=i,value_format=S,block_manager=disagg,type=layered')
         cursor = self.session.open_cursor(self.uri)
@@ -103,12 +96,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
             daemon=True)
         t.start()
 
-        # Sleep 100 ms to land inside the 300 ms stress window for both scenarios.
-        # drain_ingest_table_slow: lock held from ~50 ms; 100 ms is safely inside.
-        # drain_ingest_table_pre_lock_slow: pre-lock sleep from ~50 ms; 100 ms drops
-        #   while drain is still sleeping before the lock, so drop wins the exclusive lock.
-        # Without the sleep, the drop runs before drain has even started, so the race
-        # is never triggered.
+        # Sleep to ensure the drop races the drain worker rather than preceding it.
         time.sleep(0.1)
 
         ebusy = False
