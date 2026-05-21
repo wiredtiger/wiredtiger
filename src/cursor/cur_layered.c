@@ -1316,9 +1316,7 @@ __clayered_next(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -1360,9 +1358,7 @@ __clayered_prev(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -1766,9 +1762,7 @@ __clayered_search(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -2064,9 +2058,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -2109,9 +2101,7 @@ __clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR *constituent)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -2325,9 +2315,7 @@ __clayered_insert(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -2396,9 +2384,7 @@ __clayered_update(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -2481,9 +2467,7 @@ __clayered_remove(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -2535,9 +2519,7 @@ __clayered_reserve(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -2940,9 +2922,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);

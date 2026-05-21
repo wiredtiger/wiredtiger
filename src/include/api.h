@@ -312,6 +312,9 @@
 
 #define SESSION_API_CALL_NOCONF(s, func_name) API_CALL_NOCONF(s, WT_SESSION, func_name, NULL, false)
 
+#define SESSION_LOAD_CONTROLLABLE(s) \
+    !F_ISSET(s, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)
+
 #define SESSION_TXN_API_CALL(s, ret, func_name, config, cfg)   \
     TXN_API_CALL(s, WT_SESSION, func_name, NULL, config, cfg); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)

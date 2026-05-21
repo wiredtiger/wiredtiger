@@ -177,9 +177,7 @@ __curds_next(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -212,9 +210,7 @@ __curds_prev(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -273,9 +269,7 @@ __curds_search(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -309,9 +303,7 @@ __curds_search_near(WT_CURSOR *cursor, int *exact)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -345,9 +337,7 @@ __curds_insert(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -385,9 +375,7 @@ __curds_update(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -424,9 +412,7 @@ __curds_remove(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
@@ -462,9 +448,7 @@ __curds_reserve(WT_CURSOR *cursor)
     /*
      * If this is a user cursor call, check for system overload before doing any work.
      */
-    if (API_USER_ENTRY(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE)) {
+    if (API_USER_ENTRY(session) && SESSION_LOAD_CONTROLLABLE(session)) {
         if (__wt_conn_load_control_read_overload(session)) {
             WT_STAT_CONN_INCR(session, read_reject_count);
             WT_ERR(WT_ROLLBACK);
