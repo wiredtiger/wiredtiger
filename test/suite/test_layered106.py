@@ -47,8 +47,11 @@ class test_layered106(wttest.WiredTigerTestCase):
     def conn_config(self):
         return 'disaggregated=(role="leader")'
 
-    def _follower_config(self, pickup_latest=False, checkpoint_meta=None):
-        config = 'disaggregated=(role="follower"'
+    def _follower_config(self, pickup_latest=False, checkpoint_meta=None, verbose_disagg=False):
+        config = ''
+        if verbose_disagg:
+            config += 'verbose=[disaggregated_storage:2],'
+        config += 'disaggregated=(role="follower"'
         if pickup_latest:
             config += ',pickup_latest_checkpoint=true'
         if checkpoint_meta is not None:
@@ -86,3 +89,28 @@ class test_layered106(wttest.WiredTigerTestCase):
             f"expected {self.nrows} rows after follower auto-pickup, got {len(seen)}")
         for i in range(self.nrows):
             self.assertEqual(seen[i], 'value' + str(i))
+
+    def test_follower_auto_pickup_empty(self):
+        # Verbose output from the new code path persists into teardown's
+        # layered verify; suppress the verify-side lines (we keep the open-
+        # time verbose because we assert on it below).
+        self.ignoreStdoutPattern(r'WT_SESSION\.verify: \[WT_VERB_DISAGGREGATED_STORAGE\]')
+
+        # Don't write anything; we want the page log to have no completed
+        # checkpoint. Step down so close does not emit a shutdown checkpoint.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+
+        # Move the local WiredTiger files aside and reopen as follower with
+        # the auto-pickup knob. The page log has no checkpoint, so the new
+        # code path should log "Did not find any complete checkpoint to pick
+        # up at startup" at debug2 and the connection should open cleanly.
+        with self.expectedStdoutPattern(
+            r'Did not find any complete checkpoint to pick up at startup'):
+            self.restart_without_local_files(
+                config=self._follower_config(
+                    pickup_latest=True, verbose_disagg=True),
+                pickup_checkpoint=False)
+
+        # Connection is usable even with no checkpoint.
+        session = self.conn.open_session()
+        session.close()
