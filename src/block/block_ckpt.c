@@ -700,9 +700,6 @@ __ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
   uint64_t ckpt_size)
 {
     WT_CKPT *ckpt;
-#ifdef HAVE_DIAGNOSTIC
-    WT_BLOCK_CKPT *a;
-#endif
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -760,6 +757,7 @@ __ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
      * The first checkpoint in the system should always have an empty discard list. If we've read
      * that checkpoint and/or created it, check.
      */
+    WT_BLOCK_CKPT *a;
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (!F_ISSET(ckpt, WT_CKPT_DELETE))
             break;
