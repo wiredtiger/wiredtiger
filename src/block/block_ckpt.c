@@ -11,6 +11,7 @@
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_read_deletion_extlists(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, bool *);
 static int __ckpt_reinit_extlists(WT_SESSION_IMPL *, WT_BLOCK_CKPT *);
+static int __ckpt_reset_extlists(WT_SESSION_IMPL *, WT_BLOCK *, WT_BLOCK_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
 static int __ckpt_validate_state(WT_SESSION_IMPL *, WT_BLOCK *);
 
@@ -687,6 +688,33 @@ __ckpt_reinit_extlists(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 }
 
 /*
+ * __ckpt_reset_extlists --
+ *     Copy the live system's alloc and discard extent lists to the checkpoint archive fields, then
+ *     reinitialize the originals so that extents freed by the checkpoint can be reclaimed outside
+ *     the live lock. Caller holds block->live_lock.
+ */
+static int
+__ckpt_reset_extlists(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
+
+    /*
+     * Reset the live system's alloc and discard extent lists, leave the avail list alone. This
+     * includes freeing a lot of extents, so do it outside of the system's lock by copying and
+     * resetting the original, then doing the work later.
+     */
+    ci->ckpt_alloc = ci->alloc;
+    WT_RET_MSG_CHK(session, __wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false),
+      "resetting the live alloc extent list after copying it to ckpt_alloc");
+    ci->ckpt_discard = ci->discard;
+    WT_RET_MSG_CHK(session,
+      __wti_block_extlist_init(session, &ci->discard, "live", "discard", false),
+      "resetting the live discard extent list after copying it to ckpt_discard");
+
+    return (0);
+}
+
+/*
  * __ckpt_process --
  *     Process the list of checkpoints.
  */
@@ -919,15 +947,7 @@ live_update:
             WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ci));
         }
 
-    /*
-     * Reset the live system's alloc and discard extent lists, leave the avail list alone. This
-     * includes freeing a lot of extents, so do it outside of the system's lock by copying and
-     * resetting the original, then doing the work later.
-     */
-    ci->ckpt_alloc = ci->alloc;
-    WT_ERR(__wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
-    ci->ckpt_discard = ci->discard;
-    WT_ERR(__wti_block_extlist_init(session, &ci->discard, "live", "discard", false));
+    WT_ERR(__ckpt_reset_extlists(session, block, ci));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
