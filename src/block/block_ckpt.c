@@ -738,7 +738,8 @@ __ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
              */
             ci->ckpt_size = WT_MIN(ckpt_size, (uint64_t)block->size);
 
-            WT_RET(__ckpt_update(session, block, ckptbase, ckpt, ci));
+            WT_RET_MSG_CHK(session, __ckpt_update(session, block, ckptbase, ckpt, ci),
+              "updating the live (ADD) checkpoint %s", ckpt->name);
         }
 
     /*
@@ -747,9 +748,12 @@ __ckpt_update_live(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
      * resetting the original, then doing the work later.
      */
     ci->ckpt_alloc = ci->alloc;
-    WT_RET(__wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
+    WT_RET_MSG_CHK(session, __wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false),
+      "reinitializing the live alloc extent list after copying it to ckpt_alloc");
     ci->ckpt_discard = ci->discard;
-    WT_RET(__wti_block_extlist_init(session, &ci->discard, "live", "discard", false));
+    WT_RET_MSG_CHK(session,
+      __wti_block_extlist_init(session, &ci->discard, "live", "discard", false),
+      "reinitializing the live discard extent list after copying it to ckpt_discard");
 
 #ifdef HAVE_DIAGNOSTIC
     /*
