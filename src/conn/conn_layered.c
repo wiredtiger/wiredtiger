@@ -195,14 +195,16 @@ __disagg_discard_old_checkpoint_check(WT_SESSION_IMPL *session, const char *cfg_
          * Checkpoint orders are strictly increasing if the checkpoints are written by different
          * nodes.
          */
-        if (checkpoint_time != checkpoint_time_new)
-            WT_ERR_MSG(session, WT_ERROR,
+        if (checkpoint_time != checkpoint_time_new) {
+            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Checkpoint order should be strictly increasing. "
               "Current checkpoint order: %" PRId64 ", time: %" PRIu64
               ". New checkpoint order: %" PRId64 ", time: %" PRIu64
               ". Current configuration: '%s'. New configuration: '%s'.",
               checkpoint_order, checkpoint_time, checkpoint_order_new, checkpoint_time_new,
               cfg_current, cfg_new);
+            *discardp = true;
+        }
     } else
         /*
          * Treat the checkpoint order configurations as the source of truth when determining whether
