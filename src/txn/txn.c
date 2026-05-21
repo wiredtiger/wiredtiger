@@ -1048,9 +1048,6 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UP
     WT_ASSERT(session, upd_chain != NULL);
 
     WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-    tombstone->txnid = WT_TXN_NONE;
-    tombstone->upd_start_ts = WT_TS_NONE;
-    tombstone->upd_durable_ts = WT_TS_NONE;
 
     /*
      * Walk to the end of the chain. The caller guarantees that the chain at this point consists
