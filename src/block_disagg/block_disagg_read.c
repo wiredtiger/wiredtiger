@@ -372,3 +372,59 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
 
     return (0);
 }
+
+/*
+ * __wti_block_disagg_debug_read_page_id --
+ *     Debug-only entry point. Read a single page through the disagg page log given a
+ *     (page_id, lsn) pair, with no address cookie. Cookie-driven size/checksum/base_lsn
+ *     checks are skipped; magic and header checksum still run. Intended exclusively for
+ *     the `wt page` CLI; do not call from production code.
+ */
+int
+__wti_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t page_id,
+  uint64_t lsn, WT_PAGE_BLOCK_META *block_meta, WT_ITEM *results_array, u_int *results_count)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_DECL_RET;
+    WT_PAGE_LOG_GET_ARGS get_args;
+    uint32_t tmp_count;
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+
+    WT_CLEAR(get_args);
+    get_args.lsn = lsn;
+    if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        F_SET(&get_args, WT_PAGE_LOG_COLD);
+
+    tmp_count = (uint32_t)*results_count;
+    WT_RET(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
+      &get_args, results_array, &tmp_count));
+    WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+    *results_count = tmp_count;
+
+    if (tmp_count == 0)
+        return (WT_NOTFOUND);
+
+    /*
+     * Emit a one-line chain header from get_args. When the caller passed
+     * WT_PAGE_LOG_LSN_MAX as the input LSN, palite preserves it in get_args.lsn, so report
+     * "latest" instead of the raw sentinel.
+     */
+    if (lsn == WT_PAGE_LOG_LSN_MAX)
+        WT_IGNORE_RET(__wt_msg(session,
+          "=== chain: base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64 " base_ckpt=%" PRIu64
+          " backlink_ckpt=%" PRIu64 " results=%u (input lsn=latest)",
+          get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
+          get_args.backlink_checkpoint_id, tmp_count));
+    else
+        WT_IGNORE_RET(__wt_msg(session,
+          "=== chain: base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64 " base_ckpt=%" PRIu64
+          " backlink_ckpt=%" PRIu64 " results=%u",
+          get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
+          get_args.backlink_checkpoint_id, tmp_count));
+
+    ret = __block_disagg_process_results(session, block_disagg, block_meta, page_id,
+      /*flags*/ 0, lsn, /*base_lsn*/ get_args.base_lsn, /*cookie_size*/ 0, /*cookie_checksum*/ 0,
+      &get_args, results_array, tmp_count, /*lenient_cookie*/ true);
+    return (ret);
+}
