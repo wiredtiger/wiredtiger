@@ -114,7 +114,13 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
     page_del = ref->page_del;
     if (page_del == NULL ||
       __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
-        WT_RET(__wt_page_parent_modify_set(session, ref, false));
+        /*
+         * When called inline during a checkpoint tree walk, only the parent page needs to be
+         * marked dirty — the current checkpoint will write it. When called from the dedicated
+         * cleanup thread, the tree must also be marked dirty so the next checkpoint picks up
+         * the change.
+         */
+        WT_RET(__wt_page_parent_modify_set(session, ref, WT_SESSION_BTREE_SYNC(session)));
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
         WT_STAT_CONN_DATA_INCR(session, cc_pages_removed);
@@ -169,7 +175,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
       "obsolete, stop time aggregate %s",
       (void *)ref, obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
 
-    if (obsolete && ((ret = __wt_page_parent_modify_set(session, ref, false)) == 0)) {
+    if (obsolete && ((ret = __wt_page_parent_modify_set(session, ref, WT_SESSION_BTREE_SYNC(session))) == 0)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete disk page parent dirty", (void *)ref);
         *ref_deleted = true;
