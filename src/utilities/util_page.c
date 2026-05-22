@@ -17,10 +17,9 @@ usage(void)
 {
     static const char *options[] = {"-p page_id",
       "required: numeric page id (decimal or 0x-prefixed hex)", "-l lsn",
-      "optional: LSN (defaults to WT_PAGE_LOG_LSN_MAX, the latest sentinel)", "-?",
-      "show this message", NULL, NULL};
+      "required: numeric LSN (decimal or 0x-prefixed hex)", "-?", "show this message", NULL, NULL};
 
-    util_usage("page -p page_id [-l lsn] uri", "options:", options);
+    util_usage("page -p page_id -l lsn uri", "options:", options);
     return (1);
 }
 
@@ -36,11 +35,12 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     uint64_t lsn, page_id;
     int ch;
     char *uri;
-    bool have_page_id;
+    bool have_lsn, have_page_id;
 
     session_impl = (WT_SESSION_IMPL *)session;
+    have_lsn = false;
     have_page_id = false;
-    lsn = WT_PAGE_LOG_LSN_MAX;
+    lsn = 0;
     page_id = 0;
     uri = NULL;
 
@@ -49,6 +49,7 @@ util_page(WT_SESSION *session, int argc, char *argv[])
         case 'l':
             if (util_str2num(session, __wt_optarg, true, &lsn) != 0)
                 return (usage());
+            have_lsn = true;
             break;
         case 'p':
             if (util_str2num(session, __wt_optarg, true, &page_id) != 0)
@@ -66,6 +67,10 @@ util_page(WT_SESSION *session, int argc, char *argv[])
 
     if (!have_page_id) {
         fprintf(stderr, "%s: page: -p page_id is required\n", progname);
+        return (usage());
+    }
+    if (!have_lsn) {
+        fprintf(stderr, "%s: page: -l lsn is required\n", progname);
         return (usage());
     }
     if (argc != 1)
