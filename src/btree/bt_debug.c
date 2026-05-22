@@ -491,7 +491,7 @@ __wt_debug_disagg_page_id(
         __wt_page_header_byteswap((void *)results[i].data);
 
         if (i == 0)
-            WT_TRET(__wti_debug_disk(session, results[i].data, ofile, false, false));
+            WT_TRET(__wti_debug_disk(session, results[i].data, ofile, true, false));
         else
             __wt_log_data_dump(session, results[i].data, size,
               "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
