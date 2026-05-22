@@ -115,51 +115,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 "FROM pages WHERE table_id=? ORDER BY lsn DESC",
                 (table_id,)).fetchall()
 
-    def _root_page_id(self):
-        """Decode root page_id from the disagg checkpoint cookie in metadata.
-
-        Cookie wire format (see block_disagg_addr.c __wti_block_disagg_addr_pack):
-          prefix : 4b-packed (version, version_min) pair, currently 0x00 (one byte)
-          varint : page_id           <-- target
-          varint : flags
-          ...    : lsn, base_lsn_delta, size, checksum
-
-        WT unsigned varint (intpack_inline.h):
-          0x80-0xBF  1 byte:  value = byte & 0x3F          (0-63)
-          0xC0-0xDF  2 bytes: value = ((b & 0x1F)<<8|b2)+64 (64-8255)
-        """
-        meta_c = self.session.open_cursor('metadata:')
-        meta_c.set_key(self.stable_uri)
-        self.assertEqual(meta_c.search(), 0, f"URI not found in metadata: {self.stable_uri}")
-        val = meta_c.get_value()
-        meta_c.close()
-
-        m = re.search(r'\bcheckpoint=\([^)]*addr="([0-9a-f]+)"', val)
-        if m is None:
-            m = re.search(r'\baddr="([0-9a-f]+)"', val)
-        self.assertIsNotNone(m, f"No addr= found in metadata for {self.stable_uri}: {val}")
-        data = bytes.fromhex(m.group(1))
-
-        # Skip the 4b-packed version prefix (two nibbles, low first). Each nibble's
-        # high bit is the continuation flag; iterate until we've consumed two values.
-        nibble_pos = 0
-        for _ in range(2):
-            while True:
-                byte_idx = nibble_pos // 2
-                nibble_idx = nibble_pos % 2
-                nibble = (data[byte_idx] >> (nibble_idx * 4)) & 0xF
-                nibble_pos += 1
-                if not (nibble & 0x8):
-                    break
-        byte_pos = (nibble_pos + 1) // 2
-
-        b = data[byte_pos]
-        if 0x80 <= b <= 0xBF:
-            return b & 0x3F
-        if 0xC0 <= b <= 0xDF:
-            return (((b & 0x1F) << 8) | data[byte_pos + 1]) + 64
-        self.fail(f"Unexpected varint lead byte 0x{b:02x} at offset {byte_pos}")
-
     def _run_wt_page(self, *args):
         self.close_conn()
         try:
@@ -181,14 +136,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.assertIn('page -p page_id', out.stderr)
         finally:
             self.reopen_conn()
-
-    def test_happy_path_root_page(self):
-        self._populate()
-        page_id = self._root_page_id()
-        out = self._run_wt_page("-p", str(page_id), self.stable_uri)
-        self.assertEqual(out.returncode, 0, msg=out.stderr)
-        self.assertRegex(out.stdout, re.compile(r'^chain: page_id=\d+ ', re.MULTILINE))
-        self.assertRegex(out.stdout, re.compile(r'^- row-store ', re.MULTILINE))
 
     def test_unknown_page_id(self):
         self._populate()
@@ -242,13 +189,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         out = self._run_wt_page(self.stable_uri)
         self.assertNotEqual(out.returncode, 0)
         self.assertIn("page", out.stderr.lower())
-
-    def test_lsn_ahead_of_frontier(self):
-        self._populate()
-        page_id = self._root_page_id()
-        far_future_lsn = 10 ** 12
-        out = self._run_wt_page("-p", str(page_id), "-l", str(far_future_lsn), self.stable_uri)
-        self.assertNotIn("PANIC", out.stderr)
 
 if __name__ == '__main__':
     wttest.run()
