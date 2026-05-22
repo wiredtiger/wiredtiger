@@ -268,6 +268,19 @@
     TXN_API_CALL(s, WT_SESSION, func_name, NULL, config, cfg); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)
 
+#define CURSOR_API_CHECK_SYSTEM_OVERLOAD(s, ret)                                               \
+    do {                                                                                       \
+        if (API_USER_ENTRY(s) &&                                                               \
+          (!F_ISSET(                                                                           \
+            s, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE))) { \
+            if (__wt_conn_load_control_read_overload(s)) {                                     \
+                WT_STAT_CONN_INCR(s, read_reject_count);                                       \
+                (ret) = WT_ROLLBACK;                                                           \
+                goto err;                                                                      \
+            }                                                                                  \
+        }                                                                                      \
+    } while (0)
+
 #define CURSOR_API_CALL(cur, s, ret, func_name, dh)          \
     (s) = CUR2S(cur);                                        \
     API_CALL_NOCONF(s, WT_CURSOR, func_name, dh, true);      \
@@ -289,10 +302,10 @@
     WT_ERR(__wt_cursor_cached(cur))
 
 /*
- * API_RETRYABLE and API_RETRYABLE_END are used to wrap API calls so that they are silently
- * retried on rollback errors. Generally, these only need to be used with readonly APIs, as
- * writable APIs have their own retry code via TXN_API_CALL.  These macros may be used with
- * *API_CALL and API_END* provided they are ordered in a balanced way.
+ * API_RETRYABLE and API_RETRYABLE_END are used to wrap API calls so that they are silently retried
+ * on rollback errors. Generally, these only need to be used with readonly APIs, as writable APIs
+ * have their own retry code via TXN_API_CALL. These macros may be used with *API_CALL and API_END*
+ * provided they are ordered in a balanced way.
  */
 #define API_RETRYABLE(s) do {
 
