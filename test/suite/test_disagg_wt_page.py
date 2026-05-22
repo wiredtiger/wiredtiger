@@ -216,6 +216,27 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertRegex(out.stdout, re.compile(r"^- row-store ",
                                                 re.MULTILINE))
 
+    def test_delta_chain(self):
+        """wt page against a delta chain reports base_lsn/backlink_lsn
+        equal to palite's record and delta_count >= 1 / results >= 2."""
+        self._populate()
+        self._dirty_and_checkpoint()
+        table_id = self._table_id(self.stable_uri)
+        pages = self._palite_pages(table_id)
+        delta = next((r for r in pages if r[3] != 0 and not (r[4] & 0x10000)), None)
+        self.assertIsNotNone(delta,
+            f"no delta rows for table_id={table_id} in palite "
+            f"(dirty_and_checkpoint did not produce a delta)")
+        page_id, lsn, base_lsn, backlink_lsn, _ = delta
+        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn),
+                                self.stable_uri)
+        self.assertEqual(out.returncode, 0, msg=out.stderr)
+        self.assertRegex(out.stdout, re.compile(
+            rf"^chain: page_id={page_id} lsn={lsn} "
+            rf"base_lsn={base_lsn} backlink_lsn={backlink_lsn} "
+            rf".* delta_count=\d+ results=[2-9]\d*$",
+            re.MULTILINE))
+
     def test_missing_required_p(self):
         self._populate()
         out = self._run_wt_page(self.stable_uri)
