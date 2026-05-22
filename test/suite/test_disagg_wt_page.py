@@ -170,7 +170,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         finally:
             self.reopen_conn()
 
-    def test_page_subcommand_help(self):
+    def test_help(self):
         """`wt page -?` is plumbed in."""
         self.close_conn()
         try:
