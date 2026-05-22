@@ -715,7 +715,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      */
     if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD) &&
       F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)) {
-        if (!__txn_visible_id(session, __wt_atomic_load_uint64_relaxed(&page->modify->update_txn)))
+        if (!__wt_txn_visible_id(
+              session, __wt_atomic_load_uint64_relaxed(&page->modify->update_txn)))
             return (true);
     } else if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) >=
       __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running)) {
@@ -1173,7 +1174,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      * being skipped for walks), or we are in eviction debug mode. The goal here is that if trees
      * become completely idle, we eventually push them out of cache completely.
      */
-    if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
+    if (!FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
       F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         if (page == last_parent) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_with_active_child);

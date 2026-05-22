@@ -178,6 +178,12 @@ __curfile_next(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, cbt->dhandle);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
@@ -238,6 +244,8 @@ __curfile_prev(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, prev, cbt->dhandle);
     CURSOR_REPOSITION_ENTER(cursor, session);
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
@@ -305,6 +313,9 @@ __curfile_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, search, cbt->dhandle);
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -328,11 +339,11 @@ err:
 }
 
 /*
- * __wti_curfile_search_near --
+ * __curfile_search_near --
  *     WT_CURSOR->search_near method for the btree cursor type.
  */
-int
-__wti_curfile_search_near(WT_CURSOR *cursor, int *exact)
+static int
+__curfile_search_near(WT_CURSOR *cursor, int *exact)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -343,6 +354,9 @@ __wti_curfile_search_near(WT_CURSOR *cursor, int *exact)
     CURSOR_API_CALL(cursor, session, ret, search_near, cbt->dhandle);
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -379,6 +393,9 @@ __curfile_insert(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
@@ -421,6 +438,9 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     tret = 0;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert_check);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -449,6 +469,9 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, modify);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -487,6 +510,9 @@ __curfile_update(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, update);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
@@ -530,6 +556,9 @@ __curfile_remove(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, ret, cbt->dhandle);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -572,6 +601,9 @@ __curfile_reserve(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, reserve);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -1034,7 +1066,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_prev,                                 /* prev */
       __curfile_reset,                                /* reset */
       __curfile_search,                               /* search */
-      __wti_curfile_search_near,                      /* search-near */
+      __curfile_search_near,                          /* search-near */
       __curfile_insert,                               /* insert */
       __wti_cursor_modify_value_format_notsup,        /* modify */
       __curfile_update,                               /* update */

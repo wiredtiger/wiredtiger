@@ -57,7 +57,9 @@ functions:
             COMMON_SAN_OPTIONS="abort_on_error=1:disable_coredump=0"
             if [[ "${CMAKE_BUILD_TYPE|}" =~ ASan ]]; then
               export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
+              asan_lib=$(clang -print-file-name=libclang_rt.asan.so)
+              [ -f "$asan_lib" ] || { echo "ERROR: libclang_rt.asan.so not found by clang"; exit 1; }
+              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname "$asan_lib")"
               export TESTUTIL_BYPASS_ASAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
               export MSAN_OPTIONS="$COMMON_SAN_OPTIONS"
@@ -303,7 +305,6 @@ functions:
         # Note that the config flags are resolved prior to changing to cmake_build directory.
         DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
           ${CMAKE_INSTALL_PREFIX|-DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL} \
-          ${CMAKE_TOOLCHAIN_FILE|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake} \
           ${ENABLE_LAZYFS|} \
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
@@ -317,17 +318,11 @@ functions:
           ${CODE_COVERAGE_FLAGS} \
           ${HAVE_DIAGNOSTIC|} \
           ${WORDS_BIGENDIAN|} \
-          ${GNU_C_VERSION|} \
-          ${GNU_CXX_VERSION|} \
-          ${CLANG_C_VERSION|} \
-          ${CLANG_CXX_VERSION|} \
           ${ENABLE_CPPSUITE|} \
-          ${ENABLE_GCP|} \
-          ${IMPORT_GCP_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
           ${CC_OPTIMIZE_LEVEL|} \
-          ${WT_DISAGG_FAST_TRUNCATE_BUILD|}"
+          ${WT_DISAGG_SLOW_TRUNCATE_BUILD|}"
 
         # The RHEL PPC platform does not have ZSTD. Strip it out.
         if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
@@ -390,6 +385,17 @@ functions:
             /bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
           fi
 
+          # Use cmake preset on Linux, defaulting to GCC. Versioned compilers (gcc-9, clang-14, etc.)
+          # clear CMAKE_PRESET to "" to fall through to CC/CXX; non-Linux platforms always use CC/CXX.
+          # The file check guards branches that predate CMakePresets.json (e.g. compile-develop).
+          CMAKE_PRESET_FLAG=""
+          if [[ "$(uname -s)" == "Linux" && -n "${CMAKE_PRESET|linux-gcc}" && -f CMakePresets.json ]]; then
+            CMAKE_PRESET_FLAG="--preset ${CMAKE_PRESET|linux-gcc}"
+          else
+            export CC=${CC|gcc}
+            export CXX=${CXX|g++}
+          fi
+
           # Compiling with CMake.
           echo "Find CMake"
           . test/evergreen/find_cmake.sh
@@ -403,8 +409,8 @@ functions:
           cd cmake_build
 
           echo "Calling CMake with command:"
-          echo $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
-          $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+          echo $CMAKE $CMAKE_PRESET_FLAG $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+          $CMAKE $CMAKE_PRESET_FLAG $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
           echo "Completed CMake"
         fi
   "python config check":
@@ -549,37 +555,6 @@ functions:
           ${PREPARE_TEST_ENV}
           ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' ${validation_stress_num_runs|120}
 
-  "run tiered storage test":
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger/cmake_build"
-        shell: bash
-        script: |
-          set -o errexit
-          ${PREPARE_TEST_ENV}
-
-          # GCP requires a path to a credentials file for authorization. To not expose the private
-          # information within the file, we use a placeholder private variable which are replaced
-          # in the command line with the evergreen expansion variables and stored in a temporary
-          # file.
-          file=$(mktemp --suffix ".json")
-
-          # Use '|' as the delimiter instead of default behavior because the private key contains
-          # slash characters.
-          sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
-              -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
-              -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
-              -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
-              -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
-              -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
-          export GOOGLE_APPLICATION_CREDENTIALS="$file"
-
-          virtualenv -p python3 venv
-          source venv/bin/activate
-          pip3 install google-cloud-storage==2.17.0
-
-          # Run Python testing for all tiered tests.
-          python3 ../test/suite/run.py ${ignore_stdout} -j $(nproc) ${tiered_storage_test_name}
   "compile wiredtiger docs":
     - command: shell.exec
       params:
@@ -1495,17 +1470,6 @@ functions:
         WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} list
         WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} verify
 
-  "install gcp dependencies":
-    - command: shell.exec
-      type: setup
-      params:
-        working_dir: "wiredtiger"
-        shell: bash
-        script: |
-          set -o errexit
-          . test/evergreen/find_cmake.sh
-          . test/evergreen/install_gcp_dependencies.sh $CMAKE
-
   "split stress test":
     command: shell.exec
     params:
@@ -1568,26 +1532,20 @@ variables:
     ENABLE_SHARED: -DENABLE_SHARED=0
     ENABLE_STATIC: -DENABLE_STATIC=1
 
-  # Configure flags for tiered storage GCP extension.
-  - &configure_flags_tiered_storage_gcp
-    ENABLE_GCP: -DENABLE_GCP=1
-    IMPORT_GCP_SDK: -DIMPORT_GCP_SDK=external
-
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_asan_mongodb_stable_clang_with_builtins
     <<: *configure_flags_with_builtins
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: 0
 
   # Template for Mac tests
   - &mac_test_template
     expansions: &mac_test_template_expansions
-      # The cmake toolchain file is set to the mongodb toolchain gcc by default.
-      # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
-      # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
-      CMAKE_TOOLCHAIN_FILE:
+      # macOS uses Xcode's clang (no mongodb toolchain).
+      CC: clang
+      CXX: clang++
       CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       num_jobs: $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
       cmake_generator: "Unix Makefiles"
@@ -1747,6 +1705,11 @@ variables:
           format_args: disagg.mode=leader runs.timer=5:10
           times: 1
 
+  - &s-all-dep
+    - name: s-all
+      variant: ubuntu2004
+      patch_optional: true
+
   - &format-stress-test-disagg-follower
     depends_on:
       - name: compile
@@ -1758,10 +1721,13 @@ variables:
           times: 5
 
   - &format-stress-test-disagg-switch
-    depends_on:
-      - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
+        vars:
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
@@ -1775,10 +1741,13 @@ variables:
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
   - &format-stress-test-disagg-switch-data-validation
-    depends_on:
-      - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
+        vars:
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
@@ -1792,10 +1761,13 @@ variables:
           times: 5
 
   - &format-stress-test-disagg-switch-pull-request
-    depends_on:
-      - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
+        vars:
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # run for 10 minutes.
@@ -1816,6 +1788,7 @@ tasks:
   # Base compile task on posix flavors
   - name: compile
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1823,6 +1796,7 @@ tasks:
       - func: "cleanup"
 
   - name: compile-develop
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger develop"
@@ -1832,6 +1806,7 @@ tasks:
   # production build with --disable-shared
   - name: compile-production-disable-shared
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1843,6 +1818,7 @@ tasks:
   # production build with --disable-static
   - name: compile-production-disable-static
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1853,12 +1829,8 @@ tasks:
 
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
-      - command: expansions.update
-        params:
-          updates:
-          - key: CMAKE_TOOLCHAIN_FILE
-            value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -1869,28 +1841,30 @@ tasks:
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=7
+          CC: gcc-7
+          CXX: g++
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=8
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=8
+          CC: gcc-8
+          CXX: g++-8
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=9
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
+          CC: gcc-9
+          CXX: g++-9
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=11
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=11
+          CC: gcc-11
+          CXX: g++-11
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - command: expansions.update
         params:
           updates:
-          - key: CMAKE_TOOLCHAIN_FILE
-            value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          - key: CMAKE_PRESET
+            value: linux-clang
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -1901,37 +1875,45 @@ tasks:
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=7
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=7
+          CMAKE_PRESET: ""
+          CC: clang-7
+          CXX: clang++-7
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=8
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
+          CMAKE_PRESET: ""
+          CC: clang-8
+          CXX: clang++-8
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=9
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=9
+          CMAKE_PRESET: ""
+          CC: clang-9
+          CXX: clang++-9
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=10
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=10
+          CMAKE_PRESET: ""
+          CC: clang-10
+          CXX: clang++-10
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=11
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=12
+          CMAKE_PRESET: ""
+          CC: clang-11
+          CXX: clang++-12
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=13
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=13
+          CMAKE_PRESET: ""
+          CC: clang-13
+          CXX: clang++-13
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=14
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=14
+          CMAKE_PRESET: ""
+          CC: clang-14
+          CXX: clang++-14
 
   # Compile WiredTiger with uncommon build flags to make sure we compile code that
   # is often pre-processed out.
   - name: compile-uncommon-build-flags
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1953,6 +1935,7 @@ tasks:
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
 
   - name: make-check-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1960,6 +1943,7 @@ tasks:
 
   # This task is the same as make-check-test but fits for lower specs by allowing a bigger timeout.
   - name: make-check-test-low-perf
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -1975,6 +1959,7 @@ tasks:
 
   - name: lang-python-test
     tags: ["pull_request", "python"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1984,6 +1969,7 @@ tasks:
 
   - name: examples-c-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1993,6 +1979,7 @@ tasks:
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2004,6 +1991,7 @@ tasks:
 
   - name: examples-c-production-disable-static-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2015,6 +2003,7 @@ tasks:
 
   - name: checkpoint-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2025,6 +2014,7 @@ tasks:
 
   - name: checkpoint-test-disagg-leader
     tags: ["stress-test-disagg"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2034,6 +2024,7 @@ tasks:
           directory: test/checkpoint
 
   - name: checkpoint-test-long-running
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2044,6 +2035,7 @@ tasks:
 
   - name: cursor-order-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2053,6 +2045,7 @@ tasks:
 
   - name: fops-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2062,6 +2055,7 @@ tasks:
 
   - name: format-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2071,6 +2065,7 @@ tasks:
 
   - name: huge-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2080,6 +2075,7 @@ tasks:
 
   - name: manydbs-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2089,6 +2085,7 @@ tasks:
 
   - name: packing-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2098,6 +2095,7 @@ tasks:
 
   - name: readonly-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2107,6 +2105,7 @@ tasks:
 
   - name: salvage-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2116,6 +2115,7 @@ tasks:
 
   - name: thread-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2125,6 +2125,7 @@ tasks:
 
   - name: bench-wtperf-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2134,6 +2135,7 @@ tasks:
 
   - name: catch2-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2151,6 +2153,7 @@ tasks:
 
   - name: catch2-assertions
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2416,6 +2419,7 @@ tasks:
   # Start of csuite test tasks
   - name: csuite-tests-fast
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2425,6 +2429,7 @@ tasks:
           ctest_extra_args: -LE "long_running|check_disagg" ${ctest_extra_args} -j ${num_jobs}
 
   - name: csuite-random-abort-lazyfs
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2441,6 +2446,7 @@ tasks:
             ./smoke_lazyfs.sh
 
   - name: csuite-schema-abort-lazyfs
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2457,6 +2463,7 @@ tasks:
             ./smoke_lazyfs.sh
 
   - name: csuite-timestamp-abort-lazyfs
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2495,6 +2502,7 @@ tasks:
   - name: csuite-long-running
     # Set 6 hours timeout (60 * 60 * 6 = 21600)
     exec_timeout_secs: 21600
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3811,21 +3819,6 @@ tasks:
             cd dist
             bash -x s_all -E 2>&1
 
-  - name: s-outdated-fixmes
-    # Detect any FIXME comments in the codebase tied to closed Jira tickets.
-    # This will send a GET request to JIRA for each FIXME ticket so we don't
-    # want to run it too frequently.
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/dist"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${python_binary|python3} s_outdated_fixmes.py 2>&1
-
   - name: conf-dump-test
     tags: ["pull_request", "python"]
     depends_on:
@@ -3920,6 +3913,7 @@ tasks:
 
   - name: compatibility-test-suite-daily
     tags: ["python"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3990,6 +3984,7 @@ tasks:
             test/compatibility/compatibility_test_for_releases.sh -i
 
   - name: generate-datafile-little-endian
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4042,6 +4037,7 @@ tasks:
       - func: "verify wt datafiles"
 
   - name: generate-datafile-big-endian
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4095,6 +4091,7 @@ tasks:
 
   - name: clang-analyzer
     tags: ["lint"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - command: shell.exec
@@ -4139,7 +4136,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            env CC=/opt/mongodbtoolchain/v5/bin/gcc CXX=/opt/mongodbtoolchain/v5/bin/g++ PATH=/opt/mongodbtoolchain/v5/bin:/opt/java/jdk11/bin:$PATH bash s_release `date +%Y%m%d`
+            env PATH=/opt/mongodbtoolchain/v5/bin:/opt/java/jdk11/bin:$PATH CC=gcc CXX=g++ bash s_release `date +%Y%m%d`
 
   # Note that the project settings use this task name to compile the documentation during PR
   # testing, keep this in mind if you decide to change it.
@@ -4167,6 +4164,7 @@ tasks:
 
   - name: syscall-linux
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4181,6 +4179,7 @@ tasks:
             WT_BUILDDIR=$(pwd)/../../cmake_build LD_LIBRARY_PATH=$WT_BUILDDIR ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4413,6 +4412,7 @@ tasks:
       - func: "code coverage publish report"
 
   - name: spinlock-gcc-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4426,6 +4426,7 @@ tasks:
           test_format_extra_args: runs.rows=1000000:2500000
 
   - name: spinlock-pthread-adaptive-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4566,6 +4567,7 @@ tasks:
 
   - name: format-mirror-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4575,6 +4577,7 @@ tasks:
           trace_args: -T all
 
   - name: format-msan-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4585,6 +4588,7 @@ tasks:
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4594,6 +4598,7 @@ tasks:
           format_test_script_args: -t 10 rows=10000 ops=50000
 
   - name: format-smoke-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4607,6 +4612,7 @@ tasks:
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-asan-smoke-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4640,6 +4646,7 @@ tasks:
           times: 3
 
   - name: format-wtperf-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4688,6 +4695,7 @@ tasks:
 
   - name: tsan-playground-test
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4881,10 +4889,13 @@ tasks:
           run_test_checkpoint_args: -e -x -s 7 -C cache_size=1000MB
 
   - name: format-failure-configs-test
-    depends_on:
-    - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
+        vars:
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/evergreen"
@@ -4896,6 +4907,7 @@ tasks:
             ./run_format_configs.sh -j ${num_jobs}
 
   - name: static-wt-build-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4928,6 +4940,7 @@ tasks:
   - name: checkpoint-stress-test
     tags: ["stress-test-1"]
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4944,6 +4957,7 @@ tasks:
 
   - name: checkpoint-stress-test-tiered
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4961,6 +4975,7 @@ tasks:
   - name: precise-checkpoint-stress-test
     tags: ["stress-test-1"]
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4979,6 +4994,7 @@ tasks:
 
   - name: precise-checkpoint-stress-test-tiered
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4998,6 +5014,7 @@ tasks:
   - name: skiplist-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 3600 # 1 hour
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5017,6 +5034,7 @@ tasks:
     tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
     # Set 5 hours timeout (60 * 60 * 5)
     exec_timeout_secs: 18000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5024,6 +5042,7 @@ tasks:
 
   - name: model-unit-test
     tags: ["pull_request", "model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5039,6 +5058,7 @@ tasks:
 
   - name: model-test-failure-workloads
     tags: ["model_checking", "pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5054,6 +5074,7 @@ tasks:
 
   - name: model-test-long
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5063,6 +5084,7 @@ tasks:
 
   - name: model-test-long-disagg
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5072,6 +5094,7 @@ tasks:
 
   - name: model-test-long-random-config
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5081,6 +5104,7 @@ tasks:
 
   - name: model-test-long-random-config-disagg
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5090,13 +5114,9 @@ tasks:
 
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
-      - command: expansions.update
-        params:
-          updates:
-          - key: CMAKE_TOOLCHAIN_FILE
-            value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
       - func: "compile wiredtiger"
         vars:
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
@@ -5130,6 +5150,7 @@ tasks:
     tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5146,6 +5167,7 @@ tasks:
     tags: ["stress-test-ppc-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5290,10 +5312,13 @@ tasks:
 
   - name: format-stress-test-disagg-switch-tsan
     tags: ["pull_request"]
-    depends_on:
-      - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
+      - func: "compile wiredtiger"
+        vars:
+          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test disagg"
         vars:
           # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
@@ -5321,6 +5346,7 @@ tasks:
           times: 1
 
   - name: format-abort-recovery-stress-test
+    depends_on: *s-all-dep
     commands:
       # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
       # run longer.
@@ -5338,6 +5364,7 @@ tasks:
   - name: format-predictable-test
     # Set 2.5 hour timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5350,6 +5377,7 @@ tasks:
   - name: schema-abort-predictable-test
     # Set 20 minute timeout (60 * 20)
     exec_timeout_secs: 1200
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5360,6 +5388,7 @@ tasks:
           times: 5
 
   - name: checkpoint-filetypes-predictable-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6610,7 +6639,7 @@ tasks:
         vars:
           test-name: ycsb-50read50update.wtperf
 
-  - name: perf-test-ycsb-95read5update
+  - name: perf-test-ycsb-95read5update-mongodb-hvw-like-out-of-cache
     tags: ["ycsb-perf"]
     depends_on:
       - name: compile
@@ -6618,17 +6647,17 @@ tasks:
       - func: "fetch artifacts"
       - func: "run-perf-test"
         vars:
-          perf-test-name: ycsb-95read5update.wtperf
+          perf-test-name: ycsb-95read5update-mongodb-hvw-like-out-of-cache.wtperf
           maxruns: 1
           wtarg: -ops '["read_ops", "update_ops", "avg_latency_read", "avg_latency_update"]'
       - func: "upload stats to atlas"
         vars:
-          test-name: ycsb-95read5update.wtperf
+          test-name: ycsb-95read5update-mongodb-hvw-like-out-of-cache.wtperf
       - func: "upload stats to evergreen"
         vars:
-          test-name: ycsb-95read5update.wtperf
+          test-name: ycsb-95read5update-mongodb-hvw-like-out-of-cache.wtperf
 
-  - name: perf-test-ycsb-100read
+  - name: perf-test-ycsb-95read5update-mongodb-hvw-like-in-cache
     tags: ["ycsb-perf"]
     depends_on:
       - name: compile
@@ -6636,15 +6665,51 @@ tasks:
       - func: "fetch artifacts"
       - func: "run-perf-test"
         vars:
-          perf-test-name: ycsb-100read.wtperf
+          perf-test-name: ycsb-95read5update-mongodb-hvw-like-in-cache.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "update_ops", "avg_latency_read", "avg_latency_update"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-95read5update-mongodb-hvw-like-in-cache.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-95read5update-mongodb-hvw-like-in-cache.wtperf
+
+  - name: perf-test-ycsb-100read-mongodb-hvw-like-out-of-cache
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-100read-mongodb-hvw-like-out-of-cache.wtperf
           maxruns: 1
           wtarg: -ops '["read_ops", "avg_latency_read"]'
       - func: "upload stats to atlas"
         vars:
-          test-name: ycsb-100read.wtperf
+          test-name: ycsb-100read-mongodb-hvw-like-out-of-cache.wtperf
       - func: "upload stats to evergreen"
         vars:
-          test-name: ycsb-100read.wtperf
+          test-name: ycsb-100read-mongodb-hvw-like-out-of-cache.wtperf
+
+  - name: perf-test-ycsb-100read-mongodb-hvw-like-in-cache
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-100read-mongodb-hvw-like-in-cache.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "avg_latency_read"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-100read-mongodb-hvw-like-in-cache.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-100read-mongodb-hvw-like-in-cache.wtperf
 
   - name: perf-test-ycsb-95readlatest5insert
     tags: ["ycsb-perf"]
@@ -6798,6 +6863,7 @@ tasks:
 
   - name: debug-have-diagnostic
     tags: ["antithesis"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6805,6 +6871,7 @@ tasks:
 
   - name: release-with-debug-have-diagnostic
     tags: ["antithesis"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6885,7 +6952,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -6928,7 +6995,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -6968,7 +7035,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     # Compile with clang so we test that path for the catch2 unittests.
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
@@ -6990,7 +7057,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
     # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
     posix_configure_flags: -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
@@ -7021,7 +7088,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     # Use optimization level -O0 since Clang treats -Og (our default optimization for non-release
     # builds) as -O1, making test binaries more difficult to debug.
@@ -7102,7 +7169,6 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: 0
     cmake_generator: "Unix Makefiles"
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
@@ -7128,8 +7194,7 @@ buildvariants:
   - windows-2022-small
   expansions:
     ENABLE_TCMALLOC: 0
-    # Remove the default configurations for the toolchain, install prefix and number of jobs.
-    CMAKE_TOOLCHAIN_FILE:
+    # Windows uses powershell + vcvars; CMake auto-detects cl.exe.
     CMAKE_INSTALL_PREFIX:
     HAVE_BUILTIN_EXTENSION_KEY_PROVIDER: -DHAVE_BUILTIN_EXTENSION_KEY_PROVIDER=1
     num_jobs:
@@ -7191,7 +7256,7 @@ buildvariants:
   batchtime: 120 # 2 hours
   expansions:
     format_test_setting: ulimit -c unlimited
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
@@ -7280,7 +7345,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".antithesis"
@@ -7580,7 +7645,6 @@ buildvariants:
   - amazon2023.3-arm64-small
   expansions:
     ENABLE_TCMALLOC: 1
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".workgen-test"
@@ -7653,7 +7717,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -7695,7 +7759,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -7733,7 +7797,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
     # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
     posix_configure_flags: -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
@@ -7767,7 +7831,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     # Use optimization level -O0 since Clang treats -Og (our default optimization for non-release
     # builds) as -O1, making test binaries more difficult to debug.

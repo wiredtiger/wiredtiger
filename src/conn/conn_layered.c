@@ -109,8 +109,14 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
               __layered_create_missing_stable_table(session, stable_uri, layered_cfg),
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
-            WT_ERR(__wt_disagg_enqueue_metadata_operation(
-              session, stable_uri, layered_uri + strlen("layered:"), WT_SHARED_METADATA_UPDATE));
+            /*
+             * FIXME-WT-17089: For now, we publish with schema epoch NONE, so that the change gets
+             * applied immediately. This will get magically fixed once we implement the publish API
+             * for followers.
+             */
+            WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri,
+              layered_uri + strlen("layered:"), WT_SHARED_METADATA_UPDATE, WT_SCHEMA_EPOCH_NONE,
+              true));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -822,13 +828,13 @@ err:
  */
 int
 __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
-  const char *table_name, WT_SHARED_METADATA_OP metadata_op)
+  const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch,
+  bool deferred)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    bool ckpt_running;
 
     conn = S2C(session);
     cursor = NULL;
@@ -844,6 +850,7 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->metadata_op = metadata_op;
+    entry->schema_epoch = schema_epoch;
     WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
     WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
 
@@ -858,13 +865,15 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
-     * When WiredTiger is running a checkpoint, prevent drop updates from entering the shared
-     * metadata table for that checkpoint. We defer these metadata operations to the next checkpoint
-     * to keep the checkpoints metadata and table state consistent.
+     * Schema operations (create, drop) start deferred: at the start of each checkpoint, while the
+     * schema lock is held, the deferred flag is cleared on all existing entries so they are applied
+     * at the end of that checkpoint. Entries enqueued after that point, including concurrent schema
+     * ops, will not be processed until the following checkpoint. The one exception is the block
+     * manager callback that records the new checkpointed state of each stable table: those entries
+     * pass deferred=false so that the updated checkpoint metadata is written to the shared metadata
+     * table in the same checkpoint.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
-    if (ckpt_running && (metadata_op == WT_SHARED_METADATA_REMOVE))
-        entry->deferred = true;
+    entry->deferred = deferred;
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
@@ -979,8 +988,30 @@ err:
 static int
 __disagg_shared_metadata_op(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *queue_entry;
+
+    conn = S2C(session);
+
+    /*
+     * For UPDATE operations, verify that the table's CREATE will be applied at or before the schema
+     * epoch of the UPDATE, if it has not been applied yet. If a CREATE entry is still in the queue
+     * with a schema epoch ahead of this UPDATE operation's schema epoch (including
+     * WT_SCHEMA_EPOCH_UNPUBLISHED = WT_TS_MAX), the table will not be visible to followers before
+     * the update. Having stable data in an unpublished table is an API contract violation, which
+     * requires that a table must be published before the checkpoint that includes its data.
+     */
+    if (entry->metadata_op == WT_SHARED_METADATA_UPDATE) {
+        WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+        TAILQ_FOREACH (queue_entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+            if (queue_entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+              queue_entry->schema_epoch > entry->schema_epoch &&
+              strcmp(queue_entry->table_name, entry->table_name) == 0)
+                WT_RET_MSG(session, EINVAL, "Stable data checkpointed for unpublished table \"%s\"",
+                  entry->table_name);
+    }
 
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
     WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
@@ -1008,7 +1039,8 @@ err:
  *     a read-only operation on the queue.
  */
 int
-__wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+__wt_disagg_shared_metadata_queue_drop_size(
+  WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch, uint64_t *drop_sizep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1022,8 +1054,13 @@ __wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        if (!entry->deferred && entry->metadata_op == WT_SHARED_METADATA_REMOVE &&
-          entry->stable_value != NULL) {
+        /* Skip entries that are not included in the current schema epoch. */
+        if (entry->deferred)
+            continue;
+        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
+            continue;
+
+        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
             uint64_t size;
             /*
              * A table that was created and dropped without ever being checkpointed won't have a
@@ -1045,7 +1082,7 @@ err:
  *     Process the update metadata list.
  */
 int
-__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
+__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1064,11 +1101,22 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
+        /* Defer entries that belong to the next checkpoint. */
         if (entry->deferred) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Defer metadata %s operation for table \"%s\"", entry->table_name,
-              __shared_metadata_op_to_string(entry->metadata_op));
+              "Defer metadata operation %s for table \"%s\"",
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name);
             entry->deferred = false;
+            continue;
+        }
+
+        /* Defer entries based on the schema epoch. */
+        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Defer metadata operation %s for table \"%s\" with schema epoch %" PRIu64,
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
+              entry->schema_epoch);
+            WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_unstable);
             continue;
         }
 
@@ -1079,6 +1127,7 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
             goto err;
         }
 
+        WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
@@ -1088,6 +1137,60 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
+    return (ret);
+}
+
+/*
+ * __wt_disagg_shared_metadata_queue_publish --
+ *     Publish schema operations in the shared metadata queue for the given object.
+ */
+int
+__wt_disagg_shared_metadata_queue_publish(
+  WT_SESSION_IMPL *session, const char *table_name, wt_timestamp_t schema_epoch)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry, *tmp;
+    wt_timestamp_t prev_schema_epoch;
+
+    conn = S2C(session);
+    prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
+    {
+        if (strcmp(entry->table_name, table_name) != 0)
+            continue;
+
+        /* Update unpublished schema epochs before any ordering or range checks. */
+        if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name, schema_epoch);
+            entry->schema_epoch = schema_epoch;
+        }
+
+        /* Check the ordering of schema epochs within the same table. */
+        if (entry->schema_epoch < prev_schema_epoch)
+            WT_ERR_MSG(session, EINVAL,
+              "Schema epoch of metadata operation for table \"%s\" is out of order: current schema "
+              "epoch %" PRIu64 ", previous schema epoch %" PRIu64,
+              table_name, entry->schema_epoch, prev_schema_epoch);
+        prev_schema_epoch = entry->schema_epoch;
+
+        /* Check for already-published entries at a future schema epoch. */
+        if (entry->schema_epoch > schema_epoch)
+            WT_ERR_PANIC(session, EINVAL,
+              "Table \"%s\" has published schema operations at future schema epoch %" PRIu64
+              ", while publishing at schema epoch %" PRIu64,
+              table_name, entry->schema_epoch, schema_epoch);
+    }
+
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     return (ret);
 }
 
@@ -1227,9 +1330,6 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
         WT_DISAGG_METADATA metadata = {0};
         WT_RET(__wti_disagg_load_crypt_key(session, &metadata));
     }
-
-    WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
-      disagg->npage_log->page_log, &session->iface, 0));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Begin next disaggregated storage checkpoint: num_meta_put=%" PRIu64, disagg->num_meta_put);
