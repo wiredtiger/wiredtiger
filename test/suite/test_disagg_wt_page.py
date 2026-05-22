@@ -30,14 +30,16 @@ import glob, os, re, sqlite3, subprocess
 import wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
 
-# test_disagg_wt_page.py
-#    Drive the `wt page` command end-to-end through a disagg cell built
-#    with the in-tree palite page-log extension.
+# Drive the `wt page` command end-to-end through a disagg cell built with
+# the in-tree palite page-log extension.
 class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
     uri_base = "wt_page_test"
     uri = "layered:" + uri_base
     stable_uri = "file:" + uri_base + ".wt_stable"
     nrows = 1000
+
+    # palite flag bit indicating a tombstoned page chain entry.
+    PAGE_LOG_DISCARDED = 0x10000
 
     conn_config = 'disaggregated=(role="leader")'
 
@@ -48,22 +50,33 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def _wt_bin(self):
         build = self.buildDirectory()
         libs_wt = os.path.join(build, '.libs', 'wt')
-        if os.path.isfile(libs_wt):
-            return libs_wt
-        return os.path.join(build, 'wt')
+        return libs_wt if os.path.isfile(libs_wt) else os.path.join(build, 'wt')
 
     def _palite_ext(self):
-        build = self.buildDirectory()
-        matches = glob.glob(
-            os.path.join(build, 'ext', 'page_log', 'palite', '**', 'libwiredtiger_palite.so'),
-            recursive=True)
-        if matches:
-            return matches[0]
-        self.fail("Could not locate libwiredtiger_palite.so in build directory")
+        pattern = os.path.join(self.buildDirectory(),
+            'ext', 'page_log', 'palite', '**', 'libwiredtiger_palite.so')
+        matches = glob.glob(pattern, recursive=True)
+        if not matches:
+            self.fail("Could not locate libwiredtiger_palite.so in build directory")
+        return matches[0]
 
     def _wt_page_extra_config(self):
-        ext = self._palite_ext()
-        return f'extensions=["{ext}"],disaggregated=(page_log=palite,role="follower")'
+        return (f'extensions=["{self._palite_ext()}"],'
+                f'disaggregated=(page_log=palite,role="follower")')
+
+    def _run_wt(self, *args, extra_config=False):
+        cmd = [self._wt_bin(), '-h', self.home]
+        if extra_config:
+            cmd += ['-C', self._wt_page_extra_config()]
+        cmd += list(args)
+        self.close_conn()
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, check=False)
+        finally:
+            self.reopen_conn()
+
+    def _run_wt_page(self, *args):
+        return self._run_wt('page', *args, extra_config=True)
 
     def _populate(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
@@ -74,8 +87,8 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
     def _dirty_and_checkpoint(self):
-        """Overwrite a few existing keys to force a second checkpoint to
-        emit delta page-log entries for the affected btree pages."""
+        # Overwrite a few existing keys to force a second checkpoint to emit
+        # delta page-log entries for the affected btree pages.
         c = self.session.open_cursor(self.uri)
         for i in range(0, self.nrows, max(1, self.nrows // 8)):
             c[f"k{i:08}"] = f"V{i:08}"
@@ -83,12 +96,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
     def _table_id(self, uri):
-        """Return the integer btree id WiredTiger assigned to ``uri``.
-
-        Reads ``id=N`` out of the metadata config string for the file URI;
-        ``WiredTiger.h`` describes the encoding (plain ``key=value`` pairs)
-        and avoids any address-cookie parsing.
-        """
+        # Read id=N out of the metadata config string for the file URI.
         c = self.session.open_cursor('metadata:')
         c.set_key(uri)
         self.assertEqual(c.search(), 0, f"URI not found in metadata: {uri}")
@@ -99,14 +107,10 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         return int(m.group(1))
 
     def _palite_pages(self, table_id):
-        """Every page chain palite recorded for ``table_id``, newest first.
-
-        Returns a list of 5-tuples ``(page_id, lsn, base_lsn,
-        backlink_lsn, flags)``. See ``ext/page_log/palite/palite.cpp``
-        (``CREATE TABLE ... pages``) for the schema. Read-only SQLite
-        connection so a concurrently-running palite process is not
-        disturbed.
-        """
+        # Every page chain palite recorded for table_id, newest first, as
+        # 5-tuples (page_id, lsn, base_lsn, backlink_lsn, flags). See
+        # ext/page_log/palite/palite.cpp for the schema. Read-only so a
+        # concurrently-running palite process is not disturbed.
         db = os.path.join(self.home, 'kv_home',
                           f'pages_{get_shard_id(table_id):02d}.db')
         with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
@@ -115,27 +119,25 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 "FROM pages WHERE table_id=? ORDER BY lsn DESC",
                 (table_id,)).fetchall()
 
-    def _run_wt_page(self, *args):
-        self.close_conn()
-        try:
-            return subprocess.run(
-                [self._wt_bin(), "-h", self.home, "-C", self._wt_page_extra_config(),
-                 "page", *args],
-                capture_output=True, text=True, check=False)
-        finally:
-            self.reopen_conn()
+    def _find_page(self, predicate, description):
+        table_id = self._table_id(self.stable_uri)
+        row = next((r for r in self._palite_pages(table_id) if predicate(r)), None)
+        self.assertIsNotNone(row,
+            f"no {description} rows for table_id={table_id} in palite")
+        return row
+
+    def _assert_chain_header(self, stdout, page_id, lsn, base_lsn, backlink_lsn,
+                             delta_count_re, results_re):
+        self.assertRegex(stdout, re.compile(
+            rf"^chain: page_id={page_id} lsn={lsn} "
+            rf"base_lsn={base_lsn} backlink_lsn={backlink_lsn} "
+            rf".* delta_count={delta_count_re} results={results_re}$",
+            re.MULTILINE))
 
     def test_help(self):
-        """`wt page -?` is plumbed in."""
-        self.close_conn()
-        try:
-            out = subprocess.run(
-                [self._wt_bin(), '-h', self.home, 'page', '-?'],
-                capture_output=True, text=True, check=False)
-            self.assertEqual(out.returncode, 0, msg=out.stderr)
-            self.assertIn('page -p page_id', out.stderr)
-        finally:
-            self.reopen_conn()
+        out = self._run_wt('page', '-?')
+        self.assertEqual(out.returncode, 0, msg=out.stderr)
+        self.assertIn('page -p page_id', out.stderr)
 
     def test_unknown_page_id(self):
         self._populate()
@@ -143,46 +145,25 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertNotEqual(out.returncode, 0)
 
     def test_full_image_chain(self):
-        """wt page against a base-image chain prints a chain header whose
-        fields match palite's record of that page, and renders the leaf
-        page contents below it."""
         self._populate()
-        table_id = self._table_id(self.stable_uri)
-        pages = self._palite_pages(table_id)
-        base = next((r for r in pages if r[2] == 0 and r[3] == 0), None)
-        self.assertIsNotNone(base,
-            f"no base-image rows for table_id={table_id} in palite")
-        page_id, lsn, base_lsn, backlink_lsn, _ = base
-        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn),
-                                self.stable_uri)
+        page_id, lsn, _, _, _ = self._find_page(
+            lambda r: r[2] == 0 and r[3] == 0, "base-image")
+        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn), self.stable_uri)
         self.assertEqual(out.returncode, 0, msg=out.stderr)
-        self.assertRegex(out.stdout, re.compile(
-            rf"^chain: page_id={page_id} lsn={lsn} "
-            rf"base_lsn=0 backlink_lsn=0 .* delta_count=0 results=1$",
-            re.MULTILINE))
-        self.assertRegex(out.stdout, re.compile(r"^- row-store ",
-                                                re.MULTILINE))
+        self._assert_chain_header(out.stdout, page_id, lsn, 0, 0,
+                                  delta_count_re="0", results_re="1")
+        self.assertRegex(out.stdout, re.compile(r"^- row-store ", re.MULTILINE))
 
     def test_delta_chain(self):
-        """wt page against a delta chain reports base_lsn/backlink_lsn
-        equal to palite's record and delta_count >= 1 / results >= 2."""
         self._populate()
         self._dirty_and_checkpoint()
-        table_id = self._table_id(self.stable_uri)
-        pages = self._palite_pages(table_id)
-        delta = next((r for r in pages if r[3] != 0 and not (r[4] & 0x10000)), None)
-        self.assertIsNotNone(delta,
-            f"no delta rows for table_id={table_id} in palite "
-            f"(dirty_and_checkpoint did not produce a delta)")
-        page_id, lsn, base_lsn, backlink_lsn, _ = delta
-        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn),
-                                self.stable_uri)
+        page_id, lsn, base_lsn, backlink_lsn, _ = self._find_page(
+            lambda r: r[3] != 0 and not (r[4] & self.PAGE_LOG_DISCARDED), "delta")
+        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn), self.stable_uri)
         self.assertEqual(out.returncode, 0, msg=out.stderr)
-        self.assertRegex(out.stdout, re.compile(
-            rf"^chain: page_id={page_id} lsn={lsn} "
-            rf"base_lsn={base_lsn} backlink_lsn={backlink_lsn} "
-            rf".* delta_count=\d+ results=(?:[2-9]|[1-9]\d+)$",
-            re.MULTILINE))
+        self._assert_chain_header(out.stdout, page_id, lsn, base_lsn, backlink_lsn,
+                                  delta_count_re=r"\d+",
+                                  results_re=r"(?:[2-9]|[1-9]\d+)")
 
     def test_missing_required_p(self):
         self._populate()
