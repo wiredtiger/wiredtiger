@@ -440,7 +440,7 @@ retry:
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
           __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen) ==
             __wt_gen(session, WT_GEN_CHECKPOINT) &&
-          __wt_atomic_load_bool_v_acquire(&S2C(session)->txn_global.checkpoint_running)) {
+          __wt_atomic_load_bool_v_acquire(&conn->txn_global.checkpoint_running)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_checkpoint_pending);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
