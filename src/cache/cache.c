@@ -87,6 +87,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     S2C(session)->cache->shared_dsk_cache.enabled = (cval.len != 0);
+    S2C(session)->cache->shared_dsk_cache.enabled = false;
     if (S2C(session)->cache->shared_dsk_cache.enabled) {
         /* FIXME-WT-17066: We should pick a hash size wisely. */
         hash_size = (u_int)WT_MAX(S2C(session)->cache_size / 500 / 100, 512);
