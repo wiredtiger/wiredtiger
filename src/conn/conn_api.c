@@ -773,6 +773,27 @@ __wti_conn_remove_storage_source(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_conn_backup_init --
+ *     Initialize the WT_CONN_BACKUP structure.
+ */
+int
+__wti_conn_backup_init(WT_SESSION_IMPL *session)
+{
+    WT_RET(__wt_rwlock_init(session, &S2C(session)->backup.lock));
+    return (0);
+}
+
+/*
+ * __wti_conn_backup_destroy --
+ *     Destroy the WT_CONN_BACKUP structure.
+ */
+void
+__wti_conn_backup_destroy(WT_SESSION_IMPL *session)
+{
+    __wt_rwlock_destroy(session, &S2C(session)->backup.lock);
+}
+
+/*
  * __wti_conn_ext_init --
  *     Initialize the WT_CONN_EXTENSIONS structure.
  */
@@ -1249,6 +1270,15 @@ err:
 
     __wt_verbose_info(
       session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
+
+    /*
+     * The sweep server must be stopped before any thread group is destroyed: tearing down a thread
+     * group will cause session structures to be cleared. This will mess with the sweep's session
+     * walk. The sweep must also be stopped before the final checkpoint to prevent it from closing
+     * file handles while the checkpoint is reviewing open data handles.
+     */
+    WT_TRET(__wti_sweep_destroy(session));
+
     /* Shut down pre-fetching - it should not operate while closing the connection. */
     WT_TRET(__wti_prefetch_destroy(session));
 
@@ -1263,13 +1293,6 @@ err:
      * proceed without doing snapshot visibility checks.
      */
     session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
-
-    /*
-     * The sweep server is still running and it can close file handles at the same time the final
-     * checkpoint is reviewing open data handles (forcing checkpoint to reopen handles). Shut down
-     * the sweep server.
-     */
-    WT_TRET(__wti_sweep_destroy(session));
 
     /*
      * Shut down the checkpoint, compact and capacity server threads: we don't want to throttle
@@ -3737,8 +3760,8 @@ err:
      * to happen on tables to clean up the entries in the creation of the metadata file.
      */
     F_CLR(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
-    if (conn->partial_backup_remove_ids != NULL)
-        __wt_free(session, conn->partial_backup_remove_ids);
+    if (conn->backup.partial_remove_ids != NULL)
+        __wt_free(session, conn->backup.partial_remove_ids);
 
     if (ret != 0) {
         if (conn->default_session->event_handler->handle_general != NULL &&

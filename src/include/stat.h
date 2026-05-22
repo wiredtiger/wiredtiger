@@ -1022,6 +1022,8 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_checkpoints_disagg_pick_up_follower;
     int64_t layered_table_manager_tables;
     int64_t layered_truncate_list_search_calls;
+    int64_t layered_truncate_list_gc_runs;
+    int64_t layered_truncate_list_gc_entries_removed;
     int64_t layered_truncate_list_search_entries_walked;
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
@@ -1037,6 +1039,10 @@ struct __wt_connection_stats {
     int64_t live_restore_hist_source_read_latency_gt1000;
     int64_t live_restore_hist_source_read_latency_total_msecs;
     int64_t live_restore_state;
+    int64_t read_reject_count;
+    int64_t write_reject_count;
+    int64_t read_load;
+    int64_t write_load;
     int64_t lock_btree_page_count;
     int64_t lock_btree_page_wait_application;
     int64_t lock_btree_page_wait_internal;
@@ -1305,6 +1311,7 @@ struct __wt_connection_stats {
     int64_t session_table_compact_dhandle_success;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
+    int64_t session_table_compact_bytes_rewrite_inmem;
     int64_t session_table_compact_passes;
     int64_t session_table_compact_eviction;
     int64_t session_table_compact_running;
@@ -1464,6 +1471,7 @@ struct __wt_dsrc_stats {
     int64_t block_minor;
     int64_t btree_checkpoint_generation;
     int64_t btree_clean_checkpoint_timer;
+    int64_t btree_compact_pages_selected_inmem;
     int64_t btree_compact_pages_reviewed;
     int64_t btree_compact_pages_rewritten;
     int64_t btree_compact_pages_skipped;

@@ -1472,13 +1472,6 @@ config_disagg_storage(void)
     else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
-    /* FIXME WT-15189 For disagg, random cursors are problematic. */
-    if (config_explicit(NULL, "ops.random_cursor"))
-        WARN("%s",
-          "turning off ops.random_cursor with disagg as they are currently problematic and can "
-          "cause stalls");
-    config_off(NULL, "ops.random_cursor");
-
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");
     config_single(NULL, "transaction.timestamps=on", true);
@@ -1495,6 +1488,10 @@ config_disagg_storage(void)
     /* Compaction is not supported for disaggregated storage. */
     config_off(NULL, "ops.compaction");
     config_off(NULL, "background_compact");
+
+    /* Cursor reposition is not supported for disaggregated storage. */
+    config_off(NULL, "debug.cursor_reposition");
+    config_off(NULL, "stress.evict_reposition");
 
     /*  Tiered storage is not supported with disagg */
     config_single(NULL, "tiered_storage.storage_source=off", true);
