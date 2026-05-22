@@ -15,7 +15,7 @@ using namespace utils;
 TEST_CASE("cross_checkpoint_caching_put: inserting an item sets ref_count to 1",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_put]")
 {
-    cross_checkpoint_caching_test_env env;
+    cross_checkpoint_caching_test_env env(1);
     const uint8_t addr[] = {0x01, 0x02};
 
     WT_SHARED_DSK_ITEM *item = env.put(addr, sizeof(addr));
@@ -25,7 +25,7 @@ TEST_CASE("cross_checkpoint_caching_put: inserting an item sets ref_count to 1",
     REQUIRE(item->fid == env.btree_id());
     REQUIRE(item->addr_size == sizeof(addr));
     REQUIRE(memcmp(item->addr, addr, sizeof(addr)) == 0);
-    REQUIRE(env.bucket_size(0) >= 1);
+    REQUIRE(env.bucket_size(0) == 1);
 }
 
 TEST_CASE("cross_checkpoint_caching_put: inserting an item makes it retrievable via get",
