@@ -147,11 +147,10 @@ connection_disaggregated_config_common = [
         disaggregated storage context.''',
         type='boolean', undoc=True),
     Config('pickup_latest_checkpoint', 'false', r'''
-        if true, and the connection opens in disaggregated follower mode without an
-        explicit \c checkpoint_meta, fetch the latest complete checkpoint from the
-        page log and apply it. Intended for the \c wt CLI when using a CLI-oriented
-        page log such as \c ext_pali. Production page logs that do not implement
-        \c pl_get_complete_checkpoint must not enable this''',
+        if true on initial open, a disaggregated follower without an explicit
+        \c checkpoint_meta fetches and applies the latest complete checkpoint
+        from the page log. Requires a page log that implements
+        \c pl_get_complete_checkpoint''',
         type='boolean', undoc=True),
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
