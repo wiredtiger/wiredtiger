@@ -43,18 +43,6 @@ RUN apt-get update && \
     zlib1g-dev=1:1.3.dfsg+really1.3.1-1ubuntu3 \
     && rm -rf /var/lib/apt/lists/*
 
-# libtinfo5 is required by dist/s_clang_format. It is not available on Ubuntu
-# 26.04, so install the Ubuntu 22.04 version.
-RUN ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "i386" ]; then \
-      BASE_URL="http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"; \
-    else \
-      BASE_URL="http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"; \
-    fi && \
-    curl -fsSL "${BASE_URL}/libtinfo5_6.3-2ubuntu0.1_${ARCH}.deb" -o libtinfo5.deb && \
-    dpkg -i libtinfo5.deb && \
-    rm libtinfo5.deb
-
 RUN useradd -m -s /bin/bash wiredtiger
 USER wiredtiger
 
