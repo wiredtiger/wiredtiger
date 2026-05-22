@@ -6,10 +6,10 @@ RUN apt-get update && \
     aspell-en=2020.12.07-0-1.1build1 \
     ca-certificates=20260223 \
     ccache=4.12.3-1 \
-    clang=1:21.1.6-71 \
-    clang-format=1:21.1.6-71 \
-    clang-tidy=1:21.1.6-71 \
-    clangd=1:21.1.6-71 \
+    clang-22=1:22.1.2-1ubuntu1 \
+    clang-format-22=1:22.1.2-1ubuntu1 \
+    clang-tidy-22=1:22.1.2-1ubuntu1 \
+    clangd-22=1:22.1.2-1ubuntu1 \
     cmake=4.2.3-2ubuntu2 \
     curl=8.18.0-1ubuntu2.1 \
     diffutils=1:3.12-1 \
@@ -26,9 +26,9 @@ RUN apt-get update && \
     libsnappy-dev=1.2.2-2 \
     libsodium-dev=1.0.18-2 \
     libzstd-dev=1.5.7+dfsg-3 \
-    lld=1:21.1.6-71 \
-    lldb=1:21.1.6-71 \
-    llvm=1:21.1.6-71 \
+    lld-22=1:22.1.2-1ubuntu1 \
+    lldb-22=1:22.1.2-1ubuntu1 \
+    llvm-22=1:22.1.2-1ubuntu1 \
     make=4.4.1-3 \
     ninja-build=1.13.2-1 \
     perl=5.40.1-7build1 \
@@ -42,6 +42,8 @@ RUN apt-get update && \
     universal-ctags=6.2.1-1 \
     zlib1g-dev=1:1.3.dfsg+really1.3.1-1ubuntu3 \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/usr/lib/llvm-22/bin:$PATH"
 
 RUN useradd -m -s /bin/bash wiredtiger
 USER wiredtiger
