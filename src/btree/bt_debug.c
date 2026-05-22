@@ -415,31 +415,40 @@ __wti_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *
 }
 
 /*
- * __debug_disagg_dump_results --
- *     Print the chain summary and dispatch each result through structural validation (byteswap +
- *     magic + header checksum) and dump (base via __wti_debug_disk, deltas via raw bytes). Shared
- *     between __wt_debug_disagg_page_id and __wt_debug_disagg_table_page_id. Validation is
- *     intentionally duplicated rather than shared with __block_disagg_read_multiple, so the
- *     production loop can stay untouched.
+ * __wt_debug_disagg_page_id --
+ *     Read and dump a disaggregated-storage page given a (page_id, lsn) pair. Drives the disagg
+ *     block manager directly via __wt_block_disagg_debug_read_page_id, bypassing the address cookie
+ *     path. Performs per-result structural validation (byteswap + magic + header checksum) inline.
+ *     Note that this duplicates a small amount of validation logic from
+ *     __block_disagg_read_multiple by design, so the production loop can stay untouched.
  */
-static int
-__debug_disagg_dump_results(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
-  const char *ofile, WT_ITEM *results, u_int count, WT_PAGE_LOG_GET_ARGS *get_args)
+int
+__wt_debug_disagg_page_id(
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     WT_DECL_RET;
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
+    WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t size;
     uint8_t expected_magic;
-    u_int i;
+    u_int count, i;
 
-    WT_RET(__wt_msg(session,
+    WT_ASSERT(session, S2BT_SAFE(session) != NULL);
+    memset(results, 0, sizeof(results));
+    count = WT_ELEMENTS(results);
+
+    WT_ERR(__wt_block_disagg_debug_read_page_id(
+      S2BT(session)->bm, session, page_id, lsn, &get_args, results, &count));
+
+    WT_ERR(__wt_msg(session,
       "chain: page_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64
       " base_ckpt=%" PRIu64 " backlink_ckpt=%" PRIu64 " delta_count=%" PRIu64 " results=%u",
-      page_id, lsn, get_args->base_lsn, get_args->backlink_lsn, get_args->base_checkpoint_id,
-      get_args->backlink_checkpoint_id, get_args->delta_count, count));
+      page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
+      get_args.backlink_checkpoint_id, get_args.delta_count, count));
 
     if (count > 1)
-        WT_RET(__wt_msg(session,
+        WT_ERR(__wt_msg(session,
           "note: structured delta decoding is not yet supported; the %u delta result(s) below "
           "are dumped as raw bytes",
           count - 1));
@@ -450,7 +459,8 @@ __debug_disagg_dump_results(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t
         blk = WT_BLOCK_HEADER_REF(results[i].data);
         /*
          * Equivalent of __wti_block_disagg_header_byteswap_copy, inlined here because that helper
-         * is internal to the block_disagg module.
+         * is internal to the block_disagg module. Validation is duplicated by design so the
+         * production read loop (__block_disagg_read_multiple) stays untouched.
          */
         swap = *blk;
 
@@ -483,58 +493,6 @@ __debug_disagg_dump_results(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t
             __wt_log_data_dump(session, results[i].data, size,
               "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
     }
-    return (ret);
-}
-
-/*
- * __wt_debug_disagg_page_id --
- *     Read and dump a disaggregated-storage page given a (page_id, lsn) pair. Drives the disagg
- *     block manager via __wt_block_disagg_debug_read_page_id (the dhandle's block manager), then
- *     validates/dumps each result via the shared dump helper.
- */
-int
-__wt_debug_disagg_page_id(
-  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
-{
-    WT_DECL_RET;
-    WT_ITEM results[WT_DELTA_LIMIT + 1];
-    WT_PAGE_LOG_GET_ARGS get_args;
-    u_int count, i;
-
-    WT_ASSERT(session, S2BT_SAFE(session) != NULL);
-    memset(results, 0, sizeof(results));
-    count = WT_ELEMENTS(results);
-
-    WT_ERR(__wt_block_disagg_debug_read_page_id(
-      S2BT(session)->bm, session, page_id, lsn, &get_args, results, &count));
-    WT_ERR(__debug_disagg_dump_results(session, page_id, lsn, ofile, results, count, &get_args));
-
-err:
-    for (i = 0; i < WT_ELEMENTS(results); i++)
-        __wt_buf_free(session, &results[i]);
-    return (ret);
-}
-
-/*
- * __wt_debug_disagg_table_page_id --
- *     Read and dump a disaggregated-storage page given a (table_id, page_id, lsn) tuple, bypassing
- *     the btree dhandle path. Targets well-known tables such as the turtle that have no file URI.
- */
-int
-__wt_debug_disagg_table_page_id(
-  WT_SESSION_IMPL *session, uint64_t table_id, uint64_t page_id, uint64_t lsn, const char *ofile)
-{
-    WT_DECL_RET;
-    WT_ITEM results[WT_DELTA_LIMIT + 1];
-    WT_PAGE_LOG_GET_ARGS get_args;
-    u_int count, i;
-
-    memset(results, 0, sizeof(results));
-    count = WT_ELEMENTS(results);
-
-    WT_ERR(__wt_block_disagg_debug_read_table_page_id(
-      session, table_id, page_id, lsn, &get_args, results, &count));
-    WT_ERR(__debug_disagg_dump_results(session, page_id, lsn, ofile, results, count, &get_args));
 
 err:
     for (i = 0; i < WT_ELEMENTS(results); i++)
