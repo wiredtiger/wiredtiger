@@ -234,7 +234,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertRegex(out.stdout, re.compile(
             rf"^chain: page_id={page_id} lsn={lsn} "
             rf"base_lsn={base_lsn} backlink_lsn={backlink_lsn} "
-            rf".* delta_count=\d+ results=[2-9]\d*$",
+            rf".* delta_count=\d+ results=(?:[2-9]|[1-9]\d+)$",
             re.MULTILINE))
 
     def test_missing_required_p(self):
