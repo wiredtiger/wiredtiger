@@ -58,7 +58,8 @@ TEST_CASE(
     bool inserted;
     WT_SHARED_DSK_ITEM *second = env.put(addr, sizeof(addr), &inserted);
 
-    /* Collision: the existing entry is returned with ref_count incremented, no new entry inserted. */
+    /* Collision: the existing entry is returned with ref_count incremented, no new entry inserted.
+     */
     REQUIRE(!inserted);
     REQUIRE(second == first);
     REQUIRE(first->ref_count == 2);
