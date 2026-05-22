@@ -440,11 +440,13 @@ __wt_debug_disagg_page_id(
     WT_ERR(__wt_block_disagg_debug_read_page_id(
       S2BT(session)->bm, session, page_id, lsn, &get_args, results, &count));
 
+    WT_ERR(__wt_msg(session, "uri: %s", session->dhandle->name));
     WT_ERR(__wt_msg(session,
-      "chain: page_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64
-      " base_ckpt=%" PRIu64 " backlink_ckpt=%" PRIu64 " delta_count=%" PRIu64 " results=%u",
+      "disagg_meta: page_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64
+      " base_ckpt=%" PRIu64 " backlink_ckpt=%" PRIu64 " delta_count=%" PRIu64,
       page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
-      get_args.backlink_checkpoint_id, get_args.delta_count, count));
+      get_args.backlink_checkpoint_id, get_args.delta_count));
+    WT_ERR(__wt_msg(session, "results: count=%u", count));
 
     if (count > 1)
         WT_ERR(__wt_msg(session,

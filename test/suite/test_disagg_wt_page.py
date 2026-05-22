@@ -141,10 +141,11 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     def _assert_chain_header(self, stdout, page_id, lsn, base_lsn, backlink_lsn,
                              delta_count_re, results_re):
         self.assertRegex(stdout,
-            rf"(?m)^chain: page_id={page_id} lsn={lsn} "
+            rf"(?m)^get_args: page_id={page_id} lsn={lsn} "
             rf"base_lsn={base_lsn} backlink_lsn={backlink_lsn} "
             rf"base_ckpt=\d+ backlink_ckpt=\d+ "
-            rf"delta_count={delta_count_re} results={results_re}$")
+            rf"delta_count={delta_count_re}$")
+        self.assertRegex(stdout, rf"(?m)^results: count={results_re}$")
 
     def test_help(self):
         _, stderr = self._run_wt_page('-?')
@@ -171,7 +172,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self._assert_chain_header(stdout, page.page_id, page.lsn,
                                   page.base_lsn, page.backlink_lsn,
                                   delta_count_re="0", results_re="1")
-        self.assertRegex(stdout, r"(?m)^- row-store ")
+        self.assertIn("- row-store ", stdout)
 
     def test_delta_chain(self):
         self._populate()
