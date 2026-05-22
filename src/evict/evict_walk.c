@@ -430,6 +430,23 @@ retry:
         }
 
         /*
+         * Skip disaggregated btrees that have already been visited by the ongoing checkpoint when
+         * we are not looking for clean pages. Once the global checkpoint generation matches the
+         * tree's checkpoint generation and the checkpoint is still running, every modified page in
+         * this tree belongs to the next checkpoint and will be rejected by the
+         * cache_eviction_blocked_disagg_next_checkpoint guard in __wt_page_can_evict. Walking the
+         * tree only inflates the worker failure rate.
+         */
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
+          __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen) ==
+            __wt_gen(session, WT_GEN_CHECKPOINT) &&
+          __wt_atomic_load_bool_v_acquire(&S2C(session)->txn_global.checkpoint_running)) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_checkpoint_pending);
+            __evict_disagg_btree_skip_count(session, btree);
+            continue;
+        }
+
+        /*
          * Skip files that are configured to stick in cache until we become aggressive.
          *
          * If the file is contributing heavily to our cache usage then ignore the "stickiness" of

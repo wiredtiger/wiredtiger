@@ -430,6 +430,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_pages_prune_timestamp_not_move', 'eviction server skips pages that have been reconciled previously at the same prune timestamp'),
     EvictStat('eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     EvictStat('eviction_server_skip_stable_trees', 'eviction server skips stable btrees in disagg'),
+    EvictStat('eviction_server_skip_trees_checkpoint_pending', 'eviction server skips disaggregated trees already visited by the ongoing checkpoint'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
     EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips trees that are read-only if it is not looking for clean pages'),
