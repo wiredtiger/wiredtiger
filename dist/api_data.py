@@ -689,7 +689,8 @@ connection_runtime_config = [
             if true, for operations with snapshot isolation the cursor temporarily releases any page
             that requires force eviction, then repositions back to the page for further operations.
             A page release encourages eviction of hot or large pages, which is more likely to
-            succeed without a cursor keeping the page pinned.''',
+            succeed without a cursor keeping the page pinned. Note: This setting is not compatible
+            with disaggregated storage.''',
             type='boolean'),
         Config('disagg_address_cookie_upgrade', 'none', r'''
             modify the disaggregated block manager to pretend that it is a newer version to test
@@ -759,7 +760,8 @@ connection_runtime_config = [
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
-                eviction worker thread uses a session from the configured session_max''',
+                eviction worker thread uses a session from a reserved pool of WT_EVICT_MAX_WORKERS
+                (64) sessions''',
                 min=1, max=64), # !!! Must match WT_EVICT_MAX_WORKERS
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help evict pages from
@@ -929,15 +931,25 @@ connection_runtime_config = [
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
         Config('chunk_cache', '0', r'''
-            number of bytes per second available to the chunk cache. The minimum non-zero setting
-            is 1MB.''',
-            min='0', max='1TB'),
+            deprecated option, retained for backward compatibility''',
+            min='0', max='1TB', undoc=True),
         ]),
     Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a
         list, where each option specifies an event handler category e.g. 'error' represents
         the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=['error', 'message']),
+    Config('load_control', '', r'''
+        enable the load control subsystem.''',
+        type='category', subconfig=[
+        Config('enable', 'false', r'''
+            Load control will actively reject the work, based on other settings, to keep the
+            system healthy.''',
+            type='boolean'),
+        Config('control_threshold', '100', r'''
+            Threshold at which load control will actively start rejecting the work.''',
+            min=10, max=200),
+        ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
         min=0),
@@ -1008,7 +1020,8 @@ connection_runtime_config = [
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
-        'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
+        'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
+        'failpoint_history_store_delete_key_from_ts',
         'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
         'history_store_checkpoint_delay', 'history_store_search',
         'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
@@ -1032,7 +1045,6 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
-            'chunkcache',
             'compact',
             'compact_progress',
             'configuration',
@@ -1267,48 +1279,39 @@ wiredtiger_open_live_restore_configuration = [
     ])
 ]
 
-chunk_cache_configuration_common = [
-    Config('pinned', '', r'''
-        List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
-        tables exceeding capacity will not be fully retained. Table names can appear
-        in both this and the preload list, but not in both this and the exclude list.
-        Duplicate names are allowed.''',
-        type='list'),
-]
-connection_reconfigure_chunk_cache_configuration = [
-    Config('chunk_cache', '', r'''
-        chunk cache reconfiguration options''',
-        type='category', subconfig=chunk_cache_configuration_common)
-]
+# Chunk cache has been deprecated and removed. We need to keep the sub-configs because
+# they get persisted to WiredTiger.basecfg. WiredTiger will throw an error if the config contains
+# enabled=true but only log warnings for any other chunk cache config.
 wiredtiger_open_chunk_cache_configuration = [
     Config('chunk_cache', '', r'''
-        chunk cache configuration options''',
-        type='category', subconfig=
-        chunk_cache_configuration_common + [
+        deprecated option, retained for backward compatibility''',
+        type='category', undoc=True, subconfig=[
+        Config('pinned', '', r'''
+            deprecated option, retained for backward compatibility''',
+            type='list', undoc=True),
         Config('capacity', '10GB', r'''
-            maximum memory or storage to use for the chunk cache''',
-            min='512KB', max='100TB'),
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100TB', undoc=True),
         Config('chunk_cache_evict_trigger', '90', r'''
-            chunk cache percent full that triggers eviction''',
-            min='0', max='100'),
+            deprecated option, retained for backward compatibility''',
+            min='0', max='100', undoc=True),
         Config('chunk_size', '1MB', r'''
-            size of cached chunks''',
-            min='512KB', max='100GB'),
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100GB', undoc=True),
         Config('storage_path', '', r'''
-            the path (absolute or relative) to the file used as cache location. This should be on a
-            filesystem that supports file truncation. All filesystems in common use
-            meet this criteria.'''),
+            deprecated option, retained for backward compatibility''', undoc=True),
         Config('enabled', 'false', r'''
-            enable chunk cache''',
-            type='boolean'),
+            deprecated option, retained for backward compatibility. Setting this to true will
+            result in an error''',
+            type='boolean', undoc=True),
         Config('hashsize', '1024', r'''
-            number of buckets in the hashtable that keeps track of objects''',
-            min='64', max='1048576'),
+            deprecated option, retained for backward compatibility''',
+            min='64', max='1048576', undoc=True),
         Config('flushed_data_cache_insertion', 'true', r'''
-            enable caching of freshly-flushed data, before it is removed locally.''',
+            deprecated option, retained for backward compatibility''',
             type='boolean', undoc=True),
         Config('type', 'FILE', r'''
-            cache location, defaults to the file system.''',
+            deprecated option, retained for backward compatibility''',
             choices=['FILE', 'DRAM'], undoc=True),
     ]),
 ]
@@ -1384,6 +1387,9 @@ wiredtiger_open_common =\
     Config('checkpoint_sync', 'true', r'''
         flush files to stable storage when closing or writing checkpoints''',
         type='boolean'),
+    Config('checkpoint_threads', '1', r'''
+        the number of checkpoint threads for syncing tables in parallel during checkpoints''',
+        min='1'),
     Config('compile_configuration_count', '1000', r'''
         the number of configuration strings that can be precompiled. Some configuration strings
         are compiled internally when the connection is opened.''',
@@ -1869,6 +1875,15 @@ methods = {
         type='list'),
 ]),
 
+'WT_SESSION.publish' : Method([
+    Config('disaggregated', '', r'''
+        configure disaggregated storage options for this object''',
+        type='category', subconfig=[
+        Config('schema_epoch', '', r'''
+            set the schema epoch for publishing schema operations for this object'''),
+    ]),
+]),
+
 'WT_SESSION.query_timestamp' : Method([
     Config('get', 'read', r'''
         specify which timestamp to query: \c commit returns the most recently set commit_timestamp;
@@ -2213,7 +2228,6 @@ methods = {
         print global txn information''', type='boolean'),
 ]),
 'WT_CONNECTION.reconfigure' : Method(
-    connection_reconfigure_chunk_cache_configuration +\
     connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_disaggregated_configuration +\
     connection_reconfigure_page_delta_configuration +\
@@ -2251,17 +2265,22 @@ methods = {
         that all timestamps up to and including that value have been committed (possibly
         bounded by the application-set \c durable timestamp); \c backup_checkpoint returns
         the stable timestamp of the checkpoint pinned for an open backup cursor; \c last_checkpoint
-        returns the timestamp of the most recent stable checkpoint; \c oldest_timestamp returns the
+        returns the timestamp of the most recent stable checkpoint;
+        \c last_disaggregated_schema_epoch returns the schema epoch from the most recent
+        disaggregated storage checkpoint; \c oldest_timestamp returns the
         most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader
         returns the minimum of the read timestamps of all active readers; \c pinned returns
         the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
         \c recovery returns the timestamp of the most recent stable checkpoint taken prior to
-        a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
+        a shutdown; \c stable_disaggregated_schema_epoch returns the most recent
+        \c stable_disaggregated_schema_epoch set with WT_CONNECTION::set_timestamp;
+        \c stable_timestamp returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         timestamp_global_api''',
-        choices=['all_durable','backup_checkpoint','last_checkpoint','oldest',
-            'oldest_reader','oldest_timestamp','pinned','recovery','stable','stable_timestamp']),
+        choices=['all_durable','backup_checkpoint','last_checkpoint',
+            'last_disaggregated_schema_epoch','oldest','oldest_reader','oldest_timestamp',
+            'pinned','recovery','stable','stable_disaggregated_schema_epoch','stable_timestamp']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
@@ -2278,6 +2297,10 @@ methods = {
         future commits and queries will be no earlier than the specified timestamp. Values must
         be monotonically increasing. The value must not be newer than the current stable timestamp.
         See @ref timestamp_global_api'''),
+    Config('stable_disaggregated_schema_epoch', '', r'''
+        set the stable schema epoch for disaggregated storage; the shared metadata included in the
+        disaggregated storage checkpoint will not include the effects of schema operations with
+        higher epochs. Values must be monotonically increasing. See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value

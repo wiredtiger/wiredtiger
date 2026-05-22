@@ -774,8 +774,8 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
     ContextInternal *icontext = _workload->_context->_internal;
 
     while (!stop_timestamp_thread) {
-        uint64_t stable_ts = 0;
-        uint64_t oldest_ts = 0;
+        wt_timestamp_t stable_ts = WT_TS_NONE;
+        wt_timestamp_t oldest_ts = WT_TS_NONE;
 
         /* Only hold the mutex while computing timestamps, not across WT calls. */
         if (_workload->options.stable_timestamp_lag > 0 ||
@@ -1178,15 +1178,15 @@ Monitor::_format_out_header()
             << "insert ops per second,"
             << "update ops per second,"
             << "checkpoints,"
-            << "read average latency(uS),"
-            << "read minimum latency(uS),"
-            << "read maximum latency(uS),"
-            << "insert average latency(uS),"
-            << "insert min latency(uS),"
-            << "insert maximum latency(uS),"
-            << "update average latency(uS),"
-            << "update min latency(uS),"
-            << "update maximum latency(uS)" << std::endl;
+            << "read average latency(us),"
+            << "read minimum latency(us),"
+            << "read maximum latency(us),"
+            << "insert average latency(us),"
+            << "insert min latency(us),"
+            << "insert maximum latency(us),"
+            << "update average latency(us),"
+            << "update min latency(us),"
+            << "update maximum latency(us)" << std::endl;
 }
 
 void
@@ -2012,7 +2012,7 @@ err:
              * prepare_timestamp value is reused for both the commit and durable timestamps.
              */
             if (op->transaction->use_prepare_timestamp) {
-                uint64_t prepare_ts;
+                wt_timestamp_t prepare_ts;
                 {
                     const std::lock_guard<std::shared_mutex> lock(*icontext->_ts_mutex);
                     prepare_ts = WorkgenTimeStamp::get_timestamp();

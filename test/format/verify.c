@@ -44,8 +44,7 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, table->track_prefix,
-      enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, table->track_prefix, session_prefetch_cfg(), &session);
     ret = session->verify(session, table->uri, "strict");
     /*
      * On followers, verify returns ENOENT if the stable constituent is missing. Before the first
@@ -185,8 +184,7 @@ table_verify_mirror(
     failures = 0;
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(
-      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, session_prefetch_cfg(), &session);
 
     /* Optionally open a checkpoint to verify. */
     if (checkpoint != NULL)
@@ -312,8 +310,13 @@ table_verify_mirror(
             table_mirror_fail_msg(session, checkpoint, base, base_keyno, &base_key, &base_value,
               table, table_keyno, &table_key, &table_value, last_match);
 
-            /* Dump the cursor pages for the first failure. */
+            /*
+             * Dump the cursor pages and preserve the disaggregated layered components for the first
+             * failure.
+             */
             if (++failures == 1) {
+                if (g.disagg_storage_config && GV(DISAGG_PRESERVE))
+                    testutil_disagg_preserve(conn, "preserve");
                 testutil_snprintf(
                   tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id);
                 cursor_dump_page(base_cursor, tagbuf);

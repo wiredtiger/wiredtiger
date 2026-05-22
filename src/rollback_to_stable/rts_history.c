@@ -174,26 +174,33 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
      */
     if ((S2BT(session)->modified || max_durable_ts > rollback_timestamp) &&
       rollback_timestamp != WT_TS_NONE) {
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+          "Rollback to stable history store final pass: rolling back with durable_timestamp=%s",
+          __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_ROLLBACK "tree rolled back with durable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
         WT_TRET(__wti_rts_btree_walk_btree(session, rollback_timestamp));
-    } else
+    } else {
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+          "Rollback to stable history store final pass: skipped with durable_timestamp=%s",
+          __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_SKIP
           "tree skipped with durable_timestamp=%s and stable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
+    }
 
     /*
      * Truncate history store entries from the partial backup remove list. The list holds all of the
      * btree ids that do not exist as part of the database anymore due to performing a selective
      * restore from backup.
      */
-    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->partial_backup_remove_ids != NULL)
-        for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
+    if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->backup.partial_remove_ids != NULL)
+        for (i = 0; conn->backup.partial_remove_ids[i] != 0; ++i)
             WT_ERR(
-              __wti_rts_history_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
+              __wti_rts_history_btree_hs_truncate(session, conn->backup.partial_remove_ids[i]));
 err:
     if (release_dhandle)
         WT_TRET(__wt_session_release_dhandle(session));

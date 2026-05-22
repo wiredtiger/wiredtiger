@@ -116,19 +116,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
 
-  {"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_CHUNK_CACHE},
-
-  {"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 100,
-    5120, 100 * 1024, V_GLOBAL_CHUNK_CACHE_CAPACITY},
-
-  {"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 5, 100 * 1024,
-    V_GLOBAL_CHUNK_CACHE_CHUNK_SIZE},
-
-  {"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE,
-    0, 0, 0, V_GLOBAL_CHUNK_CACHE_STORAGE_PATH},
-
-  {"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0,
-    V_GLOBAL_CHUNK_CACHE_TYPE},
+  {"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8, V_GLOBAL_CHECKPOINT_THREADS},
 
   {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
     V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
@@ -200,6 +188,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 16, 256,
     V_GLOBAL_DISAGG_DRAIN_THREADS},
+
+  {"disagg.preserve", "preserve layered table constituents after data mismatches",
+    C_IGNORE | C_BOOL, 100, 1, 0, V_GLOBAL_DISAGG_PRESERVE},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
@@ -318,6 +309,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
 
+  {"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0,
+    V_GLOBAL_PREFETCH_DEFAULT},
+
   {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0, V_GLOBAL_PRECISE_CHECKPOINT},
 
   {"preserve_prepared", "Preserve prepared", C_BOOL, 50, 0, 0, V_GLOBAL_PRESERVE_PREPARED},
@@ -431,8 +425,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50,
     100, V_GLOBAL_TIERED_STORAGE_FLUSH_FREQUENCY},
 
-  {"tiered_storage.storage_source",
-    "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)",
+  {"tiered_storage.storage_source", "storage source used (dir_store | none | off)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_TIERED_STORAGE_STORAGE_SOURCE},
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,

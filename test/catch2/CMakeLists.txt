@@ -1,13 +1,16 @@
 # Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes.
 # This change will break assertions for all other testing so these tests must be run on their own.
 if(HAVE_UNITTEST_ASSERTS)
-    set(unittests misc_tests/test_assertions.cpp)
+    set(unittests
+        misc_tests/test_assertions.cpp
+        misc_tests/test_single_thread_check.cpp
+    )
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
-        misc_tests/test_binary_search_string.cpp
-        misc_tests/test_bitmap.cpp
+        misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
+        misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_disagg_meta_config.cpp
@@ -20,9 +23,13 @@ else()
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
+        misc_tests/test_layered_incomplete_table.cpp
+        misc_tests/test_layered_ingest_uri.cpp
+        misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_verify_compare_page_id_lists.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
@@ -47,6 +54,7 @@ else()
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
+        sub_level_error/unit/test_sub_level_error_nested_api_calls.cpp
         sub_level_error/unit/test_sub_level_error_compact.cpp
         sub_level_error/unit/test_sub_level_error_drop_conflict.cpp
         sub_level_error/unit/test_sub_level_error_drop_uncommitted_dirty.cpp
@@ -54,10 +62,16 @@ else()
         sub_level_error/unit/test_sub_level_error_msg_macros.cpp
         sub_level_error/unit/test_sub_level_error_rollback.cpp
         sub_level_error/unit/test_sub_level_error_session_set_last_error.cpp
+        truncate/test_truncate_visible_check.cpp
+        truncate/test_layered_truncate_visibility.cpp
+        truncate/test_layered_table_truncate_clear.cpp
+        truncate/test_layered_table_truncate_gc.cpp
+        truncate/test_layered_table_truncate_rollback.cpp
     )
 endif()
 
 # FIXME-WT-14051: Live restore is not supported on Windows
+# Palite extension tests require shared library loading not supported on Windows
 if(NOT WT_WIN)
     set(live_restore_sources
         live_restore/live_restore_test_env.cpp
@@ -76,6 +90,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_compute_read_end_bit.cpp
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
+        truncate/test_insert_truncate_entry.cpp
     )
 endif()
 
@@ -91,6 +106,7 @@ set(unittest_sources
     wrappers/item_wrapper.cpp
     wrappers/mock_connection.cpp
     wrappers/mock_session.cpp
+    truncate/truncate_list_helpers.cpp
     ${unittests}
     ${live_restore_sources}
 )

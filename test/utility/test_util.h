@@ -69,10 +69,8 @@ extern "C" {
 #endif
 
 #define DIR_STORE_BUCKET_NAME "bucket"
-#define S3_DEFAULT_BUCKET_NAME "s3testext;ap-southeast-2"
 
 #define DIR_STORE "dir_store"
-#define S3_STORE "s3_store"
 
 #define TESTUTIL_ENV_CONFIG_DISAGG                               \
     ",disaggregated=(role=%s,page_log=%s,drain_threads=%" PRIu64 \
@@ -601,6 +599,8 @@ void testutil_deduce_build_dir(TEST_OPTS *opts);
 void testutil_delete_old_backups(int);
 void testutil_disagg_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
+void testutil_disagg_preserve(WT_CONNECTION *, const char *);
+
 bool testutil_exists(const char *, const char *);
 int testutil_general_event_handler(
   WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
@@ -612,6 +612,9 @@ void testutil_mkdir(const char *);
 void testutil_mkdir_ext(const char *, const WT_MKDIR_OPTS *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
 void testutil_move(const char *source, const char *dest);
+uint64_t testutil_fnv1a_add_bytes(uint64_t, const uint8_t *, size_t);
+uint64_t testutil_fnv1a_init(void);
+uint64_t testutil_fnvhash64(uint64_t);
 uint64_t testutil_pareto(uint64_t, uint64_t, u_int);
 void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
 void testutil_parse_end_opt(TEST_OPTS *);
@@ -629,6 +632,8 @@ void testutil_sentinel(const char *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
+void testutil_format_item(WT_ITEM *item, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_wiredtiger_open(

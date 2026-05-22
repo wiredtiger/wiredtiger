@@ -66,7 +66,7 @@ disagg_teardown_multi_node(void)
     if (g.follower_pid > 0) { /* Parent: leader */
         /* Wait for the follower process to exit. */
         track("Waiting for follower to finish execution.", 0ULL);
-        testutil_timeout_wait(120, g.follower_pid);
+        testutil_timeout_wait(720, g.follower_pid);
         g.follower_pid = 0;
     }
     close(g.disagg_multi_sync_socket);
@@ -179,10 +179,16 @@ disagg_sync_multi_node(WT_SESSION *session)
     disagg_multi_sync_point();
 
     if (GV(DISAGG_MULTI_VALIDATION)) {
-        if (g.disagg_leader)
-            testutil_assert(hash == g.disagg_multi_db_hash->follower_hash);
-        else
-            testutil_assert(hash == g.disagg_multi_db_hash->leader_hash);
+        /*
+         * If there's a mismatch, then we're going to assert. Before we do, preserve the state of
+         * ingest and stable tables.
+         */
+
+        bool hash_match =
+          g.disagg_multi_db_hash->leader_hash == g.disagg_multi_db_hash->follower_hash;
+        if (!hash_match && GV(DISAGG_PRESERVE))
+            testutil_disagg_preserve(session->connection, "preserve");
+        testutil_assert(hash_match);
 
         /* Exit synchronization between leader and follower processes. */
         disagg_multi_sync_point();
@@ -237,10 +243,22 @@ disagg_switch_roles(void)
         track("[role change] leader -> follower", 0ULL);
         wts_reopen();
         follower_read_latest_checkpoint();
+        wts_prepare_discover(g.wts_conn);
     } else {
         /* Stepping up: [follower -> leader] */
+        SAP sap;
+        WT_SESSION *session;
+
         track("[role change] follower -> leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
+
+        memset(&sap, 0, sizeof(sap));
+        wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+        /* Advance timestamps to cover all in-memory commits from the follower phase. */
+        timestamp_sync_threads_commit_ts();
+        timestamp_once(session, false, false);
+        testutil_check(session->checkpoint(session, NULL));
+        wt_wrap_close_session(session);
     }
 
     /* After every switch, verify the contents of each table */

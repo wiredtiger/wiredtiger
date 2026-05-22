@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 import re, os, wttest, subprocess, json
 from run import wt_builddir
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages, get_shard_id
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
 
@@ -50,14 +50,16 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages, crash_value)
 
     nentries = 1000
-    current_lsn = 0
     key_expire = 0
 
     MAIN_KEK_PAGE_ID = 1
     EXPECTED_KEK_VERSION = 1
 
-    turtle_table = "pages_000002.db" # table for WT_SPECIAL_PALI_TURTLE_FILE_ID
-    key_provider_table = "pages_000026.db" # table for WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID
+    WT_SPECIAL_PALI_TURTLE_FILE_ID = 2
+    WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID = 26
+
+    turtle_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_TURTLE_FILE_ID):02d}.db'
+    key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
     uri = "layered:test_key_provider_disagg01"
 
@@ -70,10 +72,10 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     # Use sqlite to grab information for read/write validation. Use the builtin sqlite3 to
     # match Palites SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_information(self, home, database, sql_query):
-        sqlite_exe = os.path.join(wt_builddir, "sqlite3")
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         database_home = os.path.join(home, 'kv_home', database)
         result = subprocess.run(
-            [sqlite_exe, "-json", database_home, sql_query],
+            [sqlite_exe, '-json', database_home, sql_query],
             capture_output=True,
             text=True,
             check=True
@@ -82,8 +84,16 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         return result_data[0]
 
     def validate_number_elements(self, home="."):
-        shared_meta_count = self.sqlite_fetch_information(home, self.turtle_table, "SELECT COUNT(*) FROM pages")
-        key_provider_count = self.sqlite_fetch_information(home, self.key_provider_table, "SELECT COUNT(*) FROM pages")
+        shared_meta_count = self.sqlite_fetch_information(
+            home,
+            self.turtle_table,
+            f'SELECT COUNT(*) FROM pages WHERE table_id={self.WT_SPECIAL_PALI_TURTLE_FILE_ID};'
+        )
+        key_provider_count = self.sqlite_fetch_information(
+            home,
+            self.key_provider_table,
+            f'SELECT COUNT(*) FROM pages WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID};'
+        )
 
         if (self.key_expire == 0):
             self.assertEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
@@ -91,20 +101,20 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
             self.assertGreaterEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
 
     def validate_meta_file(self, home="."):
-        result = self.sqlite_fetch_information(home, self.turtle_table, "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
+        result = self.sqlite_fetch_information(
+            home,
+            self.turtle_table,
+            f'''SELECT * FROM pages
+                WHERE table_id={self.WT_SPECIAL_PALI_TURTLE_FILE_ID}
+                ORDER BY lsn DESC LIMIT 1;'''
+        )
         m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result['page_data'])
 
         self.assertTrue(m)
         if (m):
-            page_id, lsn, version = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            page_id, version = int(m.group(1)), int(m.group(3))
             self.assertEqual(page_id, self.MAIN_KEK_PAGE_ID)
-            if (self.key_expire == 0):
-                self.assertGreater(lsn, self.current_lsn)
-            else:
-                self.assertEqual(lsn, self.current_lsn)
             self.assertEqual(version, self.EXPECTED_KEK_VERSION)
-
-            self.current_lsn = lsn
 
     def test_key_provider_disagg01(self):
         if (self.ds_name != "palite"):

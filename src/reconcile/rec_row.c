@@ -571,7 +571,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        prev_dirty = __wt_atomic_cas_uint8_v(&ref->rec_state, WT_REF_REC_DIRTY, WT_REF_REC_CLEAN);
+        prev_dirty = __wt_atomic_cas_uint8_v(&ref->dirty_state, WT_REF_DIRTY, WT_REF_CLEAN);
 
         /*
          * FIXME-WT-15709: build delta for split pages.
@@ -628,12 +628,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             }
 
             /*
-             * Set the ref_changes state to zero if there were no concurrent changes while
+             * Set the ref dirty state to clean if there were no concurrent changes while
              * reconciling the internal page.
              */
             if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
                 /* If there are concurrent changes to the first child, abort delta creation. */
-                if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
+                if (__wt_atomic_load_uint8_v_acquire(&ref->dirty_state) == WT_REF_DIRTY &&
                   build_delta && r->cell_zero)
                     __rec_stop_build_delta_int(r, &build_delta);
             }
@@ -654,12 +654,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 }
 
                 /*
-                 * Set the ref_changes state to zero if there were no concurrent changes while
+                 * Set the ref dirty state to clean if there were no concurrent changes while
                  * reconciling the internal page.
                  */
                 if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
                     /* If there are concurrent changes to the first child, abort delta creation. */
-                    if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
+                    if (__wt_atomic_load_uint8_v_acquire(&ref->dirty_state) == WT_REF_DIRTY &&
                       build_delta && r->cell_zero)
                         __rec_stop_build_delta_int(r, &build_delta);
                 }
@@ -672,12 +672,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 WT_ERR(__rec_row_merge(session, r, ref, prev_dirty, &build_delta));
 
                 /*
-                 * Set the ref_changes state to zero if there were no concurrent changes while
+                 * Set the ref dirty state to clean if there were no concurrent changes while
                  * reconciling the internal page.
                  */
                 if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
                     /* If there are concurrent changes to the first child, abort delta creation. */
-                    if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
+                    if (__wt_atomic_load_uint8_v_acquire(&ref->dirty_state) == WT_REF_DIRTY &&
                       build_delta && cell_zero_tmp)
                         __rec_stop_build_delta_int(r, &build_delta);
                 }
@@ -805,12 +805,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             WT_ERR(__rec_pack_delta_row_int(session, r, key, val, &ta));
 
         /*
-         * Set the ref_changes state to zero if there were no concurrent changes while reconciling
+         * Set the ref dirty state to clean if there were no concurrent changes while reconciling
          * the internal page.
          */
         if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
             /* If there are concurrent changes to the first child, abort delta creation. */
-            if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
+            if (__wt_atomic_load_uint8_v_acquire(&ref->dirty_state) == WT_REF_DIRTY &&
               build_delta && r->cell_zero)
                 __rec_stop_build_delta_int(r, &build_delta);
         }
@@ -1158,19 +1158,24 @@ __wti_rec_row_leaf(
          * the table, and the value has become obsolete.
          */
         if (upd == NULL) {
-            /*
-             * Prepared updates are never written to the disk image for the ingest btree. Therefore,
-             * we can safely discard the key if the delete operation is globally visible, even if it
-             * hasn't been included in the oldest checkpoint currently in use.
-             */
-            if (__wt_txn_tw_stop_visible_all(session, twp)) {
-                upd = &upd_tombstone;
-                r->key_removed_from_disk_image = true;
-            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              __rec_row_garbage_collect_tw_eligible(r, twp)) {
-                upd = &upd_tombstone;
-                r->key_removed_from_disk_image = true;
-                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                if (__rec_row_garbage_collect_tw_eligible(r, twp)) {
+                    upd = &upd_tombstone;
+                    r->key_removed_from_disk_image = true;
+                    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
+                }
+            } else if (__wt_txn_tw_stop_visible_all(session, twp)) {
+                /*
+                 * Keep the on-disk cell when the chain still has an unstable aborted prepared
+                 * update that we skipped this round: the cell is its only rollback fallback, and
+                 * dropping it now would strand the prepared update with nothing to fall back to on
+                 * a later reconciliation.
+                 */
+                if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
+                  !upd_select.skip_aborted_prepared_value) {
+                    upd = &upd_tombstone;
+                    r->key_removed_from_disk_image = true;
+                }
             }
         }
 

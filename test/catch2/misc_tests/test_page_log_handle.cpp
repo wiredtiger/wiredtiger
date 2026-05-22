@@ -57,8 +57,8 @@ setup_page_log_queue(WT_SESSION_IMPL *session)
     REQUIRE(__wt_strdup(session, "mock", &npl->name) == 0);
 
     /* Insert mock page log into mock connection. */
-    TAILQ_INIT(&conn_impl->pagelogqh);
-    TAILQ_INSERT_TAIL(&conn_impl->pagelogqh, npl, q);
+    TAILQ_INIT(&conn_impl->ext.pagelogqh);
+    TAILQ_INSERT_TAIL(&conn_impl->ext.pagelogqh, npl, q);
 }
 
 TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
@@ -73,6 +73,7 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
     REQUIRE(__wt_spin_init(session, &conn_impl->disaggregated_storage.shared_metadata_queue_lock,
               "update shared metadata") == 0);
     REQUIRE(__wt_spin_init(session, &conn_impl->api_lock, "api") == 0);
+    REQUIRE(__wt_spin_init(session, &conn_impl->schema_lock, "schema") == 0);
 
     /* Setup the page log queue. */
     setup_page_log_queue(session);
