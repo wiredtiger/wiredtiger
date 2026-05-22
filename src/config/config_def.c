@@ -59,7 +59,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_checkpoint_subconfigs[] = {
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_checkpoint_cleanup_subconfigs[] = {
   {"method", "string", NULL, "choices=[\"none\",\"reclaim_space\"]", NULL, 0},
   {"use_thread", "boolean", NULL, NULL, NULL, 0},
-  {"wait", "int", NULL, "min=60,max=100000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"wait", "int", NULL, "min=1,max=100000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_compatibility_subconfigs[] = {
   {"release", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};

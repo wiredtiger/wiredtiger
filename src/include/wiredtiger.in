@@ -2251,7 +2251,7 @@ struct __wt_connection {
      * checkpoint cleanup asynchronously.  When false (default)\, cleanup runs inline during the
      * checkpoint tree walk., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * wait, seconds to wait between each checkpoint cleanup., an integer between \c 60 and \c
+     * wait, seconds to wait between each checkpoint cleanup., an integer between \c 1 and \c
      * 100000; default \c 300.}
      * @config{ ),,}
      * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
@@ -3002,7 +3002,7 @@ struct __wt_connection {
  * When false (default)\, cleanup runs inline during the checkpoint tree walk., a boolean flag;
  * default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint
- * cleanup., an integer between \c 60 and \c 100000; default \c 300.}
+ * cleanup., an integer between \c 1 and \c 100000; default \c 300.}
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
