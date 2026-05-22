@@ -195,6 +195,27 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         out = self._run_wt_page("-p", "99999999", self.stable_uri)
         self.assertNotEqual(out.returncode, 0)
 
+    def test_full_image_chain(self):
+        """wt page against a base-image chain prints a chain header whose
+        fields match palite's record of that page, and renders the leaf
+        page contents below it."""
+        self._populate()
+        table_id = self._table_id(self.stable_uri)
+        pages = self._palite_pages(table_id)
+        base = next((r for r in pages if r[2] == 0 and r[3] == 0), None)
+        self.assertIsNotNone(base,
+            f"no base-image rows for table_id={table_id} in palite")
+        page_id, lsn, base_lsn, backlink_lsn, _ = base
+        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn),
+                                self.stable_uri)
+        self.assertEqual(out.returncode, 0, msg=out.stderr)
+        self.assertRegex(out.stdout, re.compile(
+            rf"^chain: page_id={page_id} lsn={lsn} "
+            rf"base_lsn=0 backlink_lsn=0 .* delta_count=0 results=1$",
+            re.MULTILINE))
+        self.assertRegex(out.stdout, re.compile(r"^- row-store ",
+                                                re.MULTILINE))
+
     def test_missing_required_p(self):
         self._populate()
         out = self._run_wt_page(self.stable_uri)
