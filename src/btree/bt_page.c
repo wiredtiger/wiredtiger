@@ -1138,7 +1138,6 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     } else {
         WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
-        bool is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
         /*
          * We already know each row's slot from WT_ROW_FOREACH, so position the cursor directly
          * instead of calling __wt_row_search (which would binary search for a slot we already
@@ -1152,12 +1151,10 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
         cbt.compare = 0;
         WT_ROW_FOREACH (page, rip, i) {
             /*
-             * Search for prepare records and records with a stop time point if we want to build
-             * delta.
+             * Search for prepare records.
              */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
-            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) &&
-              (!is_disagg || !WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
+            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
                 continue;
 
             /* Get the value and instantiate the update. */
@@ -1695,12 +1692,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
     uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     uint8_t smallest_prefix;
-    bool instantiate_upd, is_disagg;
+    bool instantiate_upd;
 
     last_slot = 0;
     btree = S2BT(session);
     instantiate_upd = false;
-    is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
 
     /* The code depends on the prefix count variables, other initialization shouldn't matter. */
     best_prefix_count = prefix_count = 0;
@@ -1813,13 +1809,9 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
         }
 
         /*
-         * If we find a prepare, we'll have to instantiate it in the update chain later. Also
-         * instantiate the tombstone if it is a disaggregated btree. We need the tombstone to trace
-         * whether we have included the delete in the previous reconciliation or not.
+         * If we find a prepare, we'll have to instantiate it in the update chain later.
          */
-        if (!F_ISSET(btree, WT_BTREE_READONLY) &&
-          (WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) ||
-            (is_disagg && WT_TIME_WINDOW_HAS_STOP(&unpack.tw))))
+        if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
             instantiate_upd = true;
     }
     WT_CELL_FOREACH_END;
