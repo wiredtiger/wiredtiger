@@ -457,7 +457,7 @@ SCENARIO("write conflict does not trigger for the caller's own uncommitted range
         WHEN("the conflict check is called for a key inside that range")
         {
             const auto result = do_in_rolled_back_transaction(f.session(), [&] {
-                f.insert_truncate_entry(f.session(), 100, 200);
+                CHECK(f.insert_truncate_entry(f.session(), 100, 200) == 0);
                 return f.detect_conflict(f.session(), 150);
             });
 
@@ -801,7 +801,7 @@ SCENARIO("non-ingest write conflict does not trigger for the caller's own uncomm
           "transaction")
         {
             const auto result = do_in_rolled_back_transaction(f.session(), [&] {
-                f.insert_truncate_entry(f.session(), 100, 300);
+                CHECK(f.insert_truncate_entry(f.session(), 100, 300) == 0);
                 return f.detect_non_ingest_conflict(f.session(), 200, 400);
             });
 
