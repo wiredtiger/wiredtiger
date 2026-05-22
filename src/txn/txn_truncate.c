@@ -205,7 +205,9 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
         __truncate_read_entry_timestamps(entry, &start_ts, &durable_ts);
 
         const bool visible = __wt_txn_visible(session, entry->txn_id, start_ts, durable_ts);
-        if (visible != (mode == WT_TRUNCATE_SEARCH_VISIBLE))
+        const bool want_visible = (mode == WT_TRUNCATE_SEARCH_VISIBLE);
+
+        if (visible != want_visible)
             continue;
 
         WT_RET(__key_within_truncate_range(
