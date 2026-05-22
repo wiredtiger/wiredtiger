@@ -22,7 +22,7 @@ option.
 
 Page deltas only apply to row-store pages (\c WT_PAGE_ROW_LEAF and
 \c WT_PAGE_ROW_INT). Column-store pages do not participate in this framework.
-Deltas are also never written for non-disaggregated tables — the btree must have
+Deltas are also never written for non-disaggregated tables the btree must have
 the \c WT_BTREE_DISAGGREGATED flag set (set automatically for layered btrees).
 
 @section pd_config Configuration
@@ -149,6 +149,6 @@ The primary tuning levers are:
 The right balance depends on the read/write ratio and how many keys are updated
 per page per checkpoint cycle. Write-heavy workloads with sparse updates benefit
 most. Read-heavy workloads or workloads that touch every key on a page should
-use short chains (\c max_consecutive_delta of 4–8).
+use short chains (\c max_consecutive_delta of 48).
 
 */
