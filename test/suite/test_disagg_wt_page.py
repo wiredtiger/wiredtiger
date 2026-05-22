@@ -26,57 +26,66 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import glob, os, re, sqlite3, subprocess
+import os, sqlite3
 import wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
+from metadata_helper import extract_id
+from suite_subprocess import suite_subprocess
 
 # Drive the `wt page` command end-to-end through a disagg cell built with
-# the in-tree palite page-log extension.
-class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    uri_base = "wt_page_test"
-    uri = "layered:" + uri_base
-    stable_uri = "file:" + uri_base + ".wt_stable"
+# the in-tree palite page-log extension. The leader connection writes pages
+# (full images on first checkpoint, deltas on subsequent ones); we then run
+# `wt page` as a subprocess in follower mode against the same cell.
+@wttest.skip_for_hook("tiered", "wt page does not run under tiered hook")
+class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
+    uri = "layered:wt_page_test"
+    stable_uri = "file:wt_page_test.wt_stable"
     nrows = 1000
 
-    # palite flag bit indicating a tombstoned page chain entry.
+    # palite flag bit indicating a tombstoned page chain entry; mirrors
+    # WT_PAGE_LOG_DISCARDED in ext/page_log/palite/palite.cpp.
     PAGE_LOG_DISCARDED = 0x10000
 
+    # extensionsConfig() injects disaggregated=(page_log=palite) from the
+    # extension list set up in conn_extensions; we only set the role here.
     conn_config = 'disaggregated=(role="leader")'
+
+    def setUp(self):
+        # self.vars is set by the base setUp; call the staticmethod here
+        # because we want to skip before super().setUp() opens a connection.
+        if self.vars().page_log != 'palite':
+            self.skipTest("wt page test requires the palite page_log")
+        super().setUp()
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def _wt_bin(self):
-        build = self.buildDirectory()
-        libs_wt = os.path.join(build, '.libs', 'wt')
-        return libs_wt if os.path.isfile(libs_wt) else os.path.join(build, 'wt')
-
-    def _palite_ext(self):
-        pattern = os.path.join(self.buildDirectory(),
-            'ext', 'page_log', 'palite', '**', 'libwiredtiger_palite.so')
-        matches = glob.glob(pattern, recursive=True)
-        if not matches:
-            self.fail("Could not locate libwiredtiger_palite.so in build directory")
-        return matches[0]
-
     def _wt_page_extra_config(self):
-        return (f'extensions=["{self._palite_ext()}"],'
-                f'disaggregated=(page_log=palite,role="follower")')
+        return self.extensionsConfig() + ',disaggregated=(role="follower")'
 
-    def _run_wt(self, *args, extra_config=False):
-        cmd = [self._wt_bin(), '-h', self.home]
+    # Run `wt [-C <cfg>] <args>` via suite_subprocess.runWt, which handles
+    # close_conn / reopen_conn, gdb/lldb wrapping, and the libtool wt binary
+    # lookup. Returns (stdout, stderr) text. failure=True asserts a non-zero
+    # exit; failure=False asserts a zero exit.
+    def _run_wt(self, *args, extra_config=False, failure=False):
+        cmd = []
         if extra_config:
             cmd += ['-C', self._wt_page_extra_config()]
         cmd += list(args)
-        self.close_conn()
-        try:
-            return subprocess.run(cmd, capture_output=True, text=True, check=False)
-        finally:
-            self.reopen_conn()
+        self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
+                   failure=failure)
+        with open('wt.out') as f:
+            stdout = f.read()
+        with open('wt.err') as f:
+            stderr = f.read()
+        return stdout, stderr
 
-    def _run_wt_page(self, *args):
-        return self._run_wt('page', *args, extra_config=True)
+    # Run `wt page <args>` with the palite extension and follower role
+    # injected via -C. test_help is the one path that doesn't need either,
+    # so it calls _run_wt directly with just 'page', '-?'.
+    def _run_wt_page(self, *args, failure=False):
+        return self._run_wt('page', *args, extra_config=True, failure=failure)
 
     def _populate(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
@@ -87,8 +96,9 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
     def _dirty_and_checkpoint(self):
-        # Overwrite a few existing keys to force a second checkpoint to emit
-        # delta page-log entries for the affected btree pages.
+        # Update a scattered subset of keys (about eight, here) to dirty
+        # several leaf pages without rewriting the whole tree, then
+        # checkpoint so palite emits delta entries for the dirtied pages.
         c = self.session.open_cursor(self.uri)
         for i in range(0, self.nrows, max(1, self.nrows // 8)):
             c[f"k{i:08}"] = f"V{i:08}"
@@ -96,21 +106,17 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
     def _table_id(self, uri):
-        # Read id=N out of the metadata config string for the file URI.
         c = self.session.open_cursor('metadata:')
         c.set_key(uri)
         self.assertEqual(c.search(), 0, f"URI not found in metadata: {uri}")
         val = c.get_value()
         c.close()
-        m = re.search(r',id=(\d+),', ',' + val + ',')
-        self.assertIsNotNone(m, f"id= not found for {uri}: {val}")
-        return int(m.group(1))
+        return extract_id(val)
 
     def _palite_pages(self, table_id):
         # Every page chain palite recorded for table_id, newest first, as
-        # 5-tuples (page_id, lsn, base_lsn, backlink_lsn, flags). See
-        # ext/page_log/palite/palite.cpp for the schema. Read-only so a
-        # concurrently-running palite process is not disturbed.
+        # 5-tuples (page_id, lsn, base_lsn, backlink_lsn, flags). Schema in
+        # ext/page_log/palite/palite.cpp.
         db = os.path.join(self.home, 'kv_home',
                           f'pages_{get_shard_id(table_id):02d}.db')
         with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
@@ -121,55 +127,63 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def _find_page(self, predicate, description):
         table_id = self._table_id(self.stable_uri)
-        row = next((r for r in self._palite_pages(table_id) if predicate(r)), None)
+        # Close the WT connection so palite releases its SQLite locks before
+        # we open the database directly in read-only mode.
+        self.close_conn()
+        try:
+            row = next((r for r in self._palite_pages(table_id) if predicate(r)),
+                       None)
+        finally:
+            self.reopen_conn()
         self.assertIsNotNone(row,
             f"no {description} rows for table_id={table_id} in palite")
         return row
 
     def _assert_chain_header(self, stdout, page_id, lsn, base_lsn, backlink_lsn,
                              delta_count_re, results_re):
-        self.assertRegex(stdout, re.compile(
-            rf"^chain: page_id={page_id} lsn={lsn} "
+        self.assertRegex(stdout,
+            rf"(?m)^chain: page_id={page_id} lsn={lsn} "
             rf"base_lsn={base_lsn} backlink_lsn={backlink_lsn} "
-            rf".* delta_count={delta_count_re} results={results_re}$",
-            re.MULTILINE))
+            rf"base_ckpt=\d+ backlink_ckpt=\d+ "
+            rf"delta_count={delta_count_re} results={results_re}$")
 
     def test_help(self):
-        out = self._run_wt('page', '-?')
-        self.assertEqual(out.returncode, 0, msg=out.stderr)
-        self.assertIn('page -p page_id', out.stderr)
+        _, stderr = self._run_wt('page', '-?')
+        self.assertIn('page -p page_id', stderr)
+        self.assertIn('-l lsn', stderr)
 
     def test_unknown_page_id(self):
         self._populate()
-        out = self._run_wt_page("-p", "99999999", self.stable_uri)
-        self.assertNotEqual(out.returncode, 0)
+        _, stderr = self._run_wt_page("-p", "99999999", self.stable_uri,
+                                      failure=True)
+        # util_err prefixes errors with the subcommand name.
+        self.assertIn("page:", stderr)
 
     def test_full_image_chain(self):
         self._populate()
         page_id, lsn, _, _, _ = self._find_page(
             lambda r: r[2] == 0 and r[3] == 0, "base-image")
-        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn), self.stable_uri)
-        self.assertEqual(out.returncode, 0, msg=out.stderr)
-        self._assert_chain_header(out.stdout, page_id, lsn, 0, 0,
+        stdout, _ = self._run_wt_page(
+            "-p", str(page_id), "-l", str(lsn), self.stable_uri)
+        self._assert_chain_header(stdout, page_id, lsn, 0, 0,
                                   delta_count_re="0", results_re="1")
-        self.assertRegex(out.stdout, re.compile(r"^- row-store ", re.MULTILINE))
+        self.assertRegex(stdout, r"(?m)^- row-store ")
 
     def test_delta_chain(self):
         self._populate()
         self._dirty_and_checkpoint()
         page_id, lsn, base_lsn, backlink_lsn, _ = self._find_page(
             lambda r: r[3] != 0 and not (r[4] & self.PAGE_LOG_DISCARDED), "delta")
-        out = self._run_wt_page("-p", str(page_id), "-l", str(lsn), self.stable_uri)
-        self.assertEqual(out.returncode, 0, msg=out.stderr)
-        self._assert_chain_header(out.stdout, page_id, lsn, base_lsn, backlink_lsn,
+        stdout, _ = self._run_wt_page(
+            "-p", str(page_id), "-l", str(lsn), self.stable_uri)
+        self._assert_chain_header(stdout, page_id, lsn, base_lsn, backlink_lsn,
                                   delta_count_re=r"\d+",
                                   results_re=r"(?:[2-9]|[1-9]\d+)")
 
     def test_missing_required_p(self):
         self._populate()
-        out = self._run_wt_page(self.stable_uri)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn("page", out.stderr.lower())
+        _, stderr = self._run_wt_page(self.stable_uri, failure=True)
+        self.assertIn("-p page_id is required", stderr)
 
 if __name__ == '__main__':
     wttest.run()
