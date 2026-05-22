@@ -8,7 +8,9 @@
 # We also have some special logic to handle function description comments even
 # though those don't conform to our definition of a "block comment".
 
+import io
 import sys
+from pathlib import Path
 from typing import TextIO
 
 
@@ -125,5 +127,26 @@ def process_io(stdin: TextIO, stdout: TextIO):
         else:
             stdout.write(line)
 
+
+def process_file(path: Path) -> bool:
+    original = path.read_text()
+    stdin = io.StringIO(original)
+    stdout = io.StringIO()
+
+    process_io(stdin, stdout)
+    result = stdout.getvalue()
+
+    if result != original:
+        path.write_text(result)
+
+    return result == original
+
+
+def main(files: list[str]) -> int:
+    results = [process_file(Path(f)) for f in files]
+    return -1 if False in results else 0
+
+
 if __name__ == "__main__":
-    process_io(sys.stdin, sys.stdout)
+    ret = main(sys.argv[1:])
+    sys.exit(ret)
