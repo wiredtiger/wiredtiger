@@ -128,7 +128,40 @@ def process_io(stdin: TextIO, stdout: TextIO):
             stdout.write(line)
 
 
+def read_excluded_files() -> set[Path]:
+    """
+    Return which files are in s_clang_format.list, and therefore should NOT be
+    processed.
+    """
+    script_dir = Path(__file__).resolve().parent
+    exclusion_file = script_dir / "s_clang_format.list"
+    lines = (line.strip() for line in exclusion_file.read_text().splitlines())
+    return set(Path(line) for line in lines if line)
+
+
+def discover_files() -> list[Path]:
+    """
+    Discover all C/C++ source files in the project that require processing.
+    """
+    search_dirs = ["bench", "examples", "ext", "src", "test", "tools"]
+    patterns = ["*.c", "*.h", "*.cpp", "*.hpp"]
+    root_dir = Path(__file__).resolve().parent.parent
+    excluded = read_excluded_files()
+
+    return sorted(
+        f
+        for d in search_dirs
+        for p in patterns
+        for f in (root_dir / d).rglob(p)
+        if "3rdparty" not in f.parts
+        and f.relative_to(root_dir) not in excluded
+    )
+
+
 def process_file(path: Path) -> bool:
+    """
+    Process the given file and return whether it was already properly formatted.
+    """
     original = path.read_text()
     stdin = io.StringIO(original)
     stdout = io.StringIO()
@@ -142,11 +175,18 @@ def process_file(path: Path) -> bool:
     return result == original
 
 
-def main(files: list[str]) -> int:
-    results = [process_file(Path(f)) for f in files]
-    return -1 if False in results else 0
+def main() -> int:
+    """
+    Format block comments according to WiredTiger style.
+
+    Check the C/C++ files in the project.
+    Return 0 if all files were already properly formatted.
+    Return 1 if any files were non-compliant and needed modification.
+    """
+    paths = discover_files()
+    results = [process_file(p) for p in paths]
+    return 1 if not all(results) else 0
 
 
 if __name__ == "__main__":
-    ret = main(sys.argv[1:])
-    sys.exit(ret)
+    sys.exit(main())
