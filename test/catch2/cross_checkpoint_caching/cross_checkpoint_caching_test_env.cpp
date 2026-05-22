@@ -90,7 +90,7 @@ cross_checkpoint_caching_test_env::btree_id()
 }
 
 WT_SHARED_DSK_ITEM *
-cross_checkpoint_caching_test_env::put(const uint8_t *addr, size_t addr_size)
+cross_checkpoint_caching_test_env::put(const uint8_t *addr, size_t addr_size, bool *insertedp)
 {
     void *data = nullptr;
     REQUIRE(__wt_calloc(_session, 1, CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE, &data) == 0);
@@ -102,7 +102,10 @@ cross_checkpoint_caching_test_env::put(const uint8_t *addr, size_t addr_size)
     bool inserted = false;
     REQUIRE(__wt_shared_dsk_cache_put(_session, data, CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE, addr,
               addr_size, &block_meta, &item, &inserted) == 0);
-    REQUIRE(inserted);
+    if (!inserted)
+        __wt_free(_session, data);
+    if (insertedp != nullptr)
+        *insertedp = inserted;
     REQUIRE(item != nullptr);
     return item;
 }

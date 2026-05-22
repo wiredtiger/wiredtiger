@@ -55,9 +55,11 @@ TEST_CASE(
     REQUIRE(first->ref_count == 1);
     REQUIRE(env.bucket_size(0) == 1);
 
-    WT_SHARED_DSK_ITEM *second = env.put(addr, sizeof(addr));
+    bool inserted;
+    WT_SHARED_DSK_ITEM *second = env.put(addr, sizeof(addr), &inserted);
 
     /* Collision: the existing entry is returned with ref_count incremented, no new entry inserted. */
+    REQUIRE(!inserted);
     REQUIRE(second == first);
     REQUIRE(first->ref_count == 2);
     REQUIRE(env.bucket_size(0) == 1);
@@ -114,7 +116,9 @@ TEST_CASE(
 
     constexpr int ITERATIONS = 4;
     for (int i = 0; i < ITERATIONS; i++) {
-        WT_SHARED_DSK_ITEM *collision = env.put(addr, sizeof(addr));
+        bool inserted;
+        WT_SHARED_DSK_ITEM *collision = env.put(addr, sizeof(addr), &inserted);
+        REQUIRE(!inserted);
         REQUIRE(collision == item);
         REQUIRE(item->ref_count == 2 + i);
         REQUIRE(env.bucket_size(0) == 1);

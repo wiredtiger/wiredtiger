@@ -41,8 +41,8 @@ public:
     WT_CONNECTION_STATS *stats();
     uint32_t btree_id();
 
-    /* Insert a fresh item at the given addr and return it (ref_count == 1). */
-    WT_SHARED_DSK_ITEM *put(const uint8_t *addr, size_t addr_size);
+    /* Insert an item at the given addr and return it. Optionally returns whether it was inserted. */
+    WT_SHARED_DSK_ITEM *put(const uint8_t *addr, size_t addr_size, bool *insertedp = nullptr);
 
     /* Count the entries currently chained in the given bucket. */
     int bucket_size(u_int bucket);
