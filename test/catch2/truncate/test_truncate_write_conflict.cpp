@@ -38,9 +38,9 @@ do_in_committed_transaction(WT_SESSION_IMPL *session, const Op operation)
 {
     auto *iface = &session->iface;
 
-    REQUIRE(iface->begin_transaction(iface, nullptr) == 0);
+    CHECK(iface->begin_transaction(iface, nullptr) == 0);
     const int ret = operation();
-    REQUIRE(iface->commit_transaction(iface, nullptr) == 0);
+    CHECK(iface->commit_transaction(iface, nullptr) == 0);
 
     return ret;
 }
