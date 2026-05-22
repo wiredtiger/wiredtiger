@@ -92,7 +92,7 @@ class test_cc_base(wttest.WiredTigerTestCase):
 class test_cc01(test_cc_base):
     # Force a small cache.
     conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80,'
-                   'statistics=(all)')
+                   'statistics=(all),checkpoint_cleanup=(use_thread=true,wait=60)')
 
     def test_cc(self):
         nrows = 10000

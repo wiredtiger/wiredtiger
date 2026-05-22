@@ -33,7 +33,7 @@ from wtdataset import SimpleDataSet
 # test_cc04.py
 # Test that checkpoint must not clean the pages that are not obsolete.
 class test_cc04(test_cc_base):
-    conn_config = 'cache_size=50MB,statistics=(all)'
+    conn_config = 'cache_size=50MB,statistics=(all),checkpoint_cleanup=(use_thread=true,wait=60)'
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')

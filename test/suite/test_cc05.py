@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 # Verify a locked checkpoint is not removed during garbage collection.
 
 class test_cc05(test_cc_base):
-    conn_config = 'cache_size=50MB,statistics=(all)'
+    conn_config = 'cache_size=50MB,statistics=(all),checkpoint_cleanup=(use_thread=true,wait=60)'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),

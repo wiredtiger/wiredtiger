@@ -42,7 +42,7 @@ kilobyte = 1024
 # - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
 class test_compact12(wttest.WiredTigerTestCase):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
-    conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
+    conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4],checkpoint_cleanup=(use_thread=true,wait=60)'
     uri_prefix = 'table:test_compact12'
 
     # This test uses 10 times as many keys as the implementation on the 8.0 branch. 

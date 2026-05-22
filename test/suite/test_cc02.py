@@ -35,7 +35,7 @@ from wtdataset import SimpleDataSet
 # test_cc02.py
 # Test that checkpoint cleans the obsolete history store internal pages.
 class test_cc02(test_cc_base):
-    conn_config = 'cache_size=1GB,statistics=(all)'
+    conn_config = 'cache_size=1GB,statistics=(all),checkpoint_cleanup=(use_thread=true,wait=60)'
 
     def test_cc(self):
         nrows = 100000
