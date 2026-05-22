@@ -27,10 +27,19 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, sqlite3
+from typing import NamedTuple
 import wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
-from metadata_helper import extract_id
+from metadata_helper import get_table_id
 from suite_subprocess import suite_subprocess
+
+class PalitePage(NamedTuple):
+    """One row from palite's pages table. Schema in ext/page_log/palite/palite.cpp."""
+    page_id: int
+    lsn: int
+    base_lsn: int
+    backlink_lsn: int
+    flags: int
 
 # Drive the `wt page` command end-to-end through a disagg cell built with
 # the in-tree palite page-log extension. The leader connection writes pages
@@ -64,15 +73,14 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     def _wt_page_extra_config(self):
         return self.extensionsConfig() + ',disaggregated=(role="follower")'
 
-    # Run `wt [-C <cfg>] <args>` via suite_subprocess.runWt, which handles
+    # Run `wt -C <cfg> page <args>` via suite_subprocess.runWt, which handles
     # close_conn / reopen_conn, gdb/lldb wrapping, and the libtool wt binary
-    # lookup. Returns (stdout, stderr) text. failure=True asserts a non-zero
-    # exit; failure=False asserts a zero exit.
-    def _run_wt(self, *args, extra_config=False, failure=False):
-        cmd = []
-        if extra_config:
-            cmd += ['-C', self._wt_page_extra_config()]
-        cmd += list(args)
+    # lookup. The palite extension and follower role are injected via -C so
+    # wt main can open the connection before dispatching to util_page.
+    # Returns (stdout, stderr) text. failure=True asserts a non-zero exit;
+    # failure=False asserts a zero exit.
+    def _run_wt_page(self, *args, failure=False):
+        cmd = ['-C', self._wt_page_extra_config(), 'page'] + list(args)
         self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
                    failure=failure)
         with open('wt.out') as f:
@@ -80,12 +88,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         with open('wt.err') as f:
             stderr = f.read()
         return stdout, stderr
-
-    # Run `wt page <args>` with the palite extension and follower role
-    # injected via -C. test_help is the one path that doesn't need either,
-    # so it calls _run_wt directly with just 'page', '-?'.
-    def _run_wt_page(self, *args, failure=False):
-        return self._run_wt('page', *args, extra_config=True, failure=failure)
 
     def _populate(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
@@ -105,39 +107,36 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         c.close()
         self.session.checkpoint()
 
-    def _table_id(self, uri):
-        c = self.session.open_cursor('metadata:')
-        c.set_key(uri)
-        self.assertEqual(c.search(), 0, f"URI not found in metadata: {uri}")
-        val = c.get_value()
-        c.close()
-        return extract_id(val)
-
-    def _palite_pages(self, table_id):
-        # Every page chain palite recorded for table_id, newest first, as
-        # 5-tuples (page_id, lsn, base_lsn, backlink_lsn, flags). Schema in
-        # ext/page_log/palite/palite.cpp.
+    def _find_page(self, where_clause, params, description):
+        # Find the newest page chain entry matching where_clause.
+        table_id = get_table_id(self.session, self.stable_uri)
         db = os.path.join(self.home, 'kv_home',
                           f'pages_{get_shard_id(table_id):02d}.db')
-        with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
-            return conn.execute(
-                "SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
-                "FROM pages WHERE table_id=? ORDER BY lsn DESC",
-                (table_id,)).fetchall()
-
-    def _find_page(self, predicate, description):
-        table_id = self._table_id(self.stable_uri)
+        query = (
+            "SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
+            "FROM pages WHERE table_id=? AND " + where_clause +
+            " ORDER BY lsn DESC LIMIT 1"
+        )
         # Close the WT connection so palite releases its SQLite locks before
         # we open the database directly in read-only mode.
         self.close_conn()
         try:
-            row = next((r for r in self._palite_pages(table_id) if predicate(r)),
-                       None)
+            with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
+                row = conn.execute(query, (table_id, *params)).fetchone()
         finally:
             self.reopen_conn()
         self.assertIsNotNone(row,
             f"no {description} rows for table_id={table_id} in palite")
-        return row
+        return PalitePage(*row)
+
+    def _find_base_image_page(self):
+        return self._find_page("base_lsn=0 AND backlink_lsn=0", (),
+                               "base-image")
+
+    def _find_delta_page(self):
+        return self._find_page(
+            "backlink_lsn != 0 AND (flags & ?) = 0",
+            (self.PAGE_LOG_DISCARDED,), "delta")
 
     def _assert_chain_header(self, stdout, page_id, lsn, base_lsn, backlink_lsn,
                              delta_count_re, results_re):
@@ -148,35 +147,40 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
             rf"delta_count={delta_count_re} results={results_re}$")
 
     def test_help(self):
-        _, stderr = self._run_wt('page', '-?')
+        _, stderr = self._run_wt_page('-?')
         self.assertIn('page -p page_id', stderr)
         self.assertIn('-l lsn', stderr)
 
     def test_unknown_page_id(self):
         self._populate()
-        _, stderr = self._run_wt_page("-p", "99999999", self.stable_uri,
-                                      failure=True)
+        _, stderr = self._run_wt_page("-p", "99999999", "-l", "1",
+                                      self.stable_uri, failure=True)
         # util_err prefixes errors with the subcommand name.
         self.assertIn("page:", stderr)
 
+    def test_missing_required_l(self):
+        self._populate()
+        _, stderr = self._run_wt_page("-p", "1", self.stable_uri, failure=True)
+        self.assertIn("-l lsn is required", stderr)
+
     def test_full_image_chain(self):
         self._populate()
-        page_id, lsn, _, _, _ = self._find_page(
-            lambda r: r[2] == 0 and r[3] == 0, "base-image")
+        page = self._find_base_image_page()
         stdout, _ = self._run_wt_page(
-            "-p", str(page_id), "-l", str(lsn), self.stable_uri)
-        self._assert_chain_header(stdout, page_id, lsn, 0, 0,
+            "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+        self._assert_chain_header(stdout, page.page_id, page.lsn,
+                                  page.base_lsn, page.backlink_lsn,
                                   delta_count_re="0", results_re="1")
         self.assertRegex(stdout, r"(?m)^- row-store ")
 
     def test_delta_chain(self):
         self._populate()
         self._dirty_and_checkpoint()
-        page_id, lsn, base_lsn, backlink_lsn, _ = self._find_page(
-            lambda r: r[3] != 0 and not (r[4] & self.PAGE_LOG_DISCARDED), "delta")
+        page = self._find_delta_page()
         stdout, _ = self._run_wt_page(
-            "-p", str(page_id), "-l", str(lsn), self.stable_uri)
-        self._assert_chain_header(stdout, page_id, lsn, base_lsn, backlink_lsn,
+            "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+        self._assert_chain_header(stdout, page.page_id, page.lsn,
+                                  page.base_lsn, page.backlink_lsn,
                                   delta_count_re=r"\d+",
                                   results_re=r"(?:[2-9]|[1-9]\d+)")
 

@@ -35,3 +35,15 @@ def extract_id(metadata_value):
 
     match = re.search(r',id=(\d+)', metadata_value)
     return int(match.group(1))
+
+def get_table_id(session, uri):
+    """
+    Return the integer file ID for uri by reading the WT metadata cursor.
+    """
+    c = session.open_cursor('metadata:')
+    c.set_key(uri)
+    if c.search() != 0:
+        raise KeyError(f"URI not found in metadata: {uri}")
+    val = c.get_value()
+    c.close()
+    return extract_id(val)
