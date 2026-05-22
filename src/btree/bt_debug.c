@@ -265,11 +265,14 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
     WT_ERR(__wt_scr_alloc(session, 512, &ds->t2));
 
     /*
-     * Set up history store support, opening a history store cursor on demand, except while running
-     * in-memory configuration, or when reading a checkpoint that has no corresponding history store
-     * checkpoint.
+     * Set up history store support, opening a history store cursor on demand. Skip when the target
+     * btree cannot have history store entries: in-memory configuration, the HS or metadata files
+     * themselves, SPECIAL-namespace disagg files (shared metadata, etc.), or a checkpoint with no
+     * corresponding HS checkpoint.
      */
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
+      !WT_IS_METADATA(session->dhandle) &&
+      WT_BTREE_ID_NAMESPACE_ID(S2BT(session)->id) != WT_BTREE_ID_NAMESPACE_SPECIAL &&
       !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL)) {
         WT_ASSERT(session, session->dhandle != NULL);
         WT_ERR(__wt_curhs_open(session, S2BT(session)->id, NULL, NULL, &ds->hs_cursor));
