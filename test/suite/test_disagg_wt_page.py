@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import glob, os, re, subprocess
+import glob, os, re, sqlite3, subprocess
 import wttest
-from helper_disagg import DisaggConfigMixin
+from helper_disagg import DisaggConfigMixin, get_shard_id
 
 # test_disagg_wt_page.py
 #    Drive the `wt page` command end-to-end through a disagg cell built
@@ -72,6 +72,48 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, DisaggConfigMixin):
             c[f"k{i:08}"] = f"v{i:08}"
         c.close()
         self.session.checkpoint()
+
+    def _dirty_and_checkpoint(self):
+        """Overwrite a few existing keys to force a second checkpoint to
+        emit delta page-log entries for the affected btree pages."""
+        c = self.session.open_cursor(self.uri)
+        for i in range(0, self.nrows, max(1, self.nrows // 8)):
+            c[f"k{i:08}"] = f"V{i:08}"
+        c.close()
+        self.session.checkpoint()
+
+    def _table_id(self, uri):
+        """Return the integer btree id WiredTiger assigned to ``uri``.
+
+        Reads ``id=N`` out of the metadata config string for the file URI;
+        ``WiredTiger.h`` describes the encoding (plain ``key=value`` pairs)
+        and avoids any address-cookie parsing.
+        """
+        c = self.session.open_cursor('metadata:')
+        c.set_key(uri)
+        self.assertEqual(c.search(), 0, f"URI not found in metadata: {uri}")
+        val = c.get_value()
+        c.close()
+        m = re.search(r',id=(\d+),', ',' + val + ',')
+        self.assertIsNotNone(m, f"id= not found for {uri}: {val}")
+        return int(m.group(1))
+
+    def _palite_pages(self, table_id):
+        """Every page chain palite recorded for ``table_id``, newest first.
+
+        Returns a list of 5-tuples ``(page_id, lsn, base_lsn,
+        backlink_lsn, flags)``. See ``ext/page_log/palite/palite.cpp``
+        (``CREATE TABLE ... pages``) for the schema. Read-only SQLite
+        connection so a concurrently-running palite process is not
+        disturbed.
+        """
+        db = os.path.join(self.home, 'kv_home',
+                          f'pages_{get_shard_id(table_id):02d}.db')
+        with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
+            return conn.execute(
+                "SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
+                "FROM pages WHERE table_id=? ORDER BY lsn DESC",
+                (table_id,)).fetchall()
 
     def _root_page_id(self):
         """Decode root page_id from the disagg checkpoint cookie in metadata.
