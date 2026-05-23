@@ -16,6 +16,11 @@ include(cmake/gdb_autoloader_setup.cmake)
 # Define installation directory variables
 include(GNUInstallDirs)
 
+# Detect the endianness of the target platform.
+if(CMAKE_C_BYTE_ORDER STREQUAL "BIG_ENDIAN")
+    set(WORDS_BIGENDIAN TRUE)
+endif()
+
 # If the user doesn't manually specify the target ARCH and OS, infer them from
 # CMAKE_SYSTEM_PROCESSOR / CMAKE_SYSTEM_NAME. This is checked prior to the
 # config option being defined (in base.cmake) since it will prevent it having
@@ -67,20 +72,22 @@ if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_ARCH_FILE}")
     include(${WT_ARCH_FILE})
 endif()
 
-# Load auto-configure variables (e.g. environment-related configs).
-include(cmake/configs/auto.cmake)
+# Detect third-party libraries and expose imported targets.
+# Must run before base.cmake, which derives ENABLE_<lib> defaults from HAVE_LIB<lib>.
+include(cmake/third_party/pthread.cmake)
+include(cmake/third_party/lz4.cmake)
+include(cmake/third_party/snappy.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/iaa.cmake)
+include(cmake/third_party/memkind.cmake)
+
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
 
-# Import our third party library definitions.
+# Build-time integrations that depend on base.cmake toggles.
 include(cmake/third_party/lazyfs.cmake)
-include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/memkind.cmake)
-include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/sodium.cmake)
-include(cmake/third_party/zlib.cmake)
-include(cmake/third_party/zstd.cmake)
-include(cmake/third_party/iaa.cmake)
 include(cmake/third_party/voidstar.cmake)
 include(cmake/third_party/sqlite3.cmake)
 
