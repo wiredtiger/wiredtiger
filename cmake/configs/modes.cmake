@@ -5,7 +5,10 @@ include(CheckCXXCompilerFlag)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 # Establish an internal cache variable to track our custom build modes.
-set(BUILD_MODES Debug Release RelWithDebInfo CACHE INTERNAL "")
+set(BUILD_MODES
+    Debug Release RelWithDebInfo
+    CACHE INTERNAL ""
+)
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     set(MSVC_C_COMPILER 1)
@@ -25,15 +28,13 @@ endif()
 
 function(define_build_mode mode)
     cmake_parse_arguments(
-        PARSE_ARGV
-        1
-        "DEFINE_BUILD"
-        ""
-        "DEPENDS"
+        PARSE_ARGV 1 "DEFINE_BUILD" "" "DEPENDS"
         "C_COMPILER_FLAGS;CXX_COMPILER_FLAGS;LINK_FLAGS;LIBS"
     )
-    if (NOT "${DEFINE_BUILD_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to define_build_mode: ${DEFINE_BUILD_UNPARSED_ARGUMENTS}")
+    if(NOT "${DEFINE_BUILD_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(
+            FATAL_ERROR "Unknown arguments to define_build_mode: ${DEFINE_BUILD_UNPARSED_ARGUMENTS}"
+        )
     endif()
 
     # Test if dependencies are met. Skip defining the build mode if not.
@@ -81,33 +82,39 @@ function(define_build_mode mode)
     string(REPLACE ";" " " linker_flags "${linker_flags}")
     string(TOUPPER ${mode} build_mode)
     set(CMAKE_C_FLAGS_${build_mode}
-        "${c_flags}" CACHE STRING
-        "Flags used by the C compiler for ${mode} build type or configuration." FORCE)
+        "${c_flags}"
+        CACHE STRING "Flags used by the C compiler for ${mode} build type." FORCE
+    )
 
     set(CMAKE_CXX_FLAGS_${build_mode}
-        "${cxx_flags}" CACHE STRING
-        "Flags used by the C++ compiler for ${mode} build type or configuration." FORCE)
+        "${cxx_flags}"
+        CACHE STRING "Flags used by the C++ compiler for ${mode} build type." FORCE
+    )
 
     set(CMAKE_EXE_LINKER_FLAGS_${build_mode}
-        "${linker_flags}" CACHE STRING
-        "Linker flags to be used to create executables for ${mode} build type." FORCE)
+        "${linker_flags}"
+        CACHE STRING "Linker flags to create executables for ${mode} build type." FORCE
+    )
 
     set(CMAKE_SHARED_LINKER_FLAGS_${build_mode}
-        "${linker_flags}" CACHE STRING
-        "Linker flags to be used to create shared libraries for ${mode} build type." FORCE)
+        "${linker_flags}"
+        CACHE STRING "Linker flags to create shared libraries for ${mode} build type." FORCE
+    )
 
     set(CMAKE_MODULE_LINKER_FLAGS_${build_mode}
-        "${linker_flags}" CACHE STRING
-        "Linker flags to be used to create shared modules for ${mode} build type." FORCE)
+        "${linker_flags}"
+        CACHE STRING "Linker flags to create shared modules for ${mode} build type." FORCE
+    )
 
     mark_as_advanced(
-        CMAKE_CXX_FLAGS_${build_mode}
-        CMAKE_C_FLAGS_${build_mode}
-        CMAKE_EXE_LINKER_FLAGS_${build_mode}
-        CMAKE_SHARED_LINKER_FLAGS_${build_mode}
+        CMAKE_CXX_FLAGS_${build_mode} CMAKE_C_FLAGS_${build_mode}
+        CMAKE_EXE_LINKER_FLAGS_${build_mode} CMAKE_SHARED_LINKER_FLAGS_${build_mode}
         CMAKE_MODULE_LINKER_FLAGS_${build_mode}
     )
-    set(BUILD_MODES "${BUILD_MODES};${mode}" CACHE INTERNAL "")
+    set(BUILD_MODES
+        "${BUILD_MODES};${mode}"
+        CACHE INTERNAL ""
+    )
 endfunction()
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
@@ -127,7 +134,6 @@ else()
     set(asan_link_flags "-fsanitize=address")
 endif()
 
-
 # UBSAN build variant flags.
 set(ubsan_link_flags "-fsanitize=undefined")
 set(ubsan_compiler_c_flag "-fsanitize=undefined")
@@ -135,8 +141,12 @@ set(ubsan_compiler_cxx_flag "-fsanitize=undefined")
 
 # MSAN build variant flags.
 set(msan_link_flags "-fsanitize=memory")
-set(msan_compiler_c_flag "-fsanitize=memory" "-fno-optimize-sibling-calls" "-fsanitize-memory-track-origins=2")
-set(msan_compiler_cxx_flag "-fsanitize=memory" "-fno-optimize-sibling-calls" "-fsanitize-memory-track-origins=2")
+set(msan_compiler_c_flag "-fsanitize=memory" "-fno-optimize-sibling-calls"
+                         "-fsanitize-memory-track-origins=2"
+)
+set(msan_compiler_cxx_flag "-fsanitize=memory" "-fno-optimize-sibling-calls"
+                           "-fsanitize-memory-track-origins=2"
+)
 
 # TSAN build variant flags.
 set(tsan_link_flags "-fsanitize=thread")
@@ -144,13 +154,15 @@ set(tsan_compiler_c_flag "-fsanitize=thread")
 set(tsan_compiler_cxx_flag "-fsanitize=thread")
 
 # Define our custom build variants.
-define_build_mode(ASan
+define_build_mode(
+    ASan
     C_COMPILER_FLAGS ${asan_compiler_c_flag} ${no_omit_frame_flag}
     CXX_COMPILER_FLAGS ${asan_compiler_cxx_flag} ${no_omit_frame_flag}
     LINK_FLAGS ${asan_link_flags}
 )
 
-define_build_mode(UBSan
+define_build_mode(
+    UBSan
     C_COMPILER_FLAGS ${ubsan_compiler_c_flag} ${no_omit_frame_flag}
     CXX_COMPILER_FLAGS ${ubsan_compiler_cxx_flag} ${no_omit_frame_flag}
     LINK_FLAGS ${ubsan_link_flags}
@@ -158,7 +170,8 @@ define_build_mode(UBSan
     DEPENDS "NOT MSVC"
 )
 
-define_build_mode(MSan
+define_build_mode(
+    MSan
     C_COMPILER_FLAGS ${msan_compiler_c_flag} ${no_omit_frame_flag}
     CXX_COMPILER_FLAGS ${msan_compiler_cxx_flag}
     LINK_FLAGS ${msan_link_flags}
@@ -166,7 +179,8 @@ define_build_mode(MSan
     DEPENDS "CLANG_C_COMPILER"
 )
 
-define_build_mode(TSan
+define_build_mode(
+    TSan
     C_COMPILER_FLAGS ${tsan_compiler_c_flag} ${no_omit_frame_flag}
     CXX_COMPILER_FLAGS ${tsan_compiler_cxx_flag}
     LINK_FLAGS ${tsan_link_flags}
@@ -174,7 +188,8 @@ define_build_mode(TSan
     DEPENDS "NOT MSVC"
 )
 
-define_build_mode(Coverage
+define_build_mode(
+    Coverage
     C_COMPILER_FLAGS "--coverage -fprofile-arcs"
     CXX_COMPILER_FLAGS "--coverage -fprofile-arcs"
     LINK_FLAGS "--coverage"
@@ -187,7 +202,10 @@ define_build_mode(Coverage
 # issues as possible. Builds targeted for release to customers should switch to a "Release" setting.
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
+    set(CMAKE_BUILD_TYPE
+        "Debug"
+        CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE
+    )
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${BUILD_MODES})
 endif()
 

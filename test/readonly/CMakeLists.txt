@@ -1,6 +1,6 @@
-
 # Create packing-test executable.
-create_test_executable(test_readonly
+create_test_executable(
+    test_readonly
     SOURCES readonly.c
     EXECUTABLE_NAME "t"
     ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh

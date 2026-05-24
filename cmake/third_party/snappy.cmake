@@ -5,7 +5,10 @@
 # Layer 3 (user toggle):    ENABLE_SNAPPY / HAVE_BUILTIN_EXTENSION_SNAPPY
 
 # Produces target wt::snappy when the library is available.
-wt_find_library(NAME snappy
-    PACKAGE Snappy TARGET Snappy::snappy
+wt_find_library(
+    NAME snappy
+    PACKAGE Snappy
+    TARGET Snappy::snappy
     PKGCONFIG_MODULE snappy
-    HEADER snappy.h)
+    HEADER snappy.h
+)

@@ -12,24 +12,22 @@ if(ENABLE_ZSTD)
     list(APPEND wt_perf_flags "-DZSTD_PATH=\"zstd/libwiredtiger_zstd.so\"")
 endif()
 
-create_test_executable(wtperf
-    SOURCES
-        wtperf_config.c
-        idle_table_cycle.c
-        wtperf_misc.c
-        track.c
-        wtperf.c
-        wtperf_throttle.c
-        wtperf_truncate.c
-    FLAGS
-        ${wt_perf_flags}
+create_test_executable(
+    wtperf
+    SOURCES wtperf_config.c
+            idle_table_cycle.c
+            wtperf_misc.c
+            track.c
+            wtperf.c
+            wtperf_throttle.c
+            wtperf_truncate.c
+    FLAGS ${wt_perf_flags}
 )
 
 # Smoke-test wtperf as part of running "ctest check".
-define_test_variants(wtperf
+define_test_variants(
+    wtperf
     VARIANTS
         "small_btree|-O \"${CMAKE_CURRENT_SOURCE_DIR}/runners/small-btree.wtperf\" -o \"run_time=20\""
-    LABELS
-        check
-        wtperf
+    LABELS check wtperf
 )

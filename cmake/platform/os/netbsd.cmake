@@ -1,1 +1,4 @@
-set(WT_POSIX ON CACHE BOOL "")
+set(WT_POSIX
+    ON
+    CACHE BOOL ""
+)

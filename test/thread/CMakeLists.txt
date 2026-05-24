@@ -1,10 +1,6 @@
-
-create_test_executable(test_thread
-    SOURCES
-        file.c
-        rw.c
-        stats.c
-        t.c
+create_test_executable(
+    test_thread
+    SOURCES file.c rw.c stats.c t.c
     # smoke.sh expects the output binary name is 't'.
     EXECUTABLE_NAME "t"
     ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh

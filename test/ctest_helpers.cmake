@@ -56,18 +56,15 @@ FLAGS <flags>
 #]=======================================================================]
 function(create_test_executable target)
     cmake_parse_arguments(
-        PARSE_ARGV
-        1
-        "CREATE_TEST"
-        "CXX;NO_TEST_UTIL"
-        "EXECUTABLE_NAME;BINARY_DIR"
+        PARSE_ARGV 1 "CREATE_TEST" "CXX;NO_TEST_UTIL" "EXECUTABLE_NAME;BINARY_DIR"
         "SOURCES;INCLUDES;ADDITIONAL_FILES;ADDITIONAL_DIRECTORIES;LIBS;FLAGS"
     )
-    if (CREATE_TEST_UNPARSED_ARGUMENTS)
+    if(CREATE_TEST_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "Unknown arguments to create_test_executable:
-            ${CREATE_TEST_UNPARSED_ARGUMENTS}")
+            ${CREATE_TEST_UNPARSED_ARGUMENTS}"
+        )
     endif()
-    if (NOT CREATE_TEST_SOURCES)
+    if(NOT CREATE_TEST_SOURCES)
         message(FATAL_ERROR "No sources given to create_test_executable")
     endif()
 
@@ -83,7 +80,7 @@ function(create_test_executable target)
     # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for each
     # executable. The name of the binary will either be the name of the target or some other name
     # passed to this function. We need to use the correct one for the dsymutil.
-    if (WT_DARWIN)
+    if(WT_DARWIN)
         if(CREATE_TEST_EXECUTABLE_NAME)
             set(test_name "${CREATE_TEST_EXECUTABLE_NAME}")
         else()
@@ -91,7 +88,8 @@ function(create_test_executable target)
         endif()
 
         add_custom_command(
-            TARGET ${target} POST_BUILD
+            TARGET ${target}
+            POST_BUILD
             COMMAND dsymutil ${test_name}
             WORKING_DIRECTORY ${test_binary_dir}
             COMMENT "Running dsymutil on ${test_name}"
@@ -100,16 +98,10 @@ function(create_test_executable target)
     endif()
 
     # If we want the output binary to be a different name than the target.
-    if (CREATE_TEST_EXECUTABLE_NAME)
-        set_target_properties(${target}
-            PROPERTIES
-            OUTPUT_NAME "${CREATE_TEST_EXECUTABLE_NAME}"
-        )
+    if(CREATE_TEST_EXECUTABLE_NAME)
+        set_target_properties(${target} PROPERTIES OUTPUT_NAME "${CREATE_TEST_EXECUTABLE_NAME}")
     endif()
-    set_target_properties(${target}
-      PROPERTIES
-      RUNTIME_OUTPUT_DIRECTORY "${test_binary_dir}"
-    )
+    set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${test_binary_dir}")
 
     # Append the necessary compiler flags.
     if(NOT CREATE_TEST_CXX)
@@ -123,11 +115,9 @@ function(create_test_executable target)
     target_compile_options(${target} PRIVATE ${test_flags})
 
     # Include the base set of directories for a wiredtiger C/CXX test.
-    target_include_directories(${target}
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src/include
-            ${CMAKE_SOURCE_DIR}/test/utility
-            ${CMAKE_BINARY_DIR}/config
+    target_include_directories(
+        ${target} PRIVATE ${CMAKE_SOURCE_DIR}/src/include ${CMAKE_SOURCE_DIR}/test/utility
+                          ${CMAKE_BINARY_DIR}/config
     )
     if(CREATE_TEST_INCLUDES)
         target_include_directories(${target} PRIVATE ${CREATE_TEST_INCLUDES})
@@ -157,24 +147,21 @@ function(create_test_executable target)
             set(origin_linker_variable "@loader_path")
         endif()
         file(RELATIVE_PATH relative_rpath ${test_binary_dir} ${CMAKE_BINARY_DIR})
-        set_target_properties(${target}
-            PROPERTIES
-                # Setting this variable to false adds the relative path to the list of RPATH.
-                BUILD_WITH_INSTALL_RPATH FALSE
-                LINK_FLAGS "-Wl,-rpath,${origin_linker_variable}/${relative_rpath}"
+        set_target_properties(
+            ${target}
+            PROPERTIES # Setting this variable to false adds the relative path to the list of RPATH.
+                       BUILD_WITH_INSTALL_RPATH FALSE
+                       LINK_FLAGS "-Wl,-rpath,${origin_linker_variable}/${relative_rpath}"
         )
     endif()
 
-    if (WT_LINUX)
+    if(WT_LINUX)
         target_link_libraries(${target} m)
     endif()
 
     # If compiling for windows, additionally link in the shim library.
     if(WT_WIN)
-        target_include_directories(
-            ${target}
-            PUBLIC ${CMAKE_SOURCE_DIR}/test/windows
-        )
+        target_include_directories(${target} PUBLIC ${CMAKE_SOURCE_DIR}/test/windows)
         target_link_libraries(${target} windows_shim)
     endif()
 
@@ -184,10 +171,9 @@ function(create_test_executable target)
     foreach(file IN LISTS CREATE_TEST_ADDITIONAL_FILES)
         get_filename_component(file_basename ${file} NAME)
         # Copy the file to the given test/targets build directory.
-        add_custom_command(OUTPUT ${test_binary_dir}/${file_basename}
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${file}
-                ${test_binary_dir}/${file_basename}
+        add_custom_command(
+            OUTPUT ${test_binary_dir}/${file_basename}
+            COMMAND ${CMAKE_COMMAND} -E copy ${file} ${test_binary_dir}/${file_basename}
             DEPENDS ${file}
         )
         set(copy_file_target copy_file_${target}_${file_basename})
@@ -200,11 +186,12 @@ function(create_test_executable target)
         get_filename_component(dir_basename ${dir} NAME)
         # Copy the directory to the given test/targets build directory.
         set(sync_dir_target sync_dir_${target}_${dir_basename})
-        add_custom_target(${sync_dir_target} ALL
-            COMMAND ${CMAKE_COMMAND}
-                -DSYNC_DIR_SRC=${dir}
-                -DSYNC_DIR_DST=${test_binary_dir}/${dir_basename}
-                -P ${CMAKE_SOURCE_DIR}/test/ctest_dir_sync.cmake
+        add_custom_target(
+            ${sync_dir_target} ALL
+            COMMAND
+                ${CMAKE_COMMAND} -DSYNC_DIR_SRC=${dir}
+                -DSYNC_DIR_DST=${test_binary_dir}/${dir_basename} -P
+                ${CMAKE_SOURCE_DIR}/test/ctest_dir_sync.cmake
         )
         add_dependencies(${target} ${sync_dir_target})
     endforeach()
@@ -259,18 +246,14 @@ CMD <command>
     given target executable.
 #]=======================================================================]
 function(define_test_variants target)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        1
-        "DEFINE_TEST"
-        ""
-        "DIR_NAME;CMD"
-        "VARIANTS;LABELS"
-    )
-    if (DEFINE_TEST_UNPARSED_ARGUMENTS)
-        message(FATAL_ERROR "Unknown arguments to define_test_variants: ${DEFINE_TEST_UNPARSED_ARGUMENTS}")
+    cmake_parse_arguments(PARSE_ARGV 1 "DEFINE_TEST" "" "DIR_NAME;CMD" "VARIANTS;LABELS")
+    if(DEFINE_TEST_UNPARSED_ARGUMENTS)
+        message(
+            FATAL_ERROR
+                "Unknown arguments to define_test_variants: ${DEFINE_TEST_UNPARSED_ARGUMENTS}"
+        )
     endif()
-    if (NOT DEFINE_TEST_VARIANTS)
+    if(NOT DEFINE_TEST_VARIANTS)
         message(FATAL_ERROR "Need at least one variant for define_test_variants")
     endif()
 
@@ -287,10 +270,10 @@ function(define_test_variants target)
         string(REPLACE "|" ";" variant "${variant_spec}")
 
         list(LENGTH variant variant_length)
-        if (NOT variant_length EQUAL 2)
+        if(NOT variant_length EQUAL 2)
             message(
                 FATAL_ERROR
-                "Invalid variant format: ${variant} - Expected format 'variant_name|variant args'"
+                    "Invalid variant format: ${variant} - Expected format 'variant_name|variant args'"
             )
         endif()
         list(GET variant 0 curr_variant_name)
@@ -303,8 +286,9 @@ function(define_test_variants target)
         endif()
         set(variant_name ${target}_${curr_variant_name})
         # Create a variant directory to run the test in.
-        add_custom_command(OUTPUT ${variant_name}_test_dir
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${dir_prefix}/${variant_name}_test_dir
+        add_custom_command(
+            OUTPUT ${variant_name}_test_dir COMMAND ${CMAKE_COMMAND} -E make_directory
+                                                    ${dir_prefix}/${variant_name}_test_dir
         )
         set(create_dir_target create_dir_${variant_name})
         add_custom_target(${create_dir_target} DEPENDS ${variant_name}_test_dir)
@@ -392,23 +376,19 @@ ADDITIONAL_FILES <files>
 #]=======================================================================]
 function(define_c_test)
     cmake_parse_arguments(
-        PARSE_ARGV
-        0
-        "C_TEST"
-        "CXX"
-        "TARGET;DIR_NAME;EXEC_SCRIPT;LABEL"
+        PARSE_ARGV 0 "C_TEST" "CXX" "TARGET;DIR_NAME;EXEC_SCRIPT;LABEL"
         "SOURCES;LIBS;FLAGS;ARGUMENTS;VARIANTS;DEPENDS;ADDITIONAL_FILES"
     )
-    if (C_TEST_UNPARSED_ARGUMENTS)
+    if(C_TEST_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "Unknown arguments to define_c_test: ${C_TEST_UNPARSED_ARGUMENTS}")
     endif()
-    if (NOT C_TEST_TARGET)
+    if(NOT C_TEST_TARGET)
         message(FATAL_ERROR "No target name given to define_c_test")
     endif()
-    if (NOT C_TEST_SOURCES)
+    if(NOT C_TEST_SOURCES)
         message(FATAL_ERROR "No sources given to define_c_test")
     endif()
-    if (NOT C_TEST_DIR_NAME)
+    if(NOT C_TEST_DIR_NAME)
         message(FATAL_ERROR "No directory given to define_c_test")
     endif()
 
@@ -420,7 +400,8 @@ function(define_c_test)
     eval_dependency("${C_TEST_DEPENDS}" enabled)
     if(NOT enabled)
         message(WARNING "Skipping test ${C_TEST_TARGET} because dependencies "
-            "${C_TEST_DEPENDS} are not enabled")
+                        "${C_TEST_DEPENDS} are not enabled"
+        )
         return()
     endif()
 
@@ -443,39 +424,40 @@ function(define_c_test)
         set(exec_wrapper "powershell.exe")
     endif()
     set(test_cmd)
-    if (C_TEST_EXEC_SCRIPT)
+    if(C_TEST_EXEC_SCRIPT)
         list(APPEND additional_file_args ${C_TEST_EXEC_SCRIPT})
         # Define the C test to be executed with a script, rather than invoking the binary directly.
-        create_test_executable(${C_TEST_TARGET}
+        create_test_executable(
+            ${C_TEST_TARGET}
             SOURCES ${C_TEST_SOURCES}
             LIBS ${C_TEST_LIBS}
             ADDITIONAL_FILES ${additional_file_args}
-            BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
-            ${additional_executable_args}
+            BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME} ${additional_executable_args}
         )
         get_filename_component(exec_script_basename ${C_TEST_EXEC_SCRIPT} NAME)
         set(test_cmd ${exec_wrapper} ${exec_script_basename})
     else()
-        create_test_executable(${C_TEST_TARGET}
+        create_test_executable(
+            ${C_TEST_TARGET}
             SOURCES ${C_TEST_SOURCES}
             LIBS ${C_TEST_LIBS}
             ADDITIONAL_FILES ${additional_file_args}
-            BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
-            ${additional_executable_args}
+            BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME} ${additional_executable_args}
         )
         set(test_cmd ${exec_wrapper} $<TARGET_FILE:${C_TEST_TARGET}>)
     endif()
     # Define the ctest target.
     if(C_TEST_VARIANTS)
         # If we want to define multiple variant executions of the test script/binary.
-        define_test_variants(${C_TEST_TARGET}
-            VARIANTS ${C_TEST_VARIANTS}
-            CMDS ${test_cmd}
+        define_test_variants(
+            ${C_TEST_TARGET}
+            VARIANTS ${C_TEST_VARIANTS} CMDS ${test_cmd}
             DIR_NAME ${C_TEST_DIR_NAME}
             LABELS "check;csuite"
         )
     else()
-        add_test(NAME ${C_TEST_TARGET}
+        add_test(
+            NAME ${C_TEST_TARGET}
             COMMAND ${test_cmd} ${C_TEST_ARGUMENTS}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
         )

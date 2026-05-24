@@ -1,5 +1,5 @@
-
-create_test_executable(test_salvage
+create_test_executable(
+    test_salvage
     SOURCES salvage.c
 )
 

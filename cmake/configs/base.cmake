@@ -24,7 +24,7 @@ endif()
 find_package(Python3 QUIET COMPONENTS Interpreter Development)
 
 if(Python3_FOUND)
-  set(default_enable_python ON)
+    set(default_enable_python ON)
 endif()
 
 # MSan / UBSan fails on Python tests due to linking issue.
@@ -61,51 +61,34 @@ endif()
 
 # WiredTiger-related configuration options.
 config_choice(
-    WT_ARCH
-    "Target architecture for WiredTiger"
-    OPTIONS
-        "x86;WT_X86;"
-        "aarch64;WT_AARCH64;"
-        "ppc64le;WT_PPC64;"
-        "s390x;WT_S390X;"
-        "riscv64;WT_RISCV64;"
-        "loongarch64;WT_LOONGARCH64;"
+    WT_ARCH "Target architecture for WiredTiger"
+    OPTIONS "x86;WT_X86;" "aarch64;WT_AARCH64;" "ppc64le;WT_PPC64;" "s390x;WT_S390X;"
+            "riscv64;WT_RISCV64;" "loongarch64;WT_LOONGARCH64;"
 )
 
 config_choice(
-    WT_OS
-    "Target OS for WiredTiger"
-    OPTIONS
-        "darwin;WT_DARWIN;"
-        "windows;WT_WIN;"
-        "linux;WT_LINUX;"
+    WT_OS "Target OS for WiredTiger"
+    OPTIONS "darwin;WT_DARWIN;" "windows;WT_WIN;" "linux;WT_LINUX;"
 )
 
 config_bool(
-    ENABLE_ANTITHESIS
-    "Enable the Antithesis random library"
+    ENABLE_ANTITHESIS "Enable the Antithesis random library"
     DEFAULT OFF
     DEPENDS "WT_POSIX"
 )
 
 config_bool(
-    WT_POSIX
-    "Is a posix platform"
+    WT_POSIX "Is a posix platform"
     DEFAULT ON
     DEPENDS "WT_LINUX OR WT_DARWIN"
 )
 
 config_bool(
-    HAVE_DIAGNOSTIC
-    "Enable WiredTiger diagnostics. Automatically enables debug info."
+    HAVE_DIAGNOSTIC "Enable WiredTiger diagnostics. Automatically enables debug info."
     DEFAULT ${default_have_diagnostics}
 )
 
-config_bool(
-    HAVE_ERROR_LOG
-    "Enable WiredTiger error logging."
-    DEFAULT ${default_have_error_log}
-)
+config_bool(HAVE_ERROR_LOG "Enable WiredTiger error logging." DEFAULT ${default_have_error_log})
 
 config_bool(
     HAVE_REF_TRACK
@@ -114,18 +97,13 @@ config_bool(
 )
 
 config_bool(
-    HAVE_CALL_LOG
-    "Enable call log generation"
+    HAVE_CALL_LOG "Enable call log generation"
     DEFAULT OFF
     DEPENDS "HAVE_DIAGNOSTIC"
     DEPENDS_ERROR ON "Call log requires diagnostic build to be enabled"
 )
 
-config_bool(
-    HAVE_UNITTEST
-    "Enable C++ Catch2 based WiredTiger unit tests"
-    DEFAULT OFF
-)
+config_bool(HAVE_UNITTEST "Enable C++ Catch2 based WiredTiger unit tests" DEFAULT OFF)
 
 config_bool(
     HAVE_UNITTEST_ASSERTS
@@ -135,58 +113,26 @@ config_bool(
 
 config_bool(
     CODE_COVERAGE_MEASUREMENT
-    "Enable alternative code that is specifically used when measuring code coverage"
+    "Enable alternative code that is specifically used when measuring code coverage" DEFAULT OFF
+)
+
+config_bool(
+    INLINE_FUNCTIONS_INSTEAD_OF_MACROS "Switch from macros to inline functions where available"
     DEFAULT OFF
 )
 
-config_bool(
-    INLINE_FUNCTIONS_INSTEAD_OF_MACROS
-    "Switch from macros to inline functions where available"
-    DEFAULT OFF
-)
+config_bool(HAVE_ATTACH "Enable to pause for debugger attach on failure" DEFAULT OFF)
+config_bool(ENABLE_STATIC "Compile as a static library" DEFAULT ${default_enable_static})
+config_bool(ENABLE_SHARED "Compile as a shared library" DEFAULT ${default_enable_shared})
 
 config_bool(
-    HAVE_ATTACH
-    "Enable to pause for debugger attach on failure"
-    DEFAULT OFF
+    WITH_PIC "Generate position-independent code. Note PIC will always \
+    be used on shared targets, irrespective of the value of this configuration." DEFAULT ON
 )
 
-config_bool(
-    ENABLE_STATIC
-    "Compile as a static library"
-    DEFAULT ${default_enable_static}
-)
-
-config_bool(
-    ENABLE_SHARED
-    "Compile as a shared library"
-    DEFAULT ${default_enable_shared}
-)
-
-config_bool(
-    WITH_PIC
-    "Generate position-independent code. Note PIC will always \
-    be used on shared targets, irrespective of the value of this configuration."
-    DEFAULT ON
-)
-
-config_bool(
-    ENABLE_STRICT
-    "Compile with strict compiler warnings enabled"
-    DEFAULT ON
-)
-
-config_bool(
-    ENABLE_COLORIZE_OUTPUT
-    "Compile with build error colors enabled"
-    DEFAULT ON
-)
-
-config_bool(
-    ENABLE_PYTHON
-    "Configure the python API"
-    DEFAULT ${default_enable_python}
-)
+config_bool(ENABLE_STRICT "Compile with strict compiler warnings enabled" DEFAULT ON)
+config_bool(ENABLE_COLORIZE_OUTPUT "Compile with build error colors enabled" DEFAULT ON)
+config_bool(ENABLE_PYTHON "Configure the python API" DEFAULT ${default_enable_python})
 
 config_string(
     PYTHON3_REQUIRED_VERSION
@@ -198,51 +144,31 @@ config_string(
 )
 
 config_string(
-    SWIG_REQUIRED_VERSION
-    "SWIG version to use when building Python bindings. \
+    SWIG_REQUIRED_VERSION "SWIG version to use when building Python bindings. \
     Expected format of version string: major[.minor[.patch]]"
     DEFAULT "4"
     DEPENDS "ENABLE_PYTHON"
 )
 
-config_bool(
-    WT_STANDALONE_BUILD
-    "Support standalone build"
-    DEFAULT ON
-)
+config_bool(WT_STANDALONE_BUILD "Support standalone build" DEFAULT ON)
+config_bool(WT_DISAGG_SLOW_TRUNCATE_BUILD "Use slow truncate path on follower mode" DEFAULT OFF)
+config_bool(HAVE_NO_CRC32_HARDWARE "Disable any crc32 hardware support" DEFAULT OFF)
 
 config_bool(
-    WT_DISAGG_SLOW_TRUNCATE_BUILD
-    "Use slow truncate path on follower mode"
-    DEFAULT OFF
-)
-
-config_bool(
-    HAVE_NO_CRC32_HARDWARE
-    "Disable any crc32 hardware support"
-    DEFAULT OFF
-)
-
-config_bool(
-    DYNAMIC_CRT
-    "Link with the MSVCRT DLL version"
+    DYNAMIC_CRT "Link with the MSVCRT DLL version"
     DEFAULT OFF
     DEPENDS "WT_WIN"
 )
 
 config_choice(
-    SPINLOCK_TYPE
-    "Set a spinlock type"
-    OPTIONS
-        "pthread;SPINLOCK_PTHREAD_MUTEX;HAVE_LIBPTHREAD"
-        "gcc;SPINLOCK_GCC;"
-        "msvc;SPINLOCK_MSVC;WT_WIN"
-        "pthread_adaptive;SPINLOCK_PTHREAD_MUTEX_ADAPTIVE;HAVE_LIBPTHREAD"
+    SPINLOCK_TYPE "Set a spinlock type"
+    OPTIONS "pthread;SPINLOCK_PTHREAD_MUTEX;HAVE_LIBPTHREAD" "gcc;SPINLOCK_GCC;"
+            "msvc;SPINLOCK_MSVC;WT_WIN"
+            "pthread_adaptive;SPINLOCK_PTHREAD_MUTEX_ADAPTIVE;HAVE_LIBPTHREAD"
 )
 
 config_bool(
-    ENABLE_LZ4
-    "Build the lz4 compressor extension"
+    ENABLE_LZ4 "Build the lz4 compressor extension"
     DEFAULT ${default_enable_lz4}
     DEPENDS "HAVE_LIBLZ4"
     # Specifically throw a fatal error if a user tries to enable the lz4 compressor without
@@ -251,8 +177,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_MEMKIND
-    "Enable the memkind library, needed for NVRAM or SSD block caches"
+    ENABLE_MEMKIND "Enable the memkind library, needed for NVRAM or SSD block caches"
     DEFAULT OFF
     DEPENDS "HAVE_LIBMEMKIND"
     # Specifically throw a fatal error if a user tries to enable the memkind allocator without
@@ -261,8 +186,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_SNAPPY
-    "Build the snappy compressor extension"
+    ENABLE_SNAPPY "Build the snappy compressor extension"
     DEFAULT ${default_enable_snappy}
     DEPENDS "HAVE_LIBSNAPPY"
     # Specifically throw a fatal error if a user tries to enable the snappy compressor without
@@ -271,8 +195,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_ZLIB
-    "Build the zlib compressor extension"
+    ENABLE_ZLIB "Build the zlib compressor extension"
     DEFAULT ${default_enable_zlib}
     DEPENDS "HAVE_LIBZ"
     # Specifically throw a fatal error if a user tries to enable the zlib compressor without
@@ -281,8 +204,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_ZSTD
-    "Build the libzstd compressor extension"
+    ENABLE_ZSTD "Build the libzstd compressor extension"
     DEFAULT ${default_enable_zstd}
     DEPENDS "HAVE_LIBZSTD"
     # Specifically throw a fatal error if a user tries to enable the zstd compressor without
@@ -291,8 +213,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_IAA
-    "Build the libqpl compressor extension"
+    ENABLE_IAA "Build the libqpl compressor extension"
     DEFAULT ${default_enable_iaa}
     DEPENDS "HAVE_LIBQPL"
     # Specifically throw a fatal error if a user tries to enable the qpl compressor without
@@ -301,8 +222,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_SODIUM
-    "Build the libsodium encryption extension"
+    ENABLE_SODIUM "Build the libsodium encryption extension"
     DEFAULT OFF
     DEPENDS "HAVE_LIBSODIUM"
     # Specifically throw a fatal error if a user tries to enable the libsodium encryptor without
@@ -310,33 +230,16 @@ config_bool(
     DEPENDS_ERROR ON "Failed to find sodium library"
 )
 
+config_bool(ENABLE_CPPSUITE "Build the cppsuite" DEFAULT ON)
+config_bool(ENABLE_LAZYFS "Build LazyFS for testing" DEFAULT OFF)
+config_bool(ENABLE_MODEL "Build the model for lightweight formal verification" DEFAULT ON)
+
 config_bool(
-    ENABLE_CPPSUITE
-    "Build the cppsuite"
-    DEFAULT ON
+    ENABLE_PALITE "Build the PALite storage extension (mock implementation of the PALI)" DEFAULT ON
 )
 
 config_bool(
-    ENABLE_LAZYFS
-    "Build LazyFS for testing"
-    DEFAULT OFF
-)
-
-config_bool(
-    ENABLE_MODEL
-    "Build the model for lightweight formal verification"
-    DEFAULT ON
-)
-
-config_bool(
-    ENABLE_PALITE
-    "Build the PALite storage extension (mock implementation of the PALI)"
-    DEFAULT ON
-)
-
-config_bool(
-    ENABLE_LLVM
-    "Enable compilation of LLVM-based tools and executables i.e. xray & fuzzer."
+    ENABLE_LLVM "Enable compilation of LLVM-based tools and executables i.e. xray & fuzzer."
     DEFAULT OFF
 )
 
@@ -347,10 +250,9 @@ config_bool(
 )
 
 config_string(
-    SQLITE3_REQUIRED_VERSION
-    "SQLite3 version to use when building PALite extension. \
+    SQLITE3_REQUIRED_VERSION "SQLite3 version to use when building PALite extension. \
     Expected format of version string: major[.minor[.patch]]"
-    DEFAULT "3.35.0"   # Minimum version for RETURNING syntax (used in PALite).
+    DEFAULT "3.35.0" # Minimum version for RETURNING syntax (used in PALite).
 )
 
 config_bool(
@@ -372,38 +274,14 @@ else()
     endif()
 endif()
 
-config_string(
-    CC_OPTIMIZE_LEVEL
-    "CC optimization level"
-    DEFAULT "${default_optimize_level}"
-)
-
-config_string(
-    VERSION_MAJOR
-    "Major version number for WiredTiger"
-    DEFAULT ${WT_VERSION_MAJOR}
-)
-
-config_string(
-    VERSION_MINOR
-    "Minor version number for WiredTiger"
-    DEFAULT ${WT_VERSION_MINOR}
-)
-
-config_string(
-    VERSION_PATCH
-    "Path version number for WiredTiger"
-    DEFAULT ${WT_VERSION_PATCH}
-)
-
-config_string(
-    VERSION_STRING
-    "Version string for WiredTiger"
-    DEFAULT "\"${WT_VERSION_STRING}\""
-)
+config_string(CC_OPTIMIZE_LEVEL "CC optimization level" DEFAULT "${default_optimize_level}")
+config_string(VERSION_MAJOR "Major version number for WiredTiger" DEFAULT ${WT_VERSION_MAJOR})
+config_string(VERSION_MINOR "Minor version number for WiredTiger" DEFAULT ${WT_VERSION_MINOR})
+config_string(VERSION_PATCH "Path version number for WiredTiger" DEFAULT ${WT_VERSION_PATCH})
+config_string(VERSION_STRING "Version string for WiredTiger" DEFAULT "\"${WT_VERSION_STRING}\"")
 
 # Diagnostic mode requires debug info, set it automatically.
-if (HAVE_DIAGNOSTIC)
+if(HAVE_DIAGNOSTIC)
     set(ENABLE_DEBUG_INFO ON)
 endif()
 
@@ -444,8 +322,10 @@ if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
     endif()
 
     # Mark that we've set the initial debug flags
-    set(WT_DEBUG_FLAGS_INITIALIZED TRUE CACHE INTERNAL
-        "WiredTiger debug flags have been initialized")
+    set(WT_DEBUG_FLAGS_INITIALIZED
+        TRUE
+        CACHE INTERNAL "WiredTiger debug flags have been initialized"
+    )
 endif()
 
 # We want to use the optimization level from CC_OPTIMIZE_LEVEL.
@@ -464,9 +344,11 @@ if(NOT ("${WT_OPTIMIZE_FLAGS_SAVED}" STREQUAL "${CC_OPTIMIZE_LEVEL}"))
 
     foreach(lang C CXX)
         foreach(build_type DEBUG RELEASE RELWITHDEBINFO)
-            replace_compile_options(CMAKE_${lang}_FLAGS_${build_type}
+            replace_compile_options(
+                CMAKE_${lang}_FLAGS_${build_type}
                 REMOVE ${opt_flags}
-                ADD ${new_opt_flags})
+                ADD ${new_opt_flags}
+            )
         endforeach()
     endforeach()
 
@@ -477,23 +359,36 @@ if(NOT ("${WT_OPTIMIZE_FLAGS_SAVED}" STREQUAL "${CC_OPTIMIZE_LEVEL}"))
     endif()
 
     # Mark that we've set the initial optimize flags
-    set(WT_OPTIMIZE_FLAGS_SAVED "${CC_OPTIMIZE_LEVEL}" CACHE INTERNAL
-        "WiredTiger optimize flags have been initialized")
+    set(WT_OPTIMIZE_FLAGS_SAVED
+        "${CC_OPTIMIZE_LEVEL}"
+        CACHE INTERNAL "WiredTiger optimize flags have been initialized"
+    )
 endif()
 
 # Ref tracking is always enabled in diagnostic build.
-if (HAVE_DIAGNOSTIC AND NOT HAVE_REF_TRACK)
-    set(HAVE_REF_TRACK ON CACHE BOOL "" FORCE)
-    set(HAVE_REF_TRACK_DISABLED OFF CACHE INTERNAL "" FORCE)
+if(HAVE_DIAGNOSTIC AND NOT HAVE_REF_TRACK)
+    set(HAVE_REF_TRACK
+        ON
+        CACHE BOOL "" FORCE
+    )
+    set(HAVE_REF_TRACK_DISABLED
+        OFF
+        CACHE INTERNAL "" FORCE
+    )
 endif()
 
 # Error logging is always enabled in diagnostic build.
-if (HAVE_DIAGNOSTIC AND NOT HAVE_ERROR_LOG)
-    set(HAVE_ERROR_LOG ON CACHE BOOL "" FORCE)
+if(HAVE_DIAGNOSTIC AND NOT HAVE_ERROR_LOG)
+    set(HAVE_ERROR_LOG
+        ON
+        CACHE BOOL "" FORCE
+    )
 endif()
 
-if (HAVE_UNITTEST_ASSERTS AND NOT HAVE_UNITTEST)
-    message(FATAL_ERROR "`HAVE_UNITTEST_ASSERTS` can only be enabled when `HAVE_UNITTEST` is enabled.")
+if(HAVE_UNITTEST_ASSERTS AND NOT HAVE_UNITTEST)
+    message(
+        FATAL_ERROR "`HAVE_UNITTEST_ASSERTS` can only be enabled when `HAVE_UNITTEST` is enabled."
+    )
 endif()
 
 if(WT_WIN)

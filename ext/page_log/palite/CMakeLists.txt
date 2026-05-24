@@ -11,8 +11,11 @@ else()
 endif()
 
 if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS CXX_COMPILER_MIN_VERSION)
-    message(WARNING "Skipping PALite build: C++ compiler does not support C++20. "
-        "Required version: ${CXX_COMPILER_MIN_VERSION}; found: ${CMAKE_CXX_COMPILER_VERSION}")
+    message(
+        WARNING
+            "Skipping PALite build: C++ compiler does not support C++20. "
+            "Required version: ${CXX_COMPILER_MIN_VERSION}; found: ${CMAKE_CXX_COMPILER_VERSION}"
+    )
     return()
 endif()
 
@@ -20,34 +23,23 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(wiredtiger_palite MODULE
-    "palite.cpp"
-)
+add_library(wiredtiger_palite MODULE "palite.cpp")
 
-target_link_libraries(
-    wiredtiger_palite
-    PRIVATE
-        wt::sqlite3
-)
+target_link_libraries(wiredtiger_palite PRIVATE wt::sqlite3)
 
 target_include_directories(
-    wiredtiger_palite
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/include
-        ${CMAKE_BINARY_DIR}/include
-        ${CMAKE_BINARY_DIR}/config
+    wiredtiger_palite PRIVATE ${CMAKE_SOURCE_DIR}/src/include ${CMAKE_BINARY_DIR}/include
+                              ${CMAKE_BINARY_DIR}/config
 )
 
-target_compile_options(
-    wiredtiger_palite
-    PRIVATE
-        ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
-)
+target_compile_options(wiredtiger_palite PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS})
 
 # The following linker options are needed for Linux builds with sanitizers.
 # Having these options doesn't hurt regular builds, so they are always enabled.
-if (WT_LINUX)
-    target_link_options(wiredtiger_palite PRIVATE
+if(WT_LINUX)
+    target_link_options(
+        wiredtiger_palite
+        PRIVATE
         # Pin library in memory (Avoids GCC Bug 65434
         # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65434 / Cleanup Leak)
         "LINKER:-z,nodelete"
@@ -60,9 +52,10 @@ endif()
 # symbols for each executable. The name of the binary will either be the name
 # of the target or some other name passed to this function. We need to use the
 # correct one for the dsymutil.
-if (WT_DARWIN)
+if(WT_DARWIN)
     add_custom_command(
-        TARGET wiredtiger_palite POST_BUILD
+        TARGET wiredtiger_palite
+        POST_BUILD
         COMMAND dsymutil $<TARGET_FILE:wiredtiger_palite>
         WORKING_DIRECTORY $<TARGET_FILE_DIR:wiredtiger_palite>
         COMMENT "Running dsymutil on wiredtiger_palite"

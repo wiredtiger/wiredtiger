@@ -1,4 +1,7 @@
-set(WT_POSIX ON CACHE BOOL "")
+set(WT_POSIX
+    ON
+    CACHE BOOL ""
+)
 
 # Disable cppsuite as it only runs on linux.
 set(ENABLE_CPPSUITE 0)

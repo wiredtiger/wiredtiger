@@ -27,14 +27,13 @@ set(format_sources
     wts.c
 )
 
-create_test_executable(test_format
+create_test_executable(
+    test_format
     SOURCES ${format_sources}
     EXECUTABLE_NAME "t"
     ADDITIONAL_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/CONFIG.stress
-        ${CMAKE_CURRENT_SOURCE_DIR}/format.sh
-        ${CMAKE_CURRENT_SOURCE_DIR}/format_disagg_multi.sh
-        ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/CONFIG.stress ${CMAKE_CURRENT_SOURCE_DIR}/format.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/format_disagg_multi.sh ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
 # Use C++ linker for building this target.
@@ -42,7 +41,10 @@ create_test_executable(test_format
 # to link against the C++ sanitizer runtimes.
 # Some extensions (PALite, tiered storage) require C++ runtime to be linked
 # for sanitizers to work correctly.
-set_target_properties(test_format PROPERTIES LINKER_LANGUAGE CXX)
+set_target_properties(
+    test_format
+    PROPERTIES LINKER_LANGUAGE CXX
+)
 target_compile_options(test_format PRIVATE -DEXT_LIBPATH="")
 
 # t loads extension MODULE libraries via dlopen() at runtime; pull in the umbrella target so

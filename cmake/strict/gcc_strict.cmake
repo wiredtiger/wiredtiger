@@ -36,6 +36,6 @@ endif()
 # unused copies of those functions, so the unused-function warning much be turned off.
 if(CODE_COVERAGE_MEASUREMENT)
     list(APPEND gcc_flags "-Wno-unused-function")
-endif ()
+endif()
 
 set(COMPILER_DIAGNOSTIC_C_FLAGS ${gcc_flags})

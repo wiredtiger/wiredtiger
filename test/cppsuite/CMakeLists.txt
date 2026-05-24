@@ -1,5 +1,6 @@
 # Create an intermediate static lib.
-add_library(cppsuite_test_harness STATIC
+add_library(
+    cppsuite_test_harness STATIC
     src/bound/bound.cpp
     src/bound/bound_set.cpp
     src/common/constants.cpp
@@ -34,23 +35,22 @@ add_library(cppsuite_test_harness STATIC
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(
-    cppsuite_test_harness
-    PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
-)
+target_compile_options(cppsuite_test_harness PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS})
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)
 # There's no special sub-path to access a given extension.
 target_compile_options(cppsuite_test_harness PUBLIC -DEXTSUBPATH="")
 
 # Create the different executables.
-create_test_executable(run
+create_test_executable(
+    run
     SOURCES tests/run.cpp
     LIBS cppsuite_test_harness
     ADDITIONAL_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/configs
     CXX
 )
 
-create_test_executable(test_live_restore
+create_test_executable(
+    test_live_restore
     SOURCES tests/test_live_restore.cpp
     LIBS cppsuite_test_harness
     CXX
@@ -58,13 +58,15 @@ create_test_executable(test_live_restore
 
 # If you prefer to not use the run binary you can add a test via this mechanism but it is generally
 # frowned upon.
-create_test_executable(csuite_style_example_test
+create_test_executable(
+    csuite_style_example_test
     SOURCES tests/csuite_style_example_test.cpp
     LIBS cppsuite_test_harness
     CXX
 )
 
-create_test_executable(test_disagg_failover_perf
+create_test_executable(
+    test_disagg_failover_perf
     SOURCES tests/test_disagg_failover_perf.cpp
     LIBS cppsuite_test_harness
     CXX

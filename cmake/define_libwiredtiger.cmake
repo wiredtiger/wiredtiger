@@ -9,17 +9,14 @@
 #   PUBLIC_INCLUDES - Public interface includes of the wiredtiger library.
 #   PRIVATE_INCLUDES - Private interface includes of the wiredtiger library.
 macro(define_wiredtiger_library target type)
-    cmake_parse_arguments(
-        "DEFINE_WT"
-        ""
-        ""
-        "SOURCES;PUBLIC_INCLUDES;PRIVATE_INCLUDES"
-        ${ARGN}
-    )
-    if (NOT "${DEFINE_WT_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to define_wiredtiger_library: ${DEFINE_WT_UNPARSED_ARGUMENTS}")
+    cmake_parse_arguments("DEFINE_WT" "" "" "SOURCES;PUBLIC_INCLUDES;PRIVATE_INCLUDES" ${ARGN})
+    if(NOT "${DEFINE_WT_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(
+            FATAL_ERROR
+                "Unknown arguments to define_wiredtiger_library: ${DEFINE_WT_UNPARSED_ARGUMENTS}"
+        )
     endif()
-    if ("${DEFINE_WT_SOURCES}" STREQUAL "")
+    if("${DEFINE_WT_SOURCES}" STREQUAL "")
         message(FATAL_ERROR "No sources given to define_wiredtiger_library")
     endif()
 
@@ -44,10 +41,11 @@ macro(define_wiredtiger_library target type)
     # NO_SYSTEM_FROM_IMPORTED - don't treat include interface directories consumed on an imported target as system
     #   directories.
     # C_STANDARD - require C11 from the compiler.
-    set_target_properties(${target} PROPERTIES
-        OUTPUT_NAME "wiredtiger"
-        NO_SYSTEM_FROM_IMPORTED TRUE
-        C_STANDARD 11
+    set_target_properties(
+        ${target}
+        PROPERTIES OUTPUT_NAME "wiredtiger"
+                   NO_SYSTEM_FROM_IMPORTED TRUE
+                   C_STANDARD 11
     )
 
     # System library dependencies.

@@ -7,7 +7,10 @@
 function(eval_dependency depends enabled)
     # If no dependencies were given then we default to an enabled state.
     if(("${depends}" STREQUAL "") OR ("${depends}" STREQUAL "NOTFOUND"))
-        set(enabled ON PARENT_SCOPE)
+        set(enabled
+            ON
+            PARENT_SCOPE
+        )
         return()
     endif()
     # Evaluate each dependency.
@@ -19,7 +22,10 @@ function(eval_dependency depends enabled)
             break()
         endif()
     endforeach()
-    set(enabled ${is_enabled} PARENT_SCOPE)
+    set(enabled
+        ${is_enabled}
+        PARENT_SCOPE
+    )
 endfunction()
 
 # config_string(config_name description DEFAULT <default string> [DEPENDS <deps>] [INTERNAL])
@@ -36,16 +42,9 @@ endfunction()
 #       to expose the variable by default to the user i.e keep it internal to the implementation
 #       (but still need it in the cache).
 function(config_string config_name description)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        2
-        "CONFIG_STR"
-        "INTERNAL"
-        "DEFAULT;DEPENDS"
-        ""
-    )
+    cmake_parse_arguments(PARSE_ARGV 2 "CONFIG_STR" "INTERNAL" "DEFAULT;DEPENDS" "")
 
-    if (NOT "${CONFIG_STR_UNPARSED_ARGUMENTS}" STREQUAL "")
+    if(NOT "${CONFIG_STR_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to config_str: ${CONFIG_STR_UNPARSED_ARGUMENTS}")
     endif()
 
@@ -57,18 +56,27 @@ function(config_string config_name description)
         # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
-            set(${config_name} ${default_value} CACHE STRING "${description}" FORCE)
+            set(${config_name}
+                ${default_value}
+                CACHE STRING "${description}" FORCE
+            )
         else()
-            set(${config_name} ${default_value} CACHE STRING "${description}")
+            set(${config_name}
+                ${default_value}
+                CACHE STRING "${description}"
+            )
         endif()
-        if (CONFIG_STR_INTERNAL)
+        if(CONFIG_STR_INTERNAL)
             # Mark as an advanced variable, hiding it from initial UI's views.
             mark_as_advanced(FORCE ${config_name})
         endif()
     else()
         # Config doesn't meet dependency requirements, remove it from the cache and flag it as disabled.
         unset(${config_name} CACHE)
-        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+        set(${config_name}_DISABLED
+            ON
+            CACHE INTERNAL "" FORCE
+        )
     endif()
 endfunction()
 
@@ -87,20 +95,13 @@ endfunction()
 #       *  option-dependencies: dependencies required for the option to be made available. If its dependencies aren't met
 #           the given option will become un-selectable.
 function(config_choice config_name description)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        2
-        "CONFIG_OPT"
-        ""
-        ""
-        "OPTIONS"
-    )
+    cmake_parse_arguments(PARSE_ARGV 2 "CONFIG_OPT" "" "" "OPTIONS")
 
-    if (NOT "${CONFIG_OPT_UNPARSED_ARGUMENTS}" STREQUAL "")
+    if(NOT "${CONFIG_OPT_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to config_opt: ${CONFIG_OPT_UNPARSED_ARGUMENTS}")
     endif()
     # We require option values (not optional)
-    if ("${CONFIG_OPT_OPTIONS}" STREQUAL "")
+    if("${CONFIG_OPT_OPTIONS}" STREQUAL "")
         message(FATAL_ERROR "No options passed")
     endif()
 
@@ -110,7 +111,7 @@ function(config_choice config_name description)
     set(default_config_var "")
     foreach(curr_option ${CONFIG_OPT_OPTIONS})
         list(LENGTH curr_option opt_length)
-        if (NOT opt_length EQUAL 3)
+        if(NOT opt_length EQUAL 3)
             message(FATAL_ERROR "Invalid option format: ${curr_option}")
         endif()
         # We expect three items defined for each option.
@@ -122,7 +123,7 @@ function(config_choice config_name description)
         if(enabled)
             list(APPEND all_option_config_fields ${option_config_field})
             # The first valid/selectable option found will be the default config value.
-            if (found_option)
+            if(found_option)
                 set(found_option OFF)
                 set(default_config_field "${option_config_field}")
                 set(default_config_var "${option_config_var}")
@@ -130,20 +131,29 @@ function(config_choice config_name description)
             # Check if the option is already set with this given field. We don't want to override the configs value
             # with a default value if its already been pre-set in the cache e.g. by early config scripts.
             if("${${config_name}}" STREQUAL "${option_config_field}")
-                set(${option_config_var} ON CACHE INTERNAL "" FORCE)
-                set(${config_name}_CONFIG_VAR ${option_config_var} CACHE INTERNAL "" FORCE)
+                set(${option_config_var}
+                    ON
+                    CACHE INTERNAL "" FORCE
+                )
+                set(${config_name}_CONFIG_VAR
+                    ${option_config_var}
+                    CACHE INTERNAL "" FORCE
+                )
                 set(found_pre_set ON)
                 set(found_option OFF)
                 set(default_config_field "${option_config_field}")
                 set(default_config_var "${option_config_var}")
             else()
                 # Clear the cache of the current set value.
-                set(${option_config_var} OFF CACHE INTERNAL "" FORCE)
+                set(${option_config_var}
+                    OFF
+                    CACHE INTERNAL "" FORCE
+                )
             endif()
         else()
             unset(${option_config_var} CACHE)
             # Check if the option is already set with this given field - we want to clear it if so.
-            if ("${${config_name}_CONFIG_VAR}" STREQUAL "${option_config_var}")
+            if("${${config_name}_CONFIG_VAR}" STREQUAL "${option_config_var}")
                 unset(${config_name}_CONFIG_VAR CACHE)
             endif()
             if("${${config_name}}" STREQUAL "${option_config_field}")
@@ -153,9 +163,18 @@ function(config_choice config_name description)
     endforeach()
     # If the config hasn't been set we can load it with the default option found earlier.
     if(NOT found_pre_set)
-        set(${default_config_var} ON CACHE INTERNAL "" FORCE)
-        set(${config_name} ${default_config_field} CACHE STRING ${description})
-        set(${config_name}_CONFIG_VAR ${default_config_var} CACHE INTERNAL "" FORCE)
+        set(${default_config_var}
+            ON
+            CACHE INTERNAL "" FORCE
+        )
+        set(${config_name}
+            ${default_config_field}
+            CACHE STRING ${description}
+        )
+        set(${config_name}_CONFIG_VAR
+            ${default_config_var}
+            CACHE INTERNAL "" FORCE
+        )
     endif()
     set_property(CACHE ${config_name} PROPERTY STRINGS ${all_option_config_fields})
 endfunction()
@@ -175,14 +194,7 @@ endfunction()
 #       to signal a specific error to the caller when dependencies aren't met e.g. toolchain is missing library (as opposed to
 #       silently defaulting).
 function(config_bool config_name description)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        2
-        "CONFIG_BOOL"
-        ""
-        "DEFAULT;DEPENDS"
-        "DEPENDS_ERROR"
-    )
+    cmake_parse_arguments(PARSE_ARGV 2 "CONFIG_BOOL" "" "DEFAULT;DEPENDS" "DEPENDS_ERROR")
 
     if(NOT "${CONFIG_BOOL_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to config_bool: ${CONFIG_BOOL_UNPARSED_ARGUMENTS}")
@@ -198,7 +210,9 @@ function(config_bool config_name description)
     if(CONFIG_BOOL_DEPENDS_ERROR)
         list(LENGTH CONFIG_BOOL_DEPENDS_ERROR depends_error_length)
         if(NOT depends_error_length EQUAL 2)
-            message(FATAL_ERROR "Invalid usage of DEPENDS_ERROR: requires <Error Value> <Error Message>")
+            message(
+                FATAL_ERROR "Invalid usage of DEPENDS_ERROR: requires <Error Value> <Error Message>"
+            )
         else()
             list(GET CONFIG_BOOL_DEPENDS_ERROR 0 err_val)
             if(err_val)
@@ -217,13 +231,19 @@ function(config_bool config_name description)
         # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
-            set(${config_name} ${CONFIG_BOOL_DEFAULT} CACHE BOOL "${description}" FORCE)
+            set(${config_name}
+                ${CONFIG_BOOL_DEFAULT}
+                CACHE BOOL "${description}" FORCE
+            )
         else()
-            set(${config_name} ${CONFIG_BOOL_DEFAULT} CACHE BOOL "${description}")
+            set(${config_name}
+                ${CONFIG_BOOL_DEFAULT}
+                CACHE BOOL "${description}"
+            )
         endif()
     else()
         set(config_value "0")
-        if (${${config_name}})
+        if(${${config_name}})
             set(config_value "1")
         endif()
         # If the user tries to set the config option to a given value when its dependencies
@@ -234,8 +254,14 @@ function(config_bool config_name description)
             endif()
         endif()
         # Config doesn't meet dependency requirements, set its default state and flag it as disabled.
-        set(${config_name} OFF CACHE BOOL "${description}" FORCE)
-        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+        set(${config_name}
+            OFF
+            CACHE BOOL "${description}" FORCE
+        )
+        set(${config_name}_DISABLED
+            ON
+            CACHE INTERNAL "" FORCE
+        )
     endif()
 endfunction()
 
@@ -277,11 +303,7 @@ endfunction()
 #       HEADER zlib.h)
 function(wt_find_library)
     cmake_parse_arguments(
-        PARSE_ARGV
-        0
-        "WTLIB"
-        ""
-        "NAME;CMAKE_TARGET;PACKAGE;TARGET;PKGCONFIG_MODULE;LIBRARY;HEADER"
+        PARSE_ARGV 0 "WTLIB" "" "NAME;CMAKE_TARGET;PACKAGE;TARGET;PKGCONFIG_MODULE;LIBRARY;HEADER"
         ""
     )
 
@@ -345,11 +367,14 @@ function(wt_find_library)
             set(_raw "wt_imported_${WTLIB_NAME}")
             if(NOT TARGET ${_raw})
                 add_library(${_raw} UNKNOWN IMPORTED GLOBAL)
-                set_target_properties(${_raw} PROPERTIES
-                    IMPORTED_LOCATION "${${_name_upper}_LIBRARY}")
+                set_target_properties(
+                    ${_raw} PROPERTIES IMPORTED_LOCATION "${${_name_upper}_LIBRARY}"
+                )
                 if(WTLIB_HEADER)
-                    set_target_properties(${_raw} PROPERTIES
-                        INTERFACE_INCLUDE_DIRECTORIES "${${_name_upper}_INCLUDE_DIR}")
+                    set_target_properties(
+                        ${_raw} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
+                                           "${${_name_upper}_INCLUDE_DIR}"
+                    )
                 endif()
             endif()
             set(_imported ${_raw})
@@ -357,13 +382,19 @@ function(wt_find_library)
     endif()
 
     if(_imported)
-        set(${_have_var} ON CACHE INTERNAL "${WTLIB_NAME} available on system")
+        set(${_have_var}
+            ON
+            CACHE INTERNAL "${WTLIB_NAME} available on system"
+        )
         if(NOT TARGET ${_alias})
             add_library(${_alias} ALIAS ${_imported})
         endif()
         message(CHECK_PASS "found")
     else()
-        set(${_have_var} OFF CACHE INTERNAL "${WTLIB_NAME} available on system")
+        set(${_have_var}
+            OFF
+            CACHE INTERNAL "${WTLIB_NAME} available on system"
+        )
         message(CHECK_FAIL "not found")
     endif()
 endfunction()
@@ -411,7 +442,7 @@ function(parse_filelist_source filelist output_var)
         endif()
         string(REGEX REPLACE "[ \t\r]+" ";" file_contents ${file})
         list(LENGTH file_contents file_contents_len)
-        if (file_contents_len EQUAL 1)
+        if(file_contents_len EQUAL 1)
             list(APPEND output_files ${file})
         elseif(file_contents_len EQUAL 2)
             list(GET file_contents 0 file_name)
@@ -420,14 +451,20 @@ function(parse_filelist_source filelist output_var)
             # CMake does not support testing for membership in a list.
             set(plat_index "-1")
             list(FIND plat_host "${file_group}" plat_index)
-            if (("${plat_index}" GREATER_EQUAL "0") OR (${file_group} STREQUAL "${arch_host}"))
+            if(("${plat_index}" GREATER_EQUAL "0") OR (${file_group} STREQUAL "${arch_host}"))
                 list(APPEND output_files ${file_name})
             endif()
         else()
-            message(FATAL_ERROR "filelist (${filelist}) has an unexpected format [Invalid Line: \"${file}]\"")
+            message(
+                FATAL_ERROR
+                    "filelist (${filelist}) has an unexpected format [Invalid Line: \"${file}]\""
+            )
         endif()
     endforeach()
-    set(${output_var} ${output_files} PARENT_SCOPE)
+    set(${output_var}
+        ${output_files}
+        PARENT_SCOPE
+    )
 endfunction()
 
 # add_cmake_flag(dest_var flag)
@@ -437,7 +474,10 @@ function(add_cmake_flag included_flags flag)
     # This avoids partial matches and ensures correct match at the start/end of the string.
     string(FIND " ${${included_flags}} " " ${flag} " flag_position)
     if(flag_position EQUAL -1)
-        set(${included_flags} "${${included_flags}} ${flag}" CACHE STRING "" FORCE)
+        set(${included_flags}
+            "${${included_flags}} ${flag}"
+            CACHE STRING "" FORCE
+        )
     endif()
 endfunction()
 
@@ -448,14 +488,7 @@ endfunction()
 #   LANGUAGES <languages...> - one or more languages (C, CXX, etc.)
 #   BUILD_TYPES <build_types...> - one or more build types (Debug, RelWithDebInfo, Release, etc.)
 function(add_cmake_compiler_flags)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        0
-        "COMPILER_FLAGS"
-        ""
-        ""
-        "FLAGS;LANGUAGES;BUILD_TYPES"
-    )
+    cmake_parse_arguments(PARSE_ARGV 0 "COMPILER_FLAGS" "" "" "FLAGS;LANGUAGES;BUILD_TYPES")
 
     # Validate required arguments
     if(NOT COMPILER_FLAGS_FLAGS)
@@ -494,14 +527,7 @@ endfunction()
 #   BINARIES <binaries...> - one or more binary types (EXE, SHARED, MODULE, etc.)
 #   BUILD_TYPES <build_types...> - one or more build types (Debug, RelWithDebInfo, Release, etc.)
 function(add_cmake_linker_flags)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        0
-        "LINKER_FLAGS"
-        ""
-        ""
-        "FLAGS;BINARIES;BUILD_TYPES"
-    )
+    cmake_parse_arguments(PARSE_ARGV 0 "LINKER_FLAGS" "" "" "FLAGS;BINARIES;BUILD_TYPES")
 
     # Validate required arguments
     if(NOT LINKER_FLAGS_FLAGS)
@@ -533,7 +559,6 @@ function(add_cmake_linker_flags)
     endforeach()
 endfunction()
 
-
 # replace_compile_options(flag_var [REMOVE <flags...>] [ADD <flags...>])
 # A helper function that removes specified compiler flags from a flag variable and optionally adds new ones.
 # This is useful for replacing default compiler flags with custom ones while maintaining clean flag strings.
@@ -541,14 +566,7 @@ endfunction()
 #   REMOVE <flags...> - list of flags to remove from the flag variable
 #   ADD <flags...> - list of flags to add to the flag variable after removal
 function(replace_compile_options flag_var)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        1
-        "REPLACE"
-        ""
-        ""
-        "REMOVE;ADD"
-    )
+    cmake_parse_arguments(PARSE_ARGV 1 "REPLACE" "" "" "REMOVE;ADD")
 
     # Remove existing flags
     foreach(flag ${REPLACE_REMOVE})
@@ -568,5 +586,8 @@ function(replace_compile_options flag_var)
     # Clean up extra spaces
     string(STRIP "${${flag_var}}" ${flag_var})
 
-    set(${flag_var} "${${flag_var}}" CACHE STRING "" FORCE)
+    set(${flag_var}
+        "${${flag_var}}"
+        CACHE STRING "" FORCE
+    )
 endfunction()

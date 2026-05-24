@@ -1,8 +1,6 @@
-create_test_executable(test_fops
-    SOURCES
-        fops_file.c
-        fops.c
-        t.c
+create_test_executable(
+    test_fops
+    SOURCES fops_file.c fops.c t.c
 )
 
 # If on windows, explicitly run the test under a separate process, fops
@@ -12,7 +10,6 @@ if(WT_WIN)
 else()
     add_test(NAME test_fops COMMAND test_fops)
 endif()
-
 
 # Run this during a "ctest check" smoke test.
 set_tests_properties(test_fops PROPERTIES LABELS "check;sanitizer_long")

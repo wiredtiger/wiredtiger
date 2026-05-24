@@ -38,14 +38,21 @@ add_subdirectory(test/key_provider)
 # Consumers that load extensions via dlopen() at runtime (e.g. test_format, wiredtiger_python)
 # can add_dependencies on this target instead of maintaining their own per-consumer lists.
 add_custom_target(wiredtiger_ext)
-foreach(_ext
-        wiredtiger_lz4 wiredtiger_snappy wiredtiger_zlib wiredtiger_zstd
-        wiredtiger_reverse_collator wiredtiger_reverse_int_collator
-        wiredtiger_rotn wiredtiger_sodium
-        wiredtiger_palite
-        wiredtiger_dir_store
-        wiredtiger_fail_fs
-        wiredtiger_key_provider)
+foreach(
+    _ext
+    wiredtiger_lz4
+    wiredtiger_snappy
+    wiredtiger_zlib
+    wiredtiger_zstd
+    wiredtiger_reverse_collator
+    wiredtiger_reverse_int_collator
+    wiredtiger_rotn
+    wiredtiger_sodium
+    wiredtiger_palite
+    wiredtiger_dir_store
+    wiredtiger_fail_fs
+    wiredtiger_key_provider
+)
     if(TARGET ${_ext})
         get_target_property(_type ${_ext} TYPE)
         if(_type STREQUAL "MODULE_LIBRARY")

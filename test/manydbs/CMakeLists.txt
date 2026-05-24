@@ -1,8 +1,7 @@
-
-create_test_executable(test_manydbs
+create_test_executable(
+    test_manydbs
     SOURCES manydbs.c
 )
-
 
 # If on windows, explicitly run the test under a separate process, manydbs
 # has issues running under a ctest process (possibly resource-bound).
