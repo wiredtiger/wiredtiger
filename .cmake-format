@@ -1,0 +1,162 @@
+{
+  "format": {
+    "dangle_parens": true,
+    "line_width": 100,
+    "tab_size": 4,
+    "always_wrap": [
+      "config_choice",
+      "create_test_executable",
+      "define_build_mode",
+      "define_c_test",
+      "define_test_variants",
+      "define_wiredtiger_library",
+      "set_target_properties"
+    ]
+  },
+  "markup": {
+    "enable_markup": false
+  },
+  "parse": {
+    "additional_commands": {
+      "add_cmake_compiler_flags": {
+        "kwargs": {
+          "FLAGS": "+",
+          "LANGUAGES": "+",
+          "BUILD_TYPES": "+"
+        }
+      },
+      "add_cmake_linker_flags": {
+        "kwargs": {
+          "FLAGS": "+",
+          "BINARIES": "+",
+          "BUILD_TYPES": "+"
+        }
+      },
+      "config_bool": {
+        "pargs": 2,
+        "kwargs": {
+          "DEFAULT": 1,
+          "DEPENDS": 1,
+          "DEPENDS_ERROR": "+"
+        }
+      },
+      "config_choice": {
+        "pargs": 2,
+        "kwargs": {
+          "OPTIONS": "+"
+        }
+      },
+      "config_string": {
+        "pargs": 2,
+        "flags": [
+          "INTERNAL"
+        ],
+        "kwargs": {
+          "DEFAULT": 1,
+          "DEPENDS": 1
+        }
+      },
+      "create_test_executable": {
+        "pargs": 1,
+        "flags": [
+          "CXX",
+          "NO_TEST_UTIL"
+        ],
+        "kwargs": {
+          "EXECUTABLE_NAME": 1,
+          "BINARY_DIR": 1,
+          "SOURCES": "+",
+          "INCLUDES": "+",
+          "ADDITIONAL_FILES": "+",
+          "ADDITIONAL_DIRECTORIES": "+",
+          "LIBS": "+",
+          "FLAGS": "+"
+        }
+      },
+      "define_build_mode": {
+        "pargs": 1,
+        "kwargs": {
+          "DEPENDS": 1,
+          "C_COMPILER_FLAGS": "+",
+          "CXX_COMPILER_FLAGS": "+",
+          "LINK_FLAGS": "+",
+          "LIBS": "+"
+        }
+      },
+      "define_c_test": {
+        "flags": [
+          "CXX"
+        ],
+        "kwargs": {
+          "TARGET": 1,
+          "DIR_NAME": 1,
+          "EXEC_SCRIPT": 1,
+          "LABEL": 1,
+          "SOURCES": "+",
+          "LIBS": "+",
+          "FLAGS": "+",
+          "ARGUMENTS": "+",
+          "VARIANTS": "+",
+          "DEPENDS": "+",
+          "ADDITIONAL_FILES": "+"
+        }
+      },
+      "define_test_variants": {
+        "pargs": 1,
+        "kwargs": {
+          "DIR_NAME": 1,
+          "CMD": 1,
+          "VARIANTS": "+",
+          "LABELS": "+"
+        }
+      },
+      "define_wiredtiger_library": {
+        "pargs": 2,
+        "kwargs": {
+          "SOURCES": "+",
+          "PUBLIC_INCLUDES": "+",
+          "PRIVATE_INCLUDES": "+"
+        }
+      },
+      "get_cl_base_flags": {
+        "pargs": 1,
+        "flags": [
+          "CXX",
+          "C"
+        ]
+      },
+      "get_clang_base_flags": {
+        "pargs": 1,
+        "flags": [
+          "CXX",
+          "C"
+        ]
+      },
+      "get_gnu_base_flags": {
+        "pargs": 1,
+        "flags": [
+          "CXX",
+          "C"
+        ]
+      },
+      "replace_compile_options": {
+        "pargs": 1,
+        "kwargs": {
+          "REMOVE": "+",
+          "ADD": "+"
+        }
+      },
+      "wt_find_library": {
+        "kwargs": {
+          "NAME": 1,
+          "CMAKE_TARGET": 1,
+          "PACKAGE": 1,
+          "TARGET": 1,
+          "PKGCONFIG_MODULE": 1,
+          "LIBRARY": 1,
+          "HEADER": 1
+        }
+      }
+    }
+  }
+}
