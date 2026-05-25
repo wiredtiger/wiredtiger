@@ -297,8 +297,13 @@ main(int argc, char *argv[])
      */
     if (quiet_corrupt && func != util_dump && func != util_read && func != util_stat &&
       func != util_list && func != util_printlog) {
+        /*
+         * Help text and rejection error agree on the user-facing set: dump, read, stat, list.
+         * printlog is still permitted by the list above for future-proofing (the log/txn scan path
+         * doesn't yet check the quiet flag) but is intentionally not advertised here.
+         */
         fprintf(stderr,
-          "%s: -q is only valid for read-oriented commands: dump, read, stat, list, printlog "
+          "%s: -q is only valid for read-oriented commands: dump, read, stat, list "
           "(verify has its own -c flag)\n",
           progname);
         goto err;

@@ -147,8 +147,12 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
         self.corrupt_leaf_page()
 
-        # list reads the metadata cursor; the corrupted leaf page in the user
-        # table should not stop the metadata listing.
+        # `wt list` reads the metadata cursor (WiredTiger.wt), not the user
+        # table, so this test exercises the happy path: the corrupted user-
+        # table leaf page must not block the metadata listing. The -q
+        # softening of list_print's post-loop error path requires metadata
+        # corruption to exercise directly, which is hard to reproduce safely
+        # in a suite test; that path is left to future targeted coverage.
         self.runWt(['-q', 'list'],
             outfilename='list_q.out', errfilename='list_q.err')
         with open('list_q.out') as f:
