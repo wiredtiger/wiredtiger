@@ -431,14 +431,14 @@ retry:
 
         /*
          * Skip disaggregated btrees that have already been visited by the ongoing checkpoint when
-         * we are not looking for clean pages. Once the global checkpoint generation matches the
-         * tree's checkpoint generation and the checkpoint is still running, every modified page in
-         * this tree belongs to the next checkpoint and will be rejected by the
-         * cache_eviction_blocked_disagg_next_checkpoint guard in __wt_page_can_evict. Walking the
-         * tree only inflates the worker failure rate.
+         * we are looking only for dirty pages and the cache is not under pressure. Every modified
+         * page in such a tree belongs to the next checkpoint and would fail the post-lock recheck,
+         * so walking only inflates the worker failure rate. When looking for clean or update pages,
+         * or when eviction is aggressive, walk anyway: any candidates the workers can lay hands on
+         * are better than starving the cache.
          */
-        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
-          __wt_btree_disagg_checkpointed(session, btree)) {
+        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES) &&
+          !__wt_evict_aggressive(session) && __wt_btree_disagg_checkpointed(session, btree)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_disagg_trees_checkpointed);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
