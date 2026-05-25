@@ -435,8 +435,12 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
         __wt_debug_crash(session);
 
+    /* The pull-model get_key API is disabled when the push-model is configured. */
+    if (F_ISSET(conn, WT_CONN_KEY_PROVIDER_PUSH))
+        return (ENOTSUP);
+
     /* Check for a new encryption key data. If the size is 0, there is none so we can skip. */
-    WT_ERR(__wti_key_provider_get_key(session, &crypt));
+    WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     if (crypt.keys.size == 0)
         goto done;
 
@@ -447,7 +451,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
 
     /* Call the function again to fetch the new encryption key data. */
-    WT_ERR(__wti_key_provider_get_key(session, &crypt));
+    WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
     /* Pack the crypt header information into the struct. */

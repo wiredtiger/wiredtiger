@@ -326,23 +326,23 @@ TEST_CASE_METHOD(kp_fixture, "Persist key, failure", "[key_provider]")
     free(const_cast<void *>(crypt.keys.data));
 }
 
-TEST_CASE_METHOD(kp_fixture, "Push-mode get_key returns ENOTSUP", "[key_provider]")
+TEST_CASE_METHOD(kp_fixture, "set_key_provider version selects push mode", "[key_provider]")
 {
-    kp_ptr_t kp = kp_init(nullptr);
-    REQUIRE(kp->wtext != nullptr);
-
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
     WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_KEY_PROVIDER stub = {};
 
-    /* version=0 (default): pull path works. */
-    WT_CRYPT_KEYS crypt = {};
-    REQUIRE(__wti_key_provider_get_key(session_impl, &crypt) == 0);
+    /* version=0 (default): push flag stays clear. */
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=0") == 0);
+    REQUIRE(!F_ISSET(conn_impl, WT_CONN_KEY_PROVIDER_PUSH));
+    conn_impl->key_provider = nullptr; /* Allow reconfiguration. */
 
-    /* version=1: helper short-circuits to ENOTSUP without invoking the callback. */
-    F_SET(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
-    WT_CRYPT_KEYS crypt_push = {};
-    REQUIRE(__wti_key_provider_get_key(session_impl, &crypt_push) == ENOTSUP);
-    REQUIRE(crypt_push.keys.size == 0); /* Callback was not called. */
+    /* version=1: push flag is set. */
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+    REQUIRE(F_ISSET(conn_impl, WT_CONN_KEY_PROVIDER_PUSH));
+
+    /* Cleanup so the fixture destructor doesn't see a stale provider. */
+    conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
 }
 

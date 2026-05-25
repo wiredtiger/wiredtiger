@@ -2936,25 +2936,6 @@ err:
 }
 
 /*
- * __wti_key_provider_get_key --
- *     Invoke the key provider's get_key callback, gated on the configured key provider API version.
- *     Returns ENOTSUP when the push-model API is configured.
- */
-int
-__wti_key_provider_get_key(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_KEY_PROVIDER *kp;
-
-    conn = S2C(session);
-    if (F_ISSET(conn, WT_CONN_KEY_PROVIDER_PUSH))
-        return (ENOTSUP);
-
-    kp = conn->key_provider;
-    return (kp->get_key(kp, (WT_SESSION *)session, crypt));
-}
-
-/*
  * __conn_set_file_system --
  *     Configure a custom file system implementation on database open.
  */

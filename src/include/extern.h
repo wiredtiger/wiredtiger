@@ -1559,8 +1559,6 @@ extern int __wti_hex2byte(const u_char *from, u_char *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_key_provider_get_key(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
