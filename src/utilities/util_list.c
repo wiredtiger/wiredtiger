@@ -160,8 +160,8 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
         return (util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
     }
     /*
-     * Enter quiet-corrupt mode now that the metadata dhandle is open: internal F_SET/F_CLR pairs
-     * in the open path would otherwise wipe a pre-set flag.
+     * Enter quiet-corrupt mode now that the metadata dhandle is open: internal scoped set/clear
+     * pairs in the open path would otherwise wipe a pre-set flag.
      */
     if (quiet_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);

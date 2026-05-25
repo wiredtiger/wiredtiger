@@ -63,7 +63,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
         return (ret);
 
     /*
-     * Enter quiet-corrupt mode now that the dhandle is open: internal F_SET/F_CLR pairs in the
+     * Enter quiet-corrupt mode now that the dhandle is open: internal scoped set/clear pairs in the
      * open path would otherwise wipe a pre-set flag. The flag stays set for the rest of the
      * cursor's lifetime.
      */

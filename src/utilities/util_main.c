@@ -12,8 +12,8 @@ const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
 const char *usage_prefix = "[-BLmpqRrSVv] [-C config] [-E secretkey] [-h home]";
-bool verbose = false; /* Verbose flag */
-bool quiet_corrupt = false; /* -q: continue past corrupt pages for read-oriented subcommands */
+bool verbose = false;       /* Verbose flag */
+bool quiet_corrupt = false; /* -q: continue past corrupt pages for read-oriented wt commands */
 
 static const char *command; /* Command name */
 
@@ -54,7 +54,7 @@ usage(void)
       "data)",
       "-q",
       "continue past corrupt pages where possible: sets the session-level quiet-corrupt flag for "
-      "read-oriented subcommands (dump, read, stat, list). Output is best-effort and the command "
+      "read-oriented commands (dump, read, stat, list). Output is best-effort and the command "
       "exits non-zero. Pair with -p (disable prefetch) when inspecting damaged data.",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
@@ -292,8 +292,8 @@ main(int argc, char *argv[])
     }
 
     /*
-     * -q is only meaningful for read-oriented subcommands. Reject it on anything else so users
-     * get an immediate, clear error rather than a silently no-op'd flag.
+     * -q is only meaningful for read-oriented commands. Reject it on anything else so users get
+     * an immediate, clear error rather than a silently ignored flag.
      */
     if (quiet_corrupt && func != util_dump && func != util_read && func != util_stat &&
       func != util_list && func != util_printlog) {
@@ -375,11 +375,11 @@ open:
     }
 
     /*
-     * -q: each read-oriented subcommand sets WT_SESSION_QUIET_CORRUPT_FILE on the session itself,
+     * -q: each read-oriented command sets WT_SESSION_QUIET_CORRUPT_FILE on the session itself,
      * after opening any cursors it iterates. We can't set the flag here because internal code
-     * paths use scoped F_SET / F_CLR pairs (e.g. bt_handle.c, schema_create.c) that would wipe out
-     * a pre-set flag the moment a dhandle is opened. The subcommands consult the `quiet_corrupt`
-     * global to decide whether to enter quiet mode.
+     * paths use scoped set/clear pairs (e.g. bt_handle.c, schema_create.c) that would wipe out a
+     * pre-set flag the moment a dhandle is opened. The commands consult the `quiet_corrupt` global
+     * to decide whether to enter quiet mode.
      */
 
     /* Call the function after opening the database and session. */

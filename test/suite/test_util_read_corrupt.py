@@ -33,18 +33,18 @@ from suite_subprocess import suite_subprocess
 import wttest
 
 # test_util_read_corrupt.py
-#    Cover the global `wt -q` flag (WT-17348): read-oriented subcommands must
+#    Cover the global `wt -q` flag (WT-17348): read-oriented commands must
 #    produce partial output and exit non-zero on a corrupt page rather than
 #    crashing, and must still abort without -q. The dispatcher must reject -q
-#    on commands outside the read-oriented allowlist.
+#    on commands outside the read-oriented set.
 class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util_read_corrupt.a'
     uri = 'table:' + tablename
     nentries = 2000
 
     # The shared-table layout in the disagg hook hides the on-disk file we need
-    # to overwrite, so the same skip rule as test_verify's open_and_position
-    # applies here.
+    # to overwrite, so the same skip rule as the open_and_position helper in
+    # test_verify applies here.
     def skip_test_if_disagg(self):
         if 'disagg' in self.hook_names:
             self.skipTest('disagg hook: shared tables hide the .wt file we need to corrupt')
@@ -97,7 +97,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
         self.corrupt_leaf_page()
 
-        # Build a spread of keys across the keyspace so some lookups land on the
+        # Build a spread of keys across the table so some lookups land on the
         # corrupted region (~75% into the file) and others don't.
         all_keys = []
         k = ''
@@ -109,7 +109,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We don't know which keys will hit the corrupt page on a given platform
         # / build. The contract is: must not crash, must produce some output for
-        # keys that are readable. Bypass runWt's exit-code assertion and check
+        # keys that are readable. Bypass the runWt exit-code assertion and check
         # output directly.
         wtexe = os.path.join(wt_builddir, '.libs', 'wt')
         if not os.path.isfile(wtexe):
@@ -157,9 +157,8 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             'wt -q list omitted the user table from the metadata listing')
 
     def test_q_rejected_on_write_command(self):
-        # The dispatcher must reject -q for commands that are not on the
-        # read-oriented allowlist. `create` is a good representative of the
-        # rejected set.
+        # The dispatcher must reject -q for commands that are not on the read-
+        # oriented list. `create` is a good representative of the rejected set.
         self.close_conn()
         self.runWt(['-q', 'create', '-c', 'key_format=S,value_format=S',
                     'table:does_not_matter'],
@@ -167,7 +166,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         with open('create_q.err') as f:
             err = f.read()
         self.assertIn('-q is only valid for read-oriented commands', err,
-            'wt -q create did not produce the expected allowlist error')
+            'wt -q create did not produce the expected rejection error')
 
 if __name__ == '__main__':
     wttest.run()
