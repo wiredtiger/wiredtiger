@@ -1353,6 +1353,8 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
     WT_RET(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
 
+    F_SET(internal_session, WT_SESSION_STEPPING_UP);
+
     /*
      * We need to hold the checkpoint lock while stepping up, because if we change the role
      * concurrently with a checkpoint, it would do only a part of the work required for the new
@@ -1391,9 +1393,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
 
     /* Create any missing stable tables. */
-    F_SET(internal_session, WT_SESSION_CREATING_MISSING_STABLE);
     ret = __layered_create_missing_stable_tables(internal_session);
-    F_CLR(internal_session, WT_SESSION_CREATING_MISSING_STABLE);
     WT_ERR_MSG_CHK(session, ret, "Failed to create missing stable tables");
 
     /* Drain the ingest tables before switching to leader. */
@@ -1401,6 +1401,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       "Failed to drain ingest tables");
 
 err:
+    F_CLR(internal_session, WT_SESSION_STEPPING_UP);
     WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
