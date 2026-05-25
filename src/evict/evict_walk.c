@@ -341,7 +341,6 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     dhandle = NULL;
     dhandle_list_locked = false;
     retries = 0;
-    aggressive = false;
 
     /*
      * Set the starting slot in the queue and the maximum pages added per walk.
