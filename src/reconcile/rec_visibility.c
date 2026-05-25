@@ -1103,7 +1103,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     WT_UPDATE *upd, *first_pruned_update, *last_non_aborted;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
-    bool found_last_upd_to_keep, onpage_gc_eligible, traversed_full_update_chain;
+    bool found_last_upd_to_keep, traversed_full_update_chain;
 
     btree = S2BT(session);
     max_ts = WT_TS_NONE;
@@ -1116,8 +1116,6 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     last_non_aborted = NULL;
     found_last_upd_to_keep = false;
     traversed_full_update_chain = true;
-    onpage_gc_eligible =
-      WT_REC_HAS_ON_DISK(vpack) && __rec_row_garbage_collect_tw_eligible(r, &vpack->tw);
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
@@ -1275,6 +1273,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          * is the existing on-page value. If the base value is GC-eligible, force the MODIFY to be
          * written as a full reconstructed value now.
          */
+        bool onpage_gc_eligible = __rec_row_garbage_collect_tw_eligible(r, &vpack->tw);
         if (!onpage_gc_eligible || last_non_aborted == NULL ||
           last_non_aborted->type != WT_UPDATE_MODIFY) {
             *has_newer_updatesp |= (upd_select->upd != NULL);
