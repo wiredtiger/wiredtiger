@@ -781,7 +781,7 @@ __disagg_pick_up_latest_checkpoint(WT_SESSION_IMPL *session, const char **cfg)
           session, complete_checkpoint_meta.data, complete_checkpoint_meta.size);
         WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
     } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
-        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+        __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
           "Did not find any complete checkpoint to pick up at startup");
 
 err:
