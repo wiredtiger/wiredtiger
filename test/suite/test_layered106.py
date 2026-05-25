@@ -30,7 +30,7 @@ import wttest
 from helper_disagg import disagg_test_class
 
 # test_layered106.py
-# Verify the disaggregated.pickup_latest_checkpoint knob: a follower with no
+# Verify the disaggregated.pickup_latest_checkpoint config: a follower with no
 # explicit checkpoint_meta should auto-apply the latest checkpoint from the
 # page log at open time (the `wt` utility scenario).
 
@@ -43,6 +43,11 @@ class test_layered106(wttest.WiredTigerTestCase):
     def conn_config(self):
         return 'disaggregated=(role="leader")'
 
+    # pickup_latest here is the C-level disaggregated.pickup_latest_checkpoint config,
+    # which makes the connection itself resolve and apply the latest checkpoint at open
+    # time. It is distinct from restart_without_local_files()'s pickup_checkpoint, which
+    # is helper-side plumbing that step-downs the old conn, captures checkpoint_meta,
+    # and reconfigures the reopened conn with that explicit meta.
     def _follower_config(self, pickup_latest=False, checkpoint_meta=None, verbose_disagg=False):
         config = ''
         if verbose_disagg:
@@ -67,7 +72,7 @@ class test_layered106(wttest.WiredTigerTestCase):
         # Step down so close does not write a shutdown checkpoint after ours.
         self.conn.reconfigure('disaggregated=(role="follower")')
 
-        # Reopen as follower with the knob, no explicit checkpoint_meta;
+        # Reopen as follower with the config, no explicit checkpoint_meta;
         # auto-pickup should pull the latest checkpoint from the page log.
         self.restart_without_local_files(
             config=self._follower_config(pickup_latest=True),
@@ -103,5 +108,6 @@ class test_layered106(wttest.WiredTigerTestCase):
         session.close()
 
     def test_reconfigure_silently_ignores(self):
-        # The knob is initial-open only; reconfigure must accept it without error.
+        # pickup_latest_checkpoint is initial-open only; passing it to reconfigure
+        # must be a silent no-op rather than an error.
         self.conn.reconfigure('disaggregated=(pickup_latest_checkpoint=true)')
