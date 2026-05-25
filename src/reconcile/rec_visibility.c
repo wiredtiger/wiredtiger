@@ -1103,7 +1103,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     WT_UPDATE *upd, *first_pruned_update, *last_non_aborted;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
-    bool found_last_upd_to_keep, onpage_gc_eligible;
+    bool found_last_upd_to_keep, onpage_gc_eligible, traversed_full_update_chain;
 
     btree = S2BT(session);
     max_ts = WT_TS_NONE;
@@ -1115,6 +1115,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     first_pruned_update = NULL;
     last_non_aborted = NULL;
     found_last_upd_to_keep = false;
+    traversed_full_update_chain = true;
     onpage_gc_eligible =
       WT_REC_HAS_ON_DISK(vpack) && __rec_row_garbage_collect_tw_eligible(r, &vpack->tw);
 
@@ -1209,6 +1210,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (WT_REC_CAN_PRUNE_UPD(upd->txnid, upd->upd_durable_ts, r)) {
             first_pruned_update = upd;
             found_last_upd_to_keep = upd_select->upd != NULL;
+            traversed_full_update_chain = false;
             /* Mark we are making progress for eviction so eviction doesn't stall. */
             r->update_used = true;
             break;
@@ -1225,6 +1227,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
                   upd->upd_durable_ts == WT_TS_NONE) &&
               __wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
+                traversed_full_update_chain = false;
                 break;
             }
         }
@@ -1266,6 +1269,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      * If the goal is to prune the entire key, avoid clearing the selected update.
      */
     if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
+        WT_ASSERT(session, traversed_full_update_chain);
         /*
          * If the bottom non-aborted entry in the update chain is a MODIFY, that MODIFY's
          * reconstruction base is the existing on-page value. If the base value is GC-eligible,
