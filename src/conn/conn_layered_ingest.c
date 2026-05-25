@@ -784,20 +784,26 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_LAYERED_DRAIN_ENTRY *work_item;
+    const char *ingest_uri;
     WT_UNUSED(ctx);
+
+    F_SET(session, WT_SESSION_STEPPING_UP);
+
     __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
     /* If the queue is empty we are done. */
     if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
         __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+        F_CLR(session, WT_SESSION_STEPPING_UP);
         return (0);
     }
 
-    WT_LAYERED_DRAIN_ENTRY *work_item = TAILQ_FIRST(&conn->layered_drain_data.work_queue);
+    work_item = TAILQ_FIRST(&conn->layered_drain_data.work_queue);
     WT_ASSERT(session, work_item != NULL);
     TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
-    const char *ingest_uri = work_item->ingest_dhandle->name;
+    ingest_uri = work_item->ingest_dhandle->name;
 
     WT_ERR_MSG_CHK(session, __layered_drain_ingest_table_and_truncate_list(session, ingest_uri),
       "Failed to drain ingest and truncate list for \"%s\"", ingest_uri);
@@ -818,6 +824,7 @@ err:
      */
     WT_WITH_DHANDLE(session, work_item->ingest_dhandle, __wt_cursor_dhandle_decr_use(session));
     __wt_free(session, work_item);
+    F_CLR(session, WT_SESSION_STEPPING_UP);
     return (ret);
 }
 
