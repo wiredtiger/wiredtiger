@@ -87,6 +87,42 @@ class test_layered106(wttest.WiredTigerTestCase):
         for i in range(self.nrows):
             self.assertEqual(seen[i], 'value' + str(i))
 
+    def test_leader_auto_pickup(self):
+        # Leader: create a table, write some rows, checkpoint.
+        self.session.create(self.uri, self.create_session_config)
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+        self.session.checkpoint()
+
+        # Step down so close does not write a shutdown checkpoint after ours.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+
+        # Reopen as leader with pickup_latest_checkpoint=true and no explicit
+        # checkpoint_meta. Auto-pickup should install the latest checkpoint and
+        # then begin the next checkpoint window so writes can resume.
+        self.restart_without_local_files(
+            config='disaggregated=(role="leader",pickup_latest_checkpoint=true)',
+            pickup_checkpoint=False)
+
+        cursor = self.session.open_cursor(self.uri)
+        seen = {k: v for k, v in cursor}
+        cursor.close()
+        self.assertEqual(len(seen), self.nrows,
+            f"expected {self.nrows} rows after leader auto-pickup, got {len(seen)}")
+        for i in range(self.nrows):
+            self.assertEqual(seen[i], 'value' + str(i))
+
+        # The new leader should be able to drive the next checkpoint: write a
+        # few more rows and commit a checkpoint, exercising the begin_checkpoint
+        # call that auto-pickup performs for leaders.
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows, self.nrows + 10):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+        self.session.checkpoint()
+
     def test_follower_auto_pickup_empty(self):
         # Suppress verify-side disagg verbose lines emitted during teardown.
         self.ignoreStdoutPattern(r'WT_SESSION\.verify: \[WT_VERB_DISAGGREGATED_STORAGE\]')
