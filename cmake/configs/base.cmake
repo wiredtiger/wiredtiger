@@ -417,7 +417,7 @@ if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
         # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including
         # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
         # DWARF v4 is supplied explicitly to be safe across toolchain defaults.
-        set(debug_info_flags " -g3 -gdwarf-4")
+        set(debug_info_flags "-g3 -gdwarf-4")
         if(CLANG_C_COMPILER)
             string(APPEND debug_info_flags " -glldb -fdebug-macro")
         else()
@@ -426,9 +426,9 @@ if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
         foreach(build_type IN LISTS BUILD_TYPES_WITH_DEBUG_INFO)
             string(TOUPPER "${build_type}" BT)
             set(CMAKE_C_FLAGS_${BT}
-                "${CMAKE_C_FLAGS_${BT}}${debug_info_flags}"   CACHE STRING "" FORCE)
+                "${CMAKE_C_FLAGS_${BT}} ${debug_info_flags}"   CACHE STRING "" FORCE)
             set(CMAKE_CXX_FLAGS_${BT}
-                "${CMAKE_CXX_FLAGS_${BT}}${debug_info_flags}" CACHE STRING "" FORCE)
+                "${CMAKE_CXX_FLAGS_${BT}} ${debug_info_flags}" CACHE STRING "" FORCE)
         endforeach()
     endif()
 
