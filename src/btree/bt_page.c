@@ -1289,7 +1289,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     __wt_tsan_suppress_store_wt_page_header_ptr(&page->dsk, dsk);
     F_SET_ATOMIC_16(page, flags);
 
-    /* Update image stats early so it's balanced with __wt_page_out decr if an error fires below. */
+    /* Update image stats early so the increment is balanced by the page out decrement on error. */
     if (LF_ISSET(WT_PAGE_DISK_ALLOC) && !LF_ISSET(WT_PAGE_DISK_SHARED))
         __wt_cache_page_image_incr(session, page);
 

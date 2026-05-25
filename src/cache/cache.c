@@ -75,15 +75,10 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Initialize the shared disk hash table only on disaggregated nodes. Size the hash table at
-     * 0.2% of cache size divided by ~100B per entry (cache_size / 500 / 100), with a minimum of 512
+     * 0.2% of cache size divided by ~100B per entry (cache size / 500 / 100), with a minimum of 512
      * buckets.
-     *
-     * We cannot use __wt_conn_is_disagg here because __wti_disagg_conn_config hasn't run yet and
-     * page_log_meta is still NULL. Read the config directly instead.
-     *
-     * FIXME-WT-14721: Once the init ordering in conn_open.c is fixed so that
-     * __wti_disagg_conn_config runs before __wt_cache_create, replace this config lookup with
-     * __wt_conn_is_disagg(session).
+     * FIXME-WT-14721: Replace this config lookup with the standard disaggregated check once the
+     * disaggregated configuration is available here.
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     S2C(session)->cache->shared_dsk_cache.enabled = (cval.len != 0);

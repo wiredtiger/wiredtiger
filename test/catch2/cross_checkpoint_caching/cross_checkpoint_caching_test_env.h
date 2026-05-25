@@ -23,9 +23,9 @@ constexpr size_t CROSS_CHECKPOINT_CACHING_TEST_DATA_SIZE = WT_PAGE_HEADER_SIZE;
 
 /*
  * Stands up the minimum state needed to exercise the cross-checkpoint cache against a real
- * connection: a real WT_CACHE (created by wiredtiger_open), an initialized shared dsk cache, a real
- * dhandle + btree obtained by creating a table and opening a cursor on it, and enough of
- * conn->disaggregated_storage to satisfy the disagg assertion in destroy.
+ * connection: a real cache (created by wiredtiger open), an initialized shared disk cache,
+ * a real dhandle + btree obtained by creating a table and opening a cursor on it, and enough
+ * disaggregated storage state to satisfy the assertion in destroy.
  */
 class cross_checkpoint_caching_test_env {
 public:
