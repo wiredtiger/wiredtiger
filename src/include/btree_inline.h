@@ -2243,6 +2243,29 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_page_can_evict_disagg --
+ *     Extra check whether a disaggregated page can be evicted.
+ */
+static WT_INLINE bool
+__wt_page_can_evict_disagg(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_PAGE *page;
+
+    page = ref->page;
+
+    /*
+     * Always keep page ahead of materialization frontier.
+     */
+    if (page->disagg_info != NULL &&
+      !__wt_materialization_check(session, page->disagg_info->rec_lsn_max)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
+        return (false);
+    }
+
+    return (true);
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */
@@ -2283,16 +2306,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * to happen, as long as their equivalent content remains in cache until the materialization
      * frontier is satisfied.
      */
-    if (mod == NULL) {
-        if (page->disagg_info == NULL)
-            return (true);
-        else if (__wt_materialization_check(session, page->disagg_info->rec_lsn_max))
-            return (true);
-        else {
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
-            return (false);
-        }
-    }
+    if (mod == NULL)
+        return (__wt_page_can_evict_disagg(session, ref));
 
     /*
      * Check the fast-truncate information. Pages with an uncommitted truncate cannot be evicted.
@@ -2334,7 +2349,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (__wt_leaf_page_can_split(session, page)) {
         if (inmem_splitp != NULL)
             *inmem_splitp = true;
-        return (true);
+        return (__wt_page_can_evict_disagg(session, ref));
     }
 
     modified = __wt_page_is_modified(page);
@@ -2424,7 +2439,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
-    return (true);
+    return (__wt_page_can_evict_disagg(session, ref));
 }
 
 /*
