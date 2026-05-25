@@ -326,6 +326,26 @@ TEST_CASE_METHOD(kp_fixture, "Persist key, failure", "[key_provider]")
     free(const_cast<void *>(crypt.keys.data));
 }
 
+TEST_CASE_METHOD(kp_fixture, "Push-mode get_key returns ENOTSUP", "[key_provider]")
+{
+    kp_ptr_t kp = kp_init(nullptr);
+    REQUIRE(kp->wtext != nullptr);
+
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+
+    /* version=0 (default): pull path works. */
+    WT_CRYPT_KEYS crypt = {};
+    REQUIRE(__wti_key_provider_get_key(session_impl, &crypt) == 0);
+
+    /* version=1: helper short-circuits to ENOTSUP without invoking the callback. */
+    F_SET(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+    WT_CRYPT_KEYS crypt_push = {};
+    REQUIRE(__wti_key_provider_get_key(session_impl, &crypt_push) == ENOTSUP);
+    REQUIRE(crypt_push.keys.size == 0); /* Callback was not called. */
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
 TEST_CASE_METHOD(kp_fixture, "Key always expires", "[key_provider]")
 {
     kp_ptr_t kp = kp_init("key_expires=0");

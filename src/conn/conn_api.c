@@ -2907,16 +2907,13 @@ err:
 static int
 __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_NOCONF(conn, session, set_key_provider);
-
-    /* The configuration string has no use but may be useful at a later time. */
-    if (config != NULL)
-        WT_ERR_MSG(session, EINVAL, "key provider configuration currently not supported.");
+    CONNECTION_API_CALL(conn, session, set_key_provider, config, cfg);
 
     /* You can only enable the key provider system in disaggregated mode. */
     if (__wt_conn_is_disagg(session))
@@ -2928,10 +2925,33 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
     if (conn->key_provider != NULL)
         WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
 
+    WT_ERR(__wt_config_gets(session, cfg, "version", &cval));
+    if (cval.val == 1)
+        F_SET(conn, WT_CONN_KEY_PROVIDER_PUSH);
+
     conn->key_provider = key_provider;
 
 err:
     API_END_RET(session, ret);
+}
+
+/*
+ * __wti_key_provider_get_key --
+ *     Invoke the key provider's get_key callback, gated on the configured key provider API version.
+ *     Returns ENOTSUP when the push-model API is configured.
+ */
+int
+__wti_key_provider_get_key(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_KEY_PROVIDER *kp;
+
+    conn = S2C(session);
+    if (F_ISSET(conn, WT_CONN_KEY_PROVIDER_PUSH))
+        return (ENOTSUP);
+
+    kp = conn->key_provider;
+    return (kp->get_key(kp, (WT_SESSION *)session, crypt));
 }
 
 /*
