@@ -441,12 +441,6 @@ __layered_copy_ingest_table(
     prepare_resolved = prepare_txn_fixed = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
-    /* Stress: sleep while holding the ingest dhandle read lock. */
-    struct timespec tsp;
-    tsp.tv_sec = 0;
-    tsp.tv_nsec = 300 * WT_MILLION;
-    __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_SLOW, &tsp);
-
     WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
     WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
 
@@ -805,24 +799,6 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     const char *ingest_uri = work_item->ingest_dhandle->name;
 
-    /* Stress: sleep before acquiring the read lock. */
-    struct timespec tsp;
-    tsp.tv_sec = 0;
-    tsp.tv_nsec = 300 * WT_MILLION;
-    __wt_timing_stress(session, WT_TIMING_STRESS_DRAIN_INGEST_TABLE_PRE_LOCK_SLOW, &tsp);
-
-    /*
-     * Hold the ingest dhandle read lock for the duration of the drain to block concurrent drops.
-     * Check WT_DHANDLE_DEAD after acquiring: if a drop already won, skip rather than drain a dead
-     * handle.
-     */
-    __wt_readlock(session, &work_item->ingest_dhandle->rwlock);
-    if (F_ISSET(work_item->ingest_dhandle, WT_DHANDLE_DEAD)) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_2,
-          "skipping drain of dropped ingest table \"%s\"", ingest_uri);
-        goto err;
-    }
-
     WT_ERR_MSG_CHK(session, __layered_drain_ingest_table_and_truncate_list(session, ingest_uri),
       "Failed to drain ingest and truncate list for \"%s\"", ingest_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, ingest_uri),
@@ -836,7 +812,6 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
       "Failed to reset ingest table prune timestamp \"%s\"", ingest_uri);
 
 err:
-    __wt_readunlock(session, &work_item->ingest_dhandle->rwlock);
     /*
      * Balance the pin acquired when queueing. The work item has already been removed from the
      * queue, so the cleanup helper won't see it on the error path either.

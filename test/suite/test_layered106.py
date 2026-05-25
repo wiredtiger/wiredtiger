@@ -27,18 +27,18 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered106.py
-#   Regression test for a drain worker racing with a concurrent
-#   session.drop(force=True) during follower->leader step-up.  The drain
-#   worker must not panic in either race ordering.
+#   Verify that schema operations on layered tables are illegal during a role transition.
+#   Attempting to take a schema lock fires an assert when step-up or step-down is ongoing,
+#   aborting the process.
 #
-#   Two timing stress flags exercise the two orderings:
-#     drain_ingest_table_slow:          drain holds the read lock; drop returns EBUSY.
-#     drain_ingest_table_pre_lock_slow: drop wins first; drain sees a dead handle and skips.
+#   Eight scenarios cover drop, create, truncate, and verify against both transitions:
+#     step_up   + drop/create/truncate/verify: schema op races follower->leader step-up
+#     step_down + drop/create/truncate/verify: schema op races leader->follower step-down
 #
-#   Each scenario runs in a subprocess so that an abort is caught as a non-zero
-#   exit code without killing the test runner.
+#   Each scenario runs in a subprocess so that the expected abort is caught as a
+#   non-zero exit code without killing the test runner.
 
-import errno, os, threading, time, wiredtiger, wttest
+import threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -47,78 +47,74 @@ from wtscenario import make_scenarios
 class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_layered106'
     uri = 'layered:' + tablename
+    new_uri = 'layered:' + tablename + '_new'
     num_rows = 100
 
     disagg_storages = gen_disagg_storages('test_layered106', disagg_only=True)
-    race_scenarios = [
-        ('drain_wins', dict(stress_flag='drain_ingest_table_slow', expect_ebusy=True)),
-        ('drop_wins', dict(stress_flag='drain_ingest_table_pre_lock_slow', expect_ebusy=False)),
+    transitions = [
+        ('step_up',   dict(stress_flag='step_up_slow',   start_role='follower', target_role='leader')),
+        ('step_down', dict(stress_flag='step_down_slow', start_role='leader',   target_role='follower')),
     ]
-    scenarios = make_scenarios(disagg_storages, race_scenarios)
+    ops = [
+        ('drop_lock_wait',   dict(op='drop', lock_wait=True)),
+        ('drop_lock_nowait', dict(op='drop', lock_wait=False)),
+        ('create',    dict(op='create')),
+        ('truncate',  dict(op='truncate')),
+        ('verify',    dict(op='verify')),
+    ]
+    scenarios = make_scenarios(disagg_storages, transitions, ops)
 
     conn_config = 'disaggregated=(role="leader",drain_threads=1)'
 
     def _race_scenario(self):
-        # Set up leader data, reopen as follower, then race step-up (which drains
-        # ingest tables) against a concurrent drop of the same table.
-
-        # Create and populate the table via the leader connection.
+        # Create and populate the table as leader so the drop scenarios have something to drop.
         self.session.create(self.uri,
                             'key_format=i,value_format=S,block_manager=disagg,type=layered')
-        cursor = self.session.open_cursor(self.uri)
+        c = self.session.open_cursor(self.uri)
         for i in range(self.num_rows):
-            cursor[i] = 'value'
-        cursor.close()
-
-        # Close the leader connection, flushing a checkpoint.
+            c[i] = 'value'
+        c.close()
         self.close_conn()
 
-        # Reopen as a follower with the timing stress flag.
         conn = wiredtiger.wiredtiger_open(
             self.home,
             'statistics=(all)'
             + self.extensionsConfig()
-            + ',disaggregated=(role=follower,drain_threads=2)'
+            + f',disaggregated=(role={self.start_role},drain_threads=2)'
             + f',timing_stress_for_test=[{self.stress_flag}]')
+
         session = conn.open_session('')
 
-        # We closed a leader that wrote rows, so a complete checkpoint must exist.
-        meta = self.disagg_get_complete_checkpoint_meta(conn)
-        self.assertIsNotNone(meta, 'expected a complete checkpoint from the leader')
-        conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
+        if self.start_role == 'follower':
+            # Provide the leader checkpoint so the follower can open the table.
+            meta = self.disagg_get_complete_checkpoint_meta(conn)
+            self.assertIsNotNone(meta, 'expected a complete checkpoint from the leader')
+            conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
+            session.open_cursor(self.uri).close()
 
-        # Touch the table to lazy-open the ingest dhandle before step-up.
-        session.open_cursor(self.uri).close()
-
-        # Step up to leader in a thread; the race happens here.
+        # Start the role transition in a background thread; the stress flag will hold the
+        # reconfiguring flag set for 300 ms, giving the schema op below time to race it.
         t = threading.Thread(
-            target=lambda: conn.reconfigure('disaggregated=(role=leader)'),
+            target=lambda: conn.reconfigure(f'disaggregated=(role={self.target_role})'),
             daemon=True)
         t.start()
 
-        # Sleep to ensure the drop races the drain worker rather than preceding it.
+        # Wait 100ms to be inside the stress window, then attempt the schema op.
+        # The assertion in WT_WITH_SCHEMA_LOCK must fire and abort the process.
         time.sleep(0.1)
-
-        ebusy = False
-        try:
-            session.drop(self.uri, 'force=true,checkpoint_wait=false')
-        except wiredtiger.WiredTigerError as e:
-            if os.strerror(errno.EBUSY) in str(e):
-                ebusy = True
-            else:
-                raise
+        match self.op:
+            case 'drop':
+                lw = 'true' if self.lock_wait else 'false'
+                session.drop(self.uri, f'force=true,checkpoint_wait=false,lock_wait={lw}')
+            case 'create':
+                session.create(self.new_uri,
+                                'key_format=i,value_format=S,block_manager=disagg,type=layered')
+            case 'truncate':
+                session.truncate(self.uri, None, None, None)
+            case 'verify':
+                session.verify(self.uri, None)
 
         t.join()
-
-        if self.expect_ebusy:
-            self.assertTrue(ebusy, 'drain wins: expected EBUSY but drop succeeded')
-            session.drop(self.uri, 'force=true,checkpoint_wait=false')
-        else:
-            self.assertFalse(ebusy, 'drop wins: expected success but got EBUSY')
-
-        # Check that the table was successfully dropped.
-        with self.assertRaises(wiredtiger.WiredTigerError):
-            session.open_cursor(self.uri)
 
         conn.close()
 
@@ -129,4 +125,5 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         rc, _ = self.run_subprocess_function(
             'SUBPROCESS',
             'test_layered106.test_layered106.subprocess_race')
-        self.assertEqual(rc, 0, f'{self.stress_flag}: subprocess exited non-zero (likely abort)')
+        self.assertNotEqual(rc, 0,
+            f'{self.stress_flag}: expected process to abort on assertion but exited 0')

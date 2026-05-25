@@ -1364,6 +1364,12 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
+    /* Stress: hold the step-up flag set to let concurrent schema ops hit the assertion. */
+    struct timespec __tsp;
+    __tsp.tv_sec = 0;
+    __tsp.tv_nsec = 300 * WT_MILLION;
+    __wt_timing_stress(session, WT_TIMING_STRESS_STEP_UP_SLOW, &__tsp);
+
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
      * below depend on WiredTiger already being in the leader mode.
@@ -1385,8 +1391,10 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
 
     /* Create any missing stable tables. */
-    WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(internal_session),
-      "Failed to create missing stable tables");
+    F_SET(internal_session, WT_SESSION_CREATING_MISSING_STABLE);
+    ret = __layered_create_missing_stable_tables(internal_session);
+    F_CLR(internal_session, WT_SESSION_CREATING_MISSING_STABLE);
+    WT_ERR_MSG_CHK(session, ret, "Failed to create missing stable tables");
 
     /* Drain the ingest tables before switching to leader. */
     WT_ERR_MSG_CHK(session, __wti_layered_drain_ingest_tables(internal_session),
@@ -1448,10 +1456,21 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
+
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+
+    /* Stress: hold the step-down flag set to let concurrent schema ops hit the assertion. */
+    struct timespec __tsp;
+    __tsp.tv_sec = 0;
+    __tsp.tv_nsec = 300 * WT_MILLION;
+    __wt_timing_stress(session, WT_TIMING_STRESS_STEP_DOWN_SLOW, &__tsp);
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
@@ -1462,6 +1481,8 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);
+
+    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
 }
 
 /*
