@@ -419,10 +419,8 @@ __wti_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *
 
 /*
  * __wt_debug_disagg_page_id --
- *     Read and dump a disaggregated-storage page given a (page_id, lsn) pair. Drives the disagg
- *     block manager directly via __wt_block_disagg_debug_read_page_id, bypassing the address cookie
- *     path. The base page is dumped through the normal disk-image debugger; any deltas are dumped
- *     as raw bytes.
+ *     Fetch and dump a disaggregated page chain by (page_id, lsn), bypassing the address-cookie
+ *     path; deltas are raw-dumped because structured delta decoding is not yet supported.
  */
 int
 __wt_debug_disagg_page_id(
@@ -455,10 +453,10 @@ __wt_debug_disagg_page_id(
           count - 1));
 
     for (i = 0; i < count; i++) {
-        __wt_page_header_byteswap((void *)results[i].data);
-        if (i == 0)
+        if (i == 0) {
+            __wt_page_header_byteswap((void *)results[i].data);
             WT_TRET(__wti_debug_disk(session, results[i].data, ofile, true, false));
-        else
+        } else
             __wt_log_data_dump(session, results[i].data, results[i].size,
               "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
     }
