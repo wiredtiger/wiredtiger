@@ -92,6 +92,14 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
+    /*
+     * Set the quiet-corrupt flag if -q is on. The log scan path does not consult this flag today,
+     * so this is a no-op for log corruption; the wiring is in place for when the log/txn scan
+     * learns to honour it.
+     */
+    if (quiet_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
+
     if ((ret = __wt_txn_printlog(session, ofile, flags, start_set == true ? &start_lsn : NULL,
            end_set == true ? &end_lsn : NULL)) != 0)
         (void)util_err(session, ret, "printlog");

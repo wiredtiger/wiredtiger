@@ -94,8 +94,18 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
           session->strerror(session, ret));
         goto err;
     }
+    /*
+     * Enter quiet-corrupt mode now that the dhandle is open: internal F_SET/F_CLR pairs in the
+     * open path would otherwise wipe a pre-set flag.
+     */
+    if (quiet_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 
-    /* List the statistics. */
+    /*
+     * List the statistics. In quiet-corrupt mode (global -q) a cursor error mid-iteration is
+     * reported and we end the loop gracefully so any partial output is flushed; the command
+     * still exits non-zero.
+     */
     while ((ret = cursor->next(cursor)) == 0 &&
       (ret = cursor->get_value(cursor, &desc, &pval, NULL)) == 0)
         if (printf("%s=%s\n", desc, pval) < 0) {
@@ -108,7 +118,9 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     if (ret != 0) {
         fprintf(stderr, "%s: cursor get(%s) failed: %s\n", progname, objname,
           session->strerror(session, ret));
-        goto err;
+        if (!F_ISSET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE))
+            goto err;
+        ret = 1;
     }
 
     if (0) {

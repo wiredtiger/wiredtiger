@@ -11,8 +11,9 @@
 const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
-const char *usage_prefix = "[-BLmpRrSVv] [-C config] [-E secretkey] [-h home]";
+const char *usage_prefix = "[-BLmpqRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false; /* Verbose flag */
+bool quiet_corrupt = false; /* -q: continue past corrupt pages for read-oriented subcommands */
 
 static const char *command; /* Command name */
 
@@ -51,6 +52,10 @@ usage(void)
       "run live restore using the source path specified.", "-m", "run verify on metadata", "-p",
       "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
       "data)",
+      "-q",
+      "continue past corrupt pages where possible: sets the session-level quiet-corrupt flag for "
+      "read-oriented subcommands (dump, read, stat, list). Output is best-effort and the command "
+      "exits non-zero. Pair with -p (disable prefetch) when inspecting damaged data.",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
@@ -116,9 +121,10 @@ main(int argc, char *argv[])
     rec_config = REC_ERROR;
     backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
       false;
+    quiet_corrupt = false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpRrSVv?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF)
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -151,6 +157,9 @@ main(int argc, char *argv[])
             break;
         case 'p':
             disable_prefetch = true;
+            break;
+        case 'q':
+            quiet_corrupt = true;
             break;
         case 'R': /* recovery */
             rec_config = REC_RECOVER;
@@ -282,6 +291,19 @@ main(int argc, char *argv[])
         goto err;
     }
 
+    /*
+     * -q is only meaningful for read-oriented subcommands. Reject it on anything else so users
+     * get an immediate, clear error rather than a silently no-op'd flag.
+     */
+    if (quiet_corrupt && func != util_dump && func != util_read && func != util_stat &&
+      func != util_list && func != util_printlog) {
+        fprintf(stderr,
+          "%s: -q is only valid for read-oriented commands: dump, read, stat, list, printlog "
+          "(verify has its own -c flag)\n",
+          progname);
+        goto err;
+    }
+
 open:
     /* Build the configuration string. */
     len = 10; /* some slop */
@@ -351,6 +373,14 @@ open:
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
+
+    /*
+     * -q: each read-oriented subcommand sets WT_SESSION_QUIET_CORRUPT_FILE on the session itself,
+     * after opening any cursors it iterates. We can't set the flag here because internal code
+     * paths use scoped F_SET / F_CLR pairs (e.g. bt_handle.c, schema_create.c) that would wipe out
+     * a pre-set flag the moment a dhandle is opened. The subcommands consult the `quiet_corrupt`
+     * global to decide whether to enter quiet mode.
+     */
 
     /* Call the function after opening the database and session. */
     ret = func(session, argc, argv);

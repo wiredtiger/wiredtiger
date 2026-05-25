@@ -159,6 +159,12 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 
         return (util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
     }
+    /*
+     * Enter quiet-corrupt mode now that the metadata dhandle is open: internal F_SET/F_CLR pairs
+     * in the open path would otherwise wipe a pre-set flag.
+     */
+    if (quiet_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     found = uri == NULL;
     while ((ret = cursor->next(cursor)) == 0) {
@@ -195,14 +201,21 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
             fprintf(fp, "%s\n", value);
         }
     }
-    if (ret != WT_NOTFOUND)
-        return (util_cerr(cursor, "next", ret));
+    if (ret != WT_NOTFOUND) {
+        /*
+         * In quiet-corrupt mode (global -q) we report the cursor error and end the listing so the
+         * caller still sees the entries that were readable; the command exits non-zero.
+         */
+        (void)util_cerr(cursor, "next", ret);
+        if (!F_ISSET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE))
+            return (1);
+    }
     if (!found) {
         fprintf(stderr, "%s: %s: not found\n", progname, uri);
         return (1);
     }
 
-    return (0);
+    return (ret == WT_NOTFOUND ? 0 : 1);
 }
 
 /*
