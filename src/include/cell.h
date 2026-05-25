@@ -273,9 +273,8 @@ struct __wti_delta_int_merge_state {
 
 /*
  * WTI_BASE_INT_MERGE_STATE --
- *	Base page state for progressive internal page merging. Tracks the current position in the
- *	base page byte stream; the head key+value pair is unpacked on demand via
- *WT_CELL_BASE_INT_UNPACK.
+ *	State for progressively merging an internal page. Tracks the current position in the base
+ *	page byte stream; the leading key+value pair is decoded lazily on first access.
  *
  * The read position advances when an entry is decoded, not when it is consumed. Consuming or
  * discarding an entry resets the decoded flag and decrements the remaining count by 2, so the

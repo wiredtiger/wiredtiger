@@ -42,10 +42,9 @@ __page_find_min_delta_int(WT_SESSION_IMPL *session, WTI_DELTA_INT_MERGE_STATE s[
             continue;
 
         /*
-         * Unpack on demand: WT_CELL_DELTA_INT_UNPACK advances s[i].cell past both the key and
-         * value cells and sets s[i].unpacked = true. On subsequent calls for the same stream,
-         * `unpacked` is still true (the head entry has not been consumed), so we skip unpacking
-         * and compare the already-decoded key directly.
+         * Unpack on demand: the first time a stream entry is visited, decode both the key and value
+         * and mark it as unpacked. On subsequent visits to the same entry before it is consumed,
+         * skip decoding and compare against the already-decoded key.
          */
         if (!s[i].unpacked)
             WT_CELL_DELTA_INT_UNPACK(session, base_page_header, &s[i]);
