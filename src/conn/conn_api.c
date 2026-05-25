@@ -1448,7 +1448,7 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     session_ret = NULL;
     WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
-    session_ret->name = "connection-open-session";
+    __wt_atomic_store_ptr_relaxed(&session_ret->name, "connection-open-session");
     *wt_sessionp = &session_ret->iface;
 
 err:
