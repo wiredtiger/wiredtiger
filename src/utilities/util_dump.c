@@ -820,9 +820,12 @@ dump_record(
     if (ret != 0)
         WT_ERR(util_cerr(cursor, "search_near", ret));
 
-    /* Unable to find the exact key specified. */
+    /*
+     * Unable to find the exact key specified. This is not a fatal error: the user asked for one
+     * key, no record matches, so there is simply nothing to dump. ret is already 0 here.
+     */
     if (exact != 0 && !search_near)
-        WT_ERR(WT_NOTFOUND);
+        goto err;
 
     if (window == 0)
         WT_ERR(print_record(cursor, json));
@@ -855,8 +858,14 @@ dump_record(
             }
             WT_ERR(print_record(cursor, json));
             if ((ret = fwd(cursor)) != 0) {
-                if (ret == WT_NOTFOUND)
+                if (ret == WT_NOTFOUND) {
+                    /*
+                     * The window ran past the last record. That is the natural end of the dump, not
+                     * an error. Clear ret so the caller sees success.
+                     */
+                    ret = 0;
                     break;
+                }
                 WT_ERR(util_cerr(cursor, "cursor", ret));
             }
             once = true;
