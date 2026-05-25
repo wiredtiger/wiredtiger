@@ -1690,7 +1690,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                   "that implements pl_get_complete_checkpoint");
             WT_ERR(ret);
 
-            /* Followers are read-only: only the leader drives checkpoints. */
+            /*
+             * The leader has just installed the previous checkpoint as its starting state; open
+             * the next checkpoint window so subsequent writes accumulate into it. Followers are
+             * read-only and never drive a checkpoint, so skip this.
+             */
             if (leader) {
                 WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
                 WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
