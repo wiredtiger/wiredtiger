@@ -5650,21 +5650,6 @@ struct __wt_page_log {
     int (*pl_abandon_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 
     /*!
-     * Begin checkpointing using the given checkpoint_id.  After this call, any handle
-     * can put or get using the checkpoint id.  The checkpoint id must be greater than
-     * any previous checkpoint id used with this call.
-     *
-     * @errors
-     *
-     * @param page_log the WT_PAGE_LOG
-     * @param session the current WiredTiger session
-     * @param checkpoint_id the checkpoint id to use. Must be greater than any other
-     *        checkpoint_id used with this call.
-     */
-    /* FIXME-WT-17548 will be removed. */
-    int (*pl_begin_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id);
-
-    /*!
      * Complete checkpointing using the given checkpoint_id. This implies that other
      * nodes can now use the given checkpoint_id. (Do not use - will be deprecated.)
      *
