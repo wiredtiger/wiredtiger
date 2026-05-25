@@ -1691,8 +1691,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_ERR(ret);
 
             /*
-             * The leader has just installed the previous checkpoint as its starting state; open
-             * the next checkpoint window so subsequent writes accumulate into it. Followers are
+             * The leader has just installed the previous checkpoint as its starting state; open the
+             * next checkpoint window so subsequent writes accumulate into it. Followers are
              * read-only and never drive a checkpoint, so skip this.
              */
             if (leader) {
