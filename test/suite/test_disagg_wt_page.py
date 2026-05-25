@@ -123,7 +123,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
 
     def _assert_chain_header(self, stdout, page):
         self.assertIn(
-            f"get_args: page_id={page.page_id} lsn={page.lsn} "
+            f"disagg_meta: page_id={page.page_id} lsn={page.lsn} "
             f"base_lsn={page.base_lsn} backlink_lsn={page.backlink_lsn} ",
             stdout)
         return int(re.search(r"^results: count=(\d+)$", stdout, re.M).group(1))
