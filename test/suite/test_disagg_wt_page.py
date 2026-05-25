@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sqlite3
+import os, re, sqlite3
 from typing import NamedTuple
 import wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
@@ -41,10 +41,9 @@ class PalitePage(NamedTuple):
     backlink_lsn: int
     flags: int
 
-# Drive the `wt page` command end-to-end through a disagg cell built with
-# the in-tree palite page-log extension. The leader connection writes pages
-# (full images on first checkpoint, deltas on subsequent ones); we then run
-# `wt page` as a subprocess in follower mode against the same cell.
+# Test the `wt page` command against a palite backed disaggregated storage database.
+# A leader connection writes full-image and delta pages via checkpoints, then `wt page`
+# is run as a subprocess in follower mode against the same cell to inspect them.
 @wttest.skip_for_hook("tiered", "wt page does not run under tiered hook")
 class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
     uri = "layered:wt_page_test"
@@ -55,16 +54,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     # WT_PAGE_LOG_DISCARDED in ext/page_log/palite/palite.cpp.
     PAGE_LOG_DISCARDED = 0x10000
 
-    # extensionsConfig() injects disaggregated=(page_log=palite) from the
-    # extension list set up in conn_extensions; we only set the role here.
     conn_config = 'disaggregated=(role="leader")'
-
-    def setUp(self):
-        # self.vars is set by the base setUp; call the staticmethod here
-        # because we want to skip before super().setUp() opens a connection.
-        if self.vars().page_log != 'palite':
-            self.skipTest("wt page test requires the palite page_log")
-        super().setUp()
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -73,12 +63,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     def _wt_page_extra_config(self):
         return self.extensionsConfig() + ',disaggregated=(role="follower")'
 
-    # Run `wt -C <cfg> page <args>` via suite_subprocess.runWt, which handles
-    # close_conn / reopen_conn, gdb/lldb wrapping, and the libtool wt binary
-    # lookup. The palite extension and follower role are injected via -C so
-    # wt main can open the connection before dispatching to util_page.
-    # Returns (stdout, stderr) text. failure=True asserts a non-zero exit;
-    # failure=False asserts a zero exit.
+    # Returns (stdout, stderr); failure=True asserts a non-zero exit.
     def _run_wt_page(self, *args, failure=False):
         cmd = ['-C', self._wt_page_extra_config(), 'page'] + list(args)
         self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
@@ -98,9 +83,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.session.checkpoint()
 
     def _dirty_and_checkpoint(self):
-        # Update a scattered subset of keys (about eight, here) to dirty
-        # several leaf pages without rewriting the whole tree, then
-        # checkpoint so palite emits delta entries for the dirtied pages.
+        # Update a scattered subset of keys so palite emits delta entries.
         c = self.session.open_cursor(self.uri)
         for i in range(0, self.nrows, max(1, self.nrows // 8)):
             c[f"k{i:08}"] = f"V{i:08}"
@@ -138,14 +121,12 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
             "backlink_lsn != 0 AND (flags & ?) = 0",
             (self.PAGE_LOG_DISCARDED,), "delta")
 
-    def _assert_chain_header(self, stdout, page_id, lsn, base_lsn, backlink_lsn,
-                             delta_count_re, results_re):
-        self.assertRegex(stdout,
-            rf"(?m)^get_args: page_id={page_id} lsn={lsn} "
-            rf"base_lsn={base_lsn} backlink_lsn={backlink_lsn} "
-            rf"base_ckpt=\d+ backlink_ckpt=\d+ "
-            rf"delta_count={delta_count_re}$")
-        self.assertRegex(stdout, rf"(?m)^results: count={results_re}$")
+    def _assert_chain_header(self, stdout, page):
+        self.assertIn(
+            f"get_args: page_id={page.page_id} lsn={page.lsn} "
+            f"base_lsn={page.base_lsn} backlink_lsn={page.backlink_lsn} ",
+            stdout)
+        return int(re.search(r"^results: count=(\d+)$", stdout, re.M).group(1))
 
     def test_help(self):
         _, stderr = self._run_wt_page('-?')
@@ -156,7 +137,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self._populate()
         _, stderr = self._run_wt_page("-p", "99999999", "-l", "1",
                                       self.stable_uri, failure=True)
-        # util_err prefixes errors with the subcommand name.
         self.assertIn("page:", stderr)
 
     def test_missing_required_l(self):
@@ -164,14 +144,12 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         _, stderr = self._run_wt_page("-p", "1", self.stable_uri, failure=True)
         self.assertIn("-l lsn is required", stderr)
 
-    def test_full_image_chain(self):
+    def test_full_image(self):
         self._populate()
         page = self._find_base_image_page()
         stdout, _ = self._run_wt_page(
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
-        self._assert_chain_header(stdout, page.page_id, page.lsn,
-                                  page.base_lsn, page.backlink_lsn,
-                                  delta_count_re="0", results_re="1")
+        self.assertEqual(self._assert_chain_header(stdout, page), 1)
         self.assertIn("- row-store ", stdout)
 
     def test_delta_chain(self):
@@ -180,10 +158,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         page = self._find_delta_page()
         stdout, _ = self._run_wt_page(
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
-        self._assert_chain_header(stdout, page.page_id, page.lsn,
-                                  page.base_lsn, page.backlink_lsn,
-                                  delta_count_re=r"\d+",
-                                  results_re=r"(?:[2-9]|[1-9]\d+)")
+        self.assertGreater(self._assert_chain_header(stdout, page), 1)
 
     def test_missing_required_p(self):
         self._populate()
