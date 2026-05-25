@@ -1271,9 +1271,9 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
         WT_ASSERT(session, traversed_full_update_chain);
         /*
-         * If the bottom non-aborted entry in the update chain is a MODIFY, that MODIFY's
-         * reconstruction base is the existing on-page value. If the base value is GC-eligible,
-         * force the MODIFY to be written as a full reconstructed value now.
+         * If the bottom non-aborted entry in the update chain is a MODIFY, its reconstruction base
+         * is the existing on-page value. If the base value is GC-eligible, force the MODIFY to be
+         * written as a full reconstructed value now.
          */
         if (!onpage_gc_eligible || last_non_aborted == NULL ||
           last_non_aborted->type != WT_UPDATE_MODIFY) {
