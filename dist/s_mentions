@@ -26,7 +26,10 @@ fi
 # Get what could be the ticket id.
 ticket_id=$(echo "$branch_name" | cut -d "-" -f-2)
 
-search_function="grep -Iinr --exclude-dir=.git"
+# Exclude s_all's per-step output files. They live in dist/ and contain grep matches for the
+# ticket id, so without this exclude the recursive grep reads its own stdout and grows the tmp
+# file unboundedly (feedback loop).
+search_function="grep -Iinr --exclude-dir=.git --exclude=__s_all_tmp_*"
 
 # Find the name of the build folders WiredTiger has been compiled in.
 # Users can name this folder anything, but it needs to be in the rootdir and to contain CMakeFiles
