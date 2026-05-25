@@ -160,6 +160,26 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertIn(self.uri, text,
             'wt -q list omitted the user table from the metadata listing')
 
+    def test_verify_c_still_works_with_q_landed(self):
+        # Regression coverage for the ticket's "confirm `wt verify -c`
+        # behavior is unchanged" criterion: run `wt verify -c` on the same
+        # corrupted table and assert it still produces the expected checksum-
+        # error diagnostics rather than crashing. `wt verify` is intentionally
+        # excluded from the -q set; this test exercises the original -c path
+        # that this PR must not regress.
+        self.skip_test_if_disagg()
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.populate()
+        self.session.checkpoint()
+        self.corrupt_leaf_page()
+
+        self.runWt(['-p', 'verify', '-c', self.uri],
+            outfilename='verifyc.out', errfilename='verifyc.err', failure=True)
+        with open('verifyc.err') as f:
+            err = f.read()
+        self.assertIn('read checksum error', err,
+            'wt verify -c stderr did not contain the expected checksum error diagnostic')
+
     def test_q_rejected_on_write_command(self):
         # The dispatcher must reject -q for commands that are not on the read-
         # oriented list. `create` is a good representative of the rejected set.
