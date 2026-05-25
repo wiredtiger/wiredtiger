@@ -1100,10 +1100,10 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 {
     static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     WT_BTREE *btree;
-    WT_UPDATE *upd, *first_pruned_update;
+    WT_UPDATE *upd, *first_pruned_update, *last_non_aborted;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
-    bool found_last_upd_to_keep;
+    bool found_last_upd_to_keep, onpage_gc_eligible;
 
     btree = S2BT(session);
     max_ts = WT_TS_NONE;
@@ -1113,7 +1113,10 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
     session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
     first_pruned_update = NULL;
+    last_non_aborted = NULL;
     found_last_upd_to_keep = false;
+    onpage_gc_eligible =
+      WT_REC_HAS_ON_DISK(vpack) && __rec_row_garbage_collect_tw_eligible(r, &vpack->tw);
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
@@ -1145,6 +1148,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (WT_IS_METADATA(session->dhandle) && session_txnid != WT_TXN_NONE &&
           upd->txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));
+        last_non_aborted = upd;
         /* Track the first update in the chain that is not aborted */
         if (*first_txn_updp == NULL)
             *first_txn_updp = upd;
@@ -1267,16 +1271,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          * reconstruction base is the existing on-page value. If the base value is GC-eligible,
          * force the MODIFY to be written as a full reconstructed value now.
          */
-        bool onpage_gc_eligible = __rec_row_garbage_collect_tw_eligible(r, &vpack->tw);
-        WT_UPDATE *last_non_aborted = NULL;
-        if (onpage_gc_eligible) {
-            for (WT_UPDATE *u = first_upd; u != NULL; u = u->next) {
-                if (u->txnid == WT_TXN_ABORTED)
-                    continue;
-                last_non_aborted = u;
-            }
-        }
-        if (last_non_aborted == NULL || last_non_aborted->type != WT_UPDATE_MODIFY) {
+        if (!onpage_gc_eligible || last_non_aborted == NULL ||
+          last_non_aborted->type != WT_UPDATE_MODIFY) {
             *has_newer_updatesp |= (upd_select->upd != NULL);
             upd_select->upd = NULL;
         }
