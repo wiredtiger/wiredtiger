@@ -28,7 +28,7 @@
 
 import os, re, sqlite3
 from typing import NamedTuple
-import wttest
+import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
 from metadata_helper import get_table_id
 from suite_subprocess import suite_subprocess
@@ -55,6 +55,11 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     PAGE_LOG_DISCARDED = 0x10000
 
     conn_config = 'disaggregated=(role="leader")'
+
+    def setUp(self):
+        super().setUp()
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('wt page requires a diagnostic build')
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
