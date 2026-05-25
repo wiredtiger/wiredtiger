@@ -1103,7 +1103,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     WT_UPDATE *upd, *first_pruned_update, *last_non_aborted;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
-    bool found_last_upd_to_keep, traversed_full_update_chain;
+    bool found_last_upd_to_keep;
 
     btree = S2BT(session);
     max_ts = WT_TS_NONE;
@@ -1115,7 +1115,6 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     first_pruned_update = NULL;
     last_non_aborted = NULL;
     found_last_upd_to_keep = false;
-    traversed_full_update_chain = true;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
@@ -1208,7 +1207,6 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (WT_REC_CAN_PRUNE_UPD(upd->txnid, upd->upd_durable_ts, r)) {
             first_pruned_update = upd;
             found_last_upd_to_keep = upd_select->upd != NULL;
-            traversed_full_update_chain = false;
             /* Mark we are making progress for eviction so eviction doesn't stall. */
             r->update_used = true;
             break;
@@ -1225,7 +1223,6 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
                   upd->upd_durable_ts == WT_TS_NONE) &&
               __wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
-                traversed_full_update_chain = false;
                 break;
             }
         }
@@ -1267,7 +1264,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      * If the goal is to prune the entire key, avoid clearing the selected update.
      */
     if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
-        WT_ASSERT(session, traversed_full_update_chain);
+        WT_ASSERT_ALWAYS(session, upd == NULL, "Update chain not fully traversed");
         /*
          * If the bottom non-aborted entry in the update chain is a MODIFY, its reconstruction base
          * is the existing on-page value. If the base value is GC-eligible, force the MODIFY to be
