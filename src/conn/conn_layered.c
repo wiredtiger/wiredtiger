@@ -1393,8 +1393,8 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
 
     /* Create any missing stable tables. */
-    ret = __layered_create_missing_stable_tables(internal_session);
-    WT_ERR_MSG_CHK(session, ret, "Failed to create missing stable tables");
+    WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(internal_session),
+      "Failed to create missing stable tables");
 
     /* Drain the ingest tables before switching to leader. */
     WT_ERR_MSG_CHK(session, __wti_layered_drain_ingest_tables(internal_session),
