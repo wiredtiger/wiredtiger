@@ -93,6 +93,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
         truncate/test_insert_truncate_entry.cpp
+        truncate/test_truncate_write_conflict.cpp
     )
 endif()
 
