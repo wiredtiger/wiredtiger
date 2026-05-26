@@ -5,7 +5,10 @@
 # Layer 3 (user toggle):    ENABLE_ZSTD / HAVE_BUILTIN_EXTENSION_ZSTD
 
 # Produces target wt::zstd when the library is available.
-wt_find_library(NAME zstd
-    PACKAGE zstd TARGET zstd::libzstd_shared
+wt_find_library(
+    NAME zstd
+    PACKAGE zstd
+    TARGET zstd::libzstd_shared
     PKGCONFIG_MODULE libzstd
-    HEADER zstd.h)
+    HEADER zstd.h
+)

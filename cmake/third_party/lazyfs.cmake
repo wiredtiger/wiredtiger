@@ -12,13 +12,15 @@ if(TARGET lazyfs)
 endif()
 
 # Download and install the project into the build directory.
-ExternalProject_Add(lazyfs
+ExternalProject_Add(
+    lazyfs
     PREFIX lazyfs
-    GIT_CONFIG advice.detachedHead=false 
+    GIT_CONFIG advice.detachedHead=false
     GIT_REPOSITORY https://github.com/dsrhaslab/lazyfs.git
     GIT_TAG b0383127
     CONFIGURE_COMMAND ""
     BUILD_IN_SOURCE TRUE
-    BUILD_COMMAND cd libs/libpcache && ./build.sh COMMAND cd ../../lazyfs && ./build.sh
+    BUILD_COMMAND cd libs/libpcache && ./build.sh
+    COMMAND cd ../../lazyfs && ./build.sh
     INSTALL_COMMAND ""
 )

@@ -14,4 +14,7 @@ endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
-set(HAVE_LIBPTHREAD ${Threads_FOUND} CACHE INTERNAL "pthread available on system")
+set(HAVE_LIBPTHREAD
+    ${Threads_FOUND}
+    CACHE INTERNAL "pthread available on system"
+)

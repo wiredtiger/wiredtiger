@@ -10,6 +10,6 @@ get_gnu_base_flags(gxx_flags CXX)
 # unused copies of those functions, so the unused-function warning much be turned off.
 if(CODE_COVERAGE_MEASUREMENT)
     list(APPEND gxx_flags "-Wno-unused-function")
-endif ()
+endif()
 
 set(COMPILER_DIAGNOSTIC_CXX_FLAGS ${gxx_flags})

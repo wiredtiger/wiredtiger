@@ -18,7 +18,7 @@ list(APPEND clang_flags "-Wno-switch-default")
 # unused copies of those functions, so the unused-function warning much be turned off.
 if(CODE_COVERAGE_MEASUREMENT)
     list(APPEND clang_flags "-Wno-unused-function")
-endif ()
+endif()
 
 # Set our common compiler flags that can be used by the rest of our build.
 set(COMPILER_DIAGNOSTIC_C_FLAGS ${clang_flags})

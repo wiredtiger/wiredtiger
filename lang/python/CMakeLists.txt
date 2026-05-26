@@ -12,7 +12,8 @@ elseif(ENABLE_SHARED)
     set(wiredtiger_target wiredtiger_shared)
 else()
     message(FATAL_ERROR "Unable to build the Python API. Requires either a shared \
-        library (ENABLE_SHARED) or a PIC-enabled (WITH_PIC) build of wiredtiger.")
+        library (ENABLE_SHARED) or a PIC-enabled (WITH_PIC) build of wiredtiger."
+    )
 endif()
 
 # Manually specify the interface name '_wiredtiger' over a generated name.
@@ -35,10 +36,11 @@ set(CMAKE_SWIG_FLAGS ${swig_flags})
 # Add dependencies to the swig module.
 set(SWIG_MODULE_wiredtiger_python_EXTRA_DEPS ${CMAKE_SOURCE_DIR}/src/include/wiredtiger.h.in)
 
-swig_add_library(wiredtiger_python
-  TYPE SHARED
-  LANGUAGE python
-  SOURCES ${CMAKE_CURRENT_LIST_DIR}/wiredtiger.i
+swig_add_library(
+    wiredtiger_python
+    TYPE SHARED
+    LANGUAGE python
+    SOURCES ${CMAKE_CURRENT_LIST_DIR}/wiredtiger.i
 )
 
 # Depending on the chosen compiler (cl, clang or gcc), a slightly different set of compiler flags
@@ -106,37 +108,37 @@ if(${Python3_VERSION} VERSION_GREATER_EQUAL 3.7)
     endif()
 endif()
 
-target_compile_options(wiredtiger_python
-    PRIVATE ${swig_c_flags}
-)
+target_compile_options(wiredtiger_python PRIVATE ${swig_c_flags})
 
 target_link_libraries(wiredtiger_python ${wiredtiger_target} Python3::Python)
 
 # Setup our output 'wiredtiger' directory to hold the python module sources.
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/wiredtiger
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/wiredtiger DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # Setup the module constructor file (python requirement).
-add_custom_command(TARGET wiredtiger_python
+add_custom_command(
+    TARGET wiredtiger_python
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_CURRENT_SOURCE_DIR}/wiredtiger/init.py
-        ${CMAKE_CURRENT_BINARY_DIR}/wiredtiger/__init__.py
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/wiredtiger/init.py
+            ${CMAKE_CURRENT_BINARY_DIR}/wiredtiger/__init__.py
 )
 
 # The generated swig file cannot be named 'wiredtiger.py' in the target directory
 # as we won't be able to import it.
-add_custom_command(TARGET wiredtiger_python
+add_custom_command(
+    TARGET wiredtiger_python
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_CURRENT_BINARY_DIR}/wiredtiger.py
-        ${CMAKE_CURRENT_BINARY_DIR}/wiredtiger/swig_wiredtiger.py
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/wiredtiger.py
+            ${CMAKE_CURRENT_BINARY_DIR}/wiredtiger/swig_wiredtiger.py
 )
 
 # Force the output name of the shared library to '_wiredtiger'. Various tooling in
 # WiredTiger expects to find a binary named '_wiredtiger.so'.
 # SWIG adds the underscore prefix '_' automatically.
-set_target_properties(wiredtiger_python PROPERTIES OUTPUT_NAME "wiredtiger")
+set_target_properties(
+    wiredtiger_python
+    PROPERTIES OUTPUT_NAME "wiredtiger"
+)
 
 # Manually changing the suffix on macOS/Darwin builds since DYLD_LIBRARY_PATH
 # doesn't work well for dynamic modules loaded by python.
@@ -151,8 +153,8 @@ add_dependencies(wiredtiger_python wiredtiger_ext)
 # Define a simple smoke test to check the Python API can be used.
 if(WT_POSIX)
     add_test(NAME test_ex_access
-        COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}
-            ${Python3_EXECUTABLE} -S ${CMAKE_SOURCE_DIR}/examples/python/ex_access.py
+             COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}
+                     ${Python3_EXECUTABLE} -S ${CMAKE_SOURCE_DIR}/examples/python/ex_access.py
     )
     set_tests_properties(test_ex_access PROPERTIES LABELS "check")
 endif()

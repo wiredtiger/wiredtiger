@@ -1,4 +1,7 @@
-set(WT_POSIX ON CACHE BOOL "")
+set(WT_POSIX
+    ON
+    CACHE BOOL ""
+)
 
 # Linux requires '_GNU_SOURCE' to be defined for access to GNU/Linux extension functions
 # e.g. Access to 'pthread_setname_np' on Linux. Append this macro to our compiler flags

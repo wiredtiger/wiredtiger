@@ -173,6 +173,7 @@ run --bg "comment_style.py" &
 run --bg "type_to_str.py" &
 run --bg "s_include_guards" &
 run --bg "s_bazel.py" &
+run --bg "s_cmake_format.py" &
 
 # Wait for completion.
 if [[ -n "$ISTTY" ]]; then

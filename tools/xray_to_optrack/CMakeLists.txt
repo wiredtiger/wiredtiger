@@ -8,18 +8,23 @@ if(NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "^(Apple)?[Cc]lang")
     return()
 endif()
 if(${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS "8")
-    message(STATUS "Skipping xray_to_optrack. Requires Clang >= 8, found Clang ${CMAKE_CXX_COMPILER_VERSION}")
+    message(
+        STATUS
+            "Skipping xray_to_optrack. Requires Clang >= 8, found Clang ${CMAKE_CXX_COMPILER_VERSION}"
+    )
     return()
 endif()
 
 # Find the LLVM package, preferencing the newest/highest package version.
 set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
 set(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
-find_package(LLVM CONFIG REQUIRED) 
+find_package(LLVM CONFIG REQUIRED)
 
 # We require at least LLVM 8 for linking against xray.
 if(${LLVM_PACKAGE_VERSION} VERSION_LESS "8")
-    message(STATUS "Skipping xray_to_optrack. Requires LLVM >= 8, found LLVM ${LLVM_PACKAGE_VERSION}")
+    message(
+        STATUS "Skipping xray_to_optrack. Requires LLVM >= 8, found LLVM ${LLVM_PACKAGE_VERSION}"
+    )
     return()
 endif()
 

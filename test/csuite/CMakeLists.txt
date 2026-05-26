@@ -55,9 +55,7 @@ define_c_test(
 
 define_c_test(
     TARGET test_random_directio
-    SOURCES
-        random_directio/main.c
-        random_directio/util.c
+    SOURCES random_directio/main.c random_directio/util.c
     DIR_NAME random_directio
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_directio/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_random_directio>
@@ -78,8 +76,7 @@ define_c_test(
     DIR_NAME rwlock
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_rwlock>/WT_HOME>
     DEPENDS "WT_POSIX"
-    ADDITIONAL_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/time_shift_test.sh
+    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/time_shift_test.sh
 )
 
 define_c_test(

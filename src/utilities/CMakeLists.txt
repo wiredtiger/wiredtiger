@@ -25,9 +25,7 @@ set(sources
 
 add_executable(wt ${sources})
 target_compile_options(wt PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
-target_include_directories(wt
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/include  ${CMAKE_BINARY_DIR}/config
-)
+target_include_directories(wt PRIVATE ${CMAKE_SOURCE_DIR}/src/include ${CMAKE_BINARY_DIR}/config)
 target_link_libraries(wt wt::wiredtiger)
 
 if(ENABLE_ANTITHESIS)
@@ -37,13 +35,10 @@ endif()
 # Our test suite expects `wt` to sit at the top level build directory.
 # Set the output binary location to the top level directory for backwards
 # compatibility.
-set_target_properties(wt
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+set_target_properties(
+    wt
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
 # Install destination for the wiredtiger utility binary.
-install(TARGETS wt
-    RUNTIME DESTINATION bin
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+install(TARGETS wt RUNTIME DESTINATION bin DESTINATION ${CMAKE_INSTALL_BINDIR})

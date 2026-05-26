@@ -1,6 +1,6 @@
-
 # Create a model library.
-add_library(wiredtiger_model SHARED
+add_library(
+    wiredtiger_model SHARED
     src/core/core.cpp
     src/core/data_value.cpp
     src/core/kv_database.cpp
@@ -21,19 +21,15 @@ add_library(wiredtiger_model SHARED
 target_include_directories(
     wiredtiger_model
     PUBLIC src/include
-    PRIVATE
-        ${CMAKE_BINARY_DIR}/config
-        ${CMAKE_SOURCE_DIR}/src/include
-        ${CMAKE_SOURCE_DIR}/test/3rdparty
+    PRIVATE ${CMAKE_BINARY_DIR}/config ${CMAKE_SOURCE_DIR}/src/include
+            ${CMAKE_SOURCE_DIR}/test/3rdparty
 )
 
 target_include_directories(
     wiredtiger_model
     PUBLIC src/include
-    PRIVATE
-        ${CMAKE_BINARY_DIR}/config
-        ${CMAKE_SOURCE_DIR}/src/include
-        ${CMAKE_SOURCE_DIR}/test/3rdparty
+    PRIVATE ${CMAKE_BINARY_DIR}/config ${CMAKE_SOURCE_DIR}/src/include
+            ${CMAKE_SOURCE_DIR}/test/3rdparty
 )
 
 target_compile_options(

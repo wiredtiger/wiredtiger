@@ -5,7 +5,10 @@
 # Layer 3 (user toggle):    ENABLE_LZ4 / HAVE_BUILTIN_EXTENSION_LZ4
 
 # Produces target wt::lz4 when the library is available.
-wt_find_library(NAME lz4
-    PACKAGE lz4 TARGET LZ4::lz4
+wt_find_library(
+    NAME lz4
+    PACKAGE lz4
+    TARGET LZ4::lz4
     PKGCONFIG_MODULE liblz4
-    HEADER lz4.h)
+    HEADER lz4.h
+)

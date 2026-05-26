@@ -5,5 +5,4 @@
 # Layer 3 (user toggle):    ENABLE_MEMKIND
 
 # Produces target wt::memkind when the library is available.
-wt_find_library(NAME memkind
-    HEADER memkind.h)
+wt_find_library(NAME memkind HEADER memkind.h)

@@ -1,9 +1,9 @@
 # Library installs
 
 # Define the wiredtiger public headers we want to export when running the install target.
-install(
-    FILES ${CMAKE_BINARY_DIR}/include/wiredtiger.h ${CMAKE_SOURCE_DIR}/src/include/wiredtiger_ext.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+install(FILES ${CMAKE_BINARY_DIR}/include/wiredtiger.h
+              ${CMAKE_SOURCE_DIR}/src/include/wiredtiger_ext.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Define the wiredtiger library targets we will install.
@@ -16,7 +16,8 @@ if(ENABLE_STATIC)
 endif()
 
 # Install the wiredtiger library targets.
-install(TARGETS ${wt_targets}
+install(
+    TARGETS ${wt_targets}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
@@ -58,8 +59,5 @@ if(WT_POSIX)
     endif()
     set(PRIVATE_PKG_LIBS "${private_libs}")
     configure_file(${CMAKE_CURRENT_LIST_DIR}/wiredtiger.pc.in wiredtiger.pc @ONLY)
-    install(
-        FILES ${CMAKE_BINARY_DIR}/wiredtiger.pc
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
-    )
+    install(FILES ${CMAKE_BINARY_DIR}/wiredtiger.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()

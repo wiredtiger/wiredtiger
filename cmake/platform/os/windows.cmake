@@ -1,10 +1,25 @@
-set(WT_POSIX OFF CACHE BOOL "")
-set(SPINLOCK_TYPE "msvc" CACHE STRING "" FORCE)
+set(WT_POSIX
+    OFF
+    CACHE BOOL ""
+)
+set(SPINLOCK_TYPE
+    "msvc"
+    CACHE STRING "" FORCE
+)
 # Force a static compilation to generate a ".lib" file. We can then
 # additionally generate a dll file using a *DEF file.
-set(ENABLE_STATIC ON CACHE BOOL "" FORCE)
-set(ENABLE_SHARED OFF CACHE BOOL "" FORCE)
-set(WITH_PIC ON CACHE BOOL "" FORCE)
+set(ENABLE_STATIC
+    ON
+    CACHE BOOL "" FORCE
+)
+set(ENABLE_SHARED
+    OFF
+    CACHE BOOL "" FORCE
+)
+set(WITH_PIC
+    ON
+    CACHE BOOL "" FORCE
+)
 
 # Enable string pooling.
 add_compile_options(/GF)

@@ -3816,6 +3816,9 @@ tasks:
             source venv/bin/activate
             python3 -m pip install ruff==$RUFF_VERSION
 
+            # Install cmake-format as it is executed as part of s_all.
+            python3 -m pip install cmakelang==0.6.13
+
             cd dist
             bash -x s_all -E 2>&1
 

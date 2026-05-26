@@ -2,17 +2,12 @@
 # Helper function that generates a set of common GNU flags for a given language.
 #   flags - list of flags.
 function(get_gnu_base_flags flags)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        1
-        "GNU_FLAGS"
-        "CXX;C"
-        ""
-        ""
-    )
+    cmake_parse_arguments(PARSE_ARGV 1 "GNU_FLAGS" "CXX;C" "" "")
 
-    if (NOT "${GNU_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to get_gnu_base_flags: ${GNU_FLAGS_UNPARSED_ARGUMENTS}")
+    if(NOT "${GNU_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(
+            FATAL_ERROR "Unknown arguments to get_gnu_base_flags: ${GNU_FLAGS_UNPARSED_ARGUMENTS}"
+        )
     endif()
 
     set(cmake_compiler_version)
@@ -83,7 +78,10 @@ function(get_gnu_base_flags flags)
         list(APPEND gnu_flags "-Wmultistatement-macros")
     endif()
 
-    set(${flags} ${gnu_flags} PARENT_SCOPE)
+    set(${flags}
+        ${gnu_flags}
+        PARENT_SCOPE
+    )
 
 endfunction()
 
@@ -91,17 +89,13 @@ endfunction()
 # Helper function that generates a set of common CLANG flags for a given language.
 #   flags - list of flags.
 function(get_clang_base_flags flags)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        1
-        "CLANG_FLAGS"
-        "CXX;C"
-        ""
-        ""
-    )
+    cmake_parse_arguments(PARSE_ARGV 1 "CLANG_FLAGS" "CXX;C" "" "")
 
-    if (NOT "${CLANG_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to get_clang_base_flags: ${CLANG_FLAGS_UNPARSED_ARGUMENTS}")
+    if(NOT "${CLANG_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(
+            FATAL_ERROR
+                "Unknown arguments to get_clang_base_flags: ${CLANG_FLAGS_UNPARSED_ARGUMENTS}"
+        )
     endif()
 
     set(cmake_compiler_version)
@@ -185,7 +179,10 @@ function(get_clang_base_flags flags)
         list(APPEND clang_flags "-Wno-allocator-wrappers")
     endif()
 
-    set(${flags} ${clang_flags} PARENT_SCOPE)
+    set(${flags}
+        ${clang_flags}
+        PARENT_SCOPE
+    )
 
 endfunction()
 
@@ -193,17 +190,12 @@ endfunction()
 # Helper function that generates a set of common CL flags for a given language.
 #   flags - list of flags.
 function(get_cl_base_flags flags)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        1
-        "CL_FLAGS"
-        "CXX;C"
-        ""
-        ""
-    )
+    cmake_parse_arguments(PARSE_ARGV 1 "CL_FLAGS" "CXX;C" "" "")
 
-    if (NOT "${CL_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to get_cl_base_flags: ${CL_FLAGS_UNPARSED_ARGUMENTS}")
+    if(NOT "${CL_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(
+            FATAL_ERROR "Unknown arguments to get_cl_base_flags: ${CL_FLAGS_UNPARSED_ARGUMENTS}"
+        )
     endif()
 
     set(cmake_compiler_version)
@@ -227,6 +219,9 @@ function(get_cl_base_flags flags)
     # Enable security check.
     list(APPEND cl_flags "/GS")
 
-    set(${flags} ${cl_flags} PARENT_SCOPE)
+    set(${flags}
+        ${cl_flags}
+        PARENT_SCOPE
+    )
 
 endfunction()

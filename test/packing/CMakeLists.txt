@@ -1,18 +1,20 @@
-
 # Create packing-test executable.
-create_test_executable(test_packing
+create_test_executable(
+    test_packing
     SOURCES packing-test.c
     EXECUTABLE_NAME "packing-test"
 )
 
 # Create intpack test executable.
-create_test_executable(test_intpack
+create_test_executable(
+    test_intpack
     SOURCES intpack-test3.c
     EXECUTABLE_NAME "intpack-test3"
 )
 
 # Create intpack test executable.
-create_test_executable(test_int4bpack
+create_test_executable(
+    test_int4bpack
     SOURCES int4bpack-test.c
     EXECUTABLE_NAME "int4bpack-test"
 )
