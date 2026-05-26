@@ -1119,12 +1119,11 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     WT_CURSOR *c_alternate, *c_current;
     WT_DECL_RET;
     int cmp;
-    bool current_moved, forward, fresh_start;
+    bool current_moved, forward;
 
     WT_SESSION_IMPL *session = CUR2S(clayered);
     current_moved = false;
     forward = (iter_flag == WT_CLAYERED_ITERATE_NEXT);
-    fresh_start = false;
     WT_CURSOR *c_ingest = clayered->ingest_cursor;
     WT_CURSOR *c_stable = clayered->stable_cursor;
 
@@ -1156,7 +1155,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * prepared conflict occurs. Prepared updates are always ignored on the stable cursor, making it
      * safe to check the WT_CURSTD_KEY_INT flag.
      */
-    fresh_start =
+    bool fresh_start =
       (((WT_CURSOR_BTREE *)c_ingest)->ref == NULL && !F_ISSET(c_stable, WT_CURSTD_KEY_INT));
     if (fresh_start) {
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_ingest, forward), false);
