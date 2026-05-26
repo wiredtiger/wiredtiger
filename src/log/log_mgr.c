@@ -769,11 +769,6 @@ restart:
     while (i < WTI_SLOT_POOL) {
         save_i = i;
         slot = &log->slot_pool[i++];
-        /*
-         * Acquire-load to synchronize-with the release-store in __wti_log_release; this carries the
-         * prior pwrite of the slot buffer as happens-before the subsequent slot_free and slot
-         * reuse.
-         */
         if (__wt_atomic_load_int64_v_acquire(&slot->slot_state) != WTI_LOG_SLOT_WRITTEN)
             continue;
         written[written_i].slot_index = save_i;

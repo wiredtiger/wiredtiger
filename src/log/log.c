@@ -1943,12 +1943,6 @@ __wti_log_release(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot, bool *freep)
       FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
         if (freep != NULL)
             *freep = false;
-        /*
-         * Release-store so that the buffer write (pwrite above) happens-before any thread that
-         * acquire-loads the WRITTEN state. The slot buffer can be reused once it transitions
-         * through WRITTEN -> FREE -> activate, and the chain only carries the pwrite as a prior
-         * write if every step uses release/acquire pairs.
-         */
         __wt_atomic_store_int64_v_release(&slot->slot_state, WTI_LOG_SLOT_WRITTEN);
         /*
          * After this point the worker thread owns the slot. There is nothing more to do but return.
