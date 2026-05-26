@@ -667,14 +667,6 @@ __clayered_get_current(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bo
     if (clayered->ingest_cursor != NULL && F_ISSET(clayered->ingest_cursor, WT_CURSTD_KEY_INT))
         ingest_positioned = true;
 
-    /*
-     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty. This will need
-     * revisiting when asynchronous step-up is supported, because ingest may legitimately contain
-     * data for some time after promotion.
-     */
-    if (clayered->leader)
-        ingest_positioned = false;
-
     if (clayered->stable_cursor != NULL && F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT))
         stable_positioned = true;
 
@@ -1128,17 +1120,12 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     WT_CURSOR *c_stable = clayered->stable_cursor;
 
     /*
-     * FIXME-WT-16810: In leader mode, skip iterating through ingest as it should be empty. This
-     * will need revisiting when asynchronous step-up is supported, because ingest may legitimately
-     * contain data for some time after promotion.
-     */
-    if (clayered->leader)
-        c_ingest = NULL;
-
-    /*
-     * FIXME-WT-15058: Both cursors are expected to be initialized, but we currently have an issue
-     * where a cursor open operation can return WT_NOTFOUND for the stable table. Until this is
-     * resolved, it is simpler to handle all the different cases here.
+     * One of the constituents may not be open when cursor operations are performed. For the stable
+     * table, we do not open it on a follower until we pick up a checkpoint. For the ingest table,
+     * we currently always open it, but that is more of an implementation detail than a design
+     * decision.
+     *
+     * Given that, it is safer to handle both cases where only one constituent is open.
      */
     WT_ASSERT(session, c_stable != NULL || c_ingest != NULL);
     if (c_ingest == NULL || c_stable == NULL) {
@@ -1856,19 +1843,13 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
      * * Otherwise a larger key is preferred if one exists.
      * * Otherwise a smaller key should be returned.
      * If both constituents have a larger key available, return the one closes to the search term.
-     *
-     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty.
-     * This will need revisiting when asynchronous step-up is supported, because ingest may
-     * legitimately contain data for some time after promotion.
      */
-    if (!clayered->leader) {
-        clayered->ingest_cursor->set_key(clayered->ingest_cursor, &cursor->key);
-        WT_ERR_NOTFOUND_OK(
-          clayered->ingest_cursor->search_near(clayered->ingest_cursor, &ingest_cmp), true);
-        if (ret == 0) {
-            ingest_found = true;
-            match_deleted = __wt_clayered_deleted(&clayered->ingest_cursor->value);
-        }
+    clayered->ingest_cursor->set_key(clayered->ingest_cursor, &cursor->key);
+    WT_ERR_NOTFOUND_OK(
+      clayered->ingest_cursor->search_near(clayered->ingest_cursor, &ingest_cmp), true);
+    if (ret == 0) {
+        ingest_found = true;
+        match_deleted = __wt_clayered_deleted(&clayered->ingest_cursor->value);
     }
 
     /* If there wasn't an exact match or the value is deleted, check the stable table as well */
