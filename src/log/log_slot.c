@@ -268,7 +268,11 @@ __log_slot_new(WT_SESSION_IMPL *session)
             if (pool_i >= WTI_SLOT_POOL)
                 pool_i = 0;
             slot = &log->slot_pool[pool_i];
-            if (__wt_atomic_load_int64_v_relaxed(&slot->slot_state) == WTI_LOG_SLOT_FREE) {
+            /*
+             * Acquire-load pairs with the release-store in __wti_log_slot_free so that picking up a
+             * free slot has happens-before with the pwrite of its buffer in the previous owner.
+             */
+            if (__wt_atomic_load_int64_v_acquire(&slot->slot_state) == WTI_LOG_SLOT_FREE) {
                 /*
                  * Acquire our starting position in the log file. Assume the full buffer size.
                  */
@@ -702,5 +706,11 @@ __wti_log_slot_free(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot)
     WT_UNUSED(session);
     __wt_atomic_store_uint16_relaxed(&slot->flags_atomic, WTI_SLOT_INIT_FLAGS);
     __wt_atomic_store_int32_relaxed(&slot->slot_error, 0);
-    __wt_atomic_store_int64_v_relaxed(&slot->slot_state, WTI_LOG_SLOT_FREE);
+    /*
+     * Release-store the FREE transition: any thread that later acquire-loads slot_state and
+     * observes the slot is FREE (or any value derived from it) must also see all prior writes,
+     * including the pwrite that ran in __wti_log_release before the WRITTEN transition. Without
+     * release/acquire here, slot reuse can race with the previous owner's pwrite under TSAN.
+     */
+    __wt_atomic_store_int64_v_release(&slot->slot_state, WTI_LOG_SLOT_FREE);
 }
