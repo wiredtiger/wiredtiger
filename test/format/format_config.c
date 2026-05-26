@@ -1471,9 +1471,11 @@ config_disagg_storage(void)
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
         /*
          * FIXME-WT-17564: Switch mode forces follower-side slow truncate until proper write
-         * conflict detection is implemented on fast truncate.
+         * conflict detection is implemented on fast truncate. An explicit override on the command
+         * line still wins, so the fast-truncate evergreen variant can opt out.
          */
-        config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
     } else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 

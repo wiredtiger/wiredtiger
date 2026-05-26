@@ -565,7 +565,9 @@ variables:
           times: 5
 
   # Variant of format-stress-test-disagg-switch that exercises the default
-  # fast-truncate code path (uses the standard compile artifact).
+  # fast-truncate code path. Switch mode would otherwise force
+  # debug.disagg_slow_truncate_follower=on (see FIXME-WT-17564 in
+  # config_disagg_storage); this variant explicitly opts out.
   - &format-stress-test-disagg-switch-fast-truncate
     depends_on:
       - name: compile
@@ -574,7 +576,7 @@ variables:
       - func: "format test disagg"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch runs.timer=10:15 ops.prepare=0 ops.verify=1 runs.mirror=1
+          format_args: disagg.mode=switch debug.disagg_slow_truncate_follower=off runs.timer=10:15 ops.prepare=0 ops.verify=1 runs.mirror=1
           times: 5
 
   - &format-stress-test-disagg-multi
