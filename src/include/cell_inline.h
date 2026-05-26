@@ -268,9 +268,7 @@ __cell_pack_addr_validity(
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_durable_ts - ta->newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
-    if (ta->prepare)
-        LF_SET(WT_CELL_PREPARE);
-    if (is_prepared_fast_truncate)
+    if (ta->prepare || is_prepared_fast_truncate)
         LF_SET(WT_CELL_PREPARE);
 
     *flagsp = flags;

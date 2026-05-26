@@ -96,20 +96,19 @@ __rec_child_deleted(
 
     /*
      * When preserve_prepared is enabled on a disaggregated btree, write an in-progress prepared
-     * fast-truncate as a proxy cell so that recovery can reconstruct the prepared state.
-     * Restricted to disaggregated storage to prevent issues on attached storage on older binary.
+     * fast-truncate as a proxy cell so that recovery can reconstruct the prepared state. Restricted
+     * to disaggregated storage to prevent issues on attached storage on older binary.
      */
     if (!page_del->committed && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
       F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
         prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
-            WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
-              "Prepared fast-truncates cannot be evicted when preserve_prepared is enabled");
-            if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC))
+            if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
                 return (__wt_set_return(session, EBUSY));
             WT_ASSERT(session, page_del->prepared_id != WT_PREPARED_ID_NONE);
             page_del->selected_for_write = true;
             cmsp->del = *page_del;
+            cmsp->del.prepare_state = prepare_state;
             cmsp->state = WTI_CHILD_PROXY;
             r->leave_dirty = true;
             return (0);
