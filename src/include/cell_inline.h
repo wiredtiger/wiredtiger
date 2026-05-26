@@ -575,14 +575,16 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
         cell_type = WT_CELL_ADDR_DEL;
 
         /*
-         * In-progress prepared states are only written to disk when preserve_prepared is enabled;
-         * otherwise only committed (INIT) or resolved-but-not-yet-committed (RESOLVED) states are
-         * expected.
+         * In-progress prepared states are only written to disk when preserve_prepared is enabled
+         * on a disaggregated btree. Attached storage cannot safely use this format because an older
+         * binary would silently misread the cell. Otherwise only committed (INIT) or
+         * resolved-but-not-yet-committed (RESOLVED) states are expected.
          */
         WT_ASSERT(session,
           page_del->prepare_state == WT_PREPARE_INIT ||
             page_del->prepare_state == WT_PREPARE_RESOLVED ||
             (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
               (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
                 page_del->prepare_state == WT_PREPARE_LOCKED)));
     }
@@ -624,7 +626,10 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
         if (is_prepared_fast_truncate) {
-            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
+            /* Only reachable for disaggregated btrees with preserve_prepared; see __wt_cell_build_addr. */
+            WT_ASSERT(session,
+              F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+                F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
             WT_ASSERT(session, page_del->prepared_id != WT_PREPARED_ID_NONE);
             WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepare_ts));
             WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepared_id));

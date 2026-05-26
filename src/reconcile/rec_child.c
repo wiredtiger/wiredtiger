@@ -95,10 +95,16 @@ __rec_child_deleted(
     }
 
     /*
-     * When preserve_prepared is enabled, write an in-progress prepared fast-truncate as a proxy
-     * cell so that recovery can reconstruct the prepared state.
+     * When preserve_prepared is enabled on a disaggregated btree, write an in-progress prepared
+     * fast-truncate as a proxy cell so that recovery can reconstruct the prepared state.
+     *
+     * This is intentionally restricted to disaggregated storage. On attached storage a downgrade to
+     * an older binary that predates the prepared fast-truncate on-disk format (which packs
+     * txnid  prepare_ts  prepared_id rather than txnid  pg_del_start_ts  pg_del_durable_ts)
+     * would silently misread the cell, producing a committed deletion with garbage timestamps.
      */
-    if (!page_del->committed && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED)) {
+    if (!page_del->committed && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
+      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
         prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
             WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
