@@ -418,6 +418,7 @@ conn_stats = [
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
+    EvictStat('eviction_server_skip_disagg_trees_checkpointed', 'eviction server skips disaggregated trees already visited by the ongoing checkpoint'),
     EvictStat('eviction_server_skip_history_store_pages_with_updates_during_checkpoint', 'eviction server skips clean history store pages with updates when a precise checkpoint is in progress'),
     EvictStat('eviction_server_skip_ingest_trees', 'eviction server skips ingest btrees in disagg'),
     EvictStat('eviction_server_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if eviction is not in aggressive mode'),
@@ -631,6 +632,8 @@ conn_stats = [
     ##########################################
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_follower', 'number of checkpoints picked up by a follower'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
+    LayeredStat('layered_truncate_list_gc_entries_removed', 'the number of truncate list entries removed by garbage collection'),
+    LayeredStat('layered_truncate_list_gc_runs', 'the number of times truncate list garbage collection ran with a valid prune timestamp'),
     LayeredStat('layered_truncate_list_search_calls', 'the number of times the truncate list was searched'),
     LayeredStat('layered_truncate_list_search_entries_walked', 'the number of truncate list entries walked during search'),
 
@@ -656,7 +659,9 @@ conn_stats = [
     # Load Control statistics
     ##########################################
     LoadControlStat('read_load', 'read load at the system level'),
+    LoadControlStat('read_reject_count', 'number of read operations rejected due to load control'),
     LoadControlStat('write_load', 'write load at the system level'),
+    LoadControlStat('write_reject_count', 'number of write operations rejected due to load control'),
 
     ##########################################
     # Locking statistics

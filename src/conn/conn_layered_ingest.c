@@ -12,41 +12,60 @@ static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
- * __layered_assert_tombstone_has_value_on_stable_btree --
- *     Assert that a value exists on the stable btree before moving a tombstone intended to delete
- *     it.
+ * __layered_assert_stable_btree_state --
+ *     Assert stable btree invariants before applying ingest updates for a key: (1) no unresolved
+ *     preserved prepared update exists; and (2) if the ingest chain ends with a tombstone, a
+ *     corresponding value exists to delete.
  */
 static WT_INLINE void
-__layered_assert_tombstone_has_value_on_stable_btree(
+__layered_assert_stable_btree_state(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
 {
+    WT_UPDATE *upd;
     bool has_value;
 
-    if (last_upd->type != WT_UPDATE_TOMBSTONE)
-        return;
-
-    /*
-     * If the last update is a tombstone, ensure that there is a corresponding value on the stable
-     * table that it deletes.
-     */
-    if (cbt->compare != 0)
+    if (cbt->compare != 0) {
+        if (last_upd->type != WT_UPDATE_TOMBSTONE)
+            return;
         /* No on-page value to check; rely solely on visibility. */
         has_value = false;
-    else {
+    } else {
         WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
           "The stable btree should not contain inserts prior to draining");
-        WT_UPDATE *upd = NULL;
+
         if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        else
+            upd = NULL;
 
-        if (upd != NULL) {
-            WT_ASSERT_ALWAYS(session, upd->txnid != WT_TXN_ABORTED,
-              "The stable btree should not contain aborted updates prior to draining");
+        /*
+         * Walk the chain: assert no unresolved preserved prepared update exists, and advance past
+         * any rolled-back preserved prepared updates to find the first visible update.
+         */
+        for (; upd != NULL; upd = upd->next) {
+            if (upd->txnid == WT_TXN_ABORTED) {
+                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+                  "During ingest drain, aborted updates on the stable btree must be "
+                  "rolled-back preserved prepared transactions");
+                continue;
+            }
+
+            WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
+              "During ingest drain, found an unresolved prepared update on the stable btree; "
+              "prepared transactions must be resolved before step-up");
+            break;
+        }
+
+        if (last_upd->type != WT_UPDATE_TOMBSTONE)
+            return;
+
+        if (upd != NULL)
             has_value = upd->type != WT_UPDATE_TOMBSTONE;
-        } else {
+        else {
             WT_TIME_WINDOW tw;
             bool tw_found = __wt_read_cell_time_window(cbt, &tw);
-            has_value = tw_found && !WT_TIME_WINDOW_HAS_STOP(&tw);
+            has_value =
+              tw_found && !WT_TIME_WINDOW_HAS_PREPARE(&tw) && !WT_TIME_WINDOW_HAS_STOP(&tw);
         }
     }
 
@@ -79,13 +98,24 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    /*
-     * We only need to check on the first pass. The check asserts that if the oldest update in the
-     * whole chain is a tombstone, applying it would not produce consecutive tombstones on the
-     * stable btree.
-     */
+    /* We only need to check on the first pass. */
     if (from_ts == WT_TS_NONE)
-        __layered_assert_tombstone_has_value_on_stable_btree(session, cbt, last_upd);
+        __layered_assert_stable_btree_state(session, cbt, last_upd);
+
+    /*
+     * If the oldest update being moved is an aborted prepared update and the stable btree has no
+     * existing value for this key, append a globally visible tombstone after the chain. Any newer
+     * updates may themselves be non-stable while the update's rollback timestamp has already become
+     * stable; without a fallback below, reconciliation has nothing to write in place of the aborted
+     * prepared update, leaving an orphaned prepared value on the disk image. The tombstone keeps
+     * the post-rollback state well-defined (the key never existed).
+     */
+    if (cbt->compare != 0 && last_upd->txnid == WT_TXN_ABORTED) {
+        WT_ASSERT(session, last_upd->prepared_id != WT_PREPARED_ID_NONE);
+        WT_UPDATE *tombstone;
+        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+        last_upd->next = tombstone;
+    }
 
     /* Apply the modification. */
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
@@ -139,12 +169,11 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
     WT_DECL_RET;
     wt_timestamp_t btree_prune_timestamp;
 
-    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_RET_ERROR_OK(ret = __wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), ENOENT);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "Handle not found for ingest table uri: %s", ingest_uri);
-        ret = 0;
-        goto err;
+        return (0);
     }
 
     btree = (WT_BTREE *)session->dhandle->handle;
@@ -156,9 +185,8 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
 
     __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, WT_TS_NONE);
 
-    WT_ERR(__wt_session_release_dhandle(session));
+    WT_RET(__wt_session_release_dhandle(session));
 
-err:
     return (ret);
 }
 
@@ -716,9 +744,9 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
 
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), ENOENT, true);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "No layered handle found for ingest table \"%s\", only performing ingest drain",
           ingest_uri);
@@ -987,13 +1015,12 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
-
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
      */
-    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_RET_ERROR_OK(ret = __wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), ENOENT);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Layered table was not found.", layered_uri);
         return (0);
@@ -1076,9 +1103,9 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
      * that it hasn't been opened yet. In that case, we need to skip updating its timestamp for
      * pruning, and we'll get another chance to update the prune timestamp at the next checkpoint.
      */
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), ENOENT, true);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Handle not found for ingest table uri: %s", layered_table->iface.name,
           layered_table->ingest_uri);
