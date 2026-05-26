@@ -1560,8 +1560,6 @@ __wt_session_range_truncate(
         F_SET(trunc_info, WT_TRUNC_EXPLICIT_START);
     if (uri == NULL && stop != NULL)
         F_SET(trunc_info, WT_TRUNC_EXPLICIT_STOP);
-    if (F_ISSET(session, WT_SESSION_TRUNCATE_SLOW))
-        F_SET(trunc_info, WT_TRUNC_SLOW);
 
     /* Find the actual URI, as the "uri" argument could be NULL. */
     if (uri != NULL) {
@@ -1752,18 +1750,12 @@ static int
 __session_truncate(
   WT_SESSION *wt_session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop, const char *config)
 {
-    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_TXN_API_CALL(session, ret, truncate, config, cfg);
     WT_STAT_CONN_INCR(session, cursor_truncate);
-
-    /* Parse the truncate "mode" config: default is "fast". */
-    WT_ERR(__wt_config_gets(session, cfg, "mode", &cval));
-    if (WT_CONFIG_LIT_MATCH("slow", cval))
-        F_SET(session, WT_SESSION_TRUNCATE_SLOW);
 
     if ((start != NULL && start->session != wt_session) ||
       (stop != NULL && stop->session != wt_session))
@@ -1805,8 +1797,6 @@ __session_truncate(
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
 err:
-    F_CLR(session, WT_SESSION_TRUNCATE_SLOW);
-
     /* Map prepare-conflict to rollback. */
     if (ret == WT_PREPARE_CONFLICT)
         ret = WT_ROLLBACK;

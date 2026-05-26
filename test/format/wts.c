@@ -248,6 +248,12 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
     if (GV(DEBUG_CURSOR_REPOSITION))
         CONFIG_APPEND(*p, ",cursor_reposition=true");
+    /*
+     * Force slow-truncate on followers when running disagg switch mode (replaces the former
+     * WT_DISAGG_SLOW_TRUNCATE_BUILD compile flag for stress coverage).
+     */
+    if (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "switch") == 0)
+        CONFIG_APPEND(*p, ",disagg_slow_truncate_follower=true");
     if (GV(DEBUG_EVICTION))
         CONFIG_APPEND(*p, ",eviction=true");
     /*

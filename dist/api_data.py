@@ -700,6 +700,11 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
+        Config('disagg_slow_truncate_follower', 'false', r'''
+            if true, follower-side layered-table truncate uses the slow per-record delete path
+            instead of the optimized range delete. Intended for debugging the disaggregated
+            slow/fast truncate split; leader always uses fast truncate.''',
+            type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction
             to happen more aggressively. This includes but is not limited to not skewing newest,
@@ -1903,12 +1908,7 @@ methods = {
 
 'WT_SESSION.strerror' : Method([]),
 
-'WT_SESSION.truncate' : Method([
-    Config('mode', 'fast', r'''
-        the truncate implementation to use for layered tables. "fast" performs optimized range
-        deletes; "slow" performs per-record deletes. Non-layered tables ignore this setting''',
-        choices=['fast', 'slow']),
-]),
+'WT_SESSION.truncate' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes

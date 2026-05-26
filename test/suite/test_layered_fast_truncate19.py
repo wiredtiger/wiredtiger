@@ -29,34 +29,26 @@
 import wttest, wiredtiger
 
 # test_layered_fast_truncate19.py
-#   Validate the WT_SESSION.truncate "mode" config (fast | slow), and that an
-#   invalid value is rejected by the parser.
+#   Validate the debug_mode.disagg_slow_truncate_follower connection config
+#   (boolean), and that reconfigure accepts toggling it.
 class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
-    uri = 'table:test_layered_fast_truncate19'
+    def test_open_accepts_true(self):
+        self.reopen_conn(config='debug_mode=(disagg_slow_truncate_follower=true)')
 
-    def truncate_with(self, mode_cfg):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        c1 = self.session.open_cursor(self.uri)
-        c1.set_key("k00010")
-        c2 = self.session.open_cursor(self.uri)
-        c2.set_key("k00020")
-        try:
-            self.session.truncate(None, c1, c2, mode_cfg)
-        finally:
-            c1.close()
-            c2.close()
+    def test_open_accepts_false(self):
+        self.reopen_conn(config='debug_mode=(disagg_slow_truncate_follower=false)')
 
-    def test_mode_fast(self):
-        self.truncate_with("mode=fast")
+    def test_open_default(self):
+        # Default omits the knob entirely.
+        self.reopen_conn(config='')
 
-    def test_mode_slow(self):
-        self.truncate_with("mode=slow")
+    def test_reconfigure_toggle(self):
+        self.conn.reconfigure('debug_mode=(disagg_slow_truncate_follower=true)')
+        self.conn.reconfigure('debug_mode=(disagg_slow_truncate_follower=false)')
 
-    def test_mode_default(self):
-        self.truncate_with(None)
-
-    def test_mode_invalid(self):
-        with self.expectedStderrPattern("not a permitted choice for key 'mode'"):
+    def test_reconfigure_rejects_invalid(self):
+        with self.expectedStderrPattern("expected a boolean"):
             self.assertRaisesException(
                 wiredtiger.WiredTigerError,
-                lambda: self.truncate_with("mode=bogus"))
+                lambda: self.conn.reconfigure(
+                    'debug_mode=(disagg_slow_truncate_follower=bogus)'))

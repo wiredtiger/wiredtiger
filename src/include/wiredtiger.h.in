@@ -1562,12 +1562,7 @@ struct __wt_session {
      * @param stop optional cursor marking the last record discarded;
      * if <code>NULL</code>, the truncate continues to the end of the
      * object; ignored when truncating a backup cursor
-     * @configstart{WT_SESSION.truncate, see dist/api_data.py}
-     * @config{mode, the truncate implementation to use for layered tables.  "fast" performs
-     * optimized range deletes; "slow" performs per-record deletes.  Non-layered tables ignore this
-     * setting., a string\, chosen from the following options: \c "fast"\, \c "slow"; default \c
-     * fast.}
-     * @configend
+     * @configempty{WT_SESSION.truncate, see dist/api_data.py}
      * @errors
      */
     int __F(truncate)(WT_SESSION *session,

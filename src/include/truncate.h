@@ -23,7 +23,6 @@ struct __wt_truncate_info {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TRUNC_EXPLICIT_START 0x1u
 #define WT_TRUNC_EXPLICIT_STOP 0x2u
-#define WT_TRUNC_SLOW 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

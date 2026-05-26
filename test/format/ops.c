@@ -1865,19 +1865,6 @@ col_modify(TINFO *tinfo, bool positioned)
 }
 
 /*
- * __format_truncate_cfg --
- *     Return the truncate config string. When format is configured for disagg switch mode, use the
- *     slow-truncate path; otherwise use the default fast path.
- */
-static const char *
-__format_truncate_cfg(void)
-{
-    if (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "switch") == 0)
-        return ("mode=slow");
-    return (NULL);
-}
-
-/*
  * row_truncate --
  *     Truncate rows in a row-store file.
  */
@@ -1887,11 +1874,9 @@ row_truncate(TINFO *tinfo)
     WT_CURSOR *cursor, *c2;
     WT_DECL_RET;
     WT_SESSION *session;
-    const char *trunc_cfg;
 
     cursor = tinfo->cursor;
     session = cursor->session;
-    trunc_cfg = __format_truncate_cfg();
 
     /* The code assumes we're never truncating the entire object, assert that fact. */
     testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
@@ -1900,11 +1885,11 @@ row_truncate(TINFO *tinfo)
     if (tinfo->keyno == 0) {
         key_gen(tinfo->table, tinfo->key, tinfo->last);
         cursor->set_key(cursor, tinfo->key);
-        WT_ERR(session->truncate(session, NULL, NULL, cursor, trunc_cfg));
+        WT_ERR(session->truncate(session, NULL, NULL, cursor, NULL));
     } else if (tinfo->last == 0) {
         key_gen(tinfo->table, tinfo->key, tinfo->keyno);
         cursor->set_key(cursor, tinfo->key);
-        WT_ERR(session->truncate(session, NULL, cursor, NULL, trunc_cfg));
+        WT_ERR(session->truncate(session, NULL, cursor, NULL, NULL));
     } else {
         key_gen(tinfo->table, tinfo->key, tinfo->keyno);
         cursor->set_key(cursor, tinfo->key);
@@ -1913,7 +1898,7 @@ row_truncate(TINFO *tinfo)
         key_gen(tinfo->table, tinfo->lastkey, tinfo->last);
         cursor->set_key(c2, tinfo->lastkey);
 
-        ret = session->truncate(session, NULL, cursor, c2, trunc_cfg);
+        ret = session->truncate(session, NULL, cursor, c2, NULL);
         testutil_check(c2->close(c2));
         WT_ERR(ret);
     }
@@ -1934,28 +1919,26 @@ col_truncate(TINFO *tinfo)
     WT_CURSOR *cursor, *c2;
     WT_DECL_RET;
     WT_SESSION *session;
-    const char *trunc_cfg;
 
     cursor = tinfo->cursor;
     session = cursor->session;
-    trunc_cfg = __format_truncate_cfg();
 
     /* The code assumes we're never truncating the entire object, assert that fact. */
     testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
 
     if (tinfo->keyno == 0) {
         cursor->set_key(cursor, tinfo->last);
-        WT_RET(session->truncate(session, NULL, NULL, cursor, trunc_cfg));
+        WT_RET(session->truncate(session, NULL, NULL, cursor, NULL));
     } else if (tinfo->last == 0) {
         cursor->set_key(cursor, tinfo->keyno);
-        WT_RET(session->truncate(session, NULL, cursor, NULL, trunc_cfg));
+        WT_RET(session->truncate(session, NULL, cursor, NULL, NULL));
     } else {
         cursor->set_key(cursor, tinfo->keyno);
 
         testutil_check(session->open_cursor(session, tinfo->table->uri, NULL, NULL, &c2));
         cursor->set_key(c2, tinfo->last);
 
-        ret = session->truncate(session, NULL, cursor, c2, trunc_cfg);
+        ret = session->truncate(session, NULL, cursor, c2, NULL);
         testutil_check(c2->close(c2));
         WT_RET(ret);
     }
