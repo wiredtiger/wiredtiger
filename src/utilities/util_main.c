@@ -75,16 +75,9 @@ util_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
     page_log_name = conn_impl->disaggregated_storage.page_log;
     WT_ASSERT(session_impl, page_log_name != NULL);
 
-    /*
-     * Look up the extension. get_page_log adds a reference that must be released with
-     * WT_PAGE_LOG::terminate.
-     */
     WT_RET(conn->get_page_log(conn, page_log_name, &page_log));
 
-    /*
-     * The wt utility deliberately tolerates page logs that do not implement
-     * pl_get_complete_checkpoint. Proceed without any checkpoint installed.
-     */
+    /* The wt utility tolerates page logs that do not implement pl_get_complete_checkpoint. */
     if (page_log->pl_get_complete_checkpoint == NULL)
         goto done;
 

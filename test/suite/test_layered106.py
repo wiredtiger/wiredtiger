@@ -63,8 +63,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         # Step down so close does not write a shutdown checkpoint after ours.
         self.conn.reconfigure('disaggregated=(role="follower")')
 
-        # Reopen as leader with no explicit checkpoint_meta. Leader-mode pickup
-        # inside __wti_disagg_conn_config installs the latest checkpoint and
+        # Reopen as leader. Leader-mode pickup should pick up the latest checkpoint and
         # then begins the next checkpoint window so writes can resume.
         self.restart_without_local_files(
             config='disaggregated=(role="leader")',
@@ -78,9 +77,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         for i in range(self.nrows):
             self.assertEqual(seen[i], 'value' + str(i))
 
-        # The new leader should be able to drive the next checkpoint: write a
-        # few more rows and commit a checkpoint, exercising the begin_checkpoint
-        # call that auto-pickup performs for leaders.
+        # The new leader should be able to drive the next checkpoint
         cursor = self.session.open_cursor(self.uri)
         for i in range(self.nrows, self.nrows + 10):
             cursor[i] = 'value' + str(i)
