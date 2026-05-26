@@ -61,7 +61,7 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         # A recent increment by another core may not yet be visible to this reader. Re-reading
         # in a tight Python loop cannot force coherence; the fix is to pause briefly on retry
         # so store buffers drain and cache lines propagate.
-        retry_sleep = 0.05  # seconds
+        retry_sleep = 0.5  # seconds
         for i in range(max_tries):
             if i > 0:
                 time.sleep(retry_sleep)
