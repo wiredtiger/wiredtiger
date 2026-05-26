@@ -73,7 +73,6 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
-CLI
 CLOEXEC
 CMAKE
 CMP
@@ -576,7 +575,6 @@ WiredTigerHookCreator
 WiredTigerHookInfo
 WiredTigerHookManager
 WiredTigerHookPlatformAPI
-WiredTigerKVEngine
 WiredTigerLAS
 WiredTigerLog
 WiredTigerPreplog
@@ -1319,7 +1317,6 @@ mmrand
 mn
 mnt
 mongo
-mongo's
 mongod
 mongodb
 mongodbtoolchain
@@ -1396,7 +1393,6 @@ notsup
 novalue
 nowait
 np
-npage
 npos
 nrecords
 nrows
@@ -1619,7 +1615,6 @@ sempty
 sencrypted
 serializable
 sessionp
-setRecoveryCheckpointMetadata
 setUp
 setUpConnectionOpen
 setkv
@@ -1730,7 +1725,6 @@ sweeped
 switcheroo
 symbolizer
 symlink
-symlinked
 symlinks
 syncop
 sys
@@ -1872,7 +1866,6 @@ usr
 ut
 utf
 util
-util's
 utils
 uu
 vCPU

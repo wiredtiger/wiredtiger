@@ -36,7 +36,11 @@ from suite_subprocess import suite_subprocess
 # Verify automatic pickup of the latest disaggregated checkpoint at open time:
 #  - test_leader_auto_pickup exercises the in-library leader-mode pickup.
 #  - test_follower_auto_pickup_via_wt exercises the util-driven follower
-#    pickup performed by the wt CLI.
+#    pickup performed by the wt tool when a checkpoint exists.
+#  - test_follower_no_checkpoint_via_wt covers the same util path when the
+#    page log has no completed checkpoint yet (pl_get_complete_checkpoint
+#    returns WT_NOTFOUND); wt must still open cleanly with no metadata
+#    installed.
 
 @disagg_test_class
 class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
@@ -84,10 +88,6 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
 
     def _disagg_extension_path(self):
-        # Absolute path to the loaded page-log extension shared library, so a
-        # spawned wt process can load it via -C extensions=[...]. The Python
-        # in-process tests load it via extlist.extension(...), but a subprocess
-        # has no such mechanism: it must point at the .so/.dylib directly.
         ext_dir = os.path.join(wt_builddir, 'ext', 'page_log', self.ds_name)
         candidates = [os.path.join(ext_dir, e) for e in os.listdir(ext_dir)
                       if e.endswith('.so') or e.endswith('.dylib')]
@@ -108,18 +108,13 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
-        # Set up a fresh follower home in our test directory, with kv_home
-        # symlinked to the leader's. This mirrors the trick helper_disagg.py
-        # uses for in-process followers (see helper_disagg.py:91-92).
+        # Set up a fresh follower home and share it with the leader.
         follower_home = os.path.join(self.home, 'wt-follower')
         os.mkdir(follower_home)
         os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
             target_is_directory=True)
 
-        # Spawn `wt list` against the page log. The util's pickup dance
-        # (get_page_log + pl_get_complete_checkpoint + reconfigure) should
-        # install the leader's checkpoint, after which the leader's table is
-        # visible in `wt list` output.
+        # Spawn `wt list` against the page log.
         ext_path = self._disagg_extension_path()
         page_log = self.page_log()
         config = (f'create,'
@@ -133,3 +128,31 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
             out = f.read()
         self.assertIn('layered:test_layered106', out,
             f"expected 'layered:test_layered106' in wt list output, got:\n{out}")
+
+    def test_follower_no_checkpoint_via_wt(self):
+        # Don't write or checkpoint anything as leader
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.close_conn()
+
+        # Set up a fresh follower home and share it with the leader.
+        follower_home = os.path.join(self.home, 'wt-follower-empty')
+        os.mkdir(follower_home)
+        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
+            target_is_directory=True)
+
+        # Spawn `wt list` against the empty page log.
+        ext_path = self._disagg_extension_path()
+        page_log = self.page_log()
+        config = (f'create,'
+                  f'extensions=[{ext_path}=(config="(verbose=0)")],'
+                  f'disaggregated=(role="follower",page_log={page_log})')
+        outfile = 'wt-empty.out'
+        errfile = 'wt-empty.err'
+        self.runWt(['-h', follower_home, '-C', config, 'list'],
+                   outfilename=outfile, errfilename=errfile, closeconn=False)
+
+        # The user-visible "no checkpoint" notice must appear on stderr.
+        with open(errfile) as f:
+            err = f.read()
+        self.assertIn('no complete checkpoint found', err,
+            f"expected 'no complete checkpoint found' in wt stderr, got:\n{err}")
