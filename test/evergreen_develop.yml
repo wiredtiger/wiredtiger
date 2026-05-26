@@ -21,10 +21,10 @@ variables:
     - ".checkpoint-perf"
     - ".evict-perf"
     - ".log-perf"
-    - ".chunk-cache-perf"
     - ".long-perf"
     - ".oplog-perf"
     - ".wt2853-perf"
+    - ".ycsb-perf"
     - name: many-collection-test
       distros: ubuntu2004-wt-large
     - name: ".cppsuite-perf-test"
@@ -135,8 +135,6 @@ buildvariants:
   tasks:
     - name: memory-model-test
       batchtime: 40320 # 28 days
-    - name: s-outdated-fixmes
-      batchtime: 1440 # 1 day
 
 - name: lazyfs-tests
   display_name: "~ LazyFS tests"

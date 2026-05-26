@@ -117,15 +117,21 @@ build_branch()
         # Disable cppsuite - not all versions build with the toolchain
         config+="-DENABLE_CPPSUITE=0 "
 
-        # Use the stable MongoDB toolchain if it exists
-        toolchain="$PWD/cmake/toolchains/mongodbtoolchain_stable_gcc.cmake"
-        if [ ! -f $toolchain ]; then
-            toolchain="$PWD/cmake/toolchains/mongodbtoolchain_v4_gcc.cmake"
-        fi
-        config+="-DCMAKE_TOOLCHAIN_FILE=$toolchain "
+        # Always use master's CMakePresets.json so preset names are consistent
+        # regardless of the branch's own CMake setup.
+        cp "$PROJECT_ROOT/CMakePresets.json" CMakePresets.json
 
-        (mkdir -p build && cd build &&
-            $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+        local cmake_preset="linux-gcc"
+
+        # Branches mongodb-7.0 and older require the v4 toolchain (incompatible with GCC 14+).
+        if [[ "$1" =~ ^mongodb-[0-7]\. ]]; then
+            cmake_preset="linux-v4-gcc"
+        fi
+
+        (
+            mkdir -p build && cd build &&
+                $CMAKE --preset "$cmake_preset" $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)
+        ) > /dev/null
     else
         config+="--enable-snappy "
         config+="--disable-standalone-build "
@@ -199,6 +205,7 @@ create_configs()
     echo "obsolete_cleanup.method=off" >> $file_name  # WT-14142 - Not supported by older releases
     echo "obsolete_cleanup.wait=0" >> $file_name      # WT-14142 - Not supported by older releases
     echo "prefetch=0" >> $file_name                   # WT-12978 - Not supported by older releases
+    echo "prefetch.default=0" >> $file_name           # WT-16671 - Not supported by older releases
     echo "rows=1000000" >> $file_name
     echo "salvage=0" >> $file_name                    # Faster runs
     echo "statistics_log.sources=off" >> $file_name   # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
@@ -827,6 +834,7 @@ gittags['mongodb-4.2']="mongodb-4.2"
 # Use relative folder to locate the meta file
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
+PROJECT_ROOT="$(realpath "$SCRIPT_DIR/../..")"
 VERSIONS_FILE="$SCRIPT_DIR/meta/versions.sh"
 source "$VERSIONS_FILE"
 
