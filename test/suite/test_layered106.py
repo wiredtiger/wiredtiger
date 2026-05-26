@@ -26,17 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os
 import wttest
 from helper_disagg import disagg_test_class
+from run import wt_builddir
+from suite_subprocess import suite_subprocess
 
 # test_layered106.py
 # Verify automatic pickup of the latest disaggregated checkpoint at open time:
 #  - test_leader_auto_pickup exercises the in-library leader-mode pickup.
-#  - test_follower_auto_pickup_via_wt (added in a later commit) exercises the
-#    util-driven follower pickup performed by the wt CLI.
+#  - test_follower_auto_pickup_via_wt exercises the util-driven follower
+#    pickup performed by the wt CLI.
 
 @disagg_test_class
-class test_layered106(wttest.WiredTigerTestCase):
+class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'layered:test_layered106'
     create_session_config = 'key_format=i,value_format=S'
     nrows = 100
@@ -79,3 +82,54 @@ class test_layered106(wttest.WiredTigerTestCase):
             cursor[i] = 'value' + str(i)
         cursor.close()
         self.session.checkpoint()
+
+    def _disagg_extension_path(self):
+        # Absolute path to the loaded page-log extension shared library, so a
+        # spawned wt process can load it via -C extensions=[...]. The Python
+        # in-process tests load it via extlist.extension(...), but a subprocess
+        # has no such mechanism: it must point at the .so/.dylib directly.
+        ext_dir = os.path.join(wt_builddir, 'ext', 'page_log', self.ds_name)
+        candidates = [os.path.join(ext_dir, e) for e in os.listdir(ext_dir)
+                      if e.endswith('.so') or e.endswith('.dylib')]
+        self.assertEqual(len(candidates), 1,
+            f"expected exactly one page-log shared object under {ext_dir}, got {candidates}")
+        return candidates[0]
+
+    def test_follower_auto_pickup_via_wt(self):
+        # Leader: create a table, write some rows, checkpoint.
+        self.session.create(self.uri, self.create_session_config)
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = 'value' + str(i)
+        cursor.close()
+        self.session.checkpoint()
+
+        # Step down so close does not write a shutdown checkpoint after ours.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.close_conn()
+
+        # Set up a fresh follower home in our test directory, with kv_home
+        # symlinked to the leader's. This mirrors the trick helper_disagg.py
+        # uses for in-process followers (see helper_disagg.py:91-92).
+        follower_home = os.path.join(self.home, 'wt-follower')
+        os.mkdir(follower_home)
+        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
+            target_is_directory=True)
+
+        # Spawn `wt list` against the page log. The util's pickup dance
+        # (get_page_log + pl_get_complete_checkpoint + reconfigure) should
+        # install the leader's checkpoint, after which the leader's table is
+        # visible in `wt list` output.
+        ext_path = self._disagg_extension_path()
+        page_log = self.page_log()
+        config = (f'create,'
+                  f'extensions=[{ext_path}=(config="(verbose=0)")],'
+                  f'disaggregated=(role="follower",page_log={page_log})')
+        outfile = 'wt-follower.out'
+        errfile = 'wt-follower.err'
+        self.runWt(['-h', follower_home, '-C', config, 'list'],
+                   outfilename=outfile, errfilename=errfile, closeconn=False)
+        with open(outfile) as f:
+            out = f.read()
+        self.assertIn('layered:test_layered106', out,
+            f"expected 'layered:test_layered106' in wt list output, got:\n{out}")
