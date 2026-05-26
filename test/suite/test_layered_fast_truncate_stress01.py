@@ -170,11 +170,6 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         'test_layered_fast_truncate_stress01', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def setUp(self):
-        if wiredtiger.disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled.")
-        super().setUp()
-
     def follower_config(self):
         return self.extensionsConfig() + \
             ',create,statistics=(all),disaggregated=(role="follower")'
