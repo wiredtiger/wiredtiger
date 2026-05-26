@@ -35,6 +35,8 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"conn_close_stress_log_printf", WT_TIMING_STRESS_CLOSE_STRESS_LOG},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
+  {"failpoint_disagg_checkpoint_queue_drain",
+    WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN},
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
   {"failpoint_history_delete_key_from_ts",
     WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
@@ -354,8 +356,8 @@ __global_once(void)
     __wt_process.tiered_shared_2023 = true;
 #endif
 
-#ifdef WT_DISAGG_FAST_TRUNCATE_BUILD
-    __wt_process.disagg_fast_truncate_2026 = true;
+#if defined(WT_DISAGG_SLOW_TRUNCATE_BUILD) && (WT_DISAGG_SLOW_TRUNCATE_BUILD == 1)
+    __wt_process.disagg_slow_truncate_2026 = true;
 #endif
 }
 

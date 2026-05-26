@@ -80,6 +80,8 @@ struct __wt_truncate {
     wt_timestamp_t prepare_ts; /* Not currently supported. */
     uint64_t prepare_id;       /* Not currently supported. */
 
+    wt_shared bool committed; /* Whether the truncate entry has been committed. */
+
     WT_ITEM start_key;
     WT_ITEM stop_key;
 
@@ -114,7 +116,11 @@ struct __wt_layered_table {
      */
     TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
 
-    WT_RWLOCK truncate_lock; /* Protects truncate list membership and entry visibility metadata. */
+    /*
+     * Protects truncate list membership (insert/remove/clear). Per-entry visibility is synchronized
+     * lock-free via WT_TRUNCATE.committed.
+     */
+    WT_RWLOCK truncate_lock;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LAYERED_TABLE_OPEN 0x1u
@@ -386,28 +392,28 @@ struct __wt_import_list {
  *	the backup state is in the correct state.  The skipp parameter can be used to
  *	check whether the operation got skipped or not.
  */
-#define WT_WITH_HOTBACKUP_READ_INT(session, op, bk_off, skipp)                                 \
-    do {                                                                                       \
-        WT_CONNECTION_IMPL *__conn = S2C(session);                                             \
-        if ((skipp) != (bool *)NULL)                                                           \
-            *(bool *)(skipp) = true;                                                           \
-        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP)) {                     \
-            if ((__wt_atomic_load_uint64_relaxed(&__conn->hot_backup_start) == 0) == bk_off) { \
-                if ((skipp) != (bool *)NULL)                                                   \
-                    *(bool *)(skipp) = false;                                                  \
-                op;                                                                            \
-            }                                                                                  \
-        } else {                                                                               \
-            __wt_readlock(session, &__conn->hot_backup_lock);                                  \
-            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ);                    \
-            if ((__wt_atomic_load_uint64_relaxed(&__conn->hot_backup_start) == 0) == bk_off) { \
-                if ((skipp) != (bool *)NULL)                                                   \
-                    *(bool *)(skipp) = false;                                                  \
-                op;                                                                            \
-            }                                                                                  \
-            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ);                    \
-            __wt_readunlock(session, &__conn->hot_backup_lock);                                \
-        }                                                                                      \
+#define WT_WITH_HOTBACKUP_READ_INT(session, op, bk_off, skipp)                             \
+    do {                                                                                   \
+        WT_CONNECTION_IMPL *__conn = S2C(session);                                         \
+        if ((skipp) != (bool *)NULL)                                                       \
+            *(bool *)(skipp) = true;                                                       \
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP)) {                 \
+            if ((__wt_atomic_load_uint64_relaxed(&__conn->backup.start) == 0) == bk_off) { \
+                if ((skipp) != (bool *)NULL)                                               \
+                    *(bool *)(skipp) = false;                                              \
+                op;                                                                        \
+            }                                                                              \
+        } else {                                                                           \
+            __wt_readlock(session, &__conn->backup.lock);                                  \
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ);                \
+            if ((__wt_atomic_load_uint64_relaxed(&__conn->backup.start) == 0) == bk_off) { \
+                if ((skipp) != (bool *)NULL)                                               \
+                    *(bool *)(skipp) = false;                                              \
+                op;                                                                        \
+            }                                                                              \
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ);                \
+            __wt_readunlock(session, &__conn->backup.lock);                                \
+        }                                                                                  \
     } while (0)
 
 /*
@@ -440,11 +446,11 @@ struct __wt_import_list {
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP)) {  \
             op;                                                             \
         } else {                                                            \
-            __wt_readlock(session, &__conn->hot_backup_lock);               \
+            __wt_readlock(session, &__conn->backup.lock);                   \
             FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ); \
             op;                                                             \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ); \
-            __wt_readunlock(session, &__conn->hot_backup_lock);             \
+            __wt_readunlock(session, &__conn->backup.lock);                 \
         }                                                                   \
     } while (0)
 
@@ -459,10 +465,10 @@ struct __wt_import_list {
             op;                                                                                    \
         } else {                                                                                   \
             WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_READ)); \
-            __wt_writelock(session, &__conn->hot_backup_lock);                                     \
+            __wt_writelock(session, &__conn->backup.lock);                                         \
             FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE);                       \
             op;                                                                                    \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE);                       \
-            __wt_writeunlock(session, &__conn->hot_backup_lock);                                   \
+            __wt_writeunlock(session, &__conn->backup.lock);                                       \
         }                                                                                          \
     } while (0)

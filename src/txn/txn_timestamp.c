@@ -185,15 +185,16 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     } else if (WT_CONFIG_LIT_MATCH("backup_checkpoint", cval)) {
         /* This code will return set a timestamp only if a backup cursor is open. */
         ts = WT_TS_NONE;
-        WT_WITH_HOTBACKUP_READ_LOCK_BACKUP(session, ts = conn->hot_backup_timestamp, NULL);
+        WT_WITH_HOTBACKUP_READ_LOCK_BACKUP(session, ts = conn->backup.timestamp, NULL);
     } else if (WT_CONFIG_LIT_MATCH("last_checkpoint", cval)) {
         /* Read-only value forever. Make sure we don't used a cached version. */
         WT_COMPILER_BARRIER();
         ts = txn_global->last_ckpt_timestamp;
-    } else if (WT_CONFIG_LIT_MATCH("oldest_timestamp", cval) ||
-      WT_CONFIG_LIT_MATCH("oldest", cval)) {
+    } else if (WT_CONFIG_LIT_MATCH("last_disaggregated_schema_epoch", cval))
+        ts = __wt_atomic_load_uint64_acquire(&txn_global->last_ckpt_disaggregated_schema_epoch);
+    else if (WT_CONFIG_LIT_MATCH("oldest_timestamp", cval) || WT_CONFIG_LIT_MATCH("oldest", cval))
         ts = __wt_get_oldest_timestamp(session);
-    } else if (WT_CONFIG_LIT_MATCH("oldest_reader", cval))
+    else if (WT_CONFIG_LIT_MATCH("oldest_reader", cval))
         __wti_txn_get_pinned_timestamp(session, &ts, WT_TXN_TS_INCLUDE_CKPT);
     else if (WT_CONFIG_LIT_MATCH("pinned", cval))
         __wti_txn_get_pinned_timestamp(
@@ -779,8 +780,12 @@ __txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
 static int
 __txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
+    wt_timestamp_t last_checkpoint_ts;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    conn = S2C(session);
     txn = session->txn;
 
     if (!F_ISSET(txn, WT_TXN_PREPARE))
@@ -790,6 +795,23 @@ __txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
     if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         WT_RET_MSG(
           session, EINVAL, "a commit timestamp is required before setting a durable timestamp");
+
+    /*
+     * When a transaction carries a prepared_id, the durable timestamp must be strictly after the
+     * last checkpoint timestamp. During step-up drain the version cursor skips ingest updates whose
+     * durable timestamp is <= last_checkpoint_timestamp, so a durable timestamp that falls at or
+     * before that boundary would prevent the corresponding preserved prepared cell on the stable
+     * btree from being resolved.
+     */
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID)) {
+        last_checkpoint_ts =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
+        WT_ASSERT_ALWAYS(session,
+          last_checkpoint_ts == WT_TS_NONE || durable_ts > last_checkpoint_ts,
+          "durable timestamp %s must be after the last checkpoint timestamp %s",
+          __wt_timestamp_to_string(durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(last_checkpoint_ts, ts_string[1]));
+    }
 
     WT_RET(__txn_validate_durable_timestamp(session, durable_ts));
     txn->time_point.durable_timestamp = durable_ts;
@@ -1128,7 +1150,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
         WT_RET(__txn_set_rollback_timestamp(session, rollback_ts));
 
     /* Timestamps are only logged in debugging mode. */
-    if (set_ts && FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
+    if (set_ts && FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
       F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wti_txn_ts_log(session));
 
@@ -1193,7 +1215,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     __txn_publish_durable_timestamp(session);
 
     /* Timestamps are only logged in debugging mode. */
-    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
+    if (FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
       F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wti_txn_ts_log(session));
 

@@ -689,7 +689,8 @@ connection_runtime_config = [
             if true, for operations with snapshot isolation the cursor temporarily releases any page
             that requires force eviction, then repositions back to the page for further operations.
             A page release encourages eviction of hot or large pages, which is more likely to
-            succeed without a cursor keeping the page pinned.''',
+            succeed without a cursor keeping the page pinned. Note: This setting is not compatible
+            with disaggregated storage.''',
             type='boolean'),
         Config('disagg_address_cookie_upgrade', 'none', r'''
             modify the disaggregated block manager to pretend that it is a newer version to test
@@ -938,6 +939,17 @@ connection_runtime_config = [
         list, where each option specifies an event handler category e.g. 'error' represents
         the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=['error', 'message']),
+    Config('load_control', '', r'''
+        enable the load control subsystem.''',
+        type='category', subconfig=[
+        Config('enable', 'false', r'''
+            Load control will actively reject the work, based on other settings, to keep the
+            system healthy.''',
+            type='boolean'),
+        Config('control_threshold', '100', r'''
+            Threshold at which load control will actively start rejecting the work.''',
+            min=10, max=200),
+        ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
         min=0),
@@ -1008,7 +1020,8 @@ connection_runtime_config = [
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
-        'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
+        'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
+        'failpoint_history_store_delete_key_from_ts',
         'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
         'history_store_checkpoint_delay', 'history_store_search',
         'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
@@ -1862,6 +1875,15 @@ methods = {
         type='list'),
 ]),
 
+'WT_SESSION.publish' : Method([
+    Config('disaggregated', '', r'''
+        configure disaggregated storage options for this object''',
+        type='category', subconfig=[
+        Config('schema_epoch', '', r'''
+            set the schema epoch for publishing schema operations for this object'''),
+    ]),
+]),
+
 'WT_SESSION.query_timestamp' : Method([
     Config('get', 'read', r'''
         specify which timestamp to query: \c commit returns the most recently set commit_timestamp;
@@ -2243,7 +2265,9 @@ methods = {
         that all timestamps up to and including that value have been committed (possibly
         bounded by the application-set \c durable timestamp); \c backup_checkpoint returns
         the stable timestamp of the checkpoint pinned for an open backup cursor; \c last_checkpoint
-        returns the timestamp of the most recent stable checkpoint; \c oldest_timestamp returns the
+        returns the timestamp of the most recent stable checkpoint;
+        \c last_disaggregated_schema_epoch returns the schema epoch from the most recent
+        disaggregated storage checkpoint; \c oldest_timestamp returns the
         most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader
         returns the minimum of the read timestamps of all active readers; \c pinned returns
         the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
@@ -2254,9 +2278,9 @@ methods = {
         WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         timestamp_global_api''',
-        choices=['all_durable','backup_checkpoint','last_checkpoint','oldest',
-            'oldest_reader','oldest_timestamp','pinned','recovery','stable',
-            'stable_disaggregated_schema_epoch','stable_timestamp']),
+        choices=['all_durable','backup_checkpoint','last_checkpoint',
+            'last_disaggregated_schema_epoch','oldest','oldest_reader','oldest_timestamp',
+            'pinned','recovery','stable','stable_disaggregated_schema_epoch','stable_timestamp']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

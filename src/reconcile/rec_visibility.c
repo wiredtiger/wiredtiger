@@ -92,9 +92,9 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_UPDATE *append, *oldest_upd, *tombstone;
+    WT_UPDATE *append, *oldest_upd, *onpage_upd_or_tombstone, *tombstone;
     size_t size, total_size;
-    bool seen_resolved, tombstone_globally_visible;
+    bool seen_committed, tombstone_globally_visible;
 
     conn = S2C(session);
 
@@ -103,9 +103,9 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
       "__rec_append_orig_value requires an onpage, non-prepared update");
 
     append = tombstone = NULL;
-    oldest_upd = upd;
+    oldest_upd = onpage_upd_or_tombstone = upd;
     size = total_size = 0;
-    seen_resolved = tombstone_globally_visible = false;
+    seen_committed = tombstone_globally_visible = false;
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
@@ -131,8 +131,18 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
          * levels, or when an application intentionally commits in out of timestamp order, it's
          * possible for an update on the chain to be globally visible and followed by an (earlier)
          * update that is not yet globally visible.
+         *
+         * Skip this shortcut when writing as prepared. The decision to write as prepared was taken
+         * against the pinned stable timestamp captured at reconcile start, which can lag the
+         * current global oldest. By the time we reach here, the chain may have become globally
+         * visible even though we still need to encode this entry as prepared. In that case we must
+         * not return early; the caller relies on the on-page value being available as a rollback
+         * fallback for the prepared update.
          */
-        if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
+        if (WT_UPDATE_DATA_VALUE(upd) &&
+          (onpage_upd_or_tombstone != upd || onpage_upd_or_tombstone->type != WT_UPDATE_TOMBSTONE ||
+            !write_prepared) &&
+          __wt_txn_upd_visible_all(session, upd))
             return (0);
 
         oldest_upd = upd;
@@ -142,8 +152,8 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
          */
         uint8_t prepare_state;
         WT_READ_ONCE(prepare_state, upd->prepare_state);
-        seen_resolved =
-          prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED;
+        if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED)
+            seen_committed = true;
 
         /* Leave reference pointing to the last item in the update list. */
         if (upd->next == NULL)
@@ -179,7 +189,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
                  * wrongly leave this key as prepared indefinitely if we rollback the prepared
                  * update.
                  */
-                if (seen_resolved || !write_prepared)
+                if (seen_committed || !write_prepared)
                     return (0);
             }
 
@@ -351,15 +361,9 @@ __rec_save_delete_hs_upd_and_free_obs_updates(WT_SESSION_IMPL *session, WTI_RECO
             break;
         }
 
-        /*
-         * Track the first self-contained value that is globally visible. If a table has garbage
-         * collection enabled, then trim updates as possible. We should check the logic here - it
-         * might be possible to do something more aggressive?
-         */
+        /* Track the first self-contained value that is globally visible. */
         if (F_ISSET(r, WT_REC_CHECKPOINT) && visible_all_upd == NULL && delete_upd->next != NULL &&
-          WT_UPDATE_DATA_VALUE(delete_upd) &&
-          (__wt_txn_upd_visible_all(session, delete_upd) ||
-            WT_REC_CAN_PRUNE_UPD(delete_upd->txnid, delete_upd->upd_durable_ts, r)))
+          WT_UPDATE_DATA_VALUE(delete_upd) && __wt_txn_upd_visible_all(session, delete_upd))
             visible_all_upd = delete_upd;
     }
 
@@ -803,6 +807,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
           session_txnid != WT_TXN_NONE && txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
+            WT_ASSERT(session, prepare_rollback_tombstone == NULL);
+            WT_ASSERT(session, !upd_select->skip_aborted_prepared_value);
             continue;
         }
         /*
@@ -821,7 +827,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
           (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= txnid :
-                                                    !__txn_visible_id(session, txnid))) {
+                                                    !__wt_txn_visible_id(session, txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
@@ -835,6 +841,23 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
 
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
+            /*
+             * If we have already seen a globally visible tombstone from prepared rollback, the
+             * update we are now skipping is the aborted prepared update that the tombstone rolled
+             * back, and its rollback is not yet stable (otherwise we would have broken out of the
+             * loop above). The rollback decision is not durable, so the rollback tombstone is not
+             * safe to write to disk. Drop it from consideration so the fallback after the loop does
+             * not select it for write; we will revisit this key in a later reconcile once the
+             * rollback becomes stable.
+             */
+            prepare_rollback_tombstone = NULL;
+            /*
+             * Same reason as the aborted-prepared skip earlier: this rolled-back prepared value has
+             * no in-chain fallback, so the on-disk cell must not be dropped on this reconciliation.
+             */
+            if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
+                upd_select->skip_aborted_prepared_value = true;
+
             continue;
         }
 
@@ -862,8 +885,15 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
                     /* We should write nothing to disk. */
-                    if (prepare_rollback_tombstone != NULL)
-                        prepare_rollback_tombstone = NULL;
+                    prepare_rollback_tombstone = NULL;
+
+                    /*
+                     * Same reason as the aborted-prepared skip earlier: this rolled-back prepared
+                     * value has no in-chain fallback, so the on-disk cell must not be dropped on
+                     * this reconciliation.
+                     */
+                    if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
+                        upd_select->skip_aborted_prepared_value = true;
                     continue;
                 }
 
@@ -896,8 +926,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                      */
                     WT_ASSERT_ALWAYS(session,
                       !F_ISSET(r, WT_REC_EVICT) || prepare_rollback_tombstone != NULL ||
-                        upd->next != NULL || !WT_REC_HAS_ON_DISK(vpack) ||
-                        !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw),
+                        upd->next != NULL ||
+                        (WT_REC_HAS_ON_DISK(vpack) && !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw)),
                       "leaked prepared update.");
                 } else
                     WT_ASSERT(session, !*has_newer_updatesp);
@@ -986,9 +1016,20 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                  */
                 WT_ASSERT(session,
                   *write_prepare &&
-                    (prepare_state == WT_PREPARE_INPROGRESS ||
-                      prepare_state == WT_PREPARE_LOCKED) &&
-                    prepare_rollback_tombstone->next == upd);
+                    (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED));
+#ifdef HAVE_DIAGNOSTIC
+                /*
+                 * Walk from the rollback tombstone to the current prepared update; the only updates
+                 * permitted in between are reserve updates. Any other update would mean an unknown
+                 * entry slipped in front of the prepared update we are about to select.
+                 */
+                WT_UPDATE *scan;
+                for (scan = prepare_rollback_tombstone->next; scan != NULL && scan != upd;
+                     scan = scan->next)
+                    WT_ASSERT(
+                      session, scan->type == WT_UPDATE_RESERVE && scan->txnid == WT_TXN_ABORTED);
+                WT_ASSERT(session, scan == upd);
+#endif
                 /* We skipped the prepare rollback tombstone. */
                 WT_ASSERT(session, *has_newer_updatesp);
                 /*
@@ -1129,7 +1170,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) &&
           (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= upd->txnid :
-                                                    !__txn_visible_id(session, upd->txnid))) {
+                                                    !__wt_txn_visible_id(session, upd->txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
@@ -1172,16 +1213,15 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (!found_last_upd_to_keep) {
             upd_select->upd = upd;
 
-            if (__wt_txn_upd_visible_all(session, upd)) {
+            /*
+             * For ingest btrees, skip the global visibility check for non-timestamped tombstones as
+             * they will not be globally visible until they can be pruned.
+             */
+            if ((!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || upd->type != WT_UPDATE_TOMBSTONE ||
+                  upd->upd_durable_ts == WT_TS_NONE) &&
+              __wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
-
-                /*
-                 * If garbage collection is enabled, continue traversing the update chain. There may
-                 * be an aborted prepared update that cannot be discarded if the oldest timestamp
-                 * has moved beyond the prune timestamp.
-                 */
-                if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    break;
+                break;
             }
         }
     }
@@ -1215,14 +1255,27 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     }
 
     /*
-     * If there's an on-page value, we only want to write upd_select if the oldest update is
-     * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
-     * update and reset upd_select if the update is not visible.
+     * If there's an on-page value, we only want to write the selected update if the selected update
+     * is globally visible, otherwise we will lose the on-page update. Check if there's an on-page
+     * update and clear the selected update if it is not visible.
      *
-     * If the goal is to prune the entire key, avoid resetting upd_select.
+     * If the goal is to prune the entire key, avoid clearing the selected update.
      */
     if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
         *has_newer_updatesp |= (upd_select->upd != NULL);
+        upd_select->upd = NULL;
+    }
+
+    /*
+     * A committed preserved prepared transaction must not be written to the on-disk image until it
+     * has been drained to the stable btree. Writing it would drop the prepared transaction
+     * identifier from the disk cell, making it impossible to associate the committed update with
+     * the unresolved prepared cell on the stable btree. Keep the update in memory until drain
+     * advances the prune timestamp past its durable timestamp.
+     */
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && upd_select->upd != NULL &&
+      upd_select->upd->prepared_id != WT_PREPARED_ID_NONE) {
+        *has_newer_updatesp = true;
         upd_select->upd = NULL;
     }
 
@@ -1297,8 +1350,17 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
          * move the updates from this btree to the history store, it is essential to identify the
          * update that the tombstone deletes. Failing to do so could lead to missed deletions of
          * related updates in the history store, potentially causing data inconsistencies.
+         *
+         * Force the tombstone to be treated as not globally visible when we are writing it as
+         * prepared. The decision to write as prepared was taken against the pinned stable timestamp
+         * captured at reconcile start, which can lag the current global oldest. If the tombstone
+         * has since become visible to all readers, the globally-visible branch below would skip
+         * selecting the value behind the tombstone, leaving the on-page value unset while the time
+         * window still carries a prepared stop. That combination breaks downstream invariants when
+         * the page is restored. Taking the not-globally-visible path ensures we walk past the
+         * tombstone and select the underlying value as the rollback fallback for the prepared cell.
          */
-        tombstone_globally_visible = __wt_txn_upd_visible_all(session, upd);
+        tombstone_globally_visible = !write_prepare && __wt_txn_upd_visible_all(session, upd);
         if (write_prepare || (F_ISSET(r, WT_REC_HS) && upd->upd_start_ts == WT_TS_NONE) ||
           !tombstone_globally_visible) {
             uint64_t next_txnid = WT_TXN_NONE;
@@ -1402,15 +1464,17 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
          * itself; there is no case that returns no update but sets the time window.)
          *
          * If the tombstone is restored from the disk except for disaggregated btrees or the history
-         * store, the onpage value and the history store value should have been restored together.
-         * Therefore, we should not end up here.
+         * store, the onpage value and the history store value should have been restored together,
+         * so we should not end up here. Preserve-prepared mode is the other allowed case: the
+         * on-disk cell can survive on its own as the rollback fallback for an unresolved aborted
+         * prepared update sitting in front of a restored tombstone, so a restored tombstone may
+         * legitimately appear without a paired full value on the chain.
          */
-        WT_ASSERT_ALWAYS(session,
+        WT_ASSERT(session,
           (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
             !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_HS)) ||
-            (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)),
-          "A tombstone written to the disk image except for disaggregated storage or history store "
-          "should be accompanied by the full value.");
+            (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) ||
+            F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
         WT_RET(__rec_append_orig_value(session, page, tombstone, vpack, write_prepare));
 
         /*

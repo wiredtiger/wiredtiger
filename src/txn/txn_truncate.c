@@ -10,8 +10,8 @@
 
 /*
  * Selects which truncate-list entries __truncate_search considers: those visible to the calling
- * transaction (committed truncates we may need to honor) or those not visible (uncommitted
- * truncates that may conflict with our writes).
+ * transaction (committed and within its read timestamp) or those not visible (uncommitted, or
+ * committed at a timestamp beyond its read timestamp) that may conflict with our writes.
  */
 typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_TRUNCATE_SEARCH_MODE;
 
@@ -22,7 +22,7 @@ typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_T
 static void
 __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
 
     if (entry == NULL || *entry == NULL)
         return;
@@ -58,27 +58,117 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 }
 
 /*
+ * __truncate_entry_remove --
+ *     Remove an entry from the truncate queue. Must be called under the truncate write lock.
+ */
+static void
+__truncate_entry_remove(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE *entry)
+{
+    WT_ASSERT(session, !TAILQ_EMPTY(&layered_table->truncateqh));
+    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&layered_table->iface.references) > 0);
+
+    TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
+
+    if (TAILQ_EMPTY(&layered_table->truncateqh))
+        WT_DHANDLE_RELEASE(&layered_table->iface);
+}
+
+/*
+ * __layered_table_truncate_gc --
+ *     Reap truncate-list entries whose effect is now durable in the picked-up checkpoint.
+ */
+static void
+__layered_table_truncate_gc(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
+{
+    if (prune_timestamp == WT_TS_NONE)
+        return;
+
+    WT_STAT_CONN_INCR(session, layered_truncate_list_gc_runs);
+
+    WT_TRUNCATE *entry = NULL;
+    WT_TRUNCATE *next = NULL;
+
+    TAILQ_FOREACH_SAFE(entry, &layered_table->truncateqh, q, next)
+    {
+        const bool is_committed = __wt_atomic_load_bool_acquire(&entry->committed);
+
+        /*
+         * Committed entries with durable_ts == WT_TS_NONE are never pruned here. Without a
+         * timestamp, we cannot determine whether the follower has picked up these changes yet.
+         */
+        const bool is_time =
+          entry->durable_ts != WT_TS_NONE && entry->durable_ts <= prune_timestamp;
+
+        if (!is_committed || !is_time)
+            continue;
+
+        __truncate_entry_remove(session, layered_table, entry);
+        __disagg_truncate_free(session, &entry);
+        WT_STAT_CONN_INCR(session, layered_truncate_list_gc_entries_removed);
+    }
+}
+
+/*
+ * __log_truncate_entry --
+ *     Create a log message for the truncate entry that will be added to the truncate list.
+ */
+static void
+__log_truncate_entry(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_TRUNCATE *entry)
+{
+    if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3))
+        return;
+
+    WT_DECL_RET;
+    WT_DECL_ITEM(start_buffer);
+    WT_DECL_ITEM(stop_buffer);
+
+    const char *name = layered_table->iface.name;
+    const char *format = layered_table->key_format;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &start_buffer));
+    WT_ERR(__wt_scr_alloc(session, 0, &stop_buffer));
+
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
+      "inserting entry into truncate list on table %s: start=%s stop=%s", name,
+      __wt_key_string(session, entry->start_key.data, entry->start_key.size, format, start_buffer),
+      __wt_key_string(session, entry->stop_key.data, entry->stop_key.size, format, stop_buffer));
+
+err:
+    __wt_scr_free(session, &start_buffer);
+    __wt_scr_free(session, &stop_buffer);
+}
+
+/*
  * __txn_insert_truncate_entry_helper --
- *     Register a truncate entry to the latest transaction and store it in the truncate list.
+ *     Register a truncate entry to the latest transaction and store it in the truncate list. This
+ *     function will also opportunistically prune the truncate list so it does not grow infinitely.
  */
 static int
 __txn_insert_truncate_entry_helper(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE **tp)
 {
     WT_DECL_RET;
-    WT_TRUNCATE *t;
-
-    t = *tp;
+    WT_TRUNCATE *entry = *tp;
+    wt_timestamp_t prune_timestamp = 0;
 
     WT_RET(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
-    WT_ERR(__wt_txn_truncate(session, t));
+    WT_ERR(__wt_txn_truncate(session, entry));
+
+    /* At this point, adding the entry to the truncate list will not fail. */
+    __log_truncate_entry(session, layered_table, entry);
 
     __wt_writelock(session, &layered_table->truncate_lock);
+
+    prune_timestamp = __wt_atomic_load_uint64_relaxed(&S2BT(session)->prune_timestamp);
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
 
     if (TAILQ_EMPTY(&layered_table->truncateqh))
         WT_DHANDLE_ACQUIRE(&layered_table->iface);
 
-    TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
+    TAILQ_INSERT_TAIL(&layered_table->truncateqh, entry, q);
 
     __wt_writeunlock(session, &layered_table->truncate_lock);
 
@@ -98,27 +188,16 @@ int
 __wt_insert_truncate_entry(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *start_key, WT_ITEM *stop_key)
 {
-    WT_DECL_ITEM(start_buf);
-    WT_DECL_ITEM(stop_buf);
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, F_ISSET(&layered_table->iface, WT_DHANDLE_OPEN));
 
     /* Caller resolves open-ended ranges to concrete keys before reaching us. */
     WT_ASSERT(session, start_key != NULL && stop_key != NULL);
     WT_ASSERT(session, start_key->size != 0 && stop_key->size != 0);
-
-    WT_RET(__wt_scr_alloc(session, 0, &start_buf));
-    WT_RET(__wt_scr_alloc(session, 0, &stop_buf));
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_3,
-      "insert entry into truncate list on table %s: start=%s stop=%s", layered_table->iface.name,
-      __wt_key_string(
-        session, start_key->data, start_key->size, layered_table->key_format, start_buf),
-      __wt_key_string(
-        session, stop_key->data, stop_key->size, layered_table->key_format, stop_buf));
 
     WT_ERR(__wt_calloc_one(session, &t));
     t->layered_table = layered_table;
@@ -137,10 +216,25 @@ __wt_insert_truncate_entry(
 err:
         __disagg_truncate_free(session, &t);
     }
-    __wt_scr_free(session, &start_buf);
-    __wt_scr_free(session, &stop_buf);
 
     return (ret);
+}
+
+/*
+ * __truncate_read_entry_timestamps --
+ *     Read a stable snapshot of truncate entry's commit timestamps.
+ */
+static void
+__truncate_read_entry_timestamps(
+  WT_TRUNCATE *entry, wt_timestamp_t *start_tsp, wt_timestamp_t *durable_tsp)
+{
+    const bool committed = __wt_atomic_load_bool_acquire(&entry->committed);
+
+    if (committed) {
+        *start_tsp = entry->start_ts;
+        *durable_tsp = entry->durable_ts;
+    } else
+        *start_tsp = *durable_tsp = WT_TS_NONE;
 }
 
 /*
@@ -154,6 +248,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
   const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
 {
     WT_ASSERT(session, is_foundp != NULL);
+    WT_ASSERT(session, __wt_rwlock_islocked(session, &layered_table->truncate_lock));
     *is_foundp = false;
 
     WT_STAT_CONN_INCR(session, layered_truncate_list_search_calls);
@@ -164,13 +259,13 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         WT_STAT_CONN_INCR(session, layered_truncate_list_search_entries_walked);
 
-        const bool is_visible =
-          __wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts);
+        wt_timestamp_t start_ts, durable_ts;
+        __truncate_read_entry_timestamps(entry, &start_ts, &durable_ts);
 
-        if (mode == WT_TRUNCATE_SEARCH_VISIBLE && !is_visible)
-            continue;
+        const bool visible = __wt_txn_visible(session, entry->txn_id, start_ts, durable_ts);
+        const bool want_visible = (mode == WT_TRUNCATE_SEARCH_VISIBLE);
 
-        if (mode == WT_TRUNCATE_SEARCH_NOT_VISIBLE && is_visible)
+        if (visible != want_visible)
             continue;
 
         WT_RET(__key_within_truncate_range(
@@ -191,7 +286,7 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
  *     Search if the current key we are modifying conflicts with any uncommitted truncates in the
  *     layered table truncate list.
  *
- * FIXME-WT-16812: Investigate whether this function can be called below the cursor layer. Doing so
+ * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer. Doing so
  *     would remove the write cursor operations dependency on the truncate list.
  */
 int
@@ -201,7 +296,7 @@ __wt_layered_table_truncate_detect_write_conflict(
     WT_DECL_RET;
     bool is_found = false;
 
-    if (!__wt_process.disagg_fast_truncate_2026)
+    if (__wt_process.disagg_slow_truncate_2026)
         return (0);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
@@ -230,17 +325,103 @@ __wt_layered_table_truncate_detect_write_conflict(
 }
 
 /*
- * __wt_truncate_delete_visible_check --
- *     Search if the given key has been deleted in the layered table truncate list.
+ * __wt_layered_table_truncate_detect_non_ingest_write_conflict --
+ *     Check whether any keys in the range conflicts with any uncommitted truncates in the layered
+ *     table truncate list. This exists because the normal write conflict checker only works for a
+ *     specific key.
  */
 int
-__wt_truncate_delete_visible_check(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
+__wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *session,
+  WT_LAYERED_TABLE *layered_table, const WT_ITEM *start_key, const WT_ITEM *stop_key)
 {
     WT_DECL_RET;
+
+    __wt_readlock(session, &layered_table->truncate_lock);
+
+    WT_STAT_CONN_INCR(session, layered_truncate_list_search_calls);
+
+    WT_COLLATOR *collator = layered_table->collator;
+    WT_TRUNCATE *entry = NULL;
+    bool is_found = false;
+    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
+        WT_STAT_CONN_INCR(session, layered_truncate_list_search_entries_walked);
+
+        wt_timestamp_t start_ts, durable_ts;
+        __truncate_read_entry_timestamps(entry, &start_ts, &durable_ts);
+
+        if (__wt_txn_visible(session, entry->txn_id, start_ts, durable_ts))
+            continue;
+
+        /* Does the new range start within an existing range? */
+        WT_ERR(__key_within_truncate_range(
+          session, collator, &entry->start_key, &entry->stop_key, start_key, &is_found));
+        if (is_found)
+            break;
+
+        /* Does the old range start within the new range? */
+        WT_ERR(__key_within_truncate_range(
+          session, collator, start_key, stop_key, &entry->start_key, &is_found));
+        if (is_found)
+            break;
+    }
+
+    if (is_found) {
+        WT_STAT_CONN_INCR(session, txn_update_conflict);
+        __wt_session_set_last_error(
+          session, WT_ROLLBACK, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
+        ret = WT_ROLLBACK;
+    }
+
+err:
+    __wt_readunlock(session, &layered_table->truncate_lock);
+    return (ret);
+}
+
+/*
+ * __truncate_entry_copy_keys --
+ *     Copy the start and stop keys from a truncate entry into caller-owned buffers.
+ */
+static int
+__truncate_entry_copy_keys(
+  WT_SESSION_IMPL *session, const WT_TRUNCATE *const entry, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
+{
+    WT_ASSERT(session, start_keyp != NULL && stop_keyp != NULL);
+
+    WT_DECL_RET;
+    WT_ERR(__wt_buf_set(session, start_keyp, entry->start_key.data, entry->start_key.size));
+    WT_ERR(__wt_buf_set(session, stop_keyp, entry->stop_key.data, entry->stop_key.size));
+
+    if (0) {
+err:
+        __wt_buf_free(session, start_keyp);
+        __wt_buf_free(session, stop_keyp);
+    }
+
+    return (ret);
+}
+
+/*
+ * __wt_truncate_delete_visible_check --
+ *     Search if the given key has been deleted in the layered table truncate list. start_keyp and
+ *     stop_keyp are optional out parameters that represent the truncate range that deleted the key.
+ *     On success, the caller must free start_keyp and stop_keyp.
+ */
+int
+__wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
+  WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
+{
+    /* We either want the full range or no range at all. */
+    WT_ASSERT(session, ((start_keyp != NULL) == (stop_keyp != NULL)));
+
+    WT_DECL_RET;
+    WT_TRUNCATE *tp = NULL;
     bool is_found = false;
 
-    if (!__wt_process.disagg_fast_truncate_2026)
+    if (__wt_process.disagg_slow_truncate_2026)
+        return (WT_NOTFOUND);
+
+    /* The truncate list is only populated on followers; leaders truncate stable directly. */
+    if (S2C(session)->layered_table_manager.leader)
         return (WT_NOTFOUND);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
@@ -252,11 +433,15 @@ __wt_truncate_delete_visible_check(
      * Ignore all truncate entries that haven't been committed. They won't be visible to this
      * transaction.
      */
-    ret = __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, tp, &is_found);
+    WT_ERR(
+      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, &tp, &is_found));
 
+    if (is_found && start_keyp != NULL)
+        WT_ERR(__truncate_entry_copy_keys(session, tp, start_keyp, stop_keyp));
+
+err:
     __wt_readunlock(session, &layered_table->truncate_lock);
     WT_RET(ret);
-
     return (is_found ? 0 : WT_NOTFOUND);
 }
 
@@ -272,7 +457,7 @@ __disagg_truncate_apply(WT_SESSION_IMPL *session, WT_TXN_OP *op,
     WT_ASSERT(session, op != NULL);
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
     WT_ASSERT(session, entry != NULL);
     WT_ASSERT(session, entry->layered_table != NULL);
     WT_ASSERT(
@@ -283,9 +468,7 @@ __disagg_truncate_apply(WT_SESSION_IMPL *session, WT_TXN_OP *op,
 
 /*
  * __wti_mark_committed_truncate_table_apply --
- *     Stamp commit metadata onto a truncate entry in the provided layered table. The write lock
- *     serializes readers that walk the truncate list under truncate_lock while checking the entry's
- *     plain txn/timestamp fields for visibility.
+ *     Mark the entry as committed so it becomes visible to other transactions.
  */
 void
 __wti_mark_committed_truncate_table_apply(
@@ -293,15 +476,25 @@ __wti_mark_committed_truncate_table_apply(
 {
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
-    /*
-     * FIXME-WT-17347 Remove the queue-wide write lock when applying commit metadata to truncate
-     * entry
+    WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
+    WT_ASSERT(session, layered_table != NULL);
+    WT_ASSERT(session, entry != NULL);
+    WT_ASSERT(session, entry->txn_id == session->txn->time_point.id);
+    WT_UNUSED(layered_table);
+
+    WT_ASSERT(session, __wt_atomic_load_bool_relaxed(&entry->committed) == false);
+
+    /*-
+     * The transition to committed uses `release` ordering to:
+     * - fence the timestamp writes before the state change,
+     * - signal readers waiting on the state change that the entry is now committed.
+     *
+     * Readers must use `acquire` ordering when loading the committed flag to ensure they see
+     * the committed timestamps.
      */
-    __wt_writelock(session, &layered_table->truncate_lock);
-    entry->txn_id = session->txn->time_point.id;
     entry->start_ts = session->txn->time_point.commit_timestamp;
     entry->durable_ts = session->txn->time_point.durable_timestamp;
-    __wt_writeunlock(session, &layered_table->truncate_lock);
+    __wt_atomic_store_bool_release(&entry->committed, true);
 }
 
 /*
@@ -312,23 +505,6 @@ void
 __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     __disagg_truncate_apply(session, op, __wti_mark_committed_truncate_table_apply);
-}
-
-/*
- * __truncate_entry_remove --
- *     Remove an entry from the truncate queue. Must be called under the truncate write lock.
- */
-static void
-__truncate_entry_remove(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_TRUNCATE *entry)
-{
-    WT_ASSERT(session, !TAILQ_EMPTY(&layered_table->truncateqh));
-    WT_ASSERT(session, __wt_atomic_load_uint32_relaxed(&layered_table->iface.references) > 0);
-
-    TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
-
-    if (TAILQ_EMPTY(&layered_table->truncateqh))
-        WT_DHANDLE_RELEASE(&layered_table->iface);
 }
 
 /*
@@ -379,3 +555,12 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     }
     __wt_writeunlock(session, &layered_table->truncate_lock);
 }
+
+#ifdef HAVE_UNITTEST
+void
+__ut_layered_table_truncate_gc(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp)
+{
+    __layered_table_truncate_gc(session, layered_table, prune_timestamp);
+}
+#endif
