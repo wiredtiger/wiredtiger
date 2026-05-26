@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, sqlite3
+import os, re, sqlite3, sys, traceback
 from typing import NamedTuple
 import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
@@ -71,8 +71,17 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     # Returns (stdout, stderr); failure=True asserts a non-zero exit.
     def _run_wt_page(self, *args, failure=False):
         cmd = ['-C', self._wt_page_extra_config(), 'page'] + list(args)
-        self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
-                   failure=failure)
+        # FIXME-WT-17341: diagnostic wrapper to capture the exception path that
+        # is breaking ubuntu2004-release CI. Drop once root cause is fixed.
+        try:
+            self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
+                       failure=failure)
+        except BaseException as exc:
+            sys.stderr.write(
+                f'_run_wt_page failed: {type(exc).__name__}: {exc}\n')
+            traceback.print_exc(file=sys.stderr)
+            sys.stderr.flush()
+            raise
         with open('wt.out') as f:
             stdout = f.read()
         with open('wt.err') as f:
@@ -107,7 +116,16 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         )
         # Close the WT connection so palite releases its SQLite locks before
         # we open the database directly in read-only mode.
-        self.close_conn()
+        # FIXME-WT-17341: diagnostic wrapper to capture the exception path that
+        # is breaking ubuntu2004-release CI. Drop once root cause is fixed.
+        try:
+            self.close_conn()
+        except BaseException as exc:
+            sys.stderr.write(
+                f'_find_page close_conn failed: {type(exc).__name__}: {exc}\n')
+            traceback.print_exc(file=sys.stderr)
+            sys.stderr.flush()
+            raise
         try:
             with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
                 row = conn.execute(query, (table_id, *params)).fetchone()
