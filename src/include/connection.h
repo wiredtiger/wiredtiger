@@ -194,7 +194,7 @@ struct __wt_disagg_metadata_op {
     WT_SHARED_METADATA_OP metadata_op; /* The type of the metadata operation. */
     wt_timestamp_t schema_epoch;       /* The schema epoch of the metadata operation. */
 
-    /* Skip the drop operation in the next checkpoint and defer it to the one after. */
+    /* Skip this operation in the current checkpoint and apply it in the next one. */
     bool deferred;
 
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
@@ -1200,15 +1200,16 @@ struct __wt_connection_impl {
 #define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x0008u
 #define WT_CONN_CKPT_SYNC 0x0010u
 #define WT_CONN_IN_MEMORY 0x0020u
-#define WT_CONN_LIVE_RESTORE_FS 0x0040u
-#define WT_CONN_PRECISE_CHECKPOINT 0x0080u
-#define WT_CONN_PRESERVE_PREPARED 0x0100u
-#define WT_CONN_READONLY 0x0200u
-#define WT_CONN_RECOVERING 0x0400u
-#define WT_CONN_RECOVERING_METADATA 0x0800u
-#define WT_CONN_RECOVERY_COMPLETE 0x1000u
-#define WT_CONN_SALVAGE 0x2000u
-#define WT_CONN_WAS_BACKUP 0x4000u
+#define WT_CONN_KEY_PROVIDER_PUSH 0x0040u
+#define WT_CONN_LIVE_RESTORE_FS 0x0080u
+#define WT_CONN_PRECISE_CHECKPOINT 0x0100u
+#define WT_CONN_PRESERVE_PREPARED 0x0200u
+#define WT_CONN_READONLY 0x0400u
+#define WT_CONN_RECOVERING 0x0800u
+#define WT_CONN_RECOVERING_METADATA 0x1000u
+#define WT_CONN_RECOVERY_COMPLETE 0x2000u
+#define WT_CONN_SALVAGE 0x4000u
+#define WT_CONN_WAS_BACKUP 0x8000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 

@@ -2239,7 +2239,13 @@ methods = {
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
 
-'WT_CONNECTION.set_key_provider' : Method([]),
+'WT_CONNECTION.set_key_provider' : Method([
+    Config('version', '0', r'''
+        the key provider API version. Version 0 uses the pull model
+        (WiredTiger calls WT_KEY_PROVIDER::get_key). Version 1 uses
+        the push model''',
+        min=0, max=1),
+]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''

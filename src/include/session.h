@@ -292,13 +292,12 @@ struct __wt_session_impl {
 #endif
 
 #ifdef HAVE_UNITTEST_ASSERTS
-/*
- * Unit testing assertions requires overriding abort logic and instead capturing this information to
- * be checked by the unit test.
- */
-#define WT_SESSION_UNITTEST_BUF_LEN 100
+    /*
+     * Unit testing assertions requires overriding abort logic and instead capturing this
+     * information to be checked by the unit test.
+     */
     bool unittest_assert_hit;
-    char unittest_assert_msg[WT_SESSION_UNITTEST_BUF_LEN];
+    char unittest_assert_msg[WT_ERR_MSG_BUF_LEN];
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -354,8 +353,9 @@ struct __wt_session_impl {
 #define WT_SESSION_ROLLBACK_TO_STABLE 0x04000000u
 #define WT_SESSION_SAVE_ERRORS 0x08000000u
 #define WT_SESSION_SCHEMA_TXN 0x10000000u
-#define WT_SESSION_STEPPING_DOWN 0x20000000u
-#define WT_SESSION_STEPPING_UP 0x40000000u
+#define WT_SESSION_SKIP_CACHE_INCR 0x20000000u
+#define WT_SESSION_STEPPING_DOWN 0x40000000u
+#define WT_SESSION_STEPPING_UP 0x80000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

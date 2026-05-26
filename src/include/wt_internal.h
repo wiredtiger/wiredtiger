@@ -657,6 +657,7 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
+#include "load_control_inline.h"
 #include "cache_inline.h"
 #include "../evict/evict_inline.h" /* required by misc_inline.h */
 #include "ctype_inline.h"          /* required by packing_inline.h */
@@ -670,6 +671,7 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp_inline.h"  /* required by btree_inline.h */
 #include "cell_inline.h"       /* required by btree_inline.h */
 #include "mutex_inline.h"      /* required by btree_inline.h */
+#include "session_inline.h"    /* required by api.h macros */
 #include "txn_inline.h"        /* required by btree_inline.h */
 
 #include "bitstring_inline.h"

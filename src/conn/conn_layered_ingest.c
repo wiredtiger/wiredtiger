@@ -102,6 +102,21 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     if (from_ts == WT_TS_NONE)
         __layered_assert_stable_btree_state(session, cbt, last_upd);
 
+    /*
+     * If the oldest update being moved is an aborted prepared update and the stable btree has no
+     * existing value for this key, append a globally visible tombstone after the chain. Any newer
+     * updates may themselves be non-stable while the update's rollback timestamp has already become
+     * stable; without a fallback below, reconciliation has nothing to write in place of the aborted
+     * prepared update, leaving an orphaned prepared value on the disk image. The tombstone keeps
+     * the post-rollback state well-defined (the key never existed).
+     */
+    if (cbt->compare != 0 && last_upd->txnid == WT_TXN_ABORTED) {
+        WT_ASSERT(session, last_upd->prepared_id != WT_PREPARED_ID_NONE);
+        WT_UPDATE *tombstone;
+        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+        last_upd->next = tombstone;
+    }
+
     /* Apply the modification. */
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
 
@@ -154,12 +169,11 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
     WT_DECL_RET;
     wt_timestamp_t btree_prune_timestamp;
 
-    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_RET_ERROR_OK(ret = __wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), ENOENT);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "Handle not found for ingest table uri: %s", ingest_uri);
-        ret = 0;
-        goto err;
+        return (0);
     }
 
     btree = (WT_BTREE *)session->dhandle->handle;
@@ -171,9 +185,8 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
 
     __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, WT_TS_NONE);
 
-    WT_ERR(__wt_session_release_dhandle(session));
+    WT_RET(__wt_session_release_dhandle(session));
 
-err:
     return (ret);
 }
 
@@ -731,9 +744,9 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
 
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), ENOENT, true);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "No layered handle found for ingest table \"%s\", only performing ingest drain",
           ingest_uri);
@@ -1010,13 +1023,12 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
-
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
      */
-    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_RET_ERROR_OK(ret = __wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), ENOENT);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Layered table was not found.", layered_uri);
         return (0);
@@ -1099,9 +1111,9 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
      * that it hasn't been opened yet. In that case, we need to skip updating its timestamp for
      * pruning, and we'll get another chance to update the prune timestamp at the next checkpoint.
      */
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), ENOENT, true);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Handle not found for ingest table uri: %s", layered_table->iface.name,
           layered_table->ingest_uri);
