@@ -125,8 +125,12 @@ ENDOFTEXT
 # Parallel execution: if it's the main invocation of the script, collect the file names
 # to process and run them in subprocesses.
 
-# Search for files in explicit source directories.
-find bench dist docs examples ext lang oss src test tools \
+# Search for files in explicit source directories, skipping any absent in this tree.
+dirs=()
+for d in bench dist docs examples ext lang oss src test tools; do
+    [ -d "$d" ] && dirs+=("$d")
+done
+find "${dirs[@]}" \
     -name '*.[ch]' \
     -o -name '*.cpp' \
     -o -name '*.in' \
