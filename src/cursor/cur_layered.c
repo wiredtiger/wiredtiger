@@ -3068,15 +3068,15 @@ __layered_constituent_dump(
      */
     if (cbt->ref == NULL && key != NULL) {
         constituent->set_key(constituent, key);
-        WT_ERR_NOTFOUND_OK(constituent->search_near(constituent, &exact), false);
+        WT_RET_NOTFOUND_OK(constituent->search_near(constituent, &exact));
     }
 
     if (cbt->ref == NULL)
-        goto done;
+        return (0);
 
     if (ofile != NULL) {
         len = strlen(ofile) + strlen(suffix) + 2;
-        WT_RET(__wt_calloc_def(session, len, &path));
+        WT_ERR(__wt_calloc_def(session, len, &path));
         WT_ERR(__wt_snprintf(path, len, "%s.%s", ofile, suffix));
     }
 
@@ -3084,7 +3084,6 @@ __layered_constituent_dump(
     if (ret == 0)
         *dumped = true;
 
-done:
 err:
     __wt_free(session, path);
     return (ret);
