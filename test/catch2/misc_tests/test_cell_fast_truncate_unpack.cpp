@@ -168,8 +168,9 @@ TEST_CASE("Cell Fast Truncate Pack/Unpack: prepared deletion round-trips correct
     auto session_mock = setup_mock_session();
     WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
 
-    /* preserve_prepared must be set to allow packing an in-progress prepared state. */
+    /* Both flags are required to pack a prepared fast-truncate cell. */
     F_SET(S2C(session), WT_CONN_PRESERVE_PREPARED);
+    F_SET(S2BT(session), WT_BTREE_DISAGGREGATED);
 
     WT_PAGE_HEADER dsk = make_ft_page_header();
 
@@ -208,6 +209,7 @@ TEST_CASE("Cell Fast Truncate Pack/Unpack: prepared deletion round-trips correct
     CHECK(unpack.ta.prepare == 0);
 
     F_CLR(S2C(session), WT_CONN_PRESERVE_PREPARED);
+    F_CLR(S2BT(session), WT_BTREE_DISAGGREGATED);
 }
 
 TEST_CASE("Cell Fast Truncate: prepare flag on non-fast-truncate addr cell marks page as prepared",

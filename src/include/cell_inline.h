@@ -606,8 +606,16 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
     prepare_state = page_del != NULL ? __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state) :
                                        WT_PREPARE_INIT;
+    /*
+     * A prepared fast-truncate cell is only legal on a disaggregated btree with preserve_prepared.
+     * Folding the flags into this bool prevents __cell_pack_addr_validity from writing
+     * WT_CELL_PREPARE into the second descriptor byte if either condition is unmet  regardless of
+     * whether the caller's assertions (in __wt_cell_build_addr) fire in this build configuration.
+     */
     is_prepared_fast_truncate =
-      (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
+      (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
+      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED);
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
@@ -626,10 +634,6 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
         if (is_prepared_fast_truncate) {
-            /* Only reachable for disaggregated btrees with preserve_prepared; see __wt_cell_build_addr. */
-            WT_ASSERT(session,
-              F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-                F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
             WT_ASSERT(session, page_del->prepared_id != WT_PREPARED_ID_NONE);
             WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepare_ts));
             WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepared_id));
