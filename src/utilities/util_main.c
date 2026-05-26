@@ -39,6 +39,95 @@ wt_explicit_zero(void *ptr, size_t len)
 }
 
 /*
+ * util_disagg_pick_up_latest_checkpoint --
+ *     If the connection is configured for disaggregated storage, fetch the latest complete
+ *     checkpoint metadata from the page log and install it via reconfigure. This mirrors mongo's
+ *     WiredTigerKVEngine::setRecoveryCheckpointMetadata pattern: the driver (here, the wt utility)
+ *     owns checkpoint discovery; the library owns installation via the existing
+ *     disaggregated.checkpoint_meta config consumed at reconfigure time.
+ *
+ *     Returns 0 if disagg is not configured, if no checkpoint is available yet (WT_NOTFOUND from
+ *     the extension), or after a successful install. Returns the WT error code on failure.
+ */
+static int
+util_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
+{
+    WT_CONNECTION_IMPL *conn_impl;
+    WT_DECL_RET;
+    WT_PAGE_LOG *page_log;
+    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
+    WT_SESSION_IMPL *session_impl;
+    char *reconfig;
+    const char *page_log_name;
+    size_t reconfig_len;
+
+    session_impl = (WT_SESSION_IMPL *)session;
+    conn_impl = S2C(session_impl);
+    page_log = NULL;
+    reconfig = NULL;
+    WT_CLEAR(args);
+
+    /*
+     * Sniff: connections opened without disaggregated.page_log have npage_log == NULL and need no
+     * pickup. This covers the common case of running wt against a plain WiredTiger home.
+     */
+    if (conn_impl->disaggregated_storage.npage_log == NULL)
+        return (0);
+
+    page_log_name = conn_impl->disaggregated_storage.page_log;
+    WT_ASSERT(session_impl, page_log_name != NULL);
+
+    /*
+     * Look up the extension via the public connection API. get_page_log adds a reference that
+     * must be released with WT_PAGE_LOG::terminate.
+     */
+    WT_RET(conn->get_page_log(conn, page_log_name, &page_log));
+
+    /*
+     * pl_get_complete_checkpoint is documented as test-only (production page logs deliver
+     * checkpoint markers via streamed log entries instead). The wt utility deliberately tolerates
+     * page logs that do not implement it -- a CLI tool should not refuse to start against a page
+     * log it doesn't recognize. Proceed without any checkpoint installed.
+     */
+    if (page_log->pl_get_complete_checkpoint == NULL)
+        goto done;
+
+    ret = page_log->pl_get_complete_checkpoint(page_log, session, &args);
+    if (ret == WT_NOTFOUND) {
+        fprintf(stderr,
+          "wt: no complete checkpoint found in disaggregated page log; proceeding with empty "
+          "metadata\n");
+        ret = 0;
+        goto done;
+    }
+    WT_ERR(ret);
+
+    /*
+     * Format the metadata blob as a disaggregated.checkpoint_meta config string and install via
+     * reconfigure -- this drives the existing pickup path at conn_layered.c:1568.
+     */
+    reconfig_len = strlen("disaggregated=(checkpoint_meta=\"\")") +
+      args.checkpoint_metadata.size + 1;
+    WT_ERR(__wt_malloc(session_impl, reconfig_len, &reconfig));
+    /*
+     * The blob is safe to interpolate unescaped between quotes: __wt_disagg_advance_checkpoint
+     * (src/conn/conn_layered.c) guarantees the metadata is a valid config string with no quotation
+     * marks or escape characters.
+     */
+    WT_ERR(__wt_snprintf(reconfig, reconfig_len, "disaggregated=(checkpoint_meta=\"%.*s\")",
+        (int)args.checkpoint_metadata.size, (const char *)args.checkpoint_metadata.data));
+    WT_ERR(conn->reconfigure(conn, reconfig));
+
+err:
+done:
+    __wt_buf_free(session_impl, &args.checkpoint_metadata);
+    __wt_free(session_impl, reconfig);
+    if (page_log != NULL)
+        WT_TRET(page_log->terminate(page_log, session));
+    return (ret);
+}
+
+/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -349,6 +438,11 @@ open:
 
     if ((ret = conn->open_session(conn, NULL, session_config, &session)) != 0) {
         (void)util_err(NULL, ret, NULL);
+        goto err;
+    }
+
+    if ((ret = util_disagg_pick_up_latest_checkpoint(conn, session)) != 0) {
+        (void)util_err(session, ret, "failed to pick up latest disaggregated checkpoint");
         goto err;
     }
 
