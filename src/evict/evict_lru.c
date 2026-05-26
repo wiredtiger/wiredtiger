@@ -1273,8 +1273,22 @@ __evict_get_ref(
          * We only care about LRU for clean leaf pages. For other level choose a random starting
          * bucket to reduce contention.
          */
-        if (i == WT_EVICT_LEVEL_CLEAN_LEAF) /* XXX. Revisit for YCSB. Does this really matter? */
-            j = __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered) % num_buckets;
+        if (i == WT_EVICT_LEVEL_CLEAN_LEAF) /* XXX. Revisit for YCSB. Does this really matter? */ {
+            uint32_t bucket_last_considered =
+                __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered);
+            uint32_t rand = __wt_random(&session->rnd_random);
+            int offset = (int)(rand % (WT_EVICT_EXPECTED_CONTENTION / 2));
+            /* Flip a coin to see if we are adding or subtracting */
+            if (rand % 2 == 1) {
+                if (offset > (int)bucket_last_considered)
+                    offset = (int)bucket_last_considered;
+                else
+                    offset = -offset;
+            }
+            j = (uint32_t)((int)bucket_last_considered + offset) % num_buckets;
+//            j = (__wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered) +
+//                 __wt_random(&session->rnd_random) % WT_EVICT_EXPECTED_CONTENTION) % num_buckets;
+        }
         else
 #endif
             j = __wt_random(&session->rnd_random) % num_buckets;
@@ -1292,7 +1306,8 @@ __evict_get_ref(
             }
 #if LRU_FOR_READS /* Revisit if LRU is needed for YCSB */
             if (iter > 0 && i == WT_EVICT_LEVEL_CLEAN_LEAF)
-                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, bucketset->bucket_last_considered + iter);
+//                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 #endif
             if (TAILQ_EMPTY(&bucket->evict_queue))
                 WT_STAT_CONN_INCR(session, eviction_skip_empty_bucket);
