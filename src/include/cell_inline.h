@@ -602,9 +602,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     uint8_t *p, prepare_state;
     bool is_prepared_fast_truncate;
 
-    prepare_state = page_del != NULL ?
-      __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state) :
-      WT_PREPARE_INIT;
+    prepare_state = page_del != NULL ? __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state) :
+                                       WT_PREPARE_INIT;
     is_prepared_fast_truncate =
       (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
 

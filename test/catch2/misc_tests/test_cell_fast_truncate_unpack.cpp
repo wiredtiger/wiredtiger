@@ -145,7 +145,8 @@ TEST_CASE("Cell Fast Truncate Pack/Unpack: committed deletion round-trips correc
 
     WT_CELL cell;
     memset(&cell, 0, sizeof(cell));
-    WT_IGNORE_RET(__wt_cell_pack_addr(session, &cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, &page_del, &ta, 0));
+    WT_IGNORE_RET(
+      __wt_cell_pack_addr(session, &cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, &page_del, &ta, 0));
 
     WT_CELL_UNPACK_ADDR unpack;
     memset(&unpack, 0, sizeof(unpack));
@@ -187,7 +188,8 @@ TEST_CASE("Cell Fast Truncate Pack/Unpack: prepared deletion round-trips correct
 
     WT_CELL cell;
     memset(&cell, 0, sizeof(cell));
-    WT_IGNORE_RET(__wt_cell_pack_addr(session, &cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, &page_del, &ta, 0));
+    WT_IGNORE_RET(
+      __wt_cell_pack_addr(session, &cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, &page_del, &ta, 0));
 
     WT_CELL_UNPACK_ADDR unpack;
     memset(&unpack, 0, sizeof(unpack));
