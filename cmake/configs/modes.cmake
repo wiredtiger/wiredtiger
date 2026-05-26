@@ -80,31 +80,29 @@ function(define_build_mode mode)
     string(REPLACE ";" " " cxx_flags "${DEFINE_BUILD_CXX_COMPILER_FLAGS}")
     string(REPLACE ";" " " linker_flags "${linker_flags}")
     string(TOUPPER ${mode} build_mode)
-
-    # Default flags for this build type.
     set(CMAKE_C_FLAGS_${build_mode}
         "${c_flags}" CACHE STRING
-        "Flags used by the C compiler for ${mode} build type or configuration.")
+        "Flags used by the C compiler for ${mode} build type or configuration." FORCE)
 
     set(CMAKE_CXX_FLAGS_${build_mode}
         "${cxx_flags}" CACHE STRING
-        "Flags used by the C++ compiler for ${mode} build type or configuration.")
+        "Flags used by the C++ compiler for ${mode} build type or configuration." FORCE)
 
     set(CMAKE_EXE_LINKER_FLAGS_${build_mode}
         "${linker_flags}" CACHE STRING
-        "Linker flags to be used to create executables for ${mode} build type.")
+        "Linker flags to be used to create executables for ${mode} build type." FORCE)
 
     set(CMAKE_SHARED_LINKER_FLAGS_${build_mode}
         "${linker_flags}" CACHE STRING
-        "Linker flags to be used to create shared libraries for ${mode} build type.")
+        "Linker flags to be used to create shared libraries for ${mode} build type." FORCE)
 
     set(CMAKE_MODULE_LINKER_FLAGS_${build_mode}
         "${linker_flags}" CACHE STRING
-        "Linker flags to be used to create shared modules for ${mode} build type.")
+        "Linker flags to be used to create shared modules for ${mode} build type." FORCE)
 
     mark_as_advanced(
-        CMAKE_C_FLAGS_${build_mode}
         CMAKE_CXX_FLAGS_${build_mode}
+        CMAKE_C_FLAGS_${build_mode}
         CMAKE_EXE_LINKER_FLAGS_${build_mode}
         CMAKE_SHARED_LINKER_FLAGS_${build_mode}
         CMAKE_MODULE_LINKER_FLAGS_${build_mode}
