@@ -650,6 +650,8 @@ const char __WT_CONFIG_CHOICE_split_5[] = "split_5";
 const char __WT_CONFIG_CHOICE_split_6[] = "split_6";
 const char __WT_CONFIG_CHOICE_split_7[] = "split_7";
 const char __WT_CONFIG_CHOICE_split_8[] = "split_8";
+const char __WT_CONFIG_CHOICE_step_down_slow[] = "step_down_slow";
+const char __WT_CONFIG_CHOICE_step_up_slow[] = "step_up_slow";
 const char __WT_CONFIG_CHOICE_tiered_flush_finish[] = "tiered_flush_finish";
 
 static const char *confchk_timing_stress_for_test_choices[] = {
@@ -671,7 +673,8 @@ static const char *confchk_timing_stress_for_test_choices[] = {
   __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage, __WT_CONFIG_CHOICE_split_1,
   __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3, __WT_CONFIG_CHOICE_split_4,
   __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6, __WT_CONFIG_CHOICE_split_7,
-  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
+  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_step_down_slow, __WT_CONFIG_CHOICE_step_up_slow,
+  __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
 const char __WT_CONFIG_CHOICE_api[] = "api";
 const char __WT_CONFIG_CHOICE_backup[] = "backup";
 const char __WT_CONFIG_CHOICE_block[] = "block";
@@ -862,7 +865,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"prepare_resolution_1\",\"prepare_resolution_2\","
     "\"session_alter_slow\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"step_down_slow\","
+    "\"step_up_slow\",\"tiered_flush_finish\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test_choices},
   {"verbose", "list", NULL,
@@ -3037,7 +3041,8 @@ static const char *confchk_timing_stress_for_test2_choices[] = {
   __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage, __WT_CONFIG_CHOICE_split_1,
   __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3, __WT_CONFIG_CHOICE_split_4,
   __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6, __WT_CONFIG_CHOICE_split_7,
-  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
+  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_step_down_slow, __WT_CONFIG_CHOICE_step_up_slow,
+  __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
 const char __WT_CONFIG_CHOICE_dsync[] = "dsync";
 const char __WT_CONFIG_CHOICE_fsync[] = "fsync";
 
@@ -3266,7 +3271,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"prepare_resolution_1\",\"prepare_resolution_2\","
     "\"session_alter_slow\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"step_down_slow\","
+    "\"step_up_slow\",\"tiered_flush_finish\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test2_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
@@ -3339,7 +3345,8 @@ static const char *confchk_timing_stress_for_test3_choices[] = {
   __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage, __WT_CONFIG_CHOICE_split_1,
   __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3, __WT_CONFIG_CHOICE_split_4,
   __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6, __WT_CONFIG_CHOICE_split_7,
-  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
+  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_step_down_slow, __WT_CONFIG_CHOICE_step_up_slow,
+  __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
 
 static const char *confchk_verbose14_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
@@ -3549,7 +3556,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"prepare_resolution_1\",\"prepare_resolution_2\","
     "\"session_alter_slow\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"step_down_slow\","
+    "\"step_up_slow\",\"tiered_flush_finish\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test3_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
@@ -3625,7 +3633,8 @@ static const char *confchk_timing_stress_for_test4_choices[] = {
   __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage, __WT_CONFIG_CHOICE_split_1,
   __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3, __WT_CONFIG_CHOICE_split_4,
   __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6, __WT_CONFIG_CHOICE_split_7,
-  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
+  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_step_down_slow, __WT_CONFIG_CHOICE_step_up_slow,
+  __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
 
 static const char *confchk_verbose15_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
@@ -3827,7 +3836,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"prepare_resolution_1\",\"prepare_resolution_2\","
     "\"session_alter_slow\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"step_down_slow\","
+    "\"step_up_slow\",\"tiered_flush_finish\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test4_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
@@ -3899,7 +3909,8 @@ static const char *confchk_timing_stress_for_test5_choices[] = {
   __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage, __WT_CONFIG_CHOICE_split_1,
   __WT_CONFIG_CHOICE_split_2, __WT_CONFIG_CHOICE_split_3, __WT_CONFIG_CHOICE_split_4,
   __WT_CONFIG_CHOICE_split_5, __WT_CONFIG_CHOICE_split_6, __WT_CONFIG_CHOICE_split_7,
-  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
+  __WT_CONFIG_CHOICE_split_8, __WT_CONFIG_CHOICE_step_down_slow, __WT_CONFIG_CHOICE_step_up_slow,
+  __WT_CONFIG_CHOICE_tiered_flush_finish, NULL};
 
 static const char *confchk_verbose16_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CONFIG_CHOICE_api,
   __WT_CONFIG_CHOICE_backup, __WT_CONFIG_CHOICE_block, __WT_CONFIG_CHOICE_block_cache,
@@ -4101,7 +4112,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"prepare_resolution_1\",\"prepare_resolution_2\","
     "\"session_alter_slow\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"step_down_slow\","
+    "\"step_up_slow\",\"tiered_flush_finish\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test5_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,

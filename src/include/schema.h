@@ -299,6 +299,11 @@ struct __wt_import_list {
             !FLD_ISSET(session->lock_flags,                                                   \
               WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                     \
                 WT_SESSION_LOCKED_TABLE));                                                    \
+        WT_ASSERT_ALWAYS(session,                                                             \
+          !F_ISSET_ATOMIC_32(                                                                 \
+            S2C(session), WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN) || \
+            F_ISSET(session, WT_SESSION_STEPPING_UP | WT_SESSION_STEPPING_DOWN),              \
+          "schema lock acquired during role transition");                                     \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
     } while (0)
 #define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                                         \
@@ -308,6 +313,10 @@ struct __wt_import_list {
             !FLD_ISSET(session->lock_flags,                                                  \
               WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                    \
                 WT_SESSION_LOCKED_TABLE));                                                   \
+        WT_ASSERT_ALWAYS(session,                                                            \
+          !F_ISSET_ATOMIC_32(                                                                \
+            S2C(session), WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN),  \
+          "schema lock acquired during role transition");                                    \
         int __schema_lock_ret;                                                               \
         WT_WITH_LOCK_NOWAIT(session, ret, __schema_lock_ret, &S2C(session)->schema_lock,     \
           WT_SESSION_LOCKED_SCHEMA, op);                                                     \
