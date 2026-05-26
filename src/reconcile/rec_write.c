@@ -1803,6 +1803,13 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
             }
             WT_ASSERT(session, next != NULL);
+            /*
+             * The next chunk's boundary key must be populated by the time we route a non-final
+             * chunk. An empty boundary key would silently leave entries unassigned until the final
+             * chunk, which is how a saved update belonging to chunk N can end up grafted onto a
+             * later chunk's restored leaf.
+             */
+            WT_ASSERT(session, next->key.size != 0);
             WT_ERR(__wt_compare(session, btree->collator, key, &next->key, &cmp));
             if (cmp >= 0)
                 break;

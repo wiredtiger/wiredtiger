@@ -39,6 +39,53 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->free_upds = NULL;
     supd->tw = *tw;
     supd->restore = supd_restore;
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * For row-store, saved updates must be appended in key-ascending order. The downstream router
+     * stops at the first key that crosses the next chunk boundary, so a single out-of-order entry
+     * can survive the chunk where it belongs and be routed into a later chunk. Catch any ordering
+     * violation at the producer rather than at the consumer.
+     */
+    if (r->page->type == WT_PAGE_ROW_LEAF && r->supd_next > 0) {
+        WT_SAVE_UPD *prev_supd;
+        WT_DECL_ITEM(prev_key);
+        WT_DECL_ITEM(this_key);
+        WT_DECL_RET;
+        int cmp;
+
+        prev_supd = &r->supd[r->supd_next - 1];
+        WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
+        WT_ERR(__wt_scr_alloc(session, 0, &this_key));
+
+        if (prev_supd->ins == NULL)
+            WT_ERR(__wt_row_leaf_key(session, r->page, prev_supd->rip, prev_key, false));
+        else {
+            prev_key->data = WT_INSERT_KEY(prev_supd->ins);
+            prev_key->size = WT_INSERT_KEY_SIZE(prev_supd->ins);
+        }
+        if (supd->ins == NULL)
+            WT_ERR(__wt_row_leaf_key(session, r->page, supd->rip, this_key, false));
+        else {
+            this_key->data = WT_INSERT_KEY(supd->ins);
+            this_key->size = WT_INSERT_KEY_SIZE(supd->ins);
+        }
+        WT_ERR(__wt_compare(session, S2BT(session)->collator, prev_key, this_key, &cmp));
+        WT_ASSERT(session, cmp <= 0);
+
+        /*
+         * This label is scoped to the diagnostic block above. If this function ever grows a
+         * function-level err: label, this one will collide and must be renamed (or the entire
+         * diagnostic block removed if the producer-side ordering invariant has by then been proven
+         * elsewhere).
+         */
+err:
+        __wt_scr_free(session, &prev_key);
+        __wt_scr_free(session, &this_key);
+        WT_RET(ret);
+    }
+#endif
+
     ++r->supd_next;
     /*
      * We don't need to worry about the saved update's impact on page split if we only have a
