@@ -758,38 +758,6 @@ err:
 }
 
 /*
- * __disagg_pick_up_latest_checkpoint --
- *     Resolve the latest complete checkpoint from the page log and apply it. Returns 0 on success
- *     or when no checkpoint exists yet (WT_NOTFOUND is swallowed and logged). An empty page log is
- *     expected at startup against a fresh disaggregated cell (leader bootstrap, follower opened
- *     before any leader has written a checkpoint), so the caller can proceed with an empty view and
- *     start serving once a checkpoint becomes available. Any other error from the page-log lookup
- *     or the pickup itself is propagated to the caller.
- */
-static int
-__disagg_pick_up_latest_checkpoint(WT_SESSION_IMPL *session, const char **cfg)
-{
-    WT_DECL_RET;
-    WT_ITEM complete_checkpoint_meta;
-
-    WT_CLEAR(complete_checkpoint_meta);
-
-    ret = __wti_layered_get_disagg_checkpoint(session, cfg, NULL, NULL, &complete_checkpoint_meta);
-    WT_ERR_NOTFOUND_OK(ret, true);
-    if (ret == 0) {
-        ret = __disagg_pick_up_checkpoint_meta(
-          session, complete_checkpoint_meta.data, complete_checkpoint_meta.size);
-        WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
-    } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
-        __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
-          "Did not find any complete checkpoint to pick up at startup");
-
-err:
-    __wt_buf_free(session, &complete_checkpoint_meta);
-    return (ret);
-}
-
-/*
  * __disagg_shared_metadata_queue_free --
  *     Free an entry in the update metadata queue.
  */
@@ -1551,14 +1519,17 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
     uint64_t time_start, time_stop;
-    bool auto_pickup, leader, picked_up, was_leader;
+    bool leader, picked_up, was_leader;
 
     conn = S2C(session);
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
     picked_up = false;
+
+    WT_CLEAR(complete_checkpoint_meta);
 
     /* Reconfigure-only settings. */
     if (reconfig) {
@@ -1673,32 +1644,23 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             picked_up = true;
         }
 
-        /*
-         * If we are starting as primary (e.g., for internal testing) or an opt-in follower (e.g.,
-         * the wt utility), pick up the latest checkpoint from the page log. The
-         * pickup_latest_checkpoint config is initial-open only; the reconfigure path above does not
-         * consult it.
-         */
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.pickup_latest_checkpoint", &cval));
-        auto_pickup = (cval.val != 0);
+        /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
+        if (leader && !picked_up) {
+            ret = __wti_layered_get_disagg_checkpoint(
+              session, cfg, NULL, NULL, &complete_checkpoint_meta);
+            WT_ERR_NOTFOUND_OK(ret, true);
+            if (ret == 0) {
+                /* Pick up the checkpoint we just found. */
+                ret = __disagg_pick_up_checkpoint_meta(
+                  session, complete_checkpoint_meta.data, complete_checkpoint_meta.size);
 
-        if ((leader || auto_pickup) && !picked_up) {
-            ret = __disagg_pick_up_latest_checkpoint(session, cfg);
-            if (!leader && ret == ENOTSUP)
-                WT_ERR_MSG(session, ENOTSUP,
-                  "disaggregated.pickup_latest_checkpoint requires a page log "
-                  "that implements pl_get_complete_checkpoint");
-            WT_ERR(ret);
-
-            /*
-             * The leader has just installed the previous checkpoint as its starting state; open the
-             * next checkpoint window so subsequent writes accumulate into it. Followers are
-             * read-only and never drive a checkpoint, so skip this.
-             */
-            if (leader) {
-                WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
-                WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
-            }
+                __wt_buf_free(session, &complete_checkpoint_meta);
+                WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
+            } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+                  "Did not find any complete checkpoint to pick up at startup");
+            WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
+            WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }
 
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.internal_page_delta", &cval));
