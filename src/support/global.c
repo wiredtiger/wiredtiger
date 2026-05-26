@@ -58,6 +58,8 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
   {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
   {"split_7", WT_TIMING_STRESS_SPLIT_7}, {"split_8", WT_TIMING_STRESS_SPLIT_8},
+  {"step_down_slow", WT_TIMING_STRESS_STEP_DOWN_SLOW},
+  {"step_up_slow", WT_TIMING_STRESS_STEP_UP_SLOW},
   {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH}, {NULL, 0}};
 
 /*
