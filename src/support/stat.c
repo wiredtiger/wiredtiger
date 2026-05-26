@@ -2023,6 +2023,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
+  "cache: eviction server skips disaggregated trees already visited by the ongoing checkpoint",
   "cache: eviction server skips ingest btrees in disagg",
   "cache: eviction server skips internal pages as it has an active child",
   "cache: eviction server skips metadata pages with history",
@@ -2507,6 +2508,7 @@ static const char *const __stats_connection_desc[] = {
   "live-restore: source read latency histogram (bucket 9) - 1000ms+",
   "live-restore: source read latency histogram total (msecs)",
   "live-restore: state",
+  "load-control: number of read operations rejected due to load control",
   "load-control: number of write operations rejected due to load control",
   "load-control: read load at the system level",
   "load-control: write load at the system level",
@@ -3106,6 +3108,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_root_pages_skipped = 0;
     stats->eviction_server_skip_history_store_pages_with_updates_during_checkpoint = 0;
     stats->eviction_server_skip_dirty_pages_during_checkpoint = 0;
+    stats->eviction_server_skip_disagg_trees_checkpointed = 0;
     stats->eviction_server_skip_ingest_trees = 0;
     stats->eviction_server_skip_intl_page_with_active_child = 0;
     stats->eviction_server_skip_metatdata_with_history = 0;
@@ -3566,6 +3569,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->live_restore_hist_source_read_latency_gt1000 = 0;
     stats->live_restore_hist_source_read_latency_total_msecs = 0;
     /* not clearing live_restore_state */
+    stats->read_reject_count = 0;
     stats->write_reject_count = 0;
     stats->read_load = 0;
     stats->write_load = 0;
@@ -4177,6 +4181,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
         from, eviction_server_skip_history_store_pages_with_updates_during_checkpoint);
     to->eviction_server_skip_dirty_pages_during_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_server_skip_dirty_pages_during_checkpoint);
+    to->eviction_server_skip_disagg_trees_checkpointed +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_disagg_trees_checkpointed);
     to->eviction_server_skip_ingest_trees +=
       WT_STAT_CONN_READ(from, eviction_server_skip_ingest_trees);
     to->eviction_server_skip_intl_page_with_active_child +=
@@ -4759,6 +4765,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->live_restore_hist_source_read_latency_total_msecs +=
       WT_STAT_CONN_READ(from, live_restore_hist_source_read_latency_total_msecs);
     to->live_restore_state += WT_STAT_CONN_READ(from, live_restore_state);
+    to->read_reject_count += WT_STAT_CONN_READ(from, read_reject_count);
     to->write_reject_count += WT_STAT_CONN_READ(from, write_reject_count);
     to->read_load += WT_STAT_CONN_READ(from, read_load);
     to->write_load += WT_STAT_CONN_READ(from, write_load);
