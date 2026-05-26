@@ -738,7 +738,6 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception wiredtiger_version;
 %exception diagnostic_build;
 %exception standalone_build;
-%exception disagg_fast_truncate_build;
 
 
 /* WT_CURSOR customization. */
@@ -1203,10 +1202,6 @@ typedef int int_void;
 };
 %enddef
 
-SIDESTEP_METHOD(__wt_page_log, pl_begin_checkpoint,
-  (WT_SESSION *session, int checkpoint_id),
-  (self, session, checkpoint_id))
-
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
   (WT_SESSION *session, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args),
   (self, session, args))
@@ -1416,17 +1411,6 @@ int standalone_build() {
 }
 %}
 int standalone_build();
-
-%{
-int disagg_fast_truncate_build() {
-#ifdef WT_DISAGG_FAST_TRUNCATE_BUILD
-	return 1;
-#else
-	return 0;
-#endif
-}
-%}
-int disagg_fast_truncate_build();
 
 /* Remove / rename parts of the C API that we don't want in Python. */
 %immutable __wt_cursor::session;

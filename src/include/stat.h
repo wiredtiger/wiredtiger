@@ -576,6 +576,7 @@ struct __wt_connection_stats {
     int64_t eviction_root_pages_skipped;
     int64_t eviction_server_skip_history_store_pages_with_updates_during_checkpoint;
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t eviction_server_skip_disagg_trees_checkpointed;
     int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;
     int64_t eviction_server_skip_metatdata_with_history;
@@ -1019,6 +1020,8 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_checkpoints_disagg_pick_up_follower;
     int64_t layered_table_manager_tables;
     int64_t layered_truncate_list_search_calls;
+    int64_t layered_truncate_list_gc_runs;
+    int64_t layered_truncate_list_gc_entries_removed;
     int64_t layered_truncate_list_search_entries_walked;
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
@@ -1034,6 +1037,10 @@ struct __wt_connection_stats {
     int64_t live_restore_hist_source_read_latency_gt1000;
     int64_t live_restore_hist_source_read_latency_total_msecs;
     int64_t live_restore_state;
+    int64_t read_reject_count;
+    int64_t write_reject_count;
+    int64_t read_load;
+    int64_t write_load;
     int64_t lock_btree_page_count;
     int64_t lock_btree_page_wait_application;
     int64_t lock_btree_page_wait_internal;

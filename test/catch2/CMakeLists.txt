@@ -1,12 +1,16 @@
 # Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes.
 # This change will break assertions for all other testing so these tests must be run on their own.
 if(HAVE_UNITTEST_ASSERTS)
-    set(unittests misc_tests/test_assertions.cpp)
+    set(unittests
+        misc_tests/test_assertions.cpp
+        misc_tests/test_single_thread_check.cpp
+    )
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
+        misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_disagg_meta_config.cpp
@@ -61,6 +65,7 @@ else()
         truncate/test_truncate_visible_check.cpp
         truncate/test_layered_truncate_visibility.cpp
         truncate/test_layered_table_truncate_clear.cpp
+        truncate/test_layered_table_truncate_gc.cpp
         truncate/test_layered_table_truncate_rollback.cpp
     )
 endif()
@@ -86,6 +91,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
         truncate/test_insert_truncate_entry.cpp
+        truncate/test_truncate_write_conflict.cpp
     )
 endif()
 

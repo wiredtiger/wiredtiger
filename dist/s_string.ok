@@ -74,10 +74,12 @@ CHUNKCACHE
 CKPT
 CLAYERED
 CLOEXEC
+CMAKE
 CMP
 CMake
 CMakeFiles
 CMakeLists
+CMakePresets
 CONF
 CONFIG
 CPP
@@ -88,6 +90,7 @@ CTest
 CURSORs
 CURSTD
 CURVERSION
+CXX
 CallsCustDate
 Canonicalize
 Castagnoli
@@ -594,6 +597,7 @@ XSAN
 XXXX
 XXXXXX
 Xcode
+Xcode's
 XxxxHookCreator
 YCSB
 ZSTD
@@ -962,6 +966,8 @@ endptr
 engflow
 enomem
 enqueue
+enqueued
+enqueues
 entindex
 entlist
 enum
@@ -985,6 +991,7 @@ execfn
 existp
 extern
 extlist
+extlists
 extraconfig
 fadvise
 fahrenheit
@@ -1194,6 +1201,7 @@ keyid
 keyids
 keylen
 keynum
+keyp
 keystr
 keyv
 kp
@@ -1558,6 +1566,7 @@ reentrant
 refp
 regen
 regionp
+reinit
 reinstantiated
 relocked
 repl
@@ -1763,6 +1772,7 @@ tolower
 tombstoned
 toml
 toolchain
+toolchains
 totalsec
 tp
 traceapi
@@ -1807,6 +1817,8 @@ uncheckpointed
 unconfigured
 uncustomized
 undef
+undeferred
+undefers
 undeleted
 underflowed
 unencoded
@@ -1870,6 +1882,7 @@ valuep
 valuesize
 valuev
 variadic
+vcvars
 vd
 vdata
 vec

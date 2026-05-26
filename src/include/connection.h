@@ -32,7 +32,7 @@ struct __wt_process {
     bool use_epochtime;    /* use expensive time */
 
     bool tiered_shared_2023;        /* tiered shared run-time configuration */
-    bool disagg_fast_truncate_2026; /* disagg fast truncate run-time configuration */
+    bool disagg_slow_truncate_2026; /* use slow truncate run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
@@ -194,7 +194,7 @@ struct __wt_disagg_metadata_op {
     WT_SHARED_METADATA_OP metadata_op; /* The type of the metadata operation. */
     wt_timestamp_t schema_epoch;       /* The schema epoch of the metadata operation. */
 
-    /* Skip the drop operation in the next checkpoint and defer it to the one after. */
+    /* Skip this operation in the current checkpoint and apply it in the next one. */
     bool deferred;
 
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
