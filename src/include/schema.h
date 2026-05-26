@@ -302,7 +302,7 @@ struct __wt_import_list {
         WT_ASSERT_ALWAYS(session,                                                             \
           !F_ISSET_ATOMIC_32(                                                                 \
             S2C(session), WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN) || \
-            F_ISSET(session, WT_SESSION_STEPPING_UP),                                         \
+            F_ISSET(session, WT_SESSION_STEPPING_UP | WT_SESSION_STEPPING_DOWN),              \
           "schema lock acquired during role transition");                                     \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
     } while (0)

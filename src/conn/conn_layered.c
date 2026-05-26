@@ -1341,18 +1341,17 @@ err:
 static int
 __disagg_step_up(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session;
 
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
     /*
      * Some functionality in stepping up needs a session that can open data handles. The default
      * session used to call this function cannot do that.
      */
     WT_RET(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-
     F_SET(internal_session, WT_SESSION_STEPPING_UP);
 
     /*
@@ -1364,7 +1363,6 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
-    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
     /* Stress: hold the step-up flag set to let concurrent schema ops hit the assertion. */
     struct timespec __tsp;
@@ -1457,15 +1455,15 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
 
-    conn = S2C(session);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
 
-    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+    F_SET(session, WT_SESSION_STEPPING_DOWN);
 
     /* Stress: hold the step-down flag set to let concurrent schema ops hit the assertion. */
     struct timespec __tsp;
@@ -1484,6 +1482,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     __disagg_shared_metadata_queue_clear(session);
 
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+    F_CLR(session, WT_SESSION_STEPPING_DOWN);
 }
 
 /*
