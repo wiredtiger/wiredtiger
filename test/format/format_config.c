@@ -1469,7 +1469,10 @@ config_disagg_storage(void)
     if (strcmp(mode, "switch") == 0) {
         /* Randomly assign "leader" or "follower". */
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-        /* Switch mode always exercises follower-side slow truncate. */
+        /*
+         * FIXME-WT-17564: Switch mode forces follower-side slow truncate until proper write
+         * conflict detection is implemented on fast truncate.
+         */
         config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
     } else
         g.disagg_leader = strcmp(mode, "leader") == 0;

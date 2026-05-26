@@ -132,6 +132,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "the page for further operations",
     C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_CURSOR_REPOSITION},
 
+  /* FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate. */
   {"debug.disagg_slow_truncate_follower",
     "follower-side layered truncate uses the slow per-record delete path", C_BOOL, 2, 0, 0,
     V_GLOBAL_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER},

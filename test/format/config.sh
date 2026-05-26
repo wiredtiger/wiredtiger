@@ -161,6 +161,7 @@ CONFIG configuration_list[] = {
 
 {"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations", C_BOOL, 5, 0, 0}
 
+/* FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate. */
 {"debug.disagg_slow_truncate_follower", "follower-side layered truncate uses the slow per-record delete path", C_BOOL, 2, 0, 0}
 
 {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively", C_BOOL, 2, 0, 0}
