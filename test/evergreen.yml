@@ -362,12 +362,40 @@ functions:
           fi
         fi
 
+        # CMakePresets.json toolchainFile uses $env{VCPKG_ROOT} on all platforms.
+        if [[ -z "${VCPKG_ROOT:-}" ]]; then
+          export VCPKG_ROOT="$HOME/vcpkg"
+        fi
+        if [[ ! -d "$VCPKG_ROOT/.git" ]]; then
+          echo "vcpkg not found at $VCPKG_ROOT, installing..."
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          if [ "$OS" = "Windows_NT" ]; then
+            cmd /c "$VCPKG_ROOT\\bootstrap-vcpkg.bat" -disableMetrics
+          else
+            "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+          fi
+        fi
+        echo "VCPKG_ROOT=$VCPKG_ROOT"
+
+        # Determine cmake preset for all platforms. Linux defaults to linux-gcc; macOS and Windows
+        # use the cross-platform 'default' preset. Set CMAKE_PRESET="" in a variant to skip presets
+        # and fall through to CC/CXX (e.g. versioned-compiler builds). The file check guards
+        # branches that predate CMakePresets.json (e.g. compile-develop).
+        CMAKE_PRESET_FLAG=""
+        if [[ -f CMakePresets.json ]]; then
+          if [[ "$(uname -s)" == "Linux" && -n "${CMAKE_PRESET|linux-gcc}" ]]; then
+            CMAKE_PRESET_FLAG="--preset ${CMAKE_PRESET|linux-gcc}"
+          elif [[ -n "${CMAKE_PRESET|default}" ]]; then
+            CMAKE_PRESET_FLAG="--preset ${CMAKE_PRESET|default}"
+          fi
+        fi
+
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
           # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
-          echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}"
-          powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
+          echo "Using config flags $CMAKE_PRESET_FLAG $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}"
+          powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $CMAKE_PRESET_FLAG $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
 
@@ -385,13 +413,7 @@ functions:
             /bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
           fi
 
-          # Use cmake preset on Linux, defaulting to GCC. Versioned compilers (gcc-9, clang-14, etc.)
-          # clear CMAKE_PRESET to "" to fall through to CC/CXX; non-Linux platforms always use CC/CXX.
-          # The file check guards branches that predate CMakePresets.json (e.g. compile-develop).
-          CMAKE_PRESET_FLAG=""
-          if [[ "$(uname -s)" == "Linux" && -n "${CMAKE_PRESET|linux-gcc}" && -f CMakePresets.json ]]; then
-            CMAKE_PRESET_FLAG="--preset ${CMAKE_PRESET|linux-gcc}"
-          else
+          if [[ -z "$CMAKE_PRESET_FLAG" ]]; then
             export CC=${CC|gcc}
             export CXX=${CXX|g++}
           fi
