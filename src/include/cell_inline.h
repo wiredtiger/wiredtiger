@@ -196,17 +196,23 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, bool e
  *     Pack the validity window for an address.
  */
 static WT_INLINE void
-__cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREGATE *ta)
+__cell_pack_addr_validity(
+  WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREGATE *ta, bool is_prepared_fast_truncate)
 {
     uint8_t flags, *flagsp;
 
-    /* Globally visible values have no associated validity window. */
-    if (WT_TIME_AGGREGATE_IS_EMPTY(ta)) {
+    /*
+     * A prepared fast-truncate and a prepared time aggregate cannot be on the same page.
+     */
+    WT_ASSERT(session, !(ta->prepare && is_prepared_fast_truncate));
+
+    if (WT_TIME_AGGREGATE_IS_EMPTY(ta) && !is_prepared_fast_truncate) {
         ++*pp;
         return;
     }
 
-    WT_IGNORE_RET(__wt_check_addr_validity(session, ta, false));
+    if (!WT_TIME_AGGREGATE_IS_EMPTY(ta))
+        WT_IGNORE_RET(__wt_check_addr_validity(session, ta, false));
 
     **pp |= WT_CELL_SECOND_DESC;
     ++*pp;
@@ -263,6 +269,8 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
     if (ta->prepare)
+        LF_SET(WT_CELL_PREPARE);
+    if (is_prepared_fast_truncate)
         LF_SET(WT_CELL_PREPARE);
 
     *flagsp = flags;
@@ -566,10 +574,17 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
         cell_type = WT_CELL_ADDR_DEL;
 
-        /* We should never be in an in-progress prepared state. */
+        /*
+         * In-progress prepared states are only written to disk when preserve_prepared is enabled;
+         * otherwise only committed (INIT) or resolved-but-not-yet-committed (RESOLVED) states are
+         * expected.
+         */
         WT_ASSERT(session,
           page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED);
+            page_del->prepare_state == WT_PREPARE_RESOLVED ||
+            (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
+                page_del->prepare_state == WT_PREPARE_LOCKED)));
     }
 
     /* Just pack and return the cell size. */
@@ -584,24 +599,40 @@ static WT_INLINE size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
   WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
 {
-    uint8_t *p;
+    uint8_t *p, prepare_state;
+    bool is_prepared_fast_truncate;
+
+    prepare_state = page_del != NULL ?
+      __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state) :
+      WT_PREPARE_INIT;
+    is_prepared_fast_truncate =
+      (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_addr_validity(session, &p, ta);
+    __cell_pack_addr_validity(session, &p, ta, is_prepared_fast_truncate);
 
     /*
      * If passed fast-delete information, append the fast-delete information after the aggregated
-     * timestamp information.
+     * timestamp information. A prepared fast-truncate stores the prepare timestamp and prepared_id
+     * in place of the committed start/durable timestamps so that recovery can reconstruct the
+     * prepared state.
      */
     if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
+        if (is_prepared_fast_truncate) {
+            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
+            WT_ASSERT(session, page_del->prepared_id != WT_PREPARED_ID_NONE);
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepare_ts));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->prepared_id));
+        } else {
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
+            WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
+        }
     }
 
     if (recno == WT_RECNO_OOB)

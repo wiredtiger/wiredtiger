@@ -38,7 +38,8 @@ __rec_child_deleted(
     /*
      * Check visibility. If the truncation is visible to us, we'll also want to know if it's visible
      * to everyone. Use the special-case logic in __wt_page_del_visible to hide prepared truncations
-     * as we can't write them to disk.
+     * as we can't write them to disk in the general case. When preserve_prepared is enabled,
+     * in-progress prepared fast-truncates are written as proxy cells.
      *
      * We can't write out uncommitted truncations so we need to check the committed flag on the page
      * delete structure. The committed flag indicates that the truncation has finished being
@@ -91,6 +92,26 @@ __rec_child_deleted(
         cmsp->del = *page_del;
         cmsp->state = WTI_CHILD_PROXY;
         return (0);
+    }
+
+    /*
+     * When preserve_prepared is enabled, write an in-progress prepared fast-truncate as a proxy
+     * cell so that recovery can reconstruct the prepared state.
+     */
+    if (!page_del->committed && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED)) {
+        prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+            WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
+              "Prepared fast-truncates cannot be evicted when preserve_prepared is enabled");
+            if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC))
+                return (__wt_set_return(session, EBUSY));
+            WT_ASSERT(session, page_del->prepared_id != WT_PREPARED_ID_NONE);
+            page_del->selected_for_write = true;
+            cmsp->del = *page_del;
+            cmsp->state = WTI_CHILD_PROXY;
+            r->leave_dirty = true;
+            return (0);
+        }
     }
 
     /*
@@ -165,9 +186,9 @@ __rec_child_deleted(
      * cells to the page. Copy out the current fast-truncate information for that function.
      */
     if (!visible_all) {
+        page_del->selected_for_write = true;
         cmsp->del = *page_del;
         cmsp->state = WTI_CHILD_PROXY;
-        page_del->selected_for_write = true;
         return (0);
     }
 
