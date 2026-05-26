@@ -267,6 +267,8 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",table_logging=true");
     if (GV(DEBUG_UPDATE_RESTORE_EVICT))
         CONFIG_APPEND(*p, ",update_restore_evict=true");
+    if (g.disagg_slow_truncate_follower)
+        CONFIG_APPEND(*p, ",disagg_slow_truncate_follower=true");
     CONFIG_APPEND(*p, "]");
 }
 
@@ -343,13 +345,6 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
     CONFIG_APPEND(*p, ",%s", disagg_cfg);
-
-    /*
-     * Force slow-truncate on followers when running disagg switch mode (replaces the former
-     * WT_DISAGG_SLOW_TRUNCATE_BUILD compile flag for stress coverage).
-     */
-    if (strcmp(GVS(DISAGG_MODE), "switch") == 0)
-        CONFIG_APPEND(*p, ",debug_mode.disagg_slow_truncate_follower=true");
 }
 
 /*

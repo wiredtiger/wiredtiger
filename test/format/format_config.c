@@ -1466,10 +1466,15 @@ config_disagg_storage(void)
     if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
         testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
-    if (strcmp(mode, "switch") == 0)
+    if (strcmp(mode, "switch") == 0) {
         /* Randomly assign "leader" or "follower". */
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-    else
+        /*
+         * Switch mode exercises follower-side slow truncate (replaces the former
+         * WT_DISAGG_SLOW_TRUNCATE_BUILD compile flag for stress coverage).
+         */
+        g.disagg_slow_truncate_follower = true;
+    } else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
     /* Disaggregated storage requires timestamps. */
