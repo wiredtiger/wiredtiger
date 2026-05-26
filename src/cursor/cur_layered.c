@@ -1003,8 +1003,11 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
      */
     if (S2C(session)->layered_table_manager.leader)
         WT_RET(__clayered_truncate_leader(trunc_info));
-    else
+    else {
+        WT_ASSERT(session,
+          !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
         WT_RET(__clayered_truncate_follower(trunc_info));
+    }
 
     return (0);
 }

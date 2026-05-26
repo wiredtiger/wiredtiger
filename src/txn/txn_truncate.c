@@ -22,6 +22,10 @@ typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_T
 static void
 __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
+    WT_ASSERT(session,
+      S2C(session)->layered_table_manager.leader ||
+        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
+
     if (entry == NULL || *entry == NULL)
         return;
 
@@ -189,6 +193,9 @@ __wt_insert_truncate_entry(
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL;
 
+    WT_ASSERT(session,
+      S2C(session)->layered_table_manager.leader ||
+        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, F_ISSET(&layered_table->iface, WT_DHANDLE_OPEN));
 
@@ -292,6 +299,13 @@ __wt_layered_table_truncate_detect_write_conflict(
 {
     WT_DECL_RET;
     bool is_found = false;
+
+    /*
+     * The truncate list is only populated by the fast follower path; if this connection runs
+     * follower-slow truncate, the list is empty and there is nothing to check.
+     */
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
+        return (0);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
@@ -415,6 +429,10 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
     if (S2C(session)->layered_table_manager.leader)
         return (WT_NOTFOUND);
 
+    /* In follower-slow truncate mode the list is empty; nothing to find. */
+    if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
+        return (WT_NOTFOUND);
+
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
     /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
@@ -445,6 +463,9 @@ static void
 __disagg_truncate_apply(WT_SESSION_IMPL *session, WT_TXN_OP *op,
   void (*apply_func)(WT_SESSION_IMPL *, WT_LAYERED_TABLE *, WT_TXN_OP *))
 {
+    WT_ASSERT(session,
+      S2C(session)->layered_table_manager.leader ||
+        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
     WT_ASSERT(session, op != NULL);
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
@@ -466,6 +487,9 @@ __wti_mark_committed_truncate_table_apply(
 {
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
+    WT_ASSERT(session,
+      S2C(session)->layered_table_manager.leader ||
+        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, entry != NULL);
     WT_ASSERT(session, entry->txn_id == session->txn->time_point.id);

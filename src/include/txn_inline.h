@@ -780,6 +780,10 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     txn = session->txn;
 
+    WT_ASSERT(session,
+      S2C(session)->layered_table_manager.leader ||
+        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
+
     if (F_ISSET(txn, WT_TXN_READONLY))
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
 
