@@ -1475,8 +1475,12 @@ config_disagg_storage(void)
          */
         if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
             config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
-    } else
+    } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;
+        /* Leader and follower modes always exercise fast truncate. */
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=off", false);
+    }
 
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");
