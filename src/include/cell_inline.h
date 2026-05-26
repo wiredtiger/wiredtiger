@@ -575,10 +575,8 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
         cell_type = WT_CELL_ADDR_DEL;
 
         /*
-         * In-progress prepared states are only written to disk when preserve_prepared is enabled
-         * on a disaggregated btree. Attached storage cannot safely use this format because an older
-         * binary would silently misread the cell. Otherwise only committed (INIT) or
-         * resolved-but-not-yet-committed (RESOLVED) states are expected.
+         * In-progress prepared states are only written to disk when preserve_prepared is enabled on
+         * a disaggregated btree.
          */
         WT_ASSERT(session,
           page_del->prepare_state == WT_PREPARE_INIT ||
@@ -608,9 +606,6 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
                                        WT_PREPARE_INIT;
     /*
      * A prepared fast-truncate cell is only legal on a disaggregated btree with preserve_prepared.
-     * Folding the flags into this bool prevents __cell_pack_addr_validity from writing
-     * WT_CELL_PREPARE into the second descriptor byte if either condition is unmet  regardless of
-     * whether the caller's assertions (in __wt_cell_build_addr) fire in this build configuration.
      */
     is_prepared_fast_truncate =
       (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
