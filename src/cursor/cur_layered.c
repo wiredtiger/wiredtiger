@@ -1119,11 +1119,12 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     WT_CURSOR *c_alternate, *c_current;
     WT_DECL_RET;
     int cmp;
-    bool current_moved, forward;
+    bool current_moved, forward, fresh_start;
 
     WT_SESSION_IMPL *session = CUR2S(clayered);
     current_moved = false;
     forward = (iter_flag == WT_CLAYERED_ITERATE_NEXT);
+    fresh_start = false;
     WT_CURSOR *c_ingest = clayered->ingest_cursor;
     WT_CURSOR *c_stable = clayered->stable_cursor;
 
@@ -1155,13 +1156,11 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
      * prepared conflict occurs. Prepared updates are always ignored on the stable cursor, making it
      * safe to check the WT_CURSTD_KEY_INT flag.
      */
-    if (((WT_CURSOR_BTREE *)c_ingest)->ref == NULL && !F_ISSET(c_stable, WT_CURSTD_KEY_INT)) {
-        /*
-         * Move the stable cursor first to ensure it is advanced, even if a prepared conflict occurs
-         * on the ingest cursor.
-         */
-        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_stable, forward), false);
+    fresh_start =
+      (((WT_CURSOR_BTREE *)c_ingest)->ref == NULL && !F_ISSET(c_stable, WT_CURSTD_KEY_INT));
+    if (fresh_start) {
         WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_ingest, forward), false);
+        WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(clayered, c_stable, forward), false);
         goto done;
     }
 
@@ -1226,7 +1225,13 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
 done:
 err:
-    if (ret == 0 || ret == WT_PREPARE_CONFLICT) {
+    if (ret == WT_PREPARE_CONFLICT && fresh_start)
+        /*
+         * Prepare conflict on the very first key of a fresh walk: ingest is blocked before stable
+         * has advanced. Reset ingest so the next call restarts cleanly.
+         */
+        WT_TRET(__clayered_reset_cursors(clayered, false));
+    else if (ret == 0 || ret == WT_PREPARE_CONFLICT) {
         if (!F_ISSET(clayered, iter_flag)) {
             F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
             F_SET(clayered, iter_flag);
