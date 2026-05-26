@@ -50,14 +50,16 @@ class LayeredFastTruncateConfigMixin:
     """Shared helpers for the layered fast truncate test suite."""
 
     def _key(self, n):
-        """Convert an int into the test's key format."""
+        """
+        Convert an int into a key; override in subclasses that use a different
+        key format.
+        """
         return n
 
     def session_create_config(self):
         """
-        Return the create() configuration string. Defaults to int keys and
-        string values; appends layered table options when uri starts with
-        'table' (or 'table:').
+        Return the session.create() config string, and, for layered URIs, the
+        disaggregated storage options.
         """
         cfg = 'key_format=i,value_format=S'
         uri = getattr(self, 'uri', '')
@@ -163,38 +165,40 @@ class LayeredFastTruncateConfigMixin:
     def open_follower(self, table_config='key_format=i,value_format=S'):
         """
         Open a separate follower connection (distinct from setup_follower
-        which reopens the existing connection). Returns (conn, sess).
+        which reopens the existing connection). Returns (conn, session).
         """
         conn = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() +
             ',create,cache_size=50MB,statistics=(all),disaggregated=(role="follower")')
-        sess = conn.open_session('')
-        sess.create(self.uri, table_config)
+        session = conn.open_session('')
+        session.create(self.uri, table_config)
         self.disagg_advance_checkpoint(conn, self.conn)
-        return conn, sess
+        return conn, session
 
-    def search_at(self, sess, key, ts):
+    def search_at(self, session, key, ts):
         """Search for key under a read_timestamp; return (ret, value)."""
-        cur = sess.open_cursor(self.uri)
-        sess.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
-        cur.set_key(key)
-        ret = cur.search()
-        val = cur.get_value() if ret == 0 else None
-        sess.rollback_transaction()
-        cur.close()
-        return ret, val
+        cur = session.open_cursor(self.uri)
+        try:
+            with self.transaction(session=session, read_timestamp=ts, rollback=True):
+                cur.set_key(key)
+                ret = cur.search()
+                val = cur.get_value() if ret == 0 else None
+            return ret, val
+        finally:
+            cur.close()
 
-    def evict_range(self, sess, start, stop, step=1):
+    def evict_range(self, session, start, stop, step=1):
         """Evict the page(s) backing keys [start, stop] on the given session."""
-        evict_cur = sess.open_cursor(self.uri, None, 'debug=(release_evict)')
-        sess.begin_transaction('read_timestamp=' + self.timestamp_str(10))
-        for i in range(start, stop + 1, step):
-            evict_cur.set_key(i)
-            evict_cur.search()
-            evict_cur.reset()
-        evict_cur.close()
-        sess.rollback_transaction()
+        evict_cur = session.open_cursor(self.uri, None, 'debug=(release_evict)')
+        try:
+            with self.transaction(session=session, read_timestamp=10, rollback=True):
+                for i in range(start, stop + 1, step):
+                    evict_cur.set_key(i)
+                    evict_cur.search()
+                    evict_cur.reset()
+        finally:
+            evict_cur.close()
 
     def get_stat(self, conn, stat_key):
         """Read a connection statistic on the given connection."""
