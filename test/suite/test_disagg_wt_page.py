@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, sqlite3, sys, traceback
+import os, re, sqlite3
 from typing import NamedTuple
 import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
@@ -56,8 +56,9 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
 
     conn_config = 'disaggregated=(role="leader")'
 
-    def setUp(self):
-        super().setUp()
+    # Skip inside the test method (not setUp): unittest does not call tearDown
+    # when skipTest is raised from setUp, which would leak the open connection.
+    def _skip_if_not_diagnostic(self):
         if not wiredtiger.diagnostic_build():
             self.skipTest('wt page requires a diagnostic build')
 
@@ -71,17 +72,8 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     # Returns (stdout, stderr); failure=True asserts a non-zero exit.
     def _run_wt_page(self, *args, failure=False):
         cmd = ['-C', self._wt_page_extra_config(), 'page'] + list(args)
-        # FIXME-WT-17341: diagnostic wrapper to capture the exception path that
-        # is breaking ubuntu2004-release CI. Drop once root cause is fixed.
-        try:
-            self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
-                       failure=failure)
-        except BaseException as exc:
-            sys.stderr.write(
-                f'_run_wt_page failed: {type(exc).__name__}: {exc}\n')
-            traceback.print_exc(file=sys.stderr)
-            sys.stderr.flush()
-            raise
+        self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
+                   failure=failure)
         with open('wt.out') as f:
             stdout = f.read()
         with open('wt.err') as f:
@@ -116,16 +108,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         )
         # Close the WT connection so palite releases its SQLite locks before
         # we open the database directly in read-only mode.
-        # FIXME-WT-17341: diagnostic wrapper to capture the exception path that
-        # is breaking ubuntu2004-release CI. Drop once root cause is fixed.
-        try:
-            self.close_conn()
-        except BaseException as exc:
-            sys.stderr.write(
-                f'_find_page close_conn failed: {type(exc).__name__}: {exc}\n')
-            traceback.print_exc(file=sys.stderr)
-            sys.stderr.flush()
-            raise
+        self.close_conn()
         try:
             with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
                 row = conn.execute(query, (table_id, *params)).fetchone()
@@ -152,22 +135,26 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         return int(re.search(r"^results: count=(\d+)$", stdout, re.M).group(1))
 
     def test_help(self):
+        self._skip_if_not_diagnostic()
         _, stderr = self._run_wt_page('-?')
         self.assertIn('page -p page_id', stderr)
         self.assertIn('-l lsn', stderr)
 
     def test_unknown_page_id(self):
+        self._skip_if_not_diagnostic()
         self._populate()
         _, stderr = self._run_wt_page("-p", "99999999", "-l", "1",
                                       self.stable_uri, failure=True)
         self.assertIn("page:", stderr)
 
     def test_missing_required_l(self):
+        self._skip_if_not_diagnostic()
         self._populate()
         _, stderr = self._run_wt_page("-p", "1", self.stable_uri, failure=True)
         self.assertIn("-l lsn is required", stderr)
 
     def test_full_image(self):
+        self._skip_if_not_diagnostic()
         self._populate()
         page = self._find_base_image_page()
         stdout, _ = self._run_wt_page(
@@ -176,6 +163,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertIn("- row-store ", stdout)
 
     def test_delta_chain(self):
+        self._skip_if_not_diagnostic()
         self._populate()
         self._dirty_and_checkpoint()
         page = self._find_delta_page()
@@ -184,6 +172,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertGreater(self._assert_chain_header(stdout, page), 1)
 
     def test_missing_required_p(self):
+        self._skip_if_not_diagnostic()
         self._populate()
         _, stderr = self._run_wt_page(self.stable_uri, failure=True)
         self.assertIn("-p page_id is required", stderr)
