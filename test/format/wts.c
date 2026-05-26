@@ -269,6 +269,8 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",update_restore_evict=true");
     if (g.disagg_slow_truncate_follower)
         CONFIG_APPEND(*p, ",disagg_slow_truncate_follower=true");
+    if (g.slow_truncate)
+        CONFIG_APPEND(*p, ",slow_truncate=true");
     CONFIG_APPEND(*p, "]");
 }
 

@@ -1855,7 +1855,9 @@ retry:
             return (0);
         }
 
-        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND) {
+        if ((ret = __wt_btcur_next(
+               start, !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE))) ==
+          WT_NOTFOUND) {
             WT_STAT_CONN_INCRV(session, cursor_truncate_keys_deleted, records_truncated);
             return (0);
         }

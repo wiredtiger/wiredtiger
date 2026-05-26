@@ -736,6 +736,11 @@ connection_runtime_config = [
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal page processing.''',
             type='boolean'),
+        Config('slow_truncate', 'false', r'''
+            if true, disable the fast-truncate page-skip optimization in __wt_btcur_next during
+            range truncate (forces a full walk of the range). Intended for debugging the
+            fast-truncate page-skip path on leader and non-disaggregated truncates.''',
+            type='boolean', undoc=True),
         Config('stress_skiplist', 'false', r'''
             Configure various internal parameters to encourage race conditions and other issues
             with internal skip lists, e.g. using a more dense representation.''',

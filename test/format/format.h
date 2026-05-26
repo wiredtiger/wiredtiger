@@ -315,6 +315,7 @@ typedef struct {
 
     bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
     bool disagg_slow_truncate_follower; /* Force slow-truncate on followers (switch mode). */
+    bool slow_truncate; /* Disable fast-truncate page-skip on leader/non-disagg paths. */
     pid_t follower_pid; /* For multi-node disagg follower process */
     char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
     DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
