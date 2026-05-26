@@ -46,7 +46,7 @@ from wtscenario import make_scenarios
 #      latest snapshot, and point reads at random past timestamps match the
 #      mirrored history.
 #
-# FIXME-WT-17272: write-conflict scenarios are deliberately avoided. The
+# FIXME-WT-17637: write-conflict scenarios are deliberately avoided. The
 # round schedule filters insert/update/remove keys that fall inside any in-flight
 # truncate range.
 #
