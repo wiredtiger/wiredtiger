@@ -2765,13 +2765,15 @@ __wt_verbose_dump_txn_one(
 
     buf_len = 512;
     WT_RET(__wt_scr_alloc(session, buf_len, &buf));
+
+    const char *session_name = __wt_atomic_load_ptr_relaxed(&txn_session->name);
     WT_ERR(__wt_snprintf((char *)buf->data, buf_len,
       "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
       ", metadata pinned ID: %" PRIu64 ", name: %s",
       txn_session->id, __wt_atomic_load_uint64_v_relaxed(&txn_shared->id),
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id),
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->metadata_pinned),
-      txn_session->name == NULL ? "EMPTY" : txn_session->name));
+      session_name == NULL ? "EMPTY" : session_name));
 
     if (error_code != 0)
         WT_ERR_MSG(session, error_code, "%s, %s", (char *)buf->data,
