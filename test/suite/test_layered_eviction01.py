@@ -31,19 +31,19 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered39.py
+# test_layered_eviction01.py
 # Ensure that we don't evict pages ahead of the materialization frontier
 @disagg_test_class
-class test_layered39(wttest.WiredTigerTestCase):
+class test_layered_eviction01(wttest.WiredTigerTestCase):
     conn_base_config = 'cache_size=75MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),transaction_sync=(enabled,method=fsync),' \
                      + 'disaggregated=(lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
-    disagg_storages = gen_disagg_storages('test_layered39', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_eviction01', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     nitems = 200_000
-    uri = 'layered:test_layered39'
+    uri = 'layered:test_layered_eviction01'
 
     def session_create_config(self):
         return 'key_format=S,value_format=S,'
@@ -65,7 +65,7 @@ class test_layered39(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         evict_cursor.close()
 
-    def test_layered39(self):
+    def test_layered_eviction01(self):
         # Avoid checkpoint error with precise checkpoint
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
 

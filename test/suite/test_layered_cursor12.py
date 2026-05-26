@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered81.py
+# test_layered_cursor12.py
 #   Test that follower cursors see updated data after a new checkpoint is applied.
 #
 #   Key scenarios:
@@ -40,13 +40,13 @@ from wtscenario import make_scenarios
 #   - Data added/updated/removed across checkpoints is visible after checkpoint advances.
 
 @disagg_test_class
-class test_layered81(wttest.WiredTigerTestCase):
+class test_layered_cursor12(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    uri = 'layered:test_layered81'
+    uri = 'layered:test_layered_cursor12'
 
     nkeys = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered81', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_cursor12', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):

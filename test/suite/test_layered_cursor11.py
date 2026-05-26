@@ -26,40 +26,29 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, string, wttest
-from wiredtiger import stat
+# test_layered_cursor11.py
+#   Test remove returns not found when deleting an non-existent key
+
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered57.py
-#    Test that a follower never use application threads to evict pages with updates and dirty pages.
 @disagg_test_class
-class test_layered57(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_layered57', disagg_only = True)
+class test_layered_cursor11(wttest.WiredTigerTestCase):
+    conn_config = 'statistics=(all),precise_checkpoint=true,' \
+                  'disaggregated=(role="follower")'
+
+    uri = 'layered:test_layered_cursor11'
+
+    disagg_storages = gen_disagg_storages('test_layered_cursor11', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="follower")'
+    def test_delete_non_existent_key(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
-    nitems = 1000
-
-    def generate_random_string(self, length):
-        characters = string.ascii_letters + string.digits + string.punctuation
-        random_string = ''.join(random.choices(characters, k=length))
-        return random_string
-
-    def test_follower_not_do_app_evict(self):
-        uri = "layered:test_layered57"
-
-        # Setup.
-        self.session.create(uri, 'key_format=S,value_format=S')
-
-        # Insert some data.
-        cursor = self.session.open_cursor(uri, None, None)
-        for i in range(1, self.nitems):
-            self.session.begin_transaction()
-            cursor[self.generate_random_string(1000) + str(i)] = self.generate_random_string(1000) + str(i)
-            self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
-
-        stat_cursor = self.session.open_cursor('statistics:')
-        self.assertGreater(stat_cursor[stat.conn.cache_eviction_app_threads_skip_updates_dirty_page][2], 0)
-        stat_cursor.close()
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+        cursor.close()
