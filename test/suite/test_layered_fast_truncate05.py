@@ -53,7 +53,7 @@ class test_layered_fast_truncate05(LayeredFastTruncateConfigMixin, wttest.WiredT
     # digits so that lexicographic order matches numeric order.
     nitems = 1000
 
-    def _key(self, n):
+    def key(self, n):
         return f'{n:04d}'
 
     def session_create_config(self):
@@ -74,7 +74,7 @@ class test_layered_fast_truncate05(LayeredFastTruncateConfigMixin, wttest.WiredT
         for _ in range(samples):
             self.assertEqual(cursor.next(), 0, 'random cursor found no visible key')
             k = cursor.get_key()
-            self.assertFalse(self._key(low) <= k <= self._key(high),
+            self.assertFalse(self.key(low) <= k <= self.key(high),
                 f'random cursor returned truncated key {k}')
         self.session.rollback_transaction()
         cursor.close()
@@ -93,7 +93,7 @@ class test_layered_fast_truncate05(LayeredFastTruncateConfigMixin, wttest.WiredT
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(200, 401):
-            cursor[self._key(i)] = 'updated'
+            cursor[self.key(i)] = 'updated'
         self.session.commit_transaction()
         cursor.close()
 

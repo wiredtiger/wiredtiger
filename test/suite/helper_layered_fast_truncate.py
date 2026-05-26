@@ -49,7 +49,7 @@ def range_inclusive(start, stop):
 class LayeredFastTruncateConfigMixin:
     """Shared helpers for the layered fast truncate test suite."""
 
-    def _key(self, n):
+    def key(self, n):
         """
         Convert an int into a key; override in subclasses that use a different
         key format.
@@ -76,7 +76,7 @@ class LayeredFastTruncateConfigMixin:
         with self.auto_closing_cursor() as cursor:
             with self.transaction():
                 for key in keys:
-                    cursor[self._key(key)] = value
+                    cursor[self.key(key)] = value
 
     def setup_leader(self, keys=None, extra_cfg=''):
         """
@@ -104,10 +104,10 @@ class LayeredFastTruncateConfigMixin:
         try:
             if start_key is not None:
                 start = self.session.open_cursor(self.uri)
-                start.set_key(self._key(start_key))
+                start.set_key(self.key(start_key))
             if stop_key is not None:
                 stop = self.session.open_cursor(self.uri)
-                stop.set_key(self._key(stop_key))
+                stop.set_key(self.key(stop_key))
             # session.truncate() needs a URI iff both cursors are NULL.
             uri = self.uri if (start is None and stop is None) else None
             with self.transaction(commit_timestamp=commit_timestamp):
@@ -132,7 +132,7 @@ class LayeredFastTruncateConfigMixin:
         """Return True if key is visible to a search in its own transaction."""
         with self.auto_closing_cursor() as cursor:
             with self.transaction(rollback=True):
-                cursor.set_key(self._key(key))
+                cursor.set_key(self.key(key))
                 return cursor.search() == 0
 
     def search_near_key(self, key):
@@ -144,7 +144,7 @@ class LayeredFastTruncateConfigMixin:
         """
         with self.auto_closing_cursor() as cursor:
             with self.transaction(rollback=True):
-                cursor.set_key(self._key(key))
+                cursor.set_key(self.key(key))
                 exact = cursor.search_near()
                 if exact == wiredtiger.WT_NOTFOUND:
                     return exact, None

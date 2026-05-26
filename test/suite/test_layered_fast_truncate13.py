@@ -61,7 +61,7 @@ class test_layered_fast_truncate13(LayeredFastTruncateConfigMixin, wttest.WiredT
     def remove_key(self, key):
         """Remove a single key in a transaction."""
         with self.auto_closing_cursor() as cursor:
-            cursor.set_key(self._key(key))
+            cursor.set_key(self.key(key))
             with self.transaction():
                 cursor.remove()
 
@@ -161,8 +161,8 @@ class test_layered_fast_truncate13(LayeredFastTruncateConfigMixin, wttest.WiredT
                 self.auto_closing_cursor() as stop,
                 self.auto_closing_cursor() as cursor,
             ):
-                start.set_key(self._key(30))
-                stop.set_key(self._key(60))
+                start.set_key(self.key(30))
+                stop.set_key(self.key(60))
                 self.session.truncate(None, start, stop, None)
                 cursor[45] = "v"
 

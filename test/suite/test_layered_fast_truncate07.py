@@ -53,7 +53,7 @@ class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredT
     nitems = 100
 
     # Zero-padded string keys so lexicographic order matches numeric order.
-    def _key(self, n):
+    def key(self, n):
         return f'{n:04d}' if self.key_format == 'S' else n
 
     # How the key is printed in the verbose log (via __wt_key_string).
@@ -75,7 +75,7 @@ class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredT
         c = self.session.open_cursor(self.uri)
         for i in range(lo, hi + 1):
             self.session.begin_transaction()
-            c[self._key(i)] = 'v'
+            c[self.key(i)] = 'v'
             self.session.commit_transaction()
         c.close()
 
@@ -91,7 +91,7 @@ class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredT
 
     # Keys in [1, nitems] minus [start, stop] (inclusive on both ends).
     def expected_keys(self, start, stop):
-        return [self._key(i) for i in range(1, self.nitems + 1)
+        return [self.key(i) for i in range(1, self.nitems + 1)
                 if i < start or i > stop]
 
     # Assert the single truncate log line emitted with the concrete bounded range.
@@ -132,8 +132,8 @@ class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.truncate(start_key=80, stop_key=None)
         self.assert_trunc_log(80, self.nitems)
         self.insert_range(200, 210)
-        expected = [self._key(i) for i in range(1, 80)] + \
-                   [self._key(i) for i in range(200, 211)]
+        expected = [self.key(i) for i in range(1, 80)] + \
+                   [self.key(i) for i in range(200, 211)]
         self.assertEqual(self.follower_visible_keys(), expected)
 
     def test_bounded_and_end_open_ended_overlap(self):
@@ -144,7 +144,7 @@ class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredT
         # key 50-60 was deleted by the first truncate; search_near positions it on the
         # nearest in-bound key, 61.
         self.assert_trunc_log(61, self.nitems)
-        expected = [self._key(i) for i in range(1, 20)]
+        expected = [self.key(i) for i in range(1, 20)]
         self.assertEqual(self.follower_visible_keys(), expected)
         self.assertEqual(self.follower_visible_keys(forward=False), list(reversed(expected)))
 
@@ -156,6 +156,6 @@ class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredT
         # key 20-30 was deleted by the first truncate; search_near positions it on the
         # nearest live key, 19.
         self.assert_trunc_log(1, 19)
-        expected = [self._key(i) for i in range(61, self.nitems + 1)]
+        expected = [self.key(i) for i in range(61, self.nitems + 1)]
         self.assertEqual(self.follower_visible_keys(), expected)
         self.assertEqual(self.follower_visible_keys(forward=False), list(reversed(expected)))

@@ -54,7 +54,7 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
     # digits so that lexicographic order matches numeric order.
     nitems = 1000
 
-    def _key(self, n):
+    def key(self, n):
         return f'{n:04d}'
 
     def session_create_config(self):
@@ -87,7 +87,7 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
         # Forward and backward scans must skip every key in the truncated range.
         self.setup_follower()
         self.truncate(100, 700)
-        self.assert_scan([self._key(i) for i in range(self.nitems) if i < 100 or i > 700])
+        self.assert_scan([self.key(i) for i in range(self.nitems) if i < 100 or i > 700])
 
     def test_search_near_inside_truncated_range(self):
         # search_near for a key deep inside a truncated range must land outside
@@ -96,7 +96,7 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.truncate(100, 700)
 
         exact, landed = self.search_near(400)
-        self.assertFalse(self._key(100) <= landed <= self._key(700),
+        self.assertFalse(self.key(100) <= landed <= self.key(700),
             f'search_near landed inside truncated range at {landed}')
         self.assertNotEqual(exact, 0, 'exact=0 reported for a key in the truncated range')
 
@@ -109,19 +109,19 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         # Scenario 1: ingest 0600 above search key 0500 forward (exact=1).
         self.put(600, 'ingest-live')
-        self.assertEqual(self.search_near(500), (1, self._key(600)), 'forward scenario')
+        self.assertEqual(self.search_near(500), (1, self.key(600)), 'forward scenario')
 
         # Scenario 2: remove 0600 and write 0400. Only live ingest key below
         # 0500 backward (exact=-1).
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        cursor.set_key(self._key(600))
+        cursor.set_key(self.key(600))
         cursor.remove()
-        cursor[self._key(400)] = 'ingest-live'
+        cursor[self.key(400)] = 'ingest-live'
         self.session.commit_transaction()
         cursor.close()
 
-        self.assertEqual(self.search_near(500), (-1, self._key(400)), 'backward scenario')
+        self.assertEqual(self.search_near(500), (-1, self.key(400)), 'backward scenario')
 
     def test_search_near_at_truncate_boundary(self):
         # The start and stop keys of the range are inclusive, so search_near at
@@ -131,21 +131,21 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         for boundary in (100, 700):
             _, landed = self.search_near(boundary)
-            self.assertFalse(self._key(100) <= landed <= self._key(700),
-                f'boundary {self._key(boundary)} landed inside range at {landed}')
+            self.assertFalse(self.key(100) <= landed <= self.key(700),
+                f'boundary {self.key(boundary)} landed inside range at {landed}')
 
     def test_truncate_to_end_of_table(self):
         # Open-ended truncate from key 500; only 0-499 remain visible.
         self.setup_follower()
         self.truncate(500, None)
-        self.assert_scan([self._key(i) for i in range(500)])
+        self.assert_scan([self.key(i) for i in range(500)])
 
     def test_multiple_truncate_ranges(self):
         # Two disjoint bounded ranges; scans must skip both.
         self.setup_follower()
         self.truncate(100, 300)
         self.truncate(600, 800)
-        self.assert_scan([self._key(i) for i in range(self.nitems)
+        self.assert_scan([self.key(i) for i in range(self.nitems)
                           if not (100 <= i <= 300) and not (600 <= i <= 800)])
 
     def test_mixed_bounded_and_open_ended_truncates(self):
@@ -153,7 +153,7 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_follower()
         self.truncate(100, 300)
         self.truncate(600, None)
-        self.assert_scan([self._key(i) for i in range(self.nitems)
+        self.assert_scan([self.key(i) for i in range(self.nitems)
                           if i < 100 or (301 <= i <= 599)])
 
     def test_open_ended_truncate_then_append_then_bounded_to_new_end(self):
@@ -165,8 +165,8 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
         for i in range(1000, 1100):
             self.put(i, 'appended')
 
-        self.assert_scan([self._key(i) for i in range(800)]
-                         + [self._key(i) for i in range(1000, 1100)])
+        self.assert_scan([self.key(i) for i in range(800)]
+                         + [self.key(i) for i in range(1000, 1100)])
 
     def test_mixed_truncate_and_update(self):
         # Update 200-400 on follower (lands as live committed values in ingest),
@@ -176,7 +176,7 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
             self.put(i, 'updated')
         self.truncate(100, 700)
 
-        self.assert_scan([self._key(i) for i in range(self.nitems) if i < 100 or i > 700])
+        self.assert_scan([self.key(i) for i in range(self.nitems) if i < 100 or i > 700])
         self.assertFalse(self.key_exists(300),
             'search must hide an updated-then-truncated key')
 
@@ -188,10 +188,10 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         for k in (400, 100, 700):
             self.assertFalse(self.key_exists(k),
-                f'search({self._key(k)}) inside range must be hidden')
+                f'search({self.key(k)}) inside range must be hidden')
         for k in (99, 701):
             self.assertTrue(self.key_exists(k),
-                f'search({self._key(k)}) outside range must succeed')
+                f'search({self.key(k)}) outside range must succeed')
 
     def test_search_near_direction_in_truncated_range(self):
         # search_near for a key inside a truncated range tries forward first and
@@ -200,11 +200,11 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
 
         # Bounded range [100, 700]. Forward finds 0701.
         self.truncate(100, 700)
-        self.assertEqual(self.search_near(400), (1, self._key(701)), 'forward scenario')
+        self.assertEqual(self.search_near(400), (1, self.key(701)), 'forward scenario')
 
         # Add open-ended truncate [800, end]. Forward exhausts, falls back to 0799.
         self.truncate(800, None)
-        self.assertEqual(self.search_near(900), (-1, self._key(799)), 'backward scenario')
+        self.assertEqual(self.search_near(900), (-1, self.key(799)), 'backward scenario')
 
     def test_overlapping_truncated_ranges_scan(self):
         # Two overlapping ranges [100, 400] and [300, 700]: scans must skip the
@@ -212,7 +212,7 @@ class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_follower()
         self.truncate(100, 400)
         self.truncate(300, 700)
-        self.assert_scan([self._key(i) for i in range(self.nitems)
+        self.assert_scan([self.key(i) for i in range(self.nitems)
                           if i < 100 or i > 700])
 
     def test_entire_table_truncated(self):

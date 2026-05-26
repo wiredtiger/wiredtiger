@@ -49,7 +49,7 @@ class test_layered_fast_truncate01(LayeredFastTruncateConfigMixin, wttest.WiredT
 
     nitems = 1000
 
-    def _key(self, n):
+    def key(self, n):
         return str(n)
 
     def session_create_config(self):
