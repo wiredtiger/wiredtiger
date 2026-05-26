@@ -780,8 +780,6 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     txn = session->txn;
 
-    WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
-
     if (F_ISSET(txn, WT_TXN_READONLY))
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
 

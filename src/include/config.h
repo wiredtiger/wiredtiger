@@ -328,6 +328,7 @@ extern const char __WT_CONFIG_CHOICE_set[];
 extern const char __WT_CONFIG_CHOICE_shared_cache[];
 extern const char __WT_CONFIG_CHOICE_size[];
 extern const char __WT_CONFIG_CHOICE_sleep_before_read_overflow_onpage[];
+extern const char __WT_CONFIG_CHOICE_slow[];
 extern const char __WT_CONFIG_CHOICE_slow_operation[];
 extern const char __WT_CONFIG_CHOICE_snapshot[];
 extern const char __WT_CONFIG_CHOICE_split[];

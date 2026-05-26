@@ -1903,7 +1903,12 @@ methods = {
 
 'WT_SESSION.strerror' : Method([]),
 
-'WT_SESSION.truncate' : Method([]),
+'WT_SESSION.truncate' : Method([
+    Config('mode', 'fast', r'''
+        the truncate implementation to use for layered tables. "fast" performs optimized range
+        deletes; "slow" performs per-record deletes. Non-layered tables ignore this setting''',
+        choices=['fast', 'slow']),
+]),
 'WT_SESSION.verify' : Method([
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
