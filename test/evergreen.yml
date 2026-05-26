@@ -1791,12 +1791,12 @@ variables:
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.truncate=1 runs.timer=5:10 runs.threads=4:16
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.truncate=1 runs.timer=5:10 runs.threads=4:12
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch ops.prepare=0 ops.truncate=1 runs.timer=5:10 runs.threads=4:16
+          format_args: disagg.mode=switch ops.prepare=0 ops.truncate=1 runs.timer=5:10 runs.threads=4:12
           times: 5
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
@@ -1808,13 +1808,13 @@ variables:
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.truncate=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10 runs.threads=4:16
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.truncate=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10 runs.threads=4:12
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch ops.prepare=0 ops.truncate=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10 runs.threads=4:16
+          format_args: disagg.mode=switch ops.prepare=0 ops.truncate=1 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10 runs.threads=4:12
           times: 5
 
 #######################################
