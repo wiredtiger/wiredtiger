@@ -3,7 +3,11 @@
     "configurePresets": [
         {
             "name": "default",
-            "displayName": "Default"
+            "displayName": "Default",
+            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "USE_SYSTEM_SQLITE3": "ON"
+            }
         },
         {
             "name": "linux",
