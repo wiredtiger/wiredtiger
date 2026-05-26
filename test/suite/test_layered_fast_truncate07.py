@@ -38,16 +38,16 @@ from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
+class test_layered_fast_truncate07(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
     conn_config = 'verbose=[layered:3],disaggregated=(role="leader"),'
-    uri = 'layered:test_layered_fast_truncate06'
+    uri = 'layered:test_layered_fast_truncate07'
 
     key_formats = [
         ('string', dict(key_format='S')),
         ('int', dict(key_format='i')),
     ]
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate06', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_fast_truncate07', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, key_formats)
 
     nitems = 100
