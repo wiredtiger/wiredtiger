@@ -26,8 +26,8 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
-            ${HAVE_LIBZ_INCLUDES}
         )
+    target_link_libraries(wiredtiger_zlib PRIVATE wt::zlib)
     target_compile_options(
         wiredtiger_zlib
         PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
@@ -37,7 +37,6 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
 endif()
 
 if(ENABLE_ZLIB)
-    target_link_libraries(wiredtiger_zlib wt::zlib)
     install(TARGETS wiredtiger_zlib
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
