@@ -1469,11 +1469,8 @@ config_disagg_storage(void)
     if (strcmp(mode, "switch") == 0) {
         /* Randomly assign "leader" or "follower". */
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-        /*
-         * Switch mode exercises follower-side slow truncate (replaces the former
-         * WT_DISAGG_SLOW_TRUNCATE_BUILD compile flag for stress coverage).
-         */
-        g.disagg_slow_truncate_follower = true;
+        /* Switch mode always exercises follower-side slow truncate. */
+        config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
     } else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
