@@ -57,8 +57,8 @@ class test_layered_fast_truncate18(LayeredFastTruncateConfigMixin, wttest.WiredT
     CONFLICT_MSG = "/conflict between concurrent operations/"
 
     # These helpers are local to 18 because they all take an explicit session
-    # (the conflict tests drive two sessions concurrently). The mixin's
-    # equivalents are bound to self.session and so are not reusable here.
+    # (the conflict tests drive two sessions concurrently). The equivalent
+    # mixin helpers are bound to self.session and so are not reusable here.
 
     def cursor_on(self, session):
         """Return a cursor on the given session that auto-closes."""
