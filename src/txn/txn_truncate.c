@@ -298,10 +298,6 @@ __wt_layered_table_truncate_detect_write_conflict(
     WT_DECL_RET;
     bool is_found = false;
 
-    /*
-     * The truncate list is only populated by the fast follower path; if this connection runs
-     * follower-slow truncate, the list is empty and there is nothing to check.
-     */
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
         return (0);
 

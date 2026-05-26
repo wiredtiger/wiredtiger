@@ -1471,11 +1471,9 @@ config_disagg_storage(void)
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
         /*
          * Switch mode exercises follower-side slow truncate (replaces the former
-         * WT_DISAGG_SLOW_TRUNCATE_BUILD compile flag for stress coverage) and the leader/non-disagg
-         * slow path (page-skip disabled) for symmetry.
+         * WT_DISAGG_SLOW_TRUNCATE_BUILD compile flag for stress coverage).
          */
         g.disagg_slow_truncate_follower = true;
-        g.slow_truncate = true;
     } else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
