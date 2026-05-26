@@ -565,9 +565,7 @@ variables:
           times: 5
 
   # Variant of format-stress-test-disagg-switch that exercises the default
-  # fast-truncate code path. Switch mode would otherwise force
-  # debug.disagg_slow_truncate_follower=on (see FIXME-WT-17564 in
-  # config_disagg_storage); this variant explicitly opts out.
+  # fast-truncate code path.
   - &format-stress-test-disagg-switch-fast-truncate
     depends_on:
       - name: compile
