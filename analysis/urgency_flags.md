@@ -13,9 +13,9 @@ Tickets with data loss/corruption risks, security issues, customer-impacting cra
 
 ### WT-10829 — Security: auth_token/AccountKey printed in logs on config parse error
 - **Priority:** P3 | **Status:** Open | **Type:** Bug
-- **Team:** Foundations
+- **Team:** Persistence
 - **Last Updated:** 2025-12-03
-- **Reason:** SECURITY — Cloud storage credentials (Azure AccountKey, AWS auth_token) are printed to WiredTiger logs when there is a config parse error. Any user with log access can read these secrets. This is a credential leak vulnerability. Labels include `security`.
+- **Reason:** SECURITY — Cloud storage credentials (Azure AccountKey, AWS auth_token) are printed to WiredTiger logs when there is a config parse error. Any user with log access can read these secrets. This is a credential leak vulnerability. Labels include `security`. **Note:** Tiered storage is now deprecated; urgency is reduced since new deployments will not use this feature, but the fix is still advisable before the tiered code is removed. Also listed in [wont_do_candidates.md](wont_do_candidates.md) as a low-priority candidate.
 
 ---
 
@@ -267,11 +267,11 @@ Tickets with recently renewed interest, crashes in specific scenarios, hangs, pe
 
 ---
 
-### WT-9460 / WT-9461 / WT-9464 / WT-9531 / WT-9532 / WT-9574 — Documentation update sub-tasks (PM-2942–PM-2975)
+### WT-9460 / WT-9461 / WT-9464 / WT-9531 / WT-9532 / WT-9574 — Documentation update sub-tasks (SPM-2942–SPM-2975)
 - **Priority:** P3 | **Status:** Open | **Type:** Task
-- **Team:** Foundations
+- **Team:** Mixed — see below (Step 7 reassignment)
 - **Last Updated:** 2022
-- **Reason:** DOCUMENTATION GAP — These tickets represent documentation work for specific features. If the features shipped but documentation was never updated, users and operators may be working from incorrect or missing documentation.
+- **Reason:** DOCUMENTATION GAP — These tickets represent documentation work for specific features. If the features shipped but documentation was never updated, users and operators may be working from incorrect or missing documentation. Team assignment updated in Step 7 based on SPM ownership: WT-9460/9461 → Foundations (SPM-2942/2943, API/session work); WT-9464/9531 → Foundations (SPM-2944/2960, both Canceled parent projects); WT-9532 → Transactions (SPM-2961, shard merge timestamps, Canceled); WT-9574 → Transactions (SPM-2975, cache observability). Three of these (WT-9464/9531/9532) have Canceled parent SPM projects and are strong Won't Do candidates.
 
 ---
 

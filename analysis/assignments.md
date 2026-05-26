@@ -7,11 +7,15 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 
 | Team | Tickets | % |
 |------|---------|---|
-| Storage Engines - Foundations | 360 | 62.7% |
-| Storage Engines - Transactions | 129 | 22.5% |
-| Storage Engines - Persistence | 85 | 14.8% |
+| Storage Engines - Foundations | 339 | 59.1% |
+| Storage Engines - Transactions | 136 | 23.7% |
+| Storage Engines - Persistence | 99 | 17.2% |
 | Unclear | 0 | 0.0% |
 | **Total** | **574** | **100%** |
+
+> **Note (2026-05-06, Step 6):** Tiered storage and column store are deprecated. 11 tickets were reassigned to Persistence (10 from Foundations, 1 from Transactions): WT-3626, WT-7518, WT-7734, WT-8916, WT-8977, WT-9658, WT-9808, WT-10794, WT-10829, WT-10936, WT-10991.
+
+> **Note (2026-05-06, Step 7):** Architecture guide and documentation update sub-tasks reassigned based on their linked SPM project. 3 moved Foundations → Persistence (WT-8082 SPM-2503 export/import, WT-8087 SPM-2507 salvage, WT-8088 SPM-2508 checkpoint). 8 moved Foundations → Transactions (WT-8083/8084/8085/8089/8090 SPM-2504–2510 history store, WT-8215 SPM-2564 timestamp interface, WT-9532 SPM-2961 shard merge timestamps, WT-9574 SPM-2975 cache observability).
 
 ---
 
@@ -47,8 +51,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-3626: Allow updates to be restored against an empty column store page
-- **Team:** Storage Engines - Transactions
-- **Reason:** This ticket concerns update/restore eviction behavior on column store pages, which is part of the cache/eviction management and B-tree reconciliation domain owned by Transactions.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Column store is deprecated; this bug in column store update/restore eviction is now owned by Persistence as the custodian of deprecated storage formats.
 
 ---
 
@@ -1181,8 +1185,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-7518: Update WT_DATA_HANDLE to support different types of backing storage for Btrees
-- **Team:** Storage Engines - Foundations
-- **Reason:** This ticket modifies the data handle (dhandle) management infrastructure to support tiered storage URIs alongside file-based Btrees, which is part of dhandle cache and schema operations owned by Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; the dhandle infrastructure changes for tiered storage URIs are owned by Persistence as the custodian of tiered storage.
 
 ---
 
@@ -1253,8 +1257,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-7734: Add dhandle flag to indicate dhandles that are both btree and object
-- **Team:** Storage Engines - Foundations
-- **Reason:** This ticket adds a flag to the dhandle infrastructure to distinguish btree-object dhandles, which is part of data handle management owned by Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; this tiered storage dhandle flag work is owned by Persistence as the custodian of tiered storage.
 
 ---
 
@@ -1385,50 +1389,50 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-8082: Architecture Guide updates for PM-2503
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort; without specific component context, this falls under Foundations as the team managing cross-cutting and release documentation.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tied to SPM-2503 (Export/Import feature). Export/import is a Persistence concern (block manager, file management, import checkpoints). Architecture guide update for Persistence-owned work.
 
 ---
 
 ## WT-8083: Architecture Guide updates for PM-2504
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2504 (History Store improvements). History store is owned by Transactions. Architecture guide update for Transactions-owned work.
 
 ---
 
 ## WT-8084: Architecture Guide updates for PM-2505
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2505 (History Store improvements). History store is owned by Transactions. Architecture guide update for Transactions-owned work.
 
 ---
 
 ## WT-8085: Architecture Guide updates for PM-2506
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2506 (History Store improvements). History store is owned by Transactions. Architecture guide update for Transactions-owned work.
 
 ---
 
 ## WT-8087: Architecture Guide updates for PM-2507
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tied to SPM-2507 (Salvage improvements). Salvage is owned by Persistence (corruption recovery path). Architecture guide update for Persistence-owned work.
 
 ---
 
 ## WT-8088: Architecture Guide updates for PM-2508
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tied to SPM-2508 (Checkpoint improvements). Checkpoints are owned by Persistence. Architecture guide update for Persistence-owned work.
 
 ---
 
 ## WT-8089: Architecture Guide updates for PM-2509
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2509 (History Store improvements). History store is owned by Transactions. Architecture guide update for Transactions-owned work.
 
 ---
 
 ## WT-8090: Architecture Guide updates for PM-2510
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2510 (History Store improvements). History store is owned by Transactions. Architecture guide update for Transactions-owned work.
 
 ---
 
@@ -1475,8 +1479,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-8215: Architecture Guide updates for PM-2564
-- **Team:** Storage Engines - Foundations
-- **Reason:** Architecture guide maintenance is a cross-cutting documentation effort managed by Foundations.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2564 (Timestamp interface improvements). Timestamp API and MVCC are owned by Transactions. Architecture guide update for Transactions-owned work.
 
 ---
 
@@ -1769,8 +1773,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-8916: Enable S3 extension build and test on the Windows
-- **Team:** Storage Engines - Foundations
-- **Reason:** This ticket is about the build system, CI/CD, and cross-platform compilation for the S3 extension on Windows, which falls under Foundations' build system and CI/CD infrastructure responsibilities.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; the S3 extension build and test work on Windows is owned by Persistence as the custodian of tiered storage extensions.
 
 ---
 
@@ -1793,8 +1797,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-8977: Tiered Storage python tests shouldn't check contents of dir_store cache
-- **Team:** Storage Engines - Foundations
-- **Reason:** This ticket is about fixing tiered storage test correctness — removing improper coupling between WiredTiger API-level tests and storage_source cache internals — which is a test correctness and API boundary concern under Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; tiered storage Python test fixes are owned by Persistence as the custodian of tiered storage.
 
 ---
 
@@ -2129,8 +2133,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-9532: Documentation updates for PM-2959
-- **Team:** Storage Engines - Foundations
-- **Reason:** This is a general documentation update ticket (API Guide, Programming Guide, Architecture Guide) without a specific component, which falls under Foundations' documentation and release management responsibilities.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2961 (Shard merge timestamp support — now Canceled). Timestamp/MVCC work for shard merge is owned by Transactions. Documentation update sub-task for Transactions-owned work; SPM-2961 was canceled so this is a Won't Do candidate.
 
 ---
 
@@ -2165,8 +2169,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-9574: Documentation updates for PM-2975
-- **Team:** Storage Engines - Foundations
-- **Reason:** This is a general documentation update ticket (API Guide, Programming Guide, Architecture Guide) without a specific component, which falls under Foundations' documentation and release management responsibilities.
+- **Team:** Storage Engines - Transactions
+- **Reason:** Tied to SPM-2975 (Cache observability / eviction metrics). Cache and eviction are owned by Transactions. Documentation update sub-task for Transactions-owned work.
 
 ---
 
@@ -2237,8 +2241,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-9658: Add visible statistics for s3_store module
-- **Team:** Storage Engines - Foundations
-- **Reason:** This ticket adds statistics tracking for S3 storage source requests (visible via statistics cursors), which is an API and statistics infrastructure concern crossing tiered storage and Foundations' sessions/API domain.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; S3 storage source statistics are owned by Persistence as the custodian of tiered storage extensions.
 
 ---
 
@@ -2315,8 +2319,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-9808: Fix suite_subprocess.runWt for tiered storage
-- **Team:** Storage Engines - Foundations
-- **Reason:** This ticket fixes the test suite subprocess infrastructure for tiered storage tests (runWt compatibility), which is a correctness framework and test infrastructure concern owned by Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; tiered storage test subprocess fixes are owned by Persistence as the custodian of tiered storage.
 
 ---
 
@@ -2801,8 +2805,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-10794: Save WT files in cloud storage as part of test artifacts
-- **Team:** Storage Engines - Foundations
-- **Reason:** This is a CI/CD infrastructure improvement for capturing tiered storage test artifacts in Evergreen failures, owned by Foundations under CI/CD infrastructure.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; CI artifact collection for tiered storage tests is owned by Persistence as the custodian of tiered storage.
 
 ---
 
@@ -2831,8 +2835,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-10829: Redact AccountKey when printing out configuration passed into WiredTiger
-- **Team:** Storage Engines - Foundations
-- **Reason:** This is a security/code quality improvement to redact the auth_token field from configuration error messages in the API layer, owned by Foundations under API and configuration.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; the credential redaction bug in tiered storage configuration is owned by Persistence as the custodian of tiered storage, though the security fix remains relevant until the code is removed.
 
 ---
 
@@ -2927,8 +2931,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-10936: Make test/checkpoint predictable for column store
-- **Team:** Storage Engines - Foundations
-- **Reason:** Fixing test/checkpoint (a correctness framework test) to support column store is part of the correctness frameworks and test infrastructure owned by Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Column store is deprecated; making test/checkpoint predictable for column store is owned by Persistence as the custodian of deprecated storage formats.
 
 ---
 
@@ -2951,8 +2955,8 @@ Assignments based on team charters for the three Storage Engines sub-teams.
 ---
 
 ## WT-10991: Add "general" handler callbacks to Python SWIG interface
-- **Team:** Storage Engines - Foundations
-- **Reason:** Extending the Python SWIG interface with new callbacks is a language bindings task owned by Foundations.
+- **Team:** Storage Engines - Persistence
+- **Reason:** Tiered storage is deprecated; the SWIG interface callbacks for tiered storage handlers are owned by Persistence as the custodian of tiered storage.
 
 ---
 
