@@ -22,9 +22,8 @@ typedef enum { WT_TRUNCATE_SEARCH_VISIBLE, WT_TRUNCATE_SEARCH_NOT_VISIBLE } WT_T
 static void
 __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
-    WT_ASSERT(session,
-      S2C(session)->layered_table_manager.leader ||
-        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
+    WT_ASSERT(
+      session, !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
 
     if (entry == NULL || *entry == NULL)
         return;
@@ -193,9 +192,8 @@ __wt_insert_truncate_entry(
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL;
 
-    WT_ASSERT(session,
-      S2C(session)->layered_table_manager.leader ||
-        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
+    WT_ASSERT(
+      session, !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, F_ISSET(&layered_table->iface, WT_DHANDLE_OPEN));
 
@@ -463,9 +461,8 @@ static void
 __disagg_truncate_apply(WT_SESSION_IMPL *session, WT_TXN_OP *op,
   void (*apply_func)(WT_SESSION_IMPL *, WT_LAYERED_TABLE *, WT_TXN_OP *))
 {
-    WT_ASSERT(session,
-      S2C(session)->layered_table_manager.leader ||
-        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
+    WT_ASSERT(
+      session, !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
     WT_ASSERT(session, op != NULL);
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
@@ -487,9 +484,8 @@ __wti_mark_committed_truncate_table_apply(
 {
     WT_TRUNCATE *entry = op->u.follower_truncate.t;
 
-    WT_ASSERT(session,
-      S2C(session)->layered_table_manager.leader ||
-        !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
+    WT_ASSERT(
+      session, !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
     WT_ASSERT(session, layered_table != NULL);
     WT_ASSERT(session, entry != NULL);
     WT_ASSERT(session, entry->txn_id == session->txn->time_point.id);
