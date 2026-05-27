@@ -1412,19 +1412,16 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
         if (!WT_REC_HAS_ON_DISK(vpack)) {
             char tw_string[WT_TIME_STRING_SIZE];
-            if (vpack == NULL)
-                __wt_verbose_error(session, WT_VERB_DEFAULT, "%s",
-                  "__rec_fill_tw_from_upd_select: no on-disk value; vpack=NULL");
-            else {
+            __wt_verbose_error(session, WT_VERB_DEFAULT,
+              "__rec_fill_tw_from_upd_select: no on-disk value; vpack=%p%s", (void *)vpack,
+              vpack == NULL ? " (NULL)" : "");
+            if (vpack != NULL)
                 __wt_verbose_error(session, WT_VERB_DEFAULT,
-                  "__rec_fill_tw_from_upd_select: no on-disk value; vpack=%p type=0x%02x",
-                  (void *)vpack, (unsigned int)vpack->type);
-                __wt_verbose_error(session, WT_VERB_DEFAULT, "on-disk time window: %s",
+                  "on-disk cell type=0x%02x time window: %s", (unsigned int)vpack->type,
                   __wt_time_window_to_string(&vpack->tw, tw_string));
-            }
             __wt_verbose_error(session, WT_VERB_DEFAULT, "select time window: %s",
               __wt_time_window_to_string(select_tw, tw_string));
-            __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "full update chain:");
+            __wt_verbose_error(session, WT_VERB_DEFAULT, "%s", "full in-memory update chain:");
             __rec_verbose_dump_upd_chain(session, chain_head);
         }
         WT_ASSERT_ALWAYS(session, WT_REC_HAS_ON_DISK(vpack), "No on-disk value is found");
