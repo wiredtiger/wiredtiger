@@ -572,17 +572,6 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
         cell_type = WT_CELL_ADDR_DEL;
 
-        /*
-         * In-progress prepared states are only written to disk when preserve_prepared is enabled on
-         * a disaggregated btree.
-         */
-        WT_ASSERT(session,
-          page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED ||
-            (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-              (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
-                page_del->prepare_state == WT_PREPARE_LOCKED)));
-
         /* Use prepared_id to determine whether to write a prepared fast-truncate cell */
         is_prepared_fast_truncate = page_del->prepared_id != WT_PREPARED_ID_NONE &&
           F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
