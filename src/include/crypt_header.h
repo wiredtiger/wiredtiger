@@ -42,20 +42,21 @@ struct __wt_crypt_header {
 
 /*
  * __wt_crypt_header_byteswap --
- *     Handle big- and little-endian transformation of a key header. The caller passes the number
- *     of bytes safely accessible through hdr (the underlying buffer size); the timestamp field is
- *     only touched when the buffer is large enough to hold it.
+ *     Handle big- and little-endian transformation of a key header. The timestamp is swapped only
+ *     when the on-disk header advertises that it is present (header_size) AND the underlying buffer
+ *     is large enough to hold it (buf_size).
  */
 static WT_INLINE void
-__wt_crypt_header_byteswap(WT_CRYPT_HEADER *hdr, size_t buf_size)
+__wt_crypt_header_byteswap(WT_CRYPT_HEADER *hdr, size_t header_size, size_t buf_size)
 {
 #ifdef WORDS_BIGENDIAN
     hdr->signature = __wt_bswap32(hdr->signature);
     hdr->crypt_size = __wt_bswap32(hdr->crypt_size);
-    if (buf_size >= sizeof(WT_CRYPT_HEADER))
+    if (header_size >= sizeof(WT_CRYPT_HEADER) && buf_size >= sizeof(WT_CRYPT_HEADER))
         hdr->timestamp = __wt_bswap64(hdr->timestamp);
 #else
     WT_UNUSED(hdr);
+    WT_UNUSED(header_size);
     WT_UNUSED(buf_size);
 #endif
 }
