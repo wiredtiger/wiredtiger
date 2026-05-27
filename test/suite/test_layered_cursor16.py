@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered93.py
+# test_layered_cursor16.py
 #   Test that cursor operations succeed (or fail) on a follower for keys that exist
 #   only in the stable table (i.e. written by the leader and checkpointed).
 
@@ -75,12 +75,12 @@ _operations = [
 ]
 
 @disagg_test_class
-class test_layered93(wttest.WiredTigerTestCase):
+class test_layered_cursor16(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader")'
 
-    uri = 'layered:test_layered93'
+    uri = 'layered:test_layered_cursor16'
 
-    disagg_storages = gen_disagg_storages('test_layered93', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_cursor16', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, _operations)
 
     conn_follow = None

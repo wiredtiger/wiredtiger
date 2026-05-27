@@ -26,24 +26,22 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
+import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 
-StorageSource = wiredtiger.StorageSource  # easy access to constants
-
-# test_layered03.py
-#    Basic layered tree cursor insert and read
+# test_layered_cursor03.py
+#    Basic layered tree cursor creation
 @disagg_test_class
-class test_layered03(wttest.WiredTigerTestCase):
+class test_layered_cursor03(wttest.WiredTigerTestCase):
 
-    uri_base = "test_layered03"
+    uri_base = "test_layered_cursor03"
     conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
                 + 'disaggregated=(lose_all_my_data=true),'
 
     uri = "layered:" + uri_base
 
     # Test inserting a record into a layered tree
-    def test_layered03(self):
+    def test_layered_cursor03(self):
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create layered tree")
@@ -52,29 +50,6 @@ class test_layered03(wttest.WiredTigerTestCase):
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        self.pr('Inserting a value')
-        cursor["Hello"] = "World"
-        cursor["Hi"] = "There"
-        cursor["OK"] = "Go"
-
-        cursor.set_key("Hello")
-        cursor.search()
-        value = cursor.get_value()
-        value = cursor["Hello"]
-        self.pr("Search retrieved: " + cursor.get_key() + ":" + cursor.get_value())
-
-        cursor.reset()
-        while cursor.next() == 0:
-            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
-
-        cursor.reset()
-        while cursor.prev() == 0:
-            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
-
-        self.pr('closing cursor')
+        self.pr('opening cursor')
         cursor.close()
 
-        self.pr('closing cursor')
-        cursor = self.session.open_cursor(self.uri, None, None)
-        while cursor.next() == 0:
-            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())

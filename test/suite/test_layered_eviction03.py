@@ -31,11 +31,11 @@ from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered57.py
+# test_layered_eviction03.py
 #    Test that a follower never use application threads to evict pages with updates and dirty pages.
 @disagg_test_class
-class test_layered57(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_layered57', disagg_only = True)
+class test_layered_eviction03(wttest.WiredTigerTestCase):
+    disagg_storages = gen_disagg_storages('test_layered_eviction03', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="follower")'
@@ -48,7 +48,7 @@ class test_layered57(wttest.WiredTigerTestCase):
         return random_string
 
     def test_follower_not_do_app_evict(self):
-        uri = "layered:test_layered57"
+        uri = "layered:test_layered_eviction03"
 
         # Setup.
         self.session.create(uri, 'key_format=S,value_format=S')

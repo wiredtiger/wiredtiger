@@ -31,20 +31,20 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_layered97.py
+# test_layered_cursor18.py
 #   On a follower, insert/update on a layered cursor should only open the
 #   stable constituent when overwrite=false: with overwrite=true (the
 #   default) the write path skips the layered lookup and should open the
 #   ingest cursor only.
 @disagg_test_class
-class test_layered97(wttest.WiredTigerTestCase):
+class test_layered_cursor18(wttest.WiredTigerTestCase):
 
-    table_name = 'test_layered97'
+    table_name = 'test_layered_cursor18'
     uri = 'layered:' + table_name
 
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
 
-    disagg_storages = gen_disagg_storages('test_layered97', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_cursor18', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):

@@ -33,16 +33,16 @@ from helper import WiredTigerCursor, statistic_uri
 from wiredtiger import stat
 
 
-# test_layered67.py
+# test_layered_eviction05.py
 # Test that we write the page for update restore even when deltas are disabled.
 
 @disagg_test_class
-class test_layered67(wttest.WiredTigerTestCase):
+class test_layered_eviction05(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),'
-    disagg_storages = gen_disagg_storages('test_layered67', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_eviction05', disagg_only = True)
 
     nrows = 10
-    uri='file:test_layered67'
+    uri='file:test_layered_eviction05'
 
     scenarios = make_scenarios(disagg_storages)
 

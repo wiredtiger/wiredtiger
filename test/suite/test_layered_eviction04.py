@@ -30,21 +30,21 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered66.py
+# test_layered_eviction04.py
 #    Test evicting pages that haven't been materialized when closing a file
 #    returns an error.
 @disagg_test_class
-class test_layered66(wttest.WiredTigerTestCase):
+class test_layered_eviction04(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=i,value_format=S'
 
-    uri = "layered:test_layered66"
+    uri = "layered:test_layered_eviction04"
 
-    disagg_storages = gen_disagg_storages('test_layered66', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_eviction04', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    def test_layered66(self):
+    def test_layered_eviction04(self):
         page_log = self.conn.get_page_log(self.vars.page_log)
         self.session.create(self.uri, self.create_session_config)
 

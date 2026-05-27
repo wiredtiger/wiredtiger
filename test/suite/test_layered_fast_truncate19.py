@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered100.py
+# test_layered_fast_truncate19.py
 #   Verify that fast truncate prevents internal page delta writes.
 #   Phase 2 proves delta fires for a normal update (sanity); Phase 3 proves it
 #   is suppressed when reconciliation encounters a WT_REF_DELETED child.
@@ -37,8 +37,8 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 @disagg_test_class
-class test_layered100(wttest.WiredTigerTestCase):
-    uri         = 'layered:test_layered100'
+class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
+    uri         = 'layered:test_layered_fast_truncate19'
     nrows       = 200
     value       = 'a' * 50
     trunc_start = 50
@@ -54,7 +54,7 @@ class test_layered100(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'
 
-    disagg_storages = gen_disagg_storages('test_layered100', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_fast_truncate19', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def get_stat(self, conn, stat_key, uri=None):

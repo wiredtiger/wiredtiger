@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,30 +26,29 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
-from helper_disagg import disagg_test_class
+# test_layered_cursor10.py
+#   Test remove returns not found when deleting an non-existent key
 
-# test_layered02.py
-#    Basic layered tree cursor creation
+import wiredtiger, wttest
+from helper_disagg import disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
+
 @disagg_test_class
-class test_layered02(wttest.WiredTigerTestCase):
+class test_layered_cursor10(wttest.WiredTigerTestCase):
+    conn_config = 'statistics=(all),precise_checkpoint=true,' \
+                  'disaggregated=(role="follower")'
 
-    uri_base = "test_layered02"
-    conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
-                + 'disaggregated=(lose_all_my_data=true),'
+    uri = 'layered:test_layered_cursor10'
 
-    uri = "layered:" + uri_base
+    disagg_storages = gen_disagg_storages('test_layered_cursor10', disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
 
-    # Test inserting a record into a layered tree
-    def test_layered02(self):
-        base_create = 'key_format=S,value_format=S'
+    def test_delete_non_existent_key(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
-        self.pr("create layered tree")
-        self.session.create(self.uri, base_create)
-
-        self.pr('opening cursor')
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        self.pr('opening cursor')
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
         cursor.close()
-
