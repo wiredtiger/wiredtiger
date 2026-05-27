@@ -13,21 +13,19 @@
 #include "wt_internal.h"
 
 /*
- * JIRA ticket reference: WT-17660
- *
- * Unit test for __wt_verify_dsk_header (src/btree/bt_vrfy_dsk.c) and its forensic diagnostic. The
- * verifier is the read-side mirror of WT-14750's write-side WT_PAGE_TYPE_COUNT guard in
- * __rec_write -- production reads invoke it from __page_read after the block manager returns, so a
- * disk image with an out-of-range page type is rejected before any cursor walker dispatches on it.
+ * Unit test for __wt_verify_dsk_header and its forensic diagnostic. The verifier is the read-side
+ * mirror of the write-side WT_PAGE_TYPE_COUNT guard in reconciliation. Reads invoke it after the
+ * block manager returns, so a disk image with an out-of-range page type is rejected before any
+ * cursor walker dispatches on it.
  *
  * Scenarios:
  *   1. type = WT_PAGE_INVALID (0) with NULL WT_ADDR -- the bare validation contract, mirrors what
- *      `wt verify` sees on a hand-fed image. Captured output should carry the verbose error
- *      message but the "block_cookie=?" sentinel (no block context available).
+ * `wt verify` sees on a hand-fed image. Captured output should carry the verbose error message but
+ * the "block_cookie=?" sentinel (no block context available).
  *   2. type = WT_PAGE_TYPE_COUNT (8) with NULL WT_ADDR -- boundary value introduced by WT-14750.
- *   3. Real on-disk leaf page with WT_PAGE_INVALID injected and a *real* WT_ADDR populated from
- *      the page's WT_REF. This is the field-realistic scenario: the diagnostic must emit a real
- *      hex block_cookie that an SRE can use to re-read the on-disk block.
+ *   3. Real on-disk leaf page with WT_PAGE_INVALID injected and a real WT_ADDR populated from the
+ *      page's WT_REF. This is the field-realistic scenario: the diagnostic must emit a real hex
+ * block_cookie that one can use to re-read the on-disk block.
  */
 
 /* Large enough to hold the full hex dump of a ~32 KB leaf page plus headers. */
@@ -60,8 +58,7 @@ append_captured(const char *msg)
  *     diagnostic shape.
  */
 static int
-event_handle_error(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+event_handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
     (void)handler;
     (void)session;
@@ -89,8 +86,8 @@ event_handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char 
  * has_hex_cookie --
  *     Verify the captured output contains "block_cookie=<hex...>" with at least min_hex hex
  *     characters following the '=' (i.e. NOT the '?' sentinel emitted when no block context is
- *     available). This is the field a field-triage engineer cares about: it identifies the
- *     on-disk block so the bytes can be re-read independently of the running process.
+ *     available). This is the field a field-triage engineer cares about: it identifies the on-disk
+ *     block so the bytes can be re-read independently of the running process.
  */
 static bool
 has_hex_cookie(const char *buf, size_t min_hex)
@@ -114,8 +111,8 @@ has_hex_cookie(const char *buf, size_t min_hex)
 
 /*
  * populate_table --
- *     Insert enough rows to grow the btree beyond a single root leaf, so subsequent reads page in
- *     a real on-disk leaf with a populated WT_ADDR.
+ *     Insert enough rows to grow the btree beyond a single root leaf, so subsequent reads page in a
+ *     real on-disk leaf with a populated WT_ADDR.
  */
 static void
 populate_table(WT_SESSION *session)
@@ -170,8 +167,8 @@ run_synthetic_scenario(WT_SESSION *session, const char *label, uint8_t bad_type)
       ret != 0, "[%s] __wt_verify_dsk_header returned 0 for type %u", label, (unsigned)bad_type);
 
     /* Verbose message from WT_RET_VRFY. */
-    testutil_check(__wt_snprintf(type_needle, sizeof(type_needle), "has an invalid type of %u",
-      (unsigned)bad_type));
+    testutil_check(__wt_snprintf(
+      type_needle, sizeof(type_needle), "has an invalid type of %u", (unsigned)bad_type));
     testutil_assertfmt(strstr(captured, type_needle) != NULL,
       "[%s] missing verbose error '%s'.\nCaptured:\n%s", label, type_needle, captured);
 
@@ -193,7 +190,7 @@ run_synthetic_scenario(WT_SESSION *session, const char *label, uint8_t bad_type)
  *     Field-realistic scenario: page a real leaf in from disk via cursor->next, copy its real
  *     WT_PAGE_HEADER bytes, flip the type byte, populate a WT_ADDR from the leaf's ref->addr, and
  *     call __wt_verify_dsk_header. The diagnostic must emit a real hex block_cookie, the real
- *     dhandle name, and the real header fields (mem_size, write_gen, entries) so an SRE could
+ *     dhandle name, and the real header fields (mem_size, write_gen, entries) so we could
  *     re-read the bad block independently of the running process.
  */
 static void
@@ -233,8 +230,8 @@ run_realref_scenario(WT_CONNECTION *conn)
      * satisfy this implicitly via the btree walk; a unit test must do it explicitly).
      */
     __wt_session_gen_enter(session_impl, WT_GEN_SPLIT);
-    WT_WITH_DHANDLE(
-      session_impl, cbt->dhandle, have_addr = __wt_ref_addr_copy(session_impl, real_ref, &ref_addr));
+    WT_WITH_DHANDLE(session_impl, cbt->dhandle,
+      have_addr = __wt_ref_addr_copy(session_impl, real_ref, &ref_addr));
     __wt_session_gen_leave(session_impl, WT_GEN_SPLIT);
     testutil_assertfmt(have_addr, "%s", "[real_ref] __wt_ref_addr_copy failed on a real leaf ref");
 
@@ -256,12 +253,12 @@ run_realref_scenario(WT_CONNECTION *conn)
     addr_for_diag.type = ref_addr.type;
 
     /*
-     * Mirror production: __page_read calls the verifier while the session is in the btree's
-     * dhandle context (so the diagnostic captures the dhandle name).
+     * Mirror production: __page_read calls the verifier while the session is in the btree's dhandle
+     * context (so the diagnostic captures the dhandle name).
      */
     WT_WITH_DHANDLE(session_impl, cbt->dhandle,
-      ret = __wt_verify_dsk_header(
-        session_impl, "real-leaf", bad_dsk, image_size, &addr_for_diag, 0));
+      ret =
+        __wt_verify_dsk_header(session_impl, "real-leaf", bad_dsk, image_size, &addr_for_diag, 0));
     testutil_assertfmt(ret != 0, "%s", "[real_ref] __wt_verify_dsk_header returned 0");
 
     /* Verbose error message present. */

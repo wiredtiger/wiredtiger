@@ -57,12 +57,11 @@ static int __verify_dsk_row_leaf(WT_VERIFY_INFO *);
 
 /*
  * __verify_dsk_diag_dump --
- *     Emit a forensic diagnostic for a disk image that failed header validation: dhandle name,
- *     block address cookie (hex-encoded), the WT_PAGE_HEADER fields a triager cares about, and a
- *     hex dump of the image. The goal is to capture enough context in a single log record to tell
- *     whether the bad bytes came off disk or were clobbered in memory. Callers that have the block
- *     address (e.g. __page_read) should pass addr non-NULL; callers without it (admin verify,
- *     synthesized images) should pass NULL.
+ *     Emit a forensic diagnostic for a disk image that failed header validation: dhandle name,block
+ *     address cookie (hex-encoded), the WT_PAGE_HEADER fields we care about, and a hex dump of the
+ *     image. The goal is to capture enough context in a single log record to tell whether the bad
+ *     bytes came off disk or were clobbered in memory. Callers that have the block address (e.g.
+ *     __page_read) should pass addr non-NULL; callers without it should pass NULL.
  */
 static void
 __verify_dsk_diag_dump(
@@ -91,11 +90,11 @@ __verify_dsk_diag_dump(
 
     /*
      * The block-level checksum lives in the block manager header (and is encoded in the addr
-     * cookie); we don't repeat it here. Dumping the cookie is enough for an SRE to re-read the
-     * on-disk block independently of the running process.
+     * cookie); we don't repeat it here. Dumping the cookie is enough to re-read the on-disk block.
      */
     __wt_log_data_dump(session, dsk, dsk->mem_size,
-      "page corrupt dump (%s): dhandle=%s, block_cookie=%s, header type=%" PRIu8 " (%s), "
+      "page corrupt dump (%s): dhandle=%s, block_cookie=%s, header type=%" PRIu8
+      " (%s), "
       "version=%" PRIu8 ", mem_size=%" PRIu32 ", write_gen=%" PRIu64 ", entries=%" PRIu32,
       reason, dhandle_name, addr_buf, dsk->type, __wt_page_type_str(dsk->type), dsk->version,
       dsk->mem_size, dsk->write_gen, dsk->u.entries);
@@ -103,15 +102,10 @@ __verify_dsk_diag_dump(
 
 /*
  * __wt_verify_dsk_header --
- *     Validate the lightweight WT_PAGE_HEADER invariants of a disk image: page type in range,
- *     recno coherent with type, flags well-formed, reserved byte zero, version known, and (when
- *     size is known) trailing bytes are zero. Returns WT_ERROR on failure, with a verbose error
- *     message emitted via the existing WT_RET_VRFY machinery and -- when addr is non-NULL -- a
- *     forensic diagnostic dump suitable for production triage.
- *
- *     This is the header-only subset of __wt_verify_dsk_image, factored out so it can be called
- *     unconditionally from the production read path (see __page_read in bt_read.c) without paying
- *     the cost of the cell-walks that follow.
+ *     Validate the lightweight WT_PAGE_HEADER invariants of a disk image: page type in range, recno
+ *     coherent with type, flags well-formed, reserved byte zero, version known, and (when size is
+ *     known) trailing bytes are zero. Returns WT_ERROR on failure, with a verbose error message
+ *     and, when possible, a diagnostic dump suitable for production triage.
  */
 int
 __wt_verify_dsk_header(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk,
@@ -128,9 +122,8 @@ __wt_verify_dsk_header(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_
     WT_UNUSED(verify_flags);
 
 /*
- * Local convenience: emit the human-readable verbose error first (so log consumers see the reason
- * before the bulk hex dump), then the forensic dump when we have block context, then return
- * WT_ERROR. Mirrors the WT_RET_VRFY shape but lets us add the post-error dump in the same step.
+ * Local convenience: emit the human-readable verbose error first, then the forensic dump when we
+ * have block context, then return WT_ERROR.
  */
 #define WT_VRFY_HDR_FAIL(reason_lit, ...)                                  \
     do {                                                                   \
@@ -154,8 +147,8 @@ __wt_verify_dsk_header(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_
         break;
     case WT_PAGE_INVALID:
     default:
-        WT_VRFY_HDR_FAIL("invalid page type",
-          "page at %s has an invalid type of %" PRIu32, tag, dsk->type);
+        WT_VRFY_HDR_FAIL(
+          "invalid page type", "page at %s has an invalid type of %" PRIu32, tag, dsk->type);
     }
 
     /* Check the page record number. */
@@ -165,8 +158,8 @@ __wt_verify_dsk_header(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_
         if (dsk->recno != WT_RECNO_OOB)
             break;
         WT_VRFY_HDR_FAIL("invalid record number",
-          "%s page at %s has an invalid record number of %d",
-          __wt_page_type_string(dsk->type), tag, WT_RECNO_OOB);
+          "%s page at %s has an invalid record number of %d", __wt_page_type_string(dsk->type), tag,
+          WT_RECNO_OOB);
     case WT_PAGE_BLOCK_MANAGER:
     case WT_PAGE_OVFL:
     case WT_PAGE_ROW_INT:
@@ -198,13 +191,13 @@ __wt_verify_dsk_header(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_
     if (LF_ISSET(WT_PAGE_FT_UPDATE))
         LF_CLR(WT_PAGE_FT_UPDATE);
     if (flags != 0)
-        WT_VRFY_HDR_FAIL("invalid flags",
-          "page at %s has invalid flags set: 0x%" PRIx8, tag, flags);
+        WT_VRFY_HDR_FAIL(
+          "invalid flags", "page at %s has invalid flags set: 0x%" PRIx8, tag, flags);
 
     /* Check the reserved byte. */
     if (dsk->reserved != 0)
-        WT_VRFY_HDR_FAIL("non-zero reserved byte",
-          "page at %s has non-zero reserved page header bytes", tag);
+        WT_VRFY_HDR_FAIL(
+          "non-zero reserved byte", "page at %s has non-zero reserved page header bytes", tag);
 
     /* Check the page version. */
     switch (dsk->version) {
@@ -212,8 +205,8 @@ __wt_verify_dsk_header(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_
     case WT_PAGE_VERSION_TS:
         break;
     default:
-        WT_VRFY_HDR_FAIL("invalid version",
-          "page at %s has an invalid version of %" PRIu8, tag, dsk->version);
+        WT_VRFY_HDR_FAIL(
+          "invalid version", "page at %s has an invalid version of %" PRIu8, tag, dsk->version);
     }
 
     /*
@@ -226,8 +219,8 @@ __wt_verify_dsk_header(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_
         for (; p < end; ++p)
             if (*p != '\0')
                 WT_VRFY_HDR_FAIL("non-zero trailing bytes",
-                  "%s page at %s has non-zero trailing bytes",
-                  __wt_page_type_string(dsk->type), tag);
+                  "%s page at %s has non-zero trailing bytes", __wt_page_type_string(dsk->type),
+                  tag);
     }
 
 #undef WT_VRFY_HDR_FAIL

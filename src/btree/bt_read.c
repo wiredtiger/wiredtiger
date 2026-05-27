@@ -385,14 +385,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
         WT_ERR(ret);
     }
+
     /*
-     * Validate the WT_PAGE_HEADER invariants of the disk image we're about to materialize. This is
-     * the read-side mirror of the write-side WT_PAGE_TYPE_COUNT guard added in WT-14750
-     * (__rec_write). The block manager has confirmed the bytes survived the round-trip via the
-     * checksum chain; this check confirms they form a plausible WT_PAGE_HEADER. On failure
-     * __wt_verify_dsk_header emits a forensic diagnostic (dhandle, block cookie, hex dump) that
-     * lets a triager distinguish on-disk corruption from in-memory corruption without having to
-     * reproduce the workload.
+     * Validate the WT_PAGE_HEADER invariants of the disk image. This is the read-side mirror of the
+     * write-side WT_PAGE_TYPE_COUNT guard inside reconciliation The block manager has confirmed the
+     * bytes survived the round-trip via the checksum chain; this check confirms they form a
+     * plausible WT_PAGE_HEADER. On failure, emit a forensic diagnostic (dhandle, block cookie, hex
+     * dump) so we can distinguish on-disk corruption from in-memory corruption.
      */
     {
         WT_ADDR addr_for_diag;
@@ -413,9 +412,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
                session, "read", dsk_for_verify, dsk_size, &addr_for_diag, 0)) != 0) {
             F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, ret, "%s: invalid page header on read",
-              session->dhandle != NULL && session->dhandle->name != NULL ?
-                session->dhandle->name :
-                "<no dhandle>");
+              session->dhandle != NULL && session->dhandle->name != NULL ? session->dhandle->name :
+                                                                           "<no dhandle>");
         }
     }
 
