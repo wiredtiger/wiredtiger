@@ -207,7 +207,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
          * Do little- to big-endian handling early on.
          */
         blk = WT_BLOCK_HEADER_REF(current->data);
-        __wti_block_disagg_header_byteswap_copy(blk, &swap);
+        __wt_block_disagg_header_byteswap_copy(blk, &swap);
 
         /*
          * TODO(WT-16511): When we have the original checksum stored in the page, we should check

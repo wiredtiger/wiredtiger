@@ -426,6 +426,7 @@ int
 __wt_debug_disagg_page_id(
   WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
 {
+    WT_BLOCK_DISAGG_HEADER *blk, swap;
     WT_BTREE *btree;
     WT_COMPRESSOR *compressor;
     WT_DECL_ITEM(decompressed);
@@ -435,6 +436,8 @@ __wt_debug_disagg_page_id(
     const WT_PAGE_HEADER *display;
     WT_PAGE_LOG_GET_ARGS get_args;
     size_t result_len;
+    uint32_t size;
+    uint8_t expected_magic;
     u_int count, i;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
@@ -465,6 +468,33 @@ __wt_debug_disagg_page_id(
           count - 1));
 
     for (i = 0; i < count; i++) {
+        /* Validate the block header magic and checksum before interpreting the buffer. */
+        size = (uint32_t)results[i].size;
+        blk = WT_BLOCK_HEADER_REF(results[i].data);
+        __wt_block_disagg_header_byteswap_copy(blk, &swap);
+
+        expected_magic = (i == 0) ? WT_BLOCK_DISAGG_MAGIC_BASE : WT_BLOCK_DISAGG_MAGIC_DELTA;
+        if (swap.magic != expected_magic) {
+            __wt_errx(session,
+              "wt page: result %u: magic 0x%02" PRIx8 " does not match expected 0x%02" PRIx8, i,
+              swap.magic, expected_magic);
+            __wt_log_data_dump(session, results[i].data, size,
+              "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            WT_TRET(WT_ERROR);
+            continue;
+        }
+
+        blk->checksum = 0;
+        if (!__wt_checksum_match(results[i].data,
+              F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
+              swap.checksum)) {
+            __wt_errx(session, "wt page: result %u: header checksum mismatch", i);
+            __wt_log_data_dump(session, results[i].data, size,
+              "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            WT_TRET(WT_ERROR);
+            continue;
+        }
+
         if (i == 0) {
             __wt_page_header_byteswap((void *)results[i].data);
             dsk = (WT_PAGE_HEADER *)results[i].data;
