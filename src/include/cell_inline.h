@@ -580,7 +580,6 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
           page_del->prepare_state == WT_PREPARE_INIT ||
             page_del->prepare_state == WT_PREPARE_RESOLVED ||
             (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-              F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
               (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
                 page_del->prepare_state == WT_PREPARE_LOCKED)));
     }

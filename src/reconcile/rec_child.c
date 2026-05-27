@@ -99,8 +99,7 @@ __rec_child_deleted(
      * fast-truncate as a proxy cell so that recovery can reconstruct the prepared state. Restricted
      * to disaggregated storage to prevent issues on attached storage on older binary.
      */
-    if (!page_del->committed && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
-      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+    if (!page_del->committed && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED)) {
         prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
             if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
