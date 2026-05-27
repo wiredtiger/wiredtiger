@@ -1220,6 +1220,50 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 }
 
 /*
+ * __rec_verbose_dump_upd_chain --
+ *     Emit an ERROR-level verbose message for every update in the chain starting at upd. Used to
+ *     provide diagnostic context immediately before an ASSERT_ALWAYS fires.
+ */
+static void
+__rec_verbose_dump_upd_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+{
+    int i;
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
+    const char *type_str;
+
+    for (i = 0; upd != NULL; upd = upd->next, i++) {
+        switch (upd->type) {
+        case WT_UPDATE_INVALID:
+            type_str = "INVALID";
+            break;
+        case WT_UPDATE_MODIFY:
+            type_str = "MODIFY";
+            break;
+        case WT_UPDATE_RESERVE:
+            type_str = "RESERVE";
+            break;
+        case WT_UPDATE_STANDARD:
+            type_str = "STANDARD";
+            break;
+        case WT_UPDATE_TOMBSTONE:
+            type_str = "TOMBSTONE";
+            break;
+        default:
+            type_str = "UNKNOWN";
+            break;
+        }
+        __wt_verbose_error(session, WT_VERB_DEFAULT,
+          "  update[%d]: type=%s txnid=%" PRIu64
+          " start_ts=%s durable_ts=%s prepare_ts=%s "
+          "prepared_id=%" PRIu64 " prepare_state=%" PRIu8 " flags=0x%" PRIx16,
+          i, type_str, upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]),
+          __wt_timestamp_to_string(upd->prepare_ts, ts_string[2]), upd->prepared_id,
+          upd->prepare_state, upd->flags);
+    }
+}
+
+/*
  * __rec_fill_tw_from_upd_select --
  *     Fill the time window information and the selected update.
  */
@@ -1365,6 +1409,20 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
+        if (!WT_REC_HAS_ON_DISK(vpack)) {
+            char tw_string[WT_TIME_STRING_SIZE];
+            __wt_verbose_error(session, WT_VERB_DEFAULT,
+              "__rec_fill_tw_from_upd_select: no on-disk value; vpack=%p%s", (void *)vpack,
+              vpack != NULL ? " (WT_CELL_DEL)" : " (NULL)");
+            if (vpack != NULL)
+                __wt_verbose_error(session, WT_VERB_DEFAULT, "on-disk time window: %s",
+                  __wt_time_window_to_string(&vpack->tw, tw_string));
+            __wt_verbose_error(session, WT_VERB_DEFAULT, "select time window: %s",
+              __wt_time_window_to_string(select_tw, tw_string));
+            __wt_verbose_error(
+              session, WT_VERB_DEFAULT, "%s", "update chain starting from tombstone:");
+            __rec_verbose_dump_upd_chain(session, tombstone);
+        }
         WT_ASSERT_ALWAYS(session, WT_REC_HAS_ON_DISK(vpack), "No on-disk value is found");
 
         /* Move the pointer to the last update on the update chain. */
