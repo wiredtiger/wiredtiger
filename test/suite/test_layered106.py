@@ -38,7 +38,7 @@
 #   Each scenario runs in a subprocess so that the expected abort is caught as a
 #   non-zero exit code without killing the test runner.
 
-import threading, time, wiredtiger, wttest
+import signal, threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -122,5 +122,5 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
             'SUBPROCESS',
             'test_layered106.test_layered106.subprocess_race',
             silent=True)
-        self.assertNotEqual(rc, 0,
-            'expected process to abort on assertion but exited 0')
+        self.assertEqual(rc, -signal.SIGABRT,
+            f'expected process to abort (rc={-signal.SIGABRT}) but got rc={rc}')
