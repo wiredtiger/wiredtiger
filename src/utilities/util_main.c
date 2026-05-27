@@ -78,14 +78,20 @@ util_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
     WT_RET(conn->get_page_log(conn, page_log_name, &page_log));
 
     /* The wt utility tolerates page logs that do not implement pl_get_complete_checkpoint. */
-    if (page_log->pl_get_complete_checkpoint == NULL)
+    if (page_log->pl_get_complete_checkpoint == NULL) {
+        fprintf(stderr,
+          "%s: disaggregated page log %s does not implement pl_get_complete_checkpoint; "
+          "proceeding with empty metadata\n",
+          progname, page_log_name);
         goto done;
+    }
 
     ret = page_log->pl_get_complete_checkpoint(page_log, session, &args);
     if (ret == WT_NOTFOUND) {
         fprintf(stderr,
-          "wt: no complete checkpoint found in disaggregated page log; proceeding with empty "
-          "metadata\n");
+          "%s: no complete checkpoint found in disaggregated page log; proceeding with empty "
+          "metadata\n",
+          progname);
         ret = 0;
         goto done;
     }
