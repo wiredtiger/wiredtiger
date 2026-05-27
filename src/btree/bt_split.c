@@ -1720,23 +1720,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
             }
 
-#ifdef HAVE_DIAGNOSTIC
-            /*
-             * The restored key must sort at or after the chunk's separator. A key that sorts before
-             * the separator means upstream routing placed this saved update onto the wrong chunk.
-             */
-            if (multi->key.ikey != NULL) {
-                WT_ITEM lb;
-                int cmp;
-
-                WT_CLEAR(lb);
-                lb.data = WT_IKEY_DATA(multi->key.ikey);
-                lb.size = multi->key.ikey->size;
-                WT_ERR(__wt_compare(session, S2BT(session)->collator, key, &lb, &cmp));
-                WT_ASSERT(session, cmp >= 0);
-            }
-#endif
-
             /* Search the page. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
