@@ -559,19 +559,28 @@ __layered_copy_ingest_table(
                          * timestamp is stored in durable timestamp.
                          */
                         WT_TXN_TIME_POINT txn_time_point;
+                        WT_CLEAR(txn_time_point);
                         txn_time_point.id = start_ts;
                         txn_time_point.prepared_id = start_prepared_id;
                         txn_time_point.prepare_timestamp = start_prepare_ts;
                         txn_time_point.rollback_timestamp = durable_start_ts;
+                        F_SET(&txn_time_point,
+                          WT_TXN_TIME_POINT_HAS_ID | WT_TXN_TIME_POINT_HAS_PREPARED_ID |
+                            WT_TXN_TIME_POINT_HAS_TS_PREPARE | WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
                         WT_ERR(__wt_txn_resolve_prepared_op(session, stable_btree, &txn_time_point,
                           key, WT_RECNO_OOB, false, &prepare_cursor));
                     } else {
                         WT_TXN_TIME_POINT txn_time_point;
+                        WT_CLEAR(txn_time_point);
                         txn_time_point.id = start_txn;
                         txn_time_point.prepared_id = start_prepared_id;
                         txn_time_point.prepare_timestamp = start_prepare_ts;
                         txn_time_point.commit_timestamp = start_ts;
                         txn_time_point.durable_timestamp = durable_start_ts;
+                        F_SET(&txn_time_point,
+                          WT_TXN_TIME_POINT_HAS_ID | WT_TXN_TIME_POINT_HAS_PREPARED_ID |
+                            WT_TXN_TIME_POINT_HAS_TS_PREPARE | WT_TXN_TIME_POINT_HAS_TS_COMMIT |
+                            WT_TXN_TIME_POINT_HAS_TS_DURABLE);
                         WT_ERR(__wt_txn_resolve_prepared_op(session, stable_btree, &txn_time_point,
                           key, WT_RECNO_OOB, true, &prepare_cursor));
                     }
