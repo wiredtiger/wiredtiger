@@ -145,7 +145,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self._populate()
         _, stderr = self._run_wt_page("-p", "99999999", "-l", "1",
                                       self.stable_uri, failure=True)
-        self.assertIn("page:", stderr)
+        self.assertIn("WT_NOTFOUND", stderr)
 
     def test_missing_required_l(self):
         self._skip_if_not_diagnostic()

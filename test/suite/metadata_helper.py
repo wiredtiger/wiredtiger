@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import re
+from helper import WiredTigerCursor
 
 def extract_id(metadata_value):
     """
@@ -40,10 +41,8 @@ def get_table_id(session, uri):
     """
     Return the integer file ID for uri by reading the WT metadata cursor.
     """
-    c = session.open_cursor('metadata:')
-    c.set_key(uri)
-    if c.search() != 0:
-        raise KeyError(f"URI not found in metadata: {uri}")
-    val = c.get_value()
-    c.close()
-    return extract_id(val)
+    with WiredTigerCursor(session, 'metadata:') as c:
+        c.set_key(uri)
+        if c.search() != 0:
+            raise KeyError(f"URI not found in metadata: {uri}")
+        return extract_id(c.get_value())
