@@ -2547,7 +2547,7 @@ __wt_txn_activity_drain(WT_SESSION_IMPL *session)
             break;
 
         /* Don't spin forever if the connection has panicked. */
-        if (F_ISSET(S2C(session), WT_CONN_PANIC))
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PANIC))
             break;
 
         WT_STAT_CONN_INCR(session, txn_release_blocked);
