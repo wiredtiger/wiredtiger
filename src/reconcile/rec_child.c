@@ -37,9 +37,9 @@ __rec_child_deleted(
 
     /*
      * Check visibility. If the truncation is visible to us, we'll also want to know if it's visible
-     * to everyone. Use the special-case logic in __wt_page_del_visible to hide prepared truncations
-     * as we can't write them to disk in the general case. When preserve_prepared is enabled,
-     * in-progress prepared fast-truncates are written as proxy cells.
+     * to everyone. Use the special-case logic in visibility of truncate to hide prepared
+     * truncations as we can't write them to disk in the general case. When preserve prepare config
+     * is enabled, in-progress prepared fast-truncates are written as proxy cells.
      *
      * We can't write out uncommitted truncations so we need to check the committed flag on the page
      * delete structure. The committed flag indicates that the truncation has finished being
@@ -95,9 +95,9 @@ __rec_child_deleted(
     }
 
     /*
-     * When preserve_prepared is enabled on a disaggregated btree, write an in-progress prepared
-     * fast-truncate as a proxy cell so that recovery can reconstruct the prepared state. Restricted
-     * to disaggregated storage to prevent issues on attached storage on older binary.
+     * When preserve prepare config is enabled on a disaggregated btree, write an in-progress
+     * prepared fast-truncate as a proxy cell so that recovery can reconstruct the prepared state.
+     * Restricted to disaggregated storage to prevent issues on attached storage on older binary.
      */
     if (!page_del->committed && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED)) {
         prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
