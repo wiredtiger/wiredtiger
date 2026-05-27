@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -25,30 +25,45 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# test_layered_cursor08.py
+#   Test duplicate key return values.
 
-# test_layered78.py
-#   Test remove returns not found when deleting an non-existent key
-
-import wiredtiger, wttest
+import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
+# test_layered_cursor08.py
+#    Test duplicate key.
 @disagg_test_class
-class test_layered78(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),precise_checkpoint=true,' \
-                  'disaggregated=(role="follower")'
+class test_layered_cursor08(wttest.WiredTigerTestCase):
+    conn_base_config = ','
 
-    uri = 'layered:test_layered78'
+    create_session_config = 'key_format=S,value_format=S'
 
-    disagg_storages = gen_disagg_storages('test_layered78', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    role = [
+        ('leader', dict(role='leader')),
+        ('follower', dict(role='follower')),
+    ]
 
-    def test_delete_non_existent_key(self):
-        self.session.create(self.uri, 'key_format=i,value_format=S')
+    disagg_storages = gen_disagg_storages('test_layered_cursor08', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages, role)
 
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        cursor.set_key(1)
-        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
-        self.session.rollback_transaction()
-        cursor.close()
+    def conn_config(self):
+        return self.extensionsConfig() + self.conn_base_config + f'disaggregated=(role="{self.role}")'
+
+    def test_dup_key(self):
+        uri = "layered:test_layered_cursor08"
+        self.session.create(uri, "key_format=S,value_format=S")
+
+        c = self.session.open_cursor(uri, None, 'overwrite=false')
+        for i in range(0, 100):
+            self.session.begin_transaction()
+            c[str(i)] = str(i)
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(1)}')
+
+        c.set_key(str(10))
+        c.set_value(str(20))
+        self.assertRaisesHavingMessage(
+            wiredtiger.WiredTigerError, lambda:c.insert(), '/WT_DUPLICATE_KEY/')
+        self.assertEqual(c.get_value(), str(10))

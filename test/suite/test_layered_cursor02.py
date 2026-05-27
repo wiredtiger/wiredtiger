@@ -35,10 +35,10 @@ from wtscenario import make_scenarios
 
 # Test that a modify remains valid across a checkpoint update.
 @disagg_test_class
-class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered_cursor02(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'disaggregated=(page_log=palite),'
-    disagg_storages = gen_disagg_storages('test_layered_modify01', disagg_only=True)
-    uri = 'layered:test_layered_modify01'
+    disagg_storages = gen_disagg_storages('test_layered_cursor02', disagg_only=True)
+    uri = 'layered:test_layered_cursor02'
 
     valuefmt = [
         ('item', dict(valuefmt='u')),
@@ -49,7 +49,7 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),'
 
-    def test_layered_modify01(self):
+    def test_layered_cursor02(self):
         r = random.Random(42) # Make things repeatable
 
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)

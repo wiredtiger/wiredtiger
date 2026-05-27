@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -25,45 +25,41 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_layered41.py
-#   Test duplicate key return values.
 
-import wttest, wiredtiger
+import random, string, wttest
+from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered41.py
-#    Test duplicate key.
+# test_layered_eviction03.py
+#    Test that a follower never use application threads to evict pages with updates and dirty pages.
 @disagg_test_class
-class test_layered41(wttest.WiredTigerTestCase):
-    conn_base_config = ','
+class test_layered_eviction03(wttest.WiredTigerTestCase):
+    disagg_storages = gen_disagg_storages('test_layered_eviction03', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
 
-    create_session_config = 'key_format=S,value_format=S'
+    conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="follower")'
 
-    role = [
-        ('leader', dict(role='leader')),
-        ('follower', dict(role='follower')),
-    ]
+    nitems = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered41', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, role)
+    def generate_random_string(self, length):
+        characters = string.ascii_letters + string.digits + string.punctuation
+        random_string = ''.join(random.choices(characters, k=length))
+        return random_string
 
-    def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + f'disaggregated=(role="{self.role}")'
+    def test_follower_not_do_app_evict(self):
+        uri = "layered:test_layered_eviction03"
 
-    def test_dup_key(self):
-        uri = "layered:test_layered41"
-        self.session.create(uri, "key_format=S,value_format=S")
+        # Setup.
+        self.session.create(uri, 'key_format=S,value_format=S')
 
-        c = self.session.open_cursor(uri, None, 'overwrite=false')
-        for i in range(0, 100):
+        # Insert some data.
+        cursor = self.session.open_cursor(uri, None, None)
+        for i in range(1, self.nitems):
             self.session.begin_transaction()
-            c[str(i)] = str(i)
-            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(1)}')
+            cursor[self.generate_random_string(1000) + str(i)] = self.generate_random_string(1000) + str(i)
+            self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
 
-        c.set_key(str(10))
-        c.set_value(str(20))
-        self.assertRaisesHavingMessage(
-            wiredtiger.WiredTigerError, lambda:c.insert(), '/WT_DUPLICATE_KEY/')
-        self.assertEqual(c.get_value(), str(10))
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.cache_eviction_app_threads_skip_updates_dirty_page][2], 0)
+        stat_cursor.close()
