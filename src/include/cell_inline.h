@@ -201,9 +201,7 @@ __cell_pack_addr_validity(
 {
     uint8_t flags, *flagsp;
 
-    /*
-     * A prepared fast-truncate and a prepared time aggregate cannot be on the same page.
-     */
+    /* A prepared fast-truncate and a prepared time aggregate cannot be on the same page. */
     WT_ASSERT(session, !(ta->prepare && is_prepared_fast_truncate));
 
     if (WT_TIME_AGGREGATE_IS_EMPTY(ta) && !is_prepared_fast_truncate) {
@@ -606,8 +604,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      */
     is_prepared_fast_truncate =
       (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
-      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED);
+      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
