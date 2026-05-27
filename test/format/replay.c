@@ -141,12 +141,12 @@ replay_maximum_committed(void)
     }
 
     /*
-     * If no lane is in use the MIN above had nothing to anchor against, and g.timestamp by itself
-     * is unsafe -- the op that claims a lane next may pick a timestamp below it. Hold at the cached
-     * value (last computed while a lane WAS in flight). Skip during pre-run setup when no cache
-     * exists yet.
+     * No lane in use: g.timestamp is unsafe -- the next op to claim a lane may pick a timestamp
+     * below it. Hold at the cached value (last computed while a lane WAS in flight). Only do this
+     * while workers exist (tinfo_list != NULL); outside of ops we're single-threaded over
+     * g.timestamp and falling through is correct (otherwise bulk load stalls on a stale cache).
      */
-    if (!any_lane_in_use && g.replay_cached_committed != WT_TS_NONE) {
+    if (!any_lane_in_use && tinfo_list != NULL) {
         ts = g.replay_cached_committed;
         goto done;
     }
