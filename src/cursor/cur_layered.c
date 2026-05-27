@@ -752,9 +752,6 @@ __clayered_reposition_truncate_iterate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *s
     WT_CLEAR(start_key);
     WT_CLEAR(stop_key);
 
-    if (__wt_process.disagg_slow_truncate_2026)
-        return (0);
-
     __clayered_get_collator(clayered, &collator);
     /*
      * There could be overlapping truncates in the layered table truncate list. So we need to loop
@@ -1007,7 +1004,8 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     if (S2C(session)->layered_table_manager.leader)
         WT_RET(__clayered_truncate_leader(trunc_info));
     else {
-        WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
+        WT_ASSERT(session,
+          !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
         WT_RET(__clayered_truncate_follower(trunc_info));
     }
 
