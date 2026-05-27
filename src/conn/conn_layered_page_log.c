@@ -177,10 +177,10 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
     WT_DECL_RET;
     uint32_t checksum = 0, expected_checksum = 0;
 
-    if (key_item->size < sizeof(WT_CRYPT_HEADER))
+    if (key_item->size < WT_CRYPT_HEADER_MIN_SIZE)
         WT_ERR_MSG(session, EIO,
-          "Encryption key data too small: expected at least %" WT_SIZET_FMT ", got %" WT_SIZET_FMT,
-          sizeof(WT_CRYPT_HEADER), key_item->size);
+          "Encryption key data too small: expected at least %d, got %" WT_SIZET_FMT,
+          WT_CRYPT_HEADER_MIN_SIZE, key_item->size);
     __disagg_get_crypt_header(key_item, &header);
 
     expected_checksum = header->checksum;
@@ -193,12 +193,12 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
         WT_ERR_MSG(session, EIO,
           "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
           expected_checksum, checksum);
-    __wt_crypt_header_byteswap(header);
+    __wt_crypt_header_byteswap(header, header->header_size);
 
-    if (header->header_size < sizeof(WT_CRYPT_HEADER))
+    if (header->header_size < WT_CRYPT_HEADER_MIN_SIZE)
         WT_ERR_MSG(session, EIO,
-          "Encryption key header is too small: expected at least %" WT_SIZET_FMT ", got %" PRIu8,
-          sizeof(WT_CRYPT_HEADER), header->header_size);
+          "Encryption key header is too small: expected at least %d, got %" PRIu8,
+          WT_CRYPT_HEADER_MIN_SIZE, header->header_size);
 
     if (key_item->size - header->header_size != header->crypt_size)
         WT_ERR_MSG(session, EIO, "Encryption key data size mismatch: expected %u, got %u",
@@ -398,8 +398,9 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
     crypt_header->header_size = sizeof(WT_CRYPT_HEADER);
     crypt_header->crypt_size = (uint32_t)crypt->keys.size;
     crypt_header->checksum = 0;
+    crypt_header->timestamp = 0;
 
-    __wt_crypt_header_byteswap(crypt_header);
+    __wt_crypt_header_byteswap(crypt_header, sizeof(WT_CRYPT_HEADER));
     crypt->keys.data = crypt->keys.mem;
     crypt->keys.size += sizeof(WT_CRYPT_HEADER);
 

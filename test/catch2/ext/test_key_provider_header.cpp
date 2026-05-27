@@ -10,6 +10,36 @@
 #include <catch2/catch.hpp>
 #include "wrappers/mock_session.h"
 
+/*
+ * Hand-craft a header at the front of key_item. The header is built on the stack and then the
+ * first header_size bytes are copied onto the wire, so buffers smaller than sizeof(WT_CRYPT_HEADER)
+ * are safe.
+ */
+static void
+build_crypt_page(WT_ITEM *key_item, uint8_t version, uint8_t compatible_version,
+  uint8_t header_size, uint64_t timestamp, size_t payload_size)
+{
+    WT_CRYPT_HEADER local;
+    memset(&local, 0, sizeof(local));
+    local.signature = WT_CRYPT_HEADER_SIGNATURE;
+    local.version = version;
+    local.compatible_version = compatible_version;
+    local.header_size = header_size;
+    local.crypt_size = (uint32_t)payload_size;
+    local.checksum = 0;
+    local.timestamp = timestamp;
+
+    __wt_crypt_header_byteswap(&local, sizeof(local));
+    memcpy((void *)key_item->data, &local, WT_MIN((size_t)header_size, sizeof(local)));
+
+    uint32_t cksum = __wt_checksum(key_item->data, key_item->size);
+#ifdef WORDS_BIGENDIAN
+    cksum = __wt_bswap32(cksum);
+#endif
+    memcpy(
+      (uint8_t *)key_item->data + offsetof(WT_CRYPT_HEADER, checksum), &cksum, sizeof(cksum));
+}
+
 /* Fixture to initialize the kp header. */
 struct kp_header_fixture {
     WT_CRYPT_KEYS crypt;
@@ -38,7 +68,8 @@ struct kp_header_fixture {
     kp_crypt_key_buffer(WT_SESSION_IMPL *session, const std::string &str)
     {
         /* Allocate a buffer and make sure we leave enough space for the header at the start. */
-        REQUIRE(__wt_buf_initsize(session, &crypt.keys, sizeof(WT_CRYPT_HEADER) + str.size()) == 0);
+        REQUIRE(
+          __wt_buf_initsize(session, &crypt.keys, sizeof(WT_CRYPT_HEADER) + str.size()) == 0);
         memcpy(((uint8_t *)(crypt.keys.data) + sizeof(WT_CRYPT_HEADER)), str.data(), str.size());
         crypt.keys.size = str.size();
         crypt.keys.data = (uint8_t *)(crypt.keys.data) + sizeof(WT_CRYPT_HEADER);
@@ -52,15 +83,16 @@ struct kp_header_fixture {
 
         /* Prepare the header for validation. */
         memcpy(write_crypt_header, crypt_header, sizeof(WT_CRYPT_HEADER));
-        __wt_crypt_header_byteswap(write_crypt_header);
+        __wt_crypt_header_byteswap(write_crypt_header, sizeof(WT_CRYPT_HEADER));
         write_crypt_header->checksum = 0;
     }
+
 };
 
 TEST_CASE_METHOD(
   kp_header_fixture, "Validate crypt header offsets and size", "[key_provider_header]")
 {
-    REQUIRE(sizeof(WT_CRYPT_HEADER) == 16);
+    REQUIRE(sizeof(WT_CRYPT_HEADER) == 24);
     REQUIRE(offsetof(WT_CRYPT_HEADER, signature) == 0);
     REQUIRE(offsetof(WT_CRYPT_HEADER, version) == 4);
     REQUIRE(offsetof(WT_CRYPT_HEADER, compatible_version) == 5);
@@ -68,6 +100,7 @@ TEST_CASE_METHOD(
     REQUIRE(offsetof(WT_CRYPT_HEADER, unused) == 7);
     REQUIRE(offsetof(WT_CRYPT_HEADER, crypt_size) == 8);
     REQUIRE(offsetof(WT_CRYPT_HEADER, checksum) == 12);
+    REQUIRE(WT_CRYPT_HEADER_MIN_SIZE == 16);
 }
 
 TEST_CASE_METHOD(kp_header_fixture, "Key provider set header function", "[key_provider_header]")
@@ -84,6 +117,7 @@ TEST_CASE_METHOD(kp_header_fixture, "Key provider set header function", "[key_pr
         REQUIRE(write_crypt_header->compatible_version == WT_CRYPT_HEADER_COMPATIBLE_VERSION);
         REQUIRE(write_crypt_header->header_size == sizeof(WT_CRYPT_HEADER));
         REQUIRE(write_crypt_header->crypt_size == test_string.size());
+        REQUIRE(write_crypt_header->timestamp == 0);
         REQUIRE(crypt.keys.size == test_string.size() + sizeof(WT_CRYPT_HEADER));
 
         uint32_t expected_checksum = write_crypt_header->checksum;
@@ -116,11 +150,10 @@ TEST_CASE_METHOD(
         /* Fetch the baseline header before performing read. */
         WT_CRYPT_HEADER write_crypt_header;
         kp_copy_crypt_key_buffer(&write_crypt_header);
-        write_crypt_header.version = 2;
+        write_crypt_header.version = WT_CRYPT_HEADER_VERSION + 1;
 
         WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
-        header->compatible_version = 1;
-        header->version = 2;
+        header->version = WT_CRYPT_HEADER_VERSION + 1;
         header->checksum = 0;
         header->checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
@@ -131,11 +164,9 @@ TEST_CASE_METHOD(
 
     SECTION("Test key provider header compatibility issue")
     {
-        WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
-        header->compatible_version = 2;
-        header->version = 1;
-        header->checksum = 0;
-        header->checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
+        build_crypt_page(&crypt.keys, WT_CRYPT_HEADER_VERSION,
+          WT_CRYPT_HEADER_COMPATIBLE_VERSION + 1,
+          sizeof(WT_CRYPT_HEADER), 0, test_string.size());
         REQUIRE(
           __ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == ENOTSUP);
     }
@@ -148,19 +179,17 @@ TEST_CASE_METHOD(
 
     SECTION("Test key provider header size smaller than expected")
     {
-        WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
-        header->header_size = 10;
-        header->checksum = 0;
-        header->checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
+        build_crypt_page(&crypt.keys, WT_CRYPT_HEADER_VERSION,
+          WT_CRYPT_HEADER_COMPATIBLE_VERSION,
+          10, 0, test_string.size());
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
     }
 
     SECTION("Test key provider header mismatch size")
     {
-        WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
-        header->header_size = 50;
-        header->checksum = 0;
-        header->checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
+        build_crypt_page(&crypt.keys, WT_CRYPT_HEADER_VERSION,
+          WT_CRYPT_HEADER_COMPATIBLE_VERSION,
+          50, 0, test_string.size());
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
     }
 
@@ -170,4 +199,57 @@ TEST_CASE_METHOD(
         header->checksum = 123;
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
     }
+}
+
+
+/*
+ * Backward compatibility: the reader must accept a v1 page (16-byte header, no timestamp field)
+ * as written by an older version of WT on disk.
+ */
+TEST_CASE_METHOD(kp_header_fixture, "Key provider header: reader accepts v1 page",
+  "[key_provider_header]")
+{
+    /* The original on-disk header size, before the timestamp field was appended. */
+    static constexpr uint8_t v1_header_size = 16;
+
+    REQUIRE(__wt_buf_initsize(
+              session_impl, &crypt.keys, v1_header_size + test_string.size()) == 0);
+    memcpy(
+      (uint8_t *)crypt.keys.mem + v1_header_size, test_string.data(), test_string.size());
+    crypt.keys.data = crypt.keys.mem;
+    crypt.keys.size = v1_header_size + test_string.size();
+
+    build_crypt_page(&crypt.keys, 1, 1, v1_header_size, 0, test_string.size());
+
+    WT_CRYPT_HEADER *read_crypt_header = nullptr;
+    REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
+    REQUIRE(read_crypt_header != nullptr);
+    REQUIRE(read_crypt_header->version == 1);
+    REQUIRE(read_crypt_header->header_size == v1_header_size);
+    REQUIRE(read_crypt_header->crypt_size == test_string.size());
+}
+
+/*
+ * Forward compatibility: the reader must accept a page whose version is higher than this writer
+ * emits, as long as compatible_version stays within what this reader knows. Also verifies the
+ * timestamp field reads back unchanged.
+ */
+TEST_CASE_METHOD(kp_header_fixture, "Key provider header: reader accepts future version",
+  "[key_provider_header]")
+{
+    crypt.keys.data = crypt.keys.mem;
+    crypt.keys.size = sizeof(WT_CRYPT_HEADER) + test_string.size();
+
+    const uint64_t expected_timestamp = 10;
+    build_crypt_page(&crypt.keys, WT_CRYPT_HEADER_VERSION + 1,
+      WT_CRYPT_HEADER_COMPATIBLE_VERSION,
+      sizeof(WT_CRYPT_HEADER), expected_timestamp, test_string.size());
+
+    WT_CRYPT_HEADER *read_crypt_header = nullptr;
+    REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
+    REQUIRE(read_crypt_header != nullptr);
+    REQUIRE(read_crypt_header->version == WT_CRYPT_HEADER_VERSION + 1);
+    REQUIRE(read_crypt_header->header_size == sizeof(WT_CRYPT_HEADER));
+    REQUIRE(read_crypt_header->crypt_size == test_string.size());
+    REQUIRE(read_crypt_header->timestamp == expected_timestamp);
 }
