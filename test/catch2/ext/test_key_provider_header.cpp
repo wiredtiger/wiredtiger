@@ -15,14 +15,12 @@ static void
 build_crypt_page(WT_ITEM *key_item, uint8_t version, uint8_t compatible_version,
   uint8_t header_size, uint64_t timestamp, size_t payload_size)
 {
-    WT_CRYPT_HEADER local;
-    memset(&local, 0, sizeof(local));
+    WT_CRYPT_HEADER local = {};
     local.signature = WT_CRYPT_HEADER_SIGNATURE;
     local.version = version;
     local.compatible_version = compatible_version;
     local.header_size = header_size;
     local.crypt_size = (uint32_t)payload_size;
-    local.checksum = 0;
     local.timestamp = timestamp;
 
     __wt_crypt_header_byteswap(&local);
