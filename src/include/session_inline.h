@@ -29,7 +29,7 @@ __wt_single_thread_check_start(WT_SESSION_IMPL *s)
     WT_DECL_RET;
 
     __wt_thread_id(&current_tid);
-    owning = __wt_atomic_load_uintmax_acquire(&s->thread_check.owning_thread);
+    owning = __wt_atomic_load_uintmax_relaxed(&s->thread_check.owning_thread);
 
     if (!WT_SESSION_IS_DEFAULT(s) && owning != current_tid) {
         ret = __wt_spin_trylock(s, &s->thread_check.lock);
@@ -44,7 +44,7 @@ __wt_single_thread_check_start(WT_SESSION_IMPL *s)
           s->lastop != NULL ? s->lastop : "none", s->api_call_counter,
           s->dhandle != NULL ? s->dhandle->name : "none");
 
-        __wt_atomic_store_uintmax_release(&s->thread_check.owning_thread, current_tid);
+        __wt_atomic_store_uintmax_relaxed(&s->thread_check.owning_thread, current_tid);
     }
     ++s->thread_check.entry_count;
 #endif
@@ -62,7 +62,7 @@ __wt_single_thread_check_stop(WT_SESSION_IMPL *s)
     return;
 #else
     if (--s->thread_check.entry_count == 0 && !WT_SESSION_IS_DEFAULT(s)) {
-        __wt_atomic_store_uintmax_release(&s->thread_check.owning_thread, 0);
+        __wt_atomic_store_uintmax_relaxed(&s->thread_check.owning_thread, 0);
         __wt_spin_unlock(s, &s->thread_check.lock);
     }
 #endif
