@@ -74,3 +74,16 @@ __wt_page_type_str(uint8_t val)
 
     return ("PAGE_TYPE_INVALID");
 }
+
+/*
+ * __wt_page_type_valid --
+ *     Return true if the given byte is a known, in-range page type. WT_PAGE_INVALID (0) and any
+ *     value at or above WT_PAGE_TYPE_COUNT are rejected. Intended as a cheap guard in front of
+ *     every switch (page->type) / switch (dsk->type) site, complementing the write-side check added
+ *     in WT-14750 (see __rec_write).
+ */
+static WT_INLINE bool
+__wt_page_type_valid(uint8_t type)
+{
+    return (type != WT_PAGE_INVALID && type < WT_PAGE_TYPE_COUNT);
+}

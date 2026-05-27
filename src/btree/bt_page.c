@@ -1195,6 +1195,50 @@ err:
 }
 
 /*
+ * __page_inmem_illegal_type_diag --
+ *     Emit a diagnostic block when a disk image has an out-of-range page type. Logs the dhandle
+ *     name, the block address cookie, the on-disk checksum and full page header, and a hex dump of
+ *     the page image. The goal is to capture, in a single log record, enough information to
+ *     distinguish on-disk corruption from in-memory corruption (the in-memory image can be compared
+ *     against the on-disk block when re-read by hand using the addr cookie).
+ */
+static void
+__page_inmem_illegal_type_diag(
+  WT_SESSION_IMPL *session, WT_REF *ref, const WT_PAGE_HEADER *dsk)
+{
+    WT_ADDR_COPY addr;
+    size_t i;
+    char addr_buf[WT_ADDR_MAX_COOKIE * 2 + 1];
+    const char *dhandle_name;
+    bool have_addr;
+
+    dhandle_name = (session->dhandle != NULL && session->dhandle->name != NULL) ?
+      session->dhandle->name :
+      "<no dhandle>";
+
+    have_addr = (ref != NULL) && __wt_ref_addr_copy(session, ref, &addr);
+    if (have_addr) {
+        for (i = 0; i < addr.size; ++i)
+            WT_IGNORE_RET(__wt_snprintf(addr_buf + i * 2, 3, "%02x", addr.addr[i]));
+        addr_buf[addr.size * 2] = '\0';
+    } else {
+        addr_buf[0] = '?';
+        addr_buf[1] = '\0';
+    }
+
+    /*
+     * The block checksum is not in WT_PAGE_HEADER; it lives in the block manager header (and is
+     * encoded in the addr cookie). Dumping the cookie is enough to identify the on-disk block.
+     */
+    __wt_log_data_dump(session, dsk, dsk->mem_size,
+      "page corrupt dump: illegal page type %" PRIu8 " (%s); dhandle=%s, block_cookie=%s, "
+      "header type=%" PRIu8 ", version=%" PRIu8 ", mem_size=%" PRIu32 ", write_gen=%" PRIu64
+      ", entries=%" PRIu32,
+      dsk->type, __wt_page_type_str(dsk->type), dhandle_name, addr_buf, dsk->type, dsk->version,
+      dsk->mem_size, dsk->write_gen, dsk->u.entries);
+}
+
+/*
  * __wti_page_inmem --
  *     Build in-memory page information.
  */
@@ -1216,6 +1260,19 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 
     dsk = image;
     alloc_entries = 0;
+
+    /*
+     * Read-side mirror of the write-side guard added in WT-14750: reject any disk image whose type
+     * byte is out of range as soon as it is materialized. This fires while the WT_REF, dhandle and
+     * block address cookie are still in scope, so the resulting diagnostic captures enough context
+     * to tell whether the bad image was read off disk or clobbered in memory. Without this check,
+     * the failure would only be detected later by a cursor walker (e.g. __wt_btcur_next), by which
+     * point the address provenance is gone.
+     */
+    if (!__wt_page_type_valid(dsk->type)) {
+        __page_inmem_illegal_type_diag(session, ref, dsk);
+        return (__wt_illegal_value(session, dsk->type));
+    }
 
     /*
      * Figure out how many underlying objects the page references so we can allocate them along with
@@ -1269,10 +1326,8 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
             WT_RET(__inmem_row_leaf_entries(session, dsk, &alloc_entries));
         break;
     default:
-        __wt_log_data_dump(session, dsk, dsk->mem_size,
-          "page corrupt dump: page type %" PRIu8 ", page size %" PRIu32
-          ", write generation %" PRIu64 ", entries %" PRIu32,
-          dsk->type, dsk->mem_size, dsk->write_gen, dsk->u.entries);
+        /* Unreachable: the early __wt_page_type_valid() check above already rejected this. */
+        __page_inmem_illegal_type_diag(session, ref, dsk);
         return (__wt_illegal_value(session, dsk->type));
     }
 
@@ -1305,10 +1360,11 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         WT_ERR(__inmem_row_leaf(session, page, instantiate_updp));
         break;
     default:
-        __wt_log_data_dump(session, dsk, dsk->mem_size,
-          "page corrupt dump: page type %" PRIu8 ", page size %" PRIu32
-          ", write generation %" PRIu64 ", entries %" PRIu32,
-          dsk->type, dsk->mem_size, dsk->write_gen, dsk->u.entries);
+        /*
+         * Defence-in-depth: dsk->type was validated above, but page->type is a separate (copied)
+         * byte. If they disagree here, we have in-memory corruption between alloc and dispatch.
+         */
+        __page_inmem_illegal_type_diag(session, ref, dsk);
         WT_ERR(__wt_illegal_value(session, page->type));
     }
 
