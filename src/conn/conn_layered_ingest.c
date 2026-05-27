@@ -798,6 +798,8 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_UNUSED(ctx);
+
+    F_SET(session, WT_SESSION_STEPPING_UP);
     __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
     /* If the queue is empty we are done. */
     if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
