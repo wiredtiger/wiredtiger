@@ -413,7 +413,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, ret, "%s: invalid page header on read",
               session->dhandle != NULL && session->dhandle->name != NULL ? session->dhandle->name :
-                                                                           "<no dhandle>");
+                                                                           "none");
         }
     }
 

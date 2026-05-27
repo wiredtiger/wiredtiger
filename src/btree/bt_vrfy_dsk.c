@@ -75,7 +75,7 @@ __verify_dsk_diag_dump(
 
     dhandle_name = (session->dhandle != NULL && session->dhandle->name != NULL) ?
       session->dhandle->name :
-      "<no dhandle>";
+      "none";
 
     if (addr != NULL && addr->block_cookie != NULL && addr->block_cookie_size > 0) {
         cookie_bytes = addr->block_cookie;
