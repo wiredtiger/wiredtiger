@@ -423,15 +423,16 @@ err:
  */
 static WT_INLINE void
 __wt_cell_build_addr_kv(WT_SESSION_IMPL *session, WT_CELL_KV *val_kv, uint8_t cell_type,
-  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, const void *data, size_t data_size)
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, bool is_prepared_fast_truncate,
+  const void *data, size_t data_size)
 {
     WT_ASSERT(session, val_kv != NULL);
 
     val_kv->buf.data = data;
     val_kv->buf.size = data_size;
 
-    val_kv->cell_len = (uint16_t)__wt_cell_build_addr(
-      session, &val_kv->cell, cell_type, WT_RECNO_OOB, page_del, ta, data_size);
+    val_kv->cell_len = (uint16_t)__wt_cell_build_addr(session, &val_kv->cell, cell_type,
+      WT_RECNO_OOB, page_del, ta, is_prepared_fast_truncate, data_size);
 
     val_kv->len = val_kv->cell_len + data_size;
 }
@@ -519,7 +520,8 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
 
     /* Build packed key/value. */
     __cell_build_int_key_from_kv(&key_kv, key_data, key_size);
-    __wt_cell_build_addr_kv(session, &val_kv, cell_type, page_del, ta, val_data, val_size);
+    /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+    __wt_cell_build_addr_kv(session, &val_kv, cell_type, page_del, ta, false, val_data, val_size);
 
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
@@ -553,15 +555,14 @@ err:
  */
 static WT_INLINE uint16_t
 __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type, uint64_t recno,
-  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t data_size)
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, bool is_prepared_fast_truncate,
+  size_t data_size)
 {
     /*
      * If passed fast-delete information, override the cell type. We should never see fast-truncate
      * cell types without fast-truncate information.
      */
     WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
-
-    bool is_prepared_fast_truncate = false;
 
     if (page_del != NULL) {
         /*
@@ -571,10 +572,6 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
          */
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
         cell_type = WT_CELL_ADDR_DEL;
-
-        /* Use prepared_id to determine whether to write a prepared fast-truncate cell */
-        is_prepared_fast_truncate = page_del->prepared_id != WT_PREPARED_ID_NONE &&
-          F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
     }
 
     /* Just pack and return the cell size. */
