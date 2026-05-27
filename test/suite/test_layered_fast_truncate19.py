@@ -71,7 +71,7 @@ class test_layered_fast_truncate19(LayeredFastTruncateConfigMixin, wttest.WiredT
                 lambda: self.conn.reconfigure(
                     'debug_mode=(disagg_slow_truncate_follower=bogus)'))
 
-    # --- behaviour: slow vs fast follower truncate path ---
+    # --- behavior: slow vs fast follower truncate path ---
 
     def setup_follower_with_knob(self, slow):
         knob = 'true' if slow else 'false'
