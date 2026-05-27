@@ -1823,7 +1823,7 @@ __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
     WT_SESSION_IMPL *session = CUR2S(start);
     size_t records_truncated = 0;
     uint64_t sleep_usecs = 0, yield_count = 0;
-    bool fast_truncate = !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
+    const bool fast_truncate = !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
 
 /*
  * First, call the cursor search method to re-position the cursor: we may not have a cursor position

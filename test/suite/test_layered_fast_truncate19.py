@@ -31,6 +31,7 @@ import wttest, wiredtiger
 # test_layered_fast_truncate19.py
 #   Validate the debug_mode.disagg_slow_truncate_follower connection config
 #   (boolean), and that reconfigure accepts toggling it.
+
 class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
     def test_open_accepts_true(self):
         self.reopen_conn(config='debug_mode=(disagg_slow_truncate_follower=true)')
