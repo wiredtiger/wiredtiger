@@ -561,6 +561,8 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
      */
     WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
 
+    bool is_prepared_fast_truncate = false;
+
     if (page_del != NULL) {
         /*
          * We only support fast-truncate leaf pages without overflow items, however, we can write a
@@ -580,10 +582,15 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
             (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
               (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
                 page_del->prepare_state == WT_PREPARE_LOCKED)));
+
+        /* Use prepared_id to determine whether to write a prepared fast-truncate cell */
+        is_prepared_fast_truncate = page_del->prepared_id != WT_PREPARED_ID_NONE &&
+          F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
     }
 
     /* Just pack and return the cell size. */
-    return (uint16_t)__wt_cell_pack_addr(session, cell, cell_type, recno, page_del, ta, data_size);
+    return (uint16_t)__wt_cell_pack_addr(
+      session, cell, cell_type, recno, page_del, ta, is_prepared_fast_truncate, data_size);
 }
 
 /*
@@ -592,19 +599,9 @@ __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
  */
 static WT_INLINE size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
-  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, bool is_prepared_fast_truncate, size_t size)
 {
-    uint8_t *p, prepare_state;
-    bool is_prepared_fast_truncate;
-
-    prepare_state = page_del != NULL ? __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state) :
-                                       WT_PREPARE_INIT;
-    /*
-     * A prepared fast-truncate cell is only legal on a disaggregated btree with preserve_prepared.
-     */
-    is_prepared_fast_truncate =
-      (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
-      F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
+    uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;

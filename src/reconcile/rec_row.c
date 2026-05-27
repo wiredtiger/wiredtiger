@@ -286,8 +286,8 @@ __rec_pack_delta_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV 
         static WT_TIME_AGGREGATE local_ta;
         WT_TIME_AGGREGATE_INIT(&local_ta);
 
-        t_kv->cell_len = __wt_cell_pack_addr(
-          session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
+        t_kv->cell_len = __wt_cell_pack_addr(session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL,
+          WT_RECNO_OOB, NULL, &local_ta, false, 0);
         t_kv->len = t_kv->cell_len;
         WT_ASSERT(session, t_kv->len == WT_CELL_ADDR_DEL_VISIBLE_ALL_LEN);
         __wti_rec_kv_copy(session, p, t_kv);
