@@ -165,6 +165,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt17660_page_type_diag
+    SOURCES wt17660_page_type_diag/main.c
+    DIR_NAME wt17660_page_type_diag
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt17660_page_type_diag>/WT_HOME>
+)
+
+define_c_test(
     TARGET test_wt2719_reconfig
     SOURCES wt2719_reconfig/main.c
     DIR_NAME wt2719_reconfig
