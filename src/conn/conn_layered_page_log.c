@@ -194,13 +194,12 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
           "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
           expected_checksum, checksum);
 
-    /* Reject pages where the header claims to extend past the buffer before we touch any field. */
     if (header->header_size > key_item->size)
         WT_ERR_MSG(session, EIO,
           "Encryption key header_size %" PRIu8 " exceeds buffer size %" WT_SIZET_FMT,
           header->header_size, key_item->size);
 
-    __wt_crypt_header_byteswap(header, header->header_size);
+    __wt_crypt_header_byteswap(header);
 
     if (header->header_size < WT_CRYPT_HEADER_MIN_SIZE)
         WT_ERR_MSG(session, EIO,
@@ -407,7 +406,7 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
     crypt_header->checksum = 0;
     crypt_header->timestamp = 0;
 
-    __wt_crypt_header_byteswap(crypt_header, sizeof(WT_CRYPT_HEADER));
+    __wt_crypt_header_byteswap(crypt_header);
     crypt->keys.data = crypt->keys.mem;
     crypt->keys.size += sizeof(WT_CRYPT_HEADER);
 
