@@ -938,6 +938,17 @@ connection_runtime_config = [
         list, where each option specifies an event handler category e.g. 'error' represents
         the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=['error', 'message']),
+    Config('load_control', '', r'''
+        enable the load control subsystem.''',
+        type='category', subconfig=[
+        Config('enable', 'false', r'''
+            Load control will actively reject the work, based on other settings, to keep the
+            system healthy.''',
+            type='boolean'),
+        Config('control_threshold', '100', r'''
+            Threshold at which load control will actively start rejecting the work.''',
+            min=10, max=200),
+        ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
         min=0),
@@ -1036,6 +1047,7 @@ connection_runtime_config = [
             'compact',
             'compact_progress',
             'configuration',
+            'cross_checkpoint_cache',
             'disaggregated_storage',
             'error_returns',
             'eviction',
@@ -1863,6 +1875,15 @@ methods = {
         type='list'),
 ]),
 
+'WT_SESSION.publish' : Method([
+    Config('disaggregated', '', r'''
+        configure disaggregated storage options for this object''',
+        type='category', subconfig=[
+        Config('schema_epoch', '', r'''
+            set the schema epoch for publishing schema operations for this object'''),
+    ]),
+]),
+
 'WT_SESSION.query_timestamp' : Method([
     Config('get', 'read', r'''
         specify which timestamp to query: \c commit returns the most recently set commit_timestamp;
@@ -2217,7 +2238,13 @@ methods = {
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
 
-'WT_CONNECTION.set_key_provider' : Method([]),
+'WT_CONNECTION.set_key_provider' : Method([
+    Config('version', '0', r'''
+        the key provider API version. Version 0 uses the pull model
+        (WiredTiger calls WT_KEY_PROVIDER::get_key). Version 1 uses
+        the push model''',
+        min=0, max=1),
+]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''

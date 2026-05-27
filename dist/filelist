@@ -57,6 +57,7 @@ src/btree/row_modify.c
 src/btree/row_srch.c
 src/cache/cache.c
 src/cache/cache_pool.c
+src/cache/shared_dsk.c
 src/call_log/call_log.c
 src/checkpoint/checkpoint_ckptlist.c
 src/checkpoint/checkpoint_conn.c
@@ -95,6 +96,7 @@ src/conn/conn_layered_ingest.c
 src/conn/conn_layered_page_log.c
 src/conn/conn_layered_table_manager.c
 src/conn/conn_layered.c
+src/conn/conn_load_control.c
 src/conn/conn_open.c
 src/conn/conn_page_history.c
 src/conn/conn_prefetch.c
@@ -219,6 +221,7 @@ src/schema/schema_open.c
 src/schema/schema_plan.c
 src/schema/schema_project.c
 src/schema/schema_stat.c
+src/schema/schema_publish.c
 src/schema/schema_truncate.c
 src/schema/schema_util.c
 src/schema/schema_worker.c

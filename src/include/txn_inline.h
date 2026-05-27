@@ -780,7 +780,7 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     txn = session->txn;
 
-    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+    WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
 
     if (F_ISSET(txn, WT_TXN_READONLY))
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
@@ -832,6 +832,18 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_TXN_OP *op;
 
     txn = session->txn;
+
+    /*
+     * During ingest replay there is no running transaction; timestamp the page delete directly from
+     * the replay context and skip the transaction machinery.
+     */
+    if (F_ISSET(session, WT_SESSION_INGEST_REPLAY)) {
+        ref->page_del->txnid = session->replay_trunc_ctx.txn_id;
+        ref->page_del->pg_del_start_ts = session->replay_trunc_ctx.commit_ts;
+        ref->page_del->pg_del_durable_ts = session->replay_trunc_ctx.durable_ts;
+        ref->page_del->committed = true;
+        return (0);
+    }
 
     WT_RET(__txn_next_op(session, &op));
     op->type = WT_TXN_OP_REF_DELETE;
@@ -1250,11 +1262,11 @@ __wt_txn_visible_id_snapshot(
 }
 
 /*
- * __txn_visible_id --
+ * __wt_txn_visible_id --
  *     Can the current transaction see the given ID?
  */
 static WT_INLINE bool
-__txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
+__wt_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 {
     WT_TXN *txn;
 
@@ -1349,7 +1361,7 @@ static WT_INLINE bool
 __wt_txn_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
-    if (!__txn_visible_id(session, id))
+    if (!__wt_txn_visible_id(session, id))
         return (false);
 
     /* Transactions read their writes, regardless of timestamps. */
@@ -1502,7 +1514,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         *restored_updp = NULL;
     __wt_upd_value_clear(cbt->upd_value);
 
-    for (; upd != NULL; upd = upd->next) {
+    for (; upd != NULL; upd = __wt_atomic_load_ptr_relaxed(&upd->next)) {
         /* Skip reserved place-holders, they're never visible. */
         if (upd->type == WT_UPDATE_RESERVE)
             continue;

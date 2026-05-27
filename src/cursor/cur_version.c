@@ -186,13 +186,7 @@ static WT_INLINE WT_UPDATE *
 __curversion_tombstone_next_upd(
   WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor, WT_UPDATE *tombstone)
 {
-    /*
-     * show_prepared_rollback currently targets ingest-table style rollback updates (in-memory
-     * trees), where rollback metadata lives on aborted prepared value updates and no globally
-     * visible tombstone with PREPARE_ROLLBACK flag is prepended. If this feature is extended to
-     * non-in-memory trees, we need additional handling for globally visible PREPARE_ROLLBACK
-     * tombstones and their underlying aborted value updates.
-     */
+    /* Stop at a globally visible tombstone  nothing older is relevant. */
     if (__wt_txn_upd_visible_all(session, tombstone))
         return (NULL);
 
@@ -940,7 +934,7 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (!__txn_visible_id(session, upd->txnid))
+        if (!__wt_txn_visible_id(session, upd->txnid))
             continue;
 
         break;
