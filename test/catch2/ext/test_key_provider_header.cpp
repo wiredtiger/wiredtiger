@@ -25,7 +25,7 @@ build_crypt_page(WT_ITEM *key_item, uint8_t version, uint8_t compatible_version,
     local.checksum = 0;
     local.timestamp = timestamp;
 
-    __wt_crypt_header_byteswap(&local, header_size, sizeof(local));
+    __wt_crypt_header_byteswap(&local, header_size);
     memcpy((void *)key_item->data, &local, WT_MIN((size_t)header_size, sizeof(local)));
 
     uint32_t cksum = __wt_checksum(key_item->data, key_item->size);
@@ -77,8 +77,7 @@ struct kp_header_fixture {
 
         /* Prepare the header for validation. */
         memcpy(write_crypt_header, crypt_header, sizeof(WT_CRYPT_HEADER));
-        __wt_crypt_header_byteswap(
-          write_crypt_header, sizeof(WT_CRYPT_HEADER), sizeof(WT_CRYPT_HEADER));
+        __wt_crypt_header_byteswap(write_crypt_header, sizeof(WT_CRYPT_HEADER));
         write_crypt_header->checksum = 0;
     }
 };
