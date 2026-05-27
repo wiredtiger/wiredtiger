@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp30.py
+# test_layered_schema09.py
 #   Timestamps: Test persisting the stable disaggregated schema epoch in the checkpoint.
 
 import wttest
@@ -35,7 +35,7 @@ from wiredtiger import stat
 
 # Timestamps: Test persisting the stable disaggregated schema epoch in the checkpoint.
 @disagg_test_class
-class test_timestamp30(wttest.WiredTigerTestCase):
+class test_layered_schema09(wttest.WiredTigerTestCase):
 
     conn_config = 'statistics=(all),disaggregated=(role="leader",lose_all_my_data=true)'
 
@@ -55,7 +55,7 @@ class test_timestamp30(wttest.WiredTigerTestCase):
         correctly picked up on restart, and that it can be updated in a checkpoint.
         '''
         # Create a layered table so checkpoints write through disaggregated storage.
-        uri = 'layered:test_timestamp30'
+        uri = 'layered:test_layered_schema09'
         self.session.create(uri, 'key_format=S,value_format=S')
 
         # The first checkpoint, taken before the epoch is set, records 0 in the checkpoint.

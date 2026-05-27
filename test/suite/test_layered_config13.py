@@ -37,10 +37,10 @@ helper_disagg.disagg_ignore_expected_output = disagg_ignore_expected_output
 
 logdir = "log"
 
-# test_layered46.py
+# test_layered_config13.py
 #    Test deleting local files on restart.
 @disagg_test_class
-class test_layered46(wttest.WiredTigerTestCase):
+class test_layered_config13(wttest.WiredTigerTestCase):
 
     conn_config = (
         "statistics=(all),statistics_log=(wait=1,json=true,on_close=true),"
@@ -48,20 +48,20 @@ class test_layered46(wttest.WiredTigerTestCase):
         + f"log=(enabled=true,path={logdir}),"
     )
 
-    disagg_storages = gen_disagg_storages("test_layered46", disagg_only=True)
+    disagg_storages = gen_disagg_storages("test_layered_config13", disagg_only=True)
 
     # Make scenarios for different cloud service providers.
     scenarios = make_scenarios(disagg_storages)
 
     create_session_config = "key_format=S,value_format=S"
-    uri = "layered:test_layered46"
-    uri_local = "table:test_layered46local"
+    uri = "layered:test_layered_config13"
+    uri_local = "table:test_layered_config13local"
 
     def wiredtiger_open(self, *args, **kwargs):
         os.makedirs(logdir, exist_ok=True)
         return super().wiredtiger_open(*args, **kwargs)
 
-    def test_layered46(self):
+    def test_layered_config13(self):
         self.conn.reconfigure('disaggregated=(role="leader")')
 
         # Create the tables

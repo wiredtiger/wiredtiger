@@ -30,10 +30,10 @@ import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_disagg03.py
+# test_layered_config09.py
 # Test that creating a tiered table fails when in disaggregated storage mode
 @disagg_test_class
-class test_disagg03(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered_config09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     role_scenarios = [
         ('leader', dict(role='leader')),
@@ -44,7 +44,7 @@ class test_disagg03(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('tier', dict(prefix='tier:')),
         ('object', dict(prefix='object:')),
     ]
-    disagg_storages = gen_disagg_storages('test_disagg03', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_config09', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, role_scenarios, prefix_scenarios)
     conn_base_config = 'statistics=(all),verbose=(tiered),'
 
@@ -67,6 +67,6 @@ class test_disagg03(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Hit ENOTSUP with "tier", "tiered", and tiered "object" uri prefix
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        lambda: self.session.create(self.prefix + 'test_disagg03',
+        lambda: self.session.create(self.prefix + 'test_layered_config09',
             'key_format=S,value_format=S'),
             '/Operation not supported/')
