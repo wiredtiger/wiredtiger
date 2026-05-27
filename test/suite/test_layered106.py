@@ -41,6 +41,9 @@ from suite_subprocess import suite_subprocess
 #    page log has no completed checkpoint yet (pl_get_complete_checkpoint
 #    returns WT_NOTFOUND); wt must still open cleanly with no metadata
 #    installed.
+#  - test_follower_picks_up_latest_checkpoint confirms that when multiple
+#    complete checkpoints exist, the follower picks up the newest one
+#    (overwritten values, not the earlier checkpoint's values).
 
 @disagg_test_class
 class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
@@ -92,6 +95,33 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
             f"expected exactly one page-log shared object under {ext_dir}, got {candidates}")
         return candidates[0]
 
+    def _run_wt_as_follower(self, name, wt_args):
+        # Step down and close so the wt utility can attach to the page log as a fresh
+        # follower; spawn `wt <wt_args>` against a sibling home that shares kv_home
+        # with the leader. Returns the captured (stdout, stderr) text.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.close_conn()
+
+        follower_home = os.path.join(self.home, name)
+        os.mkdir(follower_home)
+        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
+            target_is_directory=True)
+
+        ext_path = self._disagg_extension_path()
+        page_log = self.page_log()
+        config = (f'create,'
+                  f'extensions=[{ext_path}=(config="(verbose=0)")],'
+                  f'disaggregated=(role="follower",page_log={page_log})')
+        outfile = f'{name}.out'
+        errfile = f'{name}.err'
+        self.runWt(['-h', follower_home, '-C', config] + list(wt_args),
+                   outfilename=outfile, errfilename=errfile, closeconn=False)
+        with open(outfile) as f:
+            out = f.read()
+        with open(errfile) as f:
+            err = f.read()
+        return out, err
+
     def test_follower_auto_pickup_via_wt(self):
         # Leader: create a table, write some rows, checkpoint.
         self.session.create(self.uri, self.create_session_config)
@@ -101,55 +131,35 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
         self.session.checkpoint()
 
-        # Step down so close does not write a shutdown checkpoint after ours.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.close_conn()
-
-        # Set up a fresh follower home and share it with the leader.
-        follower_home = os.path.join(self.home, 'wt-follower')
-        os.mkdir(follower_home)
-        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
-            target_is_directory=True)
-
-        # Spawn `wt list` against the page log.
-        ext_path = self._disagg_extension_path()
-        page_log = self.page_log()
-        config = (f'create,'
-                  f'extensions=[{ext_path}=(config="(verbose=0)")],'
-                  f'disaggregated=(role="follower",page_log={page_log})')
-        outfile = 'wt-follower.out'
-        errfile = 'wt-follower.err'
-        self.runWt(['-h', follower_home, '-C', config, 'list'],
-                   outfilename=outfile, errfilename=errfile, closeconn=False)
-        with open(outfile) as f:
-            out = f.read()
+        out, _ = self._run_wt_as_follower('wt-follower', ['list'])
         self.assertIn('layered:test_layered106', out,
             f"expected 'layered:test_layered106' in wt list output, got:\n{out}")
 
     def test_follower_no_checkpoint_via_wt(self):
-        # Don't write or checkpoint anything as leader
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.close_conn()
-
-        # Set up a fresh follower home and share it with the leader.
-        follower_home = os.path.join(self.home, 'wt-follower-empty')
-        os.mkdir(follower_home)
-        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
-            target_is_directory=True)
-
-        # Spawn `wt list` against the empty page log.
-        ext_path = self._disagg_extension_path()
-        page_log = self.page_log()
-        config = (f'create,'
-                  f'extensions=[{ext_path}=(config="(verbose=0)")],'
-                  f'disaggregated=(role="follower",page_log={page_log})')
-        outfile = 'wt-empty.out'
-        errfile = 'wt-empty.err'
-        self.runWt(['-h', follower_home, '-C', config, 'list'],
-                   outfilename=outfile, errfilename=errfile, closeconn=False)
-
-        # The user-visible "no checkpoint" notice must appear on stderr.
-        with open(errfile) as f:
-            err = f.read()
+        # Don't write or checkpoint anything as leader; wt must still open cleanly
+        # and surface the "no checkpoint" notice on stderr.
+        _, err = self._run_wt_as_follower('wt-follower-empty', ['list'])
         self.assertIn('no complete checkpoint found', err,
             f"expected 'no complete checkpoint found' in wt stderr, got:\n{err}")
+
+    def test_follower_picks_up_latest_checkpoint(self):
+        # Leader: write initial values and checkpoint.
+        self.session.create(self.uri, self.create_session_config)
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = 'old' + str(i)
+        cursor.close()
+        self.session.checkpoint()
+
+        # Overwrite values and checkpoint again; the follower must see these.
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = 'new' + str(i)
+        cursor.close()
+        self.session.checkpoint()
+
+        out, _ = self._run_wt_as_follower('wt-follower-latest', ['dump', self.uri])
+        self.assertIn('new0', out,
+            f"expected newer values in wt dump output, got:\n{out}")
+        self.assertNotIn('old0', out,
+            f"unexpected older values in wt dump output:\n{out}")
