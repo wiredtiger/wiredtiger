@@ -195,6 +195,186 @@ run_scenario(WT_SESSION *session, const char *label, uint8_t bad_type)
         printf("--- captured ---\n%s--- end captured ---\n", captured);
 }
 
+/*
+ * has_hex_cookie --
+ *     Verify the captured output contains "block_cookie=<hex...>" with at least min_hex hex
+ *     characters following the '=' (i.e. NOT the '?' sentinel emitted on the NULL-WT_REF path).
+ *     This is the field a field-triage engineer cares about: it identifies the on-disk block so
+ *     the bytes can be re-read independently of the running process.
+ */
+static bool
+has_hex_cookie(const char *buf, size_t min_hex)
+{
+    const char *p, *q;
+    size_t n;
+
+    p = strstr(buf, "block_cookie=");
+    if (p == NULL)
+        return (false);
+    q = p + strlen("block_cookie=");
+    /* Reject the '?' sentinel explicitly. */
+    if (*q == '?')
+        return (false);
+    n = 0;
+    while (*q != '\0' && ((*q >= '0' && *q <= '9') || (*q >= 'a' && *q <= 'f'))) {
+        ++q;
+        ++n;
+    }
+    return (n >= min_hex);
+}
+
+/*
+ * populate_table --
+ *     Insert enough rows to grow the btree beyond a single root leaf, so subsequent reads exercise
+ *     real on-disk leaf pages with valid block address cookies.
+ */
+static void
+populate_table(WT_SESSION *session)
+{
+    WT_CURSOR *cursor;
+    char value[256];
+    int i;
+
+    testutil_check(session->open_cursor(session, "table:t", NULL, NULL, &cursor));
+    /* ~2000 rows * 256B values comfortably exceeds the default leaf page size. */
+    memset(value, 'x', sizeof(value) - 1);
+    value[sizeof(value) - 1] = '\0';
+    for (i = 0; i < 2000; i++) {
+        cursor->set_key(cursor, i);
+        cursor->set_value(cursor, value);
+        testutil_check(cursor->insert(cursor));
+    }
+    testutil_check(cursor->close(cursor));
+    testutil_check(session->checkpoint(session, NULL));
+}
+
+/*
+ * run_realref_scenario --
+ *     Field-realistic scenario: position a cursor on a real on-disk leaf page so we have a valid
+ *     WT_REF with a populated ref->addr, copy that page's actual disk image, flip the type byte in
+ *     the copy, and call __wti_page_inmem with (real_ref, corrupted_copy). This exercises the
+ *     production diagnostic path that an engineer triaging a real panic would see: a real hex
+ *     block cookie, the real dhandle name, and a hex dump of mostly-real bytes with the bad type
+ *     byte highlighted.
+ */
+static void
+run_realref_scenario(WT_CONNECTION *conn)
+{
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_PAGE *page;
+    WT_PAGE_HEADER *bad_dsk;
+    WT_REF *real_ref;
+    WT_SESSION *session;
+    WT_SESSION_IMPL *session_impl;
+    const WT_PAGE_HEADER *real_dsk;
+    uint8_t *buf;
+    uint32_t image_size;
+    int ret;
+
+    captured[0] = '\0';
+
+    /*
+     * Clear panic state and arm the corruption flag so __wti_page_inmem's call to
+     * __wt_illegal_value -> __wt_panic_func returns WT_PANIC instead of aborting.
+     */
+    F_SET_ATOMIC_32((WT_CONNECTION_IMPL *)conn, WT_CONN_DATA_CORRUPTION);
+    F_CLR_ATOMIC_32((WT_CONNECTION_IMPL *)conn, WT_CONN_PANIC);
+
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    session_impl = (WT_SESSION_IMPL *)session;
+
+    /*
+     * Position the cursor on the first record. This loads a real leaf page; cbt->ref is the
+     * WT_REF for that page, and cbt->ref->addr holds the block address cookie WT used to fetch
+     * it from disk.
+     */
+    testutil_check(session->open_cursor(session, "table:t", NULL, NULL, &cursor));
+    testutil_check(cursor->next(cursor));
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    real_ref = cbt->ref;
+    testutil_assert(real_ref != NULL);
+    testutil_assert(real_ref->page != NULL);
+    testutil_assert(real_ref->page->dsk != NULL);
+
+    /*
+     * Copy the real disk image so we can corrupt it without disturbing WT's in-memory page. The
+     * size is whatever the page header recorded when it was written.
+     */
+    real_dsk = real_ref->page->dsk;
+    image_size = real_dsk->mem_size;
+    testutil_assert(image_size > WT_PAGE_HEADER_SIZE);
+    buf = dmalloc(image_size);
+    memcpy(buf, real_dsk, image_size);
+    bad_dsk = (WT_PAGE_HEADER *)buf;
+    /*
+     * Sanity: the real leaf should be a row-store leaf before we corrupt it. If this assertion
+     * ever fires, the test setup has changed and our 'flip exactly one byte' premise no longer
+     * matches reality.
+     */
+    testutil_assertfmt(bad_dsk->type == WT_PAGE_ROW_LEAF,
+      "expected ROW_LEAF before corruption, got type %u", (unsigned)bad_dsk->type);
+    bad_dsk->type = WT_PAGE_INVALID;
+
+    /*
+     * Invoke __wti_page_inmem with (real_ref, corrupted copy). The new early-out check should
+     * reject the image, and the diagnostic helper should:
+     *   - call __wt_ref_addr_copy(ref) successfully and emit a hex block_cookie= value;
+     *   - log the real dhandle name 'file:t.wt';
+     *   - emit a hex dump of the corrupted copy.
+     */
+    /*
+     * __wt_ref_addr_copy (called from the new diagnostic helper) asserts that the caller holds a
+     * valid WT_GEN_SPLIT generation: in production this is satisfied because the read path is
+     * already inside a btree walk. We enter it explicitly here so the assertion passes.
+     */
+    __wt_session_gen_enter(session_impl, WT_GEN_SPLIT);
+    page = NULL;
+    WT_WITH_DHANDLE(session_impl, cbt->dhandle,
+      ret = __wti_page_inmem(session_impl, real_ref, buf, 0, &page, NULL));
+    __wt_session_gen_leave(session_impl, WT_GEN_SPLIT);
+
+    testutil_assertfmt(ret != 0, "%s", "[real_ref] __wti_page_inmem returned 0; expected an error");
+    testutil_assertfmt(
+      page == NULL, "%s", "[real_ref] __wti_page_inmem produced a page on error");
+
+    /* Diagnostic: same fields as the NULL-ref scenarios, *plus* a real hex cookie. */
+    testutil_assertfmt(strstr(captured, "illegal page type 0 (WT_PAGE_INVALID)") != NULL,
+      "[real_ref] missing 'illegal page type 0 (WT_PAGE_INVALID)'.\nCaptured:\n%s", captured);
+    testutil_assertfmt(strstr(captured, "dhandle=file:t.wt") != NULL,
+      "[real_ref] missing 'dhandle=file:t.wt'.\nCaptured:\n%s", captured);
+    testutil_assertfmt(strstr(captured, "block_cookie=?") == NULL,
+      "[real_ref] block_cookie should be hex, not '?': real WT_REF has a populated "
+      "ref->addr.\nCaptured:\n%s",
+      captured);
+    /* Minimum sane cookie: 8 hex chars (~4 bytes). Real cookies are usually larger. */
+    testutil_assertfmt(has_hex_cookie(captured, 8),
+      "[real_ref] missing hex 'block_cookie=<hex>...' (>=8 hex chars).\nCaptured:\n%s", captured);
+    /* mem_size must match what we copied from the real on-disk page (not 0xDEADBEEF). */
+    {
+        char needle[64];
+        testutil_check(
+          __wt_snprintf(needle, sizeof(needle), "mem_size=%" PRIu32, image_size));
+        testutil_assertfmt(strstr(captured, needle) != NULL,
+          "[real_ref] missing '%s' from real page header.\nCaptured:\n%s", needle, captured);
+    }
+    /* Hex dump must include the first chunk of the corrupted bytes. */
+    testutil_assertfmt(strstr(captured, "chunk 1 of") != NULL,
+      "[real_ref] missing hex dump 'chunk 1 of N'.\nCaptured:\n%s", captured);
+
+    free(buf);
+    /*
+     * The conn is now panicked. Cursor close after WT_CONN_PANIC fails, so just leak the cursor
+     * deliberately -- the process is about to exit. Future scenarios in run_scenario() reset
+     * WT_CONN_PANIC before doing anything cursor-related, but we keep this scenario last.
+     */
+    (void)cursor;
+
+    printf("PASS [real_ref]: real WT_REF produced a hex block_cookie and full dhandle context\n");
+    if (getenv("VERBOSE") != NULL)
+        printf("--- captured ---\n%s--- end captured ---\n", captured);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -223,9 +403,27 @@ main(int argc, char *argv[])
 
     /* A trivial table gives us a real WT_DATA_HANDLE / WT_BTREE to point at. */
     testutil_check(session->create(session, "table:t", "key_format=i,value_format=S"));
+    /* Populate so the real-ref scenario can position a cursor on a real on-disk leaf page. */
+    populate_table(session);
 
     run_scenario(session, "WT_PAGE_INVALID", WT_PAGE_INVALID);
     run_scenario(session, "WT_PAGE_TYPE_COUNT", WT_PAGE_TYPE_COUNT);
+
+    /*
+     * The real-ref scenario needs to read a page off disk so page->dsk is populated. Close and
+     * reopen the connection to drop all pages from cache; the next cursor walk will then page in
+     * from disk. The conn is panicked at this point from earlier scenarios -- close ignores
+     * errors, the on-disk btree was checkpointed by populate_table before any panic state.
+     */
+    (void)conn->close(conn, NULL);
+    testutil_check(
+      wiredtiger_open(opts->home, &eh, "debug_mode=(corruption_abort=false)", &conn));
+
+    /*
+     * Run the real-ref (field-realistic) scenario last: it leaves the conn panicked with a cursor
+     * pinned, so subsequent API calls would fail.
+     */
+    run_realref_scenario(conn);
 
     /*
      * The conn is in a panicked state after our injected illegal-value calls; ignore close errors.
