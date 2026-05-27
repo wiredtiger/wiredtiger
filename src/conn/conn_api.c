@@ -2552,6 +2552,7 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"configuration", WT_VERB_CONFIGURATION},
+      {"cross_checkpoint_cache", WT_VERB_CROSS_CHECKPOINT_CACHE},
       {"disaggregated_storage", WT_VERB_DISAGGREGATED_STORAGE},
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"eviction", WT_VERB_EVICTION},
       {"extension", WT_VERB_EXTENSION}, {"fileops", WT_VERB_FILEOPS},
