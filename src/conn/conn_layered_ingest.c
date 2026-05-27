@@ -825,7 +825,6 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     /* If the queue is empty we are done. */
     if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
         __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-        F_CLR(session, WT_SESSION_STEPPING_UP);
         return (0);
     }
 
@@ -854,7 +853,6 @@ err:
      */
     WT_WITH_DHANDLE(session, work_item->ingest_dhandle, __wt_cursor_dhandle_decr_use(session));
     __wt_free(session, work_item);
-    F_CLR(session, WT_SESSION_STEPPING_UP);
     return (ret);
 }
 

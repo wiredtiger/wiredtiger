@@ -1012,7 +1012,7 @@ static int
 __disagg_step_up(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
+    WT_SESSION_IMPL *internal_session = NULL;
     uint64_t now;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -1022,7 +1022,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      * Some functionality in stepping up needs a session that can open data handles. The default
      * session used to call this function cannot do that.
      */
-    WT_RET(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
+    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
     F_SET(internal_session, WT_SESSION_STEPPING_UP);
 
     /*
@@ -1075,7 +1075,8 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint8_release(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY);
 
 err:
-    WT_TRET(__wt_session_close_internal(internal_session));
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
