@@ -1389,12 +1389,6 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
 
-    /* Stress: hold the step-up flag set to let concurrent schema ops hit the assertion. */
-    struct timespec __tsp;
-    __tsp.tv_sec = 0;
-    __tsp.tv_nsec = 300 * WT_MILLION;
-    __wt_timing_stress(session, WT_TIMING_STRESS_STEP_UP_SLOW, &__tsp);
-
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
      * below depend on WiredTiger already being in the leader mode.
@@ -1424,7 +1418,6 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       "Failed to drain ingest tables");
 
 err:
-    F_CLR(internal_session, WT_SESSION_STEPPING_UP);
     WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
@@ -1487,12 +1480,6 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
-
-    /* Stress: hold the step-down flag set to let concurrent schema ops hit the assertion. */
-    struct timespec __tsp;
-    __tsp.tv_sec = 0;
-    __tsp.tv_nsec = 300 * WT_MILLION;
-    __wt_timing_stress(session, WT_TIMING_STRESS_STEP_DOWN_SLOW, &__tsp);
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent

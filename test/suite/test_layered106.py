@@ -52,8 +52,8 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
 
     disagg_storages = gen_disagg_storages('test_layered106', disagg_only=True)
     transitions = [
-        ('step_up',   dict(stress_flag='step_up_slow',   start_role='follower', target_role='leader')),
-        ('step_down', dict(stress_flag='step_down_slow', start_role='leader',   target_role='follower')),
+        ('step_up',   dict(start_role='follower', target_role='leader')),
+        ('step_down', dict(start_role='leader',   target_role='follower')),
     ]
     ops = [
         ('drop_lock_wait',   dict(op='drop', lock_wait=True)),
@@ -80,8 +80,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
             self.home,
             'statistics=(all)'
             + self.extensionsConfig()
-            + f',disaggregated=(role={self.start_role},drain_threads=2)'
-            + f',timing_stress_for_test=[{self.stress_flag}]')
+            + f',disaggregated=(role={self.start_role},drain_threads=2)')
 
         session = conn.open_session('')
 
@@ -92,16 +91,13 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
             conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
             session.open_cursor(self.uri).close()
 
-        # Start the role transition in a background thread; the stress flag will hold the
-        # reconfiguring flag set for 300 ms, giving the schema op below time to race it.
+        # Start the role transition in a background thread.
         t = threading.Thread(
             target=lambda: conn.reconfigure(f'disaggregated=(role={self.target_role})'),
             daemon=True)
         t.start()
 
-        # Wait 100ms to be inside the stress window, then attempt the schema op.
         # The assertion in WT_WITH_SCHEMA_LOCK must fire and abort the process.
-        time.sleep(0.1)
         match self.op:
             case 'drop':
                 lw = 'true' if self.lock_wait else 'false'
@@ -124,6 +120,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
     def test_race(self):
         rc, _ = self.run_subprocess_function(
             'SUBPROCESS',
-            'test_layered106.test_layered106.subprocess_race')
+            'test_layered106.test_layered106.subprocess_race',
+            silent=True)
         self.assertNotEqual(rc, 0,
-            f'{self.stress_flag}: expected process to abort on assertion but exited 0')
+            'expected process to abort on assertion but exited 0')

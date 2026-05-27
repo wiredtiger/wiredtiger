@@ -342,8 +342,6 @@ extern const char __WT_CONFIG_CHOICE_split_8[];
 extern const char __WT_CONFIG_CHOICE_stable[];
 extern const char __WT_CONFIG_CHOICE_stable_disaggregated_schema_epoch[];
 extern const char __WT_CONFIG_CHOICE_stable_timestamp[];
-extern const char __WT_CONFIG_CHOICE_step_down_slow[];
-extern const char __WT_CONFIG_CHOICE_step_up_slow[];
 extern const char __WT_CONFIG_CHOICE_sweep[];
 extern const char __WT_CONFIG_CHOICE_temporary[];
 extern const char __WT_CONFIG_CHOICE_thread_group[];
