@@ -131,6 +131,8 @@ DISAGGREGATED
 DNE
 DONTNEED
 DS
+DSK
+DSPINLOCK
 DUPLICATEV
 DataSet
 Decrementing
@@ -538,6 +540,7 @@ VPM
 VR
 VRFY
 VX
+ValidationModel
 Vc
 Vigenere
 Vixie
@@ -1017,6 +1020,7 @@ ffs
 fgetln
 fh
 fhandle
+fid
 fifo
 filecmp
 filefrag
@@ -1156,6 +1160,7 @@ inlock
 inmem
 inmemory
 inorder
+insertedp
 inserters
 instantiation
 instantiations
