@@ -10,11 +10,7 @@
 #include <catch2/catch.hpp>
 #include "wrappers/mock_session.h"
 
-/*
- * Hand-craft a header at the front of key_item. The header is built on the stack and then the
- * first header_size bytes are copied onto the wire, so buffers smaller than sizeof(WT_CRYPT_HEADER)
- * are safe.
- */
+/* Hand-craft a header at the front of key_item. */
 static void
 build_crypt_page(WT_ITEM *key_item, uint8_t version, uint8_t compatible_version,
   uint8_t header_size, uint64_t timestamp, size_t payload_size)

@@ -193,7 +193,7 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
         WT_ERR_MSG(session, EIO,
           "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
           expected_checksum, checksum);
-    __wt_crypt_header_byteswap(header, header->header_size);
+    __wt_crypt_header_byteswap(header, key_item->size);
 
     if (header->header_size < WT_CRYPT_HEADER_MIN_SIZE)
         WT_ERR_MSG(session, EIO,
