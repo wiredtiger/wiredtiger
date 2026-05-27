@@ -1539,6 +1539,11 @@ variables:
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: 0
 
+  - &s-all-dep
+    - name: s-all
+      variant: ubuntu2004
+      patch_optional: true
+
   # Template for Mac tests
   - &mac_test_template
     expansions: &mac_test_template_expansions
@@ -1704,11 +1709,6 @@ variables:
           format_args: disagg.mode=leader runs.timer=5:10
           times: 1
 
-  - &s-all-dep
-    - name: s-all
-      variant: ubuntu2004
-      patch_optional: true
-
   - &format-stress-test-disagg-follower
     depends_on:
       - name: compile
@@ -1768,6 +1768,30 @@ variables:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
           format_args: disagg.mode=switch ops.prepare=0 runs.timer=3
           times: 1
+
+  - &format-stress-test-disagg-multi
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-17306 Enable removes and modifies in disagg multi mode once the related issues have been resolved.
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=2000000:4000000 ops.pct.delete=0 ops.pct.modify=0
+          times: 10
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  - &format-stress-test-disagg-multi-pull-request
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-17306 Enable removes and modifies in disagg multi mode once the related issues have been resolved.
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:1000000 ops.pct.delete=0 ops.pct.modify=0
+          times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
 #######################################
 #               Tasks                 #
@@ -5266,6 +5290,22 @@ tasks:
     tags: ["pull_request"]
   - <<: *format-stress-test-disagg-switch-pull-request
     name: format-stress-test-disagg-switch-pull-request-2
+    tags: ["pull_request"]
+
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-3
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-4
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-multi-pull-request
+    name: format-stress-test-disagg-multi-pull-request-1
     tags: ["pull_request"]
 
   - name: format-stress-test-disagg-follower-pull-request
