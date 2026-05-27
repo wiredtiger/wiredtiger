@@ -30,6 +30,8 @@ Alves
 AssertionError
 Async
 Athlon
+Auth
+AwsManager
 Axxx
 BBBBB
 BBBBBB
@@ -69,6 +71,7 @@ CDB
 CELLs
 CGmP
 CGs
+CHUNKCACHE
 CKPT
 CLAYERED
 CLI
@@ -116,6 +119,7 @@ Cppsuite
 CreateFileMappingW
 CreateFileW
 CreateSemaphore
+Crt
 Crummey
 CustomersPhone
 Cygwin
@@ -208,6 +212,8 @@ Futex
 GBR
 GC
 GCOV
+GCP
+GCP's
 GDB
 GF
 GIDs
@@ -292,6 +298,9 @@ Libtool
 LoadLoad
 LoadStore
 LockFile
+LogBackend
+LogSink
+LogSystemInterface
 LoggerPipe
 MADV
 MALLOC
@@ -429,11 +438,13 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+RelWithDebInfo
 ReleaseSemaphore
 Rogerio
 Runtime
 RuntimeError
 SCons
+SDK
 SIGABRT
 SIGBUS
 SIGSEGV
@@ -547,6 +558,7 @@ WILLNEED
 WIREDTIGER
 WRLSN
 WRNOLOCK
+WT's
 WTBranches
 WTI
 WTPERF
@@ -567,6 +579,7 @@ WiredTiger
 WiredTiger's
 WiredTigerCC
 WiredTigerCheckpoint
+WiredTigerChunkCache
 WiredTigerError
 WiredTigerHS
 WiredTigerHook
@@ -613,6 +626,7 @@ aaza
 aazab
 aba
 abc
+abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
@@ -629,6 +643,7 @@ allocators
 allocfile
 allocsize
 aor
+ap
 api
 arg
 argc
@@ -648,6 +663,7 @@ auth
 autoclose
 autocommit
 autoconf
+aws
 az
 bInheritHandle
 backends
@@ -756,6 +772,7 @@ chk
 chkpt
 chmod
 chr
+chunkcache
 cip
 ciphertext
 ckpt
@@ -1063,6 +1080,7 @@ gc
 gcc
 gcov
 gcovr
+gcp
 gdb
 gdb's
 getattr
@@ -1222,6 +1240,7 @@ len
 lengthp
 lenp
 lex
+lexically
 lexicographically
 lf
 libdatasource
@@ -1610,6 +1629,7 @@ schemas
 sclose
 scr
 sd
+sdk
 secretkey
 sempty
 sencrypted
@@ -1749,6 +1769,7 @@ teardown
 tempdir
 testbed
 testcase
+testext
 testutil
 th
 there'll
@@ -1759,6 +1780,7 @@ timestamper
 timestamping
 tinfo
 tlb
+tmalloc
 tmp
 tmstmp
 tnum
