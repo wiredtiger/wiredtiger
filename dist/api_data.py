@@ -1057,6 +1057,7 @@ connection_runtime_config = [
             'compact',
             'compact_progress',
             'configuration',
+            'cross_checkpoint_cache',
             'disaggregated_storage',
             'error_returns',
             'eviction',

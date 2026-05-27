@@ -129,6 +129,8 @@ DISAGGREGATED
 DNE
 DONTNEED
 DS
+DSK
+DSPINLOCK
 DUPLICATEV
 DataSet
 Decrementing
@@ -1015,6 +1017,7 @@ ffs
 fgetln
 fh
 fhandle
+fid
 fifo
 filecmp
 filefrag
@@ -1154,6 +1157,7 @@ inlock
 inmem
 inmemory
 inorder
+insertedp
 inserters
 instantiation
 instantiations

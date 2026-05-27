@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered05.py
+# test_layered_cursor05.py
 #
 #   Exercises edge cases including:
 #   - Non-exact searches where the nearest key is on either side.
@@ -38,13 +38,13 @@ from wtscenario import make_scenarios
 #   - Correct iteration (next/prev) after search_near.
 
 @disagg_test_class
-class test_layered05(wttest.WiredTigerTestCase):
+class test_layered_cursor05(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    uri = 'layered:test_layered05'
+    uri = 'layered:test_layered_cursor05'
 
     nkeys = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered05', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_cursor05', disagg_only=True)
 
     scenarios = make_scenarios(disagg_storages)
 

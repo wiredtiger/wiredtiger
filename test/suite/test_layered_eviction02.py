@@ -34,8 +34,8 @@ from wtscenario import make_scenarios
 # Test we can evict on the follower without setting page materialization frontier
 
 @disagg_test_class
-class test_layered50(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_layered50', disagg_only = True)
+class test_layered_eviction02(wttest.WiredTigerTestCase):
+    disagg_storages = gen_disagg_storages('test_layered_eviction02', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_base_config = 'cache_size=10MB,,statistics=(all),'
@@ -53,7 +53,7 @@ class test_layered50(wttest.WiredTigerTestCase):
         self.session_follow = self.conn_follow.open_session('')
 
     def test_evict_on_standby(self):
-        uri = "layered:test_layered50"
+        uri = "layered:test_layered_eviction02"
         # Setup
         self.session.create(uri, 'key_format=S,value_format=S')
         self.create_follower()
