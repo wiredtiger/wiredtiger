@@ -1839,16 +1839,22 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
      * WT_ADDRs and swapped into place before ref->home is updated to the new child page. Read
      * ref->home before ref->addr with an acquire barrier in between, pairing with the sequentially
-     * consistent CAS on ref->addr during split. This ensures that if we observe a new child page as
-     * home, we also observe the corresponding off-page addr. The dangerous combination is reading a
-     * new home with an old addr, as the on-page cell would be misinterpreted as an off-page
-     * address.
+     * consistent CAS on ref->addr and the release store of ref->home during split. This ensures
+     * that if we observe a new child page as home, we also observe the corresponding off-page addr.
+     * The dangerous combination is reading a new home with an old addr, as the on-page cell would
+     * be misinterpreted as an off-page address.
+     *
+     * home can be transiently NULL on a leaf during a deepening parent split: a new ref is
+     * zero-initialized with home=NULL and addr is swapped off-page before home is written. Treat
+     * that window as "no address" so callers do not pass NULL to __wt_off_page.
      */
-    page = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
+    page = (WT_PAGE *)__wt_atomic_load_ptr_acquire(&ref->home);
 
     addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&ref->addr);
     /* If NULL, there is no information. */
     if (addr == NULL)
+        return (false);
+    if (page == NULL)
         return (false);
 
     /* If off-page, the pointer references a WT_ADDR structure. */

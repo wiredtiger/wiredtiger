@@ -371,7 +371,13 @@ __split_ref_prepare(
         /* Switch the WT_REF's to their new page. */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
-            child_ref->home = child;
+            /*
+             * Use a release store so that readers using an acquire load of home observe a
+             * consistent view: once home is non-NULL, the off-page addr written by the earlier
+             * sequentially consistent CAS in __split_ref_move is already visible. Pairs with the
+             * acquire load of home in the addr-copy and root-ref-check helpers.
+             */
+            __wt_atomic_store_ptr_release(&child_ref->home, child);
             child_ref->pindex_hint = j++;
         }
         WT_INTL_FOREACH_END;

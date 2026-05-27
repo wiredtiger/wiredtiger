@@ -23,6 +23,7 @@ else()
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
+        misc_tests/test_ref_addr_copy_null_home.cpp
         misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_layered_ingest_uri.cpp
         misc_tests/test_semaphore.cpp

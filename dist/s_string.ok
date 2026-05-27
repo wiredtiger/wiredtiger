@@ -439,6 +439,7 @@ RuntimeError
 SCons
 SDK
 SIGABRT
+SIGSEGV
 SIMD
 SLS
 SLVG
@@ -894,6 +895,7 @@ dequeued
 der
 deref
 dereference
+dereferences
 dereferencing
 desc
 designator
