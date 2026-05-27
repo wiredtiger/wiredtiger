@@ -198,7 +198,7 @@ __drop_layered(
     if (S2C(session)->layered_table_manager.leader)
         WT_ERR(__drop_issue_trim(session, stable_uri));
 
-    /* Remove the all associated metadata from shared metadata table. */
+    /* Remove all the associated metadata from shared metadata table. */
     WT_SAVE_DHANDLE(session,
       ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
         WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true));
@@ -229,6 +229,10 @@ __drop_layered(
 err:
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
+
+    /* FIXME-WT-17665: For now, panic on failure to drop a layered table. */
+    if (ret != 0)
+        WT_RET_PANIC(session, ret, "failed to drop layered table with uri '%s'", uri);
     return (ret);
 }
 
