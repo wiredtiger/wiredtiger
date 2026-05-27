@@ -230,9 +230,6 @@ err:
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
 
-    /* FIXME-WT-17665: For now, panic on failure to drop a layered table. */
-    if (ret != 0)
-        WT_RET_PANIC(session, ret, "failed to drop layered table with uri '%s'", uri);
     return (ret);
 }
 
