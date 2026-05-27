@@ -1,7 +1,10 @@
 # Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes.
 # This change will break assertions for all other testing so these tests must be run on their own.
 if(HAVE_UNITTEST_ASSERTS)
-    set(unittests misc_tests/test_assertions.cpp)
+    set(unittests
+        misc_tests/test_assertions.cpp
+        misc_tests/test_single_thread_check.cpp
+    )
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
@@ -42,6 +45,8 @@ else()
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_get.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_release.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
@@ -88,6 +93,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
         truncate/test_insert_truncate_entry.cpp
+        truncate/test_truncate_write_conflict.cpp
     )
 endif()
 
@@ -96,6 +102,7 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    cross_checkpoint_caching/cross_checkpoint_caching_test_env.cpp
     sub_level_error/utils_sub_level_error.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
