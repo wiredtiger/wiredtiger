@@ -69,10 +69,11 @@ def disagg_ignore_expected_output(testcase):
 # Several tests access pages data directly by table id.
 # This function computes the shard id for a given table id, which is needed to
 # find the right database file in kv_home directory.
+# See Storage.NUM_SHARDS in ext/page_log/palite/palite.cpp.
+# This must be kept in sync with that value.
+NUM_SHARDS = 17
+
 def get_shard_id(table_id):
-    # See Storage.NUM_SHARDS in ext/page_log/palite/palite.cpp.
-    # This must be kept in sync with that value.
-    NUM_SHARDS = 17
     return int(table_id) % NUM_SHARDS
 
 # A decorator for a disaggregated test class, that ignores verbose warnings about RTS at shutdown.
