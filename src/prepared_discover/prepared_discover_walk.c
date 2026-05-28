@@ -48,6 +48,67 @@ __prepared_discover_is_follower_stable_walk(WT_SESSION_IMPL *session, const char
 }
 
 /*
+ * __prepared_discover_register_layered --
+ *     Derive the parent layered URI from a stable constituent URI and open it just long enough to
+ *     trigger __schema_open_layered, which registers the layered table with the
+ *     layered_table_manager. Without this, an application that only opens a `prepared_discover:`
+ *     cursor on a follower (no cursor on the layered URI itself) would leave the manager with no
+ *     entry for this table. Step-up drain iterates the manager's entries --
+ *     with no entry, the drain never resolves the claim-prepared cells on the stable side, and a
+ *     post-step-up reader hits WT_PREPARE_CONFLICT.
+ */
+static int
+__prepared_discover_register_layered(WT_SESSION_IMPL *session, const char *stable_uri)
+{
+    static const char file_prefix[] = "file:";
+    static const char stable_suffix[] = ".wt_stable";
+    size_t prefix_len = strlen(file_prefix);
+    const char *suffix_start;
+    WT_CURSOR *cursor;
+    WT_DECL_ITEM(layered_uri_buf);
+    WT_DECL_RET;
+
+    cursor = NULL;
+
+    /*
+     * The follower stable walk is always entered with a checkpoint-suffixed URI of the form
+     * "file:<name>.wt_stable/<checkpoint>" (see __wt_prepared_discover_filter_apply_handles, which
+     * appends the checkpoint name before calling __prepared_discover_walk_one_tree). Locate the
+     * ".wt_stable" boundary -- ignoring everything after it -- and derive "layered:<name>".
+     */
+    if (!WT_PREFIX_MATCH(stable_uri, file_prefix))
+        return (0);
+    suffix_start = strstr(stable_uri, stable_suffix);
+    if (suffix_start == NULL || suffix_start <= stable_uri + prefix_len)
+        return (0);
+
+    WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
+    WT_ERR(__wt_buf_fmt(session, layered_uri_buf, "layered:%.*s",
+      (int)(suffix_start - (stable_uri + prefix_len)), stable_uri + prefix_len));
+
+    /*
+     * Open and immediately close a cursor on the layered URI. The open path runs
+     * __schema_open_layered, which calls __wt_layered_table_manager_add_table; the dhandle stays
+     * cached after the cursor closes so the manager entry persists until shutdown / explicit
+     * removal.
+     */
+    WT_ERR(__wt_open_cursor(session, layered_uri_buf->data, NULL, NULL, &cursor));
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    __wt_scr_free(session, &layered_uri_buf);
+    /*
+     * ENOENT can happen if the layered table no longer exists in metadata (e.g. dropped between the
+     *     metadata scan that surfaced it and this call). That's benign for prepared discovery --
+     *     there is nothing on the stable side to drain either --
+     *     so swallow it.
+     */
+    if (ret == ENOENT)
+        ret = 0;
+    return (ret);
+}
+
+/*
  * __prepared_discover_open_ingest_cursor --
  *     Derive the ingest URI from the current stable btree handle and open a cursor on it. The
  *     stable btree is preserved as session->dhandle across the open.
@@ -429,8 +490,17 @@ __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
     btree = S2BT(session);
     /* There is nothing to do on an empty tree. */
     if (btree->root.page != NULL) {
-        if (__prepared_discover_is_follower_stable_walk(session, uri))
+        if (__prepared_discover_is_follower_stable_walk(session, uri)) {
+            /*
+             * Register the parent layered table with the layered_table_manager before opening the
+             * ingest cursor. Step-up drain iterates manager entries, so a table whose only
+             * follower-side touchpoint was the prepared_discover walk (no application cursor on the
+             * layered URI before step-up) would otherwise be missed by drain.
+             */
+            WT_SAVE_DHANDLE(session, ret = __prepared_discover_register_layered(session, uri));
+            WT_ERR(ret);
             WT_ERR(__prepared_discover_open_ingest_cursor(session, &ingest_cursor));
+        }
 
         flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
         ref = NULL;
