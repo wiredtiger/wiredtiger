@@ -31,11 +31,11 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered48.py
+# test_layered_config03.py
 #    Ensure overflow keys and values are not being generated in disaggregated storage.
 
 @disagg_test_class
-class test_layered48(wttest.WiredTigerTestCase):
+class test_layered_config03(wttest.WiredTigerTestCase):
     nitems = 500
     key_to_update = 0
     num_updates = 10
@@ -47,9 +47,9 @@ class test_layered48(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S,leaf_key_max=256,leaf_value_max=256'
 
-    table_name = "test_layered48"
+    table_name = "test_layered_config03"
 
-    disagg_storages = gen_disagg_storages('test_layered48', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_config03', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         ('layered', dict(prefix='layered:')),
         ('shared', dict(prefix='table:')),
@@ -67,7 +67,7 @@ class test_layered48(wttest.WiredTigerTestCase):
         return random_string
 
     # Test overflow keys and values.
-    def test_layered48(self):
+    def test_layered_config03(self):
 
         # Create table
         self.uri = self.prefix + self.table_name

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -27,25 +27,20 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
 
-# test_disagg02.py
-# Note: This test focuses on validating the behavioral differences of
-# WiredTiger API calls when operating in a disaggregated storage environment.
+# Test throw an error if logging is configured for layered table
 
-class test_disagg02(wttest.WiredTigerTestCase, DisaggConfigMixin):
+@disagg_test_class
+class test_layered_config04(wttest.WiredTigerTestCase):
+    disagg_storages = gen_disagg_storages('test_layered_eviction02', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
 
-    disagg_storages = gen_disagg_storages('test_disagg02', disagg_only = True)
+    conn_config = 'disaggregated=(role="leader")'
 
-    def conn_extensions(self, extlist):
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
-    @wttest.skip_for_hook("tiered", "Tiered tables do not support compaction")
-    def test_disagg_compact(self):
-        # Test that compact operation fails in disaggregated storage mode.
+    def test_create_logged(self):
+        uri = "layered:test_layered_config04"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.compact('table:test_disagg02'),
-            '/Operation not supported/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.compact(None, 'background=true'),
-            '/Operation not supported/')
+            lambda: self.session.create(uri, 'key_format=S,value_format=S,log=(enabled=true)'),
+            '/Logging is not supported for layered/')

@@ -30,10 +30,10 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered36.py
+# test_layered_schema05.py
 #    Test creating missing stable tables.
 @disagg_test_class
-class test_layered36(wttest.WiredTigerTestCase):
+class test_layered_schema05(wttest.WiredTigerTestCase):
     nitems = 500
 
     conn_base_config = 'statistics=(all),' \
@@ -43,17 +43,17 @@ class test_layered36(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    table_name_empty = "test_layered36a"
-    table_name_filled = "test_layered36b"
+    table_name_empty = "test_layered_schema05a"
+    table_name_filled = "test_layered_schema05b"
 
-    disagg_storages = gen_disagg_storages('test_layered36', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_schema05', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         ('layered-prefix', dict(prefix='layered:', table_config='')),
         ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered')),
     ])
 
     # A simple test with a single node.
-    def test_layered36(self):
+    def test_layered_schema05(self):
 
         # Create an empty table.
         uri_empty = self.prefix + self.table_name_empty

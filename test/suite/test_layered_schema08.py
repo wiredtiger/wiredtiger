@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered105.py
+# test_layered_schema08.py
 #   Test that shared metadata queue operations are deferred until a checkpoint runs.
 #
 #   Schema operations (create, drop) on a leader enqueue metadata updates with deferred=true.
@@ -39,8 +39,8 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered105(wttest.WiredTigerTestCase):
-    uri_base = 'test_layered105'
+class test_layered_schema08(wttest.WiredTigerTestCase):
+    uri_base = 'test_layered_schema08'
     conn_config = 'statistics=(all),disaggregated=(role="leader",lose_all_my_data=true)'
 
     table_types = [
@@ -48,7 +48,7 @@ class test_layered105(wttest.WiredTigerTestCase):
         ('table-prefix', dict(prefix='table:', table_config=',block_manager=disagg,type=layered')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered105', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_schema08', disagg_only=True)
     scenarios = make_scenarios(table_types, disagg_storages)
 
     def uri(self):

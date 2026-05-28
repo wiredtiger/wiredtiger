@@ -31,19 +31,19 @@ import wiredtiger
 import wttest
 from helper_disagg import disagg_test_class
 
-# test_layered24.py
+# test_layered_schema02.py
 #    Ensure a secondary that drops a table does not fall back to reading
 #    the stable table.
 @disagg_test_class
-class test_layered24(wttest.WiredTigerTestCase):
-    uri = "layered:test_layered24"
+class test_layered_schema02(wttest.WiredTigerTestCase):
+    uri = "layered:test_layered_schema02"
 
     conn_base_config = ""
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     nitems = 10000
 
-    def test_layered24(self):
+    def test_layered_schema02(self):
         session_config = 'key_format=S,value_format=S'
 
         #

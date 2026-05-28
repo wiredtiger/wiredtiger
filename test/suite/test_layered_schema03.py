@@ -31,11 +31,11 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered28.py
+# test_layered_schema03.py
 #    Test to ensure that dropping layered tables works and subsequent sweep doesn't crash
 @disagg_test_class
-class test_layered28(wttest.WiredTigerTestCase):
-    uri_base = "test_layered28"
+class test_layered_schema03(wttest.WiredTigerTestCase):
+    uri_base = "test_layered_schema03"
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'file_manager=(close_scan_interval=1)'
 

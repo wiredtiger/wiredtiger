@@ -32,12 +32,12 @@ from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-# test_layered01.py
+# test_layered_schema01.py
 #    Basic layered tree creation test
 @disagg_test_class
-class test_layered01(wttest.WiredTigerTestCase):
+class test_layered_schema01(wttest.WiredTigerTestCase):
 
-    uri_base = "test_layered01"
+    uri_base = "test_layered_schema01"
     conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
                 + 'disaggregated=(lose_all_my_data=true)'
 
@@ -57,7 +57,7 @@ class test_layered01(wttest.WiredTigerTestCase):
         self.assertTrue(val_str in val)
 
     # Test calling the create API for a layered table.
-    def test_layered01(self):
+    def test_layered_schema01(self):
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create layered tree")
