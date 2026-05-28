@@ -410,12 +410,13 @@ __rec_col_var_rle_check(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_C
 }
 
 /*
- * __wti_rec_col_var --
- *     Reconcile a variable-width column-store leaf page.
+ * __rec_col_var_page_loop --
+ *     Walk the on-page variable-length column-store entries, building per-record state and
+ *     accumulating RLE runs in *st.
  */
-int
-__wti_rec_col_var(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
+static int
+__rec_col_var_page_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
+  WT_SALVAGE_COOKIE *salvage, struct __wti_col_var_state *st)
 {
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     WT_BTREE *btree;
@@ -427,71 +428,22 @@ __wti_rec_col_var(
     WT_DECL_ITEM(orig);
     WT_DECL_RET;
     WT_INSERT *ins;
-    WT_PAGE *page;
-    WT_TIME_WINDOW clear_tw;
-    WT_UPDATE *upd;
     WTI_UPDATE_SELECT upd_select;
     struct __wti_col_var_cur cur;
-    struct __wti_col_var_state st;
-    uint64_t n, nrepeat, skip;
+    WT_UPDATE *upd;
+    uint64_t n, nrepeat;
     uint32_t i;
     bool extended, orig_deleted, orig_stale, ovfl_used;
+
+    orig_stale = false;
 
     btree = S2BT(session);
     conn = S2C(session);
     vpack = &_vpack;
-    page = pageref->page;
-    WT_TIME_WINDOW_INIT(&clear_tw);
-    orig_stale = false;
-
     cbt = &r->update_modify_cbt;
-    cbt->iface.session = (WT_SESSION *)session;
 
-    /* Set the "last" values to cause failure if they're not set. */
-    WT_CLEAR(st);
-    st.last_value = r->last;
-    WT_TIME_WINDOW_INIT(&st.last_tw);
+    WT_RET(__wt_scr_alloc(session, 0, &orig));
 
-    WT_RET(__wti_rec_split_init(session, r, pageref->ref_recno, btree->maxleafpage_precomp));
-
-    WT_ERR(__wt_scr_alloc(session, 0, &orig));
-
-    /*
-     * The salvage code may be calling us to reconcile a page where there were missing records in
-     * the column-store name space. If taking the first record from on the page, it might be a
-     * deleted record, so we have to give the RLE code a chance to figure that out. Else, if not
-     * taking the first record from the page, write a single element representing the missing
-     * records onto a new page. (Don't pass the salvage cookie to our helper function in this case,
-     * we're handling one of the salvage cookie fields on our own, and we don't need the helper
-     * function's assistance.)
-     */
-    if (salvage != NULL && salvage->missing != 0) {
-        if (salvage->skip == 0) {
-            st.rle = salvage->missing;
-            st.last_deleted = true;
-
-            /*
-             * Correct the number of records we're going to "take", pretending the missing records
-             * were on the page.
-             */
-            salvage->take += salvage->missing;
-        } else
-            WT_ERR(__rec_col_var_helper(
-              session, r, NULL, NULL, &clear_tw, salvage->missing, true, false, NULL));
-    }
-
-    /*
-     * We track two data items through this loop: the previous (last) item and the current item: if
-     * the last item is the same as the current item, we increment the RLE count for the last item;
-     * if the last item is different from the current item, we write the last item onto the page,
-     * and replace it with the current item. The r->recno counter tracks records written to the
-     * page, and is incremented by the helper function immediately after writing records to the
-     * page. The record number of our source record, that is, the current item, is maintained in
-     * src_recno.
-     */
-    st.src_recno = r->recno + st.rle;
-
-    /* For each entry in the in-memory page... */
     WT_COL_FOREACH (page, cip, i) {
         ovfl_state = OVFL_IGNORE;
         cell = WT_COL_PTR(page, cip);
@@ -511,9 +463,9 @@ __wti_rec_col_var(
         }
 
 record_loop:
-        for (n = 0; n < nrepeat; n += cur.repeat_count, st.src_recno += cur.repeat_count) {
+        for (n = 0; n < nrepeat; n += cur.repeat_count, st->src_recno += cur.repeat_count) {
             upd = NULL;
-            if (ins != NULL && WT_INSERT_RECNO(ins) == st.src_recno) {
+            if (ins != NULL && WT_INSERT_RECNO(ins) == st->src_recno) {
                 WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, vpack, &upd_select));
                 upd = upd_select.upd;
                 ins = WT_SKIP_NEXT(ins);
@@ -544,7 +496,7 @@ record_loop:
                 if (ins == NULL)
                     cur.repeat_count = nrepeat - n;
                 else
-                    cur.repeat_count = WT_INSERT_RECNO(ins) - st.src_recno;
+                    cur.repeat_count = WT_INSERT_RECNO(ins) - st->src_recno;
 
                 cur.deleted = orig_deleted;
                 if (cur.deleted) {
@@ -584,16 +536,16 @@ record_loop:
                      * An as-yet-unused overflow item: emit the pending run, write this cell
                      * directly once, then skip the normal compare/swap path.
                      */
-                    if (st.rle != 0) {
-                        WT_ERR(__rec_col_var_helper(session, r, salvage, st.last_value,
-                          &st.last_tw, st.rle, st.last_deleted, st.last_dictionary, NULL));
-                        st.rle = 0;
+                    if (st->rle != 0) {
+                        WT_ERR(__rec_col_var_helper(session, r, salvage, st->last_value,
+                          &st->last_tw, st->rle, st->last_deleted, st->last_dictionary, NULL));
+                        st->rle = 0;
                     }
-                    st.last_value->data = vpack->data;
-                    st.last_value->size = vpack->size;
-                    WT_ERR(__rec_col_var_helper(session, r, salvage, st.last_value, &cur.tw,
-                      cur.repeat_count, false, st.last_dictionary, &ovfl_used));
-                    st.wrote_real_values = true;
+                    st->last_value->data = vpack->data;
+                    st->last_value->size = vpack->size;
+                    WT_ERR(__rec_col_var_helper(session, r, salvage, st->last_value, &cur.tw,
+                      cur.repeat_count, false, st->last_dictionary, &ovfl_used));
+                    st->wrote_real_values = true;
                     /*
                      * Salvage may have caused us to skip the overflow item, only update overflow
                      * items we use.
@@ -629,7 +581,7 @@ record_loop:
                 }
             } else {
                 cbt->slot = WT_COL_SLOT(page, cip);
-                WT_ERR(__rec_col_var_upd_apply(session, r, cbt, &upd_select, st.src_recno, &cur));
+                WT_ERR(__rec_col_var_upd_apply(session, r, cbt, &upd_select, st->src_recno, &cur));
                 if (cur.deleted)
                     r->key_removed_from_disk_image = true;
             }
@@ -641,7 +593,7 @@ compare:
              * swap the last and current buffers: do NOT update the starting record number, we've
              * been doing that all along.
              */
-            WT_ERR(__rec_col_var_rle_check(session, r, salvage, &st, &cur, &extended));
+            WT_ERR(__rec_col_var_rle_check(session, r, salvage, st, &cur, &extended));
             if (extended)
                 continue;
 
@@ -660,15 +612,15 @@ compare:
                  * structure, we can just use the pointers, they're not moving.
                  */
                 if (cur.data == vpack->data || cur.update_no_copy) {
-                    st.last_value->data = cur.data;
-                    st.last_value->size = cur.size;
+                    st->last_value->data = cur.data;
+                    st->last_value->size = cur.size;
                 } else
-                    WT_ERR(__wt_buf_set(session, st.last_value, cur.data, cur.size));
+                    WT_ERR(__wt_buf_set(session, st->last_value, cur.data, cur.size));
             }
-            WT_TIME_WINDOW_COPY(&st.last_tw, &cur.tw);
-            st.last_deleted = cur.deleted;
-            st.last_dictionary = cur.dictionary;
-            st.rle = cur.repeat_count;
+            WT_TIME_WINDOW_COPY(&st->last_tw, &cur.tw);
+            st->last_deleted = cur.deleted;
+            st->last_dictionary = cur.dictionary;
+            st->rle = cur.repeat_count;
         }
 
         /*
@@ -678,6 +630,82 @@ compare:
         if (ovfl_state == OVFL_UNUSED && vpack->raw != WT_CELL_VALUE_OVFL_RM)
             WT_ERR(__wt_ovfl_remove(session, page, vpack));
     }
+
+err:
+    __wt_scr_free(session, &orig);
+    return (ret);
+}
+
+/*
+ * __wti_rec_col_var --
+ *     Reconcile a variable-width column-store leaf page.
+ */
+int
+__wti_rec_col_var(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
+{
+    struct __wti_col_var_state st;
+    WT_BTREE *btree;
+    WT_CURSOR_BTREE *cbt;
+    WT_INSERT *ins;
+    WT_PAGE *page;
+    WT_TIME_WINDOW clear_tw;
+    WT_UPDATE *upd;
+    WTI_UPDATE_SELECT upd_select;
+    struct __wti_col_var_cur cur;
+    uint64_t n, skip;
+    bool extended;
+
+    btree = S2BT(session);
+    page = pageref->page;
+    WT_TIME_WINDOW_INIT(&clear_tw);
+
+    r->update_modify_cbt.iface.session = (WT_SESSION *)session;
+    cbt = &r->update_modify_cbt;
+
+    /* Set the "last" values to cause failure if they're not set before use. */
+    WT_CLEAR(st);
+    st.last_value = r->last;
+    WT_TIME_WINDOW_INIT(&st.last_tw);
+
+    WT_RET(__wti_rec_split_init(session, r, pageref->ref_recno, btree->maxleafpage_precomp));
+
+    /*
+     * The salvage code may be calling us to reconcile a page where there were missing records in
+     * the column-store name space. If taking the first record from on the page, it might be a
+     * deleted record, so we have to give the RLE code a chance to figure that out. Else, if not
+     * taking the first record from the page, write a single element representing the missing
+     * records onto a new page. (Don't pass the salvage cookie to our helper function in this case,
+     * we're handling one of the salvage cookie fields on our own, and we don't need the helper
+     * function's assistance.)
+     */
+    if (salvage != NULL && salvage->missing != 0) {
+        if (salvage->skip == 0) {
+            st.rle = salvage->missing;
+            st.last_deleted = true;
+
+            /*
+             * Correct the number of records we're going to "take", pretending the missing records
+             * were on the page.
+             */
+            salvage->take += salvage->missing;
+        } else
+            WT_RET(__rec_col_var_helper(
+              session, r, NULL, NULL, &clear_tw, salvage->missing, true, false, NULL));
+    }
+
+    /*
+     * We track two data items through this loop: the previous (last) item and the current item: if
+     * the last item is the same as the current item, we increment the RLE count for the last item;
+     * if the last item is different from the current item, we write the last item onto the page,
+     * and replace it with the current item. The r->recno counter tracks records written to the
+     * page, and is incremented by the helper function immediately after writing records to the
+     * page. The record number of our source record, that is, the current item, is maintained in
+     * src_recno.
+     */
+    st.src_recno = r->recno + st.rle;
+
+    WT_RET(__rec_col_var_page_loop(session, r, page, salvage, &st));
 
     /* Walk any append list. */
     for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
@@ -690,7 +718,7 @@ compare:
              * they are, though likely smaller, equivalent to gaps created by fast-truncate.
              */
             break;
-        WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
+        WT_RET(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         upd = upd_select.upd;
         n = WT_INSERT_RECNO(ins);
 
@@ -720,14 +748,14 @@ compare:
                 WT_TIME_WINDOW_INIT(&cur.tw);
             } else {
                 cbt->slot = UINT32_MAX;
-                WT_ERR(__rec_col_var_upd_apply(session, r, cbt, &upd_select, st.src_recno, &cur));
+                WT_RET(__rec_col_var_upd_apply(session, r, cbt, &upd_select, st.src_recno, &cur));
             }
 
             /*
              * Handle RLE accounting and comparisons -- see comment above, this code fragment does
              * the same thing.
              */
-            WT_ERR(__rec_col_var_rle_check(session, r, salvage, &st, &cur, &extended));
+            WT_RET(__rec_col_var_rle_check(session, r, salvage, &st, &cur, &extended));
             if (extended)
                 goto next;
 
@@ -743,7 +771,7 @@ compare:
                     st.last_value->data = cur.data;
                     st.last_value->size = cur.size;
                 } else
-                    WT_ERR(__wt_buf_set(session, st.last_value, cur.data, cur.size));
+                    WT_RET(__wt_buf_set(session, st.last_value, cur.data, cur.size));
             }
 
             /* Ready for the next loop, reset the RLE counter. */
@@ -774,7 +802,7 @@ next:
     if (st.rle != 0) {
         if (!st.last_deleted)
             st.wrote_real_values = true;
-        WT_ERR(__rec_col_var_helper(session, r, salvage, st.last_value, &st.last_tw, st.rle,
+        WT_RET(__rec_col_var_helper(session, r, salvage, st.last_value, &st.last_tw, st.rle,
           st.last_deleted, st.last_dictionary, NULL));
     }
 
@@ -802,9 +830,5 @@ next:
     }
 
     /* Write the remnant page. */
-    WT_ERR(__wti_rec_split_finish(session, r));
-
-err:
-    __wt_scr_free(session, &orig);
-    return (ret);
+    return (__wti_rec_split_finish(session, r));
 }
