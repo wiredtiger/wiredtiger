@@ -779,7 +779,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
 
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
-        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
         __wt_ref_key(page, ref, &p, &size);
@@ -791,9 +790,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (__wti_rec_need_split(r, key->len + val->len))
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
 
-        /* Copy the key and value onto the page. */
+        /*
+         * Copy the key and value onto the page. val->buf.data may point directly into ref's WT_ADDR
+         * block_cookie; hold the hazard pointer until after both copies.
+         */
         __wti_rec_image_copy(session, r, key);
         __wti_rec_image_copy(session, r, val);
+        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
         if (page_del != NULL)
             WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
