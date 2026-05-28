@@ -1944,8 +1944,7 @@ __wti_log_release(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot, bool *freep)
         if (freep != NULL)
             *freep = false;
         /*
-         * Guard: slot_state, payload: slot buffer. Release-store pairs with the acquire-load in
-         * __wti_log_wrlsn, ensuring the pwrite above is visible before the slot reaches WRITTEN.
+         * Guard: slot_state. Release-store pairs with the acquire-load in __wti_log_wrlsn.
          */
         __wt_atomic_store_int64_v_release(&slot->slot_state, WTI_LOG_SLOT_WRITTEN);
         /*

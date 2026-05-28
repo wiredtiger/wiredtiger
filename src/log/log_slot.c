@@ -269,8 +269,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
                 pool_i = 0;
             slot = &log->slot_pool[pool_i];
             /*
-             * Guard: slot_state, payload: slot buffer. Acquire-load pairs with the release-store in
-             * __wti_log_slot_free.
+             * Guard: slot_state. Acquire-load pairs with the release-store in __wti_log_slot_free.
              */
             if (__wt_atomic_load_int64_v_acquire(&slot->slot_state) == WTI_LOG_SLOT_FREE) {
                 /*
@@ -707,8 +706,7 @@ __wti_log_slot_free(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot)
     __wt_atomic_store_uint16_relaxed(&slot->flags_atomic, WTI_SLOT_INIT_FLAGS);
     __wt_atomic_store_int32_relaxed(&slot->slot_error, 0);
     /*
-     * Guard: slot_state, payload: slot buffer. Release-store pairs with the acquire-load in
-     * __log_slot_new, ensuring prior buffer writes are visible before the slot is reused.
+     * Guard: slot_state. Release-store pairs with the acquire-load in __log_slot_new.
      */
     __wt_atomic_store_int64_v_release(&slot->slot_state, WTI_LOG_SLOT_FREE);
 }
