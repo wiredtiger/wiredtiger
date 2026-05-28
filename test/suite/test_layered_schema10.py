@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered106.py
+# test_layered_schema10.py
 #   Test the publish API on followers and step-up behavior.
 #
 #   Schema operations (create, drop) queued on a follower are replayed during
@@ -39,17 +39,17 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
+class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
-    uri = 'layered:test_layered106'
-    uri2 = 'layered:test_layered106_2'  # second follower-created table for multi-epoch tests
+    uri = 'layered:test_layered_schema10'
+    uri2 = 'layered:test_layered_schema10_2'  # second follower-created table for multi-epoch tests
 
     table_config = 'key_format=i,value_format=S'
 
-    disagg_storages = gen_disagg_storages('test_layered106', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_schema10', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     #
@@ -397,7 +397,7 @@ class test_layered106(wttest.WiredTigerTestCase, suite_subprocess):
         self.setup_leader_with_epoch()
         subdir = 'SUBPROCESS_create_drop_split_epochs'
         [returncode, _] = self.run_subprocess_function(subdir,
-            'test_layered106.test_layered106.subprocess_create_drop_split_epochs',
+            'test_layered_schema10.test_layered_schema10.subprocess_create_drop_split_epochs',
             silent=True)
         self.assertNotEqual(returncode, 0)
 
