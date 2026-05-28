@@ -35,7 +35,7 @@ from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
 class PalitePage(NamedTuple):
-    """One row from palite's pages table. Schema in ext/page_log/palite/palite.cpp."""
+    """One row from the palite pages table. Schema in ext/page_log/palite/palite.cpp."""
     page_id: int
     lsn: int
     base_lsn: int
@@ -99,7 +99,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
 
     # Find the newest page chain entry matching where_clause. Shells out to
     # the sqlite3 binary built alongside palite; the system Python sqlite3
-    # may be too old to parse palite's schema.
+    # may be too old to parse the palite schema.
     def _find_page(self, where_clause, description):
         table_id = get_table_id(self.session, self.stable_uri)
         db = os.path.join(self.home, 'kv_home',
