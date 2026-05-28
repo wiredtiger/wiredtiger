@@ -10,7 +10,6 @@
 #include "reconcile_private.h"
 #include "reconcile_inline.h"
 
-
 /*
  * Per-iteration state built while processing each entry in the variable-length column-store
  * reconciliation loops.
@@ -332,6 +331,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOK
 
     return (0);
 }
+
 /*
  * __rec_col_var_upd_apply --
  *     Apply a selected update to produce the current-record state. The caller sets cbt->slot to the
@@ -637,6 +637,118 @@ err:
 }
 
 /*
+ * __rec_col_var_append_loop --
+ *     Walk the column-store append list, building per-record state and accumulating RLE runs in
+ *     *st.
+ */
+static int
+__rec_col_var_append_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
+  WT_SALVAGE_COOKIE *salvage, struct __wti_col_var_state *st)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_INSERT *ins;
+    WTI_UPDATE_SELECT upd_select;
+    struct __wti_col_var_cur cur;
+    WT_UPDATE *upd;
+    uint64_t n, skip;
+    bool extended;
+
+    cbt = &r->update_modify_cbt;
+
+    for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
+        if (ins == NULL)
+            /*
+             * Stop when we reach the end of the append list. There might be a gap between that and
+             * the beginning of the next page. (Imagine record 98 is written, then record 100 is
+             * written, then the page splits and record 100 moves to another page. There is no entry
+             * for record 99 and we don't write one out.) In VLCS we (now) tolerate such gaps as
+             * they are, though likely smaller, equivalent to gaps created by fast-truncate.
+             */
+            break;
+        WT_RET(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
+        upd = upd_select.upd;
+        n = WT_INSERT_RECNO(ins);
+
+        while (st->src_recno <= n) {
+            WT_CLEAR(cur);
+            cur.update_no_copy = true;
+            cur.repeat_count = 1;
+
+            if (st->src_recno < n) {
+                cur.deleted = true;
+                WT_TIME_WINDOW_INIT(&cur.tw);
+                if (st->last_deleted) {
+                    /* The time window for deleted keys must be empty. */
+                    WT_ASSERT(session, WT_TIME_WINDOW_IS_EMPTY(&st->last_tw));
+                    /*
+                     * The record adjustment is decremented by one so we can naturally fall into the
+                     * RLE accounting below, where we increment rle by one, then continue in the
+                     * outer loop, where we increment src_recno by one.
+                     */
+                    skip = (n - st->src_recno) - 1;
+                    st->rle += skip;
+                    st->src_recno += skip;
+                }
+            } else if (upd == NULL) {
+                /* The updates on the key are all uncommitted so we write a deleted key to disk. */
+                cur.deleted = true;
+                WT_TIME_WINDOW_INIT(&cur.tw);
+            } else {
+                cbt->slot = UINT32_MAX;
+                WT_RET(__rec_col_var_upd_apply(session, r, cbt, &upd_select, st->src_recno, &cur));
+            }
+
+            /*
+             * Handle RLE accounting and comparisons -- see comment above, this code fragment does
+             * the same thing.
+             */
+            WT_RET(__rec_col_var_rle_check(session, r, salvage, st, &cur, &extended));
+            if (extended)
+                goto next;
+
+            /*
+             * Swap the current/last state. We can't simply assign the data values into the last
+             * buffer because they may be a temporary copy built from a chain of modified updates
+             * and creating the next record will overwrite that memory. Check, we'd like to avoid
+             * the copy. If data was taken from an update structure, we can just use the pointers,
+             * they're not moving.
+             */
+            if (!cur.deleted) {
+                if (cur.update_no_copy) {
+                    st->last_value->data = cur.data;
+                    st->last_value->size = cur.size;
+                } else
+                    WT_RET(__wt_buf_set(session, st->last_value, cur.data, cur.size));
+            }
+
+            /* Ready for the next loop, reset the RLE counter. */
+            WT_TIME_WINDOW_COPY(&st->last_tw, &cur.tw);
+            st->last_deleted = cur.deleted;
+            st->last_dictionary = cur.dictionary;
+            st->rle = 1;
+
+            /*
+             * Move to the next record. It's not a simple increment because if it's the maximum
+             * record, incrementing it wraps to 0 and this turns into an infinite loop.
+             */
+next:
+            if (st->src_recno == UINT64_MAX)
+                break;
+            ++st->src_recno;
+        }
+
+        /*
+         * Execute this loop once without an insert item to catch any missing records due to a
+         * split, then quit.
+         */
+        if (ins == NULL)
+            break;
+    }
+
+    return (0);
+}
+
+/*
  * __wti_rec_col_var --
  *     Reconcile a variable-width column-store leaf page.
  */
@@ -646,22 +758,14 @@ __wti_rec_col_var(
 {
     struct __wti_col_var_state st;
     WT_BTREE *btree;
-    WT_CURSOR_BTREE *cbt;
-    WT_INSERT *ins;
     WT_PAGE *page;
     WT_TIME_WINDOW clear_tw;
-    WT_UPDATE *upd;
-    WTI_UPDATE_SELECT upd_select;
-    struct __wti_col_var_cur cur;
-    uint64_t n, skip;
-    bool extended;
 
     btree = S2BT(session);
     page = pageref->page;
     WT_TIME_WINDOW_INIT(&clear_tw);
 
     r->update_modify_cbt.iface.session = (WT_SESSION *)session;
-    cbt = &r->update_modify_cbt;
 
     /* Set the "last" values to cause failure if they're not set before use. */
     WT_CLEAR(st);
@@ -706,97 +810,7 @@ __wti_rec_col_var(
     st.src_recno = r->recno + st.rle;
 
     WT_RET(__rec_col_var_page_loop(session, r, page, salvage, &st));
-
-    /* Walk any append list. */
-    for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
-        if (ins == NULL)
-            /*
-             * Stop when we reach the end of the append list. There might be a gap between that and
-             * the beginning of the next page. (Imagine record 98 is written, then record 100 is
-             * written, then the page splits and record 100 moves to another page. There is no entry
-             * for record 99 and we don't write one out.) In VLCS we (now) tolerate such gaps as
-             * they are, though likely smaller, equivalent to gaps created by fast-truncate.
-             */
-            break;
-        WT_RET(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
-        upd = upd_select.upd;
-        n = WT_INSERT_RECNO(ins);
-
-        while (st.src_recno <= n) {
-            WT_CLEAR(cur);
-            cur.update_no_copy = true;
-            cur.repeat_count = 1;
-
-            if (st.src_recno < n) {
-                cur.deleted = true;
-                WT_TIME_WINDOW_INIT(&cur.tw);
-                if (st.last_deleted) {
-                    /* The time window for deleted keys must be empty. */
-                    WT_ASSERT(session, WT_TIME_WINDOW_IS_EMPTY(&st.last_tw));
-                    /*
-                     * The record adjustment is decremented by one so we can naturally fall into the
-                     * RLE accounting below, where we increment rle by one, then continue in the
-                     * outer loop, where we increment src_recno by one.
-                     */
-                    skip = (n - st.src_recno) - 1;
-                    st.rle += skip;
-                    st.src_recno += skip;
-                }
-            } else if (upd == NULL) {
-                /* The updates on the key are all uncommitted so we write a deleted key to disk. */
-                cur.deleted = true;
-                WT_TIME_WINDOW_INIT(&cur.tw);
-            } else {
-                cbt->slot = UINT32_MAX;
-                WT_RET(__rec_col_var_upd_apply(session, r, cbt, &upd_select, st.src_recno, &cur));
-            }
-
-            /*
-             * Handle RLE accounting and comparisons -- see comment above, this code fragment does
-             * the same thing.
-             */
-            WT_RET(__rec_col_var_rle_check(session, r, salvage, &st, &cur, &extended));
-            if (extended)
-                goto next;
-
-            /*
-             * Swap the current/last state. We can't simply assign the data values into the last
-             * buffer because they may be a temporary copy built from a chain of modified updates
-             * and creating the next record will overwrite that memory. Check, we'd like to avoid
-             * the copy. If data was taken from an update structure, we can just use the pointers,
-             * they're not moving.
-             */
-            if (!cur.deleted) {
-                if (cur.update_no_copy) {
-                    st.last_value->data = cur.data;
-                    st.last_value->size = cur.size;
-                } else
-                    WT_RET(__wt_buf_set(session, st.last_value, cur.data, cur.size));
-            }
-
-            /* Ready for the next loop, reset the RLE counter. */
-            WT_TIME_WINDOW_COPY(&st.last_tw, &cur.tw);
-            st.last_deleted = cur.deleted;
-            st.last_dictionary = cur.dictionary;
-            st.rle = 1;
-
-            /*
-             * Move to the next record. It's not a simple increment because if it's the maximum
-             * record, incrementing it wraps to 0 and this turns into an infinite loop.
-             */
-next:
-            if (st.src_recno == UINT64_MAX)
-                break;
-            ++st.src_recno;
-        }
-
-        /*
-         * Execute this loop once without an insert item to catch any missing records due to a
-         * split, then quit.
-         */
-        if (ins == NULL)
-            break;
-    }
+    WT_RET(__rec_col_var_append_loop(session, r, page, salvage, &st));
 
     /* If we were tracking a record, write it. */
     if (st.rle != 0) {
