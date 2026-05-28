@@ -269,8 +269,7 @@ TEST_CASE_METHOD(
 
 /*
  * Boundary case for the compatibility check: a page whose compatible_version equals this reader's
- * version. The reader satisfies the page's demand exactly and must accept. This is the case the
- * old check (against COMPATIBLE_VERSION instead of VERSION) wrongly rejected.
+ * version. The reader satisfies the page's demand exactly and must accept.
  */
 TEST_CASE_METHOD(kp_header_fixture,
   "Key provider header: reader accepts compat_version equal to reader version",
