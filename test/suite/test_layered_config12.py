@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered88.py
+# test_layered_config12.py
 # Test that unsupported cursor and table operations return clear errors for layered tables:
 # - Reverse collator (FIXME-WT-14738)
 
@@ -35,12 +35,12 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered88(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_layered88', disagg_only=True)
+class test_layered_config12(wttest.WiredTigerTestCase):
+    disagg_storages = gen_disagg_storages('test_layered_config12', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'disaggregated=(role="leader")'
-    uri = 'layered:test_layered88'
+    uri = 'layered:test_layered_config12'
 
     # Override conn_extensions to load the reverse collator alongside the disagg page log.
     def conn_extensions(self, extlist):

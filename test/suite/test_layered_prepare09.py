@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare45.py
+# test_layered_prepare09.py
 #   Tests that prepared transactions captured unresolved in a leader checkpoint are correctly
 #   resolved (committed or rolled back) on follower step-up. Covers seven operation types:
 #   - test_prepare_insert: prepared inserts on new keys
@@ -49,15 +49,15 @@ from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("tiered", "Disaggregated layered tests are not supported with tiered storage")
 @disagg_test_class
-class test_prepare45(wttest.WiredTigerTestCase):
-    tablename = 'test_prepare45'
+class test_layered_prepare09(wttest.WiredTigerTestCase):
+    tablename = 'test_layered_prepare09'
     uri = 'layered:' + tablename
 
     resolve_scenarios = [
         ('commit', dict(commit=True)),
         ('rollback', dict(commit=False)),
     ]
-    disagg_storages = gen_disagg_storages('test_prepare45', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_prepare09', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolve_scenarios)
 
     conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -25,20 +25,38 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import wttest
+
+import os, os.path, shutil, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
 
-# test_layered29.py
-# Test we can create a large number of layered tables
+# test_layered_config01.py
+#    Test layered table metadata has logging disabled.
 @disagg_test_class
-class test_layered29(wttest.WiredTigerTestCase):
-    conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
+class test_layered_config01(wttest.WiredTigerTestCase):
+    conn_config = 'log=(enabled=true),disaggregated=(role="leader"),'
 
-    scenarios = gen_disagg_storages('test_layered29', disagg_only = True)
+    create_session_config = 'key_format=S,value_format=S'
 
-    @wttest.longtest('lots of tables')
-    def test_create_tables(self):
-        for i in range(0, 10000):
-            self.assertEqual(self.session.create("layered:test_table" + str(i), "key_format=S,value_format=S"), 0)
+    layered_uris = ["table:test_layered_config01a", "layered:test_layered_config01b"]
+
+    disagg_storages = gen_disagg_storages('test_layered_config01', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
+
+    # Ensure that the metadata cursor has all the expected URIs.
+    def check_metadata_cursor(self):
+        cursor = self.session.open_cursor('metadata:create', None, None)
+        for key in self.layered_uris:
+            cursor.set_key(key)
+            self.assertEqual(cursor.search(), 0)
+            self.assertTrue("log=(enabled=false)" in cursor.get_value())
+
+    def test_layered_config01(self):
+        # Create tables
+        for uri in self.layered_uris:
+            cfg = self.create_session_config
+            if not uri.startswith('layered'):
+                cfg += ',block_manager=disagg,type=layered'
+            self.session.create(uri, cfg)
+
+        self.check_metadata_cursor()
