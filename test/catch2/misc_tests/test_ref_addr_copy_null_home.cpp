@@ -7,29 +7,36 @@
  */
 
 /*
- * Verify that the addr-copy helper returns false safely when the page home pointer is transiently
- * NULL during a deepening parent split, and that the root-ref check uses a proper acquire load
- * rather than a TSAN-suppressed relaxed one.
+ * Verify that the addr-copy helper returns false safely when the page home pointer is NULL, and
+ * that the root-ref check uses a proper acquire load rather than a TSAN-suppressed relaxed one.
  *
  * Race reproduced:
- *   During a deepening parent split a new WT_REF is zero-initialized (home=NULL) and its addr
- *   field is swapped off-page before home is written to point at the new parent. An eviction
- *   thread using a relaxed atomic load observed NULL for the page home pointer and passed it to the
- *   off-page check helper, which dereferences the disk image pointer unconditionally, causing a SIGSEGV.
+ *   During a deepening parent split, addr is swapped off-page via a sequentially consistent CAS
+ *   before home is updated to the new child page via a plain store. On weakly-ordered hardware a
+ *   concurrent eviction thread can observe the new child page as home while addr still appears as
+ *   the old on-page cell (memory ordering). The dangerous combination is a new child page whose
+ *   disk image pointer is NULL: the off-page check would return true for what is actually an
+ *   on-page cell, causing a garbage read of the cell as an off-page address struct.
  *
- *   The root-ref check also relaxed-loaded the page home pointer: on a leaf with a transiently-NULL home it
- *   returned true, causing reconciliation to invoke the root-write path on a leaf page and fire
- *   an ASSERT_ALWAYS.
+ *   Additionally, under TSAN a data race on home allows the read to return any value including
+ *   zero. The NULL guard in the addr-copy helper handles this case: if home is NULL, return false
+ *   rather than pass NULL to the off-page check (which dereferences the disk image pointer
+ *   unconditionally).
+ *
+ *   The root-ref check also used a TSAN-suppressed relaxed load of home: on a leaf whose home
+ *   appeared NULL under TSAN it returned true, causing reconciliation to invoke the root-write
+ *   path on a leaf page and fire an ASSERT_ALWAYS.
  *
  * Fix:
  *   1. Addr-copy helper: upgrade home load to acquire, add NULL guard before off-page check.
  *   2. Root-ref check: replace TSAN-suppressed relaxed load with acquire load.
  *   3. Split code: upgrade the home write to a release store to properly pair with the acquire
- *      loads.
+ *      loads, eliminating the "new home with stale on-page addr" race on weakly-ordered hardware.
  *
  * How this test demonstrates the problem:
- *   The first test case constructs the exact race-window WT_REF state (home=NULL, addr non-NULL).
- *   On unfixed code this segfaults inside the off-page check. On fixed code it returns false.
+ *   The first test case constructs a WT_REF with home=NULL and a non-NULL addr. This exercises
+ *   the NULL guard directly: on unfixed code the off-page check crashes with a NULL dereference;
+ *   on fixed code it returns false safely.
  *
  *   The second test case verifies that the root-ref check returns the correct value for a ref
  *   with NULL home (root) and non-NULL home (non-root).

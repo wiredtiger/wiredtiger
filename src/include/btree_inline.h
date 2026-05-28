@@ -1844,9 +1844,10 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * The dangerous combination is reading a new home with an old addr, as the on-page cell would
      * be misinterpreted as an off-page address.
      *
-     * home can be transiently NULL on a leaf during a deepening parent split: a new ref is
-     * zero-initialized with home=NULL and addr is swapped off-page before home is written. Treat
-     * that window as "no address" so callers do not pass NULL to the off-page check.
+     * Defensively guard against a NULL home before calling the off-page check: under TSAN a data
+     * race on home allows the read to return any value including zero, and newly-allocated refs
+     * that are not yet visible to concurrent threads also pass through a window with home=NULL.
+     * Treat NULL home as "no address" and return false rather than crash.
      */
     page = (WT_PAGE *)__wt_atomic_load_ptr_acquire(&ref->home);
 
