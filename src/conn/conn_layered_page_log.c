@@ -211,7 +211,7 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
           header->crypt_size, (uint32_t)(key_item->size - header->header_size));
 
     /* Check for compatibility versions before validating header fields. */
-    if (header->compatible_version > WT_CRYPT_HEADER_COMPATIBLE_VERSION)
+    if (header->compatible_version > WT_CRYPT_HEADER_VERSION)
         WT_ERR_MSG(session, ENOTSUP,
           "Unsupported encryption key data version %" PRIu8 ", min %" PRIu8, header->version,
           header->compatible_version);
