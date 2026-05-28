@@ -71,11 +71,8 @@ struct kp_header_fixture {
     void
     kp_copy_crypt_key_buffer(WT_CRYPT_HEADER *write_crypt_header)
     {
-        WT_CRYPT_HEADER *crypt_header;
-        __ut_disagg_get_crypt_header(&crypt.keys, &crypt_header);
-
         /* Prepare the header for validation. */
-        memcpy(write_crypt_header, crypt_header, sizeof(WT_CRYPT_HEADER));
+        memcpy(write_crypt_header, crypt.keys.data, sizeof(WT_CRYPT_HEADER));
         __wt_crypt_header_byteswap(write_crypt_header);
         write_crypt_header->checksum = 0;
     }
@@ -102,8 +99,7 @@ TEST_CASE_METHOD(kp_header_fixture, "Key provider set header function", "[key_pr
         __ut_disagg_set_crypt_header(session->get_wt_session_impl(), &crypt);
 
         /* Validate crypt header information. */
-        WT_CRYPT_HEADER *write_crypt_header;
-        __ut_disagg_get_crypt_header(&crypt.keys, &write_crypt_header);
+        WT_CRYPT_HEADER *write_crypt_header = (WT_CRYPT_HEADER *)crypt.keys.data;
         REQUIRE(write_crypt_header->signature == WT_CRYPT_HEADER_SIGNATURE);
         REQUIRE(write_crypt_header->version == WT_CRYPT_HEADER_VERSION);
         REQUIRE(write_crypt_header->compatible_version == WT_CRYPT_HEADER_COMPATIBLE_VERSION);
