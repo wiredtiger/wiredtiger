@@ -99,8 +99,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
 
     # Find the newest page chain entry matching where_clause. Shells out to
     # the sqlite3 binary built alongside palite; the system Python sqlite3
-    # may be too old to parse palite's schema (generated columns require
-    # SQLite >= 3.31, but RHEL 8 ships 3.26).
+    # may be too old to parse palite's schema.
     def _find_page(self, where_clause, description):
         table_id = get_table_id(self.session, self.stable_uri)
         db = os.path.join(self.home, 'kv_home',
