@@ -14,10 +14,10 @@
  * Race reproduced:
  *   During a deepening parent split a new WT_REF is zero-initialized (home=NULL) and its addr
  *   field is swapped off-page before home is written to point at the new parent. An eviction
- *   thread reading ref->home with a relaxed atomic load observed NULL and passed it to the
- *   off-page check helper, which dereferences page->dsk unconditionally, causing a SIGSEGV.
+ *   thread using a relaxed atomic load observed NULL for the page home pointer and passed it to the
+ *   off-page check helper, which dereferences the disk image pointer unconditionally, causing a SIGSEGV.
  *
- *   The root-ref check also relaxed-loaded ref->home: on a leaf with a transiently-NULL home it
+ *   The root-ref check also relaxed-loaded the page home pointer: on a leaf with a transiently-NULL home it
  *   returned true, causing reconciliation to invoke the root-write path on a leaf page and fire
  *   an ASSERT_ALWAYS.
  *

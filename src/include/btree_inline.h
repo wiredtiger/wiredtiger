@@ -1839,7 +1839,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
      * WT_ADDRs and swapped into place before ref->home is updated to the new child page. Read
      * ref->home before ref->addr with an acquire barrier in between, pairing with the sequentially
-     * consistent CAS on ref->addr and the release store of ref->home during split. This ensures
+     * consistent CAS on ref->addr and the release store of home during split. This ensures
      * that if we observe a new child page as home, we also observe the corresponding off-page addr.
      * The dangerous combination is reading a new home with an old addr, as the on-page cell would
      * be misinterpreted as an off-page address.
