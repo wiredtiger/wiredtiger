@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered94.py
+# test_layered_stepup04.py
 #   Verifies that a prepared transaction active on a follower at step-up time can be
 #   committed or rolled back after step-up completes.
 #
@@ -47,8 +47,8 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered94(wttest.WiredTigerTestCase):
-    tablename = 'test_layered94'
+class test_layered_stepup04(wttest.WiredTigerTestCase):
+    tablename = 'test_layered_stepup04'
     uri = 'layered:' + tablename
 
     resolve_scenarios = [
@@ -63,7 +63,7 @@ class test_layered94(wttest.WiredTigerTestCase):
         ('single_table', dict(multi_table=False)),
         ('multi_table',  dict(multi_table=True)),
     ]
-    disagg_storages = gen_disagg_storages('test_layered94', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_stepup04', disagg_only=True)
     scenarios = make_scenarios(
         disagg_storages, resolve_scenarios, checkpoint_scenarios, multi_table_scenarios)
 

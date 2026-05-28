@@ -32,18 +32,18 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered22.py
+# test_layered_follower01.py
 # Test a secondary can perform reads and writes to the ingest component
 # of a layered table, without the stable component.
 @disagg_test_class
-class test_layered22(wttest.WiredTigerTestCase):
+class test_layered_follower01(wttest.WiredTigerTestCase):
     conn_base_config = 'transaction_sync=(enabled,method=fsync),'
 
-    disagg_storages = gen_disagg_storages('test_layered22', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_follower01', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     nitems = 10000
-    uri = 'layered:test_layered22'
+    uri = 'layered:test_layered_follower01'
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="follower"),'

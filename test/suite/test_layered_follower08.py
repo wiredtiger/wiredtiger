@@ -30,10 +30,10 @@ import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered33.py
+# test_layered_follower08.py
 #    Test delete on the ingest table.
 @disagg_test_class
-class test_layered33(wttest.WiredTigerTestCase):
+class test_layered_follower08(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
@@ -43,7 +43,7 @@ class test_layered33(wttest.WiredTigerTestCase):
         ('integer', dict(value_format='I')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered33', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_follower08', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, format_values)
 
     def value(self, v):
@@ -52,7 +52,7 @@ class test_layered33(wttest.WiredTigerTestCase):
         return v
 
     def test_delete(self):
-        uri = "layered:test_layered33"
+        uri = "layered:test_layered_follower08"
         self.session.create(uri, f'key_format=S,value_format={self.value_format}')
 
         cursor = self.session.open_cursor(uri, None, None)

@@ -29,10 +29,10 @@
 import os, sys, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 
-# test_layered07.py
+# test_layered_stepup01.py
 #    Start a second WT that becomes leader and checks that content appears in the first.
 @disagg_test_class
-class test_layered07(wttest.WiredTigerTestCase):
+class test_layered_stepup01(wttest.WiredTigerTestCase):
     nitems = 500
 
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
@@ -41,10 +41,10 @@ class test_layered07(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    uri = "layered:test_layered07"
+    uri = "layered:test_layered_stepup01"
 
     # Test inserting records into a follower that turned into a leader
-    def test_layered07(self):
+    def test_layered_stepup01(self):
         if sys.platform.startswith('darwin'):
             return
 

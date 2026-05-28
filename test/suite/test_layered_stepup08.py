@@ -30,10 +30,10 @@ import platform, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
-# test_layered27.py
+# test_layered_stepup08.py
 # Test draining the ingest table
 @disagg_test_class
-class test_layered27(wttest.WiredTigerTestCase):
+class test_layered_stepup08(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                  + ''
 
@@ -42,11 +42,11 @@ class test_layered27(wttest.WiredTigerTestCase):
         ('large', dict(multiplier=100)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered27', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_stepup08', disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages, sizes)
 
-    uri = 'layered:test_layered27'
+    uri = 'layered:test_layered_stepup08'
 
     @property
     def base_config(self):

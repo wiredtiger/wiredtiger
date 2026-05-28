@@ -30,21 +30,21 @@ import threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered72.py
+# test_layered_follower06.py
 #    Test reading the pinned history store on standby.
 @disagg_test_class
-class test_layered72(wttest.WiredTigerTestCase):
+class test_layered_follower06(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),' \
                      + 'precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
 
-    uri = "layered:test_layered72"
-    disagg_storages = gen_disagg_storages('test_layered72', disagg_only = True)
+    uri = "layered:test_layered_follower06"
+    disagg_storages = gen_disagg_storages('test_layered_follower06', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    def test_layered72(self):
+    def test_layered_follower06(self):
         # Create the follower
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')

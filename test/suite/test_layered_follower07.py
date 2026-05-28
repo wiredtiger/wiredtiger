@@ -32,17 +32,17 @@ from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_cc11.py
+# test_layered_follower07.py
 # Test that checkpoint cleanup is not run on follower.
 @disagg_test_class
-class test_cc11(DisaggConfigMixin, test_cc_base):
-    disagg_storages = gen_disagg_storages('test_cc11', disagg_only = True)
+class test_layered_follower07(DisaggConfigMixin, test_cc_base):
+    disagg_storages = gen_disagg_storages('test_layered_follower07', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'cache_size=10MB,page_delta=(delta_pct=100),disaggregated=(role="follower"),checkpoint_cleanup=[wait=1,file_wait_ms=0],'
 
     @wttest.skip_for_hook("tiered", "Cannot run tiered storage in disagg mode")
-    def test_cc11(self):
+    def test_layered_follower07(self):
         # Create a table.
         create_params = 'key_format=i,value_format=S'
         nrows = 10

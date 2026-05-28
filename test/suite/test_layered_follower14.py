@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered80.py
+# test_layered_follower14.py
 # Test that the sweep server does not close ingest table dhandles and layered dhandles on a follower
 # or during step-up. Closing the ingest dhandle discards all in-memory data for
 # that table (WT-16974, WT-16703).
@@ -41,7 +41,7 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered80(wttest.WiredTigerTestCase):
+class test_layered_follower14(wttest.WiredTigerTestCase):
     # Use aggressive sweep settings so the server has every opportunity to
     # incorrectly close the ingest dhandle while we are running as follower.
     conn_config = 'statistics=(all),' \
@@ -49,10 +49,10 @@ class test_layered80(wttest.WiredTigerTestCase):
                   'verbose=(sweep:3),' \
                   'disaggregated=(role="follower")'
 
-    uri = 'layered:test_layered80'
+    uri = 'layered:test_layered_follower14'
     nrows = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered80', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_follower14', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def wait_for_sweep(self):
@@ -88,7 +88,7 @@ class test_layered80(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
 
         # Pin the ingest table dhandle, so it doesn't get swept away on purpose.
-        cursor = self.session.open_cursor("file:test_layered80.wt_ingest")
+        cursor = self.session.open_cursor("file:test_layered_follower14.wt_ingest")
 
         # Wait for the sweep server to run several cycles. If it is not configured
         # to skip layered dhandles, it would mark and close them, causing gaps when
