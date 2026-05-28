@@ -58,15 +58,15 @@ TEST_CASE("ref_addr_copy returns false when home is NULL", "[btree][split][wt-17
     WT_SESSION_IMPL *session = conn.create_session();
 
     /*
-     * __wt_ref_addr_copy requires the caller to hold the split generation so the page-index memory
-     * it might access cannot be freed concurrently.
+     * The addr-copy helper requires the caller to hold the split generation so the page-index
+     * memory it might access cannot be freed concurrently.
      */
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
     /*
      * Build the synthetic WT_REF that mirrors the split window:
      *   - home = NULL   (not yet written by the split code)
-     *   - addr = &addr_obj (already swapped to an off-page WT_ADDR)
+     *   - addr is non-NULL (already swapped to an off-page WT_ADDR)
      *
      * We use a stack-allocated WT_ADDR so the pointer is non-NULL and its block_cookie_size is 0,
      * meaning the copy path would call memcpy(..., 0) which is safe. We never reach the copy path
@@ -86,8 +86,8 @@ TEST_CASE("ref_addr_copy returns false when home is NULL", "[btree][split][wt-17
     memset(&copy, 0, sizeof(copy));
 
     /*
-     * Before the fix this segfaults in __wt_off_page(NULL, &addr_obj). After the fix the NULL guard
-     * returns false before reaching __wt_off_page.
+     * Before the fix this segfaults in the off-page check with a NULL page. After the fix the NULL
+     * guard returns false before reaching the off-page check.
      */
     REQUIRE(__wt_ref_addr_copy(session, &ref, &copy) == false);
 
