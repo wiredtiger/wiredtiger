@@ -50,8 +50,7 @@ __wt_crypt_header_byteswap(WT_CRYPT_HEADER *hdr)
 #ifdef WORDS_BIGENDIAN
     hdr->signature = __wt_bswap32(hdr->signature);
     hdr->crypt_size = __wt_bswap32(hdr->crypt_size);
-    if (hdr->header_size >= sizeof(WT_CRYPT_HEADER))
-        hdr->timestamp = __wt_bswap64(hdr->timestamp);
+    hdr->timestamp = __wt_bswap64(hdr->timestamp);
 #else
     WT_UNUSED(hdr);
 #endif

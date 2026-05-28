@@ -2668,7 +2668,7 @@ extern int __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session
   const char *meta_str, uint32_t *out_version, uint32_t *out_compatible_version)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item,
-  WT_CRYPT_HEADER **header) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_CRYPT_HEADER *header) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char *ingest_uri,
   WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids,

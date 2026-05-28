@@ -171,56 +171,63 @@ __disagg_get_crypt_key(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
  *     Validate the crypt header and payload stored in key_item.
  */
 static int
-__disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HEADER **hdrp)
+__disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HEADER *out)
 {
-    WT_CRYPT_HEADER *header;
+    WT_CRYPT_HEADER local;
     WT_DECL_RET;
-    uint32_t checksum = 0, expected_checksum = 0;
+    uint32_t checksum, expected_checksum;
+    uint8_t hdr_size;
+
+    WT_CLEAR(local);
 
     if (key_item->size < WT_CRYPT_HEADER_MIN_SIZE)
         WT_ERR_MSG(session, EIO,
           "Encryption key data too small: expected at least %d, got %" WT_SIZET_FMT,
           WT_CRYPT_HEADER_MIN_SIZE, key_item->size);
-    __disagg_get_crypt_header(key_item, &header);
 
-    expected_checksum = header->checksum;
+    /* Pull the checksum field out of the buffer, then zero it in place and recompute. */
+    memcpy(&expected_checksum, (uint8_t *)key_item->data + offsetof(WT_CRYPT_HEADER, checksum),
+      sizeof(expected_checksum));
 #ifdef WORDS_BIGENDIAN
     expected_checksum = __wt_bswap32(expected_checksum);
 #endif
-    header->checksum = 0;
+    memset((uint8_t *)key_item->data + offsetof(WT_CRYPT_HEADER, checksum), 0, sizeof(uint32_t));
     checksum = __wt_checksum((uint8_t *)key_item->data, key_item->size);
     if (checksum != expected_checksum)
         WT_ERR_MSG(session, EIO,
           "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
           expected_checksum, checksum);
 
-    if (header->header_size > key_item->size)
-        WT_ERR_MSG(session, EIO,
-          "Encryption key header_size %" PRIu8 " exceeds buffer size %" WT_SIZET_FMT,
-          header->header_size, key_item->size);
+    /* header_size is a single byte; read it directly from the buffer. */
+    hdr_size = ((uint8_t *)key_item->data)[offsetof(WT_CRYPT_HEADER, header_size)];
 
-    __wt_crypt_header_byteswap(header);
-
-    if (header->header_size < WT_CRYPT_HEADER_MIN_SIZE)
+    if (hdr_size < WT_CRYPT_HEADER_MIN_SIZE)
         WT_ERR_MSG(session, EIO,
           "Encryption key header is too small: expected at least %d, got %" PRIu8,
-          WT_CRYPT_HEADER_MIN_SIZE, header->header_size);
+          WT_CRYPT_HEADER_MIN_SIZE, hdr_size);
+    if (hdr_size > key_item->size)
+        WT_ERR_MSG(session, EIO,
+          "Encryption key header_size %" PRIu8 " exceeds buffer size %" WT_SIZET_FMT, hdr_size,
+          key_item->size);
 
-    if (key_item->size - header->header_size != header->crypt_size)
+    /* Copy a bounded number of bytes into our zero-initialized local. */
+    memcpy(&local, key_item->data, WT_MIN(sizeof(local), (size_t)hdr_size));
+    __wt_crypt_header_byteswap(&local);
+
+    if (key_item->size - local.header_size != local.crypt_size)
         WT_ERR_MSG(session, EIO, "Encryption key data size mismatch: expected %u, got %u",
-          header->crypt_size, (uint32_t)(key_item->size - header->header_size));
+          local.crypt_size, (uint32_t)(key_item->size - local.header_size));
 
-    /* Check for compatibility versions before validating header fields. */
-    if (header->compatible_version > WT_CRYPT_HEADER_VERSION)
+    if (local.compatible_version > WT_CRYPT_HEADER_VERSION)
         WT_ERR_MSG(session, ENOTSUP,
-          "Unsupported encryption key data version %" PRIu8 ", min %" PRIu8, header->version,
-          header->compatible_version);
+          "Unsupported encryption key data version %" PRIu8 ", min %" PRIu8, local.version,
+          local.compatible_version);
 
-    WT_ASSERT_ALWAYS(session, header->signature == WT_CRYPT_HEADER_SIGNATURE,
+    WT_ASSERT_ALWAYS(session, local.signature == WT_CRYPT_HEADER_SIGNATURE,
       "Invalid encryption key data signature: expected 0x%08" PRIx32 ", got 0x%08" PRIx32,
-      WT_CRYPT_HEADER_SIGNATURE, header->signature);
+      WT_CRYPT_HEADER_SIGNATURE, local.signature);
 
-    *hdrp = header;
+    *out = local;
 err:
     return (ret);
 }
@@ -233,7 +240,7 @@ int
 __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metadata)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CRYPT_HEADER *crypt_header;
+    WT_CRYPT_HEADER crypt_header;
     WT_CRYPT_KEYS crypt;
     WT_DECL_RET;
     WT_ITEM key_item;
@@ -271,8 +278,8 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
     WT_ERR(__disagg_validate_crypt(session, &key_item, &crypt_header));
 
     /* Prepare the crypt keys for loading. */
-    crypt.keys.data = (uint8_t *)key_item.data + crypt_header->header_size;
-    crypt.keys.size = crypt_header->crypt_size;
+    crypt.keys.data = (uint8_t *)key_item.data + crypt_header.header_size;
+    crypt.keys.size = crypt_header.crypt_size;
     crypt.r.lsn = lsn;
 
     /* Callback to load the encryption key data into the key provider. */
@@ -976,7 +983,7 @@ __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
 }
 
 int
-__ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HEADER **header)
+__ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HEADER *header)
 {
     return (__disagg_validate_crypt(session, key_item, header));
 }
