@@ -10,7 +10,6 @@
 
 /* Function prototypes for disaggregated storage and layered tables. */
 static void __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt);
-static void __disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header);
 
 /*
  * __disagg_get_page --
@@ -288,16 +287,6 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
 err:
     __wt_buf_free(session, &key_item);
     return (ret);
-}
-
-/*
- * __disagg_get_crypt_header --
- *     Copy and byte-swap the crypt header from the key item. Note: This function is not idempotent.
- */
-static void
-__disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header)
-{
-    *header = (WT_CRYPT_HEADER *)key_item->data;
 }
 
 /*
@@ -991,7 +980,7 @@ __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT
 void
 __ut_disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header)
 {
-    __disagg_get_crypt_header(key_item, header);
+    *header = (WT_CRYPT_HEADER *)key_item->data;
 }
 
 int
