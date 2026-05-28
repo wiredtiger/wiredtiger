@@ -587,7 +587,7 @@ __rec_selected_key_changed(WT_SESSION_IMPL *session, WT_SAVE_UPD *supd)
         return (false);
 
     if (supd->onpage_upd == NULL) {
-        if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE))
+        if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
             return (false);
     } else {
         WT_ASSERT(session, supd->onpage_upd->type != WT_UPDATE_TOMBSTONE);
