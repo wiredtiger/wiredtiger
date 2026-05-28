@@ -69,7 +69,7 @@ TEST_CASE("ref_addr_copy returns false when home is NULL", "[btree][split][wt-17
      *   - addr is non-NULL (already swapped to an off-page WT_ADDR)
      *
      * We use a stack-allocated WT_ADDR so the pointer is non-NULL and its block_cookie_size is 0,
-     * meaning the copy path would call memcpy(..., 0) which is safe. We never reach the copy path
+     * meaning the copy path would be a zero-length copy which is safe. We never reach the copy path
      * on the fixed code anyway.
      */
     WT_ADDR addr_obj;
@@ -78,7 +78,7 @@ TEST_CASE("ref_addr_copy returns false when home is NULL", "[btree][split][wt-17
 
     WT_REF ref;
     memset(&ref, 0, sizeof(ref));
-    /* Leave ref.home = NULL to reproduce the split window. */
+    /* Leave home NULL to reproduce the split window. */
     ref.addr = &addr_obj; /* addr is non-NULL: the atomic swap has already run */
     F_SET(&ref, WT_REF_FLAG_LEAF);
 
@@ -115,7 +115,7 @@ TEST_CASE("ref_is_root returns correct value with acquire load", "[btree][split]
 
     SECTION("NULL home is the root ref")
     {
-        /* ref.home = NULL: this is how the root ref is permanently identified. */
+        /* home is NULL: this is how the root ref is permanently identified. */
         REQUIRE(__wt_ref_is_root(&ref) == true);
     }
 
