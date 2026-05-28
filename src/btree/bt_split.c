@@ -374,7 +374,7 @@ __split_ref_prepare(
             /*
              * Use a release store so that readers using an acquire load of home observe a
              * consistent view: once home is non-NULL, the off-page addr written by the earlier
-             * sequentially consistent CAS in __split_ref_move is already visible. Pairs with the
+             * sequentially consistent CAS during ref-move is already visible. Pairs with the
              * acquire load of home in the addr-copy and root-ref-check helpers.
              */
             __wt_atomic_store_ptr_release(&child_ref->home, child);

@@ -1846,7 +1846,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      *
      * home can be transiently NULL on a leaf during a deepening parent split: a new ref is
      * zero-initialized with home=NULL and addr is swapped off-page before home is written. Treat
-     * that window as "no address" so callers do not pass NULL to __wt_off_page.
+     * that window as "no address" so callers do not pass NULL to the off-page check.
      */
     page = (WT_PAGE *)__wt_atomic_load_ptr_acquire(&ref->home);
 
