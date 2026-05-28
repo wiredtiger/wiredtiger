@@ -26,11 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, sqlite3
+import json, os, re, subprocess
 from typing import NamedTuple
 import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, get_shard_id
 from metadata_helper import get_table_id
+from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
 class PalitePage(NamedTuple):
@@ -96,36 +97,34 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         c.close()
         self.session.checkpoint()
 
-    def _find_page(self, where_clause, params, description):
-        # Find the newest page chain entry matching where_clause.
+    # Find the newest page chain entry matching where_clause. Shells out to
+    # the sqlite3 binary built alongside palite; the system Python sqlite3
+    # may be too old to parse palite's schema (generated columns require
+    # SQLite >= 3.31, but RHEL 8 ships 3.26).
+    def _find_page(self, where_clause, description):
         table_id = get_table_id(self.session, self.stable_uri)
         db = os.path.join(self.home, 'kv_home',
                           f'pages_{get_shard_id(table_id):02d}.db')
-        query = (
-            "SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
-            "FROM pages WHERE table_id=? AND " + where_clause +
-            " ORDER BY lsn DESC LIMIT 1"
-        )
-        # Close the WT connection so palite releases its SQLite locks before
-        # we open the database directly in read-only mode.
-        self.close_conn()
-        try:
-            with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
-                row = conn.execute(query, (table_id, *params)).fetchone()
-        finally:
-            self.reopen_conn()
-        self.assertIsNotNone(row,
+        sql = (f"SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
+               f"FROM pages WHERE table_id={table_id} AND {where_clause} "
+               f"ORDER BY lsn DESC LIMIT 1;")
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+        out = subprocess.run([sqlite_exe, '-json', db, sql],
+                             capture_output=True, text=True, check=True).stdout
+        rows = json.loads(out) if out.strip() else []
+        self.assertTrue(rows,
             f"no {description} rows for table_id={table_id} in palite")
-        return PalitePage(*row)
+        r = rows[0]
+        return PalitePage(r['page_id'], r['lsn'], r['base_lsn'],
+                          r['backlink_lsn'], r['flags'])
 
     def _find_base_image_page(self):
-        return self._find_page("base_lsn=0 AND backlink_lsn=0", (),
-                               "base-image")
+        return self._find_page("base_lsn=0 AND backlink_lsn=0", "base-image")
 
     def _find_delta_page(self):
         return self._find_page(
-            "backlink_lsn != 0 AND (flags & ?) = 0",
-            (self.PAGE_LOG_DISCARDED,), "delta")
+            f"backlink_lsn != 0 AND (flags & {self.PAGE_LOG_DISCARDED}) = 0",
+            "delta")
 
     def _assert_chain_header(self, stdout, page):
         self.assertIn(
