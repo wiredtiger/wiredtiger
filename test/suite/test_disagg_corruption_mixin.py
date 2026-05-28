@@ -113,5 +113,28 @@ class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMi
             f'SELECT COUNT(*) AS n FROM pages WHERE table_id={int(table_id)};')
         self.assertGreater(rows[0]['n'], 0)
 
+    def test_corrupt_page_image(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        self._populate()
+        table_id, page_id, lsn = self._pick_any_row()
+
+        # Capture the original first byte of page_data via sqlite hex().
+        before = self._sqlite_select_json(table_id,
+            f'SELECT hex(substr(page_data, 1, 1)) AS first FROM pages '
+            f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} AND lsn={int(lsn)};')
+        self.assertEqual(len(before), 1)
+
+        # Mutate. Helper closes WT and leaves it closed; sqlite reads below
+        # work either way.
+        returned_lsn = self.corrupt_page_image(table_id, page_id)
+        self.assertEqual(returned_lsn, lsn)
+
+        # Confirm the first byte is now 0xff.
+        after = self._sqlite_select_json(table_id,
+            f'SELECT hex(substr(page_data, 1, 1)) AS first FROM pages '
+            f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} AND lsn={int(lsn)};')
+        self.assertEqual(after[0]['first'], 'FF')
+
 if __name__ == '__main__':
     wttest.run()

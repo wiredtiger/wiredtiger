@@ -575,17 +575,44 @@ class DisaggCorruptionMixin:
 
     def _palite_mutate(self, table_id, sql):
         """Close WT, run sql via wt_builddir/sqlite3 against the shard DB for
-        table_id, reopen WT. Returns a list of non-empty stdout lines."""
+        table_id. Leaves WT closed - corruption helpers may make WT unable to
+        reopen. Returns a list of non-empty stdout lines."""
         shard = get_shard_id(table_id)
         db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
         if not os.path.exists(db_path):
             raise FileNotFoundError(db_path)
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         self.close_conn()
-        try:
-            result = subprocess.run(
-                [sqlite_exe, '-bail', db_path],
-                input=sql, capture_output=True, text=True, check=True)
-        finally:
-            self.reopen_conn()
+        result = subprocess.run(
+            [sqlite_exe, '-bail', db_path],
+            input=sql, capture_output=True, text=True, check=True)
         return [line for line in result.stdout.splitlines() if line != '']
+
+    def corrupt_page_image(self, table_id, page_id, lsn=None):
+        """Overwrite the first byte of page_data with 0xff for the row.
+        If lsn is None, target MAX(lsn) for (table_id, page_id).
+        Returns the lsn that was acted on."""
+        table_id = int(table_id)
+        page_id = int(page_id)
+        if lsn is None:
+            lsn_expr = (f"(SELECT MAX(lsn) FROM pages "
+                        f"WHERE table_id={table_id} AND page_id={page_id})")
+        else:
+            lsn_expr = str(int(lsn))
+        sql = (
+            f"SELECT {lsn_expr};\n"
+            f"UPDATE pages SET page_data = x'ff' || substr(page_data, 2) "
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn_expr};\n"
+            f"SELECT changes();\n"
+        )
+        rows = self._palite_mutate(table_id, sql)
+        if len(rows) < 2 or rows[0] == '':
+            raise AssertionError(
+                f"no row for table_id={table_id}, page_id={page_id}, lsn={lsn}")
+        resolved_lsn = int(rows[0])
+        affected = int(rows[1])
+        if affected == 0:
+            raise AssertionError(
+                f"mutation affected 0 rows for table_id={table_id}, "
+                f"page_id={page_id}, lsn={lsn}")
+        return resolved_lsn
