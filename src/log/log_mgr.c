@@ -769,6 +769,10 @@ restart:
     while (i < WTI_SLOT_POOL) {
         save_i = i;
         slot = &log->slot_pool[i++];
+        /*
+         * Guard: slot_state, payload: slot buffer. Acquire-load pairs with the release-store in
+         * __wti_log_release.
+         */
         if (__wt_atomic_load_int64_v_acquire(&slot->slot_state) != WTI_LOG_SLOT_WRITTEN)
             continue;
         written[written_i].slot_index = save_i;
