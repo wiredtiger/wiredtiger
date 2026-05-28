@@ -79,7 +79,8 @@ TEST_CASE("ref_addr_copy returns false when home is NULL", "[btree][split][wt-17
     WT_REF ref;
     memset(&ref, 0, sizeof(ref));
     /* Leave home NULL to reproduce the split window. */
-    ref.addr = &addr_obj; /* addr is non-NULL: the atomic swap has already run */
+    /* addr is non-NULL: the atomic swap has already run. */
+    ref.addr = &addr_obj;
     F_SET(&ref, WT_REF_FLAG_LEAF);
 
     WT_ADDR_COPY copy;

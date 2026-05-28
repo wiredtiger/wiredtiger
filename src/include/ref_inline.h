@@ -15,7 +15,7 @@
 static WT_INLINE bool
 __wt_ref_is_root(WT_REF *ref)
 {
-    return ((WT_PAGE *)__wt_atomic_load_ptr_acquire(&ref->home) == NULL);
+    return (__wt_atomic_load_ptr_acquire(&ref->home) == NULL);
 }
 
 /*
