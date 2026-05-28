@@ -28,7 +28,8 @@
 #
 
 import wiredtiger
-import functools, os, shutil, wttest
+import functools, os, shutil, subprocess, wttest
+from run import wt_builddir
 
 # These routines help run the various page log sources used by disaggregated storage.
 # They are required to manage the generation of disaggregated storage specific configurations.
@@ -555,3 +556,35 @@ class Oplog(object):
             f' entries - list of (table,k,v)={self._entries},' + \
             f' uris - list of (uri, entlist)={self._uris},' + \
             f' lookup - (table,k) -> list of (ts,value)={self._lookup}'
+
+# DisaggCorruptionMixin provides Python helpers for injecting palite-level page
+# corruption into a running disaggregated-storage test. Each public method closes
+# the WT connection, mutates the relevant per-shard pages_NN.db via the bundled
+# sqlite3 binary, and reopens the connection.
+#
+# Palite holds an exclusive SQLite lock while WT is open, so writes must happen
+# while the connection is closed. The mutations go through wt_builddir/sqlite3
+# (not system sqlite3) to avoid version skew with the SQLite statically linked
+# into palite. See WT-17667.
+class DisaggCorruptionMixin:
+
+    # Mirrors WT_PAGE_LOG_DISCARDED in src/include/page_log.h. The value is
+    # static-asserted in ext/page_log/palite/palite.cpp.
+    WT_PAGE_LOG_DISCARDED = 0x10000
+
+    def _palite_mutate(self, table_id, sql):
+        """Close WT, run sql via wt_builddir/sqlite3 against the shard DB for
+        table_id, reopen WT. Returns a list of non-empty stdout lines."""
+        shard = get_shard_id(table_id)
+        db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
+        if not os.path.exists(db_path):
+            raise FileNotFoundError(db_path)
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+        self.close_conn()
+        try:
+            result = subprocess.run(
+                [sqlite_exe, '-bail', db_path],
+                input=sql, capture_output=True, text=True, check=True)
+        finally:
+            self.reopen_conn()
+        return [line for line in result.stdout.splitlines() if line != '']
