@@ -1616,6 +1616,42 @@ err:
 }
 
 /*
+ * __disagg_mark_btrees_writable_on_step_up --
+ *     Clear the readonly flag on every open disaggregated btree at step-up, reversing the marking
+ *     done at step-down. A btree left readonly is skipped by checkpoint, so its disaggregated
+ *     block-size accounting drifts from the metadata and a later checkpoint trips the ckpt->size ==
+ *     __wt_block_disagg_get_size assertion. Clearing the flag keeps the btree in the step-up
+ *     checkpoint (and re-enables normal leader writes). Must be called before that checkpoint.
+ */
+static void
+__disagg_mark_btrees_writable_on_step_up(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+
+    conn = S2C(session);
+
+    for (dhandle = NULL;;) {
+        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+        if (dhandle == NULL)
+            break;
+
+        /* Only care about open disaggregated btree dhandles. */
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+            continue;
+
+        btree = (WT_BTREE *)dhandle->handle;
+
+        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || !F_ISSET(btree, WT_BTREE_READONLY))
+            continue;
+
+        /* Clear the readonly flag so the btree is checkpointed (and writable) again as leader. */
+        F_CLR(btree, WT_BTREE_READONLY);
+    }
+}
+
+/*
  * __disagg_step_up --
  *     Step up to the node to the leader mode.
  */
@@ -1651,6 +1687,15 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
     conn->layered_table_manager.leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
+
+    /*
+     * Reverse the step-down readonly marking. On step-down every disaggregated btree was marked
+     * readonly; leaving it set across step-up causes checkpoint to skip the btree, so its
+     * disaggregated block-size accounting drifts from the metadata and a later checkpoint trips the
+     * ckpt->size == __wt_block_disagg_get_size assertion. Clear it before the step-up checkpoint so
+     * the btrees are included in the checkpoint (and writable for leader writes afterward).
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_mark_btrees_writable_on_step_up(session));
 
     /*
      * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
