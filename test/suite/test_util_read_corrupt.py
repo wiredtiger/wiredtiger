@@ -109,6 +109,14 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
         self.corrupt_leaf_page()
 
+    def setup_clean_table(self):
+        """create  populate  checkpoint, no corruption. For tests that
+        exercise dump_record's non-error return-code paths."""
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.populate()
+        self.session.checkpoint()
+        self.close_conn()
+
     def count_lines(self, filename):
         with open(filename) as f:
             return sum(1 for _ in f)
@@ -151,17 +159,43 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             'wt -q dump produced no output on a partially corrupt table')
         self.check_non_empty_file('dump_q.err')
 
-    # ---------- dump -k <key> -w <window> (dump_record path) ----------
+    # ---------- dump_record return-code regressions (no corruption) ----------
 
-    # Intentionally omitted from this commit. The dump_record code path
-    # (search_near + windowed traversal) is interesting because this
-    # change also touches its return-code handling, but a corruption-
-    # driven without-q baseline is hard to make deterministic: the
-    # corrupt leaf lands on an unpredictable key index due to
-    # test-framework checkpoint cadence, and a narrow window can sit on
-    # either side of it. The dump_record fixes in this change (missing
-    # key exits 0; window past end of table exits 0) are non-error paths
-    # and can be pinned without corruption; follow-up commit.
+    # Two non-error paths in dump_record (util_dump.c) silently exited
+    # non-zero before this change: a missing single-key lookup, and a
+    # windowed walk that runs past the last record. Both are documented
+    # as natural outcomes in dump_record's comments, so they should
+    # exit 0. These regression tests pin that contract directly against
+    # a clean populated table; no corruption is involved.
+
+    def test_dump_missing_key_exits_zero(self):
+        # `wt dump -k <key-not-in-table>` without -n should land in
+        # dump_record's "Unable to find the exact key specified" branch
+        # and exit 0. Pre-fix this returned WT_ERR(WT_NOTFOUND) and
+        # surfaced as a non-zero exit.
+        self.setup_clean_table()
+        self.runWt(['dump', '-k', '99999999\\00', self.uri],
+            outfilename='dump_missing.out', errfilename='dump_missing.err')
+        # Header config is printed unconditionally; no data records
+        # follow. The error stream should be empty - this is not an
+        # error.
+        self.check_empty_file('dump_missing.err')
+
+    def test_dump_window_past_end_exits_zero(self):
+        # `wt dump -k <near-last-key> -w <large-window>` walks forward
+        # past the end of the table. Pre-fix the WT_NOTFOUND that fwd()
+        # returned at natural end was treated as failure; post-fix it
+        # is treated as the end of iteration and the command exits 0.
+        self.setup_clean_table()
+        last_key_index = self.nentries - 2
+        key = '%08d\\00' % last_key_index
+        self.runWt(['dump', '-k', key, '-w', '500', self.uri],
+            outfilename='dump_wend.out', errfilename='dump_wend.err')
+        self.check_empty_file('dump_wend.err')
+        # The walk should have emitted at least the records from the
+        # backward window (so output is more than the header alone).
+        self.assertGreater(self.count_lines('dump_wend.out'), 10,
+            'wt dump -k -w produced no data records past the backward window')
 
     # ---------- read ----------
 
@@ -224,9 +258,18 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     def test_list_with_q_still_lists_uris(self):
         # `wt list` reads the metadata cursor (WiredTiger.wt), not the
         # user table, so this test exercises the happy path: a corrupted
-        # user-table leaf page must not block the metadata listing. The -q
-        # softening of list_print's post-loop error path requires metadata
-        # corruption to exercise directly; that pair lands in a follow-up.
+        # user-table leaf page must not block the metadata listing.
+        #
+        # No without-q baseline pair lives here because the obvious one
+        # (corrupt WiredTiger.wt, then run `wt list`) crashes the
+        # connection during open  well before util_list gets to set the
+        # quiet-corrupt flag. The connection-open path reads the
+        # metadata btree to populate dhandles regardless of -q, so any
+        # reachable corrupt metadata leaf is fatal with or without -q
+        # under the current design. The list_print post-loop error
+        # softening in the PR therefore only fires for metadata
+        # corruption that survives a successful connection open, which
+        # isn't reproducible without a connection-level quiet mode.
         self.setup_corrupt_leaf_table()
         self.runWt(['-q', 'list'],
             outfilename='list_q.out', errfilename='list_q.err')
