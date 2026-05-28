@@ -73,6 +73,7 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
+CLI
 CLOEXEC
 CMAKE
 CMP
@@ -124,6 +125,7 @@ DENABLE
 DESC
 DEST
 DHANDLE
+DHAVE
 DISAGG
 DISAGGREGATED
 DNE
@@ -657,6 +659,7 @@ autoconf
 aws
 az
 bInheritHandle
+backends
 backlink
 backoff
 badsize
@@ -1636,6 +1639,7 @@ sii
 sizeof
 sizep
 sizev
+skipTest
 skipTests
 skiplist
 skiplists
@@ -1696,6 +1700,7 @@ strtouq
 struct
 structs
 su
+subcommand
 subconfig
 subconfigs
 subconfiguration
