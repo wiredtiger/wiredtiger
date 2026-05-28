@@ -1269,7 +1269,7 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
 
     btree = S2BT(session);
 
-    __wt_tsan_suppress_store_wt_page_ptr_v(&ref->home, home);
+    __wt_atomic_store_ptr(&ref->home, home);
     ref->pindex_hint = hint;
     ref->addr = addr;
     ref->ref_recno = recno;
