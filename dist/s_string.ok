@@ -824,6 +824,7 @@ createsets
 crypto
 cryptobad
 cryptographic
+cst
 cstring
 csuite
 csv
