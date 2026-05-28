@@ -151,5 +151,26 @@ class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMi
             f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} AND lsn={int(lsn)};')
         self.assertEqual(after[0]['n'], 0)
 
+    def test_set_page_discarded(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        self._populate()
+        table_id, page_id, lsn = self._pick_any_row()
+
+        # The row should not be discarded yet.
+        before = self._sqlite_select_json(table_id,
+            f'SELECT discarded FROM pages '
+            f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} AND lsn={int(lsn)};')
+        self.assertEqual(before[0]['discarded'], 0)
+
+        returned_lsn = self.set_page_discarded(table_id, page_id)
+        self.assertEqual(returned_lsn, lsn)
+
+        after = self._sqlite_select_json(table_id,
+            f'SELECT discarded, flags FROM pages '
+            f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} AND lsn={int(lsn)};')
+        self.assertEqual(after[0]['discarded'], 1)
+        self.assertTrue(int(after[0]['flags']) & DisaggCorruptionMixin.WT_PAGE_LOG_DISCARDED)
+
 if __name__ == '__main__':
     wttest.run()

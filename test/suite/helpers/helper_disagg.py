@@ -645,3 +645,32 @@ class DisaggCorruptionMixin:
                 f"mutation affected 0 rows for table_id={table_id}, "
                 f"page_id={page_id}, lsn={lsn}")
         return resolved_lsn
+
+    def set_page_discarded(self, table_id, page_id, lsn=None):
+        """OR WT_PAGE_LOG_DISCARDED (0x10000) into flags.
+        If lsn is None, target MAX(lsn) for (table_id, page_id).
+        Returns the lsn that was acted on."""
+        table_id = int(table_id)
+        page_id = int(page_id)
+        if lsn is None:
+            lsn_expr = (f"(SELECT MAX(lsn) FROM pages "
+                        f"WHERE table_id={table_id} AND page_id={page_id})")
+        else:
+            lsn_expr = str(int(lsn))
+        sql = (
+            f"SELECT {lsn_expr};\n"
+            f"UPDATE pages SET flags = flags | {self.WT_PAGE_LOG_DISCARDED} "
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn_expr};\n"
+            f"SELECT changes();\n"
+        )
+        rows = self._palite_mutate(table_id, sql)
+        if len(rows) < 2 or rows[0] == '':
+            raise AssertionError(
+                f"no row for table_id={table_id}, page_id={page_id}, lsn={lsn}")
+        resolved_lsn = int(rows[0])
+        affected = int(rows[1])
+        if affected == 0:
+            raise AssertionError(
+                f"mutation affected 0 rows for table_id={table_id}, "
+                f"page_id={page_id}, lsn={lsn}")
+        return resolved_lsn
