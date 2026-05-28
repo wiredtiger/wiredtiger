@@ -111,7 +111,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t retry, tmp_count, block_size_sum;
+    uint32_t block_size_sum;
     int32_t last, result;
     uint8_t expected_magic;
     bool from_cache, is_delta;
@@ -147,35 +147,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
     /*
-     * If the page server returns no data but doesn't explicitly fail with an error, retry the read
-     * a few times in case the issue is transient.
-     *
-     * FIXME: WT-15768: To support current testing, we never give up. It is better to hang here as
-     * that will allow us to generate a core dump if desired. We should revisit this when we have
-     * more complete end-to-end story for handling read failures.
+     * Output buffers do not need to be pre-allocated, the PALI interface does that.
      */
-    for (retry = 0, tmp_count = 0; tmp_count == 0; retry++) {
-        if (retry > 0) {
-            __wt_verbose_notice(session, WT_VERB_READ,
-              "retry #%" PRIu32 " for page_id %" PRIu64 ", table_id %" PRIu64 ", flags %" PRIx64
-              ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
-              retry, page_id, block_disagg->tableid, flags, lsn, base_lsn, size, checksum);
-
-            __wt_sleep(0, WT_MIN(10000 + retry * 5000, 500000));
-        }
-
-        tmp_count = *results_count;
-
-        /*
-         * Output buffers do not need to be pre-allocated, the PALI interface does that.
-         */
-        WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
-          &get_args, results_array, &tmp_count));
-
-        WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
-    }
-
-    *results_count = tmp_count;
+    WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
+      &get_args, results_array, results_count));
+    WT_ASSERT(session, *results_count > 0);
+    WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT + 1);
 
     last = (int32_t)(*results_count - 1);
 
