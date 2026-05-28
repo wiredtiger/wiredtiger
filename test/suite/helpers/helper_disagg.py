@@ -560,13 +560,14 @@ class Oplog(object):
 
 # DisaggCorruptionMixin provides Python helpers for injecting palite-level page
 # corruption into a running disaggregated-storage test. Each public method closes
-# the WT connection, mutates the relevant per-shard pages_NN.db via the bundled
-# sqlite3 binary, and reopens the connection.
+# the WT connection and mutates the relevant per-shard pages_NN.db via the
+# bundled sqlite3 binary; WT is left closed since corruption may prevent it
+# from reopening. Tests can read post-state via direct sqlite3 queries.
 #
 # Palite holds an exclusive SQLite lock while WT is open, so writes must happen
 # while the connection is closed. The mutations go through wt_builddir/sqlite3
 # (not system sqlite3) to avoid version skew with the SQLite statically linked
-# into palite. See WT-17667.
+# into palite.
 class DisaggCorruptionMixin:
 
     # Mirrors WT_PAGE_LOG_DISCARDED in src/include/page_log.h. The value is
