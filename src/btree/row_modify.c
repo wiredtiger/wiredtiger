@@ -226,6 +226,30 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
          */
         WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_insert, ins_headp, page->entries + 1);
         ins_slot = F_ISSET(cbt, WT_CBT_SEARCH_SMALLEST) ? page->entries : cbt->slot;
+
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * The SMALLEST insert list catches keys that sort before the page's first on-disk key. On
+         * any non-leftmost child the page still has a hard lower bound: the ref separator key
+         * recorded in the parent. A key smaller than that bound belongs on the left sibling and
+         * would be lost if grafted onto this page. The leftmost child has -infinity as its lower
+         * bound, so any key is valid; the root page has no parent ref key at all.
+         */
+        if (F_ISSET(cbt, WT_CBT_SEARCH_SMALLEST) && !__wt_ref_is_root(cbt->ref)) {
+            WT_PAGE_INDEX *pindex;
+            WT_ITEM ref_key;
+            uint32_t slot;
+            int cmp;
+
+            __wt_ref_index_slot(session, cbt->ref, &pindex, &slot);
+            if (slot != 0) {
+                __wt_ref_key(cbt->ref->home, cbt->ref, &ref_key.data, &ref_key.size);
+                WT_IGNORE_RET(__wt_compare(session, S2BT(session)->collator, key, &ref_key, &cmp));
+                WT_ASSERT(session, cmp >= 0);
+            }
+        }
+#endif
+
         ins_headp = &mod->mod_row_insert[ins_slot];
 
         /* Allocate the WT_INSERT_HEAD structure as necessary. */
