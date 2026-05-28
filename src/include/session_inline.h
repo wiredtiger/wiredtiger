@@ -29,6 +29,11 @@ __wt_single_thread_check_start(WT_SESSION_IMPL *s)
     WT_DECL_RET;
 
     __wt_thread_id(&current_tid);
+
+    /*
+     * Use relaxed atomics instead of seq-cst to avoid masking concurrency bugs in diagnostic
+     * builds. Relaxed ordering is safe because the spinlock guarantees mutual exclusion.
+     */
     owning = __wt_atomic_load_uintmax_relaxed(&s->thread_check.owning_thread);
 
     if (!WT_SESSION_IS_DEFAULT(s) && owning != current_tid) {
