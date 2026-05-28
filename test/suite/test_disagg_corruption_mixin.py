@@ -172,5 +172,57 @@ class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMi
         self.assertEqual(after[0]['discarded'], 1)
         self.assertTrue(int(after[0]['flags']) & DisaggCorruptionMixin.WT_PAGE_LOG_DISCARDED)
 
+    # Force more than one LSN per (table_id, page_id) by repeatedly modifying
+    # and checkpointing. Returns (table_id, page_id) of a row with at least
+    # two LSNs.
+    def _populate_with_multi_lsn(self):
+        self._populate()
+        for round in range(5):
+            c = self.session.open_cursor(self.uri, None, None)
+            for i in range(self.nentries):
+                c[f'k{i:04d}'] = f'v{i:04d}-{round}'
+            c.close()
+            self.session.checkpoint()
+
+        # Find a (table_id, page_id) that has >= 2 LSN rows.
+        self.close_conn()
+        try:
+            for shard in range(NUM_SHARDS):
+                db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
+                if not os.path.exists(db_path):
+                    continue
+                sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+                result = subprocess.run(
+                    [sqlite_exe, '-json', db_path,
+                     'SELECT table_id, page_id, COUNT(*) AS n FROM pages '
+                     'GROUP BY table_id, page_id HAVING n >= 2 '
+                     'ORDER BY table_id DESC LIMIT 1;'],
+                    capture_output=True, text=True, check=True)
+                if result.stdout.strip():
+                    row = json.loads(result.stdout)[0]
+                    return int(row['table_id']), int(row['page_id'])
+        finally:
+            self.reopen_conn()
+        self.fail("could not produce a (table_id, page_id) with multiple LSNs")
+
+    def test_truncate_delta_chain(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        table_id, page_id = self._populate_with_multi_lsn()
+
+        all_lsns = [int(r['lsn']) for r in self._sqlite_select_json(table_id,
+            f'SELECT lsn FROM pages '
+            f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} ORDER BY lsn;')]
+        self.assertGreaterEqual(len(all_lsns), 2)
+
+        keep = [all_lsns[0]]  # keep only the base
+        deleted = self.truncate_delta_chain(table_id, page_id, keep)
+        self.assertEqual(sorted(deleted), sorted(all_lsns[1:]))
+
+        remaining = [int(r['lsn']) for r in self._sqlite_select_json(table_id,
+            f'SELECT lsn FROM pages '
+            f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} ORDER BY lsn;')]
+        self.assertEqual(remaining, keep)
+
 if __name__ == '__main__':
     wttest.run()

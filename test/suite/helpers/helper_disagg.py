@@ -674,3 +674,39 @@ class DisaggCorruptionMixin:
                 f"mutation affected 0 rows for table_id={table_id}, "
                 f"page_id={page_id}, lsn={lsn}")
         return resolved_lsn
+
+    def truncate_delta_chain(self, table_id, page_id, keep_lsns):
+        """DELETE every row for (table_id, page_id) whose lsn is not in
+        keep_lsns. keep_lsns is an iterable of ints. Returns the list of
+        LSNs that were deleted (sorted ascending)."""
+        table_id = int(table_id)
+        page_id = int(page_id)
+        keep_list = sorted({int(x) for x in keep_lsns})
+        if not keep_list:
+            raise AssertionError("keep_lsns must contain at least one LSN")
+        keep_clause = ", ".join(str(x) for x in keep_list)
+        sql = (
+            f"SELECT GROUP_CONCAT(lsn) FROM pages "
+            f"WHERE table_id={table_id} AND page_id={page_id} "
+            f"AND lsn NOT IN ({keep_clause});\n"
+            f"DELETE FROM pages "
+            f"WHERE table_id={table_id} AND page_id={page_id} "
+            f"AND lsn NOT IN ({keep_clause});\n"
+            f"SELECT changes();\n"
+        )
+        rows = self._palite_mutate(table_id, sql)
+        # When GROUP_CONCAT matches no rows it returns NULL; sqlite emits an
+        # empty line which _palite_mutate filters out. In that case rows[0] is
+        # changes() and len(rows)==1; otherwise rows[0] is the GROUP_CONCAT
+        # string and rows[1] is changes().
+        if len(rows) == 1:
+            deleted = []
+            affected = int(rows[0])
+        else:
+            deleted = [int(x) for x in rows[0].split(',') if x]
+            affected = int(rows[1])
+        if affected != len(deleted):
+            raise AssertionError(
+                f"truncate_delta_chain mismatch: GROUP_CONCAT yielded "
+                f"{len(deleted)} LSNs but changes() reported {affected}")
+        return sorted(deleted)
