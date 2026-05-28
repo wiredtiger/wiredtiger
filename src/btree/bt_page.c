@@ -897,8 +897,14 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->upd_durable_ts = unpack->tw.durable_start_ts;
         upd->upd_start_ts = unpack->tw.start_ts;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-        if (is_disagg)
-            F_SET(upd, WT_UPDATE_DURABLE);
+        /*
+         * We reach this branch only when the cell carries a prepared stop (the caller only routes
+         * here when the time window has a prepare and the if-branch above handled the start-prepare
+         * case). Do not mark the restored value as durable: if the prepared tombstone is rolled
+         * back, the next reconciliation must write this value again to clear the prepared cell from
+         * the disk image, and the durable flag would suppress that write.
+         */
+        WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw)));
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
