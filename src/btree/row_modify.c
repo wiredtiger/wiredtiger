@@ -241,12 +241,19 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             uint32_t slot;
             int cmp;
 
+            /*
+             * Reading the parent's index requires the split generation: WT_INTL_INDEX_GET asserts
+             * the caller holds it, and accessing the parent's key cells through ref->home likewise
+             * needs the parent to be pinned against splits.
+             */
+            WT_ENTER_PAGE_INDEX(session);
             __wt_ref_index_slot(session, cbt->ref, &pindex, &slot);
             if (slot != 0) {
                 __wt_ref_key(cbt->ref->home, cbt->ref, &ref_key.data, &ref_key.size);
                 WT_IGNORE_RET(__wt_compare(session, S2BT(session)->collator, key, &ref_key, &cmp));
                 WT_ASSERT(session, cmp >= 0);
             }
+            WT_LEAVE_PAGE_INDEX(session);
         }
 #endif
 
