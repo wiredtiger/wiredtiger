@@ -10,6 +10,34 @@
 #include "reconcile_private.h"
 #include "reconcile_inline.h"
 
+
+/*
+ * Per-iteration state built while processing each entry in the variable-length column-store
+ * reconciliation loops.
+ */
+struct __wti_col_var_cur {
+    const void *data;
+    uint32_t size;
+    WT_TIME_WINDOW tw;
+    uint64_t repeat_count;
+    bool deleted;
+    bool dictionary;
+    bool update_no_copy;
+};
+
+/*
+ * State carried across all loop iterations in __wti_rec_col_var for run-length accounting.
+ */
+struct __wti_col_var_state {
+    WT_ITEM *last_value;
+    WT_TIME_WINDOW last_tw;
+    bool last_deleted;
+    bool last_dictionary;
+    uint64_t rle;
+    uint64_t src_recno;
+    bool wrote_real_values;
+};
+
 /*
  * __wt_bulk_insert_var --
  *     Variable-length column-store bulk insert.
