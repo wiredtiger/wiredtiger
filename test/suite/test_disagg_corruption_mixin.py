@@ -136,5 +136,20 @@ class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMi
             f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} AND lsn={int(lsn)};')
         self.assertEqual(after[0]['first'], 'FF')
 
+    def test_delete_page_image(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        self._populate()
+        table_id, page_id, lsn = self._pick_any_row()
+
+        returned_lsn = self.delete_page_image(table_id, page_id)
+        self.assertEqual(returned_lsn, lsn)
+
+        # The row should be gone.
+        after = self._sqlite_select_json(table_id,
+            f'SELECT COUNT(*) AS n FROM pages '
+            f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} AND lsn={int(lsn)};')
+        self.assertEqual(after[0]['n'], 0)
+
 if __name__ == '__main__':
     wttest.run()
