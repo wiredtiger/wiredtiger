@@ -266,3 +266,23 @@ TEST_CASE_METHOD(
     REQUIRE(read_crypt_header.header_size == k_future_header_size);
     REQUIRE(read_crypt_header.crypt_size == test_string.size());
 }
+
+/*
+ * Boundary case for the compatibility check: a page whose compatible_version equals this reader's
+ * version. The reader satisfies the page's demand exactly and must accept. This is the case the
+ * old check (against COMPATIBLE_VERSION instead of VERSION) wrongly rejected.
+ */
+TEST_CASE_METHOD(kp_header_fixture,
+  "Key provider header: reader accepts compat_version equal to reader version",
+  "[key_provider_header]")
+{
+    crypt.keys.data = crypt.keys.mem;
+    crypt.keys.size = sizeof(WT_CRYPT_HEADER) + test_string.size();
+
+    build_crypt_page(&crypt.keys, WT_CRYPT_HEADER_VERSION, WT_CRYPT_HEADER_VERSION,
+      sizeof(WT_CRYPT_HEADER), 0, test_string.size());
+
+    WT_CRYPT_HEADER read_crypt_header = {};
+    REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
+    REQUIRE(read_crypt_header.compatible_version == WT_CRYPT_HEADER_VERSION);
+}
