@@ -592,7 +592,7 @@ class DisaggCorruptionMixin:
     def corrupt_page_image(self, table_id, page_id, lsn=None):
         """Overwrite the first byte of page_data with 0xff for the row.
         If lsn is None, target MAX(lsn) for (table_id, page_id).
-        Returns the lsn that was acted on."""
+        Returns the lsn that was acted on. WT is left closed."""
         table_id = int(table_id)
         page_id = int(page_id)
         if lsn is None:
@@ -621,7 +621,7 @@ class DisaggCorruptionMixin:
     def delete_page_image(self, table_id, page_id, lsn=None):
         """DELETE the row from pages. Simulates a missing page.
         If lsn is None, target MAX(lsn) for (table_id, page_id).
-        Returns the lsn that was acted on."""
+        Returns the lsn that was acted on. WT is left closed."""
         table_id = int(table_id)
         page_id = int(page_id)
         if lsn is None:
@@ -650,7 +650,7 @@ class DisaggCorruptionMixin:
     def set_page_discarded(self, table_id, page_id, lsn=None):
         """OR WT_PAGE_LOG_DISCARDED (0x10000) into flags.
         If lsn is None, target MAX(lsn) for (table_id, page_id).
-        Returns the lsn that was acted on."""
+        Returns the lsn that was acted on. WT is left closed."""
         table_id = int(table_id)
         page_id = int(page_id)
         if lsn is None:
@@ -679,7 +679,8 @@ class DisaggCorruptionMixin:
     def truncate_delta_chain(self, table_id, page_id, keep_lsns):
         """DELETE every row for (table_id, page_id) whose lsn is not in
         keep_lsns. keep_lsns is an iterable of ints. Returns the list of
-        LSNs that were deleted (sorted ascending)."""
+        LSNs that were deleted (sorted ascending); empty if no rows
+        matched or all existing rows are in keep_lsns. WT is left closed."""
         table_id = int(table_id)
         page_id = int(page_id)
         keep_list = sorted({int(x) for x in keep_lsns})
