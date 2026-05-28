@@ -24,6 +24,7 @@ build_crypt_page(WT_ITEM *key_item, uint8_t version, uint8_t compatible_version,
     local.timestamp = timestamp;
 
     __wt_crypt_header_byteswap(&local);
+    REQUIRE(WT_MIN((size_t)header_size, sizeof(local)) <= key_item->size);
     memcpy((void *)key_item->data, &local, WT_MIN((size_t)header_size, sizeof(local)));
 
     uint32_t cksum = __wt_checksum(key_item->data, key_item->size);
@@ -176,8 +177,9 @@ TEST_CASE_METHOD(
 
     SECTION("Test key provider header mismatch size")
     {
+        /* header_size larger than the underlying buffer. */
         build_crypt_page(&crypt.keys, WT_CRYPT_HEADER_VERSION, WT_CRYPT_HEADER_COMPATIBLE_VERSION,
-          50, 0, test_string.size());
+          (uint8_t)(sizeof(WT_CRYPT_HEADER) + 10), 0, test_string.size());
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
     }
 
@@ -197,27 +199,26 @@ TEST_CASE_METHOD(
   kp_header_fixture, "Key provider header: reader accepts v1 page", "[key_provider_header]")
 {
     /* The original on-disk header size, before the timestamp field was appended. */
-    static constexpr uint8_t v1_header_size = 16;
+    static constexpr uint8_t k_v1_header_size = 16;
 
-    REQUIRE(__wt_buf_initsize(session_impl, &crypt.keys, v1_header_size + test_string.size()) == 0);
-    memcpy((uint8_t *)crypt.keys.mem + v1_header_size, test_string.data(), test_string.size());
+    REQUIRE(__wt_buf_initsize(session_impl, &crypt.keys, k_v1_header_size + test_string.size()) == 0);
+    memcpy((uint8_t *)crypt.keys.mem + k_v1_header_size, test_string.data(), test_string.size());
     crypt.keys.data = crypt.keys.mem;
-    crypt.keys.size = v1_header_size + test_string.size();
+    crypt.keys.size = k_v1_header_size + test_string.size();
 
-    build_crypt_page(&crypt.keys, 1, 1, v1_header_size, 0, test_string.size());
+    build_crypt_page(&crypt.keys, 1, 1, k_v1_header_size, 0, test_string.size());
 
     WT_CRYPT_HEADER *read_crypt_header = nullptr;
     REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
     REQUIRE(read_crypt_header != nullptr);
     REQUIRE(read_crypt_header->version == 1);
-    REQUIRE(read_crypt_header->header_size == v1_header_size);
+    REQUIRE(read_crypt_header->header_size == k_v1_header_size);
     REQUIRE(read_crypt_header->crypt_size == test_string.size());
 }
 
 /*
  * Forward compatibility: the reader must accept a page whose version is higher than this writer
- * emits, as long as compatible_version stays within what this reader knows. Also verifies the
- * timestamp field reads back unchanged.
+ * emits, as long as compatible_version stays within what this reader knows.
  */
 TEST_CASE_METHOD(
   kp_header_fixture, "Key provider header: reader accepts future version", "[key_provider_header]")
