@@ -6004,7 +6004,7 @@ struct __wt_page_log_handle {
     /*!
      * Get an object from the paging/logging service.
      *
-     * @errors
+     * @errors Returning zero results must be associated with an error code.
      *
      * @param plh the WT_PAGE_LOG_HANDLE
      * @param session the current WiredTiger session

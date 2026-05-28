@@ -2416,6 +2416,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_slow_truncate_follower", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
@@ -2442,6 +2448,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_truncate", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.stress_skiplist", &cval));
     if (cval.val)
