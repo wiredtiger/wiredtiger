@@ -224,5 +224,21 @@ class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMi
             f'WHERE table_id={int(table_id)} AND page_id={int(page_id)} ORDER BY lsn;')]
         self.assertEqual(remaining, keep)
 
+    def test_corrupt_no_match_raises(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        self._populate()
+        bogus_page_id = 999_999
+
+        # Pick a (table_id, page_id) we know does not exist. Use a real shard
+        # with a bogus table_id so the pages_NN.db file exists - otherwise we'd
+        # get FileNotFoundError instead of AssertionError. Shift by NUM_SHARDS
+        # rows so the bogus table_id falls in the same shard as a known row.
+        real_table_id, _, _ = self._pick_any_row()
+        bogus_table_id = real_table_id + (NUM_SHARDS * 1000)
+
+        with self.assertRaisesRegex(AssertionError, 'no row'):
+            self.corrupt_page_image(bogus_table_id, bogus_page_id)
+
 if __name__ == '__main__':
     wttest.run()
