@@ -24,14 +24,14 @@ build_crypt_page(WT_ITEM *key_item, uint8_t version, uint8_t compatible_version,
     local.timestamp = timestamp;
 
     __wt_crypt_header_byteswap(&local);
-    REQUIRE(WT_MIN((size_t)header_size, sizeof(local)) <= key_item->size);
-    memcpy((void *)key_item->data, &local, WT_MIN((size_t)header_size, sizeof(local)));
+    REQUIRE(WT_MIN((size_t)header_size, sizeof(WT_CRYPT_HEADER)) <= key_item->size);
+    memcpy((void *)key_item->data, &local, WT_MIN((size_t)header_size, sizeof(WT_CRYPT_HEADER)));
 
     uint32_t cksum = __wt_checksum(key_item->data, key_item->size);
 #ifdef WORDS_BIGENDIAN
     cksum = __wt_bswap32(cksum);
 #endif
-    memcpy((uint8_t *)key_item->data + offsetof(WT_CRYPT_HEADER, checksum), &cksum, sizeof(cksum));
+    ((WT_CRYPT_HEADER *)key_item->data)->checksum = cksum;
 }
 
 /* Fixture to initialize the kp header. */
@@ -210,9 +210,13 @@ TEST_CASE_METHOD(
 
     WT_CRYPT_HEADER *read_crypt_header = nullptr;
     REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
+    REQUIRE(read_crypt_header->signature == WT_CRYPT_HEADER_SIGNATURE);
     REQUIRE(read_crypt_header->version == 1);
+    REQUIRE(read_crypt_header->compatible_version == 1);
     REQUIRE(read_crypt_header->header_size == k_v1_header_size);
     REQUIRE(read_crypt_header->crypt_size == test_string.size());
+    /* No timestamp on a v1 page; the heap-allocated header keeps it as 0. */
+    REQUIRE(read_crypt_header->timestamp == 0);
     __wt_free(session_impl, read_crypt_header);
 }
 
@@ -232,7 +236,9 @@ TEST_CASE_METHOD(
 
     WT_CRYPT_HEADER *read_crypt_header = nullptr;
     REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
+    REQUIRE(read_crypt_header->signature == WT_CRYPT_HEADER_SIGNATURE);
     REQUIRE(read_crypt_header->version == WT_CRYPT_HEADER_VERSION + 1);
+    REQUIRE(read_crypt_header->compatible_version == WT_CRYPT_HEADER_COMPATIBLE_VERSION);
     REQUIRE(read_crypt_header->header_size == sizeof(WT_CRYPT_HEADER));
     REQUIRE(read_crypt_header->crypt_size == test_string.size());
     REQUIRE(read_crypt_header->timestamp == expected_timestamp);
@@ -261,7 +267,9 @@ TEST_CASE_METHOD(
 
     WT_CRYPT_HEADER *read_crypt_header = nullptr;
     REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
+    REQUIRE(read_crypt_header->signature == WT_CRYPT_HEADER_SIGNATURE);
     REQUIRE(read_crypt_header->version == WT_CRYPT_HEADER_VERSION + 1);
+    REQUIRE(read_crypt_header->compatible_version == WT_CRYPT_HEADER_COMPATIBLE_VERSION);
     REQUIRE(read_crypt_header->header_size == k_future_header_size);
     REQUIRE(read_crypt_header->crypt_size == test_string.size());
     __wt_free(session_impl, read_crypt_header);
@@ -283,6 +291,10 @@ TEST_CASE_METHOD(kp_header_fixture,
 
     WT_CRYPT_HEADER *read_crypt_header = nullptr;
     REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
+    REQUIRE(read_crypt_header->signature == WT_CRYPT_HEADER_SIGNATURE);
+    REQUIRE(read_crypt_header->version == WT_CRYPT_HEADER_VERSION);
     REQUIRE(read_crypt_header->compatible_version == WT_CRYPT_HEADER_VERSION);
+    REQUIRE(read_crypt_header->header_size == sizeof(WT_CRYPT_HEADER));
+    REQUIRE(read_crypt_header->crypt_size == test_string.size());
     __wt_free(session_impl, read_crypt_header);
 }
