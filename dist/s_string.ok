@@ -1678,6 +1678,7 @@ stdin
 stdout
 stepback
 stepp
+stepup
 stlr
 stlrb
 stlrh

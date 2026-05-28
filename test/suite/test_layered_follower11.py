@@ -33,8 +33,8 @@ from wtscenario import make_scenarios
 # Test we don't remove the user tombstones from the ingest table until they are included in a checkpoint.
 
 @disagg_test_class
-class test_layered49(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_layered49', disagg_only = True)
+class test_layered_follower11(wttest.WiredTigerTestCase):
+    disagg_storages = gen_disagg_storages('test_layered_follower11', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_base_config = 'cache_size=10MB,'
@@ -68,7 +68,7 @@ class test_layered49(wttest.WiredTigerTestCase):
         self.session_follow = self.conn_follow.open_session('')
 
     def test_remove(self):
-        uri = "layered:test_layered49"
+        uri = "layered:test_layered_follower11"
         # Setup
         self.session.create(uri, 'key_format=S,value_format=S')
         self.create_follower()
@@ -109,7 +109,7 @@ class test_layered49(wttest.WiredTigerTestCase):
         self.session_follow.rollback_transaction()
 
     def test_truncate(self):
-        uri = "layered:test_layered49"
+        uri = "layered:test_layered_follower11"
         # Setup
         self.session.create(uri, 'key_format=S,value_format=S')
         self.create_follower()

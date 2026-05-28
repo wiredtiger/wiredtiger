@@ -28,22 +28,22 @@
 
 import platform, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
-from test_layered23 import Oplog
+from test_layered_follower02 import Oplog
 from wtscenario import make_scenarios
 
-# test_layered38.py
+# test_layered_follower10.py
 # Test garbage collecting redundant content in the ingest table
 @disagg_test_class
-class test_layered38(wttest.WiredTigerTestCase):
+class test_layered_follower10(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                  + 'disaggregated=(lose_all_my_data=true),precise_checkpoint=true,'
 
-    disagg_storages = gen_disagg_storages('test_layered38', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_follower10', disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:test_layered38'
-    ingest_uri = 'file:test_layered38.wt_ingest'
+    uri = 'layered:test_layered_follower10'
+    ingest_uri = 'file:test_layered_follower10.wt_ingest'
 
     nitems = 1000
 
@@ -54,7 +54,7 @@ class test_layered38(wttest.WiredTigerTestCase):
     # This will GC content when possible.
     def evict_ingest(self, session, ts):
         # Trigger eviction on the ingest table
-        evict_cursor = session.open_cursor("file:test_layered38.wt_ingest", None, "debug=(release_evict)")
+        evict_cursor = session.open_cursor("file:test_layered_follower10.wt_ingest", None, "debug=(release_evict)")
         for i in range(1, self.nitems + 1):
             session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
             evict_cursor.set_key(str(i))

@@ -35,12 +35,12 @@ from wtscenario import make_scenarios
 # Test that leader-to-follower role transition doesn't crash when eviction
 # processes pages that were split during a prior checkpoint.
 @disagg_test_class
-class test_layered77(eviction_util, wttest.WiredTigerTestCase):
+class test_layered_stepup03(eviction_util, wttest.WiredTigerTestCase):
     conn_base_config = 'cache_size=10MB,'
 
-    disagg_storages = gen_disagg_storages('test_layered77', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered_stepup03', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
-    uri='layered:test_layered77'
+    uri='layered:test_layered_stepup03'
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'

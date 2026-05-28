@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered103.py
+# test_layered_stepup06.py
 #   When two prepared sessions share the same prepared_id, a follower
 #   stepping up to leader must resolve all of them.
 #
@@ -42,14 +42,14 @@ from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("tiered", "Layered tables are not supported with tiered storage")
 @disagg_test_class
-class test_layered103(wttest.WiredTigerTestCase):
-    uri = 'layered:test_layered103'
+class test_layered_stepup06(wttest.WiredTigerTestCase):
+    uri = 'layered:test_layered_stepup06'
 
     resolve_scenarios = [
         ('commit',   dict(commit=True)),
         ('rollback', dict(commit=False)),
     ]
-    disagg_storages = gen_disagg_storages('test_layered103', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_stepup06', disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolve_scenarios)
 
     conn_base_config = (
