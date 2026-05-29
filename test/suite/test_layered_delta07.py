@@ -149,7 +149,7 @@ class test_layered_delta07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 1)
         stat_cursor.close()
 
         session2.close()
@@ -163,7 +163,7 @@ class test_layered_delta07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 1)
         stat_cursor.close()
 
         session2.close()
@@ -239,7 +239,7 @@ class test_layered_delta07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 3)
         stat_cursor.close()
 
         session2.close()
