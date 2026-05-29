@@ -72,9 +72,9 @@ typedef struct {
     WT_EXTENSION_API *wtext;
 
     /* Configuration options */
+    int version;     /* Provider version: 0 (pull, default) or 1 (push). */
     int verbose;     /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
     int key_expires; /* Key expiration time in seconds, or special values as described above */
-    int version;     /* Provider version: 0 (pull, default) or 1 (push). */
 
     /* Simulated key state */
     struct {
