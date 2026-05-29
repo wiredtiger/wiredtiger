@@ -33,8 +33,11 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_key_provider_disagg03.py
-#    Verify that key rotation across checkpoints is not disabled by the
-#    fresh-startup empty key-load. Regression test for WT-17692.
+#    Regression test for WT-17692. The bootstrap empty key-load was
+#    being emitted on every checkpoint, which kept resetting the key
+#    provider's rotation timer and prevented rotation from ever firing.
+#    This test runs many checkpoints past the provider's expiry
+#    threshold and asserts the persisted key page count grew.
 @disagg_test_class
 class test_key_provider_disagg03(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
