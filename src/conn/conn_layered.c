@@ -1581,12 +1581,6 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         return (0);
 
-    /* On fresh startup, load an empty key to key provider. */
-    if (conn->key_provider != NULL) {
-        WT_DISAGG_METADATA metadata = {0};
-        WT_RET(__wti_disagg_load_crypt_key(session, &metadata));
-    }
-
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Begin next disaggregated storage checkpoint: num_meta_put=%" PRIu64, disagg->num_meta_put);
 
@@ -1912,9 +1906,17 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
-            } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
                 __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
                   "Did not find any complete checkpoint to pick up at startup");
+                /* On fresh startup, load an empty key to key provider. */
+                if (conn->key_provider != NULL) {
+                    WT_DISAGG_METADATA empty_metadata = {0};
+                    WT_WITH_CHECKPOINT_LOCK(
+                      session, ret = __wti_disagg_load_crypt_key(session, &empty_metadata));
+                    WT_ERR_MSG_CHK(session, ret, "Failed to load empty crypt key at fresh startup");
+                }
+            }
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }

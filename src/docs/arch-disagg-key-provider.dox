@@ -23,8 +23,11 @@ When WiredTiger persists metadata, it prepends a WT_CRYPT_HEADER. The header con
 The API provides three functions: WT_KEY_PROVIDER::load_key(), WT_KEY_PROVIDER::get_key() and WT_KEY_PROVIDER::on_key_update().
 WiredTiger owns the memory for all metadata buffers.
 
-WiredTiger calls load_key() during startup and checkpoint. It reads the persisted metadata and provides it to the key provider.
-If no metadata exists, it passes an empty WT_CRYPT_KEYS::keys structure..
+WiredTiger calls load_key() at startup and on each checkpoint pickup. It reads the persisted metadata and provides it to the key provider.
+Followers receive load_key() with real metadata every time they pick up a new checkpoint, so they stay in sync with the leader's current key.
+If no metadata exists yet, WiredTiger passes an empty WT_CRYPT_KEYS::keys structure at most once per connection,
+at fresh leader startup, so the provider can choose an initial key before the first get_key().
+Repeating it after a key exists violates the contract — the empty form means no metadata is present.
 
 WiredTiger calls get_key() during a checkpoint to determine whether new metadata should be persisted.
 If WT_CRYPT_KEYS::keys::size is non zero, WiredTiger allocates a buffer and calls get_key() again so the key provider
