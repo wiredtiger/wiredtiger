@@ -17,9 +17,10 @@ usage(void)
 {
     static const char *options[] = {"-p page_id",
       "required: numeric page id (decimal or 0x-prefixed hex)", "-l lsn",
-      "required: numeric LSN (decimal or 0x-prefixed hex)", "-?", "show this message", NULL, NULL};
+      "required: numeric LSN (decimal or 0x-prefixed hex)", "-U",
+      "dump application data (default: redacted)", "-?", "show this message", NULL, NULL};
 
-    util_usage("page -p page_id -l lsn uri", "options:", options);
+    util_usage("page [-U] -p page_id -l lsn uri", "options:", options);
     return (1);
 }
 
@@ -35,16 +36,17 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     uint64_t lsn, page_id;
     int ch;
     char *uri;
-    bool have_lsn, have_page_id;
+    bool dump_all_data, have_lsn, have_page_id;
 
     session_impl = (WT_SESSION_IMPL *)session;
+    dump_all_data = false;
     have_lsn = false;
     have_page_id = false;
     lsn = 0;
     page_id = 0;
     uri = NULL;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "l:p:?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "l:p:U?")) != EOF)
         switch (ch) {
         case 'l':
             if (util_str2num(session, __wt_optarg, true, &lsn) != 0)
@@ -55,6 +57,9 @@ util_page(WT_SESSION *session, int argc, char *argv[])
             if (util_str2num(session, __wt_optarg, true, &page_id) != 0)
                 return (usage());
             have_page_id = true;
+            break;
+        case 'U':
+            dump_all_data = true;
             break;
         case '?':
             usage();
@@ -80,8 +85,9 @@ util_page(WT_SESSION *session, int argc, char *argv[])
 
     WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
 #ifdef HAVE_DIAGNOSTIC
-    ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
+    ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL, dump_all_data, false);
 #else
+    WT_UNUSED(dump_all_data);
     fprintf(stderr,
       "%s: page: this subcommand requires a diagnostic build "
       "(rebuild WiredTiger with -DHAVE_DIAGNOSTIC=1)\n",
