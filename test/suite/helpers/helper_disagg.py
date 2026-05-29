@@ -562,6 +562,12 @@ class Oplog(object):
 # corruption into a running disaggregated-storage test by directly mutating the
 # per-shard pages_NN.db files.
 #
+# Palite stores each saved page image as one row in the `pages` table, keyed by
+# (table_id, page_id, lsn). A single logical page (table_id, page_id) can have
+# many rows: a base image plus successive deltas, forming a delta chain. The
+# corruption helpers below operate on one row of that table at a time, i.e.
+# they damage a single page image at a specific LSN unless noted otherwise.
+#
 # Palite holds an exclusive SQLite lock while WT is open, so writes (and the
 # multi-shard scan that picks a victim row) must happen while the connection
 # is closed. The mutations go through wt_builddir/sqlite3 (not system sqlite3)
@@ -572,7 +578,7 @@ class DisaggCorruptionMixin:
     # static-asserted in ext/page_log/palite/palite.cpp.
     WT_PAGE_LOG_DISCARDED = 0x10000
 
-    # ---- Read helpers (WT may be open or closed) ----
+    # ---- Read helpers ----
 
     def sqlite_select_json(self, table_id, sql_query):
         """Read rows from the pages_NN.db for table_id's shard. Palite uses
@@ -607,7 +613,8 @@ class DisaggCorruptionMixin:
         self.fail(fail_msg)
 
     def _pick_any_row(self):
-        """Returns (table_id, page_id, lsn) of any populated row."""
+        """Pick one row from the palite pages table across all shards.
+        Returns its (table_id, page_id, lsn) — i.e. one page image."""
         row = self._scan_shards(
             'SELECT table_id, page_id, lsn FROM pages '
             'ORDER BY table_id DESC, page_id ASC, lsn DESC LIMIT 1;',
@@ -615,7 +622,9 @@ class DisaggCorruptionMixin:
         return int(row['table_id']), int(row['page_id']), int(row['lsn'])
 
     def _pick_multi_lsn_row(self):
-        """Returns (table_id, page_id) of any row with >= 2 LSNs."""
+        """Pick one logical page (table_id, page_id) whose delta chain
+        has >= 2 LSNs in the palite pages table. Returns (table_id,
+        page_id) — the per-LSN rows can then be queried separately."""
         row = self._scan_shards(
             'SELECT table_id, page_id, COUNT(*) AS n FROM pages '
             'GROUP BY table_id, page_id HAVING n >= 2 '
@@ -623,12 +632,11 @@ class DisaggCorruptionMixin:
             'no rows with >= 2 LSNs found in any pages_NN.db')
         return int(row['table_id']), int(row['page_id'])
 
-    # ---- Write helpers (close WT, leave it closed) ----
+    # ---- Write helpers ----
 
     def _palite_mutate(self, table_id, sql):
-        """Run sql via wt_builddir/sqlite3 against the shard DB for table_id.
-        Caller is responsible for closing WT first. Returns a list of
-        non-empty stdout lines."""
+        """Run sql against the pages_NN.db for table_id's shard. Returns the
+        sqlite3 CLI's stdout split into non-empty lines."""
         shard = get_shard_id(table_id)
         db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
@@ -638,8 +646,10 @@ class DisaggCorruptionMixin:
         return [line for line in result.stdout.splitlines() if line != '']
 
     def corrupt_random_page_image(self):
-        """Pick any populated page and overwrite its first byte with 0xff.
-        Returns (table_id, page_id, lsn)."""
+        """Pick one page image (one (page_id, lsn) row in the palite
+        pages table) and overwrite the first byte of its stored data
+        with 0xff. Other images in the same delta chain are untouched.
+        Returns the (table_id, page_id, lsn) of the corrupted image."""
         table_id, page_id, lsn = self._pick_any_row()
         self.close_conn()
         sql = (
@@ -652,8 +662,10 @@ class DisaggCorruptionMixin:
         return table_id, page_id, lsn
 
     def delete_random_page_image(self):
-        """Pick any populated page and DELETE its row.
-        Returns (table_id, page_id, lsn)."""
+        """Pick one page image (one (page_id, lsn) row in the palite
+        pages table) and DELETE it. Other images in the same delta
+        chain are untouched. Returns the (table_id, page_id, lsn) of
+        the deleted image."""
         table_id, page_id, lsn = self._pick_any_row()
         self.close_conn()
         sql = (
@@ -666,8 +678,11 @@ class DisaggCorruptionMixin:
         return table_id, page_id, lsn
 
     def set_random_page_discarded(self):
-        """Pick any populated page and OR WT_PAGE_LOG_DISCARDED into flags.
-        Returns (table_id, page_id, lsn)."""
+        """Pick one page image (one (page_id, lsn) row in the palite
+        pages table) and OR WT_PAGE_LOG_DISCARDED into its flags
+        column, marking that single image as a tombstone. Other images
+        in the same delta chain are untouched. Returns the (table_id,
+        page_id, lsn) of the modified image."""
         table_id, page_id, lsn = self._pick_any_row()
         self.close_conn()
         sql = (
@@ -680,8 +695,10 @@ class DisaggCorruptionMixin:
         return table_id, page_id, lsn
 
     def truncate_random_delta_chain(self):
-        """Pick a (table_id, page_id) with >= 2 LSNs and DELETE all but the
-        base (lowest) LSN. Returns (table_id, page_id, kept_lsn, deleted_lsns)."""
+        """Pick a logical page (table_id, page_id) whose delta chain has
+        >= 2 LSNs and DELETE every image except the base (lowest LSN),
+        leaving the base image as the only row for that page. Returns
+        (table_id, page_id, kept_lsn, deleted_lsns)."""
         table_id, page_id = self._pick_multi_lsn_row()
         all_lsns = sorted(int(r['lsn']) for r in self.sqlite_select_json(
             table_id,

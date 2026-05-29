@@ -88,13 +88,12 @@ class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMi
         if self.ds_name != 'palite':
             self.skipTest('palite-only test')
         self._populate()
-        # Each extra round of (modify + checkpoint) adds another LSN row for
-        # the same (table_id, page_id), giving _pick_multi_lsn_row something
-        # to find.
-        for round in range(5):
+
+        # Apply a series of modifications to create page deltas.
+        for iteration in range(5):
             c = self.session.open_cursor(self.uri, None, None)
             for i in range(self.nentries):
-                c[f'k{i:04d}'] = f'v{i:04d}-{round}'
+                c[f'k{i:04d}'] = f'v{i:04d}-{iteration}'
             c.close()
             self.session.checkpoint()
 
