@@ -13,6 +13,8 @@
       __wt_atomic_load_int32_relaxed(&(dhandle)->session_inuse) == 0 && \
       __wt_atomic_load_uint32_relaxed(&(dhandle)->references) == 0)
 
+#define WT_DISAGG_OUTDATED_GRACE_SECS 5
+
 /*
  * __sweep_file_dhandle_check_and_reset_tod --
  *     Check if the file dhandle exists for the table dhandle and resets its time-of-death if it
@@ -201,12 +203,22 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
             continue;
         /*
-         * Close outdated btrees immediately, even if they are metadata. For trees not marked with
-         * outdated, wait until the idle time has elapsed since time of death.
+         * Close outdated btrees immediately, even if they are metadata, except on a disaggregated
+         * standby where they are held for a short grace period. For trees not marked with outdated,
+         * wait until the idle time has elapsed since time of death.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
+            if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader) {
+                uint64_t tod = __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath);
+                if (tod == 0) {
+                    dhandle->timeofdeath = now;
+                    continue;
+                }
+                if (now - tod <= WT_DISAGG_OUTDATED_GRACE_SECS)
+                    continue;
+            }
         } else if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
           __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
