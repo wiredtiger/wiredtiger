@@ -427,7 +427,6 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
     if (crypt == NULL || crypt->keys.data == NULL || crypt->keys.size == 0)
         WT_RET_MSG(session, EINVAL, "set_key requires a non-empty key buffer");
 
-    /* Lock-free for now; synchronization is deferred. */
     WT_RET(__wt_buf_set(
       session, &conn->disaggregated_storage.active_crypt_key, crypt->keys.data, crypt->keys.size));
 

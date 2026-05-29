@@ -182,11 +182,7 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
     if (crypt->keys.data != NULL)
         KEY_RESET_EXPIRE(kp);
 
-    /*
-     * Push mode: seed the WiredTiger-side cache from kp->state, which after kp_set_key holds either
-     * the just-loaded key or the DEFAULT_KEY fallback. This lets subsequent checkpoints persist the
-     * key without waiting for a rotation.
-     */
+    /* Push mode: initialize the WT-side active key during start up. */
     if (kp->version == 1 && wtkp->set_key != NULL) {
         WT_CRYPT_KEYS local_crypt = {{0}, {0}, 0};
         local_crypt.keys.data = kp->state.key_data;
@@ -511,7 +507,7 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     if ((ret = kp_configure(kp, config)) != 0)
         goto err;
 
-    /* Initialize the key provider function table */
+    /* Initialize the key provider function table. */
     wtkp->load_key = kp_load_key;
     wtkp->get_key = kp_get_key;
     wtkp->on_key_update = kp_on_key_update;
