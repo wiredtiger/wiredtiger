@@ -162,7 +162,7 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
 
 /*
  * kp_push_active_key --
- *     Hand the module's current key to WiredTiger's active-key buffer via set_key.
+ *     Push the module's current key into WiredTiger via set_key.
  */
 static int
 kp_push_active_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
