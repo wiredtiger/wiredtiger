@@ -28,7 +28,7 @@
 #
 
 import wiredtiger
-import functools, os, shutil, subprocess, wttest
+import functools, json, os, shutil, subprocess, wttest
 from run import wt_builddir
 
 # These routines help run the various page log sources used by disaggregated storage.
@@ -559,156 +559,155 @@ class Oplog(object):
             f' lookup - (table,k) -> list of (ts,value)={self._lookup}'
 
 # DisaggCorruptionMixin provides Python helpers for injecting palite-level page
-# corruption into a running disaggregated-storage test. Each public method closes
-# the WT connection and mutates the relevant per-shard pages_NN.db via the
-# bundled sqlite3 binary; WT is left closed since corruption may prevent it
-# from reopening. Tests can read post-state via direct sqlite3 queries.
+# corruption into a running disaggregated-storage test by directly mutating the
+# per-shard pages_NN.db files.
 #
-# Palite holds an exclusive SQLite lock while WT is open, so writes must happen
-# while the connection is closed. The mutations go through wt_builddir/sqlite3
-# (not system sqlite3) to avoid version skew with the SQLite statically linked
-# into palite.
+# Palite holds an exclusive SQLite lock while WT is open, so writes (and the
+# multi-shard scan that picks a victim row) must happen while the connection
+# is closed. The mutations go through wt_builddir/sqlite3 (not system sqlite3)
+# to avoid version skew with the SQLite statically linked into palite.
 class DisaggCorruptionMixin:
 
     # Mirrors WT_PAGE_LOG_DISCARDED in src/include/page_log.h. The value is
     # static-asserted in ext/page_log/palite/palite.cpp.
     WT_PAGE_LOG_DISCARDED = 0x10000
 
-    def _palite_mutate(self, table_id, sql):
-        """Close WT, run sql via wt_builddir/sqlite3 against the shard DB for
-        table_id. Leaves WT closed - corruption helpers may make WT unable to
-        reopen. Returns a list of non-empty stdout lines."""
+    # ---- Read helpers (WT may be open or closed) ----
+
+    def sqlite_select_json(self, table_id, sql_query):
+        """Read rows from the pages_NN.db for table_id's shard. Palite uses
+        shared SQLite locks for readers, so this is safe whether WT is open
+        or closed. Returns a list of dict rows."""
         shard = get_shard_id(table_id)
         db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
-        if not os.path.exists(db_path):
-            raise FileNotFoundError(db_path)
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+        result = subprocess.run(
+            [sqlite_exe, '-json', db_path, sql_query],
+            capture_output=True, text=True, check=True)
+        return json.loads(result.stdout) if result.stdout.strip() else []
+
+    def _scan_shards(self, sql, fail_msg):
+        """Iterate per-shard pages_NN.db with WT closed and return the first
+        non-empty JSON row from any shard, or self.fail() with fail_msg.
+        Reopens WT before returning."""
         self.close_conn()
+        try:
+            for shard in range(NUM_SHARDS):
+                db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
+                if not os.path.exists(db_path):
+                    continue
+                sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+                result = subprocess.run(
+                    [sqlite_exe, '-json', db_path, sql],
+                    capture_output=True, text=True, check=True)
+                if result.stdout.strip():
+                    return json.loads(result.stdout)[0]
+        finally:
+            self.reopen_conn()
+        self.fail(fail_msg)
+
+    def _pick_any_row(self):
+        """Returns (table_id, page_id, lsn) of any populated row."""
+        row = self._scan_shards(
+            'SELECT table_id, page_id, lsn FROM pages '
+            'ORDER BY table_id DESC, page_id ASC, lsn DESC LIMIT 1;',
+            'no rows found in any pages_NN.db')
+        return int(row['table_id']), int(row['page_id']), int(row['lsn'])
+
+    def _pick_multi_lsn_row(self):
+        """Returns (table_id, page_id) of any row with >= 2 LSNs."""
+        row = self._scan_shards(
+            'SELECT table_id, page_id, COUNT(*) AS n FROM pages '
+            'GROUP BY table_id, page_id HAVING n >= 2 '
+            'ORDER BY table_id DESC LIMIT 1;',
+            'no rows with >= 2 LSNs found in any pages_NN.db')
+        return int(row['table_id']), int(row['page_id'])
+
+    # ---- Write helpers (close WT, leave it closed) ----
+
+    def _palite_mutate(self, table_id, sql):
+        """Run sql via wt_builddir/sqlite3 against the shard DB for table_id.
+        Caller is responsible for closing WT first. Returns a list of
+        non-empty stdout lines."""
+        shard = get_shard_id(table_id)
+        db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         result = subprocess.run(
             [sqlite_exe, '-bail', db_path],
             input=sql, capture_output=True, text=True, check=True)
         return [line for line in result.stdout.splitlines() if line != '']
 
-    def corrupt_page_image(self, table_id, page_id, lsn=None):
-        """Overwrite the first byte of page_data with 0xff for the row.
-        If lsn is None, target MAX(lsn) for (table_id, page_id).
-        Returns the lsn that was acted on. WT is left closed."""
-        table_id = int(table_id)
-        page_id = int(page_id)
-        if lsn is None:
-            lsn_expr = (f"(SELECT MAX(lsn) FROM pages "
-                        f"WHERE table_id={table_id} AND page_id={page_id})")
-        else:
-            lsn_expr = str(int(lsn))
+    def corrupt_random_page_image(self):
+        """Pick any populated page and overwrite its first byte with 0xff.
+        Returns (table_id, page_id, lsn)."""
+        table_id, page_id, lsn = self._pick_any_row()
+        self.close_conn()
         sql = (
-            f"SELECT {lsn_expr};\n"
             f"UPDATE pages SET page_data = x'ff' || substr(page_data, 2) "
-            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn_expr};\n"
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn};\n"
             f"SELECT changes();\n"
         )
         rows = self._palite_mutate(table_id, sql)
-        if len(rows) < 2 or rows[0] == '':
-            raise AssertionError(
-                f"no row for table_id={table_id}, page_id={page_id}, lsn={lsn}")
-        resolved_lsn = int(rows[0])
-        affected = int(rows[1])
-        if affected == 0:
-            raise AssertionError(
-                f"mutation affected 0 rows for table_id={table_id}, "
-                f"page_id={page_id}, lsn={lsn}")
-        return resolved_lsn
+        self._require_one_change(rows, table_id, page_id, lsn)
+        return table_id, page_id, lsn
 
-    def delete_page_image(self, table_id, page_id, lsn=None):
-        """DELETE the row from pages. Simulates a missing page.
-        If lsn is None, target MAX(lsn) for (table_id, page_id).
-        Returns the lsn that was acted on. WT is left closed."""
-        table_id = int(table_id)
-        page_id = int(page_id)
-        if lsn is None:
-            lsn_expr = (f"(SELECT MAX(lsn) FROM pages "
-                        f"WHERE table_id={table_id} AND page_id={page_id})")
-        else:
-            lsn_expr = str(int(lsn))
+    def delete_random_page_image(self):
+        """Pick any populated page and DELETE its row.
+        Returns (table_id, page_id, lsn)."""
+        table_id, page_id, lsn = self._pick_any_row()
+        self.close_conn()
         sql = (
-            f"SELECT {lsn_expr};\n"
             f"DELETE FROM pages "
-            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn_expr};\n"
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn};\n"
             f"SELECT changes();\n"
         )
         rows = self._palite_mutate(table_id, sql)
-        if len(rows) < 2 or rows[0] == '':
-            raise AssertionError(
-                f"no row for table_id={table_id}, page_id={page_id}, lsn={lsn}")
-        resolved_lsn = int(rows[0])
-        affected = int(rows[1])
-        if affected == 0:
-            raise AssertionError(
-                f"mutation affected 0 rows for table_id={table_id}, "
-                f"page_id={page_id}, lsn={lsn}")
-        return resolved_lsn
+        self._require_one_change(rows, table_id, page_id, lsn)
+        return table_id, page_id, lsn
 
-    def set_page_discarded(self, table_id, page_id, lsn=None):
-        """OR WT_PAGE_LOG_DISCARDED (0x10000) into flags.
-        If lsn is None, target MAX(lsn) for (table_id, page_id).
-        Returns the lsn that was acted on. WT is left closed."""
-        table_id = int(table_id)
-        page_id = int(page_id)
-        if lsn is None:
-            lsn_expr = (f"(SELECT MAX(lsn) FROM pages "
-                        f"WHERE table_id={table_id} AND page_id={page_id})")
-        else:
-            lsn_expr = str(int(lsn))
+    def set_random_page_discarded(self):
+        """Pick any populated page and OR WT_PAGE_LOG_DISCARDED into flags.
+        Returns (table_id, page_id, lsn)."""
+        table_id, page_id, lsn = self._pick_any_row()
+        self.close_conn()
         sql = (
-            f"SELECT {lsn_expr};\n"
             f"UPDATE pages SET flags = flags | {self.WT_PAGE_LOG_DISCARDED} "
-            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn_expr};\n"
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn};\n"
             f"SELECT changes();\n"
         )
         rows = self._palite_mutate(table_id, sql)
-        if len(rows) < 2 or rows[0] == '':
-            raise AssertionError(
-                f"no row for table_id={table_id}, page_id={page_id}, lsn={lsn}")
-        resolved_lsn = int(rows[0])
-        affected = int(rows[1])
-        if affected == 0:
-            raise AssertionError(
-                f"mutation affected 0 rows for table_id={table_id}, "
-                f"page_id={page_id}, lsn={lsn}")
-        return resolved_lsn
+        self._require_one_change(rows, table_id, page_id, lsn)
+        return table_id, page_id, lsn
 
-    def truncate_delta_chain(self, table_id, page_id, keep_lsns):
-        """DELETE every row for (table_id, page_id) whose lsn is not in
-        keep_lsns. keep_lsns is an iterable of ints. Returns the list of
-        LSNs that were deleted (sorted ascending); empty if no rows
-        matched or all existing rows are in keep_lsns. WT is left closed."""
-        table_id = int(table_id)
-        page_id = int(page_id)
-        keep_list = sorted({int(x) for x in keep_lsns})
-        if not keep_list:
-            raise AssertionError("keep_lsns must contain at least one LSN")
-        keep_clause = ", ".join(str(x) for x in keep_list)
+    def truncate_random_delta_chain(self):
+        """Pick a (table_id, page_id) with >= 2 LSNs and DELETE all but the
+        base (lowest) LSN. Returns (table_id, page_id, kept_lsn, deleted_lsns)."""
+        table_id, page_id = self._pick_multi_lsn_row()
+        all_lsns = sorted(int(r['lsn']) for r in self.sqlite_select_json(
+            table_id,
+            f'SELECT lsn FROM pages '
+            f'WHERE table_id={table_id} AND page_id={page_id};'))
+        kept_lsn = all_lsns[0]
+        deleted_lsns = all_lsns[1:]
+        self.close_conn()
         sql = (
-            f"SELECT GROUP_CONCAT(lsn) FROM pages "
-            f"WHERE table_id={table_id} AND page_id={page_id} "
-            f"AND lsn NOT IN ({keep_clause});\n"
             f"DELETE FROM pages "
             f"WHERE table_id={table_id} AND page_id={page_id} "
-            f"AND lsn NOT IN ({keep_clause});\n"
+            f"AND lsn != {kept_lsn};\n"
             f"SELECT changes();\n"
         )
         rows = self._palite_mutate(table_id, sql)
-        # When GROUP_CONCAT matches no rows it returns NULL; sqlite emits an
-        # empty line which _palite_mutate filters out. In that case rows[0] is
-        # changes() and len(rows)==1; otherwise rows[0] is the GROUP_CONCAT
-        # string and rows[1] is changes().
-        if len(rows) == 1:
-            deleted = []
-            affected = int(rows[0])
-        else:
-            deleted = [int(x) for x in rows[0].split(',') if x]
-            affected = int(rows[1])
-        if affected != len(deleted):
+        affected = int(rows[0])
+        if affected != len(deleted_lsns):
             raise AssertionError(
-                f"truncate_delta_chain mismatch: GROUP_CONCAT yielded "
-                f"{len(deleted)} LSNs but changes() reported {affected}")
-        return sorted(deleted)
+                f"truncate mismatch: expected to delete {len(deleted_lsns)} "
+                f"rows, sqlite reported {affected}")
+        return table_id, page_id, kept_lsn, deleted_lsns
+
+    @staticmethod
+    def _require_one_change(rows, table_id, page_id, lsn):
+        affected = int(rows[0])
+        if affected != 1:
+            raise AssertionError(
+                f"expected 1 affected row, got {affected} for "
+                f"table_id={table_id}, page_id={page_id}, lsn={lsn}")

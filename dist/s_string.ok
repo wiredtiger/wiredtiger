@@ -196,7 +196,6 @@ FTDC
 FULLFSYNC
 FUNCSIG
 Failpoint
-FileNotFoundError
 FindClose
 FindFirstFile
 FindNextFileW
