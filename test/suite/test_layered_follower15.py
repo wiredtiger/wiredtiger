@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered106.py
-#   Test MODIFY reconstruction on a GC-eligible base value.
+# test_layered_follower15.py
+#   Test MODIFY dependent on a GC-eligible base value.
 #
 #   Covers reads via cursor.next and cursor.search, and the case where
 #   the on-disk base is not yet GC-eligible and must remain readable
@@ -38,16 +38,16 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered106(wttest.WiredTigerTestCase):
+class test_layered_follower15(wttest.WiredTigerTestCase):
     base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = base_config + 'disaggregated=(role="leader")'
     conn_config_follower = base_config + 'disaggregated=(role="follower")'
 
-    uri = 'layered:test_layered106'
-    ingest_uri = 'file:test_layered106.wt_ingest'
+    uri = 'layered:test_layered_follower15'
+    ingest_uri = 'file:test_layered_follower15.wt_ingest'
     create_config = 'key_format=i,value_format=S'
 
-    disagg_storages = gen_disagg_storages('test_layered106', disagg_only=True)
+    disagg_storages = gen_disagg_storages('test_layered_follower15', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_follow = None

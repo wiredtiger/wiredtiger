@@ -848,6 +848,22 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __rec_row_garbage_collect_tw_eligible --
+ *     Check if the time window is eligible for garbage collection.
+ */
+static WT_INLINE bool
+__rec_row_garbage_collect_tw_eligible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
+{
+    if (WT_TIME_WINDOW_HAS_STOP(twp)) {
+        if (WT_REC_CAN_PRUNE_UPD(twp->stop_txn, twp->durable_stop_ts, r))
+            return (true);
+    } else if (WT_REC_CAN_PRUNE_UPD(twp->start_txn, twp->durable_start_ts, r))
+        return (true);
+
+    return (false);
+}
+
+/*
  * __rec_row_leaf_insert --
  *     Walk an insert chain, writing K/V pairs.
  */

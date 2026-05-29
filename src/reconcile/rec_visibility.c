@@ -1182,20 +1182,9 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      *
      * If the goal is to prune the entire key, avoid clearing the selected update.
      */
-    if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL &&
-      upd_select->upd != NULL) {
-        /* If we reach here we have selected the bottom non-aborted update. */
-        WT_ASSERT_ALWAYS(session, upd == NULL, "Update chain not fully traversed");
-        /*
-         * If the bottom non-aborted entry in the update chain is a MODIFY, its reconstruction base
-         * is the existing on-page value. If the base value is GC-eligible, force the MODIFY to be
-         * written as a full reconstructed value now.
-         */
-        bool can_prune_onpage_value = __rec_row_garbage_collect_tw_eligible(r, &vpack->tw);
-        if (upd_select->upd->type != WT_UPDATE_MODIFY || !can_prune_onpage_value) {
-            *has_newer_updatesp = true;
-            upd_select->upd = NULL;
-        }
+    if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
+        *has_newer_updatesp |= (upd_select->upd != NULL);
+        upd_select->upd = NULL;
     }
 
     /*
