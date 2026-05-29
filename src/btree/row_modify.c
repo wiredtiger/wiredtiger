@@ -239,7 +239,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             WT_PAGE_INDEX *pindex;
             WT_ITEM ref_key;
             uint32_t slot;
-            int cmp;
+            int cmp = 0;
 
             /*
              * Reading the parent's index requires the split generation: WT_INTL_INDEX_GET asserts

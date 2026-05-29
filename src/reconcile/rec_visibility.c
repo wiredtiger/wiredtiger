@@ -44,11 +44,13 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     /*
      * For row-store, the newly added supd must satisfy two invariants:
      *
-     * 1. It must belong to the chunk currently being built. The chunk's lower-bound key
-     *    (r->cur_ptr->key) is established by split-init for chunk 0, and by the boundary
-     *    promotion for later chunks -- both run before any supd is saved into the chunk. A supd
-     *    whose key sorts below the chunk key has been wrongly routed -- it belongs on an earlier
-     *    page -- and the downstream router cannot detect the case.
+     * 1. It must belong to the chunk currently being built. For chunks past the first one, the
+     *    chunk's lower-bound key (r->cur_ptr->key) is established by boundary promotion when the
+     *    previous chunk was finalized -- this is a true lower bound. A supd whose key sorts below
+     *    that bound has been wrongly routed -- it belongs on an earlier chunk -- and the
+     *    downstream router cannot detect the case. The first chunk is skipped: split-init sets
+     *    cur_ptr->key to the page's first on-disk key for suffix-compression purposes only, not
+     *    as a lower bound; legitimate SMALLEST-insert keys sort below it.
      *
      * 2. It must sort no earlier than the previously saved supd. Walk order guarantees this in
      *    correct code, and the downstream router relies on it: the router stops at the first key
@@ -69,8 +71,12 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
             this_key->size = WT_INSERT_KEY_SIZE(supd->ins);
         }
 
-        /* Invariant 1: the new key sorts at or above the current chunk's lower-bound key. */
-        if (r->cur_ptr != NULL && r->cur_ptr->key.size != 0) {
+        /*
+         * Invariant 1: for chunks past the first one, the new key sorts at or above the chunk's
+         * lower-bound key. r->prev_ptr is NULL while building the first chunk and non-NULL once a
+         * boundary has been crossed.
+         */
+        if (r->prev_ptr != NULL && r->cur_ptr != NULL && r->cur_ptr->key.size != 0) {
             WT_ERR(
               __wt_compare(session, S2BT(session)->collator, this_key, &r->cur_ptr->key, &cmp));
             WT_ASSERT(session, cmp >= 0);
