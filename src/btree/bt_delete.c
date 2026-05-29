@@ -289,9 +289,9 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
                  */
                 page_del->pg_del_rollback_ts = WT_TS_MAX;
             /*
-             * Save the original txnid before overwriting it. Guard against a second call during WAL
-             * replay where txnid is already WT_TXN_ABORTED from the checkpoint cell; overwriting
-             * pg_del_saved_txnid in that case would destroy the original value.
+             * Save the original txnid before overwriting it. Guard against a second call during
+             * write-ahead log replay where txnid is already WT_TXN_ABORTED from the checkpoint
+             * cell; overwriting pg_del_saved_txnid in that case would destroy the original value.
              *
              * After crash-restart, correctness of the stable-rollback check relies on WAL replay to
              * restore rollback timestamps before the next checkpoint runs.

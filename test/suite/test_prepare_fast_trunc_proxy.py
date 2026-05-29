@@ -312,7 +312,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         self.assertEqual(found, hi - lo + 1)
 
     # -------------------------------------------------------------------------
-    # Case 5: Like Case 4 but a checkpoint is taken WHILE the prepare is in
+    # Case 5: Like Case 4 but a checkpoint is taken while the prepare is in
     #         flight (before rollback), so the first checkpoint writes a
     #         prepared proxy DEL cell.  After rollback and stable advancing past
     #         rollback_ts a second checkpoint must revert that DEL cell to a
@@ -355,8 +355,8 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         # Advance stable past rollback_ts: the rollback is now stable.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(35))
 
-        # Checkpoint 2: rollback_ts (30) <= stable_ts (35).  The reconciler
-        # must revert the on-page prepared proxy DEL cell to a plain addr cell
+        # Checkpoint 2: rollback_ts (30) <= stable_ts (35).
+        # Must revert the on-page prepared proxy DEL cell to a plain addr cell
         # rather than copying it verbatim or firing an assertion.
         self.session.checkpoint()
 
@@ -370,9 +370,9 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
     # Case 6: Fast-truncate prepared (ts=20) then committed with durable_ts=30,
     #         stable advanced to 35 so durable_ts (30) <= stable_ts (35).
     #
-    # The spec's commit path: "if durable_ts <= stable_ts: write as committed
-    # page del".  The checkpoint at stable_ts=35 must write a COMMITTED (not
-    # prepared) proxy cell.  After reopen the truncated rows must NOT be visible
+    # If durable_ts <= stable_ts: write as committed page del.
+    # The checkpoint at stable_ts=35 must write a committed (not prepared)
+    # proxy cell.  After reopen the truncated rows must NOT be visible
     # (the deletion is fully stable).
     # -------------------------------------------------------------------------
     def test_case6_commit_durable_within_stable(self):
