@@ -52,7 +52,9 @@ typedef struct {
 
     WT_PAGE_DELETED del; /* WTI_CHILD_PROXY state fast-truncate information */
 
-    bool hazard; /* If currently holding a child hazard pointer */
+    bool hazard;                    /* If currently holding a child hazard pointer */
+    bool is_prepared_fast_truncate; /* proxy cell should use prepared encoding */
+    bool needs_disk_transition;     /* aborted-stable */
 } WTI_CHILD_MODIFY_STATE;
 
 /*

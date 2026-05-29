@@ -184,8 +184,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr != NULL) {
-            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
-            __wti_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del, false);
+            __wti_rec_cell_build_addr(
+              session, r, addr, NULL, ref->ref_recno, page_del, cms.is_prepared_fast_truncate);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
@@ -196,8 +196,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
                  * info.
                  */
                 WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
-                /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
-                __wti_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del, false);
+                __wti_rec_cell_build_addr(
+                  session, r, NULL, vpack, ref->ref_recno, page_del, cms.is_prepared_fast_truncate);
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
                 val->buf.data = ref->addr;

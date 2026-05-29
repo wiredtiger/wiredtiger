@@ -67,21 +67,80 @@ __rec_child_deleted(
             }
 
             if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-              page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts)
+              page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts) {
+                /*
+                 * The commit is not yet stable. If the prepare is stable, write a prepared proxy
+                 * cell so recovery can reconstruct the prepared state.
+                 */
+                if (page_del->prepared_id != WT_PREPARED_ID_NONE &&
+                  page_del->prepare_ts <= r->rec_start_pinned_stable_ts) {
+                    cmsp->del = *page_del;
+                    cmsp->state = WTI_CHILD_PROXY;
+                    cmsp->is_prepared_fast_truncate = true;
+                    page_del->selected_for_write = true;
+                    return (0);
+                }
                 visible = false;
+            }
 
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
         } else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
 
             if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-              page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts)
+              page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts) {
+                if (page_del->prepared_id != WT_PREPARED_ID_NONE &&
+                  page_del->prepare_ts <= r->rec_start_pinned_stable_ts) {
+                    cmsp->del = *page_del;
+                    cmsp->state = WTI_CHILD_PROXY;
+                    cmsp->is_prepared_fast_truncate = true;
+                    page_del->selected_for_write = true;
+                    return (0);
+                }
                 visible = false;
+            }
 
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
         } else
             visible = visible_all = __wt_page_del_visible_all(session, page_del, true);
     }
+    /*
+     * Handle an aborted prepared fast-truncate. So that reconciliation can write the correct proxy
+     * cell until both the prepare and the rollback are stable.
+     */
+    if (__wt_atomic_load_uint64_v_relaxed(&page_del->txnid) == WT_TXN_ABORTED &&
+      page_del->prepared_id != WT_PREPARED_ID_NONE) {
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            if (page_del->pg_del_rollback_ts <= r->rec_start_pinned_stable_ts) {
+                /*
+                 * The rollback is stable: the deletion effectively never happened. Free disk blocks
+                 * and write the original child block address.
+                 */
+                __wt_overwrite_and_free(session, ref->page_del);
+                cmsp->needs_disk_transition = true;
+                cmsp->state = WTI_CHILD_ORIGINAL;
+                return (0);
+            }
+            if (page_del->prepare_ts <= r->rec_start_pinned_stable_ts) {
+                /*
+                 * The prepare is stable but the rollback is not yet stable. Write a prepared proxy
+                 * cell so that recovery can reconstruct the prepared state.
+                 */
+                cmsp->del = *page_del;
+                cmsp->state = WTI_CHILD_PROXY;
+                cmsp->is_prepared_fast_truncate = true;
+                page_del->selected_for_write = true;
+                return (0);
+            }
+        }
+        /* Neither timestamp threshold met: leave the page dirty. */
+        if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
+            return (__wt_set_return(session, EBUSY));
+        cmsp->state = WTI_CHILD_ORIGINAL;
+        r->leave_dirty = true;
+        return (0);
+    }
+
     /*
      * If an earlier reconciliation chose to write the fast truncate information to the page, we
      * should select it regardless of visibility unless it is globally visible. This is important as
@@ -90,6 +149,9 @@ __rec_child_deleted(
     if (page_del->selected_for_write && !visible_all) {
         cmsp->del = *page_del;
         cmsp->state = WTI_CHILD_PROXY;
+        /* Preserve the prepared encoding used when the cell was first written. */
+        cmsp->is_prepared_fast_truncate =
+          page_del->prepared_id != WT_PREPARED_ID_NONE && !page_del->committed;
         return (0);
     }
 
@@ -109,6 +171,27 @@ __rec_child_deleted(
         WT_ASSERT(session, !visible_all);
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
             WT_RET_PANIC(session, EINVAL, "reconciliation illegally skipped an update");
+
+        /*
+         * In-flight prepared fast-truncate with a stable prepare timestamp: write a prepared proxy
+         * cell so that recovery can reconstruct the prepared state. Prepared fast-truncates are
+         * never evicted so we only reach this path during checkpoint.
+         */
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+          page_del->prepared_id != WT_PREPARED_ID_NONE && !page_del->committed) {
+            prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
+            if ((prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
+              page_del->prepare_ts <= r->rec_start_pinned_stable_ts) {
+                WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
+                  "In progress prepares should never be seen in eviction");
+                cmsp->del = *page_del;
+                cmsp->state = WTI_CHILD_PROXY;
+                cmsp->is_prepared_fast_truncate = true;
+                page_del->selected_for_write = true;
+                return (0);
+            }
+        }
+
         /*
          * In addition to the WT_REC_CLEAN_AFTER_REC case, fail if we're trying to evict an internal
          * page and we can't see the update to it. There's not much point continuing; unlike with a
@@ -202,6 +285,8 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
 
     /* We may acquire a hazard pointer our caller must release. */
     cmsp->hazard = false;
+    cmsp->is_prepared_fast_truncate = false;
+    cmsp->needs_disk_transition = false;
 
     /* Default to using the original child address. */
     cmsp->state = WTI_CHILD_ORIGINAL;
@@ -242,7 +327,8 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                 r->delta.size = 0;
             }
             ret = __rec_child_deleted(session, r, ref, cmsp);
-            WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            /* Transition aborted-stable prepared fast-truncates. */
+            WT_REF_SET_STATE(ref, cmsp->needs_disk_transition ? WT_REF_DISK : WT_REF_DELETED);
             WT_RET(ret);
             goto done;
 

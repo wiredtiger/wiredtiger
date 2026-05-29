@@ -520,8 +520,15 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
 
     /* Build packed key/value. */
     __cell_build_int_key_from_kv(&key_kv, key_data, key_size);
-    /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
-    __wt_cell_build_addr_kv(session, &val_kv, cell_type, page_del, ta, false, val_data, val_size);
+    /*
+     * Re-encode the cell preserving the prepared/committed encoding the original cell had. A
+     * prepared cell was unpacked with committed=false and prepared_id set; a committed cell has
+     * committed=true and prepared_id may be set but we use the committed encoding.
+     */
+    bool is_prepared_fast_truncate =
+      page_del != NULL && !page_del->committed && page_del->prepared_id != WT_PREPARED_ID_NONE;
+    __wt_cell_build_addr_kv(
+      session, &val_kv, cell_type, page_del, ta, is_prepared_fast_truncate, val_data, val_size);
 
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved

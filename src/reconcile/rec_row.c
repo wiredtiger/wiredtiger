@@ -711,15 +711,15 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page_del = NULL;
         if (__wt_off_page(page, addr)) {
             page_del = cms.state == WTI_CHILD_PROXY ? &cms.del : NULL;
-            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
-            __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del, false);
+            __wti_rec_cell_build_addr(
+              session, r, addr, NULL, WT_RECNO_OOB, page_del, cms.is_prepared_fast_truncate);
             source_ta = &addr->ta;
         } else if (cms.state == WTI_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
-            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
-            __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, false);
+            __wti_rec_cell_build_addr(
+              session, r, NULL, vpack, WT_RECNO_OOB, page_del, cms.is_prepared_fast_truncate);
             source_ta = &vpack->ta;
         } else {
             retain_onpage = true;
@@ -757,8 +757,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             }
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED))
-                /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
-                __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, false);
+                __wti_rec_cell_build_addr(
+                  session, r, NULL, vpack, WT_RECNO_OOB, page_del, cms.is_prepared_fast_truncate);
             else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
