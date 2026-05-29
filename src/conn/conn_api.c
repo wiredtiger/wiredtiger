@@ -2941,7 +2941,7 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
     WT_ERR(__wt_config_gets(session, cfg, "version", &cval));
     if (cval.val == 1) {
         F_SET(conn, WT_CONN_KEY_PROVIDER_PUSH);
-        /* set_key is implemented by WT and called by the module; install the pointer here. */
+        /* Install the WT-implemented set_key for the module to call. */
         key_provider->set_key = __wti_disagg_set_crypt_key;
     }
 

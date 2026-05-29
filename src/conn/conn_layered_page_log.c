@@ -513,7 +513,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 
     if (push_mode && ret == 0) {
-        /* The active key has been persisted; the module must push again before the next write. */
+        /* The active key has been persisted. Clear the active key. */
         active = &conn->disaggregated_storage.active_crypt_key;
         active->data = NULL;
         active->size = 0;
