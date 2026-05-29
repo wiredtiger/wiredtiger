@@ -1386,7 +1386,6 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from the ingest btrees'),
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from the stable btrees'),
     LayeredStat('layered_curs_remove', 'Layered table cursor remove operations'),
-    LayeredStat('layered_curs_reopen_ingest', 'Layered table cursor reopens ingest btree'),
     LayeredStat('layered_curs_search', 'Layered table cursor search operations'),
     LayeredStat('layered_curs_search_ingest', 'Layered table cursor search operations from the ingest btrees'),
     LayeredStat('layered_curs_search_near', 'Layered table cursor search near operations'),
