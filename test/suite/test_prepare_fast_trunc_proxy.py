@@ -39,16 +39,16 @@ from helper import simulate_crash_restart
 # cases introduced in WT-17663:
 #
 #   Case 1 (prepare case):  page_del still in-flight prepared,
-#                           prepare_ts <= stable_ts → write prepared proxy cell
+#                           prepare_ts <= stable_ts - write prepared proxy cell
 #   Case 2 (commit case):   page_del committed after prepare,
 #                           durable_ts > stable_ts but prepare_ts <= stable_ts
-#                           → write prepared proxy cell; after RTS data comes back
+#                           - write prepared proxy cell; after RTS data comes back
 #   Case 3 (rollback case, proxy):  page_del prepared then aborted,
 #                           rollback_ts > stable_ts but prepare_ts <= stable_ts
-#                           → write prepared proxy cell; pages accessible after recovery
+#                           - write prepared proxy cell; pages accessible after recovery
 #   Case 4 (rollback case, no proxy): page_del prepared then aborted,
 #                           rollback_ts <= stable_ts
-#                           → do NOT write proxy cell; pages accessible after reopen
+#                           - do NOT write proxy cell; pages accessible after reopen
 class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
 
     # precise_checkpoint=true is required for the new selection logic to activate.
@@ -184,7 +184,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         hi = 3 * self.nrows // 4
         self._fast_truncate(session2, uri, ds, lo, hi)
         session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
-        # Commit at 30, durable at 35 – both beyond stable_ts=25.
+        # Commit at 30, durable at 35, both beyond stable_ts=25.
         session2.commit_transaction(
             'commit_timestamp=' + self.timestamp_str(30) +
             ',durable_timestamp=' + self.timestamp_str(35))
