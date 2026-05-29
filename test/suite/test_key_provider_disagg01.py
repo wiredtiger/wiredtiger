@@ -46,8 +46,14 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         ('crash', dict(crash=True)),
     ]
 
+    # Cover both the pull-model (version=0) and push-model (version=1) provider APIs.
+    version_value = [
+        ('pull', dict(version=0)),
+        ('push', dict(version=1)),
+    ]
+
     disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, crash_value)
+    scenarios = make_scenarios(disagg_storages, crash_value, version_value)
 
     nentries = 1000
     key_expire = 0
@@ -65,7 +71,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
 
     # Load the key provider store extension.
     def conn_extensions(self, extlist):
-        config = f'=(early_load=true,config=\"verbose=-1,key_expires={self.key_expire}\")'
+        config = f'=(early_load=true,config=\"verbose=-1,key_expires={self.key_expire},version={self.version}\")'
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
