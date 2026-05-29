@@ -145,7 +145,7 @@ class test_layered_delta07(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)},oldest_timestamp={self.timestamp_str(20)}')
 
-        # We should build a delta with delete
+        # Delete is already durable, so this checkpoint should not add another leaf delta
         self.session.checkpoint()
 
         stat_cursor = self.session.open_cursor('statistics:' + self.uri)
