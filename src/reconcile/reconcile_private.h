@@ -444,6 +444,7 @@ struct __wti_update_select {
     bool no_ts_tombstone;             /* Tombstone without a timestamp */
     bool skip_aborted_prepared_value; /* Skip a non-tombstone aborted prepared update on the
                                           update chain */
+    bool was_modify;                  /* The deselected update was a MODIFY */
 };
 
 #define WTI_UPDATE_SELECT_INIT(upd_select)                 \
@@ -453,6 +454,7 @@ struct __wti_update_select {
         (upd_select)->upd_saved = false;                   \
         (upd_select)->no_ts_tombstone = false;             \
         (upd_select)->skip_aborted_prepared_value = false; \
+        (upd_select)->was_modify = false;                  \
         WT_TIME_WINDOW_INIT(&(upd_select)->tw);            \
     } while (0)
 

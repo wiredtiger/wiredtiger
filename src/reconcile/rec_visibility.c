@@ -1182,8 +1182,10 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      *
      * If the goal is to prune the entire key, avoid clearing the selected update.
      */
-    if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL) {
-        *has_newer_updatesp |= (upd_select->upd != NULL);
+    if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep && first_pruned_update == NULL &&
+      upd_select->upd != NULL) {
+        *has_newer_updatesp = true;
+        upd_select->was_modify = upd_select->upd->type == WT_UPDATE_MODIFY;
         upd_select->upd = NULL;
     }
 
@@ -1197,6 +1199,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && upd_select->upd != NULL &&
       upd_select->upd->prepared_id != WT_PREPARED_ID_NONE) {
         *has_newer_updatesp = true;
+        upd_select->was_modify = upd_select->upd->type == WT_UPDATE_MODIFY;
         upd_select->upd = NULL;
     }
 

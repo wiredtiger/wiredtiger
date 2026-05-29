@@ -161,7 +161,7 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
             f'stable_timestamp={self.timestamp_str(100)}')
         self.session.checkpoint()
 
-    def test_modify_survives_ingest_gc_of_base_value(self):
+    def test_modify_base_value_not_pruned(self):
         expected = self.setup_single_key_chain('v1', 'v2', make_orphan=True)
 
         self.session_follow.begin_transaction(
