@@ -182,6 +182,24 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
     if (crypt->keys.data != NULL)
         KEY_RESET_EXPIRE(kp);
 
+    /*
+     * Push mode: seed the WiredTiger-side cache from kp->state, which after kp_set_key holds either
+     * the just-loaded key or the DEFAULT_KEY fallback. This lets subsequent checkpoints persist the
+     * key without waiting for a rotation.
+     */
+    if (kp->version == 1 && wtkp->set_key != NULL) {
+        WT_CRYPT_KEYS local_crypt = {{0}, {0}, 0};
+        local_crypt.keys.data = kp->state.key_data;
+        local_crypt.keys.size = kp->state.key_size;
+        local_crypt.r.lsn = kp->state.lsn;
+
+        int ret = wtkp->set_key(wtkp, session, &local_crypt);
+        if (ret != 0) {
+            LOG_ERROR(kp, session, "Failed to push loaded key: %d", ret);
+            return (ret);
+        }
+    }
+
     return (0);
 }
 
@@ -255,7 +273,8 @@ static int
 kp_rotate_key(KEY_PROVIDER *kp, WT_SESSION *session)
 {
     int ret = 0;
-    WT_CRYPT_KEYS crypt = {{0}, {0}};
+    WT_CRYPT_KEYS crypt = {{0}, {0}, 0};
+    WT_KEY_PROVIDER *wtkp = (WT_KEY_PROVIDER *)kp;
 
     if ((ret = kp_generate_key((uint8_t **)&crypt.keys.data, &crypt.keys.size)) != 0) {
         LOG_ERROR(kp, session, "Failed to generate new key: %d", ret);
@@ -264,8 +283,17 @@ kp_rotate_key(KEY_PROVIDER *kp, WT_SESSION *session)
 
     if ((ret = kp_set_key(kp, &crypt)) != 0) {
         LOG_ERROR(kp, session, "Failed to set new key: %d", ret);
+        goto done;
     }
 
+    if (kp->version == 1 && wtkp->set_key != NULL) {
+        if ((ret = wtkp->set_key(wtkp, session, &crypt)) != 0) {
+            LOG_ERROR(kp, session, "Failed to push new key: %d", ret);
+            goto done;
+        }
+    }
+
+done:
     free((void *)crypt.keys.data);
 
     return (ret);
@@ -417,6 +445,8 @@ kp_configure(KEY_PROVIDER *kp, WT_CONFIG_ARG *config)
             continue;
         else if (configure_int("key_expires", &k, &v, &kp->key_expires) == 0)
             continue;
+        else if (configure_int("version", &k, &v, &kp->version) == 0)
+            continue;
 
         LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s",
           (int)k.len, k.str, (int)v.len, v.str);
@@ -487,19 +517,25 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     wtkp->on_key_update = kp_on_key_update;
     wtkp->terminate = kp_terminate;
 
-    /* Register the key provider with WiredTiger */
-    if ((ret = conn->set_key_provider(conn, wtkp, NULL)) != 0) {
+    /* Register the key provider with WiredTiger. In push mode pass version=1. */
+    const char *kp_config = (kp->version == 1) ? "version=1" : NULL;
+    if ((ret = conn->set_key_provider(conn, wtkp, kp_config)) != 0) {
         LOG_ERROR(kp, NULL, "WT_CONNECTION.set_key_provider: %d (%s)", ret,
           wtext->strerror(wtext, NULL, ret));
         goto err;
     }
 
     LOG_INFO(kp, NULL,
-      "Key provider initialized successfully; config: {verbose=%d, key_expires=%d}", kp->verbose,
-      kp->key_expires);
+      "Key provider initialized successfully; config: {verbose=%d, key_expires=%d, version=%d}",
+      kp->verbose, kp->key_expires, kp->version);
 
     /* One-shot key expiration: first get_key call always expires the key. */
     KEY_ONESHOT_EXPIRE(kp);
+
+    /*
+     * In push mode the actual push happens from load_key (which runs with a real session during
+     * startup). Sessions are not yet available at early-load time, so we cannot push here.
+     */
 
     return (0);
 
