@@ -1158,11 +1158,11 @@ __wti_rec_row_leaf(
         /*
          * If we reconcile an on disk key with a globally visible stop time point and there are no
          * new updates for that key, skip writing that key. Or if garbage collection is enabled for
-         * the table, and the value has become obsolete.
+         * the table, no MODIFY update depends on it and the value has become obsolete.
          */
         if (upd == NULL) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-                if (__rec_row_garbage_collect_tw_eligible(r, twp)) {
+                if (!upd_select.was_modify && __rec_row_garbage_collect_tw_eligible(r, twp)) {
                     upd = &upd_tombstone;
                     r->key_removed_from_disk_image = true;
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);

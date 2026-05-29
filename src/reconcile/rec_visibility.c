@@ -1133,6 +1133,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
         if (!found_last_upd_to_keep) {
             upd_select->upd = upd;
+            upd_select->was_modify = upd->type == WT_UPDATE_MODIFY;
 
             /*
              * For ingest btrees, skip the global visibility check for non-timestamped tombstones as
