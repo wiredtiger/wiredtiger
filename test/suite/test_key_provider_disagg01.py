@@ -101,7 +101,10 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
             f'SELECT COUNT(*) FROM pages WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID};'
         )
 
-        if (self.key_expire == 0):
+        if (self.version == 1):
+            # Push mode consumes the active key per write, so fewer key pages than turtle pages.
+            self.assertLessEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
+        elif (self.key_expire == 0):
             self.assertEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
         else:
             self.assertGreaterEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])

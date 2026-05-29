@@ -284,7 +284,7 @@ struct __wt_disaggregated_storage {
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    /* Cache of the most recently pushed key; written to the turtle page at the next checkpoint. */
+    /* Most recently pushed key; written to the turtle page at the next checkpoint. */
     WT_ITEM active_crypt_key;
 
     uint64_t num_meta_put;               /* The number metadata puts since connection open. */

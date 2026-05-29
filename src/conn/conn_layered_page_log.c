@@ -462,7 +462,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         __wt_debug_crash(session);
 
     if (push_mode) {
-        /* Push mode: write the cached key pushed by the module. */
+        /* Push mode: write the active key pushed by the module. */
         active = &conn->disaggregated_storage.active_crypt_key;
         if (active->size == 0)
             goto done;
@@ -498,20 +498,24 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
         __wt_debug_crash(session);
 
-    /* In push mode the module already knows the key; skip the on_key_update callback. */
-    if (!push_mode) {
-        if (ret == 0) {
-            /* Point to the same encryption data on callback. */
-            crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
-            crypt.keys.size -= sizeof(WT_CRYPT_HEADER);
-            crypt.r.lsn = lsn;
-        } else {
-            crypt.r.error = ret;
-            /* On error, remove references of crypt key before calling back. */
-            crypt.keys.data = NULL;
-            crypt.keys.size = 0;
-        }
-        WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
+    if (ret == 0) {
+        /* Point to the same encryption data on callback. */
+        crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
+        crypt.keys.size -= sizeof(WT_CRYPT_HEADER);
+        crypt.r.lsn = lsn;
+    } else {
+        crypt.r.error = ret;
+        /* On error, remove references of crypt key before calling back. */
+        crypt.keys.data = NULL;
+        crypt.keys.size = 0;
+    }
+    WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
+
+    if (push_mode && ret == 0) {
+        /* The active key has been persisted; the module must push again before the next write. */
+        active = &conn->disaggregated_storage.active_crypt_key;
+        active->data = NULL;
+        active->size = 0;
     }
 
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)

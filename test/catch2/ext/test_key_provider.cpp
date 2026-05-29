@@ -348,7 +348,7 @@ TEST_CASE_METHOD(kp_fixture, "set_key_provider version selects push mode", "[key
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
 }
 
-TEST_CASE_METHOD(kp_fixture, "set_key caches the pushed key", "[key_provider]")
+TEST_CASE_METHOD(kp_fixture, "set_key stores the pushed key as the active key", "[key_provider]")
 {
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
     WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
@@ -363,9 +363,9 @@ TEST_CASE_METHOD(kp_fixture, "set_key caches the pushed key", "[key_provider]")
     crypt.keys.size = key_bytes.size();
     REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
 
-    WT_ITEM *cached = &conn_impl->disaggregated_storage.active_crypt_key;
-    REQUIRE(cached->size == key_bytes.size());
-    REQUIRE(memcmp(cached->data, key_bytes.data(), key_bytes.size()) == 0);
+    WT_ITEM *active = &conn_impl->disaggregated_storage.active_crypt_key;
+    REQUIRE(active->size == key_bytes.size());
+    REQUIRE(memcmp(active->data, key_bytes.data(), key_bytes.size()) == 0);
 
     conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
@@ -390,9 +390,9 @@ TEST_CASE_METHOD(kp_fixture, "set_key overwrites a previously pushed key", "[key
     crypt.keys.size = second.size();
     REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
 
-    WT_ITEM *cached = &conn_impl->disaggregated_storage.active_crypt_key;
-    REQUIRE(cached->size == second.size());
-    REQUIRE(memcmp(cached->data, second.data(), second.size()) == 0);
+    WT_ITEM *active = &conn_impl->disaggregated_storage.active_crypt_key;
+    REQUIRE(active->size == second.size());
+    REQUIRE(memcmp(active->data, second.data(), second.size()) == 0);
 
     conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);

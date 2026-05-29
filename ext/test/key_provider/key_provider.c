@@ -183,7 +183,11 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
         KEY_RESET_EXPIRE(kp);
 
     /* Push mode: initialize the WT-side active key during start up. */
-    if (kp->version == 1 && wtkp->set_key != NULL) {
+    if (kp->version == 1) {
+        if (wtkp->set_key == NULL) {
+            LOG_ERROR(kp, session, "%s", "set_key callback not installed in push mode");
+            return (EINVAL);
+        }
         WT_CRYPT_KEYS local_crypt = {{0}, {0}, 0};
         local_crypt.keys.data = kp->state.key_data;
         local_crypt.keys.size = kp->state.key_size;
@@ -277,21 +281,22 @@ kp_rotate_key(KEY_PROVIDER *kp, WT_SESSION *session)
         return (ret);
     }
 
-    if ((ret = kp_set_key(kp, &crypt)) != 0) {
-        LOG_ERROR(kp, session, "Failed to set new key: %d", ret);
-        goto done;
+    /* Update the module's internal mirror of the current key. */
+    ret = kp_set_key(kp, &crypt);
+
+    /* In push mode, hand the new key to WiredTiger's active key buffer. */
+    if (ret == 0 && kp->version == 1) {
+        if (wtkp->set_key == NULL) {
+            LOG_ERROR(kp, session, "%s", "set_key callback not installed in push mode");
+            ret = EINVAL;
+        } else
+            ret = wtkp->set_key(wtkp, session, &crypt);
     }
 
-    if (kp->version == 1 && wtkp->set_key != NULL) {
-        if ((ret = wtkp->set_key(wtkp, session, &crypt)) != 0) {
-            LOG_ERROR(kp, session, "Failed to push new key: %d", ret);
-            goto done;
-        }
-    }
+    if (ret != 0)
+        LOG_ERROR(kp, session, "Failed to rotate key: %d", ret);
 
-done:
     free((void *)crypt.keys.data);
-
     return (ret);
 }
 
@@ -364,7 +369,8 @@ kp_on_key_update(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS
       kp->state.lsn, kp->state.key_time, kp->state.key_size);
 
     assert(kp->state.key_data != NULL);
-    assert(kp->state.key_state == KEY_STATE_READ); /* Key must have been read */
+    /* Pull mode advances through KEY_STATE_READ via get_key; push mode does not. */
+    assert(kp->version == 1 || kp->state.key_state == KEY_STATE_READ);
 
     if (crypt->keys.size == 0) {
         /* Failure case - error is in keys->r.error */
@@ -527,11 +533,6 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
     /* One-shot key expiration: first get_key call always expires the key. */
     KEY_ONESHOT_EXPIRE(kp);
-
-    /*
-     * In push mode the actual push happens from load_key (which runs with a real session during
-     * startup). Sessions are not yet available at early-load time, so we cannot push here.
-     */
 
     return (0);
 
