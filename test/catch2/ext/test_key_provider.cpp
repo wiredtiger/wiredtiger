@@ -353,11 +353,8 @@ TEST_CASE_METHOD(kp_fixture, "set_key caches the pushed key", "[key_provider]")
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
     WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
     WT_KEY_PROVIDER stub = {};
-
     REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
-    REQUIRE(stub.set_key != nullptr);
 
-    /* Before any push the cache is empty. */
     REQUIRE(conn_impl->disaggregated_storage.active_crypt_key.size == 0);
 
     const std::string key_bytes = "push-mode-test-key-0123456789";
@@ -370,20 +367,49 @@ TEST_CASE_METHOD(kp_fixture, "set_key caches the pushed key", "[key_provider]")
     REQUIRE(cached->size == key_bytes.size());
     REQUIRE(memcmp(cached->data, key_bytes.data(), key_bytes.size()) == 0);
 
-    /* A second push overwrites the cached key. */
-    const std::string key_bytes2 = "second-key-abcdef";
-    crypt.keys.data = key_bytes2.data();
-    crypt.keys.size = key_bytes2.size();
-    REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
-    REQUIRE(cached->size == key_bytes2.size());
-    REQUIRE(memcmp(cached->data, key_bytes2.data(), key_bytes2.size()) == 0);
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
 
-    /* Empty/null inputs are rejected. */
+TEST_CASE_METHOD(kp_fixture, "set_key overwrites a previously pushed key", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    const std::string first = "first-key-0123456789";
+    const std::string second = "second-key-abcdef";
+    WT_CRYPT_KEYS crypt = {};
+
+    crypt.keys.data = first.data();
+    crypt.keys.size = first.size();
+    REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
+
+    crypt.keys.data = second.data();
+    crypt.keys.size = second.size();
+    REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
+
+    WT_ITEM *cached = &conn_impl->disaggregated_storage.active_crypt_key;
+    REQUIRE(cached->size == second.size());
+    REQUIRE(memcmp(cached->data, second.data(), second.size()) == 0);
+
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(kp_fixture, "set_key rejects empty input", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    WT_CRYPT_KEYS crypt = {};
     crypt.keys.data = nullptr;
     crypt.keys.size = 0;
     REQUIRE(stub.set_key(&stub, session, &crypt) == EINVAL);
 
-    /* Cleanup. */
     conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
 }
