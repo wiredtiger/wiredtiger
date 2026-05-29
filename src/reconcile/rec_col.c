@@ -190,12 +190,14 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             if (cms.state == WTI_CHILD_PROXY ||
-              F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
+              F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED) ||
+              (cms.needs_disk_transition && vpack->type == WT_CELL_ADDR_DEL)) {
                 /*
-                 * Need to build a proxy (page-deleted) cell or rebuild the cell with updated time
-                 * info.
+                 * Build a proxy (page-deleted) cell, rebuild the cell with updated time info, or
+                 * revert an aborted-stable prepared proxy DEL cell to a plain addr cell.
                  */
-                WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
+                WT_ASSERT(session,
+                  vpack->type != WT_CELL_ADDR_DEL || page_del != NULL || cms.needs_disk_transition);
                 __wti_rec_cell_build_addr(
                   session, r, NULL, vpack, ref->ref_recno, page_del, cms.is_prepared_fast_truncate);
             } else {
@@ -207,7 +209,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
             }
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
         }
-        if (page_del != NULL)
+        if (page_del != NULL &&
+          __wt_atomic_load_uint64_v_relaxed(&page_del->txnid) != WT_TXN_ABORTED)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
         WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 

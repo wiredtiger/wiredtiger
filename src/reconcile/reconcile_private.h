@@ -52,7 +52,8 @@ typedef struct {
 
     WT_PAGE_DELETED del; /* WTI_CHILD_PROXY state fast-truncate information */
 
-    bool hazard;                    /* If currently holding a child hazard pointer */
+    bool hazard; /* If currently holding a child hazard pointer */
+
     bool is_prepared_fast_truncate; /* proxy cell should use prepared encoding */
     /* True when a prepared fast-truncate was aborted and the rollback is stable. */
     bool needs_disk_transition;

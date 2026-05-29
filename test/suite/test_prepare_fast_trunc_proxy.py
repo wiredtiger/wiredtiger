@@ -36,7 +36,7 @@ from helper import simulate_crash_restart
 #
 # Verify that internal-page reconciliation writes the correct proxy cell encoding
 # (prepared vs. committed vs. absent) for fast-truncated pages under precise
-# checkpoint.  Four cases are covered:
+# checkpoint.  Six cases are covered:
 #
 #   Case 1 (prepare case):  page_del still in-flight prepared,
 #                           prepare_ts <= stable_ts - write prepared proxy cell
@@ -49,6 +49,10 @@ from helper import simulate_crash_restart
 #   Case 4 (rollback case, no proxy): page_del prepared then aborted,
 #                           rollback_ts <= stable_ts
 #                           - do NOT write proxy cell; pages accessible after reopen
+#   Case 5 (proxy revert):  checkpoint written mid-prepare, then rollback becomes stable
+#                           - second checkpoint must revert prepared proxy cell
+#   Case 6 (commit stable): page_del committed with durable_ts <= stable_ts
+#                           - write committed proxy cell; deletion visible after reopen
 class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
 
     # precise_checkpoint=true is required for the new selection logic to activate.
@@ -79,6 +83,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, self.nrows + 1):
             cursor[ds.key(i)] = value_a
+            # Commit in chunks to force multiple leaf pages for fast-truncate.
             if i % 487 == 0:
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
                 self.session.begin_transaction()
@@ -112,12 +117,14 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         found = 0
-        for i in range(lo, hi + 1):
-            cursor.set_key(ds.key(i))
-            if cursor.search() == 0:
-                found += 1
-        self.session.commit_transaction()
-        cursor.close()
+        try:
+            for i in range(lo, hi + 1):
+                cursor.set_key(ds.key(i))
+                if cursor.search() == 0:
+                    found += 1
+        finally:
+            self.session.commit_transaction()
+            cursor.close()
         return found
 
     # -------------------------------------------------------------------------
@@ -131,7 +138,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         uri = 'table:prepare_ft_proxy_case1'
         ds = self._setup_table(uri)
 
-        session2 = self.conn.open_session()
+        session2 = self.conn.open_session(self.session_config)
 
         # Count fast-deletes before truncation.
         before_trunc = self._fast_delete_count()
@@ -162,6 +169,10 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         found_after = self._count_visible_rows(uri, ds, hi + 1, self.nrows, 10)
         self.assertEqual(found_before, lo - 1)
         self.assertEqual(found_after, self.nrows - hi)
+        # The prepared truncation was never committed, so rows INSIDE the range
+        # must also be visible after recovery rolls it back.
+        found_inside = self._count_visible_rows(uri, ds, lo, hi, 10)
+        self.assertEqual(found_inside, hi - lo + 1)
 
     # -------------------------------------------------------------------------
     # Case 2: Fast-truncate prepared (ts=20) then committed with durable_ts=35 > stable_ts=25
@@ -175,7 +186,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         uri = 'table:prepare_ft_proxy_case2'
         ds = self._setup_table(uri)
 
-        session2 = self.conn.open_session()
+        session2 = self.conn.open_session(self.session_config)
 
         before_trunc = self._fast_delete_count()
 
@@ -184,13 +195,15 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         hi = 3 * self.nrows // 4
         self._fast_truncate(session2, uri, ds, lo, hi)
         session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
-        # Commit at 30, durable at 35, both beyond stable_ts=25.
-        session2.commit_transaction(
-            'commit_timestamp=' + self.timestamp_str(30) +
-            ',durable_timestamp=' + self.timestamp_str(35))
 
         if not self.runningHook('tiered'):
             self.assertGreater(self._fast_delete_count(), before_trunc)
+
+        # Commit at 30, durable at 35. stable_ts is still 10 at commit time;
+        # it is advanced to 25 afterwards to set the checkpoint boundary.
+        session2.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(30) +
+            ',durable_timestamp=' + self.timestamp_str(35))
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25))
         self.session.checkpoint()
@@ -202,6 +215,11 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         # beyond stable. The truncated rows should still be visible at ts=10.
         found = self._count_visible_rows(uri, ds, lo, hi, 10)
         self.assertEqual(found, hi - lo + 1)
+        # Rows outside the truncated range must also be accessible.
+        found_before = self._count_visible_rows(uri, ds, 1, lo - 1, 10)
+        found_after = self._count_visible_rows(uri, ds, hi + 1, self.nrows, 10)
+        self.assertEqual(found_before, lo - 1)
+        self.assertEqual(found_after, self.nrows - hi)
 
     # -------------------------------------------------------------------------
     # Case 3: Fast-truncate prepared (ts=20) then rolled back (rollback_ts=30 > stable_ts=25)
@@ -214,7 +232,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         uri = 'table:prepare_ft_proxy_case3'
         ds = self._setup_table(uri)
 
-        session2 = self.conn.open_session()
+        session2 = self.conn.open_session(self.session_config)
 
         before_trunc = self._fast_delete_count()
 
@@ -237,10 +255,11 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         # A prepared proxy cell should be written.
         self.session.checkpoint()
 
-        # Crash+restart. The rollback is in the log and replayed by recovery.
+        # Crash+restart. Recovery reads the checkpoint's prepared proxy cell
+        # and rolls back the orphaned prepared transaction.
         simulate_crash_restart(self, ".", "RESTART")
 
-        # After recovery the truncated pages should be accessible (rollback replayed).
+        # After recovery the truncated pages should be accessible.
         found = self._count_visible_rows(uri, ds, lo, hi, 10)
         self.assertEqual(found, hi - lo + 1)
 
@@ -257,7 +276,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
         uri = 'table:prepare_ft_proxy_case4'
         ds = self._setup_table(uri)
 
-        session2 = self.conn.open_session()
+        session2 = self.conn.open_session(self.session_config)
 
         before_trunc = self._fast_delete_count()
 
@@ -291,6 +310,111 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
 
         found = self._count_visible_rows(uri, ds, lo, hi, 10)
         self.assertEqual(found, hi - lo + 1)
+
+    # -------------------------------------------------------------------------
+    # Case 5: Like Case 4 but a checkpoint is taken WHILE the prepare is in
+    #         flight (before rollback), so the first checkpoint writes a
+    #         prepared proxy DEL cell.  After rollback and stable advancing past
+    #         rollback_ts a second checkpoint must revert that DEL cell to a
+    #         plain addr cell.
+    #
+    # Sequence:
+    #   prepare at ts=20, stable=25    Checkpoint 1 writes prepared proxy cell
+    #   rollback at ts=30              txnid=ABORTED, page_del preserved
+    #   stable advance to 35           rollback_ts (30) now stable
+    #   Checkpoint 2                   must revert DEL cell to plain addr cell
+    #   reopen                         truncated rows accessible at ts=10
+    # -------------------------------------------------------------------------
+    def test_case5_proxy_written_then_rollback_stable(self):
+        uri = 'table:prepare_ft_proxy_case5'
+        ds = self._setup_table(uri)
+
+        session2 = self.conn.open_session(self.session_config)
+
+        before_trunc = self._fast_delete_count()
+
+        session2.begin_transaction()
+        lo = self.nrows // 4 + 1
+        hi = 3 * self.nrows // 4
+        self._fast_truncate(session2, uri, ds, lo, hi)
+        # prepare_ts=20 will be stable when we set stable=25 below.
+        session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
+
+        if not self.runningHook('tiered'):
+            self.assertGreater(self._fast_delete_count(), before_trunc)
+
+        # Advance stable past prepare_ts so the first checkpoint writes a
+        # prepared proxy DEL cell (prepare_ts=20 <= stable_ts=25).
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25))
+        self.session.checkpoint()
+
+        # Roll back with rollback_ts=30 > stable_ts=25 (required by WiredTiger).
+        session2.rollback_transaction(
+            'rollback_timestamp=' + self.timestamp_str(30))
+
+        # Advance stable past rollback_ts: the rollback is now stable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(35))
+
+        # Checkpoint 2: rollback_ts (30) <= stable_ts (35).  The reconciler
+        # must revert the on-page prepared proxy DEL cell to a plain addr cell
+        # rather than copying it verbatim or firing an assertion.
+        self.session.checkpoint()
+
+        # After reopen the truncated pages must be accessible.
+        self.reopen_conn()
+
+        found = self._count_visible_rows(uri, ds, lo, hi, 10)
+        self.assertEqual(found, hi - lo + 1)
+
+    # -------------------------------------------------------------------------
+    # Case 6: Fast-truncate prepared (ts=20) then committed with durable_ts=30,
+    #         stable advanced to 35 so durable_ts (30) <= stable_ts (35).
+    #
+    # The spec's commit path: "if durable_ts <= stable_ts: write as committed
+    # page del".  The checkpoint at stable_ts=35 must write a COMMITTED (not
+    # prepared) proxy cell.  After reopen the truncated rows must NOT be visible
+    # (the deletion is fully stable).
+    # -------------------------------------------------------------------------
+    def test_case6_commit_durable_within_stable(self):
+        uri = 'table:prepare_ft_proxy_case6'
+        ds = self._setup_table(uri)
+
+        session2 = self.conn.open_session(self.session_config)
+
+        before_trunc = self._fast_delete_count()
+
+        session2.begin_transaction()
+        lo = self.nrows // 4 + 1
+        hi = 3 * self.nrows // 4
+        self._fast_truncate(session2, uri, ds, lo, hi)
+        session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
+
+        if not self.runningHook('tiered'):
+            self.assertGreater(self._fast_delete_count(), before_trunc)
+
+        # Commit at 25, durable at 30. stable_ts is still 10 at commit time.
+        session2.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(25) +
+            ',durable_timestamp=' + self.timestamp_str(30))
+
+        # Advance stable past durable_ts: the deletion is now fully stable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(35))
+        self.session.checkpoint()
+
+        # After reopen, verify the committed deletion is stable.
+        self.reopen_conn()
+
+        # At commit_ts (25) the deletion is visible: rows must be gone.
+        found_deleted = self._count_visible_rows(uri, ds, lo, hi, 25)
+        self.assertEqual(found_deleted, 0)
+        # At ts=10 (before commit_ts) the rows were written and must still be visible.
+        found_historical = self._count_visible_rows(uri, ds, lo, hi, 10)
+        self.assertEqual(found_historical, hi - lo + 1)
+        # Rows outside the truncated range remain accessible at ts=10.
+        found_before = self._count_visible_rows(uri, ds, 1, lo - 1, 10)
+        found_after = self._count_visible_rows(uri, ds, hi + 1, self.nrows, 10)
+        self.assertEqual(found_before, lo - 1)
+        self.assertEqual(found_after, self.nrows - hi)
 
 if __name__ == '__main__':
     wttest.run()

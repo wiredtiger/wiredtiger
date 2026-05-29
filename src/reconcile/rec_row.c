@@ -739,13 +739,20 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
             if (ref->page_del == NULL)
-                WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
+                /*
+                 * Exception: needs_disk_transition means a previously-written prepared proxy DEL
+                 * cell is being reverted to a plain addr cell (rollback became stable). We rebuild
+                 * the cell from the DEL cell's block address below.
+                 */
+                WT_ASSERT_ALWAYS(session,
+                  vpack->type != WT_CELL_ADDR_DEL || cms.needs_disk_transition,
                   "Proxy cell is selected with original child image, vpack->type=%u, "
                   "ref->page_del=NULL",
                   vpack->type);
             else {
                 char ts_string[2][WT_TS_INT_STRING_SIZE];
-                WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
+                WT_ASSERT_ALWAYS(session,
+                  vpack->type != WT_CELL_ADDR_DEL || cms.needs_disk_transition,
                   "Proxy cell is selected with original child image, vpack->type=%u, "
                   "ref->page_del->txnid=%" PRIu64
                   ", pg_del_durable_ts=%s, pg_del_start_ts=%s, committed=%s, selected_for_write=%s",
@@ -756,8 +763,14 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                   ref->page_del->selected_for_write ? "true" : "false");
             }
 
-            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
-                /* page_del is NULL here; prepared fast truncate must be false. */
+            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED) ||
+              (cms.needs_disk_transition && vpack->type == WT_CELL_ADDR_DEL)) {
+                /*
+                 * Rebuild the cell. For WT_CELL_UNPACK_TIME_WINDOW_CLEARED: page_del is NULL and
+                 * prepared fast truncate must be false. For needs_disk_transition with a DEL cell:
+                 * page_del is already NULL (freed) and we write a plain addr cell using the block
+                 * address encoded in the DEL cell.
+                 */
                 WT_ASSERT(session, !cms.is_prepared_fast_truncate || page_del != NULL);
                 __wti_rec_cell_build_addr(
                   session, r, NULL, vpack, WT_RECNO_OOB, page_del, cms.is_prepared_fast_truncate);
@@ -780,7 +793,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * Track the time window. The fast-truncate is a stop time window and has to be considered
          * in the internal page's aggregate information for RTS to find it.
          */
-        if (page_del != NULL)
+        if (page_del != NULL &&
+          __wt_atomic_load_uint64_v_relaxed(&page_del->txnid) != WT_TXN_ABORTED)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
 
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);

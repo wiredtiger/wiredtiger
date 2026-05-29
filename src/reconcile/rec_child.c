@@ -44,9 +44,9 @@ __rec_child_deleted(
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
             if (page_del->pg_del_rollback_ts <= r->rec_start_pinned_stable_ts) {
                 /*
-                 * The rollback is stable: Free the page_del and write the original child block
-                 * address. Signal the caller to transition the ref from WT_REF_DELETED to
-                 * WT_REF_DISK.
+                 * The rollback is stable: Free the page_del, set WTI_CHILD_ORIGINAL so the caller
+                 * writes the original block address with no deletion metadata. Signal the caller to
+                 * transition the ref from WT_REF_DELETED to WT_REF_DISK.
                  */
                 __wt_overwrite_and_free(session, ref->page_del);
                 cmsp->needs_disk_transition = true;
@@ -66,8 +66,8 @@ __rec_child_deleted(
             }
         }
         /*
-         * Precise checkpoint is not enabled, or neither the rollback ts nor the prepare ts is at or
-         * below stable. Leave the page dirty.
+         * Precise checkpoint is not enabled, or the timestamps do not yet meet the stable
+         * threshold. Leave the page dirty.
          */
         if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
             return (__wt_set_return(session, EBUSY));
