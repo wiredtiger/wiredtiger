@@ -273,30 +273,19 @@ static int
 kp_rotate_key(KEY_PROVIDER *kp, WT_SESSION *session)
 {
     int ret = 0;
-    WT_CRYPT_KEYS crypt = {{0}, {0}, 0};
-    WT_KEY_PROVIDER *wtkp = (WT_KEY_PROVIDER *)kp;
+    WT_CRYPT_KEYS crypt = {{0}, {0}};
 
     if ((ret = kp_generate_key((uint8_t **)&crypt.keys.data, &crypt.keys.size)) != 0) {
         LOG_ERROR(kp, session, "Failed to generate new key: %d", ret);
         return (ret);
     }
 
-    /* Update the module's internal mirror of the current key. */
-    ret = kp_set_key(kp, &crypt);
-
-    /* In push mode, hand the new key to WiredTiger's active key buffer. */
-    if (ret == 0 && kp->version == 1) {
-        if (wtkp->set_key == NULL) {
-            LOG_ERROR(kp, session, "%s", "set_key callback not installed in push mode");
-            ret = EINVAL;
-        } else
-            ret = wtkp->set_key(wtkp, session, &crypt);
+    if ((ret = kp_set_key(kp, &crypt)) != 0) {
+        LOG_ERROR(kp, session, "Failed to set new key: %d", ret);
     }
 
-    if (ret != 0)
-        LOG_ERROR(kp, session, "Failed to rotate key: %d", ret);
-
     free((void *)crypt.keys.data);
+
     return (ret);
 }
 
