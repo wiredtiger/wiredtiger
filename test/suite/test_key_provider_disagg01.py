@@ -46,14 +46,8 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         ('crash', dict(crash=True)),
     ]
 
-    # Cover both the pull-model (version=0) and push-model (version=1) provider APIs.
-    version_value = [
-        ('pull', dict(version=0)),
-        ('push', dict(version=1)),
-    ]
-
     disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, crash_value, version_value)
+    scenarios = make_scenarios(disagg_storages, crash_value)
 
     nentries = 1000
     key_expire = 0
@@ -71,7 +65,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
 
     # Load the key provider store extension.
     def conn_extensions(self, extlist):
-        config = f'=(early_load=true,config=\"verbose=-1,key_expires={self.key_expire},version={self.version}\")'
+        config = f'=(early_load=true,config=\"verbose=-1,key_expires={self.key_expire}\")'
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
@@ -101,10 +95,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
             f'SELECT COUNT(*) FROM pages WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID};'
         )
 
-        if (self.version == 1):
-            # Push mode consumes the active key per write, so fewer key pages than turtle pages.
-            self.assertLessEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
-        elif (self.key_expire == 0):
+        if (self.key_expire == 0):
             self.assertEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
         else:
             self.assertGreaterEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])

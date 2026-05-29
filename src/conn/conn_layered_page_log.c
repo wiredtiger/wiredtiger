@@ -498,6 +498,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
         __wt_debug_crash(session);
 
+    /* Callback to update key provider on the result of new encryption key data. */
     if (ret == 0) {
         /* Point to the same encryption data on callback. */
         crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
