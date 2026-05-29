@@ -550,7 +550,8 @@ static WT_INLINE int __wti_rec_get_row_leaf_key(WT_SESSION_IMPL *session, WT_BTR
   WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip, WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
-  WT_ADDR *addr, WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del);
+  WT_ADDR *addr, WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del,
+  bool is_prepared_fast_truncate);
 static WT_INLINE void __wti_rec_image_copy(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv);
 static WT_INLINE void __wti_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WTI_REC_KV *kv);

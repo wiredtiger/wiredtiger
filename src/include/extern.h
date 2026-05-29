@@ -2401,8 +2401,8 @@ static WT_INLINE size_t __wt_4b_size_posint1(uint64_t x1)
 static WT_INLINE size_t __wt_4b_size_posint2(uint64_t x1, uint64_t x2)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE size_t __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell,
-  u_int cell_type, uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  u_int cell_type, uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta,
+  bool is_prepared_fast_truncate, size_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE size_t __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell,
   WT_TIME_WINDOW *tw, uint64_t rle, uint64_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE size_t __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell,
@@ -2440,7 +2440,8 @@ static WT_INLINE u_int __wt_skip_choose_depth(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint16_t __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell,
   uint8_t cell_type, uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta,
-  size_t data_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool is_prepared_fast_truncate, size_t data_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_btree_bytes_inuse(WT_SESSION_IMPL *session)
@@ -2554,8 +2555,8 @@ static WT_INLINE void __wt_cache_shared_dsk_inmem_decr(
 static WT_INLINE void __wt_cache_shared_dsk_inmem_incr(
   WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
 static WT_INLINE void __wt_cell_build_addr_kv(WT_SESSION_IMPL *session, WT_CELL_KV *val_kv,
-  uint8_t cell_type, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, const void *data,
-  size_t data_size);
+  uint8_t cell_type, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta,
+  bool is_prepared_fast_truncate, const void *data, size_t data_size);
 static WT_INLINE void __wt_cell_compress_prefix_key(WT_ITEM *last_key, const void *data,
   size_t size, uint8_t key_pfx_last, u_int prefix_compression_min, uint8_t *pfxp);
 static WT_INLINE void __wt_cell_get_ta(WT_CELL_UNPACK_ADDR *unpack_addr, WT_TIME_AGGREGATE **tap);
