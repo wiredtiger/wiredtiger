@@ -1191,13 +1191,27 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      * A committed preserved prepared transaction must not be written to the on-disk image until it
      * has been drained to the stable btree. Writing it would drop the prepared transaction
      * identifier from the disk cell, making it impossible to associate the committed update with
-     * the unresolved prepared cell on the stable btree. Keep the update in memory until drain
-     * advances the prune timestamp past its durable timestamp.
+     * the unresolved prepared cell on the stable btree. Fall back to the nearest older committed
+     * update from a different transaction.
      */
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && upd_select->upd != NULL &&
       upd_select->upd->prepared_id != WT_PREPARED_ID_NONE) {
+        WT_UPDATE *fallback;
+
         *has_newer_updatesp = true;
-        upd_select->upd = NULL;
+        for (fallback = upd_select->upd->next; fallback != NULL; fallback = fallback->next) {
+            if (fallback->txnid == WT_TXN_ABORTED)
+                continue;
+
+            /*
+             * We always select the oldest update we need to keep, so no older update from the same
+             * committed prepared transaction should exist.
+             */
+            WT_ASSERT(session, fallback->txnid != upd_select->upd->txnid);
+            WT_ASSERT(session, WT_REC_CAN_PRUNE_UPD(fallback->txnid, fallback->upd_durable_ts, r));
+            break;
+        }
+        upd_select->upd = fallback;
     }
 
     /*
