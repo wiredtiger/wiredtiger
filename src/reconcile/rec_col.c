@@ -207,14 +207,17 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         }
         if (page_del != NULL)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
-        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, val->len))
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, val->len));
 
-        /* Copy the value (which is in val, val == r->v) onto the page. */
+        /*
+         * Copy the value onto the page. val->buf.data may point directly into ref's WT_ADDR
+         * block_cookie; hold the hazard pointer until after the copy.
+         */
         __wti_rec_image_copy(session, r, val);
+        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
         if (page_del != NULL)
             WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
