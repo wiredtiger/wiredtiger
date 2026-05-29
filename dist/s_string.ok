@@ -73,6 +73,7 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
+CLI
 CLOEXEC
 CMAKE
 CMP
@@ -124,11 +125,14 @@ DENABLE
 DESC
 DEST
 DHANDLE
+DHAVE
 DISAGG
 DISAGGREGATED
 DNE
 DONTNEED
 DS
+DSK
+DSPINLOCK
 DUPLICATEV
 DataSet
 Decrementing
@@ -536,6 +540,7 @@ VPM
 VR
 VRFY
 VX
+ValidationModel
 Vc
 Vigenere
 Vixie
@@ -654,6 +659,7 @@ autoconf
 aws
 az
 bInheritHandle
+backends
 backlink
 backoff
 badsize
@@ -818,6 +824,7 @@ createsets
 crypto
 cryptobad
 cryptographic
+cst
 cstring
 csuite
 csv
@@ -1014,6 +1021,7 @@ ffs
 fgetln
 fh
 fhandle
+fid
 fifo
 filecmp
 filefrag
@@ -1153,6 +1161,7 @@ inlock
 inmem
 inmemory
 inorder
+insertedp
 inserters
 instantiation
 instantiations
@@ -1631,6 +1640,7 @@ sii
 sizeof
 sizep
 sizev
+skipTest
 skipTests
 skiplist
 skiplists
@@ -1668,6 +1678,7 @@ stdin
 stdout
 stepback
 stepp
+stepup
 stlr
 stlrb
 stlrh
@@ -1691,6 +1702,7 @@ strtouq
 struct
 structs
 su
+subcommand
 subconfig
 subconfigs
 subconfiguration
