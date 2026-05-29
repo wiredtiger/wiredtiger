@@ -10,6 +10,20 @@
 #include "reconcile_private.h"
 #include "reconcile_inline.h"
 /*
+ * __rec_write_prepared_proxy --
+ *     Record that reconciliation should write a prepared proxy cell for a fast-truncated page.
+ */
+static WT_INLINE int
+__rec_write_prepared_proxy(WTI_CHILD_MODIFY_STATE *cmsp, WT_PAGE_DELETED *page_del)
+{
+    cmsp->del = *page_del;
+    cmsp->state = WTI_CHILD_PROXY;
+    cmsp->is_prepared_fast_truncate = true;
+    page_del->selected_for_write = true;
+    return (0);
+}
+
+/*
  * __rec_child_deleted --
  *     Handle pages with leaf pages in the WT_REF_DELETED state.
  */
@@ -53,17 +67,12 @@ __rec_child_deleted(
                 cmsp->state = WTI_CHILD_ORIGINAL;
                 return (0);
             }
-            if (page_del->prepare_ts <= r->rec_start_pinned_stable_ts) {
+            if (page_del->prepare_ts <= r->rec_start_pinned_stable_ts)
                 /*
                  * The prepare is stable but the rollback is not yet stable. Write a prepared proxy
                  * cell so that recovery can reconstruct the prepared state.
                  */
-                cmsp->del = *page_del;
-                cmsp->state = WTI_CHILD_PROXY;
-                cmsp->is_prepared_fast_truncate = true;
-                page_del->selected_for_write = true;
-                return (0);
-            }
+                return (__rec_write_prepared_proxy(cmsp, page_del));
         }
         /*
          * Precise checkpoint is not enabled, or the timestamps do not yet meet the stable
@@ -119,13 +128,8 @@ __rec_child_deleted(
         if (!visible_all && visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts) {
             if (page_del->prepared_id != WT_PREPARED_ID_NONE &&
-              page_del->prepare_ts <= r->rec_start_pinned_stable_ts) {
-                cmsp->del = *page_del;
-                cmsp->state = WTI_CHILD_PROXY;
-                cmsp->is_prepared_fast_truncate = true;
-                page_del->selected_for_write = true;
-                return (0);
-            }
+              page_del->prepare_ts <= r->rec_start_pinned_stable_ts)
+                return (__rec_write_prepared_proxy(cmsp, page_del));
             visible = false;
         }
 
@@ -176,11 +180,7 @@ __rec_child_deleted(
               page_del->prepare_ts <= r->rec_start_pinned_stable_ts) {
                 WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
                   "In progress prepares should never be seen in eviction");
-                cmsp->del = *page_del;
-                cmsp->state = WTI_CHILD_PROXY;
-                cmsp->is_prepared_fast_truncate = true;
-                page_del->selected_for_write = true;
-                return (0);
+                return (__rec_write_prepared_proxy(cmsp, page_del));
             }
         }
 

@@ -283,9 +283,21 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
             if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
                 page_del->pg_del_rollback_ts = txn->time_point.rollback_timestamp;
             else
+                /*
+                 * No rollback timestamp available; use WT_TS_MAX so that the proxy cell is always
+                 * written (stable_ts < WT_TS_MAX is always true).
+                 */
                 page_del->pg_del_rollback_ts = WT_TS_MAX;
-            /* Save the original txnid before overwriting it. */
-            page_del->pg_del_saved_txnid = page_del->txnid;
+            /*
+             * Save the original txnid before overwriting it. Guard against a second call during WAL
+             * replay where txnid is already WT_TXN_ABORTED from the checkpoint cell; overwriting
+             * pg_del_saved_txnid in that case would destroy the original value.
+             *
+             * After crash-restart, correctness of the stable-rollback check relies on WAL replay to
+             * restore rollback timestamps before the next checkpoint runs.
+             */
+            if (page_del->txnid != WT_TXN_ABORTED)
+                page_del->pg_del_saved_txnid = page_del->txnid;
             __wt_atomic_store_uint64_v_release(&page_del->txnid, WT_TXN_ABORTED);
         } else {
             /*
