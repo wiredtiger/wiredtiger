@@ -353,6 +353,11 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                     break;
                 }
 
+                /* FIXME-WT-14879: support delta for fast truncate. */
+                if (build_delta != NULL) {
+                    *build_delta = false;
+                    r->delta.size = 0;
+                }
                 ret = __rec_child_deleted(session, r, ref, cmsp);
                 WT_REF_SET_STATE(ref, WT_REF_MEM);
                 WT_RET(ret);
