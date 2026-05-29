@@ -271,13 +271,14 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     if (current_state == WT_REF_DELETED) {
         WT_PAGE_DELETED *page_del = ref->page_del;
 
-        if (page_del->prepared_id != WT_PREPARED_ID_NONE) {
+        if (page_del->prepared_id != WT_PREPARED_ID_NONE &&
+          F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT)) {
             /*
-             * This was a prepared fast-truncate. We cannot discard the page_del because
-             * reconciliation needs to write a prepared proxy cell in the parent page as long as the
-             * prepare timestamp is stable but the rollback timestamp is not. Keep the ref and mark
-             * the structure as aborted so that readers skip the deletion and reconciliation can
-             * apply the correct selection logic.
+             * This was a prepared fast-truncate under a precise checkpoint. We cannot discard the
+             * page_del because reconciliation needs to write a prepared proxy cell in the parent
+             * page as long as the prepare timestamp is stable but the rollback timestamp is not.
+             * Keep the ref in WT_REF_DELETED and mark the structure as aborted so that readers skip
+             * the deletion and reconciliation applies the correct selection logic.
              */
             if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
                 page_del->pg_del_rollback_ts = txn->time_point.rollback_timestamp;
@@ -285,14 +286,12 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
                 page_del->pg_del_rollback_ts = WT_TS_MAX;
             /* Save the original txnid before overwriting it. */
             page_del->pg_del_saved_txnid = page_del->txnid;
-            __wt_atomic_store_uint64_v_relaxed(&page_del->txnid, WT_TXN_ABORTED);
-            /* Keep WT_REF_DELETED; reconciliation will transition to DISK when stable. */
-            current_state = WT_REF_DELETED;
+            __wt_atomic_store_uint64_v_release(&page_del->txnid, WT_TXN_ABORTED);
         } else {
             /*
-             * Non-prepared fast-truncate. Don't set the WT_PAGE_DELETED transaction ID to aborted;
-             * instead, just discard the structure. This avoids having to check for an aborted
-             * delete in other situations.
+             * Non-prepared fast-truncate, or prepared but not under precise checkpoint. Don't set
+             * the WT_PAGE_DELETED transaction ID to aborted; instead, just discard the structure.
+             * This avoids having to check for an aborted delete in other situations.
              */
             current_state = WT_REF_DISK;
             __wt_free(session, ref->page_del);

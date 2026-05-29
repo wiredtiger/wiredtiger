@@ -756,10 +756,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                   ref->page_del->selected_for_write ? "true" : "false");
             }
 
-            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED))
+            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
+                /* page_del is NULL here; prepared fast truncate must be false. */
+                WT_ASSERT(session, !cms.is_prepared_fast_truncate || page_del != NULL);
                 __wti_rec_cell_build_addr(
                   session, r, NULL, vpack, WT_RECNO_OOB, page_del, cms.is_prepared_fast_truncate);
-            else {
+            } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
                 val->cell_len = 0;

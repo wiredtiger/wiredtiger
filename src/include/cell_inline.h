@@ -492,6 +492,7 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
     WT_DECL_RET;
     WT_PAGE_DELETED *page_del = NULL;
     WT_TIME_AGGREGATE *ta;
+    bool is_prepared_fast_truncate;
     const void *key_data, *val_data;
     size_t packed_size;
     size_t key_size, val_size;
@@ -525,7 +526,7 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
      * prepared cell was unpacked with committed=false and prepared_id set; a committed cell has
      * committed=true and prepared_id may be set but we use the committed encoding.
      */
-    bool is_prepared_fast_truncate =
+    is_prepared_fast_truncate =
       page_del != NULL && !page_del->committed && page_del->prepared_id != WT_PREPARED_ID_NONE;
     __wt_cell_build_addr_kv(
       session, &val_kv, cell_type, page_del, ta, is_prepared_fast_truncate, val_data, val_size);

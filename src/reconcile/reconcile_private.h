@@ -54,7 +54,8 @@ typedef struct {
 
     bool hazard;                    /* If currently holding a child hazard pointer */
     bool is_prepared_fast_truncate; /* proxy cell should use prepared encoding */
-    bool needs_disk_transition;     /* aborted-stable */
+    /* True when a prepared fast-truncate was aborted and the rollback is stable. */
+    bool needs_disk_transition;
 } WTI_CHILD_MODIFY_STATE;
 
 /*

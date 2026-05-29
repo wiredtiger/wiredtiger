@@ -35,8 +35,8 @@ from helper import simulate_crash_restart
 # test_prepare_fast_trunc_proxy.py
 #
 # Verify that internal-page reconciliation writes the correct proxy cell encoding
-# (prepared vs. committed vs. absent) for fast-truncated pages based on the three
-# cases introduced in WT-17663:
+# (prepared vs. committed vs. absent) for fast-truncated pages under precise
+# checkpoint.  Four cases are covered:
 #
 #   Case 1 (prepare case):  page_del still in-flight prepared,
 #                           prepare_ts <= stable_ts - write prepared proxy cell
@@ -124,7 +124,7 @@ class test_prepare_fast_trunc_proxy(wttest.WiredTigerTestCase):
     # Case 1: In-flight prepared fast-truncate with prepare_ts (20) <= stable_ts (25)
     #
     # Checkpoint with precise_checkpoint=true should succeed and write prepared
-    # proxy cells (not skip them). After crash-restart the table is openable and
+    # proxy cells (not skip them). After crash-restart the table can be opened and
     # rows outside the truncated range remain visible at ts=10.
     # -------------------------------------------------------------------------
     def test_case1_inflight_prepare(self):
