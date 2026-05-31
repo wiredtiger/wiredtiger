@@ -147,7 +147,7 @@ class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(35))
         self.session.checkpoint()
 
-        # Phase 6: verify fails if the parent delta still references a freed leaf block.
+        # Phase 6: verify should pass
         self.session.verify(self.uri, None)
 
 if __name__ == '__main__':
