@@ -27,9 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_fast_truncate21.py
-#   An instantiated fast-truncate leaf, once the deletion is globally visible, has its
-#   block freed by the parent reconciliation. If the parent builds a delta, its image
-#   keeps referencing the freed block, so the page is resurrected and verify fails.
+#   When an instantiated fast-truncate leaf has its deletion become globally visible, the
+#   parent reconciliation must rebuild a full base image rather than a delta, so that
+#   dropping the leaf's proxy cell and freeing its block happen together. This keeps the
+#   parent image free of any reference to the freed leaf block and verify passes.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
