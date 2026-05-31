@@ -1727,12 +1727,12 @@ variables:
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 runs.timer=5:10
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch ops.prepare=0 runs.timer=5:10
+          format_args: disagg.mode=switch runs.timer=5:10
           times: 5
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
@@ -1744,13 +1744,13 @@ variables:
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.prepare=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch ops.prepare=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_args: disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
   - &format-stress-test-disagg-switch-pull-request
@@ -1762,11 +1762,11 @@ variables:
         vars:
           # run for 10 minutes.
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=switch ops.prepare=0 runs.rows=10000 runs.ops=50000
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=switch runs.rows=10000 runs.ops=50000
       - func: "format test disagg"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch ops.prepare=0 runs.timer=3
+          format_args: disagg.mode=switch runs.timer=3
           times: 1
 
 #######################################
@@ -5308,12 +5308,12 @@ tasks:
           # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
           # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch ops.prepare=0 runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
+          format_args: disagg.mode=switch runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
           times: 2
       - func: "format test disagg"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
-          format_args: disagg.mode=switch ops.prepare=0 runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          format_args: disagg.mode=switch runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 2
 
