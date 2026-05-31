@@ -1912,6 +1912,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                 /* On fresh startup, load an empty key to key provider. */
                 if (conn->key_provider != NULL) {
                     WT_DISAGG_METADATA empty_metadata = {0};
+                    WT_ASSERT(session,
+                      conn->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE);
                     WT_WITH_CHECKPOINT_LOCK(
                       session, ret = __wti_disagg_load_crypt_key(session, &empty_metadata));
                     WT_ERR_MSG_CHK(session, ret, "Failed to load empty crypt key at fresh startup");
