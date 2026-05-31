@@ -544,7 +544,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      * If application threads are blocked by data in cache, track the fill ratio.
      *
      */
-    uint64_t cache_fill_ratio = bytes_inuse / bytes_max;
+    double cache_fill_ratio = (double)bytes_inuse / (double)bytes_max;
     bool evict_is_hard = LF_ISSET(WT_EVICT_CACHE_HARD);
     if (evict_is_hard) {
         if (cache_fill_ratio < 0.25)
