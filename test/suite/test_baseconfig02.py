@@ -38,6 +38,7 @@ class test_baseconfig02(wttest.WiredTigerTestCase):
 
     def conn_extensions(self, extlist):
         if self.include_extension:
+            extlist.skip_if_missing = True
             extlist.early_load_ext = True
             extlist.extension('encryptors', 'rotn')
 
