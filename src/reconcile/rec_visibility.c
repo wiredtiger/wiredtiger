@@ -1136,11 +1136,18 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             upd_select->was_modify = upd->type == WT_UPDATE_MODIFY;
 
             /*
-             * For ingest btrees, skip the global visibility check for non-timestamped tombstones as
-             * they will not be globally visible until they can be pruned.
+             * Tombstones on ingest btrees must be non-timestamped; treat them as the last update to
+             * keep. For other update types on ingest btrees, skip the global visibility check: the
+             * global visibility check can return true even when no checkpoint has been picked up
+             * (e.g. because WT_CONN_CLOSING bypasses the pinned-timestamp cap), making updates
+             * appear globally visible before the ingest btree's prune threshold has advanced. Such
+             * updates are instead handled by the pruning check above.
              */
-            if ((!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || upd->type != WT_UPDATE_TOMBSTONE ||
-                  upd->upd_durable_ts == WT_TS_NONE) &&
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && upd->type == WT_UPDATE_TOMBSTONE) {
+                WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
+                found_last_upd_to_keep = true;
+                break;
+            } else if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
               __wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
                 break;
@@ -1303,20 +1310,13 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             for (; upd->next != NULL; upd = upd->next) {
                 next_txnid = __wt_atomic_load_uint64_v_acquire(&upd->next->txnid);
                 if (next_txnid != WT_TXN_ABORTED) {
-                    if (write_start_prepare)
-                        write_start_prepare = next_txnid == tombstone_txnid;
-                    else
-                        WT_ASSERT(session, !write_prepare || next_txnid != tombstone_txnid);
+                    write_start_prepare = write_prepare && next_txnid == tombstone_txnid;
                     break;
                 }
                 if (!write_prepare)
                     continue;
 
                 if (!F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
-                    continue;
-
-                /* We may see aborted reserve updates in between the prepared updates. */
-                if (upd->next->type == WT_UPDATE_RESERVE)
                     continue;
 
                 if (upd->next->prepared_id == WT_PREPARED_ID_NONE) {
@@ -1328,13 +1328,16 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                   upd->next->prepare_state == WT_PREPARE_LOCKED ||
                     upd->next->prepare_state == WT_PREPARE_INPROGRESS);
 
+                /* We may see aborted reserve updates in between the prepared updates. */
+                if (upd->next->type == WT_UPDATE_RESERVE)
+                    continue;
+
                 /*
                  * Since we resolve prepared update from the oldest to newest, we may see a
                  * tombstone still in prepared state but a prepared update that is rolled back from
                  * the same transaction here. Handle this case.
                  */
                 if (upd->next->upd_saved_txnid == tombstone_txnid) {
-                    WT_ASSERT(session, write_start_prepare);
                     WT_ASSERT(session, upd->next->prepare_ts == tombstone->prepare_ts);
                     break;
                 } else
