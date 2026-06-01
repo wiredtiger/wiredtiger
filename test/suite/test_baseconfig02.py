@@ -27,10 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 import wiredtiger, wttest
 
-# test_early_load_check.py
-#     WT-17691: wiredtiger_open must reject an open when an early_load=true extension
-#     recorded in WiredTiger.basecfg was not also passed in the open configuration.
-class test_early_load_check(wttest.WiredTigerTestCase):
+# test_baseconfig02.py
+#    Early-load extensions are loaded before WiredTiger.basecfg is read, so an entry persisted
+#    in basecfg cannot be replayed from there on reopen. wiredtiger_open must reject the open
+#    instead of silently leaving the extension absent.
+class test_baseconfig02(wttest.WiredTigerTestCase):
     # Toggled between opens to control whether conn_extensions emits the lz4 entry.
     include_extension = True
 
@@ -40,13 +41,13 @@ class test_early_load_check(wttest.WiredTigerTestCase):
             extlist.early_load_ext = True
             extlist.extension('compressors', 'lz4')
 
-    def test_early_load_check(self):
-        # First open recorded lz4 with early_load=true in WiredTiger.basecfg.
-        # Reopen with no extensions: the guardrail in wiredtiger_open must reject.
+    def test_baseconfig02(self):
+        # The first open recorded lz4 with early_load=true in basecfg. Reopening with no
+        # extensions should fail: the persisted entry has nowhere to be loaded from.
         self.include_extension = False
         with self.expectedStderrPattern('configured with early_load=true but was not passed'):
             self.assertRaises(wiredtiger.WiredTigerError, lambda: self.reopen_conn())
 
-        # Reopen with the extension passed back in: the open must succeed.
+        # Passing the extension back in restores the contract; the open should succeed.
         self.include_extension = True
         self.reopen_conn()
