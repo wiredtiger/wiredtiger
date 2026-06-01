@@ -74,8 +74,10 @@ main(int argc, char *argv[])
 
     /* Force to disk and re-open. */
     testutil_check(opts->conn->close(opts->conn, NULL));
-    testutil_check(wiredtiger_open(
-      opts->home, NULL, "statistics=(all),statistics_log=(json,on_close,wait=1)", &opts->conn));
+    testutil_snprintf(config, sizeof(config),
+      "extensions=(%s/%s=(early_load=true)),statistics=(all),statistics_log=(json,on_close,wait=1)",
+      buf, WT_FAIL_FS_LIB);
+    testutil_check(wiredtiger_open(opts->home, NULL, config, &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
