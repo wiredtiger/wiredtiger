@@ -30,16 +30,16 @@ import errno, os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_verify_disagg.py
+# test_disagg_verify.py
 #    SESSION::verify() testing for disagg storage
 
 @disagg_test_class
-class test_verify_disagg(wttest.WiredTigerTestCase):
+class test_disagg_verify(wttest.WiredTigerTestCase):
     hs = [
         ('empty', dict(fill_hs=False)),
         ('populated', dict(fill_hs=True)),
     ]
-    disagg_storages = gen_disagg_storages('test_verify_disagg', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_disagg_verify', disagg_only = True)
     scenarios = make_scenarios(hs, disagg_storages)
 
     nitems = 10000
@@ -54,7 +54,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
     session_follow = None
     conn_follow = None
 
-    uri = 'layered:test_verify_disagg'
+    uri = 'layered:test_disagg_verify'
 
     def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -81,7 +81,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
         self.session_follow = self.conn_follow.open_session('')
 
 
-    def test_verify_disagg(self):
+    def test_disagg_verify(self):
         if self.fill_hs:
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.timestamp))
 

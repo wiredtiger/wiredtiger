@@ -10,4 +10,4 @@ test_salvage03.py
 test_tiered06.py
 test_txn18.py
 test_txn19.py
-test_verify_disagg.py
+test_disagg_verify.py

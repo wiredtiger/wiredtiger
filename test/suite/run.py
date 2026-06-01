@@ -99,6 +99,8 @@ Variables, via name=value, default listed in brackets:\n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
   may be a subsuite name (e.g. \'base\' runs test_base*.py)\n\
+  may be a named suite from NAMED_SUITES (e.g. \'disagg\', \'tiered\', \'classic\');\n\
+    a named suite may also imply hooks (e.g. \'disagg\' enables --hook disagg)\n\
 \n\
   When -C or -c are present, there may not be any tests named.\n\
   When -s is present, there must be a test named.\n\
@@ -133,6 +135,9 @@ def show_env(verbose, envvar):
 # capture the category (AKA 'subsuite') part of a test name,
 # e.g. test_util03 -> util
 reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
+
+from named_suites import (dispatch_multi_pass, fail_list_paths_for_hooks,
+                          is_multi_pass_invocation, test_files_for_suite)
 
 # Look for a list of the form 0-9,11,15-17.
 def parse_int_list(str):
@@ -296,6 +301,13 @@ def configApply(suites, configfilename, configwrite):
     return newsuite
 
 def testsFromArg(tests, loader, arg, scenario, skipTests):
+    # Named suites expand to a list of test files (see named_suites.py).
+    named = test_files_for_suite(arg)
+    if named is not None:
+        for name in named:
+            testsFromArg(tests, loader, name, scenario, skipTests)
+        return
+
     # If a group of test is mentioned, do all tests in that group
     # e.g. 'run.py base'
     groupedfiles = glob.glob(suitedir + os.sep + 'test_' + arg + '*.py')
@@ -605,6 +617,13 @@ if __name__ == '__main__':
     tests = unittest.TestSuite()
     from testscenarios.scenarios import generate_scenarios
 
+    # A named suite like 'disagg' wants to run with several hook configs
+    # (leader, follower, table_prefix variants). Each needs its own Python
+    # process because a hook can only be installed once per process. Hand
+    # off to the multi-pass orchestrator in that case.
+    if is_multi_pass_invocation(testargs, hook_names):
+        sys.exit(dispatch_multi_pass(testargs, sys.argv))
+
     import wthooks
     hookmgr = wthooks.WiredTigerHookManager(hook_names)
 
@@ -617,15 +636,21 @@ if __name__ == '__main__':
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
                                           seedw, seedz, hookmgr, ss_random_prefix, timeout)
 
+    def _load_skip_file(path):
+        with open(path, 'r') as f:
+            lines = f.read().splitlines()
+        # Drop comment lines, trailing comments, and the .py extension.
+        lines = [l for l in lines if not l.lstrip().startswith('#')]
+        return [re.split(r'\s+#', l)[0].strip().replace('.py', '') for l in lines]
+
     skipTests = []
+    # For every enabled hook, auto-skip its co-named fail list if present
+    # (e.g. --hook disagg pairs with fail_lists/hook_disagg.fail). Catches
+    # both direct --hook usage and named-suite-implied hooks.
+    for path in fail_list_paths_for_hooks(hook_names):
+        skipTests.extend(_load_skip_file(path))
     if skipFileForTests:
-        with open(skipFileForTests, 'r') as f:
-            # Read the skip file and process it to get a list of tests to skip.
-            skipTests = f.read().splitlines()
-            # Remove comment lines starting with '#'.
-            skipTests = [test for test in skipTests if not test.lstrip().startswith('#')]
-            # Remove trailing comments and file extensions for each line.
-            skipTests = [re.split(r'\s+#', test)[0].strip().replace('.py', '') for test in skipTests]
+        skipTests.extend(_load_skip_file(skipFileForTests))
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
@@ -710,8 +735,11 @@ if __name__ == '__main__':
         # Break it into just our batch.
         tests = unittest.TestSuite(all_tests[batchnum::batchtotal])
     if dryRun:
-        for line in tests:
-            print(line)
+        try:
+            for line in tests:
+                print(line)
+        except BrokenPipeError:
+            pass
     else:
         result = wttest.runsuite(tests, parallel)
         sys.exit(0 if result.wasSuccessful() else 1)

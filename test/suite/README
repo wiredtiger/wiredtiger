@@ -11,3 +11,29 @@ is required when new tests is introduced into test/suite. (WT-4441)
 
 Before the above mentioned mechanism is put into place, please double check
 test/evergreen.yml and test run logs to make sure new test are covered.
+
+Named suites (from the CMake build directory):
+  python3 ../test/suite/run.py disagg     # multi-pass: native disagg files +
+                                          # hook passes (leader/follower x
+                                          # layered/table_prefix). Fail-fast.
+  python3 ../test/suite/run.py tiered     # native test_tiered* + --hook tiered pass
+  python3 ../test/suite/run.py classic    # everything that isn't disagg or tiered
+
+A named suite with implied hooks runs as several sequential subprocesses:
+pass 1 is the native test files with no hook; each subsequent pass enables
+one hook entry from the suite (a follower pass may be scoped to a single
+test, matching CI). The runner aborts at the first failing pass. The user's
+-j N is forwarded to each subprocess so internal parallelism is preserved.
+
+To bypass multi-pass and run a single hook config of your choice, pass
+--hook explicitly:
+  python3 ../test/suite/run.py --hook "disagg=(role=follower)" base01
+
+For every enabled hook, if a co-named skip list exists at
+test/suite/fail_lists/hook_<name>.fail it is automatically applied. Any
+--skip-tests-in-file is appended on top.
+
+Named suites are defined by the NAMED_SUITES table in test/suite/run.py.
+Each entry either lists 'prefixes' (test files starting with these prefixes
+belong to the suite) or 'exclude_suites' (the suite is the complement of
+the listed suites' prefixes).
