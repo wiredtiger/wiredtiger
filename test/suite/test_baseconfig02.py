@@ -31,8 +31,13 @@ import wiredtiger, wttest
 #    Early-load extensions are loaded before WiredTiger.basecfg is read, so an entry persisted
 #    in basecfg cannot be replayed from there on reopen. wiredtiger_open must reject the open
 #    instead of silently leaving the extension absent.
+#
+# The disagg hook injects extensions into every wiredtiger_open, which shadows basecfg's
+# extensions list and defeats the assertion this test is making.
+@wttest.skip_for_hook("disagg", "hook always passes extensions, shadowing basecfg")
 class test_baseconfig02(wttest.WiredTigerTestCase):
-    # Toggled between opens to control whether conn_extensions emits the rotn entry.
+    # The framework auto-injects conn_extensions on every wiredtiger_open including reopens, so
+    # to simulate "reopen without the extension" the test flips this flag and calls reopen_conn.
     # rotn is used because it builds unconditionally; lz4/snappy/etc. are opt-in.
     include_extension = True
 
@@ -41,9 +46,6 @@ class test_baseconfig02(wttest.WiredTigerTestCase):
             extlist.early_load_ext = True
             extlist.extension('encryptors', 'rotn')
 
-    # The disagg hook injects extensions into every wiredtiger_open, which shadows basecfg's
-    # extensions list and defeats the assertion this test is making.
-    @wttest.skip_for_hook("disagg", "hook always passes extensions, shadowing basecfg")
     def test_baseconfig02(self):
         # The first open recorded rotn with early_load=true in basecfg. Reopening with no
         # extensions should fail: the persisted entry has nowhere to be loaded from.
