@@ -1831,7 +1831,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
          * suffix-compression anchor from the page's first on-disk key, not as a strict lower bound,
          * and legitimate SMALLEST-insert keys may sort below it.
          */
-        if (page->type == WT_PAGE_ROW_LEAF && r->multi_next > 1 && chunk->key.size != 0) {
+        if (page->type == WT_PAGE_ROW_LEAF && r->multi_next > 1) {
             if (multi->supd[0].ins == NULL)
                 WT_ERR(__wt_row_leaf_key(session, page, multi->supd[0].rip, key, false));
             else {
