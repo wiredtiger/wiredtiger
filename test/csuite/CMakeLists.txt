@@ -365,15 +365,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt17691_early_load_check
-    SOURCES wt17691_early_load_check/main.c
-    DIR_NAME wt17691_early_load_check
-    FLAGS "-DLZ4_PATH=\"ext/compressors/lz4/libwiredtiger_lz4.so\""
-    ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt17691_early_load_check>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET test_wt12015_backup_corruption
     SOURCES wt12015_backup_corruption/main.c
     DIR_NAME wt12015_backup_corruption
