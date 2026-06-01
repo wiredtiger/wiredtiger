@@ -1103,6 +1103,67 @@ err:
 }
 
 /*
+ * __conn_check_early_load_extensions --
+ *     Verify that every early_load=true extension listed in the merged configuration has already
+ *     been loaded. Early-load happens before WiredTiger.basecfg is merged, so an entry that lives
+ *     only in basecfg never loads -- error out instead of silently leaving the extension absent.
+ */
+static int
+__conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG subconfig;
+    WT_CONFIG_ITEM cval, skey, sval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(exconfig);
+    WT_DECL_ITEM(expath);
+    WT_DECL_RET;
+    WT_DLH *dlh;
+    bool found;
+    const char *sub_cfg[] = {WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL};
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_config_gets(session, cfg, "extensions", &cval));
+    __wt_config_subinit(session, &subconfig, &cval);
+    while ((ret = __wt_config_next(&subconfig, &skey, &sval)) == 0) {
+        if (sval.len == 0)
+            continue;
+        if (exconfig == NULL)
+            WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
+        WT_ERR(__wt_buf_fmt(session, exconfig, "%.*s", (int)sval.len, sval.str));
+        sub_cfg[1] = exconfig->data;
+
+        WT_ERR(__wt_config_gets(session, sub_cfg, "early_load", &cval));
+        if (cval.val == 0)
+            continue;
+
+        if (expath == NULL)
+            WT_ERR(__wt_scr_alloc(session, 0, &expath));
+        WT_ERR(__wt_buf_fmt(session, expath, "%.*s", (int)skey.len, skey.str));
+
+        found = false;
+        __wt_spin_lock(session, &conn->api_lock);
+        TAILQ_FOREACH (dlh, &conn->dlhqh, q)
+            if (dlh->name != NULL && strcmp(dlh->name, expath->data) == 0) {
+                found = true;
+                break;
+            }
+        __wt_spin_unlock(session, &conn->api_lock);
+        if (!found)
+            WT_ERR_MSG(session, EINVAL,
+              "extension \"%s\" is configured with early_load=true but was not passed to "
+              "wiredtiger_open; early-load extensions must be re-passed on every open",
+              (const char *)expath->data);
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    __wt_scr_free(session, &expath);
+    __wt_scr_free(session, &exconfig);
+    return (ret);
+}
+
+/*
  * __conn_get_home --
  *     WT_CONNECTION.get_home method.
  */
@@ -3420,6 +3481,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Merge the full configuration stack and save it for reconfiguration.
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
+
+    /*
+     * The merged configuration now includes WiredTiger.basecfg. Verify that every early-load
+     * extension recorded there was also passed to this open call -- early-load happens before
+     * basecfg is read, so anything only in basecfg would otherwise be silently absent.
+     */
+    WT_ERR(__conn_check_early_load_extensions(session, cfg));
 
     /*
      * Read-only and in-memory settings may have been set in a configuration file (not optimal, but
