@@ -222,6 +222,45 @@ disagg_is_mode_switch(void)
 }
 
 /*
+ * disagg_step_up_with_checkpoint --
+ *     Reconfigure to leader, passing the latest checkpoint_meta in the same call. Matches
+ *     production: checkpoint_meta is picked up before the step-up drain runs. FIXME-WT-15788:
+ *     pl_get_complete_checkpoint is a test-only PALite API.
+ */
+static void
+disagg_step_up_with_checkpoint(WT_CONNECTION *conn)
+{
+    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
+    memset(&args, 0, sizeof(args));
+
+    WT_PAGE_LOG *page_log = NULL;
+    WT_SESSION *session = NULL;
+    testutil_check(conn->get_page_log(conn, GVS(DISAGG_PAGE_LOG), &page_log));
+
+    SAP sap;
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+
+    const int ret = page_log->pl_get_complete_checkpoint(page_log, session, &args);
+    testutil_check_error_ok(ret, WT_NOTFOUND);
+
+    const size_t config_len = (ret == 0 ? args.checkpoint_metadata.size : 0) + 64;
+    char *config = dmalloc(config_len);
+
+    if (ret == 0)
+        testutil_snprintf(config, config_len,
+          "disaggregated=(checkpoint_meta=\"%.*s\",role=leader)",
+          (int)args.checkpoint_metadata.size, (const char *)args.checkpoint_metadata.data);
+    else
+        testutil_snprintf(config, config_len, "disaggregated=(role=leader)");
+
+    free(args.checkpoint_metadata.mem);
+    wt_wrap_close_session(session);
+    testutil_check(page_log->terminate(page_log, NULL));
+    testutil_check(conn->reconfigure(conn, config));
+    free(config);
+}
+
+/*
  * disagg_switch_roles --
  *     Toggle the current disagg role between "leader" and "follower",
  */
@@ -250,7 +289,7 @@ disagg_switch_roles(void)
         WT_SESSION *session;
 
         track("[role change] follower -> leader", 0ULL);
-        testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
+        disagg_step_up_with_checkpoint(g.wts_conn);
 
         memset(&sap, 0, sizeof(sap));
         wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
