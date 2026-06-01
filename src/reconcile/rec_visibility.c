@@ -1145,7 +1145,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
              */
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
                 if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
+                    WT_ASSERT(session, __wt_txn_upd_visible_all(session, upd));
                     found_last_upd_to_keep = true;
                     break;
                 }
