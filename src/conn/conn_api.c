@@ -1104,8 +1104,8 @@ err:
 
 /*
  * __conn_check_early_load_extensions --
- *     Verify that every early_load=true extension listed in the base configuration file has already
- *     been loaded.
+ *     Warn for every early_load=true extension listed in the base configuration file that was not
+ *     also passed in the open configuration; basecfg cannot replay early-load entries.
  */
 static int
 __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1135,9 +1135,9 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
             if (dlh->name != NULL && WT_CONFIG_MATCH(dlh->name, skey))
                 break;
         if (dlh == NULL)
-            WT_ERR_MSG(session, EINVAL,
+            __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "extension \"%.*s\" is configured with early_load=true but was not passed to "
-              "wiredtiger_open",
+              "wiredtiger_open; it will be absent from this connection",
               (int)skey.len, skey.str);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -3466,7 +3466,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
 
-    /* Verify that all early-loaded extensions are loaded. */
+    /* Warn for early-loaded extensions in basecfg that the open did not re-pass. */
     WT_ERR(__conn_check_early_load_extensions(session, cfg));
 
     /*
