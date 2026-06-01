@@ -352,6 +352,13 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                     break;
                 }
 
+                /*
+                 * Force a full base image instead of a delta. Handling the now globally visible
+                 * deletion below can free this leaf's block. A delta keeps the parent's previous
+                 * base image, which still references the freed block through its proxy cell, and
+                 * that resurrects the page. Rebuilding the full image drops the proxy cell and
+                 * frees the block together, so the parent never references a freed block.
+                 */
                 if (build_delta != NULL) {
                     *build_delta = false;
                     r->delta.size = 0;
