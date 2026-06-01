@@ -1140,14 +1140,16 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__wt_scr_alloc(session, 0, &expath));
         WT_ERR(__wt_buf_fmt(session, expath, "%.*s", (int)skey.len, skey.str));
 
+        /*
+         * Safe to walk without api_lock: this runs in wiredtiger_open before the connection is
+         * returned to the application, so no other thread can be touching dlhqh.
+         */
         found = false;
-        __wt_spin_lock(session, &conn->api_lock);
         TAILQ_FOREACH (dlh, &conn->dlhqh, q)
             if (dlh->name != NULL && strcmp(dlh->name, expath->data) == 0) {
                 found = true;
                 break;
             }
-        __wt_spin_unlock(session, &conn->api_lock);
         if (!found)
             WT_ERR_MSG(session, EINVAL,
               "extension \"%s\" is configured with early_load=true but was not passed to "
