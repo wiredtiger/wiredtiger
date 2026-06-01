@@ -1114,52 +1114,36 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval, skey, sval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(exconfig);
-    WT_DECL_ITEM(expath);
     WT_DECL_RET;
     WT_DLH *dlh;
-    bool found;
     const char *sub_cfg[] = {WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL};
 
     conn = S2C(session);
-
+    WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
     WT_ERR(__wt_config_gets(session, cfg, "extensions", &cval));
     __wt_config_subinit(session, &subconfig, &cval);
     while ((ret = __wt_config_next(&subconfig, &skey, &sval)) == 0) {
         if (sval.len == 0)
             continue;
-        if (exconfig == NULL)
-            WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
         WT_ERR(__wt_buf_fmt(session, exconfig, "%.*s", (int)sval.len, sval.str));
         sub_cfg[1] = exconfig->data;
-
         WT_ERR(__wt_config_gets(session, sub_cfg, "early_load", &cval));
         if (cval.val == 0)
             continue;
 
-        if (expath == NULL)
-            WT_ERR(__wt_scr_alloc(session, 0, &expath));
-        WT_ERR(__wt_buf_fmt(session, expath, "%.*s", (int)skey.len, skey.str));
-
-        /*
-         * Safe to walk without api_lock: this runs in wiredtiger_open before the connection is
-         * returned to the application, so no other thread can be touching dlhqh.
-         */
-        found = false;
+        /* Single-threaded during wiredtiger_open; no lock needed on dlhqh. */
         TAILQ_FOREACH (dlh, &conn->dlhqh, q)
-            if (dlh->name != NULL && strcmp(dlh->name, expath->data) == 0) {
-                found = true;
+            if (dlh->name != NULL && WT_CONFIG_MATCH(dlh->name, skey))
                 break;
-            }
-        if (!found)
+        if (dlh == NULL)
             WT_ERR_MSG(session, EINVAL,
-              "extension \"%s\" is configured with early_load=true but was not passed to "
+              "extension \"%.*s\" is configured with early_load=true but was not passed to "
               "wiredtiger_open; early-load extensions must be re-passed on every open",
-              (const char *)expath->data);
+              (int)skey.len, skey.str);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
-    __wt_scr_free(session, &expath);
     __wt_scr_free(session, &exconfig);
     return (ret);
 }
