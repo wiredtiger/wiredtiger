@@ -27,7 +27,7 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
      */
     WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
       ret = __wt_row_modify(
-        hs_cbt, &hs_cbt->iface.key, NULL, &hs_upd, WT_UPDATE_INVALID, false, false));
+        hs_cbt, &hs_cbt->iface.key, NULL, &hs_upd, WT_UPDATE_INVALID, false, false, true));
     return (ret);
 }
 

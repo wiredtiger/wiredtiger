@@ -1737,7 +1737,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                     ;
 
             /* Apply the modification. */
-            WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true, true));
 
             if (last_upd != NULL && last_upd->next != NULL) {
                 WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
@@ -1748,9 +1748,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ERR(__wt_illegal_value(session, orig->type));
         }
     }
-
-    if (free_size > 0)
-        __wt_cache_page_inmem_decr(session, page, free_size);
 
     /*
      * When modifying the page we set the first dirty transaction to the last transaction currently
@@ -1764,6 +1761,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
+    if (free_size > 0)
+        __wt_cache_page_inmem_decr(session, page, free_size);
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 

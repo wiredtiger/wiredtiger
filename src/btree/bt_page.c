@@ -833,7 +833,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     bool is_disagg;
 
     size = 0;
-    *sizep = 0;
+    if (sizep != NULL)
+        *sizep = 0;
 
     tombstone = upd = NULL;
     total_size = 0;
@@ -888,7 +889,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     } else
         *updp = upd;
 
-    *sizep = total_size;
+    if (sizep != NULL)
+        *sizep = total_size;
     return (0);
 
 err:
@@ -904,14 +906,13 @@ err:
  */
 static int
 __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
+  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
 {
-    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, sizep));
+    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, NULL));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
-    WT_RET(__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
-    return (0);
+    return (__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
 }
 
 /*
@@ -955,11 +956,11 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_ERR(__wt_scr_alloc(session, 0, &value));
     /*
-     * Suppress per-update cache increments in the serial functions; we batch them into a single
-     * call below to avoid O(N) atomic operations on page restore.
+     * Column-store updates go through the insert path, allocating a WT_INSERT struct whose size is
+     * only known inside the serial functions; let each call increment the cache directly. Row-leaf
+     * updates always go through the existing update chain, so the size is known here and all
+     * increments are batched into a single call below to avoid O(N) atomics on page restore.
      */
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SKIP_CACHE_INCR));
-    F_SET(session, WT_SESSION_SKIP_CACHE_INCR);
     if (page->type == WT_PAGE_COL_VAR) {
         recno = ref->ref_recno;
         WT_COL_FOREACH (page, cip, i) {
@@ -979,10 +980,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
-                /* Create an update to resolve the prepare. */
-                WT_ERR(
-                  __page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd, &size));
-                total_size += size;
+                WT_ERR(__page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd));
                 upd = NULL;
             }
         }
@@ -1014,7 +1012,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
 
             cbt.slot = WT_ROW_SLOT(page, rip);
             cbt.ref = ref;
-            WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true, false));
             total_size += size;
             upd = NULL;
         }
@@ -1025,12 +1023,10 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * updates to avoid reconciling the page every time.
      */
     __wt_page_modify_clear(session, page);
-    F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
     __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
-        F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
         __wt_cache_page_inmem_incr(session, page, total_size, false);
         __wt_free_update_list(session, &upd);
     }

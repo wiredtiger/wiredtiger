@@ -70,7 +70,7 @@ __row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipdepth
  */
 int
 __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
-  WT_UPDATE **updp_arg, u_int modify_type, bool exclusive, bool restore)
+  WT_UPDATE **updp_arg, u_int modify_type, bool exclusive, bool restore, bool cache_incr)
 {
     WT_DECL_RET;
     WT_INSERT *ins;
@@ -134,6 +134,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             upd_entry = &cbt->ins->upd;
 
         if (upd_arg == NULL) {
+            /* New application writes always need inline cache increments. */
+            WT_ASSERT(session, cache_incr);
+
             /* Make sure the modify can proceed. */
             WT_ERR(
               __wt_txn_modify_check(session, cbt, old_upd = *upd_entry, &prev_upd_ts, modify_type));
@@ -213,7 +216,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
         upd->next = old_upd;
 
         /* Serialize the update. */
-        WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive));
+        WT_ERR(
+          __wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive, cache_incr));
     } else {
         /*
          * Allocate the insert array as necessary.
@@ -244,6 +248,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
         cbt->ins = ins;
 
         if (upd_arg == NULL) {
+            /* New application writes always need inline cache increments. */
+            WT_ASSERT(session, cache_incr);
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             WT_ERR(__wt_txn_modify(session, upd));
             added_to_txn = true;

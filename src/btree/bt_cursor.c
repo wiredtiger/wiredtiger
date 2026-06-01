@@ -538,7 +538,7 @@ __cursor_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
     WT_BTREE *btree = CUR2BT(cbt);
     if (btree->type == BTREE_COL_VAR)
         return (__wt_col_modify(cbt, cbt->iface.recno, value, NULL, modify_type, false, false));
-    return (__wt_row_modify(cbt, &cbt->iface.key, value, NULL, modify_type, false, false));
+    return (__wt_row_modify(cbt, &cbt->iface.key, value, NULL, modify_type, false, false, true));
 }
 
 /*
