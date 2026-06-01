@@ -15,7 +15,7 @@
 
 /*
  * Grace period before closing an outdated checkpoint handle so the next generation can reuse its
- * shared disk images.
+ * shared disk image.
  */
 #define WT_DISAGG_OUTDATED_GRACE_SECS 5
 
