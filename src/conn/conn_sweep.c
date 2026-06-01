@@ -13,6 +13,10 @@
       __wt_atomic_load_int32_relaxed(&(dhandle)->session_inuse) == 0 && \
       __wt_atomic_load_uint32_relaxed(&(dhandle)->references) == 0)
 
+/*
+ * Grace period before closing an outdated checkpoint handle so the next generation can reuse its
+ * shared disk images.
+ */
 #define WT_DISAGG_OUTDATED_GRACE_SECS 5
 
 /*
