@@ -11,13 +11,3 @@ is required when new tests is introduced into test/suite. (WT-4441)
 
 Before the above mentioned mechanism is put into place, please double check
 test/evergreen.yml and test run logs to make sure new test are covered.
-
-Named suites (run from the CMake build directory):
-  python3 ../test/suite/run.py disagg
-  python3 ../test/suite/run.py tiered
-  python3 ../test/suite/run.py classic
-  python3 ../test/suite/run.py -j 8 disagg                          # parallel
-  python3 ../test/suite/run.py -n disagg                            # dry-run
-  python3 ../test/suite/run.py --hook "disagg=(role=follower)" base01
-
-Suites are defined in test/suite/named_suites.py.
