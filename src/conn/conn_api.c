@@ -3466,7 +3466,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
 
-    /* Verify that every early-loaded extension is loaded. */
+    /* Verify that all early-loaded extensions are loaded. */
     WT_ERR(__conn_check_early_load_extensions(session, cfg));
 
     /*
