@@ -39,8 +39,11 @@
 To add a suite, add an entry to NAMED_SUITES with:
   'prefixes':       tuple of test_*.py prefixes the suite covers, OR
   'exclude_suites': tuple of other suite names this suite is the complement of
-  'hooks':          tuple of additional passes (string spec or
-                    {'hook': spec, 'tests': (testargs,)})
+  'hooks':          extra hook configurations to test. For each entry,
+                    run.py is re-launched with --hook applied. An entry is:
+                      a hook spec string                run over every test
+                      {'hook': spec, 'tests': (...)}    run only over the
+                                                        listed tests
 """
 
 import glob
@@ -56,6 +59,7 @@ NAMED_SUITES = {
         'hooks': (
             'disagg=(role=leader)',
             'disagg=(role=leader,table_prefix=table)',
+            # Follower-role passes are pinned to base01 only, matching CI.
             {'hook': 'disagg=(role=follower)',                    'tests': ('base01',)},
             {'hook': 'disagg=(role=follower,table_prefix=table)', 'tests': ('base01',)},
         ),
