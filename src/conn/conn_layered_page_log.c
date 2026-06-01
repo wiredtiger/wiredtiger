@@ -534,7 +534,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         __wt_debug_crash(session);
 
     if (push_mode) {
-        /* Push mode: pick the most recently pushed key and drain the queue. */
+        /* Push mode: pick the most recently pushed key; the queue is drained below. */
         chosen = TAILQ_LAST(
           &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
         if (chosen == NULL)
@@ -546,7 +546,6 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         crypt.keys.size = chosen->keys.size;
         memcpy((void *)crypt.keys.data, chosen->keys.data, chosen->keys.size);
         crypt.timestamp = chosen->timestamp;
-        __wti_disagg_pending_crypt_key_clear(session);
     } else {
         /* Pull mode: ask the module for the current key via get_key. */
         WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
@@ -586,6 +585,10 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         crypt.keys.size = 0;
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
+
+    /* On a successful push-mode write, drain the queue; failure leaves entries for retry. */
+    if (push_mode && ret == 0)
+        __wti_disagg_pending_crypt_key_clear(session);
 
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
         __wt_debug_crash(session);
