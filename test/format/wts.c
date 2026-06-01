@@ -751,7 +751,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[1024], disagg_ext_cfg[1024], *p;
+    char config[2 * 1024], disagg_ext_cfg[1024], *p;
     const char *enc, *s;
 
     *connp = NULL;
@@ -789,6 +789,10 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
+
+    /* Re-pass early-load extensions; basecfg does not replay them. See @ref extensions_loadable. */
+    if (disagg_ext_cfg[0] != '\0')
+        CONFIG_APPEND(p, ",extensions=[%s]", disagg_ext_cfg);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
