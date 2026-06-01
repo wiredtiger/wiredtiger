@@ -2076,8 +2076,8 @@ __rec_build_delta(
 
             /*
              * Count globally-visible deletes before building the delta. A globally-visible delete
-             * written to a delta wastes space; the same entry is simply absent from a full page.
-             * If enough of the page's entries are being deleted, writing a full page reclaims more
+             * written to a delta wastes space; the same entry is simply absent from a full page. If
+             * enough of the page's entries are being deleted, writing a full page reclaims more
              * disk space than the delta saves.
              */
             for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
