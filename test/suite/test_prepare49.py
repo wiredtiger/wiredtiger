@@ -32,25 +32,24 @@
 
 import wttest
 
-
 class test_prepare49(wttest.WiredTigerTestCase):
 
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
     uri = 'table:test_prepare49'
 
     def _force_evict(self, key, read_ts):
-        sess = self.conn.open_session()
+        session = self.conn.open_session()
         try:
-            cur = sess.open_cursor(self.uri, None, 'debug=(release_evict)')
-            sess.begin_transaction(
+            cursor = session.open_cursor(self.uri, None, 'debug=(release_evict)')
+            session.begin_transaction(
                 'ignore_prepare=true,read_timestamp=' + self.timestamp_str(read_ts))
-            cur.set_key(key)
-            self.assertEqual(cur.search(), 0)
-            cur.reset()
-            cur.close()
-            sess.rollback_transaction()
+            cursor.set_key(key)
+            self.assertEqual(cursor.search(), 0)
+            cursor.reset()
+            cursor.close()
+            session.rollback_transaction()
         finally:
-            sess.close()
+            session.close()
 
     def test_evict_after_rollback_with_reserve_between_prepared_ops(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
@@ -68,15 +67,15 @@ class test_prepare49(wttest.WiredTigerTestCase):
         # Prepare a transaction that updates, reserves, then deletes the same
         # key.  The reservation is between the update and the delete, placing
         # all three operations under the same prepared transaction.
-        sess_a = self.conn.open_session()
-        cur_a = sess_a.open_cursor(self.uri)
-        sess_a.begin_transaction()
-        cur_a[1] = 'updated'
-        cur_a.set_key(1)
-        cur_a.reserve()
-        cur_a.set_key(1)
-        cur_a.remove()
-        sess_a.prepare_transaction(
+        session_a = self.conn.open_session()
+        cursor_a = session_a.open_cursor(self.uri)
+        session_a.begin_transaction()
+        cursor_a[1] = 'updated'
+        cursor_a.set_key(1)
+        cursor_a.reserve()
+        cursor_a.set_key(1)
+        cursor_a.remove()
+        session_a.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(10) +
             ',prepared_id=' + self.prepared_id_str(1))
 
@@ -85,10 +84,10 @@ class test_prepare49(wttest.WiredTigerTestCase):
         # is still ahead of stable so the rolled-back prepared cell is retained
         # on disk for recovery purposes.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(15))
-        sess_a.rollback_transaction(
+        session_a.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(20))
-        cur_a.close()
-        sess_a.close()
+        cursor_a.close()
+        session_a.close()
 
         # Eviction must complete without crashing.  Reading at the base
         # timestamp to make the key visible for the eviction trigger.
