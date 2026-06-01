@@ -32,17 +32,17 @@ import wiredtiger, wttest
 #    in basecfg cannot be replayed from there on reopen. wiredtiger_open must reject the open
 #    instead of silently leaving the extension absent.
 class test_baseconfig02(wttest.WiredTigerTestCase):
-    # Toggled between opens to control whether conn_extensions emits the lz4 entry.
+    # Toggled between opens to control whether conn_extensions emits the rotn entry.
+    # rotn is used because it builds unconditionally; lz4/snappy/etc. are opt-in.
     include_extension = True
 
     def conn_extensions(self, extlist):
         if self.include_extension:
-            extlist.skip_if_missing = True
             extlist.early_load_ext = True
-            extlist.extension('compressors', 'lz4')
+            extlist.extension('encryptors', 'rotn')
 
     def test_baseconfig02(self):
-        # The first open recorded lz4 with early_load=true in basecfg. Reopening with no
+        # The first open recorded rotn with early_load=true in basecfg. Reopening with no
         # extensions should fail: the persisted entry has nowhere to be loaded from.
         self.include_extension = False
         with self.expectedStderrPattern('configured with early_load=true but was not passed'):
