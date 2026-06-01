@@ -230,12 +230,19 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
 #ifdef HAVE_DIAGNOSTIC
         /*
          * The SMALLEST insert list catches keys that sort before the page's first on-disk key. On
-         * any non-leftmost child the page still has a hard lower bound: the ref separator key
-         * recorded in the parent. A key smaller than that bound belongs on the left sibling and
-         * would be lost if grafted onto this page. The leftmost child has -infinity as its lower
-         * bound, so any key is valid; the root page has no parent ref key at all.
+         * any non-leftmost child the page has a hard lower bound: the parent's separator key for
+         * this ref. A key smaller than that bound belongs on the left sibling and would be lost if
+         * grafted onto this page. The leftmost child has -infinity as its lower bound, so any key
+         * is valid.
+         *
+         * Skip the check when the page is not yet linked into its parent (home is NULL). A leaf
+         * being re-instantiated during an in-memory split or rewrite restores its saved updates
+         * before it is spliced into the tree, so there is no separator key to compare against and
+         * the slot lookup below would dereference a NULL home. Read home atomically; splits mutate
+         * it concurrently.
          */
-        if (F_ISSET(cbt, WT_CBT_SEARCH_SMALLEST) && !__wt_ref_is_root(cbt->ref)) {
+        if (F_ISSET(cbt, WT_CBT_SEARCH_SMALLEST) &&
+          __wt_atomic_load_ptr_relaxed(&cbt->ref->home) != NULL) {
             WT_PAGE_INDEX *pindex;
             WT_ITEM ref_key;
             uint32_t slot;
