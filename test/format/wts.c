@@ -435,6 +435,25 @@ configure_obsolete_cleanup(char **p, size_t max)
     CONFIG_APPEND(*p, "]");
 }
 
+#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
+
+/*
+ * configure_extensions --
+ *     Build the list of extensions. The full list is passed on every wiredtiger_open so early-load
+ *     entries are present and so no extension goes missing on reopen.
+ */
+static void
+configure_extensions(char **p, size_t max, const char *disagg_ext_cfg, const char *tiered_ext_cfg)
+{
+    CONFIG_APPEND(*p,
+      ",extensions=["
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s]",
+      REVERSE_PATH, EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH),
+      EXTENSION_PATH(ZLIB_PATH), EXTENSION_PATH(ZSTD_PATH), EXTENSION_PATH(ROTN_PATH),
+      EXTENSION_PATH(SODIUM_PATH), disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"",
+      tiered_ext_cfg[0] != '\0' ? tiered_ext_cfg : "\"\"");
+}
+
 /*
  * create_database --
  *     Create a WiredTiger database.
@@ -546,23 +565,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
 
-#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
-
     /* Extensions. */
-    CONFIG_APPEND(p,
-      ",extensions=["
-      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s],",
-      /* Collators. */
-      REVERSE_PATH,
-      /* Compressors. */
-      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
-      EXTENSION_PATH(ZSTD_PATH),
-      /* Encryptors. */
-      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
-      /* Page log. */
-      disagg_ext_cfg,
-      /* Storage source. */
-      tiered_ext_cfg);
+    configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -794,19 +798,8 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
 
-    /*
-     * Re-pass the full extensions list. Listing extensions in the open config overrides whatever
-     * basecfg recorded -- if we passed only the early-load entries, the others (compressors,
-     * encryptors, collators, tiered storage source) would silently disappear on reopen. See @ref
-     * extensions_loadable.
-     */
-    CONFIG_APPEND(p,
-      ",extensions=["
-      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s]",
-      REVERSE_PATH, EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH),
-      EXTENSION_PATH(ZLIB_PATH), EXTENSION_PATH(ZSTD_PATH), EXTENSION_PATH(ROTN_PATH),
-      EXTENSION_PATH(SODIUM_PATH), disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"",
-      tiered_ext_cfg[0] != '\0' ? tiered_ext_cfg : "\"\"");
+    /* Extensions. */
+    configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
