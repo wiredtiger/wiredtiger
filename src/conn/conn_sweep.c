@@ -203,15 +203,16 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
             continue;
         /*
-         * Close outdated btrees immediately, even if they are metadata, except on a disaggregated
-         * standby where they are held for a short grace period. For trees not marked with outdated,
-         * wait until the idle time has elapsed since time of death.
+         * Close outdated btrees immediately, even if they are metadata, except for checkpoint
+         * handles on a disaggregated standby, which are held for a short grace period. For trees
+         * not marked with outdated, wait until the idle time has elapsed since time of death.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
-            if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader) {
-                uint64_t tod = __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath);
+            if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader &&
+              WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {
+                uint64_t tod = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
                 if (tod == 0) {
                     dhandle->timeofdeath = now;
                     continue;
