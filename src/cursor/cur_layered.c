@@ -159,8 +159,22 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, uint32_t flags)
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    /* Open the ingest on first use. We never reopen it during normal operation. */
-    if (clayered->ingest_cursor == NULL) {
+    /*
+     * Manage the ingest cursor by role. A follower opens it on first use and never reopens it
+     * during normal operation. The leader keeps it closed: the ingest table is empty for reads and
+     * unused for writes, so an open ingest cursor only adds the per-operation cache/reopen and
+     * dhandle rwlock overhead. A step-up can leave behind an ingest cursor opened while a follower,
+     * so close it on the role change.
+     */
+    if (S2C(session)->layered_table_manager.leader) {
+        if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
+            WT_CURSOR *ingest = clayered->ingest_cursor;
+            if (clayered->current_cursor == ingest)
+                clayered->current_cursor = NULL;
+            WT_RET(ingest->close(ingest));
+            clayered->ingest_cursor = NULL;
+        }
+    } else if (clayered->ingest_cursor == NULL) {
         WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
         WT_RET(__clayered_copy_bounds(clayered));
     }
@@ -1965,7 +1979,8 @@ done:
     if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV)) {
         if (clayered->stable_cursor != NULL && clayered->current_cursor == clayered->ingest_cursor)
             WT_ERR(clayered->stable_cursor->reset(clayered->stable_cursor));
-        else if (clayered->current_cursor == clayered->stable_cursor)
+        else if (clayered->ingest_cursor != NULL &&
+          clayered->current_cursor == clayered->stable_cursor)
             WT_ERR(clayered->ingest_cursor->reset(clayered->ingest_cursor));
     }
 
@@ -2501,9 +2516,11 @@ __clayered_largest_key(WT_CURSOR *cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
-    WT_ERR_NOTFOUND_OK(ingest_cursor->largest_key(ingest_cursor), true);
-    if (ret == 0)
-        ingest_found = true;
+    if (ingest_cursor != NULL) {
+        WT_ERR_NOTFOUND_OK(ingest_cursor->largest_key(ingest_cursor), true);
+        if (ret == 0)
+            ingest_found = true;
+    }
 
     if (stable_cursor != NULL) {
         WT_ERR_NOTFOUND_OK(stable_cursor->largest_key(stable_cursor), true);
@@ -2665,6 +2682,8 @@ __clayered_next_random(WT_CURSOR *cursor)
 
     if (c == NULL || ret == WT_NOTFOUND) {
         c = clayered->ingest_cursor;
+        if (c == NULL)
+            WT_ERR(WT_NOTFOUND);
         WT_ERR(__wti_curfile_next_random(c));
     }
 
