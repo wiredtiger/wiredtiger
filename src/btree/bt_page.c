@@ -824,24 +824,17 @@ err:
  *     Create the actual update for a prepared value.
  */
 static int
-__page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
+__page_inmem_prepare_update(
+  WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
 {
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
-    size_t size, total_size;
     bool is_disagg;
 
-    size = 0;
-    if (sizep != NULL)
-        *sizep = 0;
-
     tombstone = upd = NULL;
-    total_size = 0;
     is_disagg = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED);
 
-    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
-    total_size += size;
+    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
 
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
@@ -872,8 +865,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw)));
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-        total_size += size;
+        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->upd_durable_ts = WT_TS_NONE;
         tombstone->txnid = unpack->tw.stop_txn;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
@@ -889,8 +881,6 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     } else
         *updp = upd;
 
-    if (sizep != NULL)
-        *sizep = total_size;
     return (0);
 
 err:
@@ -908,7 +898,7 @@ static int
 __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
   WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
 {
-    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, NULL));
+    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
@@ -932,14 +922,12 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_UPDATE *upd;
-    size_t size, total_size;
     uint64_t recno, rle;
     uint32_t i;
 
     btree = S2BT(session);
     page = ref->page;
     upd = NULL;
-    total_size = 0;
 
     /*
      * This variable is only used in assertions so in non-diagnostic builds it throws an unused
@@ -955,12 +943,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_btcur_open(&cbt);
 
     WT_ERR(__wt_scr_alloc(session, 0, &value));
-    /*
-     * Column-store updates go through the insert path, allocating a WT_INSERT struct whose size is
-     * only known inside the serial functions; let each call increment the cache directly. Row-leaf
-     * updates always go through the existing update chain, so the size is known here and all
-     * increments are batched into a single call below to avoid O(N) atomics on page restore.
-     */
+
     if (page->type == WT_PAGE_COL_VAR) {
         recno = ref->ref_recno;
         WT_COL_FOREACH (page, cip, i) {
@@ -1008,12 +991,11 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
               "Should never read an overflow removed value for a prepared update");
 
-            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd));
 
             cbt.slot = WT_ROW_SLOT(page, rip);
             cbt.ref = ref;
-            WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true, false));
-            total_size += size;
+            WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true));
             upd = NULL;
         }
     }
@@ -1023,11 +1005,9 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * updates to avoid reconciling the page every time.
      */
     __wt_page_modify_clear(session, page);
-    __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
-        __wt_cache_page_inmem_incr(session, page, total_size, false);
         __wt_free_update_list(session, &upd);
     }
     WT_TRET(__wt_btcur_close(&cbt, true));

@@ -947,7 +947,7 @@ __clayered_stable_replay_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, 
     upd->upd_durable_ts = session->replay_trunc_ctx.durable_ts;
     F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
 
-    ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, &upd, WT_UPDATE_INVALID, false, false, true);
+    ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, &upd, WT_UPDATE_INVALID, false, false);
     if (ret != 0)
         __wt_free(session, upd);
     return (ret);

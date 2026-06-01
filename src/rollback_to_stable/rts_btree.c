@@ -287,7 +287,7 @@ __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, 
 
     /* Apply the modification. */
     if (!dryrun)
-        WT_ERR(__wt_row_modify(&cbt, key, NULL, updp, WT_UPDATE_INVALID, true, false, true));
+        WT_ERR(__wt_row_modify(&cbt, key, NULL, updp, WT_UPDATE_INVALID, true, false));
 
 err:
     /* Free any resources that may have been cached in the cursor. */

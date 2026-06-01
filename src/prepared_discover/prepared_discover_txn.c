@@ -217,7 +217,7 @@ __prepared_discover_apply_upd_on_ingest(
     }
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_RET(ret);
-    WT_RET(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true, true));
+    WT_RET(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
     return (__wti_prepared_discover_add_artifact_upd(session, upd, key));
 }
 

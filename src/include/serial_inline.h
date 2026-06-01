@@ -274,7 +274,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
  */
 static WT_INLINE int
 __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
-  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive, bool cache_incr)
+  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
@@ -311,8 +311,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * structures we added cannot be discarded while visible to any running transaction, and we're a
      * running transaction, which means there can be no corresponding delete until we complete.
      */
-    if (cache_incr)
-        __wt_cache_page_inmem_incr(session, page, upd_size, true);
+    __wt_cache_page_inmem_incr(session, page, upd_size, true);
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
