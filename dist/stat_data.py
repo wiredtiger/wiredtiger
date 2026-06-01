@@ -1376,17 +1376,17 @@ conn_dsrc_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
-    LayeredStat('layered_curs_advance_stable', 'Layered table cursor advances to a newer checkpoint for the stable btree'),
     LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
     LayeredStat('layered_curs_modify', 'Layered table cursor modify operations'),
     LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
+    LayeredStat('layered_curs_open_stable', 'Layered table cursor opens the stable btree for the first time'),
     LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),
     LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from the ingest btrees'),
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from the stable btrees'),
     LayeredStat('layered_curs_remove', 'Layered table cursor remove operations'),
-    LayeredStat('layered_curs_reopen_ingest', 'Layered table cursor reopens ingest btree'),
+    LayeredStat('layered_curs_reopen_stable', 'Layered table cursor reopens the stable btree (role change or checkpoint advance)'),
     LayeredStat('layered_curs_search', 'Layered table cursor search operations'),
     LayeredStat('layered_curs_search_ingest', 'Layered table cursor search operations from the ingest btrees'),
     LayeredStat('layered_curs_search_near', 'Layered table cursor search near operations'),
