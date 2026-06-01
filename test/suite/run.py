@@ -637,7 +637,7 @@ if __name__ == '__main__':
 
     # A named suite that implies multiple hook configurations cannot run
     # in this single process because a hook is installed once per process.
-    # Hand off to the multi-pass orchestrator, which launches one child
+    # Hand off to the multi-pass dispatcher, which launches one child
     # per configuration.
     if is_multi_pass_invocation(testargs, hook_names):
         sys.exit(dispatch_multi_pass(testargs, sys.argv))
