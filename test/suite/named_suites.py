@@ -188,7 +188,7 @@ def dispatch_multi_pass(testargs, argv):
         sys.exit('cannot combine multiple named suites that imply hooks: '
                  + ', '.join(multi_pass_suites))
     suite = multi_pass_suites[0]
-    # Re-build the child argv by stripping the suite name; everything else
-    # (including -j, -v, --timeout, ...) is forwarded as-is.
+    # Re-build the child argv by stripping the suite name; every other
+    # flag the user passed is forwarded as-is.
     forwarded = [a for a in argv[1:] if a != suite]
     return run_multi_pass_suite(suite, forwarded, argv[0])
