@@ -13,7 +13,7 @@ static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool);
+static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
 /* Operations passed to __clayered_put. */
 typedef enum {
@@ -112,6 +112,7 @@ static WT_INLINE int
 __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable, bool iteration)
 {
     WT_SESSION_IMPL *session;
+    bool external_state_change;
 
     session = CUR2S(clayered);
 
@@ -130,9 +131,9 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    WT_RET(__clayered_adjust_state(clayered, iteration));
+    WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
 
-    if (clayered->ingest_cursor == NULL ||
+    if (external_state_change || clayered->ingest_cursor == NULL ||
       (need_read_stable && clayered->stable_cursor == NULL &&
         clayered->checkpoint_meta_lsn != WT_DISAGG_LSN_NONE))
         WT_RET(__clayered_open_cursors(session, clayered));
@@ -314,6 +315,36 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool checkpoint_expected)
 }
 
 /*
+ * __clayered_ingest_check_close --
+ *     Return true if the ingest cursor need to be reopened.
+ */
+static bool
+__clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered)
+{
+    /* See if there's nothing to do for the ingest cursor. */
+    if (clayered->ingest_cursor == NULL)
+        return (false);
+
+    bool leader = S2C(session)->layered_table_manager.leader;
+    /*
+     * Layered cursor is positioned on the ingest cursor. Changing it may lose the layered cursor
+     * position.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+      clayered->current_cursor == clayered->ingest_cursor) {
+        /* This should not happen on the leader at the moment. */
+        WT_ASSERT(session, !leader);
+        return (false);
+    }
+
+    /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
+    if (leader == clayered->leader)
+        return (false);
+
+    return (true);
+}
+
+/*
  * __clayered_can_advance_stable --
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
@@ -459,14 +490,15 @@ err:
  *     them or close them, and let them be opened later as needed.
  */
 static int
-__clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration)
+__clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state_updated)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session;
     WT_TXN_SHARED *txn_shared;
     uint64_t last_checkpoint_meta_lsn;
-    bool current_leader, role_change;
+    bool change_ingest, change_stable, current_leader, role_change;
 
+    *state_updated = false;
     session = CUR2S(clayered);
     conn = S2C(session);
     current_leader = conn->layered_table_manager.leader;
@@ -520,6 +552,19 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration)
           "All the cursors should be left unpositioned before changing the role.");
     }
 
+    if ((change_ingest = __clayered_ingest_check_close(session, clayered))) {
+        /*
+         * To reopen the ingest table, all we need to do here is close it. It will be reopened
+         when
+         * needed. There's never a situation where we need to save its position.
+         */
+        WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
+        if (clayered->current_cursor == clayered->ingest_cursor)
+            clayered->current_cursor = NULL;
+        clayered->ingest_cursor = NULL;
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_reopen_ingest);
+    }
+
     /*
      * We should always reopen the stable table when stepping up or down. That should be fine, since
      * in this case all the cursors should be unpositioned and no current transactions should be
@@ -528,13 +573,14 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration)
      * The second case of reopening the stable table is when we want to open a new checkpoint on a
      * follower to evict more entries from the ingest table.
      */
-    if (clayered->stable_cursor != NULL &&
-      (__clayered_can_advance_stable(clayered, iteration) || role_change))
+    if ((change_stable = clayered->stable_cursor != NULL &&
+            (__clayered_can_advance_stable(clayered, iteration) || role_change)))
         WT_RET(__clayered_reopen_stable(session, clayered));
 
     /* Update the state of the layered cursor. */
     clayered->leader = current_leader;
     clayered->checkpoint_meta_lsn = last_checkpoint_meta_lsn;
+    *state_updated = (change_ingest || change_stable);
 
 done:
     txn_shared = WT_SESSION_TXN_SHARED(session);
