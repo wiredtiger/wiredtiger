@@ -59,7 +59,7 @@ NAMED_SUITES = {
         'hooks': (
             'disagg=(role=leader)',
             'disagg=(role=leader,table_prefix=table)',
-            # Follower-role passes are pinned to base01 only, matching CI.
+            # Follower-role passes are pinned to base01 only.
             {'hook': 'disagg=(role=follower)',                    'tests': ('base01',)},
             {'hook': 'disagg=(role=follower,table_prefix=table)', 'tests': ('base01',)},
         ),
