@@ -1143,12 +1143,13 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
              * appear globally visible before the ingest btree's prune threshold has advanced. Such
              * updates are instead handled by the pruning check above.
              */
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && upd->type == WT_UPDATE_TOMBSTONE) {
-                WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
-                found_last_upd_to_keep = true;
-                break;
-            } else if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              __wt_txn_upd_visible_all(session, upd)) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                if (upd->type == WT_UPDATE_TOMBSTONE) {
+                    WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
+                    found_last_upd_to_keep = true;
+                    break;
+                }
+            } else if (__wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
                 break;
             }
