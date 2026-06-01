@@ -751,7 +751,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[2 * 1024], disagg_ext_cfg[1024], *p;
+    char config[8 * 1024], disagg_ext_cfg[1024], *p, tiered_ext_cfg[1024];
     const char *enc, *s;
 
     *connp = NULL;
@@ -760,6 +760,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     max = sizeof(config);
     config[0] = '\0';
     disagg_ext_cfg[0] = '\0';
+    tiered_ext_cfg[0] = '\0';
 
     /* Configuration settings that are not persistent between open calls. */
     enc = encryptor_at_open();
@@ -781,6 +782,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     /* Optional disaggregated storage. */
     configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
 
+    /* Optional tiered storage. */
+    configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
     /* Optional live restore. */
     configure_live_restore(&p, max);
 
@@ -790,9 +794,19 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
 
-    /* Re-pass early-load extensions; basecfg does not replay them. See @ref extensions_loadable. */
-    if (disagg_ext_cfg[0] != '\0')
-        CONFIG_APPEND(p, ",extensions=[%s]", disagg_ext_cfg);
+    /*
+     * Re-pass the full extensions list. Listing extensions in the open config overrides whatever
+     * basecfg recorded -- if we passed only the early-load entries, the others (compressors,
+     * encryptors, collators, tiered storage source) would silently disappear on reopen. See @ref
+     * extensions_loadable.
+     */
+    CONFIG_APPEND(p,
+      ",extensions=["
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s]",
+      REVERSE_PATH, EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH),
+      EXTENSION_PATH(ZLIB_PATH), EXTENSION_PATH(ZSTD_PATH), EXTENSION_PATH(ROTN_PATH),
+      EXTENSION_PATH(SODIUM_PATH), disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"",
+      tiered_ext_cfg[0] != '\0' ? tiered_ext_cfg : "\"\"");
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
