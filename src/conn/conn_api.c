@@ -1104,8 +1104,8 @@ err:
 
 /*
  * __conn_check_early_load_extensions --
- *     Verify that every early_load=true extension listed in the base configuration file has
- *     already been loaded.
+ *     Verify that every early_load=true extension listed in the base configuration file has already
+ *     been loaded.
  */
 static int
 __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
