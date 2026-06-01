@@ -1144,8 +1144,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
              * updates are instead handled by the pruning check above.
              */
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-                if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    /* FIXME-WT-17674: narrow the assertion to check for global visibility. */
+                /* FIXME-WT-17674: bypass the global visibility check. */
+                if (upd->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible_all(session, upd)) {
                     WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
                     found_last_upd_to_keep = true;
                     break;
