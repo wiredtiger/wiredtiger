@@ -1105,8 +1105,7 @@ err:
 /*
  * __conn_check_early_load_extensions --
  *     Verify that every early_load=true extension listed in the merged configuration has already
- *     been loaded. Early-load happens before WiredTiger.basecfg is merged, so an entry that lives
- *     only in basecfg never loads -- error out instead of silently leaving the extension absent.
+ *     been loaded.
  */
 static int
 __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
@@ -3482,11 +3481,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
 
-    /*
-     * The merged configuration now includes WiredTiger.basecfg. Verify that every early-load
-     * extension recorded there was also passed to this open call -- early-load happens before
-     * basecfg is read, so anything only in basecfg would otherwise be silently absent.
-     */
+    /* Verify that we didn't miss any early-loaded extensions. */
     WT_ERR(__conn_check_early_load_extensions(session, cfg));
 
     /*
