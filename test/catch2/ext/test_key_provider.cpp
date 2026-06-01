@@ -383,7 +383,7 @@ TEST_CASE_METHOD(kp_fixture, "set_key accumulates monotonic entries", "[key_prov
     WT_KEY_PROVIDER stub = {};
     REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
 
-    const std::string keys[3] = {"key-one-0123456789", "key-two-abcdefghi", "key-three-zzz"};
+    const std::string keys[3] = {"key-one-0123456789", "key-two-9876543210", "key-three-55555"};
     const uint64_t timestamps[3] = {10, 20, 30};
     for (int i = 0; i < 3; i++) {
         WT_CRYPT_KEYS crypt = {};
