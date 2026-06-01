@@ -70,12 +70,10 @@ NAMED_SUITES = {
     },
 }
 
-
 def _all_test_files():
     """All test_*.py filenames (basenames) under test/suite."""
     return [os.path.basename(p)
             for p in glob.glob(os.path.join(SUITE_DIR, 'test_*.py'))]
-
 
 def test_files_for_suite(name):
     """Return the list of test_*.py filenames that belong to the named
@@ -94,17 +92,23 @@ def test_files_for_suite(name):
     # 'exclude_suites' suite: this suite is the complement of one or more
     # other suites. Collect every prefix from those other suites, then
     # keep test files that DON'T start with any of them.
-    #
-    # Example: classic's exclude_suites = ('disagg', 'tiered'). We gather
-    # disagg's prefixes ('test_layered', 'test_disagg') and tiered's
-    # ('test_tiered',) into one list, then return every test_*.py that
-    # doesn't start with any of those.
     excluded_prefixes = []
     for other_suite_name in entry['exclude_suites']:
         excluded_prefixes.extend(NAMED_SUITES[other_suite_name]['prefixes'])
     excluded_prefixes = tuple(excluded_prefixes)
     return [f for f in all_files if not f.startswith(excluded_prefixes)]
 
+def fail_list_paths_for_hooks(hook_names):
+    """For each active hook, look for a sibling skip list at
+    fail_lists/hook_<bare_hook_name>.fail. Return the paths that exist."""
+    existing_paths = []
+    for hook_spec in hook_names:
+        bare_name = hook_spec.split('=', 1)[0]
+        candidate = os.path.join(SUITE_DIR, 'fail_lists',
+                                 f'hook_{bare_name}.fail')
+        if os.path.isfile(candidate):
+            existing_paths.append(candidate)
+    return existing_paths
 
 def hook_passes_for_suite(name):
     """Return the list of subprocess passes that the suite's 'hooks' tuple
@@ -122,21 +126,6 @@ def hook_passes_for_suite(name):
             # Dict form: pin this pass to the listed tests.
             passes.append((hook['hook'], tuple(hook['tests'])))
     return passes
-
-
-def fail_list_paths_for_hooks(hook_names):
-    """For each enabled hook, look for a sibling skip list at
-    fail_lists/hook_<name>.fail (e.g. 'disagg=(role=leader)' looks for
-    fail_lists/hook_disagg.fail). Return the paths that exist."""
-    existing_paths = []
-    for hook_spec in hook_names:
-        bare_name = hook_spec.split('=', 1)[0]
-        candidate = os.path.join(SUITE_DIR, 'fail_lists',
-                                 f'hook_{bare_name}.fail')
-        if os.path.isfile(candidate):
-            existing_paths.append(candidate)
-    return existing_paths
-
 
 def run_multi_pass_suite(suite_name, forwarded_argv, script_path):
     """Run the suite as a sequence of run.py subprocess invocations:
@@ -175,7 +164,6 @@ def run_multi_pass_suite(suite_name, forwarded_argv, script_path):
             return rc
     return 0
 
-
 def is_multi_pass_invocation(testargs, hook_names):
     """True iff the run.py invocation should hand off to multi-pass
     execution rather than running normally. Triggers when the user named a
@@ -185,7 +173,6 @@ def is_multi_pass_invocation(testargs, hook_names):
         return False
     return any(a in NAMED_SUITES and NAMED_SUITES[a].get('hooks')
                for a in testargs)
-
 
 def dispatch_multi_pass(testargs, argv):
     """Run the multi-pass suite found in testargs. Returns the exit code

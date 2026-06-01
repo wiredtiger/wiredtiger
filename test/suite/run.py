@@ -139,6 +139,24 @@ reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 from named_suites import (dispatch_multi_pass, fail_list_paths_for_hooks,
                           is_multi_pass_invocation, test_files_for_suite)
 
+def _read_skip_file(path):
+    """Read a skip-list file and return the test names listed in it
+    (comment lines, trailing comments, and the .py extension stripped)."""
+    with open(path, 'r') as f:
+        lines = f.read().splitlines()
+    lines = [l for l in lines if not l.lstrip().startswith('#')]
+    return [re.split(r'\s+#', l)[0].strip().replace('.py', '') for l in lines]
+
+def collect_skip_tests(hook_names, user_skip_file):
+    """Merged list of test names to skip: auto skip lists for any active
+    hooks plus the user's --skip-tests-in-file."""
+    skip_tests = []
+    for path in fail_list_paths_for_hooks(hook_names):
+        skip_tests.extend(_read_skip_file(path))
+    if user_skip_file:
+        skip_tests.extend(_read_skip_file(user_skip_file))
+    return skip_tests
+
 # Look for a list of the form 0-9,11,15-17.
 def parse_int_list(str):
     # Use a dictionary as the result set to avoid repeated list scans.
@@ -617,10 +635,10 @@ if __name__ == '__main__':
     tests = unittest.TestSuite()
     from testscenarios.scenarios import generate_scenarios
 
-    # A named suite like 'disagg' wants to run with several hook configs
-    # (leader, follower, table_prefix variants). Each needs its own Python
-    # process because a hook can only be installed once per process. Hand
-    # off to the multi-pass orchestrator in that case.
+    # A named suite that implies multiple hook configurations cannot run
+    # in this single process because a hook is installed once per process.
+    # Hand off to the multi-pass orchestrator, which launches one child
+    # per configuration.
     if is_multi_pass_invocation(testargs, hook_names):
         sys.exit(dispatch_multi_pass(testargs, sys.argv))
 
@@ -636,21 +654,7 @@ if __name__ == '__main__':
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
                                           seedw, seedz, hookmgr, ss_random_prefix, timeout)
 
-    def _load_skip_file(path):
-        with open(path, 'r') as f:
-            lines = f.read().splitlines()
-        # Drop comment lines, trailing comments, and the .py extension.
-        lines = [l for l in lines if not l.lstrip().startswith('#')]
-        return [re.split(r'\s+#', l)[0].strip().replace('.py', '') for l in lines]
-
-    skipTests = []
-    # For every enabled hook, auto-skip its co-named fail list if present
-    # (e.g. --hook disagg pairs with fail_lists/hook_disagg.fail). Catches
-    # both direct --hook usage and named-suite-implied hooks.
-    for path in fail_list_paths_for_hooks(hook_names):
-        skipTests.extend(_load_skip_file(path))
-    if skipFileForTests:
-        skipTests.extend(_load_skip_file(skipFileForTests))
+    skipTests = collect_skip_tests(hook_names, skipFileForTests)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
@@ -735,11 +739,8 @@ if __name__ == '__main__':
         # Break it into just our batch.
         tests = unittest.TestSuite(all_tests[batchnum::batchtotal])
     if dryRun:
-        try:
-            for line in tests:
-                print(line)
-        except BrokenPipeError:
-            pass
+        for line in tests:
+            print(line)
     else:
         result = wttest.runsuite(tests, parallel)
         sys.exit(0 if result.wasSuccessful() else 1)
