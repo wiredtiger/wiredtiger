@@ -1289,9 +1289,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             for (; upd->next != NULL; upd = upd->next) {
                 next_txnid = __wt_atomic_load_uint64_v_acquire(&upd->next->txnid);
                 if (next_txnid != WT_TXN_ABORTED) {
-                    write_start_prepare &= next_txnid == tombstone_txnid;
-                    WT_ASSERT(session,
-                      !write_prepare || write_start_prepare || next_txnid != tombstone_txnid);
+                    if (write_start_prepare)
+                        write_start_prepare = next_txnid == tombstone_txnid;
+                    else
+                        WT_ASSERT(session, !write_prepare || next_txnid != tombstone_txnid);
                     break;
                 }
                 if (!write_prepare)
