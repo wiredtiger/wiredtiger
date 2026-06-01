@@ -199,6 +199,17 @@ struct __wt_disagg_metadata_op {
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
+/*
+ * WT_DISAGG_PENDING_CRYPT_KEY --
+ *      A key pushed by the key provider, waiting to be persisted at the next checkpoint that covers
+ *      its timestamp. Multiple entries may be queued between checkpoints.
+ */
+struct __wt_disagg_pending_crypt_key {
+    WT_ITEM keys;       /* The key bytes (owned by this entry). */
+    uint64_t timestamp; /* Caller-supplied timestamp, strictly increasing across entries. */
+    TAILQ_ENTRY(__wt_disagg_pending_crypt_key) q; /* Linked list of entries. */
+};
+
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
 /*
@@ -284,8 +295,12 @@ struct __wt_disaggregated_storage {
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    /* Most recently pushed key; written to the turtle page at the next checkpoint. */
-    WT_ITEM active_crypt_key;
+    /*
+     * Keys pushed since the last checkpoint, drained at the next checkpoint. set_key callers are
+     * assumed to be serialized by the module; the consumer runs under the checkpoint lock.
+     */
+    TAILQ_HEAD(__wt_disagg_pending_crypt_key_qh, __wt_disagg_pending_crypt_key)
+    pending_crypt_key_qh;
 
     uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */

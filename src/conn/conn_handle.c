@@ -20,11 +20,12 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
 
     session = conn->default_session;
 
-    TAILQ_INIT(&conn->dhqh);                                     /* Data handle list */
-    TAILQ_INIT(&conn->dlhqh);                                    /* Library list */
-    TAILQ_INIT(&conn->dsrcqh);                                   /* Data source list */
-    TAILQ_INIT(&conn->fhqh);                                     /* File list */
-    TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh); /* Shared metadata list */
+    TAILQ_INIT(&conn->dhqh);                                       /* Data handle list */
+    TAILQ_INIT(&conn->dlhqh);                                      /* Library list */
+    TAILQ_INIT(&conn->dsrcqh);                                     /* Data source list */
+    TAILQ_INIT(&conn->fhqh);                                       /* File list */
+    TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh);   /* Shared metadata list */
+    TAILQ_INIT(&conn->disaggregated_storage.pending_crypt_key_qh); /* Pending pushed crypt keys */
 
     /* Prefetch. */
     WT_RET(__wti_conn_prefetch_init(session));
@@ -113,7 +114,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->block_lock);
     __wt_spin_destroy(session, &conn->checkpoint_lock);
     __wt_spin_destroy(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    __wt_buf_free(session, &conn->disaggregated_storage.active_crypt_key);
+    __wti_disagg_pending_crypt_key_clear(session);
     __wt_rwlock_destroy(session, &conn->log_mgr.debug_log_retention_lock);
     __wt_rwlock_destroy(session, &conn->dhandle_lock);
     __wt_spin_destroy(session, &conn->fh_lock);

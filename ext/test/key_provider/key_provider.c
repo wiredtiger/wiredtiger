@@ -179,6 +179,7 @@ kp_push_active_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
     local_crypt.keys.data = kp->state.key_data;
     local_crypt.keys.size = kp->state.key_size;
     local_crypt.r.lsn = kp->state.lsn;
+    local_crypt.timestamp = kp->next_push_ts++;
 
     if ((ret = wtkp->set_key(wtkp, session, &local_crypt)) != 0)
         LOG_ERROR(kp, session, "Failed to push loaded key: %d", ret);
@@ -500,6 +501,7 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     kp->wtext = wtext;
     kp->verbose = WT_VERBOSE_INFO; /* Default verbosity level */
     kp->key_expires = 43200;       /* Default: 12 hours = 43200 seconds */
+    kp->next_push_ts = 1;          /* set_key rejects timestamp 0. */
 
     int ret = 0;
     WT_KEY_PROVIDER *wtkp = (WT_KEY_PROVIDER *)kp;

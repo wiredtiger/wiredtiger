@@ -420,26 +420,89 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
 }
 
 /*
+ * __disagg_pending_crypt_key_free --
+ *     Release the storage held by a single pending pushed-key entry.
+ */
+static void
+__disagg_pending_crypt_key_free(WT_SESSION_IMPL *session, WT_DISAGG_PENDING_CRYPT_KEY **entryp)
+{
+    WT_DISAGG_PENDING_CRYPT_KEY *entry;
+
+    entry = *entryp;
+    if (entry == NULL)
+        return;
+    __wt_buf_free(session, &entry->keys);
+    __wt_free(session, entry);
+    *entryp = NULL;
+}
+
+/*
+ * __wti_disagg_pending_crypt_key_clear --
+ *     Drain and free every queued pushed key. Safe to call multiple times.
+ */
+void
+__wti_disagg_pending_crypt_key_clear(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_PENDING_CRYPT_KEY *entry, *tmp;
+
+    conn = S2C(session);
+
+    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.pending_crypt_key_qh, q, tmp)
+    {
+        TAILQ_REMOVE(&conn->disaggregated_storage.pending_crypt_key_qh, entry, q);
+        __disagg_pending_crypt_key_free(session, &entry);
+    }
+    WT_TAILQ_SAFE_REMOVE_END
+}
+
+/*
  * __wti_disagg_set_crypt_key --
- *     Set the encryption key to be persisted at the next checkpoint.
+ *     Queue an encryption key to be persisted at the next checkpoint that covers its timestamp.
+ *     Timestamps must strictly advance across pushes and must exceed the global stable timestamp.
  */
 int
 __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT_CRYPT_KEYS *crypt)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_PENDING_CRYPT_KEY *entry, *tail;
     WT_SESSION_IMPL *session;
+    wt_timestamp_t stable_ts;
 
     WT_UNUSED(kp);
     session = (WT_SESSION_IMPL *)wt_session;
     conn = S2C(session);
+    entry = NULL;
 
     if (crypt == NULL || crypt->keys.data == NULL || crypt->keys.size == 0)
         WT_RET_MSG(session, EINVAL, "set_key requires a non-empty key buffer");
 
-    WT_RET(__wt_buf_set(
-      session, &conn->disaggregated_storage.active_crypt_key, crypt->keys.data, crypt->keys.size));
+    stable_ts = __wt_get_stable_timestamp(session);
+    if (crypt->timestamp <= stable_ts)
+        WT_RET_MSG(session, EINVAL,
+          "set_key timestamp %" PRIu64
+          " must be strictly greater than the stable timestamp %" PRIu64,
+          crypt->timestamp, stable_ts);
+
+    tail = TAILQ_LAST(
+      &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
+    if (tail != NULL && crypt->timestamp <= tail->timestamp)
+        WT_RET_MSG(session, EINVAL,
+          "set_key timestamp %" PRIu64
+          " must be strictly greater than the last pushed timestamp %" PRIu64,
+          crypt->timestamp, tail->timestamp);
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_buf_set(session, &entry->keys, crypt->keys.data, crypt->keys.size));
+    entry->timestamp = crypt->timestamp;
+    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.pending_crypt_key_qh, entry, q);
 
     return (0);
+
+err:
+    __disagg_pending_crypt_key_free(session, &entry);
+    return (ret);
 }
 
 /*
@@ -454,14 +517,14 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_ITEM *active;
+    WT_DISAGG_PENDING_CRYPT_KEY *chosen;
     WT_KEY_PROVIDER *key_provider;
     uint64_t lsn;
     bool push_mode;
 
     conn = S2C(session);
     key_provider = conn->key_provider;
-    WT_CLEAR(crypt.keys);
+    WT_CLEAR(crypt);
     lsn = 0;
     push_mode = F_ISSET(conn, WT_CONN_KEY_PROVIDER_PUSH);
 
@@ -471,16 +534,19 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         __wt_debug_crash(session);
 
     if (push_mode) {
-        /* Push mode: write the active key pushed by the module. */
-        active = &conn->disaggregated_storage.active_crypt_key;
-        if (active->size == 0)
+        /* Push mode: pick the most recently pushed key and drain the queue. */
+        chosen = TAILQ_LAST(
+          &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
+        if (chosen == NULL)
             goto done;
-        WT_ERR(__wt_scr_alloc(session, active->size + sizeof(WT_CRYPT_HEADER), &buf));
+        WT_ERR(__wt_scr_alloc(session, chosen->keys.size + sizeof(WT_CRYPT_HEADER), &buf));
         crypt.keys.mem = buf->mem;
         crypt.keys.memsize = buf->memsize;
         crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
-        crypt.keys.size = active->size;
-        memcpy((void *)crypt.keys.data, active->data, active->size);
+        crypt.keys.size = chosen->keys.size;
+        memcpy((void *)crypt.keys.data, chosen->keys.data, chosen->keys.size);
+        crypt.timestamp = chosen->timestamp;
+        __wti_disagg_pending_crypt_key_clear(session);
     } else {
         /* Pull mode: ask the module for the current key via get_key. */
         WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
@@ -520,13 +586,6 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         crypt.keys.size = 0;
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
-
-    if (push_mode && ret == 0) {
-        /* The active key has been persisted. Clear the active key. */
-        active = &conn->disaggregated_storage.active_crypt_key;
-        active->data = NULL;
-        active->size = 0;
-    }
 
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
         __wt_debug_crash(session);
