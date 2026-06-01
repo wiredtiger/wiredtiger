@@ -25,7 +25,7 @@ whether by your application or the @ref command_line.
 
 Extensions configured with \c early_load=true are an exception: they must
 be passed in the \c extensions configuration on every ::wiredtiger_open
-call, not only at create time.  Early-load extensions are loaded before
+call.  Early-load extensions are loaded before
 WiredTiger reads its persisted base configuration file, so they cannot be
 replayed from it automatically.  A common example is a custom file system
 extension, which must be available before WiredTiger can read any files

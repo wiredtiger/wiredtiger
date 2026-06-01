@@ -1137,7 +1137,7 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
         if (dlh == NULL)
             WT_ERR_MSG(session, EINVAL,
               "extension \"%.*s\" is configured with early_load=true but was not passed to "
-              "wiredtiger_open; early-load extensions must be re-passed on every open",
+              "wiredtiger_open",
               (int)skey.len, skey.str);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
