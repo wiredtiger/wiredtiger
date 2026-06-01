@@ -1131,7 +1131,6 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
         if (cval.val == 0)
             continue;
 
-        /* Single-threaded during wiredtiger_open; no lock needed on dlhqh. */
         TAILQ_FOREACH (dlh, &conn->dlhqh, q)
             if (dlh->name != NULL && WT_CONFIG_MATCH(dlh->name, skey))
                 break;
