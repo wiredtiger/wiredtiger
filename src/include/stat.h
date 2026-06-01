@@ -1258,6 +1258,7 @@ struct __wt_connection_stats {
     int64_t rec_ingest_garbage_collection_keys_disk_image;
     int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_delete_threshold;
     int64_t rec_page_delta_rejected_invalid_page_id;
     int64_t rec_page_delta_rejected_max_consecutive_exceeded;
     int64_t rec_page_delta_rejected_multiblock;
@@ -1787,6 +1788,7 @@ struct __wt_dsrc_stats {
     int64_t rec_ingest_garbage_collection_keys_disk_image;
     int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_delete_threshold;
     int64_t rec_page_delta_rejected_invalid_page_id;
     int64_t rec_page_delta_rejected_max_consecutive_exceeded;
     int64_t rec_page_delta_rejected_multiblock;

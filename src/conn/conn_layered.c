@@ -1939,6 +1939,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.delta_pct = (uint32_t)cval.val;
 
+        /* Get the delete percentage threshold above which a full page is written instead of a
+         * delta. */
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.delete_pct", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->page_delta.delete_pct = (uint32_t)cval.val;
+
         /* Get the maximum number of consecutive deltas allowed for a single page. */
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.max_consecutive_delta", &cval));
         if (cval.len > 0 && cval.val >= 0)

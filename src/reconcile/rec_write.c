@@ -2061,13 +2061,40 @@ static int
 __rec_build_delta(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE_HEADER *full_image, bool *build_deltap)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_MULTI *multi;
     WT_PAGE_HEADER *header;
+    WT_SAVE_UPD *supd;
+    uint32_t delete_count, i, page_keys;
 
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
-            WT_RET(__rec_build_delta_leaf(session, full_image, r));
-            *build_deltap = true;
+            conn = S2C(session);
+            multi = &r->multi[0];
+            delete_count = 0;
+
+            /*
+             * Count globally-visible deletes before building the delta. A globally-visible delete
+             * written to a delta wastes space; the same entry is simply absent from a full page.
+             * If enough of the page's entries are being deleted, writing a full page reclaims more
+             * disk space than the delta saves.
+             */
+            for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+                if (!__rec_selected_key_changed(session, supd))
+                    continue;
+                if (supd->onpage_upd == NULL && supd->onpage_tombstone != NULL)
+                    ++delete_count;
+            }
+
+            /* Row-store leaf entries count key and value cells separately, so divide by 2. */
+            page_keys = full_image->u.entries / 2;
+            if (page_keys > 0 && delete_count * 100 / page_keys > conn->page_delta.delete_pct) {
+                WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_delete_threshold);
+            } else {
+                WT_RET(__rec_build_delta_leaf(session, full_image, r));
+                *build_deltap = true;
+            }
         }
     } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /* The internal page delta would have already been built at this point if one exists. */
