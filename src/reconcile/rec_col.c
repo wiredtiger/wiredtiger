@@ -14,7 +14,7 @@
  * Per-iteration state built while processing each entry in the variable-length column-store
  * reconciliation loops.
  */
-struct __wti_col_var_cur {
+typedef struct {
     const void *data;
     uint32_t size;
     WT_TIME_WINDOW tw;
@@ -22,12 +22,13 @@ struct __wti_col_var_cur {
     bool deleted;
     bool dictionary;
     bool update_no_copy;
-};
+} COL_VAR_CUR;
 
 /*
- * State carried across all loop iterations in __wti_rec_col_var for run-length accounting.
+ * State carried across all loop iterations in variable-length column-store reconciliation for
+ * run-length accounting.
  */
-struct __wti_col_var_state {
+typedef struct {
     WT_ITEM *last_value;
     WT_TIME_WINDOW last_tw;
     bool last_deleted;
@@ -35,7 +36,7 @@ struct __wti_col_var_state {
     uint64_t rle;
     uint64_t src_recno;
     bool wrote_real_values;
-};
+} COL_VAR_STATE;
 
 /*
  * __wt_bulk_insert_var --
@@ -339,7 +340,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOK
  */
 static int
 __rec_col_var_upd_apply(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CURSOR_BTREE *cbt,
-  WTI_UPDATE_SELECT *upd_select, uint64_t src_recno, struct __wti_col_var_cur *cur)
+  WTI_UPDATE_SELECT *upd_select, uint64_t src_recno, COL_VAR_CUR *cur)
 {
     WT_UPDATE *upd;
 
@@ -377,13 +378,13 @@ __rec_col_var_upd_apply(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CURSOR_BT
 }
 
 /*
- * __rec_col_var_rle_check --
- *     Compare the current entry against the accumulated run. Extend if they match and set
- *     *extendedp; otherwise emit the pending run (if any) and prepare for a new one.
+ * __rec_col_var_rle_extend --
+ *     Attempt to extend the current run by comparing against the accumulated state. Sets *extendedp
+ *     on a match; otherwise emits the pending run (if any) and prepares for a new one.
  */
 static int
-__rec_col_var_rle_check(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
-  struct __wti_col_var_state *st, struct __wti_col_var_cur *cur, bool *extendedp)
+__rec_col_var_rle_extend(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
+  COL_VAR_STATE *st, COL_VAR_CUR *cur, bool *extendedp)
 {
     *extendedp = false;
 
@@ -416,7 +417,7 @@ __rec_col_var_rle_check(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_C
  */
 static int
 __rec_col_var_page_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
-  WT_SALVAGE_COOKIE *salvage, struct __wti_col_var_state *st)
+  WT_SALVAGE_COOKIE *salvage, COL_VAR_STATE *st)
 {
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     WT_BTREE *btree;
@@ -429,7 +430,7 @@ __rec_col_var_page_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *pag
     WT_DECL_RET;
     WT_INSERT *ins;
     WTI_UPDATE_SELECT upd_select;
-    struct __wti_col_var_cur cur;
+    COL_VAR_CUR cur;
     WT_UPDATE *upd;
     uint64_t n, nrepeat;
     uint32_t i;
@@ -593,7 +594,7 @@ compare:
              * swap the last and current buffers: do NOT update the starting record number, we've
              * been doing that all along.
              */
-            WT_ERR(__rec_col_var_rle_check(session, r, salvage, st, &cur, &extended));
+            WT_ERR(__rec_col_var_rle_extend(session, r, salvage, st, &cur, &extended));
             if (extended)
                 continue;
 
@@ -643,12 +644,12 @@ err:
  */
 static int
 __rec_col_var_append_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
-  WT_SALVAGE_COOKIE *salvage, struct __wti_col_var_state *st)
+  WT_SALVAGE_COOKIE *salvage, COL_VAR_STATE *st)
 {
     WT_CURSOR_BTREE *cbt;
     WT_INSERT *ins;
     WTI_UPDATE_SELECT upd_select;
-    struct __wti_col_var_cur cur;
+    COL_VAR_CUR cur;
     WT_UPDATE *upd;
     uint64_t n, skip;
     bool extended;
@@ -702,7 +703,7 @@ __rec_col_var_append_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *p
              * Handle RLE accounting and comparisons -- see comment above, this code fragment does
              * the same thing.
              */
-            WT_RET(__rec_col_var_rle_check(session, r, salvage, st, &cur, &extended));
+            WT_RET(__rec_col_var_rle_extend(session, r, salvage, st, &cur, &extended));
             if (extended)
                 goto next;
 
@@ -756,7 +757,7 @@ int
 __wti_rec_col_var(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
-    struct __wti_col_var_state st;
+    COL_VAR_STATE st;
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_TIME_WINDOW clear_tw;
