@@ -43,7 +43,7 @@ __sweep_file_dhandle_check_and_reset_tod(WT_SESSION_IMPL *session, WT_DATA_HANDL
          * Reset the time of death if the file dhandle exists for the associated table dhandle.
          */
         if (ret == 0) {
-            dhandle->timeofdeath = 0;
+            __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, 0);
             WT_DHANDLE_CLEAR(session);
             return (WT_ERROR_LOG_ADD(ret));
         }
@@ -75,14 +75,15 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
          * of death.
          */
         if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 1)
-            dhandle->timeofdeath = 0;
+            __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, 0);
 
         /*
          * If the handle is open exclusive or currently in use, or the time of death is already set,
          * move on.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
-          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0 || dhandle->timeofdeath != 0)
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0 ||
+          __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) != 0)
             continue;
 
         /* For table dhandles, skip expiration if associated file dhandles exist. */
@@ -118,7 +119,7 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
         __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
           "Sweep server setting the time of death for dhandle %s", dhandle->name);
 
-        dhandle->timeofdeath = now;
+        __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
         WT_STAT_CONN_INCR(session, dh_sweep_tod);
     }
 }
@@ -203,9 +204,9 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
             continue;
         /*
-         * Close outdated btrees immediately, even if they are metadata, except for checkpoint
-         * handles on a disaggregated standby, which are held for a short grace period. For trees
-         * not marked with outdated, wait until the idle time has elapsed since time of death.
+         * For outdated btrees, hold standby node checkpoint handles for a short grace period,
+         * otherwise close them immediately. For trees not marked with outdated, wait until the idle
+         * time has elapsed since time of death.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
@@ -214,7 +215,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
               WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {
                 uint64_t tod = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
                 if (tod == 0) {
-                    dhandle->timeofdeath = now;
+                    __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
                     continue;
                 }
                 if (now - tod <= WT_DISAGG_OUTDATED_GRACE_SECS)
@@ -222,8 +223,8 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
             }
         } else if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
-          __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
-          now - dhandle->timeofdeath <= conn->sweep.idle_time)
+          __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) == 0 ||
+          now - __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) <= conn->sweep.idle_time)
             continue;
 
         /*
