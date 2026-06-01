@@ -208,12 +208,12 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
          * otherwise close them immediately. For trees not marked with outdated, wait until the idle
          * time has elapsed since time of death.
          */
+        uint64_t tod = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
             if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader &&
               WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {
-                uint64_t tod = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
                 if (tod == 0) {
                     __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
                     continue;
@@ -222,9 +222,8 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
                     continue;
             }
         } else if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
-          __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) == 0 ||
-          now - __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath) <= conn->sweep.idle_time)
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 || tod == 0 ||
+          now - tod <= conn->sweep.idle_time)
             continue;
 
         /*
