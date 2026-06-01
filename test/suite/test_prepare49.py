@@ -62,20 +62,17 @@ class test_prepare49(wttest.WiredTigerTestCase):
         cursor[1] = 'base'
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
-        cursor.close()
 
         # Prepare a transaction that updates, reserves, then deletes the same
         # key.  The reservation is between the update and the delete, placing
         # all three operations under the same prepared transaction.
-        session_a = self.conn.open_session()
-        cursor_a = session_a.open_cursor(self.uri)
-        session_a.begin_transaction()
-        cursor_a[1] = 'updated'
-        cursor_a.set_key(1)
-        cursor_a.reserve()
-        cursor_a.set_key(1)
-        cursor_a.remove()
-        session_a.prepare_transaction(
+        self.session.begin_transaction()
+        cursor[1] = 'updated'
+        cursor.set_key(1)
+        cursor.reserve()
+        cursor.set_key(1)
+        cursor.remove()
+        self.session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(10) +
             ',prepared_id=' + self.prepared_id_str(1))
 
@@ -84,10 +81,9 @@ class test_prepare49(wttest.WiredTigerTestCase):
         # is still ahead of stable so the rolled-back prepared cell is retained
         # on disk for recovery purposes.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(15))
-        session_a.rollback_transaction(
+        self.session.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(20))
-        cursor_a.close()
-        session_a.close()
+        cursor.close()
 
         # Eviction must complete without crashing.  Reading at the base
         # timestamp to make the key visible for the eviction trigger.
