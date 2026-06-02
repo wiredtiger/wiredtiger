@@ -137,8 +137,8 @@ usage(void)
       "data)",
       "-q",
       "continue past corrupt pages where possible: sets the session-level quiet-corrupt flag for "
-      "read-oriented commands (dump, read, stat, list). Output is best-effort and the command "
-      "exits non-zero. Pair with -p (disable prefetch) when inspecting damaged data.",
+      "read-oriented commands (dump, read, stat, list, page). Output is best-effort and the "
+      "command exits non-zero. Pair with -p (disable prefetch) when inspecting damaged data.",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
@@ -382,14 +382,9 @@ main(int argc, char *argv[])
      * an immediate, clear error rather than a silently ignored flag.
      */
     if (quiet_corrupt && func != util_dump && func != util_read && func != util_stat &&
-      func != util_list && func != util_printlog) {
-        /*
-         * Help text and rejection error agree on the user-facing set: dump, read, stat, list.
-         * printlog is still permitted by the list above for future-proofing (the log/txn scan path
-         * doesn't yet check the quiet flag) but is intentionally not advertised here.
-         */
+      func != util_list && func != util_page && func != util_printlog) {
         fprintf(stderr,
-          "%s: -q is only valid for read-oriented commands: dump, read, stat, list "
+          "%s: -q is only valid for read-oriented commands: dump, read, stat, list, page "
           "(verify has its own -c flag)\n",
           progname);
         goto err;
