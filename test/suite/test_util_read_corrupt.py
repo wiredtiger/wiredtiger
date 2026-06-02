@@ -33,7 +33,7 @@ from suite_subprocess import suite_subprocess
 import wttest
 
 # test_util_read_corrupt.py
-#    Cover the global `wt -q` flag (WT-17348): read-oriented commands must
+#    Cover the global `wt -q` flag: read-oriented commands must
 #    produce partial output and exit non-zero on a corrupt page rather than
 #    crashing, and must still abort without -q. The dispatcher must reject -q
 #    on commands outside the read-oriented set.
@@ -45,18 +45,15 @@ import wttest
 #   test_<command>_with_q_<contract>          - pins the with-q contract for
 #                                          that command (partial output /
 #                                          continues / does not crash).
-# Splitting the halves keeps CI failure surfaces specific: a regression in
-# the panic-suppression path lights up one named test, not a generic
-# "behaves wrong on corruption" check.
 class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util_read_corrupt.a'
     uri = 'table:' + tablename
     nentries = 2000
 
-    # Corruption is written at 75% of the .wt file. Keys are sequential and
-    # the file is large enough (~20MB) that internal pages cluster at the
-    # start, so a write at 75% reliably lands on a leaf. Tests that need a
-    # key on (or adjacent to) the corrupt leaf compute it from this fraction.
+    # Corruption is written at 75% of the .wt file. Keys are sequential
+    # and the file is large enough (~20MB) that internal pages cluster
+    # at the start, so a write at 75% reliably lands on a leaf rather
+    # than on metadata.
     corrupt_offset_frac = 0.75
 
     # The shared-table layout in the disagg hook hides the on-disk file we
@@ -141,23 +138,100 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     # ---------- dump (full table walk: dump_all_records path) ----------
 
     def test_dump_without_q_fails(self):
-        # Baseline: with corruption present and without -q, the full-table
-        # dump must abort. This pins the "panic on first corrupt" contract
-        # that the with-q test's "partial output" claim relies on.
+        # Baseline: dump on corrupt data must panic, not exit gracefully.
+        # Pins three properties of the default behavior:
+        #   1. The process is killed by SIGABRT (subprocess.call returns
+        #      -SIGABRT == -6 on POSIX). Asserting rc not in (0, 1)
+        #      covers both POSIX and Windows.
+        #   2. stderr contains the full diagnostic sequence in the
+        #      expected order: per-block "read checksum error" diagnostic
+        #      from block_read.c, bitflip-detection report (the
+        #      corruption we write is not a single-bit flip), the
+        #      "fatal read error" wrap, the WT_PANIC marker, and the
+        #      abort marker. Pinning the ordering catches reordering
+        #      regressions in the panic flow, not just disappearance
+        #      of one phrase.
+        #   3. The block-layer diagnostic appears at all - it is only
+        #      printed when the quiet flag is clear (block_read.c:233),
+        #      so a regression that started suppressing it on the
+        #      default path would be caught here.
+        # stdout is intentionally NOT asserted: how much output flushed
+        # before the abort depends on stdio buffer state at the moment
+        # of the SIGABRT and is not deterministic across builds.
         self.setup_corrupt_leaf_table()
-        self.runWt(['dump', self.uri],
-            outfilename='dump_no_q.out', errfilename='dump_no_q.err', failure=True)
-        self.check_non_empty_file('dump_no_q.err')
+        argv = [self._wt_path(), 'dump', self.uri]
+        with open('dump_no_q.out', 'w') as out, open('dump_no_q.err', 'w') as err:
+            rc = subprocess.call(argv, stdout=out, stderr=err)
+        self.assertNotIn(rc, (0, 1),
+            'wt dump on corrupt data exited cleanly (rc=%d) instead of '
+            'panicking; -q semantics may have leaked into the default '
+            'path' % rc)
+        with open('dump_no_q.err') as f:
+            err = f.read()
+        # Each marker must be present...
+        markers = [
+            ('read checksum error',
+                'block-layer corruption diagnostic missing from stderr'),
+            ('bitflip detection performed but no single-bit flip found',
+                'bitflip detection report missing from stderr'),
+            ('fatal read error',
+                'fatal read error wrap missing from stderr'),
+            ('WT_PANIC',
+                'wt dump exited non-zero without panicking; default '
+                'path is no longer panic-on-corrupt'),
+            ('aborting WiredTiger library',
+                'panic did not reach the abort marker'),
+        ]
+        for marker, msg in markers:
+            self.assertIn(marker, err, msg)
 
     def test_dump_with_q_produces_partial_output(self):
-        # With -q the dump walks past the corrupt leaf, emits whatever it
-        # could read, and exits non-zero.
+        # Graceful counterpart: same corruption, but -q turns the panic
+        # into an exit-1 return.
+        # Pins four properties of the -q behavior:
+        #   1. rc == 1 exactly (graceful non-zero, not a crash).
+        #   2. stderr is exactly the one-line cursor-level error from
+        #      util_err. Pinning the exact line catches both the "panic
+        #      messages leaked through" case (extra lines) and the
+        #      "error reporting was silently dropped" case (zero lines).
+        #   3. stdout starts with the dump header preamble verbatim.
+        #      The header is printed unconditionally before iteration,
+        #      so a regression that broke the early write path would
+        #      surface here.
+        #   4. The last key (00001999) is NOT in stdout - pins that
+        #      truncation happened, i.e., iteration stopped early at
+        #      the corrupt leaf rather than completing the whole walk.
+        #      This is the load-bearing assertion for "partial output."
+        #
+        # Note: we do not assert specific early keys are present. The
+        # test framework's checkpoint cadence can place any key range
+        # on the corrupt leaf - including the first few leaves - so
+        # iteration may stop after emitting zero records on some runs.
+        # The "last key absent" check still proves the walk did not
+        # complete, which is the contract.
         self.setup_corrupt_leaf_table()
-        self.runWt(['-q', 'dump', self.uri],
-            outfilename='dump_q.out', errfilename='dump_q.err', failure=True)
-        self.assertGreater(self.count_lines('dump_q.out'), 0,
-            'wt -q dump produced no output on a partially corrupt table')
-        self.check_non_empty_file('dump_q.err')
+        argv = [self._wt_path(), '-q', 'dump', self.uri]
+        with open('dump_q.out', 'w') as out, open('dump_q.err', 'w') as err:
+            rc = subprocess.call(argv, stdout=out, stderr=err)
+        self.assertEqual(rc, 1,
+            'wt -q dump on corrupt data returned rc=%d; expected exactly '
+            '1 (graceful non-zero)' % rc)
+        with open('dump_q.err') as f:
+            err = f.read()
+        self.assertEqual(err,
+            'wt: WT_CURSOR.next: WT_ERROR: non-specific WiredTiger error\n',
+            'wt -q dump stderr did not match the expected single-line '
+            'cursor error; got: %r' % err)
+        with open('dump_q.out') as f:
+            out = f.read()
+        self.assertTrue(out.startswith('WiredTiger Dump (WiredTiger Version'),
+            'wt -q dump stdout did not begin with the expected header; '
+            'got first 80 chars: %r' % out[:80])
+        last_key_line = '%08d\\00\n' % (self.nentries - 1)
+        self.assertNotIn(last_key_line, out,
+            'wt -q dump stdout contains the last key %r; the walk '
+            'apparently completed and corruption was not hit, so this '
+            'test exercised nothing' % last_key_line.rstrip())
 
     # ---------- dump_record return-code regressions (no corruption) ----------
 
@@ -169,10 +243,6 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     # a clean populated table; no corruption is involved.
 
     def test_dump_missing_key_exits_zero(self):
-        # `wt dump -k <key-not-in-table>` without -n should land in
-        # dump_record's "Unable to find the exact key specified" branch
-        # and exit 0. Pre-fix this returned WT_ERR(WT_NOTFOUND) and
-        # surfaced as a non-zero exit.
         self.setup_clean_table()
         self.runWt(['dump', '-k', '99999999\\00', self.uri],
             outfilename='dump_missing.out', errfilename='dump_missing.err')
@@ -182,10 +252,6 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_empty_file('dump_missing.err')
 
     def test_dump_window_past_end_exits_zero(self):
-        # `wt dump -k <near-last-key> -w <large-window>` walks forward
-        # past the end of the table. Pre-fix the WT_NOTFOUND that fwd()
-        # returned at natural end was treated as failure; post-fix it
-        # is treated as the end of iteration and the command exits 0.
         self.setup_clean_table()
         last_key_index = self.nentries - 2
         key = '%08d\\00' % last_key_index
