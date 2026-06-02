@@ -72,10 +72,9 @@ typedef struct {
     WT_EXTENSION_API *wtext;
 
     /* Configuration options */
-    int version;       /* Provider version: 0 (pull, default) or 1 (push). */
-    int verbose;       /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
-    int key_expires;   /* Key expiration time in seconds, or special values as described above */
-    int force_push_ts; /* If non-zero, every push uses this timestamp instead of next_push_ts. */
+    int version;     /* Provider version: 0 (pull, default) or 1 (push). */
+    int verbose;     /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
+    int key_expires; /* Key expiration time in seconds, or special values as described above */
 
     /* Monotonic counter used to stamp pushed keys; strictly increases across set_key calls. */
     uint64_t next_push_ts;
@@ -92,6 +91,13 @@ typedef struct {
 
 /* Expose function to tests or direct initialization */
 extern int key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config);
+
+/*
+ * Test-only hook that invokes WT_KEY_PROVIDER::set_key with the current key bytes and the
+ * caller-supplied timestamp. Lets Python tests drive set_key validation from a normal user thread
+ * (independent of the checkpoint code path). Returns the set_key error code.
+ */
+extern int kp_test_push_key(uint64_t timestamp);
 
 #if defined(__cplusplus)
 }

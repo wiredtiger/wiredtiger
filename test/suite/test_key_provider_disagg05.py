@@ -26,24 +26,18 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
+import ctypes, errno, os
 import wttest
+from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
-from suite_subprocess import suite_subprocess
-from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_key_provider_disagg05.py
-#    Push-mode key provider: verify set_key rejects a push whose timestamp is
-#    not strictly greater than the stable timestamp.
-#
-#    The rejection propagates up through the checkpoint code, which invokes
-#    WT_PANIC and terminates the process via SIGABRT. A Python exception
-#    handler cannot catch SIGABRT, so the failing checkpoint runs in a child
-#    process and the parent test inspects the child stderr.
-#    This mirrors the pattern used by test_key_provider_disagg02.
+#    Push-mode key provider: drive set_key from a normal user thread (no
+#    checkpoint, no panic) via the extension's test hook, and verify both
+#    timestamp validation paths return EINVAL.
 @disagg_test_class
-class test_key_provider_disagg05(wttest.WiredTigerTestCase, suite_subprocess):
+class test_key_provider_disagg05(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -51,34 +45,38 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase, suite_subprocess):
     disagg_storages = gen_disagg_storages('test_key_provider_disagg05', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = "layered:test_key_provider_disagg05"
-
-    # force_push_ts=10 makes every push from the extension use the same fixed timestamp.
     def conn_extensions(self, extlist):
-        config = '=(early_load=true,config=\"verbose=-1,version=1,force_push_ts=10\")'
+        config = '=(early_load=true,config=\"verbose=-1,version=1\")'
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def subprocess_func(self):
-        ds = SimpleDataSet(self, self.uri, 10)
-        ds.populate()
-        # stable=100 (0x64) > force_push_ts=10; the next push fails the stable check.
-        self.conn.set_timestamp("stable_timestamp=64")
-        self.session.checkpoint()
+    @staticmethod
+    def _load_push_hook():
+        path = os.path.join(wt_builddir, 'ext', 'test', 'key_provider',
+            'libwiredtiger_key_provider.so')
+        lib = ctypes.CDLL(path)
+        hook = lib.kp_test_push_key
+        hook.argtypes = [ctypes.c_uint64]
+        hook.restype = ctypes.c_int
+        return hook
 
-    def test_rejects_push_below_stable_timestamp(self):
-        if self.ds_name != "palite":
-            self.skipTest("Must use PALite")
+    def test_set_key_validation(self):
+        # Opening the connection registers the extension which caches the WT_KEY_PROVIDER
+        # pointer used by the test hook. We never run a checkpoint here, so the only set_key
+        # calls are the ones this test issues directly.
+        push = self._load_push_hook()
 
-        self.conn.close()
-        subdir = 'SUBPROCESS'
-        returncode, new_home_dir = self.run_subprocess_function(
-            subdir,
-            'test_key_provider_disagg05.test_key_provider_disagg05.subprocess_func',
-            silent=True)
-        self.assertNotEqual(returncode, 0,
-            "Subprocess was expected to abort on an invalid set_key push")
-        with open(os.path.join(new_home_dir, "stderr.txt"), "r") as f:
-            stderr = f.read()
-        self.assertIn('must be strictly greater than the stable timestamp', stderr)
-        self.assertIn("WiredTiger library panic", stderr)
+        # Monotonic check: first push at ts=10 accepted; equal or lower timestamps rejected.
+        self.assertEqual(push(10), 0)
+        self.assertEqual(push(10), errno.EINVAL)
+        self.assertEqual(push(5), errno.EINVAL)
+        self.assertEqual(push(20), 0)
+
+        # Stable-timestamp check: pushes must be strictly above the stable timestamp.
+        self.conn.set_timestamp("stable_timestamp=64")    # 0x64 = 100
+        self.assertEqual(push(100), errno.EINVAL)         # Equal to stable.
+        self.assertEqual(push(50), errno.EINVAL)          # Below stable.
+        self.assertEqual(push(101), 0)                    # Above stable and last pushed.
+
+        # Suppress the four expected rejection diagnostics from the captured stderr.
+        self.skipStderrLinesWithPattern("set_key timestamp .* must be strictly greater than")
