@@ -127,5 +127,35 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self.assertNotIn('checksum=OK', stdout_old)
         self.assertNotIn('checksum=MISMATCH', stdout_old)
 
+    def test_no_checkpoint_yet(self):
+        # Leader connection up, but no checkpoint has run -- so palite has no
+        # checkpoints row and pl_get_complete_checkpoint returns WT_NOTFOUND.
+        self.close_conn()
+
+        stdout, _ = self._run_wt_turtle()
+        self.assertIn('no complete checkpoint yet', stdout)
+        self.assertNotIn('=== turtle ===', stdout)
+
+    def test_bad_lsn_arg(self):
+        self._populate_and_checkpoint()
+        self.close_conn()
+
+        # Zero LSN is rejected at argument parsing time.
+        _, stderr_zero = self._run_wt_turtle('-l', '0', failure=True)
+        self.assertIn('usage:', stderr_zero)
+
+        # Non-numeric LSN.
+        _, stderr_bad = self._run_wt_turtle('-l', 'abc', failure=True)
+        self.assertIn('usage:', stderr_bad)
+
+    def test_metadata_page_missing(self):
+        self._populate_and_checkpoint()
+        self.close_conn()
+
+        # LSN 1 is below any real LSN palite assigns; palite's plh_get returns count=0.
+        stdout, _ = self._run_wt_turtle('-l', '1', failure=True)
+        self.assertIn('metadata page not found at lsn=1 (may have been pruned)', stdout)
+        self.assertNotIn('=== metadata page ===', stdout)
+
 if __name__ == '__main__':
     wttest.run()
