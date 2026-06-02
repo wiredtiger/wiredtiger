@@ -214,28 +214,35 @@ fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
 /*
  * print_metadata_page --
  *     Print the metadata page bytes verbatim. If a checksum is available from the turtle, verify
- *     and report rather than abort on mismatch.
+ *     and report rather than abort on mismatch. Returns true on detected mismatch so the caller can
+ *     surface a non-zero exit; the forensic mode passes have_expected_cksum=false and so never
+ *     returns true.
  */
-static void
+static bool
 print_metadata_page(
   uint64_t lsn, const WT_ITEM *page, bool have_expected_cksum, uint32_t expected_cksum)
 {
     uint32_t actual;
     const char *bytes;
+    bool mismatch;
 
+    mismatch = false;
     printf("\n=== metadata page (table_id=2, page_id=1, lsn=%" PRIu64 ") ===\n", lsn);
     if (have_expected_cksum) {
         actual = __wt_checksum(page->data, page->size);
         if (actual == expected_cksum)
             printf("checksum=OK\n");
-        else
+        else {
             printf("checksum=MISMATCH (expected=0x%08" PRIx32 ", got=0x%08" PRIx32 ")\n",
               expected_cksum, actual);
+            mismatch = true;
+        }
     }
     bytes = (const char *)page->data;
     fwrite(bytes, 1, page->size, stdout);
     if (page->size == 0 || bytes[page->size - 1] != '\n')
         fputc('\n', stdout);
+    return (mismatch);
 }
 
 /*
@@ -290,7 +297,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
             ret = 1;
             suppress_util_err = true;
         } else if (ret == 0) {
-            print_metadata_page(
+            (void)print_metadata_page(
               lsn_arg, &page_item, /* have_expected_cksum */ false, /* expected_cksum */ 0);
         }
         goto err;
@@ -317,8 +324,11 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
             ret = 1;
             suppress_util_err = true;
         } else if (ret == 0) {
-            print_metadata_page(fields.metadata_lsn, &page_item, fields.have_metadata_checksum,
-              fields.metadata_checksum);
+            if (print_metadata_page(fields.metadata_lsn, &page_item, fields.have_metadata_checksum,
+                  fields.metadata_checksum)) {
+                ret = 1;
+                suppress_util_err = true;
+            }
         }
         WT_ERR(ret);
     }

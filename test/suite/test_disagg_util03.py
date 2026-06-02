@@ -26,8 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os
+import subprocess
 import wttest
 from helper_disagg import DisaggConfigMixin
+from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
 # Test the `wt turtle` command against a palite backed disaggregated storage
@@ -147,6 +150,23 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         # Non-numeric LSN.
         _, stderr_bad = self._run_wt_turtle('-l', 'abc', failure=True)
         self.assertIn('usage:', stderr_bad)
+
+    def test_not_disagg(self):
+        # Running wt turtle against a plain (non-disagg) WT home must hit the
+        # missing-page-log guard in fetch_latest_turtle and exit with EINVAL.
+        self.close_conn()
+        plain_home = os.path.join(self.home, 'plain_home')
+        os.mkdir(plain_home)
+        wt = os.path.join(wt_builddir, 'wt')
+        # Create the home with no disagg config in its basecfg. `list` opens and
+        # closes the connection, which is enough to write the basecfg.
+        subprocess.run([wt, '-h', plain_home, '-C', 'create', 'list'],
+                       check=True, capture_output=True)
+        proc = subprocess.run([wt, '-h', plain_home, 'turtle'],
+                              capture_output=True, text=True)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn('requires a disaggregated-storage connection',
+                      proc.stderr)
 
     def test_metadata_page_missing(self):
         self._populate_and_checkpoint()
