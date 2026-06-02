@@ -73,12 +73,13 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
             f'WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID} '
             f'ORDER BY lsn ASC;')
 
-    def header_timestamp(self, hex_page):
-        # page_data comes back as a hex string, so each byte is two characters: the 8-byte timestamp
-        # field starts at offset 16 (32 hex chars) and spans 16 hex chars.
+    def header_timestamp_hex(self, hex_page):
+        # page_data is a hex string (2 chars per byte). The 8-byte little-endian timestamp starts at
+        # byte offset 16; reverse the byte order to big-endian so the fixed-width hex string sorts in
+        # numeric order.
         start = self.CRYPT_HEADER_TIMESTAMP_OFFSET * 2
-        raw = bytes.fromhex(hex_page[start:start + 16])
-        return int.from_bytes(raw, byteorder='little')
+        le = hex_page[start:start + 16]
+        return ''.join(reversed([le[i:i + 2] for i in range(0, len(le), 2)]))
 
     def validate_key_provider_pages(self, expected_count_min):
         # Every page references the main KEK page, and both the LSN and the pushed timestamp must
@@ -86,11 +87,11 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
         rows = self.key_provider_pages()
         self.assertGreaterEqual(len(rows), expected_count_min)
         previous_lsn = -1
-        previous_ts = -1
+        previous_ts = ""
         for row in rows:
             self.assertEqual(row['page_id'], self.MAIN_KEK_PAGE_ID)
             self.assertGreater(row['lsn'], previous_lsn)
-            timestamp = self.header_timestamp(row['hex'])
+            timestamp = self.header_timestamp_hex(row['hex'])
             self.assertGreater(timestamp, previous_ts)
             previous_lsn = row['lsn']
             previous_ts = timestamp
