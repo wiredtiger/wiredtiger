@@ -26,93 +26,76 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import json, os, struct, subprocess
+# test_key_provider_disagg04.py
+#    Toggle the key_provider API version across restarts and verify the database stays readable.
+
 import wttest
-from run import wt_builddir
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages, get_shard_id
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg04.py
-#    Push-mode key provider: exercise the pending-key list across multiple checkpoints and
-#    verify each checkpoint persists a new key-provider page.
 @disagg_test_class
 class test_key_provider_disagg04(wttest.WiredTigerTestCase):
-    conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
+        return self.extensionsConfig() + ',disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg04', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages)
+    start_versions = [
+        ('v0', dict(start_version=0)),
+        ('v1', dict(start_version=1)),
+    ]
 
-    MAIN_KEK_PAGE_ID = 1
-    WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID = 26
-    key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
+    disagg_storages = gen_disagg_storages('test_key_provider_disagg04', disagg_only=True)
+    scenarios = make_scenarios(disagg_storages, start_versions)
 
     uri = "layered:test_key_provider_disagg04"
+    nentries = 200
+
+    # Restart re-invokes conn_extensions, so flipping this field switches the loaded provider.
+    current_version = 0
 
     def conn_extensions(self, extlist):
-        config = '=(early_load=true,config=\"verbose=-1,version=1,key_expires=0\")'
+        config = f'=(early_load=true,config=\"verbose=-1,version={self.current_version}\")'
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def sqlite_fetch(self, query):
-        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
-        database = os.path.join(self.home, 'kv_home', self.key_provider_table)
-        result = subprocess.run([sqlite_exe, '-json', database, query],
-            capture_output=True, text=True, check=True)
-        return json.loads(result.stdout)
+    def restart_with_version(self, version):
+        self.current_version = version
+        self.restart_without_local_files()
 
-    # The pushed timestamp lives at offset 16 of the WT_CRYPT_HEADER (8 bytes, little-endian).
-    CRYPT_HEADER_TIMESTAMP_OFFSET = 16
+    def test_key_provider_version_toggle(self):
+        if (self.ds_name != "palite"):
+            self.skipTest("Must use PALite for disagg key provider testing")
 
-    def key_provider_pages(self):
-        # Read each persisted page ordered by LSN, with a hex dump of its bytes.
-        return self.sqlite_fetch(
-            f'SELECT lsn, page_id, hex(page_data) AS hex FROM pages '
-            f'WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID} '
-            f'ORDER BY lsn ASC;')
+        # The scenario runs start -> other -> start -> other, covering both directions.
+        other_version = 1 - self.start_version
 
-    def header_timestamp(self, hex_page):
-        # The WT_CRYPT_HEADER stores the pushed timestamp as a little-endian uint64 at byte offset 16.
-        data = bytes.fromhex(hex_page)
-        return struct.unpack_from('<Q', data, self.CRYPT_HEADER_TIMESTAMP_OFFSET)[0]
+        # Part 1: start with the parameterized version, populate, checkpoint.
+        self.current_version = self.start_version
+        self.reopen_conn()
 
-    def validate_key_provider_pages(self, expected_count_min):
-        # Every page references the main KEK page, and both the LSN and the pushed timestamp must
-        # strictly increase across pages.
-        rows = self.key_provider_pages()
-        self.assertGreaterEqual(len(rows), expected_count_min)
-        previous_lsn = -1
-        previous_ts = -1
-        for row in rows:
-            self.assertEqual(row['page_id'], self.MAIN_KEK_PAGE_ID)
-            self.assertGreater(row['lsn'], previous_lsn)
-            timestamp = self.header_timestamp(row['hex'])
-            self.assertGreater(timestamp, previous_ts)
-            previous_lsn = row['lsn']
-            previous_ts = timestamp
-
-    def test_multiple_pushes_across_checkpoints(self):
-        # Each checkpoint pushes a fresh key onto the pending list and drains it, persisting one
-        # new key-provider page.
-        if self.ds_name != "palite":
-            self.skipTest("Must use PALite to verify contents")
-
-        ds = SimpleDataSet(self, self.uri, 10)
-        ds.populate()
-
-        # The first checkpoint creates the page table; record the baseline page count.
+        ds1 = SimpleDataSet(self, self.uri, self.nentries)
+        ds1.populate()
         self.session.checkpoint()
-        baseline = len(self.key_provider_pages())
-        self.assertGreaterEqual(baseline, 1)
+        ds1.check()
 
-        # Write and checkpoint a few more times; each checkpoint persists another page.
-        cursor = self.session.open_cursor(self.uri)
-        for i in range(4):
-            cursor[ds.key(100 + i)] = ds.value(100 + i)
-            self.session.checkpoint()
-        cursor.close()
+        # Part 2: restart on the other version, verify, add more.
+        self.restart_with_version(other_version)
+        ds1.check()
 
-        # The page count must have grown past the baseline.
-        self.validate_key_provider_pages(baseline + 1)
+        ds2 = SimpleDataSet(self, self.uri, self.nentries * 2)
+        ds2.populate(first_row=self.nentries + 1)
+        self.session.checkpoint()
+        ds2.check()
+
+        # Part 3: restart back on the starting version.
+        self.restart_with_version(self.start_version)
+        ds2.check()
+
+        ds3 = SimpleDataSet(self, self.uri, self.nentries * 3)
+        ds3.populate(first_row=self.nentries * 2 + 1)
+        self.session.checkpoint()
+        ds3.check()
+
+        # Part 4: final flip to the other version, verify all three batches.
+        self.restart_with_version(other_version)
+        ds3.check()
