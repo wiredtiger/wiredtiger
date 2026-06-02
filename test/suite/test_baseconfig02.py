@@ -25,7 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import wttest
+import wiredtiger, wttest
 
 # test_baseconfig02.py
 #    Early-load extensions are loaded before WiredTiger.basecfg is read, so an entry persisted in
@@ -43,11 +43,15 @@ class test_baseconfig02(wttest.WiredTigerTestCase):
             extlist.extension('encryptors', 'rotn')
 
     def test_baseconfig02(self):
-        # Reopen without the extension; wiredtiger_open must log a warning about the missing
-        # entry, but the open itself still succeeds.
+        # Default (relaxed) reopen without the extension: warning logged, open succeeds.
         self.include_extension = False
         with self.expectedStdoutPattern('configured with early_load=true but was not passed'):
             self.reopen_conn()
+
+        # Strict reopen without the extension: wiredtiger_open must fail with EINVAL.
+        with self.expectedStderrPattern('configured with early_load=true but was not passed'):
+            self.assertRaises(wiredtiger.WiredTigerError,
+              lambda: self.reopen_conn(config='extensions_strict=true'))
 
         # Reopen with the extension; nothing should be logged.
         self.include_extension = True

@@ -1104,8 +1104,8 @@ err:
 
 /*
  * __conn_check_early_load_extensions --
- *     Warn for every early_load=true extension listed in the base configuration file that was not
- *     also passed in the open configuration; basecfg cannot replay early-load entries.
+ *     Detect every early_load=true extension in the base configuration file that was not also
+ *     passed to the open call.
  */
 static int
 __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1117,8 +1117,12 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_DLH *dlh;
     const char *sub_cfg[] = {WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL};
+    bool strict;
 
     conn = S2C(session);
+    WT_ERR(__wt_config_gets(session, cfg, "extensions_strict", &cval));
+    strict = cval.val != 0;
+
     WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
     WT_ERR(__wt_config_gets(session, cfg, "extensions", &cval));
     __wt_config_subinit(session, &subconfig, &cval);
@@ -1134,11 +1138,17 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
         TAILQ_FOREACH (dlh, &conn->dlhqh, q)
             if (dlh->name != NULL && WT_CONFIG_MATCH(dlh->name, skey))
                 break;
-        if (dlh == NULL)
+        if (dlh == NULL) {
+            if (strict)
+                WT_ERR_MSG(session, EINVAL,
+                  "extension \"%.*s\" is configured with early_load=true but was not passed to "
+                  "wiredtiger_open",
+                  (int)skey.len, skey.str);
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "extension \"%.*s\" is configured with early_load=true but was not passed to "
               "wiredtiger_open; it will be absent from this connection",
               (int)skey.len, skey.str);
+        }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -3466,7 +3476,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
 
-    /* Warn for early-loaded extensions in basecfg that the open did not re-pass. */
+    /* Verify that the early-loaded extensions in basecfg were also passed in. */
     WT_ERR(__conn_check_early_load_extensions(session, cfg));
 
     /*

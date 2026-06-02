@@ -31,6 +31,12 @@ replayed from it automatically.  A common example is a custom file system
 extension, which must be available before WiredTiger can read any files
 in the home directory.
 
+By default, when an \c early_load=true extension appears in the base
+configuration file but not in the open configuration, WiredTiger logs a
+warning and the extension is silently absent. Pass \c extensions_strict=true
+to ::wiredtiger_open to fail the open with \c EINVAL in that situation
+instead.
+
 The extension entry point, which defaults to ::wiredtiger_extension_init,
 is called for each loadable module.  Applications must supply this entry
 point, which in turn usually calls WT_CONNECTION::add_data_source,

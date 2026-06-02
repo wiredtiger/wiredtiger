@@ -1544,6 +1544,12 @@ wiredtiger_open = wiredtiger_open_common + [
     Config('exclusive', 'false', r'''
         fail if the database already exists, generally used with the \c create option''',
         type='boolean'),
+    Config('extensions_strict', 'false', r'''
+        if true, fail ::wiredtiger_open with \c EINVAL when an extension recorded in
+        \c WiredTiger.basecfg with \c early_load=true is not also passed in the open
+        configuration. The default is to log a warning and continue with the extension
+        absent. See @ref extensions_loadable''',
+        type='boolean'),
     Config('in_memory', 'false', r'''
         keep data in memory only. See @ref in_memory for more information''',
         type='boolean'),
