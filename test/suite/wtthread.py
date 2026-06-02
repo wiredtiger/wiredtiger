@@ -36,8 +36,7 @@ class Thread(threading.Thread):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.testcase = WiredTigerTestCase.getCurrentTestCase()
-        # Wrap run() so TLS is set regardless of whether a subclass overrides run().
-        # Capturing via closure avoids re-lookup after __init__ returns.
+        # Wrap run() so the test case object is set when the thread starts running.
         original_run = self.run
         testcase = self.testcase
         def _run_with_testcase():
