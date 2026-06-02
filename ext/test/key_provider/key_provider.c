@@ -179,11 +179,7 @@ kp_push_active_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
     local_crypt.keys.data = kp->state.key_data;
     local_crypt.keys.size = kp->state.key_size;
     local_crypt.r.lsn = kp->state.lsn;
-    /*
-     * FIXME-WT-17539: Stamping each push from a local counter is temporary. Once set_key is exposed
-     * to the Python layer, tests will drive the timestamp directly instead of the module inventing
-     * one here.
-     */
+    /* FIXME-WT-17539: Temporary until set_key is exposed to Python so tests drive the timestamp. */
     local_crypt.timestamp = kp->next_push_ts++;
 
     if ((ret = wtkp->set_key(wtkp, session, &local_crypt)) != 0)

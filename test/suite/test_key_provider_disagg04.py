@@ -63,22 +63,35 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
             capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
 
+    # The pushed timestamp lives at offset 16 of the WT_CRYPT_HEADER (8 bytes, little-endian).
+    CRYPT_HEADER_TIMESTAMP_OFFSET = 16
+
     def key_provider_pages(self):
-        # Read the persisted key-provider pages ordered by LSN.
+        # Read each persisted page ordered by LSN, with a hex dump of its bytes.
         return self.sqlite_fetch(
-            f'SELECT lsn, page_id FROM pages '
+            f'SELECT lsn, page_id, hex(page_data) AS hex FROM pages '
             f'WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID} '
             f'ORDER BY lsn ASC;')
 
+    def header_timestamp(self, hex_page):
+        start = self.CRYPT_HEADER_TIMESTAMP_OFFSET * 2
+        raw = bytes.fromhex(hex_page[start:start + 16])
+        return int.from_bytes(raw, byteorder='little')
+
     def validate_key_provider_pages(self, expected_count_min):
-        # Every page must reference the main KEK page and have a strictly increasing LSN.
+        # Every page references the main KEK page, and both the LSN and the pushed timestamp must
+        # strictly increase across pages.
         rows = self.key_provider_pages()
         self.assertGreaterEqual(len(rows), expected_count_min)
         previous_lsn = -1
+        previous_ts = -1
         for row in rows:
             self.assertEqual(row['page_id'], self.MAIN_KEK_PAGE_ID)
             self.assertGreater(row['lsn'], previous_lsn)
+            timestamp = self.header_timestamp(row['hex'])
+            self.assertGreater(timestamp, previous_ts)
             previous_lsn = row['lsn']
+            previous_ts = timestamp
 
     def test_multiple_pushes_across_checkpoints(self):
         # Each checkpoint pushes a fresh key onto the pending list and drains it, persisting one

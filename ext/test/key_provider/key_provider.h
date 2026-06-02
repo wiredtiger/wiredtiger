@@ -76,7 +76,7 @@ typedef struct {
     int verbose;     /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
     int key_expires; /* Key expiration time in seconds, or special values as described above */
 
-    /* Monotonic counter used to stamp pushed keys; strictly increases across set_key calls. */
+    /* Monotonic counter used to stamp pushed keys. */
     uint64_t next_push_ts;
 
     /* Simulated key state */

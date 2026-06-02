@@ -406,7 +406,7 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
     crypt_header->header_size = sizeof(WT_CRYPT_HEADER);
     crypt_header->crypt_size = (uint32_t)crypt->keys.size;
     crypt_header->checksum = 0;
-    crypt_header->timestamp = 0;
+    crypt_header->timestamp = crypt->timestamp;
 
     __wt_crypt_header_byteswap(crypt_header);
     crypt->keys.data = crypt->keys.mem;
