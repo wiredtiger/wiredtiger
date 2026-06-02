@@ -444,12 +444,12 @@ TEST_CASE_METHOD(kp_fixture, "set_key rejects timestamp <= stable", "[key_provid
     WT_KEY_PROVIDER stub = {};
     REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
 
-    REQUIRE(wt_conn->set_timestamp(wt_conn, "stable_timestamp=64") == 0);
+    REQUIRE(wt_conn->set_timestamp(wt_conn, "stable_timestamp=14") == 0); /* 0x14 == 20. */
 
     const std::string key_bytes = "push-mode-stable-check";
-    REQUIRE(push_key(&stub, session, key_bytes, 0x64) == EINVAL); /* Equal to stable. */
-    REQUIRE(push_key(&stub, session, key_bytes, 0x63) == EINVAL); /* Below stable. */
-    REQUIRE(push_key(&stub, session, key_bytes, 0x65) == 0);      /* Strictly above stable. */
+    REQUIRE(push_key(&stub, session, key_bytes, 20) == EINVAL); /* Equal to stable. */
+    REQUIRE(push_key(&stub, session, key_bytes, 10) == EINVAL); /* Below stable. */
+    REQUIRE(push_key(&stub, session, key_bytes, 30) == 0);      /* Strictly above stable. */
 
     conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
