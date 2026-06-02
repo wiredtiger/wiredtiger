@@ -287,8 +287,16 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
         return (usage());
 
     if (have_lsn_arg) {
-        fprintf(stderr, "%s: turtle -l: not implemented yet\n", progname);
-        return (1);
+        ret = fetch_metadata_page(session_impl, lsn_arg, &page_item);
+        if (ret == WT_NOTFOUND) {
+            printf("metadata page not found at lsn=%" PRIu64 " (may have been pruned)\n", lsn_arg);
+            ret = 1;
+            suppress_util_err = true;
+        } else if (ret == 0) {
+            print_metadata_page(
+              lsn_arg, &page_item, /* have_expected_cksum */ false, /* expected_cksum */ 0);
+        }
+        goto err;
     }
 
     ret = fetch_latest_turtle(session_impl, &lsn, &meta);

@@ -86,5 +86,44 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         # The shared metadata page is a config string that always carries `checkpoint=`.
         self.assertIn('checkpoint=', stdout)
 
+    @staticmethod
+    def _extract_metadata_lsn(stdout):
+        import re
+        m = re.search(r'(?m)^metadata_lsn=(\d+)$', stdout)
+        if m is None:
+            raise AssertionError(f"metadata_lsn not in wt turtle output:\n{stdout}")
+        return int(m.group(1))
+
+    def test_forensic_lsn(self):
+        # First checkpoint, then snapshot its metadata_lsn.
+        self._populate_and_checkpoint()
+        self.close_conn()
+        stdout_first, _ = self._run_wt_turtle()
+        first_metadata_lsn = self._extract_metadata_lsn(stdout_first)
+
+        # Reopen the leader, write different data, take a second checkpoint.
+        self.reopen_conn(config=self.conn_config)
+        c = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            c[f"k{i:08}"] = f"updated{i:08}"
+        c.close()
+        self.session.checkpoint()
+        self.close_conn()
+
+        # The latest turtle should now point at a different metadata_lsn.
+        stdout_latest, _ = self._run_wt_turtle()
+        latest_metadata_lsn = self._extract_metadata_lsn(stdout_latest)
+        self.assertNotEqual(first_metadata_lsn, latest_metadata_lsn)
+
+        # Forensic mode: ask for the older metadata page only.
+        stdout_old, _ = self._run_wt_turtle('-l', str(first_metadata_lsn))
+        self.assertNotIn('=== turtle ===', stdout_old)
+        self.assertIn(
+            f'=== metadata page (table_id=2, page_id=1, lsn={first_metadata_lsn}) ===',
+            stdout_old)
+        self.assertIn('checkpoint=', stdout_old)
+        # No checksum line because the user supplied an arbitrary LSN, not a turtle's pointer.
+        self.assertNotIn('checksum=', stdout_old)
+
 if __name__ == '__main__':
     wttest.run()
