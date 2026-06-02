@@ -468,7 +468,6 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
     WT_DECL_RET;
     WT_DISAGG_PENDING_CRYPT_KEY *entry, *last_pushed;
     WT_SESSION_IMPL *session;
-    wt_timestamp_t stable_ts;
 
     WT_UNUSED(kp);
     session = (WT_SESSION_IMPL *)wt_session;
@@ -478,12 +477,11 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
     if (crypt == NULL || crypt->keys.data == NULL || crypt->keys.size == 0)
         WT_RET_MSG(session, EINVAL, "set_key requires a non-empty key buffer");
 
-    stable_ts = __wt_get_stable_timestamp(session);
-    if (crypt->timestamp <= stable_ts)
+    if (crypt->timestamp <= __wt_get_stable_timestamp(session))
         WT_RET_MSG(session, EINVAL,
           "set_key timestamp %" PRIu64
           " must be strictly greater than the stable timestamp %" PRIu64,
-          crypt->timestamp, stable_ts);
+          crypt->timestamp, __wt_get_stable_timestamp(session));
 
     last_pushed = TAILQ_LAST(
       &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
