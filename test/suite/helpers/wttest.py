@@ -481,9 +481,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             session = self.session
         deadline = time.time() + timeout
         while True:
-            stat_cursor = session.open_cursor('statistics:')
-            state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
-            stat_cursor.close()
+            with open_cursor(session, 'statistics:') as stat_cursor:
+                state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
             if state != 0:
                 break
             self.assertLess(time.time(), deadline,
