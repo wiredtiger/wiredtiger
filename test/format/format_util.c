@@ -279,8 +279,8 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
 
     /*
      * The debug code does not take locks and can crash on a stale ref (e.g. during disagg
-     * mode=switch). Catch SIGSEGV/SIGBUS so the caller can continue collecting diagnostics even
-     * if the dump crashes; the dump file uses line-buffered I/O so all complete lines survive.
+     * mode=switch). Catch SIGSEGV/SIGBUS so the caller can continue collecting diagnostics even if
+     * the dump crashes; the dump file uses line-buffered I/O so all complete lines survive.
      */
     memset(&new_sa, 0, sizeof(new_sa));
     new_sa.sa_handler = dump_crash_handler;
@@ -294,8 +294,8 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
         if (dump_ret != 0)
             fprintf(stderr, "%s: page dump to %s failed: %d\n", tag, buf, dump_ret);
     } else
-        fprintf(stderr, "%s: page dump to %s crashed (signal %d), dump may be incomplete\n",
-          tag, buf, sig);
+        fprintf(stderr, "%s: page dump to %s crashed (signal %d), dump may be incomplete\n", tag,
+          buf, sig);
     set_core(false);
 
     sigaction(SIGSEGV, &old_segv, NULL);
