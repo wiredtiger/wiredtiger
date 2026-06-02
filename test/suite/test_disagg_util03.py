@@ -80,5 +80,11 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self.assertRegex(stdout, r'(?m)^version=\d+$')
         self.assertRegex(stdout, r'(?m)^compatible_version=\d+$')
 
+        # Chase should fire automatically in default mode.
+        self.assertRegex(stdout, r'(?m)^=== metadata page \(table_id=2, page_id=1, lsn=\d+\) ===$')
+        self.assertIn('checksum=OK', stdout)
+        # The shared metadata page is a config string that always carries `checkpoint=`.
+        self.assertIn('checkpoint=', stdout)
+
 if __name__ == '__main__':
     wttest.run()

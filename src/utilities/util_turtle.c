@@ -184,6 +184,63 @@ fetch_latest_turtle(WT_SESSION_IMPL *session, uint64_t *lsnp, WT_ITEM *meta)
 }
 
 /*
+ * fetch_metadata_page --
+ *     plh_get the shared metadata page at page_id=1 and the supplied LSN via the
+ *     page log handle the connection already opened. Buffer ownership transfers
+ *     to the caller. Returns WT_NOTFOUND if the page is absent at that LSN.
+ */
+static int
+fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_PAGE_LOG_GET_ARGS get_args;
+    WT_PAGE_LOG_HANDLE *plh;
+    uint32_t count;
+
+    conn = S2C(session);
+    plh = conn->disaggregated_storage.page_log_meta;
+    if (plh == NULL)
+        WT_RET_MSG(session, EINVAL,
+          "wt turtle requires a disaggregated-storage connection "
+          "(-C disaggregated=(page_log=...,role=\"follower\"))");
+
+    WT_CLEAR(get_args);
+    get_args.lsn = lsn;
+    count = 1;
+    WT_RET(plh->plh_get(plh, &session->iface, 1, 0, &get_args, item, &count));
+    if (count == 0)
+        return (WT_NOTFOUND);
+    return (0);
+}
+
+/*
+ * print_metadata_page --
+ *     Print the metadata page bytes verbatim. If a checksum is available from the
+ *     turtle, verify and report rather than abort on mismatch.
+ */
+static void
+print_metadata_page(
+  uint64_t lsn, const WT_ITEM *page, bool have_expected_cksum, uint32_t expected_cksum)
+{
+    uint32_t actual;
+    const char *bytes;
+
+    printf("\n=== metadata page (table_id=2, page_id=1, lsn=%" PRIu64 ") ===\n", lsn);
+    if (have_expected_cksum) {
+        actual = __wt_checksum(page->data, page->size);
+        if (actual == expected_cksum)
+            printf("checksum=OK\n");
+        else
+            printf("checksum=MISMATCH (expected=0x%08" PRIx32 ", got=0x%08" PRIx32 ")\n",
+              expected_cksum, actual);
+    }
+    bytes = (const char *)page->data;
+    fwrite(bytes, 1, page->size, stdout);
+    if (page->size == 0 || bytes[page->size - 1] != '\n')
+        fputc('\n', stdout);
+}
+
+/*
  * util_turtle --
  *     The turtle command: dump the disaggregated-storage turtle blob (and chase to the
  *     shared metadata page it points at).
@@ -192,7 +249,7 @@ int
 util_turtle(WT_SESSION *session, int argc, char *argv[])
 {
     WT_DECL_RET;
-    WT_ITEM meta;
+    WT_ITEM meta, page_item;
     WT_SESSION_IMPL *session_impl;
     struct util_turtle_fields fields;
     uint64_t lsn, lsn_arg;
@@ -201,6 +258,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
 
     session_impl = (WT_SESSION_IMPL *)session;
     WT_CLEAR(meta);
+    WT_CLEAR(page_item);
     lsn = 0;
     lsn_arg = 0;
     have_lsn_arg = false;
@@ -242,8 +300,22 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     WT_ERR(parse_turtle(session_impl, (const char *)meta.data, meta.size, &fields));
     print_turtle(lsn, &fields);
 
+    if (fields.have_metadata_lsn) {
+        ret = fetch_metadata_page(session_impl, fields.metadata_lsn, &page_item);
+        if (ret == WT_NOTFOUND) {
+            printf("\nmetadata page not found at lsn=%" PRIu64 " (may have been pruned)\n",
+              fields.metadata_lsn);
+            ret = 1;
+        } else if (ret == 0) {
+            print_metadata_page(fields.metadata_lsn, &page_item, fields.have_metadata_checksum,
+              fields.metadata_checksum);
+        }
+        WT_ERR(ret);
+    }
+
 err:
     __wt_buf_free(session_impl, &meta);
+    __wt_buf_free(session_impl, &page_item);
     if (ret != 0)
         (void)util_err(session, ret, "turtle");
     return (ret == 0 ? 0 : 1);
