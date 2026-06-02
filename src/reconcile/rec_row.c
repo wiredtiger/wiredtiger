@@ -1168,6 +1168,7 @@ __wti_rec_row_leaf(
                 if (!upd_select.was_modify && __rec_row_garbage_collect_tw_eligible(r, twp)) {
                     upd = &upd_tombstone;
                     r->key_removed_from_disk_image = true;
+                    ++r->globally_visible_delete_count;
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
                 }
             } else if (__wt_txn_tw_stop_visible_all(session, twp)) {
@@ -1181,6 +1182,7 @@ __wti_rec_row_leaf(
                   !upd_select.skip_aborted_prepared_value) {
                     upd = &upd_tombstone;
                     r->key_removed_from_disk_image = true;
+                    ++r->globally_visible_delete_count;
                 }
             }
         }
@@ -1282,6 +1284,7 @@ __wti_rec_row_leaf(
                 /* Not creating a key so we can't use last-key as a prefix for a subsequent key. */
                 lastkey->size = 0;
                 r->key_removed_from_disk_image = true;
+                ++r->globally_visible_delete_count;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));

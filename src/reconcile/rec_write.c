@@ -775,6 +775,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track if any key on the disk image is removed because of its deletion is globally visible. */
     r->key_removed_from_disk_image = false;
+    r->globally_visible_delete_count = 0;
 
     /* Track if we write anything that is newer than in the previous reconciliation. */
     r->newer_updates_than_last_rec_used = false;
@@ -2062,34 +2063,26 @@ __rec_build_delta(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE_HEADER *full_image, bool *build_deltap)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_MULTI *multi;
     WT_PAGE_HEADER *header;
-    WT_SAVE_UPD *supd;
-    uint32_t delete_count, i, page_keys;
+    uint32_t total_keys;
 
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
             conn = S2C(session);
-            multi = &r->multi[0];
-            delete_count = 0;
 
             /*
-             * Count globally-visible deletes before building the delta. A globally-visible delete
-             * written to a delta wastes space; the same entry is simply absent from a full page. If
-             * enough of the page's entries are being deleted, writing a full page reclaims more
-             * disk space than the delta saves.
+             * If too many of the page's entries are globally-visible deletes, write a full page
+             * instead of a delta. A globally-visible delete written to a delta wastes space; the
+             * same entry is simply absent from a full page. The delete count is tracked during full
+             * image construction in __wti_rec_row_leaf, which visits every key including those
+             * deleted in prior reconciliation cycles that never appear in the supd list.
+             *
+             * Row-store leaf entries count key and value cells separately, so divide by 2.
              */
-            for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-                if (!__rec_selected_key_changed(session, supd))
-                    continue;
-                if (supd->onpage_upd == NULL && supd->onpage_tombstone != NULL)
-                    ++delete_count;
-            }
-
-            /* Row-store leaf entries count key and value cells separately, so divide by 2. */
-            page_keys = full_image->u.entries / 2;
-            if (page_keys > 0 && delete_count * 100 / page_keys > conn->page_delta.delete_pct) {
+            total_keys = full_image->u.entries / 2 + r->globally_visible_delete_count;
+            if (total_keys > 0 &&
+              r->globally_visible_delete_count * 100 / total_keys > conn->page_delta.delete_pct) {
                 WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_delete_threshold);
             } else {
                 WT_RET(__rec_build_delta_leaf(session, full_image, r));

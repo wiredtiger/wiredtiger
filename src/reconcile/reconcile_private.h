@@ -199,6 +199,9 @@ struct __wti_reconcile {
     /* Track if any key is removed from the disk image due to its delete is globally visible. */
     bool key_removed_from_disk_image;
 
+    /* Count of keys removed from the disk image because their delete became globally visible. */
+    uint32_t globally_visible_delete_count;
+
     /* Track if we write anything that is newer than the previous reconciliation. */
     bool newer_updates_than_last_rec_used;
 
