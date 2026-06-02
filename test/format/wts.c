@@ -448,9 +448,16 @@ configure_extensions(char **p, size_t max, const char *disagg_ext_cfg, const cha
     CONFIG_APPEND(*p,
       ",extensions=["
       "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s]",
-      REVERSE_PATH, EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH),
-      EXTENSION_PATH(ZLIB_PATH), EXTENSION_PATH(ZSTD_PATH), EXTENSION_PATH(ROTN_PATH),
-      EXTENSION_PATH(SODIUM_PATH), disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"",
+      /* Collators. */
+      REVERSE_PATH,
+      /* Compressors. */
+      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
+      EXTENSION_PATH(ZSTD_PATH),
+      /* Encryptors. */
+      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
+      /* Page log. */
+      disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"",
+      /* Storage source. */
       tiered_ext_cfg[0] != '\0' ? tiered_ext_cfg : "\"\"");
 }
 
