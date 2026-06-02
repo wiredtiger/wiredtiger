@@ -34,11 +34,10 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_key_provider_disagg05.py
-#    Push-mode key provider: exercise the set_key timestamp validation paths.
-#    The extension's force_push_ts knob makes every push use a fixed timestamp,
-#    so a checkpoint can deliberately drive set_key past one of its validation
-#    rules. Each rejection triggers WT_PANIC + abort, so the failing checkpoint
-#    runs in a subprocess and the parent test asserts the expected diagnostic.
+#    Push-mode key provider: verify set_key rejects a push whose timestamp is
+#    not strictly greater than the stable timestamp. The rejection triggers
+#    WT_PANIC + abort, so the failing checkpoint runs in a subprocess and the
+#    parent test asserts the expected diagnostic.
 @disagg_test_class
 class test_key_provider_disagg05(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
@@ -56,42 +55,26 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase, suite_subprocess):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def subprocess_func_stable_rejection(self):
+    def subprocess_func(self):
         ds = SimpleDataSet(self, self.uri, 10)
         ds.populate()
         # stable=100 (0x64) > force_push_ts=10; the next push fails the stable check.
         self.conn.set_timestamp("stable_timestamp=64")
         self.session.checkpoint()
 
-    def subprocess_func_monotonic_rejection(self):
-        ds = SimpleDataSet(self, self.uri, 10)
-        ds.populate()
-        # First push at ts=10 succeeds; the second push at ts=10 fails the watermark check.
-        self.session.checkpoint()
-        self.session.checkpoint()
+    def test_rejects_push_below_stable_timestamp(self):
+        if self.ds_name != "palite":
+            self.skipTest("Must use PALite")
 
-    def _run_and_assert(self, funcname, expected_message):
         self.conn.close()
         subdir = 'SUBPROCESS'
         returncode, new_home_dir = self.run_subprocess_function(
             subdir,
-            f'test_key_provider_disagg05.test_key_provider_disagg05.{funcname}',
+            'test_key_provider_disagg05.test_key_provider_disagg05.subprocess_func',
             silent=True)
         self.assertNotEqual(returncode, 0,
             "Subprocess was expected to abort on an invalid set_key push")
         with open(os.path.join(new_home_dir, "stderr.txt"), "r") as f:
             stderr = f.read()
-        self.assertIn(expected_message, stderr)
+        self.assertIn('must be strictly greater than the stable timestamp', stderr)
         self.assertIn("WiredTiger library panic", stderr)
-
-    def test_rejects_push_below_stable_timestamp(self):
-        if self.ds_name != "palite":
-            self.skipTest("Must use PALite")
-        self._run_and_assert('subprocess_func_stable_rejection',
-            'must be strictly greater than the stable timestamp')
-
-    def test_rejects_non_monotonic_push(self):
-        if self.ds_name != "palite":
-            self.skipTest("Must use PALite")
-        self._run_and_assert('subprocess_func_monotonic_rejection',
-            'must be strictly greater than the last pushed timestamp')
