@@ -23,6 +23,28 @@ __rts_btree_walk_check_btree_modified(WT_SESSION_IMPL *session, const char *uri,
 }
 
 /*
+ * __rts_btree_abort_fast_truncate --
+ *     Roll back a prepared fast truncate in place. The caller must hold the ref locked
+ *     (WT_REF_LOCKED) and have confirmed both INPROGRESS prepare state and prepare_ts >
+ *     rollback_timestamp before calling.
+ */
+static void
+__rts_btree_abort_fast_truncate(
+  WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+{
+    WT_PAGE_DELETED *page_del;
+
+    page_del = ref->page_del;
+    WT_ASSERT(session, page_del != NULL);
+    WT_ASSERT(session, page_del->prepare_state == WT_PREPARE_INPROGRESS);
+    WT_ASSERT(session, page_del->prepare_ts > rollback_timestamp);
+
+    __wt_free(session, ref->page_del);
+    WT_REF_SET_STATE(ref, WT_REF_DISK);
+    WT_STAT_CONN_INCR(session, txn_rts_prep_trunc_rollback);
+}
+
+/*
  * __rts_btree_walk_page_skip --
  *     Skip if rollback to stable doesn't require reading this page.
  */
@@ -50,13 +72,38 @@ __rts_btree_walk_page_skip(
     if (WT_REF_GET_STATE(ref) == WT_REF_DELETED &&
       WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED)) {
         page_del = ref->page_del;
+
+        /*
+         * A prepared fast truncate whose prepare timestamp is after the stable timestamp must be
+         * rolled back: it was never stable and has no durable timestamp.
+         *
+         * FIXME-WT-17663: The case where a prepared fast truncate has been checkpointed
+         * to disk (WT_CONN_PRESERVE_PREPARED) and the ref surfaces as WT_REF_DISK is not handled.
+         */
+        if (page_del != NULL && page_del->prepare_state == WT_PREPARE_INPROGRESS &&
+          page_del->prepare_ts > rollback_timestamp) {
+            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+              WT_RTS_VERB_TAG_PREPARED_FAST_TRUNCATE_ROLLBACK
+              "ref=%p: rolling back prepared fast truncate with prepare_timestamp=%s, "
+              "txnid=%" PRIu64,
+              (void *)ref, __wt_timestamp_to_string(page_del->prepare_ts, time_string[0]),
+              page_del->txnid);
+            if (!S2C(session)->rts->dryrun)
+                __rts_btree_abort_fast_truncate(session, ref, rollback_timestamp);
+            else {
+                WT_REF_SET_STATE(ref, WT_REF_DELETED);
+                WT_STAT_CONN_INCR(session, txn_rts_prep_trunc_rollback_dryrun);
+            }
+            *skipp = true;
+            return (0);
+        }
+
         if (page_del == NULL ||
           (__wti_rts_visibility_txn_visible_id(session, page_del->txnid) &&
             page_del->pg_del_durable_ts <= rollback_timestamp)) {
             /*
-             * We should never see a prepared truncate here; not at recovery time because prepared
-             * truncates can't be written to disk, and not during a runtime RTS either because it
-             * should not be possible to do that with an unresolved prepared transaction.
+             * Committed or globally-visible truncates must be stable here: a prepared truncate in
+             * INPROGRESS state is caught above, so any prepared state remaining is invalid.
              */
             WT_ASSERT(session,
               page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
