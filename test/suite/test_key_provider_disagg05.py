@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import ctypes, errno, os
-import wttest
-from run import wt_builddir
+import errno
+import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -50,21 +49,11 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    @staticmethod
-    def _load_push_hook():
-        path = os.path.join(wt_builddir, 'ext', 'test', 'key_provider',
-            'libwiredtiger_key_provider.so')
-        lib = ctypes.CDLL(path)
-        hook = lib.kp_test_push_key
-        hook.argtypes = [ctypes.c_uint64]
-        hook.restype = ctypes.c_int
-        return hook
-
     def test_set_key_validation(self):
         # Opening the connection registers the extension which caches the WT_KEY_PROVIDER
         # pointer used by the test hook. We never run a checkpoint here, so the only set_key
-        # calls are the ones this test issues directly.
-        push = self._load_push_hook()
+        # calls are the ones this test issues directly through wiredtiger_test_kp_push_key.
+        push = wiredtiger.wiredtiger_test_kp_push_key
 
         # Monotonic check: first push at ts=10 accepted; equal or lower timestamps rejected.
         self.assertEqual(push(10), 0)

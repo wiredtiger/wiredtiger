@@ -395,9 +395,9 @@ kp_on_key_update(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS
 }
 
 /*
- * Cached pointers from the most recently initialized provider. Lets kp_test_push_key (loaded by
- * the Python suite via dlopen) drive set_key from a normal user thread without touching the
- * checkpoint code path. Single-connection use only.
+ * Cached pointers from the most recently initialized provider. Lets kp_test_push_key (loaded by the
+ * Python suite via dlopen) drive set_key from a normal user thread without touching the checkpoint
+ * code path. Single-connection use only.
  */
 static KEY_PROVIDER *g_test_kp = NULL;
 static WT_CONNECTION *g_test_conn = NULL;
