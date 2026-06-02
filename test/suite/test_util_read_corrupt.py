@@ -235,20 +235,10 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
 
     # ---------- dump_record return-code regressions (no corruption) ----------
 
-    # Two non-error paths in dump_record (util_dump.c) silently exited
-    # non-zero before this change: a missing single-key lookup, and a
-    # windowed walk that runs past the last record. Both are documented
-    # as natural outcomes in dump_record's comments, so they should
-    # exit 0. These regression tests pin that contract directly against
-    # a clean populated table; no corruption is involved.
-
     def test_dump_missing_key_exits_zero(self):
         self.setup_clean_table()
         self.runWt(['dump', '-k', '99999999\\00', self.uri],
             outfilename='dump_missing.out', errfilename='dump_missing.err')
-        # Header config is printed unconditionally; no data records
-        # follow. The error stream should be empty - this is not an
-        # error.
         self.check_empty_file('dump_missing.err')
 
     def test_dump_window_past_end_exits_zero(self):
@@ -258,32 +248,98 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['dump', '-k', key, '-w', '500', self.uri],
             outfilename='dump_wend.out', errfilename='dump_wend.err')
         self.check_empty_file('dump_wend.err')
-        # The walk should have emitted at least the records from the
-        # backward window (so output is more than the header alone).
         self.assertGreater(self.count_lines('dump_wend.out'), 10,
             'wt dump -k -w produced no data records past the backward window')
 
     # ---------- read ----------
 
     def test_read_without_q_fails(self):
-        # Looking up every key guarantees one search lands on the corrupt
-        # leaf, regardless of which key range it ended up holding under
-        # this test run's btree layout.
+        # Baseline: read on corrupt data must panic, not exit gracefully.
+        # Pins the same three properties as the dump baseline:
+        #   1. rc indicates SIGABRT-class signal kill (not in (0, 1)).
+        #   2. stderr contains the full panic-flow markers in order:
+        #      read-checksum-error, bitflip-detection-report,
+        #      fatal-read-error, WT_PANIC, aborting. These are
+        #      block-layer messages that don't depend on which cursor
+        #      op triggered the read, so the sequence matches the
+        #      dump test's even though read uses cursor.search.
+        #   3. The block-layer diagnostic is present (it's only
+        #      printed when the quiet flag is clear).
+        # Walking every key guarantees the search path crosses the
+        # corrupt leaf regardless of which key range the test
+        # framework's checkpoint cadence places there.
         self.setup_corrupt_leaf_table()
-        self.runWt(['read', self.uri] + self._all_keys(),
-            outfilename='read_no_q.out', errfilename='read_no_q.err', failure=True)
+        argv = [self._wt_path(), 'read', self.uri] + self._all_keys()
+        with open('read_no_q.out', 'w') as out, open('read_no_q.err', 'w') as err:
+            rc = subprocess.call(argv, stdout=out, stderr=err)
+        self.assertNotIn(rc, (0, 1),
+            'wt read on corrupt data exited cleanly (rc=%d) instead of '
+            'panicking' % rc)
+        with open('read_no_q.err') as f:
+            err = f.read()
+        markers = [
+            ('read checksum error',
+                'block-layer corruption diagnostic missing from stderr'),
+            ('bitflip detection performed but no single-bit flip found',
+                'bitflip detection report missing from stderr'),
+            ('fatal read error',
+                'fatal read error wrap missing from stderr'),
+            ('WT_PANIC',
+                'wt read exited non-zero without panicking; default '
+                'path is no longer panic-on-corrupt'),
+            ('aborting WiredTiger library',
+                'panic did not reach the abort marker'),
+        ]
+        for marker, msg in markers:
+            self.assertIn(marker, err, msg)
+        positions = [err.index(m) for m, _ in markers]
+        self.assertEqual(positions, sorted(positions),
+            'stderr panic markers appeared out of order: %r' % positions)
 
     def test_read_with_q_continues_on_corrupt(self):
-        # With -q, the per-key error path keeps walking the remaining
-        # keys. Walking all 2000 keys reliably crosses the corrupt leaf
-        # and exits non-zero with output for the readable keys; the
-        # readable-key count is the count of stdout lines.
+        # Graceful counterpart, with the additional contract unique to
+        # read: the per-key loop continues past errors. After one key's
+        # search returns WT_ERROR, util_cerr logs to stderr and the loop
+        # moves on to the next argv entry rather than bailing.
+        # Pins five properties of the -q behavior:
+        #   1. rc == 1 exactly (graceful non-zero, not a crash).
+        #   2. stderr contains zero panic markers.
+        #   3. Every stderr line is exactly the per-key cursor error
+        #      from util_cerr, with no other lines mixed in.
+        #   4. At least one error was observed (corruption was hit).
+        #   5. THE LOAD-BEARING CHECK: stdout-value-count plus
+        #      stderr-error-count equals nentries. This proves the
+        #      loop visited every requested key. If read had bailed
+        #      on the first error (no continue-past behavior), the
+        #      sum would be far less than nentries.
         self.setup_corrupt_leaf_table()
-        self.runWt(['-q', 'read', self.uri] + self._all_keys(),
-            outfilename='read_q.out', errfilename='read_q.err', failure=True)
-        self.assertGreater(self.count_lines('read_q.out'), 0,
-            'wt -q read produced no values for any of the requested keys')
-        self.check_non_empty_file('read_q.err')
+        argv = [self._wt_path(), '-q', 'read', self.uri] + self._all_keys()
+        with open('read_q.out', 'w') as out, open('read_q.err', 'w') as err:
+            rc = subprocess.call(argv, stdout=out, stderr=err)
+        self.assertEqual(rc, 1,
+            'wt -q read returned rc=%d; expected exactly 1' % rc)
+        with open('read_q.err') as f:
+            err = f.read()
+        with open('read_q.out') as f:
+            out = f.read()
+        self.assertNotIn('WT_PANIC', err,
+            'wt -q read panicked despite -q')
+        self.assertNotIn('aborting WiredTiger library', err,
+            'wt -q read reached the abort marker')
+        err_lines = [ln for ln in err.splitlines() if ln]
+        out_lines = [ln for ln in out.splitlines() if ln]
+        self.assertGreater(len(err_lines), 0,
+            'wt -q read produced no error lines; corruption was not '
+            'exercised on this run')
+        expected = ('wt: %s: cursor.search: WT_ERROR: '
+                    'non-specific WiredTiger error') % self.uri
+        for ln in err_lines:
+            self.assertEqual(ln, expected,
+                'unexpected stderr line: %r' % ln)
+        self.assertEqual(len(out_lines) + len(err_lines), self.nentries,
+            'stdout values (%d) + stderr errors (%d) does not equal '
+            'nentries (%d); wt -q read did not visit every requested '
+            'key' % (len(out_lines), len(err_lines), self.nentries))
 
     # ---------- stat ----------
 
