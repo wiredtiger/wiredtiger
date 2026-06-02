@@ -1201,11 +1201,10 @@ __evict_get_ref(
     }
 
     /* Only evict from all levels, including clean internal pages, if this is urgent */
-    /* XXX FIx this */
     if (F_ISSET(evict, WT_EVICT_CACHE_URGENT)) {
         min_level = 0;
         max_level = WT_EVICT_LEVELS - 1;
-        printf("URGENT EVICTION!!!!!!!!!!!!\n");
+        printf("URGENT EVICTION!!!!!!!!!!!!\n"); /* XXX Add a stat */
     }
 
     /* Application threads evict only clean pages, unless we are struggling */
@@ -1267,13 +1266,13 @@ __evict_get_ref(
 
         num_buckets = bucketset->num_buckets;
 
-#define LRU_FOR_READS 0 /* I have not seen the workloads where LRU works better than random. */
+#define LRU_FOR_READS 0 /* Tracking LRU has cost. Use only if needed */
 #if LRU_FOR_READS
         /*
          * We only care about LRU for clean leaf pages. For other level choose a random starting
          * bucket to reduce contention.
          */
-        if (i == WT_EVICT_LEVEL_CLEAN_LEAF) /* XXX. Revisit for YCSB. Does this really matter? */ {
+        if (i == WT_EVICT_LEVEL_CLEAN_LEAF) {
             uint32_t bucket_last_considered =
                 __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered);
             uint32_t rand = __wt_random(&session->rnd_random);
@@ -1286,8 +1285,6 @@ __evict_get_ref(
                     offset = -offset;
             }
             j = (uint32_t)((int)bucket_last_considered + offset) % num_buckets;
-//            j = (__wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered) +
-//                 __wt_random(&session->rnd_random) % WT_EVICT_EXPECTED_CONTENTION) % num_buckets;
         }
         else
 #endif
@@ -1304,10 +1301,9 @@ __evict_get_ref(
                 WT_STAT_CONN_INCR(session, eviction_skip_page_locked_bucket);
                 continue;
             }
-#if LRU_FOR_READS /* Revisit if LRU is needed for YCSB */
+#if LRU_FOR_READS
             if (iter > 0 && i == WT_EVICT_LEVEL_CLEAN_LEAF)
                 __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, bucketset->bucket_last_considered + iter);
-//                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
 #endif
             if (TAILQ_EMPTY(&bucket->evict_queue))
                 WT_STAT_CONN_INCR(session, eviction_skip_empty_bucket);
@@ -2089,7 +2085,7 @@ __wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_EVICT *evict = conn->evict;
-#define APP_HELP 1
+#define APP_HELP 0
 #if APP_HELP
     double pct_full;
 #endif
