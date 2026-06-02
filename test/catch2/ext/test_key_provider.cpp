@@ -348,6 +348,21 @@ TEST_CASE_METHOD(kp_fixture, "set_key_provider version selects push mode", "[key
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
 }
 
+/*
+ * push_key --
+ *     Build a WT_CRYPT_KEYS and invoke the provider's set_key, returning its error code so the
+ *     caller can assert both success and failure paths.
+ */
+static int
+push_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, const std::string &key_bytes, uint64_t timestamp)
+{
+    WT_CRYPT_KEYS crypt = {};
+    crypt.keys.data = key_bytes.data();
+    crypt.keys.size = key_bytes.size();
+    crypt.timestamp = timestamp;
+    return kp->set_key(kp, session, &crypt);
+}
+
 TEST_CASE_METHOD(kp_fixture, "set_key stores the pushed key as the active key", "[key_provider]")
 {
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
@@ -358,11 +373,7 @@ TEST_CASE_METHOD(kp_fixture, "set_key stores the pushed key as the active key", 
     REQUIRE(TAILQ_EMPTY(&conn_impl->disaggregated_storage.pending_crypt_key_qh));
 
     const std::string key_bytes = "push-mode-test-key-0123456789";
-    WT_CRYPT_KEYS crypt = {};
-    crypt.keys.data = key_bytes.data();
-    crypt.keys.size = key_bytes.size();
-    crypt.timestamp = 1;
-    REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
+    REQUIRE(push_key(&stub, session, key_bytes, 1) == 0);
 
     WT_DISAGG_PENDING_CRYPT_KEY *entry =
       TAILQ_FIRST(&conn_impl->disaggregated_storage.pending_crypt_key_qh);
@@ -385,13 +396,8 @@ TEST_CASE_METHOD(kp_fixture, "set_key accumulates monotonic entries", "[key_prov
 
     const std::string keys[3] = {"key-one-0123456789", "key-two-9876543210", "key-three-55555"};
     const uint64_t timestamps[3] = {10, 20, 30};
-    for (int i = 0; i < 3; i++) {
-        WT_CRYPT_KEYS crypt = {};
-        crypt.keys.data = keys[i].data();
-        crypt.keys.size = keys[i].size();
-        crypt.timestamp = timestamps[i];
-        REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
-    }
+    for (int i = 0; i < 3; i++)
+        REQUIRE(push_key(&stub, session, keys[i], timestamps[i]) == 0);
 
     int n = 0;
     WT_DISAGG_PENDING_CRYPT_KEY *entry;
@@ -415,23 +421,10 @@ TEST_CASE_METHOD(kp_fixture, "set_key rejects non-monotonic timestamp", "[key_pr
     REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
 
     const std::string key_bytes = "push-mode-key-monotonic";
-    WT_CRYPT_KEYS crypt = {};
-    crypt.keys.data = key_bytes.data();
-    crypt.keys.size = key_bytes.size();
-    crypt.timestamp = 10;
-    REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
-
-    /* Equal timestamp is rejected. */
-    crypt.timestamp = 10;
-    REQUIRE(stub.set_key(&stub, session, &crypt) == EINVAL);
-
-    /* Strictly smaller timestamp is rejected. */
-    crypt.timestamp = 5;
-    REQUIRE(stub.set_key(&stub, session, &crypt) == EINVAL);
-
-    /* Larger is accepted. */
-    crypt.timestamp = 11;
-    REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
+    REQUIRE(push_key(&stub, session, key_bytes, 10) == 0);
+    REQUIRE(push_key(&stub, session, key_bytes, 10) == EINVAL); /* Equal rejected. */
+    REQUIRE(push_key(&stub, session, key_bytes, 5) == EINVAL);  /* Smaller rejected. */
+    REQUIRE(push_key(&stub, session, key_bytes, 11) == 0);      /* Larger accepted. */
 
     /* Only the two successful pushes are queued. */
     int n = 0;
@@ -454,18 +447,9 @@ TEST_CASE_METHOD(kp_fixture, "set_key rejects timestamp <= stable", "[key_provid
     REQUIRE(wt_conn->set_timestamp(wt_conn, "stable_timestamp=64") == 0);
 
     const std::string key_bytes = "push-mode-stable-check";
-    WT_CRYPT_KEYS crypt = {};
-    crypt.keys.data = key_bytes.data();
-    crypt.keys.size = key_bytes.size();
-
-    crypt.timestamp = 0x64; /* Equal to stable. */
-    REQUIRE(stub.set_key(&stub, session, &crypt) == EINVAL);
-
-    crypt.timestamp = 0x63; /* Below stable. */
-    REQUIRE(stub.set_key(&stub, session, &crypt) == EINVAL);
-
-    crypt.timestamp = 0x65; /* Strictly above stable. */
-    REQUIRE(stub.set_key(&stub, session, &crypt) == 0);
+    REQUIRE(push_key(&stub, session, key_bytes, 0x64) == EINVAL); /* Equal to stable. */
+    REQUIRE(push_key(&stub, session, key_bytes, 0x63) == EINVAL); /* Below stable. */
+    REQUIRE(push_key(&stub, session, key_bytes, 0x65) == 0);      /* Strictly above stable. */
 
     conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);

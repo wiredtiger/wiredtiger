@@ -26,14 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import json, os, subprocess
 import wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from run import wt_builddir
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages, get_shard_id
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_key_provider_disagg04.py
-#    Push-mode key provider: exercise the pending-key list with multiple commits and
-#    checkpoints across advancing stable timestamps.
+#    Push-mode key provider: exercise the pending-key list across multiple checkpoints and
+#    verify each checkpoint persists a new key-provider page.
 @disagg_test_class
 class test_key_provider_disagg04(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
@@ -43,6 +45,9 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_key_provider_disagg04', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
+    WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID = 26
+    key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
+
     uri = "layered:test_key_provider_disagg04"
 
     def conn_extensions(self, extlist):
@@ -50,12 +55,37 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
+    def key_provider_page_count(self):
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+        database = os.path.join(self.home, 'kv_home', self.key_provider_table)
+        result = subprocess.run(
+            [sqlite_exe, '-json', database,
+             f'SELECT COUNT(*) FROM pages '
+             f'WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID};'],
+            capture_output=True, text=True, check=True)
+        return json.loads(result.stdout)[0]['COUNT(*)']
+
     def test_multiple_pushes_across_checkpoints(self):
         # Each checkpoint triggers a push via kp_load_key with a strictly increasing
         # timestamp from the extension's monotonic counter. Several checkpoints in a row
-        # exercise the pending-list enqueue + drain path.
+        # exercise the pending-list enqueue + drain path; the key-provider page count
+        # must grow by one per checkpoint.
+        if self.ds_name != "palite":
+            self.skipTest("Must use PALite to verify contents")
+
         ds = SimpleDataSet(self, self.uri, 10)
         ds.populate()
 
-        for _ in range(5):
+        # First checkpoint creates the key-provider page table; sample the baseline after it.
+        self.session.checkpoint()
+        baseline = self.key_provider_page_count()
+        self.assertGreaterEqual(baseline, 1)
+
+        # Each subsequent checkpoint with a fresh pushed key must persist a new page.
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(4):
+            cursor[ds.key(100 + i)] = ds.value(100 + i)
             self.session.checkpoint()
+        cursor.close()
+
+        self.assertGreater(self.key_provider_page_count(), baseline)

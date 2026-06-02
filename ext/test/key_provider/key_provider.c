@@ -179,8 +179,14 @@ kp_push_active_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
     local_crypt.keys.data = kp->state.key_data;
     local_crypt.keys.size = kp->state.key_size;
     local_crypt.r.lsn = kp->state.lsn;
-    local_crypt.timestamp =
-      (kp->force_push_ts != 0) ? (uint64_t)kp->force_push_ts : kp->next_push_ts++;
+    /*
+     * Stamp the push timestamp. force_push_ts is a test-only override that lets a Python case drive
+     * set_key into a deliberate validation failure; the default is the strictly-increasing counter.
+     */
+    if (kp->force_push_ts != 0)
+        local_crypt.timestamp = (uint64_t)kp->force_push_ts;
+    else
+        local_crypt.timestamp = kp->next_push_ts++;
 
     if ((ret = wtkp->set_key(wtkp, session, &local_crypt)) != 0)
         LOG_ERROR(kp, session, "Failed to push loaded key: %d", ret);

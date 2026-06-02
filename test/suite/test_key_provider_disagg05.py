@@ -35,9 +35,13 @@ from wtscenario import make_scenarios
 
 # test_key_provider_disagg05.py
 #    Push-mode key provider: verify set_key rejects a push whose timestamp is
-#    not strictly greater than the stable timestamp. The rejection triggers
-#    WT_PANIC + abort, so the failing checkpoint runs in a subprocess and the
-#    parent test asserts the expected diagnostic.
+#    not strictly greater than the stable timestamp.
+#
+#    The rejection propagates up through the checkpoint code, which invokes
+#    WT_PANIC and terminates the process via SIGABRT. A Python exception
+#    handler cannot catch SIGABRT, so the failing checkpoint runs in a child
+#    process and the parent test inspects the child stderr.
+#    This mirrors the pattern used by test_key_provider_disagg02.
 @disagg_test_class
 class test_key_provider_disagg05(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'

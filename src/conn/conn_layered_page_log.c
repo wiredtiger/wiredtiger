@@ -421,7 +421,7 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
 
 /*
  * __disagg_pending_crypt_key_free --
- *     Release the storage held by a single pending pushed-key entry.
+ *     Free an entry in the pending pushed-key queue.
  */
 static void
 __disagg_pending_crypt_key_free(WT_SESSION_IMPL *session, WT_DISAGG_PENDING_CRYPT_KEY **entryp)
@@ -438,7 +438,7 @@ __disagg_pending_crypt_key_free(WT_SESSION_IMPL *session, WT_DISAGG_PENDING_CRYP
 
 /*
  * __wti_disagg_pending_crypt_key_clear --
- *     Drain and free every queued pushed key. Safe to call multiple times.
+ *     Drain and free every queued pushed key.
  */
 void
 __wti_disagg_pending_crypt_key_clear(WT_SESSION_IMPL *session)
@@ -517,7 +517,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_DISAGG_PENDING_CRYPT_KEY *active;
+    WT_DISAGG_PENDING_CRYPT_KEY *chosen_key;
     WT_KEY_PROVIDER *key_provider;
     uint64_t lsn;
     bool push_mode;
@@ -535,17 +535,17 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     if (push_mode) {
         /* Push mode: pick the most recently pushed key. */
-        active = TAILQ_LAST(
+        chosen_key = TAILQ_LAST(
           &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
-        if (active == NULL)
+        if (chosen_key == NULL)
             goto done;
-        WT_ERR(__wt_scr_alloc(session, active->keys.size + sizeof(WT_CRYPT_HEADER), &buf));
+        WT_ERR(__wt_scr_alloc(session, chosen_key->keys.size + sizeof(WT_CRYPT_HEADER), &buf));
         crypt.keys.mem = buf->mem;
         crypt.keys.memsize = buf->memsize;
         crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
-        crypt.keys.size = active->keys.size;
-        memcpy((void *)crypt.keys.data, active->keys.data, active->keys.size);
-        crypt.timestamp = active->timestamp;
+        crypt.keys.size = chosen_key->keys.size;
+        memcpy((void *)crypt.keys.data, chosen_key->keys.data, chosen_key->keys.size);
+        crypt.timestamp = chosen_key->timestamp;
     } else {
         /* Pull mode: ask the module for the current key via get_key. */
         WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
@@ -586,7 +586,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 
-    /* On success, drain all items in queue. Failure leaves entries for retry. */
+    /* On success, drain all items in queue. */
     if (push_mode && ret == 0)
         __wti_disagg_pending_crypt_key_clear(session);
 
