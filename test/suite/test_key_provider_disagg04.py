@@ -74,6 +74,8 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
             f'ORDER BY lsn ASC;')
 
     def header_timestamp(self, hex_page):
+        # page_data comes back as a hex string, so each byte is two characters: the 8-byte timestamp
+        # field starts at offset 16 (32 hex chars) and spans 16 hex chars.
         start = self.CRYPT_HEADER_TIMESTAMP_OFFSET * 2
         raw = bytes.fromhex(hex_page[start:start + 16])
         return int.from_bytes(raw, byteorder='little')
