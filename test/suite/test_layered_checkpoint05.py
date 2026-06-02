@@ -27,13 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import threading, time, wiredtiger, wttest
+from checkpoint_util import checkpoint_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered_checkpoint05.py
 #    Test creating empty tables while a checkpoint is running.
 @disagg_test_class
-class test_layered_checkpoint05(wttest.WiredTigerTestCase):
+class test_layered_checkpoint05(checkpoint_util):
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,' \

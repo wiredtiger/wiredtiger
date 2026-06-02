@@ -35,11 +35,12 @@
 #   prepare) remain deferred until the next checkpoint.
 
 import threading, time, wiredtiger, wttest
+from checkpoint_util import checkpoint_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema08(wttest.WiredTigerTestCase):
+class test_layered_schema08(checkpoint_util):
     uri_base = 'test_layered_schema08'
     conn_config = 'statistics=(all),disaggregated=(role="leader",lose_all_my_data=true)'
 

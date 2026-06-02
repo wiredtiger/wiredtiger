@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import threading, time, wiredtiger, wttest
+from checkpoint_util import checkpoint_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -44,7 +45,7 @@ from wtscenario import make_scenarios
 # change happened after the checkpoint started.
 #
 @disagg_test_class
-class test_layered_checkpoint06(wttest.WiredTigerTestCase):
+class test_layered_checkpoint06(checkpoint_util):
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,'
