@@ -248,7 +248,11 @@ lock_destroy(WT_SESSION *session, RWLOCK *lock)
 #ifdef HAVE_DIAGNOSTIC
 static sigjmp_buf dump_crash_jmp;
 
-static void
+/*
+ * dump_crash_handler --
+ *     Handle crash during page dump.
+ */
+static void __attribute__((noreturn))
 dump_crash_handler(int sig)
 {
     siglongjmp(dump_crash_jmp, sig);
