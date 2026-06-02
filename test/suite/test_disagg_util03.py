@@ -152,10 +152,10 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self._populate_and_checkpoint()
         self.close_conn()
 
-        # LSN 1 is below any real LSN palite assigns; palite's plh_get returns count=0.
+        # LSN 1 is below any real LSN palite assigns; the palite plh_get call returns count=0.
         stdout, _ = self._run_wt_turtle('-l', '1', failure=True)
         self.assertIn('metadata page not found at lsn=1 (may have been pruned)', stdout)
-        # The success-path header always contains a parenthesised body, so check that
+        # The success-path header always contains a parenthesized body, so check that
         # prefix rather than a literal `=== metadata page ===` that never appears.
         self.assertNotIn('=== metadata page (', stdout)
 

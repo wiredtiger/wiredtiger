@@ -9,10 +9,9 @@
 #include "util.h"
 
 /*
- * The set of fields parsed out of a turtle blob. Each presence flag tracks
- * whether the corresponding field was found; the dump is lenient so that a
- * blob written by a newer or partly-incompatible writer still prints what we
- * can read.
+ * The set of fields parsed out of a turtle blob. Each presence flag tracks whether the
+ * corresponding field was found; the dump is lenient so that a blob written by a newer or
+ * partly-incompatible writer still prints what we can read.
  */
 struct util_turtle_fields {
     bool have_metadata_lsn;
@@ -45,9 +44,8 @@ usage(void)
 
 /*
  * parse_turtle --
- *     Lenient parse of the turtle blob. Unlike the production parser we do not
- *     enforce version compatibility -- a forensic tool must print whatever is
- *     on disk.
+ *     Lenient parse of the turtle blob. Unlike the production parser, this does not enforce version
+ *     compatibility; a forensic tool must print whatever is on disk.
  */
 static int
 parse_turtle(
@@ -109,8 +107,8 @@ err:
 
 /*
  * print_turtle --
- *     Print the parsed turtle fields in key=value form. Missing fields print
- *     as <missing> so the dump shape is stable for tooling.
+ *     Print the parsed turtle fields in key=value form. Missing fields print as <missing> so the
+ *     dump shape is stable for tooling.
  */
 static void
 print_turtle(uint64_t lsn, const struct util_turtle_fields *t)
@@ -141,9 +139,8 @@ print_turtle(uint64_t lsn, const struct util_turtle_fields *t)
 
 /*
  * fetch_latest_turtle --
- *     Ask the connection's page log for the latest complete checkpoint. The
- *     blob ownership is transferred to the caller, which must __wt_buf_free
- *     it.
+ *     Ask the connection's page log for the latest complete checkpoint. The blob ownership is
+ *     transferred to the caller, which must __wt_buf_free it.
  */
 static int
 fetch_latest_turtle(WT_SESSION_IMPL *session, uint64_t *lsnp, WT_ITEM *meta)
@@ -168,9 +165,9 @@ fetch_latest_turtle(WT_SESSION_IMPL *session, uint64_t *lsnp, WT_ITEM *meta)
           "pass -l <lsn> to dump the metadata page at a known LSN instead");
 
     /*
-     * The page log may allocate into args.checkpoint_metadata before returning a
-     * non-zero status. Mirror __wti_layered_get_disagg_checkpoint and free on
-     * any non-success path; on success, transfer ownership to the caller.
+     * The page log may allocate into args.checkpoint_metadata before returning a non-zero status.
+     * Mirror __wti_layered_get_disagg_checkpoint and free on any non-success path; on success,
+     * transfer ownership to the caller.
      */
     ret = page_log->pl_get_complete_checkpoint(page_log, &session->iface, &args);
     if (ret == 0) {
@@ -185,9 +182,9 @@ fetch_latest_turtle(WT_SESSION_IMPL *session, uint64_t *lsnp, WT_ITEM *meta)
 
 /*
  * fetch_metadata_page --
- *     plh_get the shared metadata page at page_id=1 and the supplied LSN via the
- *     page log handle the connection already opened. Buffer ownership transfers
- *     to the caller. Returns WT_NOTFOUND if the page is absent at that LSN.
+ *     plh_get the shared metadata page at page_id=1 and the supplied LSN via the page log handle
+ *     the connection already opened. Buffer ownership transfers to the caller. Returns WT_NOTFOUND
+ *     if the page is absent at that LSN.
  */
 static int
 fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
@@ -216,8 +213,8 @@ fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
 
 /*
  * print_metadata_page --
- *     Print the metadata page bytes verbatim. If a checksum is available from the
- *     turtle, verify and report rather than abort on mismatch.
+ *     Print the metadata page bytes verbatim. If a checksum is available from the turtle, verify
+ *     and report rather than abort on mismatch.
  */
 static void
 print_metadata_page(
@@ -243,16 +240,16 @@ print_metadata_page(
 
 /*
  * util_turtle --
- *     The turtle command: dump the disaggregated-storage turtle blob (and chase to the
- *     shared metadata page it points at).
+ *     The turtle command: dump the disaggregated-storage turtle blob (and chase to the shared
+ *     metadata page it points at).
  */
 int
 util_turtle(WT_SESSION *session, int argc, char *argv[])
 {
+    struct util_turtle_fields fields;
     WT_DECL_RET;
     WT_ITEM meta, page_item;
     WT_SESSION_IMPL *session_impl;
-    struct util_turtle_fields fields;
     uint64_t lsn, lsn_arg;
     int ch;
     bool have_lsn_arg, suppress_util_err;
@@ -313,7 +310,9 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     if (fields.have_metadata_lsn) {
         ret = fetch_metadata_page(session_impl, fields.metadata_lsn, &page_item);
         if (ret == WT_NOTFOUND) {
-            printf("\nmetadata page not found at lsn=%" PRIu64 " (may have been pruned)\n",
+            printf(
+              "\n"
+              "metadata page not found at lsn=%" PRIu64 " (may have been pruned)\n",
               fields.metadata_lsn);
             ret = 1;
             suppress_util_err = true;
