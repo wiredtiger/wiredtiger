@@ -1145,8 +1145,7 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
                   (int)skey.len, skey.str);
             else
                 __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-                  "early_load=true extension \"%.*s\" was not passed in the open configuration; "
-                  "it will be absent from this connection",
+                  "early_load=true extension \"%.*s\" was not passed in the open configuration",
                   (int)skey.len, skey.str);
         }
     }
