@@ -1489,7 +1489,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
     WT_RET(__wti_page_inmem(
-      session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &instantiate_upd));
+      session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, NULL, &page, &instantiate_upd));
     multi->disk_image = NULL;
 
     /* Preserve the relevant metadata. */
@@ -1749,9 +1749,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         }
     }
 
-    if (free_size > 0)
-        __wt_cache_page_inmem_decr(session, page, free_size);
-
     /*
      * When modifying the page we set the first dirty transaction to the last transaction currently
      * running. However, the updates we made might be older than that. Set the first dirty
@@ -1764,6 +1761,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
+    if (free_size > 0)
+        __wt_cache_page_inmem_decr(session, page, free_size);
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 

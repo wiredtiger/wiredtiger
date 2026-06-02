@@ -321,8 +321,7 @@ functions:
           ${ENABLE_CPPSUITE|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
-          ${CC_OPTIMIZE_LEVEL|} \
-          ${WT_DISAGG_SLOW_TRUNCATE_BUILD|}"
+          ${CC_OPTIMIZE_LEVEL|}"
 
         # The RHEL PPC platform does not have ZSTD. Strip it out.
         if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
@@ -1724,10 +1723,7 @@ variables:
     depends_on: *s-all-dep
     commands:
       - func: "get project"
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - func: "compile wiredtiger"
-        vars:
-          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
@@ -1744,10 +1740,7 @@ variables:
     depends_on: *s-all-dep
     commands:
       - func: "get project"
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - func: "compile wiredtiger"
-        vars:
-          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
@@ -1764,10 +1757,7 @@ variables:
     depends_on: *s-all-dep
     commands:
       - func: "get project"
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - func: "compile wiredtiger"
-        vars:
-          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test script"
         vars:
           # run for 10 minutes.
@@ -2541,7 +2531,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
@@ -2575,7 +2565,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           # FIXME-WT-16228: decrease the timeout when the performance of the disagg leader tests is improved.
@@ -2604,7 +2594,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # Run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/tsan.fail
+          unit_test_parallel_ignore: test/suite/fail_lists/tsan.fail
           unit_test_parallel_args: -v 2 --timeout 300
       - func: "upload artifact"
         vars:
@@ -2623,7 +2613,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # Run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_parallel_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
@@ -2644,7 +2634,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
@@ -2661,7 +2651,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
@@ -2678,7 +2668,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
@@ -2695,7 +2685,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
@@ -2712,7 +2702,7 @@ tasks:
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
@@ -2741,7 +2731,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,key_provider=true)"
@@ -2755,7 +2745,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
@@ -2769,7 +2759,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
@@ -2783,7 +2773,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
@@ -2797,7 +2787,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
@@ -2811,7 +2801,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
@@ -2825,7 +2815,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 0/5
@@ -2839,7 +2829,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 1/5
@@ -2853,7 +2843,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 2/5
@@ -2867,7 +2857,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 3/5
@@ -2881,7 +2871,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 4/5
@@ -2929,7 +2919,7 @@ tasks:
           # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
           # used with parallel checkpoints.
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
-          unit_test_parallel_ignore: test/suite/tsan.fail
+          unit_test_parallel_ignore: test/suite/fail_lists/tsan.fail
           unit_test_parallel_args: -v 2 --timeout 300 --hook "parallel_checkpoint"
 
   - name: unit-test-hook-parallel-checkpoint-bucket00
@@ -4892,10 +4882,7 @@ tasks:
     depends_on: *s-all-dep
     commands:
       - func: "get project"
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - func: "compile wiredtiger"
-        vars:
-          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/evergreen"
@@ -5156,8 +5143,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
-          # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
-          HAVE_BUILTIN_EXTENSION_ZSTD: -DHAVE_BUILTIN_EXTENSION_ZSTD=0
       - func: "format test script"
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
@@ -5315,10 +5300,7 @@ tasks:
     depends_on: *s-all-dep
     commands:
       - func: "get project"
-      # FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate.
       - func: "compile wiredtiger"
-        vars:
-          WT_DISAGG_SLOW_TRUNCATE_BUILD: -DWT_DISAGG_SLOW_TRUNCATE_BUILD=1
       - func: "format test disagg"
         vars:
           # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
@@ -6963,7 +6945,7 @@ buildvariants:
     # a separate process. It's worth investigating whether it could lead to hiding some warnings.
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
-    unit_test_ignore: test/suite/asan.fail
+    unit_test_ignore: test/suite/fail_lists/asan.fail
     unit_test_variant_args: --asan
     ctest_extra_args: -E "wt12015_backup_corruption"
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
@@ -7728,7 +7710,7 @@ buildvariants:
     # a separate process. It's worth investigating whether it could lead to hiding some warnings.
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
-    unit_test_ignore: test/suite/asan.fail
+    unit_test_ignore: test/suite/fail_lists/asan.fail
     unit_test_variant_args: --asan
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"

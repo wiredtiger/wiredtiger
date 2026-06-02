@@ -281,6 +281,12 @@ struct __wt_page_disagg_info {
     uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
 
     WT_PAGE_BLOCK_META block_meta;
+
+    /*
+     * When the shared disk cache is enabled, points at the cache entry that owns page->dsk. NULL on
+     * cache miss before insertion, or when the shared disk cache is disabled.
+     */
+    WT_SHARED_DSK_ITEM *shared_dsk_item;
 };
 
 /*
@@ -736,21 +742,25 @@ struct __wt_page {
 #define WT_PAGE_COMPACTION_WRITE 0x0002u  /* Writing the page for compaction */
 #define WT_PAGE_DISK_ALLOC 0x0004u        /* Disk image in allocated memory */
 #define WT_PAGE_DISK_MAPPED 0x0008u       /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_LRU 0x0010u         /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_LRU_URGENT 0x0020u  /* Page is in the urgent queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x0040u /* Eviction doesn't count as progress */
-#define WT_PAGE_INMEM_SPLIT 0x0080u
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0100u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_INTL_PINDEX_UPDATE 0x0200u /* Page index updated */
-#define WT_PAGE_PREFETCH 0x0400u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x0800u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x1000u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x2000u      /* Ignore updates on page discard */
+#define WT_PAGE_DISK_SHARED 0x0010u       /* Disk image is from shared dsk cache */
+#define WT_PAGE_EVICT_LRU 0x0020u         /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_LRU_URGENT 0x0040u  /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x0080u /* Eviction doesn't count as progress */
+#define WT_PAGE_INMEM_SPLIT 0x0100u
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0200u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_INTL_PINDEX_UPDATE 0x0400u /* Page index updated */
+#define WT_PAGE_PREFETCH 0x0800u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x1000u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x2000u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x4000u      /* Ignore updates on page discard */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
-#define WT_PAGE_IS_INTERNAL(page) \
-    ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
+#define WT_PAGE_IS_INTERNAL(page) WT_PAGE_TYPE_IS_INTERNAL((page)->type)
+#define WT_PAGE_IS_SHARED_DSK(page) F_ISSET_ATOMIC_16((page), WT_PAGE_DISK_SHARED)
+#define WT_PAGE_HAS_SHARED_DSK_REF(page) \
+    ((page)->disagg_info != NULL && (page)->disagg_info->shared_dsk_item != NULL)
+#define WT_PAGE_TYPE_IS_INTERNAL(type) ((type) == WT_PAGE_COL_INT || (type) == WT_PAGE_ROW_INT)
 #define WT_PAGE_INVALID 0            /* Invalid page */
 #define WT_PAGE_BLOCK_MANAGER 1      /* Block-manager page */
 #define WT_PAGE_COL_FIX_DEPRECATED 2 /* Col-store fixed-len leaf */
@@ -1549,20 +1559,18 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DELETE_DURABLE 0x0001u  /* Key has been removed from disk image. */
-#define WT_UPDATE_DS 0x0002u              /* Update has been chosen to the data store. */
-#define WT_UPDATE_DURABLE 0x0004u         /* Update has been durable. */
-#define WT_UPDATE_HS 0x0008u              /* Update has been written to hs. */
-#define WT_UPDATE_HS_MAX_STOP 0x0010u     /* Update has been written to hs with a max stop. */
-#define WT_UPDATE_PREPARE_DURABLE 0x0020u /* Prepared update has been durable. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x0040u /* Prepared update restored from data store. */
-#define WT_UPDATE_PREPARE_ROLLBACK 0x0080u /* Tombstone that rolled back by a prepared update.*/
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0100u /* Fast truncate instantiation. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x0200u       /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x0400u       /* Update restored from history store. */
-#define WT_UPDATE_RESTORED_FROM_INGEST 0x0800u   /* Update restored from ingest btree. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x1000u       /* Used by dry run to mark a would-be abort. */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+#define WT_UPDATE_DS 0x001u              /* Update has been chosen to the data store. */
+#define WT_UPDATE_DURABLE 0x002u         /* Update has been durable. */
+#define WT_UPDATE_HS 0x004u              /* Update has been written to hs. */
+#define WT_UPDATE_HS_MAX_STOP 0x008u     /* Update has been written to hs with a max stop. */
+#define WT_UPDATE_PREPARE_DURABLE 0x010u /* Prepared update has been durable. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x020u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x040u   /* Fast truncate instantiation. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x080u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x100u         /* Update restored from history store. */
+#define WT_UPDATE_RESTORED_FROM_INGEST 0x200u     /* Update restored from ingest btree. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x400u         /* Used by dry run to mark a would-be abort. */
+                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the

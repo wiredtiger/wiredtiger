@@ -1448,7 +1448,7 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     session_ret = NULL;
     WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
-    session_ret->name = "connection-open-session";
+    __wt_atomic_store_ptr_relaxed(&session_ret->name, "connection-open-session");
     *wt_sessionp = &session_ret->iface;
 
 err:
@@ -2416,6 +2416,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_slow_truncate_follower", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
@@ -2442,6 +2448,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_truncate", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.stress_skiplist", &cval));
     if (cval.val)
@@ -2552,6 +2564,7 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"configuration", WT_VERB_CONFIGURATION},
+      {"cross_checkpoint_cache", WT_VERB_CROSS_CHECKPOINT_CACHE},
       {"disaggregated_storage", WT_VERB_DISAGGREGATED_STORAGE},
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"eviction", WT_VERB_EVICTION},
       {"extension", WT_VERB_EXTENSION}, {"fileops", WT_VERB_FILEOPS},
@@ -2907,16 +2920,13 @@ err:
 static int
 __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_NOCONF(conn, session, set_key_provider);
-
-    /* The configuration string has no use but may be useful at a later time. */
-    if (config != NULL)
-        WT_ERR_MSG(session, EINVAL, "key provider configuration currently not supported.");
+    CONNECTION_API_CALL(conn, session, set_key_provider, config, cfg);
 
     /* You can only enable the key provider system in disaggregated mode. */
     if (__wt_conn_is_disagg(session))
@@ -2927,6 +2937,13 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
      */
     if (conn->key_provider != NULL)
         WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
+
+    WT_ERR(__wt_config_gets(session, cfg, "version", &cval));
+    if (cval.val == 1) {
+        F_SET(conn, WT_CONN_KEY_PROVIDER_PUSH);
+        /* Install the WT-implemented set_key for the module to call. */
+        key_provider->set_key = __wti_disagg_set_crypt_key;
+    }
 
     conn->key_provider = key_provider;
 
