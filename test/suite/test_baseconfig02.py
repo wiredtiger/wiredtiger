@@ -45,11 +45,11 @@ class test_baseconfig02(wttest.WiredTigerTestCase):
     def test_baseconfig02(self):
         # Default (relaxed) reopen without the extension: warning logged, open succeeds.
         self.include_extension = False
-        with self.expectedStdoutPattern('configured with early_load=true but was not passed'):
+        with self.expectedStdoutPattern('early_load=true extension .* was not passed in the open configuration'):
             self.reopen_conn()
 
         # Strict reopen without the extension: wiredtiger_open must fail with EINVAL.
-        with self.expectedStderrPattern('configured with early_load=true but was not passed'):
+        with self.expectedStderrPattern('early_load=true extension .* was not passed in the open configuration'):
             self.assertRaises(wiredtiger.WiredTigerError,
               lambda: self.reopen_conn(config='extensions_strict=true'))
 

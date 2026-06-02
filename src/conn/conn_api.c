@@ -1141,13 +1141,13 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
         if (dlh == NULL) {
             if (strict)
                 WT_ERR_MSG(session, EINVAL,
-                  "extension \"%.*s\" is configured with early_load=true but was not passed to "
-                  "wiredtiger_open",
+                  "early_load=true extension \"%.*s\" was not passed in the open configuration",
                   (int)skey.len, skey.str);
-            __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "extension \"%.*s\" is configured with early_load=true but was not passed to "
-              "wiredtiger_open; it will be absent from this connection",
-              (int)skey.len, skey.str);
+            else
+                __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
+                  "early_load=true extension \"%.*s\" was not passed in the open configuration; "
+                  "it will be absent from this connection",
+                  (int)skey.len, skey.str);
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
