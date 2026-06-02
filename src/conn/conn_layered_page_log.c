@@ -466,7 +466,7 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_PENDING_CRYPT_KEY *entry, *tail;
+    WT_DISAGG_PENDING_CRYPT_KEY *entry;
     WT_SESSION_IMPL *session;
     wt_timestamp_t stable_ts;
 
@@ -485,18 +485,17 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
           " must be strictly greater than the stable timestamp %" PRIu64,
           crypt->timestamp, stable_ts);
 
-    tail = TAILQ_LAST(
-      &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
-    if (tail != NULL && crypt->timestamp <= tail->timestamp)
+    if (crypt->timestamp <= conn->disaggregated_storage.last_set_crypt_ts)
         WT_RET_MSG(session, EINVAL,
           "set_key timestamp %" PRIu64
           " must be strictly greater than the last pushed timestamp %" PRIu64,
-          crypt->timestamp, tail->timestamp);
+          crypt->timestamp, conn->disaggregated_storage.last_set_crypt_ts);
 
     WT_RET(__wt_calloc_one(session, &entry));
     WT_ERR(__wt_buf_set(session, &entry->keys, crypt->keys.data, crypt->keys.size));
     entry->timestamp = crypt->timestamp;
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.pending_crypt_key_qh, entry, q);
+    conn->disaggregated_storage.last_set_crypt_ts = crypt->timestamp;
 
     return (0);
 

@@ -72,9 +72,10 @@ typedef struct {
     WT_EXTENSION_API *wtext;
 
     /* Configuration options */
-    int version;     /* Provider version: 0 (pull, default) or 1 (push). */
-    int verbose;     /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
-    int key_expires; /* Key expiration time in seconds, or special values as described above */
+    int version;       /* Provider version: 0 (pull, default) or 1 (push). */
+    int verbose;       /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
+    int key_expires;   /* Key expiration time in seconds, or special values as described above */
+    int force_push_ts; /* If non-zero, every push uses this timestamp instead of next_push_ts. */
 
     /* Monotonic counter used to stamp pushed keys; strictly increases across set_key calls. */
     uint64_t next_push_ts;

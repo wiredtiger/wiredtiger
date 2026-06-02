@@ -298,9 +298,12 @@ struct __wt_disaggregated_storage {
     /*
      * Keys pushed since the last checkpoint, drained at the next checkpoint. set_key callers are
      * assumed to be serialized by the module; the consumer runs under the checkpoint lock.
+     * last_set_crypt_ts is a connection-wide watermark of the highest timestamp ever accepted by
+     * set_key; subsequent pushes must use a strictly greater timestamp even after a queue drain.
      */
     TAILQ_HEAD(__wt_disagg_pending_crypt_key_qh, __wt_disagg_pending_crypt_key)
     pending_crypt_key_qh;
+    wt_timestamp_t last_set_crypt_ts;
 
     uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */

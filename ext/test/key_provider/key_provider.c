@@ -179,7 +179,8 @@ kp_push_active_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
     local_crypt.keys.data = kp->state.key_data;
     local_crypt.keys.size = kp->state.key_size;
     local_crypt.r.lsn = kp->state.lsn;
-    local_crypt.timestamp = kp->next_push_ts++;
+    local_crypt.timestamp =
+      (kp->force_push_ts != 0) ? (uint64_t)kp->force_push_ts : kp->next_push_ts++;
 
     if ((ret = wtkp->set_key(wtkp, session, &local_crypt)) != 0)
         LOG_ERROR(kp, session, "Failed to push loaded key: %d", ret);
@@ -451,6 +452,8 @@ kp_configure(KEY_PROVIDER *kp, WT_CONFIG_ARG *config)
             continue;
         else if (configure_int("key_expires", &k, &v, &kp->key_expires) == 0)
             continue;
+        else if (configure_int("force_push_ts", &k, &v, &kp->force_push_ts) == 0)
+            continue;
 
         LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s",
           (int)k.len, k.str, (int)v.len, v.str);
@@ -531,8 +534,9 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     }
 
     LOG_INFO(kp, NULL,
-      "Key provider initialized successfully; config: {version=%d, verbose=%d, key_expires=%d}",
-      kp->version, kp->verbose, kp->key_expires);
+      "Key provider initialized successfully; config: {version=%d, verbose=%d, key_expires=%d, "
+      "force_push_ts=%d}",
+      kp->version, kp->verbose, kp->key_expires, kp->force_push_ts);
 
     /* One-shot key expiration: first get_key call always expires the key. */
     KEY_ONESHOT_EXPIRE(kp);
