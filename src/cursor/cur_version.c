@@ -1088,6 +1088,275 @@ err:
 }
 
 /*
+ * __curversion_search_near_compare --
+ *     Compare the file cursor's current position against the search key for search-near. Row-store
+ *     compares keys through the collator; column-store compares record numbers.
+ */
+static int
+__curversion_search_near_compare(WT_SESSION_IMPL *session, WT_CURSOR *file_cursor,
+  WT_ITEM *search_key, uint64_t search_recno, int *cmpp)
+{
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)file_cursor;
+
+    if (CUR2BT(cbt)->type == BTREE_ROW)
+        return (__wt_compare(session, CUR2BT(cbt)->collator, &file_cursor->key, search_key, cmpp));
+
+    *cmpp = cbt->recno < search_recno ? -1 : cbt->recno == search_recno ? 0 : 1;
+    return (0);
+}
+
+/*
+ * __curversion_position_key --
+ *     Establish a clean key-only position on an existing key. The key must exist, so the exact
+ *     search always succeeds. Row-store positions by key bytes, column-store by record number.
+ */
+static int
+__curversion_position_key(
+  WT_SESSION_IMPL *session, WT_CURSOR *file_cursor, WT_ITEM *key, uint64_t recno)
+{
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)file_cursor;
+
+    WT_RET(file_cursor->reset(file_cursor));
+    if (CUR2BT(cbt)->type == BTREE_ROW)
+        WT_RET(__wt_buf_set(session, &file_cursor->key, key->data, key->size));
+    else
+        file_cursor->recno = recno;
+    F_SET(file_cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_ONLY);
+    return (__wt_btcur_search(cbt));
+}
+
+/*
+ * __curversion_position_boundary --
+ *     Position the file cursor, in key-only mode, on the boundary key for a search-near phase: when
+ *     at_or_after is true, the smallest key greater than or equal to the search key; otherwise the
+ *     largest key strictly less than it. Returns WT_NOTFOUND when no such key exists. The version
+ *     cursor must observe every key, including ones whose newest committed value is a tombstone, so
+ *     all positioning here runs in key-only mode and steps key by key rather than using the btree
+ *     search-near (which skips records that are not visible to the reader's snapshot, and is not
+ *     safe to run in key-only mode). Stepping off either end of the tree resets the cursor, so the
+ *     best candidate seen so far is tracked separately and the cursor is re-positioned on it before
+ *     returning.
+ */
+static int
+__curversion_position_boundary(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor,
+  WT_ITEM *search_key, uint64_t search_recno, WT_ITEM *anchor_key, uint64_t anchor_recno,
+  bool at_or_after)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(candidate);
+    WT_DECL_RET;
+    uint64_t candidate_recno;
+    int cmp;
+    bool have_candidate;
+
+    file_cursor = version_cursor->file_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+    candidate_recno = 0;
+    have_candidate = false;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &candidate));
+    WT_ERR(__curversion_position_key(session, file_cursor, anchor_key, anchor_recno));
+    WT_ERR(__curversion_search_near_compare(session, file_cursor, search_key, search_recno, &cmp));
+
+    /*
+     * The walk direction is fixed by which side of the search key the anchor falls on. If the
+     * anchor is already on the requested side we step away from the search key tracking the closest
+     * key that still qualifies; if it is on the wrong side we step towards the search key and the
+     * first key that reaches the requested side is the answer.
+     */
+    if (at_or_after ? cmp >= 0 : cmp < 0) {
+        /* On the requested side: keep the closest qualifying key as we step away. */
+        for (;;) {
+            WT_ERR(__wt_buf_set(session, candidate, file_cursor->key.data, file_cursor->key.size));
+            candidate_recno = cbt->recno;
+            have_candidate = true;
+
+            F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
+            if (at_or_after)
+                WT_ERR_NOTFOUND_OK(__wt_btcur_prev(cbt, false), true);
+            else
+                WT_ERR_NOTFOUND_OK(__wt_btcur_next(cbt, false), true);
+            if (ret == WT_NOTFOUND)
+                break;
+
+            WT_ERR(__curversion_search_near_compare(
+              session, file_cursor, search_key, search_recno, &cmp));
+            if (at_or_after ? cmp < 0 : cmp >= 0)
+                break;
+        }
+    } else {
+        /* On the wrong side: step towards the search key until we reach the requested side. */
+        for (;;) {
+            F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
+            if (at_or_after)
+                WT_ERR_NOTFOUND_OK(__wt_btcur_next(cbt, false), true);
+            else
+                WT_ERR_NOTFOUND_OK(__wt_btcur_prev(cbt, false), true);
+            if (ret == WT_NOTFOUND)
+                break;
+
+            WT_ERR(__curversion_search_near_compare(
+              session, file_cursor, search_key, search_recno, &cmp));
+            if (at_or_after ? cmp >= 0 : cmp < 0) {
+                WT_ERR(
+                  __wt_buf_set(session, candidate, file_cursor->key.data, file_cursor->key.size));
+                candidate_recno = cbt->recno;
+                have_candidate = true;
+                break;
+            }
+        }
+    }
+
+    if (!have_candidate) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+
+    ret = __curversion_position_key(session, file_cursor, candidate, candidate_recno);
+
+err:
+    __wt_scr_free(session, &candidate);
+    return (ret);
+}
+
+/*
+ * __curversion_search_near --
+ *     WT_CURSOR->search_near method for version cursors. Position on the closest key that has a
+ *     version visible under the cursor's filter, biasing towards keys greater than or equal to the
+ *     search key, and load its newest visible version so the caller can iterate forward.
+ */
+static int
+__curversion_search_near(WT_CURSOR *cursor, int *exactp)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_ITEM(anchor_key);
+    WT_DECL_ITEM(search_key);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    WT_TXN *txn = NULL;
+    uint64_t anchor_recno, search_recno;
+    bool clear_ignore_prepare;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    file_cursor = version_cursor->file_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+    clear_ignore_prepare = false;
+
+    CURSOR_API_CALL(cursor, session, ret, search_near, cbt->dhandle);
+    txn = session->txn;
+
+    /* The global visibility must not move while we walk versions, so require snapshot isolation. */
+    if (txn->isolation != WT_ISO_SNAPSHOT)
+        WT_ERR_SUB(session, WT_ROLLBACK, WT_NONE,
+          "version cursor can only be called with snapshot isolation");
+
+    WT_ERR(__cursor_checkkey(file_cursor));
+    if (F_ISSET(file_cursor, WT_CURSTD_KEY_INT))
+        WT_ERR_SUB(
+          session, WT_ROLLBACK, WT_NONE, "version cursor cannot be called when it is positioned");
+
+    /* The forward and backward phases both search from the original key, so save a copy. */
+    WT_ERR(__wt_scr_alloc(session, file_cursor->key.size, &search_key));
+    WT_ERR(__wt_buf_set(session, search_key, file_cursor->key.data, file_cursor->key.size));
+    search_recno = file_cursor->recno;
+
+    /*
+     * Find a real key to anchor the key-only walk on. The btree search-near reads a value, so it
+     * cannot run in key-only mode, but it conveniently handles the empty-tree case and lands on an
+     * existing key regardless of the requested bias. Ignore prepared conflicts while anchoring: the
+     * version cursor surfaces prepared updates through its own walk below, and the anchor only
+     * needs some committed key to seed it; without this, search-near on a prepared key returns
+     * WT_PREPARE_CONFLICT.
+     */
+    F_CLR(file_cursor, WT_CURSTD_KEY_ONLY);
+    if (!F_ISSET(txn, WT_TXN_IGNORE_PREPARE)) {
+        F_SET(txn, WT_TXN_IGNORE_PREPARE);
+        clear_ignore_prepare = true;
+    }
+    WT_ERR_NOTFOUND_OK(__wt_btcur_search_near(cbt, NULL), true);
+    if (clear_ignore_prepare) {
+        F_CLR(txn, WT_TXN_IGNORE_PREPARE);
+        clear_ignore_prepare = false;
+    }
+    if (ret == WT_NOTFOUND)
+        goto notfound;
+    WT_ERR(__wt_scr_alloc(session, file_cursor->key.size, &anchor_key));
+    WT_ERR(__wt_buf_set(session, anchor_key, file_cursor->key.data, file_cursor->key.size));
+    anchor_recno = cbt->recno;
+
+    /*
+     * Forward phase: position on the smallest key at or after the search key, then walk forward
+     * until we find a key with a version visible under the filter.
+     */
+    WT_ERR(__curversion_version_reset(version_cursor));
+    WT_ERR_NOTFOUND_OK(__curversion_position_boundary(session, version_cursor, search_key,
+                         search_recno, anchor_key, anchor_recno, true),
+      true);
+    if (ret == WT_NOTFOUND)
+        goto backward;
+
+    for (;;) {
+        WT_ERR(__curversion_skip_starting_updates(session, version_cursor));
+        WT_ERR_NOTFOUND_OK(__curversion_next_single_key(cursor), true);
+        if (ret == 0)
+            goto found;
+
+        WT_ERR(__curversion_version_reset(version_cursor));
+        F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
+        WT_ERR_NOTFOUND_OK(__wt_btcur_next(cbt, false), true);
+        if (ret == WT_NOTFOUND)
+            break;
+    }
+
+backward:
+    /*
+     * Backward phase: no visible version at or after the search key, so walk backward from the
+     * largest preceding key, returning the first one with a version visible under the filter.
+     */
+    WT_ERR(__curversion_version_reset(version_cursor));
+    WT_ERR_NOTFOUND_OK(__curversion_position_boundary(session, version_cursor, search_key,
+                         search_recno, anchor_key, anchor_recno, false),
+      true);
+    if (ret == WT_NOTFOUND)
+        goto notfound;
+
+    for (;;) {
+        WT_ERR(__curversion_skip_starting_updates(session, version_cursor));
+        WT_ERR_NOTFOUND_OK(__curversion_next_single_key(cursor), true);
+        if (ret == 0)
+            goto found;
+
+        WT_ERR(__curversion_version_reset(version_cursor));
+        F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
+        WT_ERR_NOTFOUND_OK(__wt_btcur_prev(cbt, false), true);
+        if (ret == WT_NOTFOUND)
+            goto notfound;
+    }
+
+found:
+    WT_ERR(
+      __curversion_search_near_compare(session, file_cursor, search_key, search_recno, exactp));
+    ret = 0;
+    if (0) {
+notfound:
+        ret = WT_NOTFOUND;
+    }
+
+err:
+    /* Restore the transaction's ignore-prepare state if an error left it set. */
+    if (clear_ignore_prepare)
+        F_CLR(txn, WT_TXN_IGNORE_PREPARE);
+    __wt_scr_free(session, &search_key);
+    __wt_scr_free(session, &anchor_key);
+    if (ret != 0)
+        WT_TRET(cursor->reset(cursor));
+    API_END_RET(session, ret);
+}
+
+/*
  * __curversion_close --
  *     WT_CURSOR->close method for version cursors.
  */
@@ -1140,7 +1409,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
       __wt_cursor_notsup,                              /* prev */
       __curversion_reset,                              /* reset */
       __curversion_search,                             /* search */
-      __wt_cursor_search_near_notsup,                  /* search-near */
+      __curversion_search_near,                        /* search-near */
       __wt_cursor_notsup,                              /* insert */
       __wt_cursor_modify_notsup,                       /* modify */
       __wt_cursor_notsup,                              /* update */
