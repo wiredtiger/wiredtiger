@@ -90,27 +90,25 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
-     * statistics=(all) triggers a btree walk inside the statistics cursor's open path, so a corrupt
-     * leaf is hit before util_stat ever sees the cursor. The session-level quiet flag must be live
-     * during that walk. The wrinkle: scoped set/clear pairs in the dhandle-open path (notably the
-     * root-page read in __btree_tree_open and five similar sites) unconditionally clear the flag on
-     * exit. We work around that by pre-loading the dhandle with a throwaway cursor open + close
-     * (caches the dhandle, lets the scoped clear fire harmlessly), then setting the flag before
-     * opening the statistics cursor, which reuses the cached dhandle and skips the scoped clear.
+     * The dhandle-open path unconditionally clears the WT_SESSION_QUIET_CORRUPT_FILE flag on exit.
+     * Pre-loading the dhandle (caches the dhandle), then setting the flag before opening the
+     * statistics cursor reuses the cached dhandle and skips the scoped clear.
      *
-     * Scope: this only covers leaf-page corruption. If the pre-load fails because the root or other
+     * Only covers leaf-page corruption. If the pre-load fails because the root or other
      * dhandle-open block is corrupt, the dhandle is not cached, the subsequent statistics cursor
-     * open re-enters the same scoped-clear path, the flag is wiped, and the walk panics. The
-     * principled fix is save-and-restore at the scoped set/clear sites; that is left as a follow-up
-     * since it touches several subsystems beyond the wt utility.
+     * open enters scoped-clear path, the flag is wiped, and the walk panics.
      */
-    if (quiet_corrupt) {
+    if (quiet_corrupt && objname_free) {
         WT_CURSOR *prewarm;
         if (session->open_cursor(session, objname, NULL, NULL, &prewarm) == 0)
             (void)prewarm->close(prewarm);
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
     }
 
+    /*
+     * Corrupt reads are caught here. Unless fast mode is enabled, the cursor walks the entire btree
+     * including the leaf pages, which could be corrupt.
+     */
     if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
         fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
           session->strerror(session, ret));
@@ -118,9 +116,8 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
-     * List the statistics. In quiet-corrupt mode (global -q) a cursor error mid-iteration is
-     * reported and we end the loop gracefully so any partial output is flushed; the command still
-     * exits non-zero.
+     * List the statistics. In quiet-corrupt mode a cursor error mid-iteration is reported and exits
+     * gracefully so any partial output is flushed.
      */
     while ((ret = cursor->next(cursor)) == 0 &&
       (ret = cursor->get_value(cursor, &desc, &pval, NULL)) == 0)
@@ -134,7 +131,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     if (ret != 0) {
         fprintf(stderr, "%s: cursor get(%s) failed: %s\n", progname, objname,
           session->strerror(session, ret));
-        if (!F_ISSET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE))
+        if (!quiet_corrupt)
             goto err;
         ret = 1;
     }

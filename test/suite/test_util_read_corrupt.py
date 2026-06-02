@@ -135,7 +135,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         process-creation limit."""
         return ['%08d' % i for i in range(self.nentries)]
 
-    # ---------- dump (full table walk: dump_all_records path) ----------
+    # ---------- dump ----------
 
     def test_dump_without_q_fails(self):
         # Baseline: dump on corrupt data must panic, not exit gracefully.
@@ -233,7 +233,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             'apparently completed and corruption was not hit, so this '
             'test exercised nothing' % last_key_line.rstrip())
 
-    # ---------- dump_record return-code regressions (no corruption) ----------
+    # ---------- dump_record return-code regressions (no corruption) outside scope ----------
 
     def test_dump_missing_key_exits_zero(self):
         self.setup_clean_table()
@@ -344,22 +344,11 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     # ---------- stat ----------
 
     def test_stat_without_q_fails(self):
-        # Baseline: `wt stat` invokes statistics=(all), which walks every
-        # page during cursor open. Without -q the walk must panic on the
-        # corrupt leaf rather than reporting a graceful error; otherwise
-        # the block-layer panic suppression has leaked into the default
-        # path.
         self.setup_corrupt_leaf_table()
         self.runWt(['stat', self.uri],
             outfilename='stat_no_q.out', errfilename='stat_no_q.err', failure=True)
 
     def test_stat_with_q_does_not_crash_on_corrupt(self):
-        # The stats walk runs to completion (or error) before any output is
-        # produced, so "partial output" isn't a meaningful contract here.
-        # The realistic contract for -q on stat is "do not crash"; rc == 1
-        # is the graceful WT_ERROR path, rc == 0 means the walk happened
-        # not to touch the corrupted offset on this build. Both are
-        # acceptable; anything else indicates a crash.
         self.setup_corrupt_leaf_table()
         argv = [self._wt_path(), '-q', 'stat', self.uri]
         with open('stat_q.out', 'w') as out, open('stat_q.err', 'w') as err:
@@ -368,30 +357,15 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             'wt -q stat exited with unexpected status %d (expected 0 or 1, '
             'a higher code indicates the process crashed instead of returning '
             'a quiet-corrupt error)' % rc)
-        # When the walk did hit corruption, stderr must carry the WT_ERROR
-        # diagnostic so a future silent regression of the quiet-corrupt
-        # error path is caught here rather than slipping through as
-        # "rc == 1, no message".
         if rc == 1:
             self.check_non_empty_file('stat_q.err')
 
-    # ---------- list (metadata happy path; metadata-corruption pair TODO) ----------
+    # ---------- list ----------
 
     def test_list_with_q_still_lists_uris(self):
         # `wt list` reads the metadata cursor (WiredTiger.wt), not the
         # user table, so this test exercises the happy path: a corrupted
         # user-table leaf page must not block the metadata listing.
-        #
-        # No without-q baseline pair lives here because the obvious one
-        # (corrupt WiredTiger.wt, then run `wt list`) crashes the
-        # connection during open  well before util_list gets to set the
-        # quiet-corrupt flag. The connection-open path reads the
-        # metadata btree to populate dhandles regardless of -q, so any
-        # reachable corrupt metadata leaf is fatal with or without -q
-        # under the current design. The list_print post-loop error
-        # softening in the PR therefore only fires for metadata
-        # corruption that survives a successful connection open, which
-        # isn't reproducible without a connection-level quiet mode.
         self.setup_corrupt_leaf_table()
         self.runWt(['-q', 'list'],
             outfilename='list_q.out', errfilename='list_q.err')
@@ -403,11 +377,6 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     # ---------- verify -c regression coverage ----------
 
     def test_verify_c_still_works_with_q_landed(self):
-        # Regression coverage for "confirm `wt verify -c` behavior is
-        # unchanged": run it on the same corrupted table and assert the
-        # expected checksum-error diagnostic. `wt verify` is intentionally
-        # excluded from the -q set; this test exercises the original -c
-        # path that this PR must not regress.
         self.setup_corrupt_leaf_table()
         self.runWt(['-p', 'verify', '-c', self.uri],
             outfilename='verifyc.out', errfilename='verifyc.err', failure=True)
@@ -420,8 +389,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_q_rejected_on_write_command(self):
         # The dispatcher must reject -q for commands that are not on the
-        # read-oriented list. `create` is a good representative of the
-        # rejected set.
+        # read-oriented list.
         self.close_conn()
         self.runWt(['-q', 'create', '-c', 'key_format=S,value_format=S',
                     'table:does_not_matter'],

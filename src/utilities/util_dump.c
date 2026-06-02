@@ -248,9 +248,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             goto err;
         }
         /*
-         * Enter quiet-corrupt mode now that the dhandle is open (internal scoped set/clear pairs in
-         * the open path would otherwise wipe a pre-set flag). The flag stays set for the rest of
-         * the cursor's lifetime.
+         * Enter quiet-corrupt mode now that the dhandle is open. In this mode, an error will report
+         * the error and exit gracefully. The dump cannot be continued.
          */
         if (quiet_corrupt)
             F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
@@ -820,10 +819,7 @@ dump_record(
     if (ret != 0)
         WT_ERR(util_cerr(cursor, "search_near", ret));
 
-    /*
-     * Unable to find the exact key specified. This is not a fatal error: the user asked for one
-     * key, no record matches, so there is simply nothing to dump. ret is already 0 here.
-     */
+    /* Unable to find the exact key specified. */
     if (exact != 0 && !search_near)
         goto err;
 
@@ -859,10 +855,6 @@ dump_record(
             WT_ERR(print_record(cursor, json));
             if ((ret = fwd(cursor)) != 0) {
                 if (ret == WT_NOTFOUND) {
-                    /*
-                     * The window ran past the last record. That is the natural end of the dump, not
-                     * an error. Clear ret so the caller sees success.
-                     */
                     ret = 0;
                     break;
                 }
@@ -901,19 +893,12 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
         once = true;
     }
 
-    if (ret != WT_NOTFOUND) {
-        /*
-         * In quiet-corrupt mode (global -q) we report the cursor error and end iteration gracefully
-         * so the caller can finish writing any partial output. The command still exits non-zero.
-         */
-        (void)util_err(session, ret, reverse ? "WT_CURSOR.prev" : "WT_CURSOR.next");
-        if (!F_ISSET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE))
-            return (1);
-    }
+    if (ret != WT_NOTFOUND)
+        return (util_err(session, ret, reverse ? "WT_CURSOR.prev" : "WT_CURSOR.next"));
 
     if (json && once && fprintf(fp, "\n") < 0)
         return (util_err(session, EIO, NULL));
-    return (ret == WT_NOTFOUND ? 0 : 1);
+    return (0);
 }
 
 /*

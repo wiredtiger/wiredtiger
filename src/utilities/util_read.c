@@ -62,11 +62,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     if (ret != 0)
         return (ret);
 
-    /*
-     * Enter quiet-corrupt mode now that the dhandle is open: internal scoped set/clear pairs in the
-     * open path would otherwise wipe a pre-set flag. The flag stays set for the rest of the
-     * cursor's lifetime.
-     */
+    /* Enter quiet-corrupt mode now that the dhandle is open. */
     if (quiet_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 
@@ -89,8 +85,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
 
     /*
      * Run through the keys, returning non-zero on error or if any requested key isn't found. In
-     * quiet-corrupt mode (global -q) a search failure on one key is reported and we continue with
-     * the remaining keys so the caller still gets the values that are readable.
+     * quiet-corrupt mode a search failure on a key is reported and we continue.
      */
     for (rval = false; *++argv != NULL;) {
         if (rkey) {
@@ -113,7 +108,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
             break;
         default:
             (void)util_cerr(cursor, "search", ret);
-            if (!F_ISSET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE))
+            if (!quiet_corrupt)
                 return (1);
             rval = true;
             break;
