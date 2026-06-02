@@ -57,16 +57,6 @@ class test_layered_checkpoint06(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered_checkpoint06', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    # Wait for a checkpoint to start running
-    def wait_for_checkpoint_start(self):
-        while True:
-            stat_cursor = self.session.open_cursor('statistics:')
-            state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
-            stat_cursor.close()
-            if state != 0:
-                break
-            time.sleep(0.1)
-
     # Test stepping up concurrently with a checkpoint.
     def test_layered_checkpoint06(self):
         self.conn.reconfigure('disaggregated=(role="leader")')

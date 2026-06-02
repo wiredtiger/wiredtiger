@@ -471,6 +471,25 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.close_conn()
         self.open_conn(directory, config)
 
+    def wait_for_checkpoint_start(self, session=None, timeout=60):
+        """
+        Poll until a checkpoint is running (the checkpoint_state connection statistic becomes
+        non-zero). Bounded so the test fails fast with a clear message instead of spinning to a
+        task-level timeout if a checkpoint never starts.
+        """
+        if session == None:
+            session = self.session
+        deadline = time.time() + timeout
+        while True:
+            stat_cursor = session.open_cursor('statistics:')
+            state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
+            stat_cursor.close()
+            if state != 0:
+                break
+            self.assertLess(time.time(), deadline,
+                'checkpoint did not start running within %d seconds' % timeout)
+            time.sleep(0.1)
+
     @contextmanager
     def transaction(self, session=None, begin_config=None, commit_config=None,
                     commit_timestamp=None, read_timestamp=None, rollback=False):

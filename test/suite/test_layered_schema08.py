@@ -66,15 +66,6 @@ class test_layered_schema08(wttest.WiredTigerTestCase):
             uris += ['table:' + self.uri_base, 'colgroup:' + self.uri_base]
         return uris
 
-    def wait_for_checkpoint_start(self):
-        while True:
-            stat_cursor = self.session.open_cursor('statistics:')
-            state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
-            stat_cursor.close()
-            if state != 0:
-                break
-            time.sleep(0.1)
-
     def check_shared_metadata(self, expect_contains=None, expect_missing=None):
         cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
         metadata = {}
