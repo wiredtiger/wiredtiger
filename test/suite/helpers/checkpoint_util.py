@@ -31,7 +31,7 @@ import wttest
 from wiredtiger import stat
 
 # checkpoint_util.py
-# Shared base class used by checkpoint tests.
+# Base class providing checkpoint-related helpers.
 class checkpoint_util(wttest.WiredTigerTestCase):
 
     def wait_for_checkpoint_start(self, session=None, timeout=60, poll_interval=0.1):
