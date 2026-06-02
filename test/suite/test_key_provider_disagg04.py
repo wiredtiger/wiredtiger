@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import json, os, subprocess
+import json, os, struct, subprocess
 import wttest
 from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages, get_shard_id
@@ -73,13 +73,10 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
             f'WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID} '
             f'ORDER BY lsn ASC;')
 
-    def header_timestamp_hex(self, hex_page):
-        # page_data is a hex string (2 chars per byte). The 8-byte little-endian timestamp starts at
-        # byte offset 16; reverse the byte order to big-endian so the fixed-width hex string sorts in
-        # numeric order.
-        start = self.CRYPT_HEADER_TIMESTAMP_OFFSET * 2
-        le = hex_page[start:start + 16]
-        return ''.join(reversed([le[i:i + 2] for i in range(0, len(le), 2)]))
+    def header_timestamp(self, hex_page):
+        # The WT_CRYPT_HEADER stores the pushed timestamp as a little-endian uint64 at byte offset 16.
+        data = bytes.fromhex(hex_page)
+        return struct.unpack_from('<Q', data, self.CRYPT_HEADER_TIMESTAMP_OFFSET)[0]
 
     def validate_key_provider_pages(self, expected_count_min):
         # Every page references the main KEK page, and both the LSN and the pushed timestamp must
@@ -87,11 +84,11 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
         rows = self.key_provider_pages()
         self.assertGreaterEqual(len(rows), expected_count_min)
         previous_lsn = -1
-        previous_ts = ""
+        previous_ts = -1
         for row in rows:
             self.assertEqual(row['page_id'], self.MAIN_KEK_PAGE_ID)
             self.assertGreater(row['lsn'], previous_lsn)
-            timestamp = self.header_timestamp_hex(row['hex'])
+            timestamp = self.header_timestamp(row['hex'])
             self.assertGreater(timestamp, previous_ts)
             previous_lsn = row['lsn']
             previous_ts = timestamp
