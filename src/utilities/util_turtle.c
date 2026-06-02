@@ -149,8 +149,11 @@ static int
 fetch_latest_turtle(WT_SESSION_IMPL *session, uint64_t *lsnp, WT_ITEM *meta)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_PAGE_LOG *page_log;
     WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
+
+    WT_CLEAR(args);
 
     conn = S2C(session);
     if (conn->disaggregated_storage.npage_log == NULL)
@@ -164,14 +167,20 @@ fetch_latest_turtle(WT_SESSION_IMPL *session, uint64_t *lsnp, WT_ITEM *meta)
           "this page log does not implement pl_get_complete_checkpoint; "
           "pass -l <lsn> to dump the metadata page at a known LSN instead");
 
-    WT_CLEAR(args);
-    WT_RET(page_log->pl_get_complete_checkpoint(page_log, &session->iface, &args));
+    /*
+     * The page log may allocate into args.checkpoint_metadata before returning a
+     * non-zero status. Mirror __wti_layered_get_disagg_checkpoint and free on
+     * any non-success path; on success, transfer ownership to the caller.
+     */
+    ret = page_log->pl_get_complete_checkpoint(page_log, &session->iface, &args);
+    if (ret == 0) {
+        *lsnp = args.checkpoint_lsn;
+        *meta = args.checkpoint_metadata;
+        WT_CLEAR(args.checkpoint_metadata);
+    } else
+        __wt_buf_free(session, &args.checkpoint_metadata);
 
-    *lsnp = args.checkpoint_lsn;
-    *meta = args.checkpoint_metadata;
-    WT_CLEAR(args.checkpoint_metadata);
-
-    return (0);
+    return (ret);
 }
 
 /*
