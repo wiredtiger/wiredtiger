@@ -122,8 +122,10 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
             f'=== metadata page (table_id=2, page_id=1, lsn={first_metadata_lsn}) ===',
             stdout_old)
         self.assertIn('checkpoint=', stdout_old)
-        # No checksum line because the user supplied an arbitrary LSN, not a turtle's pointer.
-        self.assertNotIn('checksum=', stdout_old)
+        # No checksum verification line because the user supplied an arbitrary LSN, not a
+        # turtle's pointer; the metadata page body itself contains no `checksum=` token.
+        self.assertNotIn('checksum=OK', stdout_old)
+        self.assertNotIn('checksum=MISMATCH', stdout_old)
 
 if __name__ == '__main__':
     wttest.run()
