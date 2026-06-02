@@ -34,9 +34,9 @@ from wiredtiger import stat
 
 # test_leaf_delta_disagg02.py
 # Test that reconciliation writes a full page instead of a delta when enough of the leaf
-# page's entries are globally-visible deletes (WT-16239). A delete written to a delta
-# occupies disk space; the same entry is simply absent from a full page. The threshold
-# is controlled by page_delta.delete_pct.
+# page's entries are globally-visible deletes. A delete written to a delta occupies
+# disk space; the same entry is simply absent from a full page. The threshold is
+# controlled by page_delta.delete_pct.
 @disagg_test_class
 class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
@@ -131,7 +131,7 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
     def test_delete_threshold_exceeded(self):
         """
-        Delete 7 of 10 keys (70% of the page) — above the 50% delete_pct threshold.
+        Delete 7 of 10 keys (70% of the page)  above the 50% delete_pct threshold.
         Reconciliation must write a full page, not a delta.
         """
         base_ts = 10
@@ -167,7 +167,7 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
     def test_delete_threshold_not_exceeded(self):
         """
-        Delete 3 of 10 keys (30% of the page) but also update 4 others — only 30% deletes,
+        Delete 3 of 10 keys (30% of the page) but also update 4 others  only 30% deletes,
         below the 50% delete_pct threshold. Reconciliation must write a delta.
         """
         base_ts = 10
