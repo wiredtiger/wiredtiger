@@ -207,7 +207,8 @@ fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
     count = 1;
-    WT_RET(plh->plh_get(plh, &session->iface, 1, 0, &get_args, item, &count));
+    WT_RET(plh->plh_get(
+      plh, &session->iface, WT_DISAGG_METADATA_MAIN_PAGE_ID, 0, &get_args, item, &count));
     if (count == 0)
         return (WT_NOTFOUND);
     return (0);
@@ -254,7 +255,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     struct util_turtle_fields fields;
     uint64_t lsn, lsn_arg;
     int ch;
-    bool have_lsn_arg;
+    bool have_lsn_arg, suppress_util_err;
 
     session_impl = (WT_SESSION_IMPL *)session;
     WT_CLEAR(meta);
@@ -262,6 +263,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     lsn = 0;
     lsn_arg = 0;
     have_lsn_arg = false;
+    suppress_util_err = false;
 
     while ((ch = __wt_getopt(progname, argc, argv, "l:?")) != EOF)
         switch (ch) {
@@ -306,6 +308,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
             printf("\nmetadata page not found at lsn=%" PRIu64 " (may have been pruned)\n",
               fields.metadata_lsn);
             ret = 1;
+            suppress_util_err = true;
         } else if (ret == 0) {
             print_metadata_page(fields.metadata_lsn, &page_item, fields.have_metadata_checksum,
               fields.metadata_checksum);
@@ -316,7 +319,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
 err:
     __wt_buf_free(session_impl, &meta);
     __wt_buf_free(session_impl, &page_item);
-    if (ret != 0)
+    if (ret != 0 && !suppress_util_err)
         (void)util_err(session, ret, "turtle");
     return (ret == 0 ? 0 : 1);
 }
