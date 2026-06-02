@@ -92,13 +92,6 @@ typedef struct {
 /* Expose function to tests or direct initialization */
 extern int key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config);
 
-/*
- * Test-only hook that invokes WT_KEY_PROVIDER::set_key with the current key bytes and the
- * caller-supplied timestamp. Lets Python tests drive set_key validation from a normal user thread
- * (independent of the checkpoint code path). Returns the set_key error code.
- */
-extern int kp_test_push_key(uint64_t timestamp);
-
 #if defined(__cplusplus)
 }
 #endif

@@ -68,26 +68,6 @@ from packing import pack, unpack
     typedef unsigned int uint32_t;
 %}
 
-/*
- * Test-only wrapper that resolves and invokes the key-provider extension's
- * kp_test_push_key hook at runtime. The Python test suite uses it to drive
- * set_key validation from a user thread, independent of any checkpoint.
- */
-%inline %{
-    #include <dlfcn.h>
-    #include <errno.h>
-
-    int wiredtiger_test_kp_push_key(uint64_t timestamp) {
-        static int (*hook)(uint64_t) = NULL;
-        if (hook == NULL) {
-            hook = (int (*)(uint64_t))dlsym(RTLD_DEFAULT, "kp_test_push_key");
-            if (hook == NULL)
-                return (ENOENT);
-        }
-        return (hook(timestamp));
-    }
-%}
-
 /* Set the input argument to point to a temporary variable */
 %typemap(in, numinputs=0) WT_CONNECTION ** (WT_CONNECTION *temp = NULL) {
 	$1 = &temp;

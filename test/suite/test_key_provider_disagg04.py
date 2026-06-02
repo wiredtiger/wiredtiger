@@ -45,6 +45,7 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_key_provider_disagg04', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
+    MAIN_KEK_PAGE_ID = 1
     WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID = 26
     key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
@@ -55,15 +56,35 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def key_provider_page_count(self):
+    def sqlite_fetch(self, query):
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         database = os.path.join(self.home, 'kv_home', self.key_provider_table)
-        result = subprocess.run(
-            [sqlite_exe, '-json', database,
-             f'SELECT COUNT(*) FROM pages '
-             f'WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID};'],
+        result = subprocess.run([sqlite_exe, '-json', database, query],
             capture_output=True, text=True, check=True)
-        return json.loads(result.stdout)[0]['COUNT(*)']
+        return json.loads(result.stdout)
+
+    # Bytes 0-3 of every persisted key-provider page; spells 'wtch' in little-endian.
+    WT_CRYPT_HEADER_SIGNATURE = "77746368"
+
+    def key_provider_pages(self):
+        # Each row gives us the palite-stored LSN, page id and a hex dump of the page bytes so we
+        # can validate the WT_CRYPT_HEADER directly instead of relying on a text shape.
+        return self.sqlite_fetch(
+            f'SELECT lsn, page_id, hex(page_data) AS hex FROM pages '
+            f'WHERE table_id={self.WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID} '
+            f'ORDER BY lsn ASC;')
+
+    def validate_key_provider_pages(self, expected_count_min):
+        rows = self.key_provider_pages()
+        self.assertGreaterEqual(len(rows), expected_count_min)
+        previous_lsn = -1
+        for row in rows:
+            self.assertEqual(row['page_id'], self.MAIN_KEK_PAGE_ID)
+            self.assertGreater(row['lsn'], previous_lsn)
+            # First four bytes are the WT_CRYPT_HEADER signature; byte 4 is the header version.
+            self.assertTrue(row['hex'].lower().startswith(self.WT_CRYPT_HEADER_SIGNATURE))
+            self.assertEqual(row['hex'][8:10], "02")  # WT_CRYPT_HEADER_VERSION
+            previous_lsn = row['lsn']
 
     def test_multiple_pushes_across_checkpoints(self):
         # Each checkpoint triggers a push via kp_load_key with a strictly increasing
@@ -78,7 +99,7 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
 
         # First checkpoint creates the key-provider page table; sample the baseline after it.
         self.session.checkpoint()
-        baseline = self.key_provider_page_count()
+        baseline = len(self.key_provider_pages())
         self.assertGreaterEqual(baseline, 1)
 
         # Each subsequent checkpoint with a fresh pushed key must persist a new page.
@@ -88,4 +109,6 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
             self.session.checkpoint()
         cursor.close()
 
-        self.assertGreater(self.key_provider_page_count(), baseline)
+        # Validate the palite-stored pages: page count grew, page_id is the main KEK, LSNs
+        # advance strictly, and every header carries the v1 version.
+        self.validate_key_provider_pages(baseline + 1)

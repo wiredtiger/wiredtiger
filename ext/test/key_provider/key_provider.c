@@ -395,50 +395,6 @@ kp_on_key_update(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS
 }
 
 /*
- * Cached pointers from the most recently initialized provider. Lets kp_test_push_key (loaded by the
- * Python suite via dlopen) drive set_key from a normal user thread without touching the checkpoint
- * code path. Single-connection use only.
- */
-static KEY_PROVIDER *g_test_kp = NULL;
-static WT_CONNECTION *g_test_conn = NULL;
-static WT_SESSION *g_test_session = NULL;
-
-/*
- * kp_test_push_key --
- *     Test-only hook that invokes WT_KEY_PROVIDER::set_key with the current key bytes and the
- *     caller-supplied timestamp. Returns the set_key error code.
- */
-int
-kp_test_push_key(uint64_t timestamp)
-{
-    WT_CRYPT_KEYS local_crypt = {{0}, {0}, 0};
-    int ret;
-
-    if (g_test_kp == NULL || g_test_conn == NULL || g_test_kp->iface.set_key == NULL)
-        return (EINVAL);
-
-    /* Session count is zero during early_load; open lazily once the connection is up. */
-    if (g_test_session == NULL &&
-      (ret = g_test_conn->open_session(g_test_conn, NULL, NULL, &g_test_session)) != 0)
-        return (ret);
-
-    local_crypt.keys.data = g_test_kp->state.key_data;
-    local_crypt.keys.size = g_test_kp->state.key_size;
-    local_crypt.r.lsn = g_test_kp->state.lsn;
-    local_crypt.timestamp = timestamp;
-
-    /*
-     * Keep the monotonic counter ahead of the test-driven timestamp regardless of the set_key
-     * outcome. The connection-close checkpoint uses next_push_ts via kp_push_active_key, so the
-     * counter must stay above both the queue tail and any stable timestamp the test has set.
-     */
-    if (timestamp >= g_test_kp->next_push_ts)
-        g_test_kp->next_push_ts = timestamp + 1;
-
-    return (g_test_kp->iface.set_key(&g_test_kp->iface, g_test_session, &local_crypt));
-}
-
-/*
  * kp_terminate --
  *     Cleanup function called when the key provider is being shut down.
  */
@@ -448,13 +404,6 @@ kp_terminate(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
     KEY_PROVIDER *kp = (KEY_PROVIDER *)wtkp;
 
     LOG_INFO(kp, session, "%s", "Terminating key provider");
-
-    if (g_test_kp == kp) {
-        /* The session is owned by the connection; WT closes it during shutdown. */
-        g_test_session = NULL;
-        g_test_conn = NULL;
-        g_test_kp = NULL;
-    }
 
     kp_free_key(kp);
     free(kp);
@@ -584,11 +533,6 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     LOG_INFO(kp, NULL,
       "Key provider initialized successfully; config: {version=%d, verbose=%d, key_expires=%d}",
       kp->version, kp->verbose, kp->key_expires);
-
-    /* Cache for kp_test_push_key. The session is opened lazily on first use because
-     * early-loaded extensions run before the session pool is configured. */
-    g_test_conn = conn;
-    g_test_kp = kp;
 
     /* One-shot key expiration: first get_key call always expires the key. */
     KEY_ONESHOT_EXPIRE(kp);
