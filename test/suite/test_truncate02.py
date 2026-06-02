@@ -31,7 +31,6 @@
 #
 
 from test_truncate01 import test_truncate_base
-from wiredtiger import disagg_fast_truncate_build
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 import wttest
@@ -95,11 +94,6 @@ class test_truncate_fast_delete(test_truncate_base):
 
     scenarios = make_scenarios(types, keyfmt, overflow, reads, writes, txn,
                                prune=20, prunelong=1000)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     # Return the number of records visible to the cursor; test both forward
     # and backward iteration, they are different code paths in this case.

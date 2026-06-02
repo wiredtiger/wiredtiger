@@ -33,7 +33,7 @@
  *     Return a one character descriptor of relative timestamp values.
  */
 static const char *
-track_ts_diff(uint64_t left_ts, uint64_t right_ts)
+track_ts_diff(wt_timestamp_t left_ts, wt_timestamp_t right_ts)
 {
     if (left_ts < right_ts)
         return "+";
@@ -83,10 +83,10 @@ track_write(char *msg, size_t len)
 void
 track_ops(TINFO *tinfo)
 {
-    static uint64_t last_cur, last_old, last_stable;
+    static wt_timestamp_t last_cur, last_old, last_stable;
     static u_int cur_dot_cnt, old_dot_cnt, stable_dot_cnt;
+    wt_timestamp_t cur_ts, old_ts, stable_ts;
     size_t len;
-    uint64_t cur_ts, old_ts, stable_ts;
     char msg[128], ts_msg[64];
 
     if (GV(QUIET))
@@ -258,7 +258,11 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
 
     testutil_snprintf(buf, sizeof(buf), "%s/FAIL.pagedump.%d", g.home, ++next);
 
-    fprintf(stderr, "%s: dumping to %s\n", tag, buf);
+    if (WT_PREFIX_MATCH(cursor->uri, "layered:"))
+        fprintf(
+          stderr, "%s: dumping to %s (suffixed with constituent for layered cursors)\n", tag, buf);
+    else
+        fprintf(stderr, "%s: dumping to %s\n", tag, buf);
     trace_msg(CUR2S(cursor), "%s: dumping to %s", tag, buf);
 
     /*
@@ -410,13 +414,17 @@ wt_wrap_close_session(WT_SESSION *session)
 }
 
 /*
- * enable_session_prefetch --
- *     Return true if prefetch should be enabled for a session. Note that prefetch needs to be
- *     enabled at the connection level before being available for a session.
+ * session_prefetch_cfg --
+ *     Return a session-level prefetch config string. If prefetch is not available at the connection
+ *     level, randomly return enabled=false, or NULL. Otherwise, randomly return enabled=true,
+ *     enabled=false, or NULL (inherit the connection default).
  */
-bool
-enable_session_prefetch(void)
+const char *
+session_prefetch_cfg(void)
 {
     /* Enable prefetch 20% of the time. */
-    return (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1);
+    if (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1)
+        return (SESSION_PREFETCH_CFG_ON);
+
+    return (mmrand(&g.data_rnd, 1, 2) == 1 ? SESSION_PREFETCH_CFG_OFF : NULL);
 }

@@ -226,6 +226,44 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
          */
         WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_insert, ins_headp, page->entries + 1);
         ins_slot = F_ISSET(cbt, WT_CBT_SEARCH_SMALLEST) ? page->entries : cbt->slot;
+
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * The SMALLEST insert list catches keys that sort before the page's first on-disk key. On
+         * any non-leftmost child the page has a hard lower bound: the parent's separator key for
+         * this ref. A key smaller than that bound belongs on the left sibling and would be lost if
+         * grafted onto this page. The leftmost child has -infinity as its lower bound, so any key
+         * is valid.
+         *
+         * Skip the check when the page is not yet linked into its parent (home is NULL). A leaf
+         * being re-instantiated during an in-memory split or rewrite restores its saved updates
+         * before it is spliced into the tree, so there is no separator key to compare against and
+         * the slot lookup below would dereference a NULL home. Read home atomically; splits mutate
+         * it concurrently.
+         */
+        if (F_ISSET(cbt, WT_CBT_SEARCH_SMALLEST) &&
+          __wt_atomic_load_ptr_relaxed(&cbt->ref->home) != NULL) {
+            WT_PAGE_INDEX *pindex;
+            WT_ITEM ref_key;
+            uint32_t slot;
+            int cmp = 0;
+
+            /*
+             * Reading the parent's index requires the split generation: WT_INTL_INDEX_GET asserts
+             * the caller holds it, and accessing the parent's key cells through ref->home likewise
+             * needs the parent to be pinned against splits.
+             */
+            WT_ENTER_PAGE_INDEX(session);
+            __wt_ref_index_slot(session, cbt->ref, &pindex, &slot);
+            if (slot != 0) {
+                __wt_ref_key(cbt->ref->home, cbt->ref, &ref_key.data, &ref_key.size);
+                WT_IGNORE_RET(__wt_compare(session, S2BT(session)->collator, key, &ref_key, &cmp));
+                WT_ASSERT(session, cmp >= 0);
+            }
+            WT_LEAVE_PAGE_INDEX(session);
+        }
+#endif
+
         ins_headp = &mod->mod_row_insert[ins_slot];
 
         /* Allocate the WT_INSERT_HEAD structure as necessary. */
@@ -365,15 +403,11 @@ err:
 void
 __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-    WT_BTREE *btree;
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first;
-    wt_timestamp_t prune_timestamp;
-    uint64_t oldest_id;
     u_int count;
 
-    btree = S2BT(session);
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
@@ -381,10 +415,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
     /* If we can't lock it, don't scan, that's okay. */
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
-
-    prune_timestamp = __wt_atomic_load_uint64_relaxed(&CUR2BT(cbt)->prune_timestamp);
-
-    oldest_id = __wt_txn_oldest_id(session);
 
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
@@ -396,60 +426,24 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
-        uint64_t txnid;
         /*
          * This function is only invoked when a new write is made. As a result, there is no risk of
          * racing with prepared rollback, since no updates should exist in the prepared state at
          * this point.
          */
-        if ((txnid = __wt_atomic_load_uint64_v_relaxed(&upd->txnid)) == WT_TXN_ABORTED) {
-            /*
-             * We only need to focus on prepared updates in the ingest table, as it is the only type
-             * of btree that requires draining during the step-up process.
-             */
-            if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                continue;
+        if (__wt_atomic_load_uint64_v_relaxed(&upd->txnid) == WT_TXN_ABORTED)
+            continue;
 
-            if (upd->prepare_state != WT_PREPARE_INPROGRESS)
-                continue;
-
-            /*
-             * In disaggregated storage, we cannot garbage collect an aborted prepared update with a
-             * rollback timestamp greater than the prune timestamp. This is because the update
-             * information is required to roll back the prepared update on the stable table in case
-             * of a step-up.
-             */
-            if (upd->upd_rollback_ts > prune_timestamp)
-                first = NULL;
-
+        /* Cannot truncate the updates if we need to remove the updates from the history store. */
+        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP)) {
+            first = NULL;
             continue;
         }
 
-        /*
-         * Prepare transaction rollback adds a globally visible tombstone to the update chain to
-         * remove the entire key. Treating these globally visible tombstones as obsolete and
-         * trimming update list can cause problems if the update chain is getting accessed somewhere
-         * else. To avoid this problem, skip these globally visible tombstones from the update
-         * obsolete check.
-         */
-        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK))
-            continue;
-
-        /*
-         * If a table has garbage collection enabled, then trim updates as possible. We should check
-         * the logic here - it might be possible to do something more aggressive?
-         */
-        if (__wt_txn_upd_visible_all(session, upd) ||
-          (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
-            (txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
-              upd->upd_durable_ts <= prune_timestamp))) {
+        if (__wt_txn_upd_visible_all(session, upd)) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
         } else
-            first = NULL;
-
-        /* Cannot truncate the updates if we need to remove the updates from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP))
             first = NULL;
     }
 

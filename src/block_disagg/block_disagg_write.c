@@ -19,11 +19,11 @@ __block_disagg_header_byteswap(WT_BLOCK_DISAGG_HEADER *blk)
 }
 
 /*
- * __wti_block_disagg_header_byteswap_copy --
+ * __wt_block_disagg_header_byteswap_copy --
  *     Place holder - might be necessary to handle network order.
  */
 void
-__wti_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
+__wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
 {
     *to = *from;
 }
@@ -200,9 +200,9 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     __wt_stat_usecs_hist_incr_disaggbmwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     __wt_verbose(session, WT_VERB_WRITE,
-      "page_id %" PRIu64 ", size %" WT_SIZET_FMT ", checksum %" PRIx32 ", lsn %" PRIu64
-      ", page_image_size %" WT_SIZET_FMT,
-      page_id, buf->size, checksum, put_args.lsn, page_image_size);
+      "page_id %" PRIu64 ", table_id %" PRIu64 ", size %" WT_SIZET_FMT ", checksum %" PRIx32
+      ", lsn %" PRIu64 ", page_image_size %" WT_SIZET_FMT,
+      page_id, block_disagg->tableid, buf->size, checksum, put_args.lsn, page_image_size);
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;
@@ -246,8 +246,8 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     WT_RET(__wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
       page_image_size, &size, &checksum, data_checksum, checkpoint_io));
 
-    /* Update the btree's running total of bytes. */
-    __wt_btree_increase_size(session, size);
+    /* Update the running total of bytes. */
+    __wti_block_disagg_increase_size(block_disagg, size);
 
     __wt_page_header_byteswap(buf->mem);
 
@@ -287,9 +287,10 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
     WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     __wt_verbose(session, WT_VERB_BLOCK,
-      "block free: page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64
-      ", size %" PRIu32 ", checksum %" PRIx32,
-      cookie.page_id, cookie.flags, cookie.lsn, cookie.base_lsn, cookie.size, cookie.checksum);
+      "block free: page_id %" PRIu64 ", table_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
+      ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
+      cookie.page_id, block_disagg->tableid, cookie.flags, cookie.lsn, cookie.base_lsn, cookie.size,
+      cookie.checksum);
 
     /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
@@ -303,12 +304,12 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
      * than what was written to metadata, causing verify to fail.
      *
      * Second, to account for the above, __bmd_checkpoint_pack_raw explicitly manages root page size
-     * transitions in btree->bytes_total: it subtracts the previous root size and adds the current
+     * transitions in block_disagg->size: it subtracts the previous root size and adds the current
      * root size at the moment the checkpoint size is computed. Decrementing here as well would
      * cause the old root page size to be subtracted twice.
      */
     if (!is_root)
-        __wt_btree_decrease_size(session, cookie.size);
+        __wti_block_disagg_decrease_size(session, block_disagg, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {

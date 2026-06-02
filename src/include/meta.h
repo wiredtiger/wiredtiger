@@ -69,10 +69,25 @@
 /* Check whether a string is a legal URI for a btree object */
 #define WT_BTREE_PREFIX(str) (WT_PREFIX_MATCH(str, "file:") || WT_PREFIX_MATCH(str, "tiered:"))
 
+/* Check whether a URI refers to the stable constituent of a layered table (bare or checkpoint-view
+ * form). Don't use when strict-suffix semantics are required. */
+#define WT_URI_IS_STABLE(uri) (strstr(uri, ".wt_stable") != NULL)
+
+/* Check whether a URI refers to the ingest constituent of a layered table. */
+#define WT_URI_IS_INGEST(uri) WT_SUFFIX_MATCH(uri, ".wt_ingest")
+
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */
 #define WT_IS_METADATA(dh) F_ISSET((dh), WT_DHANDLE_IS_METADATA)
+#define WT_IS_DISAGG_META(dh) F_ISSET(dh, WT_DHANDLE_DISAGG_META)
+
+/*
+ * Optimize comparisons against the history store URI, flag handles that reference the history store
+ * file.
+ */
+#define WT_IS_HS(dh) F_ISSET(dh, WT_DHANDLE_HS)
+
 #define WT_METAFILE_ID 0 /* Metadata file ID */
 
 #define WT_METADATA_COMPAT "Compatibility version"
@@ -141,11 +156,12 @@ struct __wt_blkincr {
  *     Note: The strings are not null-terminated.
  */
 typedef struct __wt_disagg_metadata {
-    const char *checkpoint;        /* Checkpoint metadata string */
-    size_t checkpoint_len;         /* Length of checkpoint metadata string */
-    uint64_t checkpoint_timestamp; /* Checkpoint timestamp */
-    uint64_t oldest_timestamp;     /* Oldest timestamp */
-    uint32_t largest_file_id;      /* High water mark of allocated file IDs */
+    const char *checkpoint;              /* Checkpoint metadata string */
+    size_t checkpoint_len;               /* Length of checkpoint metadata string */
+    wt_timestamp_t checkpoint_timestamp; /* Checkpoint timestamp */
+    wt_timestamp_t oldest_timestamp;     /* Oldest timestamp */
+    wt_timestamp_t schema_epoch;         /* Disaggregated schema epoch at the time of checkpoint */
+    uint32_t largest_file_id;            /* High water mark of allocated file IDs */
 
     const char *key_provider; /* Key provider metadata string */
     size_t key_provider_len;  /* Length of key provider metadata string */

@@ -28,7 +28,7 @@
 
 import wttest
 from helper import simulate_crash_restart
-from wiredtiger import disagg_fast_truncate_build, stat, WiredTigerError, wiredtiger_strerror, WT_NOTFOUND, WT_ROLLBACK
+from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_NOTFOUND, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -55,11 +55,6 @@ class test_truncate12(wttest.WiredTigerTestCase):
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
     ]
     scenarios = make_scenarios(trunc_values, format_values)
-
-    def setUp(self):
-        if self.runningHook('disagg') and disagg_fast_truncate_build() == 0:
-            self.skipTest("fast truncate support is not enabled")
-        super().setUp()
 
     def truncate(self, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:

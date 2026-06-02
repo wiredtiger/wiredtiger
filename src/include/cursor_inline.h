@@ -65,7 +65,7 @@ __cursor_copy_release(WT_CURSOR *cursor)
      * we can exit the function quickly.
      */
     if (F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE) &&
-      FLD_ISSET(S2C(CUR2S(cursor))->debug_flags, WT_CONN_DEBUG_CURSOR_COPY)) {
+      FLD_ISSET(S2C(CUR2S(cursor))->debug.flags, WT_CONN_DEBUG_CURSOR_COPY)) {
         if (F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY)) {
             WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->key));
             F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY);
@@ -401,27 +401,6 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
     if (dhandle->timeofdeath != 0 && __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 1)
         dhandle->timeofdeath = 0;
     (void)__wt_atomic_sub_int32(&dhandle->session_inuse, 1);
-}
-
-/*
- * __wt_cursor_uri_incr_use --
- *     An alternate way to mark a the data handle for a URI to be in use.
- */
-static WT_INLINE int
-__wt_cursor_uri_incr_use(WT_SESSION_IMPL *session, const char *uri, WT_DATA_HANDLE **dhandle)
-{
-    WT_DECL_RET;
-
-    *dhandle = NULL;
-    WT_WITHOUT_DHANDLE(session, {
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-        if (ret == 0) {
-            __wt_cursor_dhandle_incr_use(session);
-            *dhandle = session->dhandle;
-            WT_TRET(__wt_session_release_dhandle(session));
-        }
-    });
-    return (ret);
 }
 
 /*

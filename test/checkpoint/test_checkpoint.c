@@ -96,7 +96,7 @@ main(int argc, char *argv[])
     g.home = dmalloc(512);
     g.nkeys = 10 * WT_THOUSAND;
     g.nops = 100 * WT_THOUSAND;
-    g.stop_ts = 0;
+    g.stop_ts = WT_TS_NONE;
     g.ntables = 3;
     g.nworkers = 1;
     g.evict_reposition_timing_stress = false;

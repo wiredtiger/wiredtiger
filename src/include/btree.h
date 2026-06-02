@@ -171,14 +171,6 @@ struct __wt_btree {
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
-    /* Total size of all blocks in this btree. Tracked for disaggregated storage. */
-    wt_shared uint64_t bytes_total;
-
-    /* Root page size tracking for checkpoint size accounting. */
-    uint64_t current_root_size;  /* Size of current root page */
-    uint64_t previous_root_size; /* Size of previous root page */
-    uint64_t root_size_gen;      /* Checkpoint generation of the last root size update */
-
     /*
      * Reconciliation...
      */
@@ -236,9 +228,8 @@ struct __wt_btree {
     uint64_t rec_max_txn;    /* Maximum transaction seen by reconciliation (clean trees). */
     wt_timestamp_t rec_max_timestamp; /* Maximum timestamp seen by reconciliation (clean trees). */
 
-    wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
-    wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
-    wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
+    wt_shared uint64_t checkpoint_gen; /* Checkpoint generation */
+    wt_shared WT_BTREE_SYNC syncing;   /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -249,11 +240,10 @@ struct __wt_btree {
  */
 #define WT_BTREE_SYNCING(btree) \
     (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
-#define WT_SESSION_BTREE_SYNC(session) \
-    (__wt_atomic_load_ptr_acquire(&S2BT(session)->sync_session) == (session))
-#define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                                \
-    (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
-      __wt_atomic_load_ptr_acquire(&(btree)->sync_session) == (session))
+#define WT_SESSION_BTREE_SYNC(session) ((session)->syncing && WT_BTREE_SYNCING(S2BT(session)))
+#define WT_SESSION_BTREE_SYNC_SAFE(session) \
+    ((session)->syncing ||                  \
+      __wt_atomic_load_enum_acquire(&S2BT(session)->syncing) != WT_BTREE_SYNC_RUNNING)
 
     wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
@@ -301,9 +291,9 @@ struct __wt_btree {
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
      */
-    WT_SPINLOCK flush_lock;          /* Lock to flush the tree's pages */
-    uint64_t flush_most_recent_secs; /* Wall clock time for the most recent flush */
-    uint64_t flush_most_recent_ts;   /* Timestamp of the most recent flush */
+    WT_SPINLOCK flush_lock;              /* Lock to flush the tree's pages */
+    uint64_t flush_most_recent_secs;     /* Wall clock time for the most recent flush */
+    wt_timestamp_t flush_most_recent_ts; /* Timestamp of the most recent flush */
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
@@ -438,6 +428,6 @@ struct __wti_disk_leaf_merge_state {
     bool key_pfx_compress;
     bool all_empty_value;
     bool any_empty_value;
-    uint8_t *p_ptr;
+    uint8_t *cell_ptr;
     uint32_t entries;
 };

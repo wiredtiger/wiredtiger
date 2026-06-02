@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- * 	All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -111,8 +111,6 @@ struct __wt_cache_eviction_controls;
 typedef struct __wt_cache_eviction_controls WT_CACHE_EVICTION_CONTROLS;
 struct __wt_cache_pool;
 typedef struct __wt_cache_pool WT_CACHE_POOL;
-struct __wt_capacity;
-typedef struct __wt_capacity WT_CAPACITY;
 struct __wt_cell;
 typedef struct __wt_cell WT_CELL;
 struct __wt_cell_kv;
@@ -129,6 +127,10 @@ struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
 struct __wt_checkpoint_cleanup;
 typedef struct __wt_checkpoint_cleanup WT_CHECKPOINT_CLEANUP;
+struct __wt_checkpoint_page_to_reconcile;
+typedef struct __wt_checkpoint_page_to_reconcile WT_CHECKPOINT_PAGE_TO_RECONCILE;
+struct __wt_checkpoint_reconcile_threads;
+typedef struct __wt_checkpoint_reconcile_threads WT_CHECKPOINT_RECONCILE_THREADS;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_ckpt_block_mods;
@@ -167,8 +169,30 @@ struct __wt_config_entry;
 typedef struct __wt_config_entry WT_CONFIG_ENTRY;
 struct __wt_config_parser_impl;
 typedef struct __wt_config_parser_impl WT_CONFIG_PARSER_IMPL;
+struct __wt_conn_backup;
+typedef struct __wt_conn_backup WT_CONN_BACKUP;
+struct __wt_conn_capacity;
+typedef struct __wt_conn_capacity WT_CONN_CAPACITY;
+struct __wt_conn_debug;
+typedef struct __wt_conn_debug WT_CONN_DEBUG;
+struct __wt_conn_evict_config;
+typedef struct __wt_conn_evict_config WT_CONN_EVICT_CONFIG;
+struct __wt_conn_extensions;
+typedef struct __wt_conn_extensions WT_CONN_EXTENSIONS;
+struct __wt_conn_optrack;
+typedef struct __wt_conn_optrack WT_CONN_OPTRACK;
+struct __wt_conn_prefetch;
+typedef struct __wt_conn_prefetch WT_CONN_PREFETCH;
+struct __wt_conn_stat_log;
+typedef struct __wt_conn_stat_log WT_CONN_STAT_LOG;
+struct __wt_conn_sweep;
+typedef struct __wt_conn_sweep WT_CONN_SWEEP;
+struct __wt_conn_tiered;
+typedef struct __wt_conn_tiered WT_CONN_TIERED;
 struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
+struct __wt_connection_load_control;
+typedef struct __wt_connection_load_control WT_CONNECTION_LOAD_CONTROL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
 struct __wt_crypt_header;
@@ -377,12 +401,18 @@ struct __wt_save_upd;
 typedef struct __wt_save_upd WT_SAVE_UPD;
 struct __wt_scratch_track;
 typedef struct __wt_scratch_track WT_SCRATCH_TRACK;
+struct __wt_semaphore;
+typedef struct __wt_semaphore WT_SEMAPHORE;
 struct __wt_session_impl;
 typedef struct __wt_session_impl WT_SESSION_IMPL;
 struct __wt_session_stash;
 typedef struct __wt_session_stash WT_SESSION_STASH;
 struct __wt_session_stats;
 typedef struct __wt_session_stats WT_SESSION_STATS;
+struct __wt_shared_dsk_cache;
+typedef struct __wt_shared_dsk_cache WT_SHARED_DSK_CACHE;
+struct __wt_shared_dsk_item;
+typedef struct __wt_shared_dsk_item WT_SHARED_DSK_ITEM;
 struct __wt_shutdown_timeline;
 typedef struct __wt_shutdown_timeline WT_SHUTDOWN_TIMELINE;
 struct __wt_size;
@@ -403,6 +433,8 @@ struct __wt_thread_check;
 typedef struct __wt_thread_check WT_THREAD_CHECK;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_throttle;
+typedef struct __wt_throttle WT_THROTTLE;
 struct __wt_tiered;
 typedef struct __wt_tiered WT_TIERED;
 struct __wt_tiered_object;
@@ -453,6 +485,8 @@ struct __wt_verify_info;
 typedef struct __wt_verify_info WT_VERIFY_INFO;
 struct __wt_version;
 typedef struct __wt_version WT_VERSION;
+struct __wti_base_int_merge_state;
+typedef struct __wti_base_int_merge_state WTI_BASE_INT_MERGE_STATE;
 struct __wti_base_leaf_merge_state;
 typedef struct __wti_base_leaf_merge_state WTI_BASE_LEAF_MERGE_STATE;
 struct __wti_ckpt_handle_stats;
@@ -467,6 +501,8 @@ struct __wti_cursor_log;
 typedef struct __wti_cursor_log WTI_CURSOR_LOG;
 struct __wti_delete_hs_upd;
 typedef struct __wti_delete_hs_upd WTI_DELETE_HS_UPD;
+struct __wti_delta_int_merge_state;
+typedef struct __wti_delta_int_merge_state WTI_DELTA_INT_MERGE_STATE;
 struct __wti_delta_leaf_merge_state;
 typedef struct __wti_delta_leaf_merge_state WTI_DELTA_LEAF_MERGE_STATE;
 struct __wti_disk_leaf_merge_state;
@@ -559,6 +595,12 @@ typedef uint64_t wt_timestamp_t;
 #include "posix.h"
 #endif
 
+#ifdef __linux__
+#include "os_linux.h"
+#elif __APPLE__
+#include "os_darwin.h"
+#endif
+
 #include "misc.h"
 #include "tsan_suppress.h"
 #include "mutex.h"
@@ -581,7 +623,6 @@ typedef uint64_t wt_timestamp_t;
 #include "capacity.h"
 #include "cell.h"
 #include "cursor.h" /* required by checkpoint */
-#include "../checkpoint/checkpoint.h"
 #include "compact.h"
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
@@ -603,8 +644,10 @@ typedef uint64_t wt_timestamp_t;
 #include "schema.h"
 #include "tiered.h"
 #include "truncate.h"
-#include "txn.h"
+#include "txn.h" /* required by checkpoint.h */
+#include "../checkpoint/checkpoint.h"
 
+#include "load_control.h"
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */
 #include "connection.h"
@@ -622,6 +665,7 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
+#include "load_control_inline.h"
 #include "cache_inline.h"
 #include "../evict/evict_inline.h" /* required by misc_inline.h */
 #include "ctype_inline.h"          /* required by packing_inline.h */
@@ -635,6 +679,7 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp_inline.h"  /* required by btree_inline.h */
 #include "cell_inline.h"       /* required by btree_inline.h */
 #include "mutex_inline.h"      /* required by btree_inline.h */
+#include "session_inline.h"    /* required by api.h macros */
 #include "txn_inline.h"        /* required by btree_inline.h */
 
 #include "bitstring_inline.h"

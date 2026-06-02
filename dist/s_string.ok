@@ -73,11 +73,14 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
+CLI
 CLOEXEC
+CMAKE
 CMP
 CMake
 CMakeFiles
 CMakeLists
+CMakePresets
 CONF
 CONFIG
 CPP
@@ -88,6 +91,7 @@ CTest
 CURSORs
 CURSTD
 CURVERSION
+CXX
 CallsCustDate
 Canonicalize
 Castagnoli
@@ -112,6 +116,7 @@ Coverity
 Cppsuite
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -120,11 +125,14 @@ DENABLE
 DESC
 DEST
 DHANDLE
+DHAVE
 DISAGG
 DISAGGREGATED
 DNE
 DONTNEED
 DS
+DSK
+DSPINLOCK
 DUPLICATEV
 DataSet
 Decrementing
@@ -217,6 +225,7 @@ GetLastError
 GetModuleHandleExW
 GetProcAddress
 Getters
+Gh
 Github
 Golomb
 HANDLEOPS
@@ -269,6 +278,7 @@ LOGREC
 LOGSCAN
 LOGSLOT
 LRU
+LSAN
 LSB
 LSBs
 LSM
@@ -423,6 +433,8 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+RelWithDebInfo
+ReleaseSemaphore
 Rogerio
 Runtime
 RuntimeError
@@ -521,7 +533,6 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
-Upd
 Uryyb
 VARCHAR
 VLCS
@@ -529,10 +540,12 @@ VPM
 VR
 VRFY
 VX
+ValidationModel
 Vc
 Vigenere
 Vixie
 VxWorks
+WAL
 WCHAR
 WILLNEED
 WIREDTIGER
@@ -572,6 +585,7 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerShared
 WiredTigerSharedHS
+WiredTigerStat
 WiredTigerTestCase
 WiredTigerTimestamp
 WiredTigerTmplog
@@ -587,6 +601,7 @@ XSAN
 XXXX
 XXXXXX
 Xcode
+Xcode's
 XxxxHookCreator
 YCSB
 ZSTD
@@ -631,7 +646,6 @@ asan
 ascii
 assertEqual
 assertGreater
-assertGreaterEqual
 assertTrue
 assertfmt
 asymptote
@@ -645,6 +659,7 @@ autoconf
 aws
 az
 bInheritHandle
+backends
 backlink
 backoff
 badsize
@@ -681,6 +696,8 @@ blkcache
 blkincr
 blkmod
 blkmods
+blockhash
+blockqh
 bm
 bmd
 bms
@@ -807,6 +824,7 @@ createsets
 crypto
 cryptobad
 cryptographic
+cst
 cstring
 csuite
 csv
@@ -886,6 +904,7 @@ designator
 dest
 destSize
 destructor
+deterministically
 dev
 dh
 dhandle
@@ -901,6 +920,7 @@ dirlist
 dirstore
 disagg
 disaggregated
+discoverable
 disproportionally
 distros
 disttop
@@ -952,6 +972,8 @@ endptr
 engflow
 enomem
 enqueue
+enqueued
+enqueues
 entindex
 entlist
 enum
@@ -975,6 +997,7 @@ execfn
 existp
 extern
 extlist
+extlists
 extraconfig
 fadvise
 fahrenheit
@@ -998,6 +1021,7 @@ ffs
 fgetln
 fh
 fhandle
+fid
 fifo
 filecmp
 filefrag
@@ -1013,9 +1037,11 @@ floatnum
 fmt
 fmterr
 fnv
+fnvhash
 foc
 fopen
 forceerror
+foreach
 formatmessage
 forw
 foward
@@ -1080,6 +1106,7 @@ handleops
 handlep
 hardcoded
 hashmap
+hashq
 hashsize
 hashtable
 havesize
@@ -1134,6 +1161,7 @@ inlock
 inmem
 inmemory
 inorder
+insertedp
 inserters
 instantiation
 instantiations
@@ -1147,6 +1175,7 @@ intr
 intrinsics
 ints
 inuse
+invariants
 io
 ip
 isalnum
@@ -1180,6 +1209,7 @@ keyid
 keyids
 keylen
 keynum
+keyp
 keystr
 keyv
 kp
@@ -1375,6 +1405,7 @@ np
 npos
 nrecords
 nrows
+ns
 nsec
 nsecs
 nset
@@ -1425,6 +1456,7 @@ pR
 pT
 packv
 pagesize
+pali
 palite
 param
 params
@@ -1542,6 +1574,7 @@ reentrant
 refp
 regen
 regionp
+reinit
 reinstantiated
 relocked
 repl
@@ -1607,6 +1640,7 @@ sii
 sizeof
 sizep
 sizev
+skipTest
 skipTests
 skiplist
 skiplists
@@ -1644,6 +1678,7 @@ stdin
 stdout
 stepback
 stepp
+stepup
 stlr
 stlrb
 stlrh
@@ -1667,6 +1702,7 @@ strtouq
 struct
 structs
 su
+subcommand
 subconfig
 subconfigs
 subconfiguration
@@ -1747,7 +1783,9 @@ tolower
 tombstoned
 toml
 toolchain
+toolchains
 totalsec
+tp
 traceapi
 tracepat
 transactional
@@ -1775,7 +1813,6 @@ txp
 txt
 typedef
 typeof
-uS
 ubuntu
 uid
 uint
@@ -1791,6 +1828,8 @@ uncheckpointed
 unconfigured
 uncustomized
 undef
+undeferred
+undefers
 undeleted
 underflowed
 unencoded
@@ -1854,6 +1893,7 @@ valuep
 valuesize
 valuev
 variadic
+vcvars
 vd
 vdata
 vec

@@ -85,6 +85,31 @@ __txn_sort_snapshot(WT_SESSION_IMPL *session, uint32_t n, uint64_t snap_max)
 }
 
 /*
+ * __wt_txn_import_snapshot --
+ *     Import a snapshot into the current transaction.
+ */
+void
+__wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapshot)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    WT_ASSERT_ALWAYS(session, txn->snapshot_data.snapshot != NULL,
+      "Snapshot data must be allocated before importing a snapshot");
+    WT_ASSERT_ALWAYS(session,
+      snapshot->snapshot_count <= (uint32_t)S2C(session)->session_array.size,
+      "Snapshot count exceeds session array size");
+
+    txn->snapshot_data.snapshot_count = snapshot->snapshot_count;
+    txn->snapshot_data.snap_max = snapshot->snap_max;
+    txn->snapshot_data.snap_min = snapshot->snap_min;
+    memcpy(txn->snapshot_data.snapshot, snapshot->snapshot,
+      snapshot->snapshot_count * sizeof(snapshot->snapshot[0]));
+    F_SET(txn, WT_TXN_HAS_SNAPSHOT);
+}
+
+/*
  * __wt_txn_release_snapshot --
  *     Release the snapshot in the current transaction.
  */
@@ -111,8 +136,11 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
-    /* Clear a checkpoint's pinned ID and timestamp. */
-    if (WT_SESSION_IS_CHECKPOINT(session)) {
+    /*
+     * Clear a checkpoint's pinned ID and timestamp, only do this if we are the original checkpoint
+     * thread and not a worker.
+     */
+    if (WT_SESSION_IS_CHECKPOINT(session) && !F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         __wt_atomic_store_uint64_v_relaxed(
           &txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
         __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, WT_TS_NONE);
@@ -547,23 +575,25 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
         __wt_atomic_store_uint64_v_relaxed(&txn_global->metadata_pinned, metadata_pinned);
     if (__wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id) < oldest_id)
         __wt_atomic_store_uint64_v_relaxed(&txn_global->oldest_id, oldest_id);
-    if (__wt_atomic_load_uint64_v_relaxed(&txn_global->last_running) < last_running) {
+    if (__wt_atomic_load_uint64_v_relaxed(&txn_global->last_running) < last_running)
         __wt_atomic_store_uint64_v_relaxed(&txn_global->last_running, last_running);
 
-        /*
-         * Output a verbose message about long-running transactions, but only when some progress is
-         * being made.
-         */
-        current_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->current);
-        WT_ASSERT(session, oldest_id <= current_id);
-        if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
-          current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL) {
-            __wt_verbose(session, WT_VERB_TRANSACTION,
-              "oldest id %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
-              oldest_id, oldest_session->id,
-              __wt_tsan_suppress_load_const_char_ptr(&oldest_session->lastop),
-              oldest_session->txn->snapshot_data.snap_min);
-        }
+    /*
+     * When verbose transaction logging is enabled, output a message when a long running transaction
+     * is pinning the oldest ID, but only when the pinning transaction changes to avoid spamming the
+     * log.
+     */
+    current_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->current);
+    WT_ASSERT(session, oldest_id <= current_id);
+    if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
+      !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING) && current_id - oldest_id > (10 * WT_THOUSAND) &&
+      oldest_session != NULL && oldest_id != txn_global->oldest_id_last_verbose) {
+        const char *lastop = __wt_tsan_suppress_load_const_char_ptr(&oldest_session->lastop);
+        txn_global->oldest_id_last_verbose = oldest_id;
+        __wt_verbose(session, WT_VERB_TRANSACTION,
+          "oldest id %" PRIu64 " pinned in session %" PRIu32 " [last_op: %s] (current_id %" PRIu64
+          ")",
+          oldest_id, oldest_session->id, lastop == NULL ? "NONE" : lastop, current_id);
     }
 
 done:
@@ -778,7 +808,7 @@ __txn_release(WT_SESSION_IMPL *session)
     WT_ASSERT(session, txn->mod_count == 0);
 
     /* Clear the transaction's ID from the global table. */
-    if (WT_SESSION_IS_CHECKPOINT(session)) {
+    if (WT_SESSION_IS_CHECKPOINT(session) && !F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         WT_ASSERT(session,
           __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id) == WT_TXN_NONE);
         txn->time_point.id = WT_TXN_NONE;
@@ -928,7 +958,7 @@ __txn_prepare_rollback_restore_hs_update(
     }
 
     /* Append the update to the end of the chain. */
-    WT_RELEASE_WRITE_WITH_BARRIER(upd_chain->next, upd);
+    __wt_atomic_store_ptr_relaxed(&upd_chain->next, upd);
 
     __wt_cache_page_inmem_incr(session, page, total_size, false);
 
@@ -1004,30 +1034,35 @@ __txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key
 
 /*
  * __txn_prepare_rollback_delete_key --
- *     Prepend a global visible tombstone to the head of the update chain to delete the key for
- *     prepare rollback.
+ *     Append a globally visible tombstone to the tail of the update chain to delete the key for
+ *     prepare rollback. Placing the tombstone below the prepared update encodes its role by
+ *     position so reconciliation and pruning see a normal globally visible tombstone without
+ *     needing a distinguishing flag.
  */
 static int
-__txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
+__txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd_chain)
 {
-    WT_DECL_RET;
     WT_UPDATE *tombstone;
-    size_t not_used;
+    size_t size;
 
-    tombstone = NULL;
+    WT_ASSERT(session, upd_chain != NULL);
 
-    WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
-    F_SET(tombstone, WT_UPDATE_PREPARE_ROLLBACK);
-    WT_WITH_BTREE(session, btree,
-      ret = btree->type == BTREE_ROW ?
-        __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false) :
-        __wt_col_modify(cbt, cbt->recno, NULL, &tombstone, WT_UPDATE_INVALID, false, false));
-    WT_ERR(ret);
-    tombstone = NULL;
+    size = 0;
+    WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
 
-err:
-    __wt_free(session, tombstone);
-    return (ret);
+    /*
+     * Walk to the end of the chain. The caller guarantees that the chain at this point consists
+     * only of updates from the resolving prepared transaction (and aborted reserve entries), so the
+     * tail's next pointer is stable.
+     */
+    while (upd_chain->next != NULL)
+        upd_chain = upd_chain->next;
+
+    __wt_atomic_store_ptr_relaxed(&upd_chain->next, tombstone);
+
+    __wt_cache_page_inmem_incr(session, page, size, false);
+
+    return (0);
 }
 
 /*
@@ -1069,6 +1104,13 @@ __txn_resolve_prepared_update_chain(
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
         __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
+        /*
+         * A release store would only prevent prior writes from being reordered after it; it would
+         * not prevent the subsequent timestamp writes from being reordered before it on
+         * weakly-ordered architectures. The explicit release barrier ensures this prepare state
+         * write is ordered before any timestamp field is modified, so a concurrent reader can never
+         * observe updated timestamps while the prepare state appears unchanged.
+         */
         WT_RELEASE_BARRIER();
         if (F_ISSET(txn_time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
             __wt_atomic_store_uint64_relaxed(
@@ -1181,28 +1223,24 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
      * If the prepared update is a single tombstone, we don't need to do anything special and we can
      * directly resolve it in memory.
      *
-     * If the prepared update is not a tombstone or we have multiple prepared updates in the same
-     * transaction. There are four base cases:
+     * Otherwise there are three resolve cases:
      *
-     * 1) Prepared updates are on the update chain.
-     *     commit: simply resolve the updates on chain.
-     *     rollback: simply resolve the updates on chain.
+     * 1) Prepared updates are on the update chain (RESOLVE_UPDATE_CHAIN).
+     *     commit: resolve the updates on chain.
+     *     rollback: if the prepared update is the only update and there is no on-disk value,
+     *               append a globally visible tombstone to delete the key.
      *
-     * 2) Prepared updates are written to the data store.
-     *     If there is no older updates written to the history store:
-     *         commit: simply resolve the prepared updates in memory.
-     *         rollback: delete the whole key.
-     *
-     *     If there are older updates written to the history store:
+     * 2) Prepared updates are written to the data store (RESOLVE_PREPARE_ON_DISK).
+     *     If there are older updates in the history store:
      *         commit: restore the newest history store update with a max stop time point to the
-     *                 update chain. Reconciliation should know when to delete it from the history
-     *                 store.
-     *         rollback:restore the newest update in the history store to the update chain.
-     *                  Reconciliation should know when to delete it from the history store.
+     *                 update chain.
+     *         rollback: restore the newest history store update to the update chain.
+     *     If there are no older updates in the history store:
+     *         commit: resolve the prepared updates in memory.
+     *         rollback: append a globally visible tombstone to delete the key.
      *
-     * 4) We are running an in-memory database:
-     *     commit: resolve the prepared updates in memory.
-     *     rollback: if the prepared update is written to the disk image, delete the whole key.
+     * 3) We are running an in-memory database (RESOLVE_IN_MEMORY).
+     *     commit/rollback: resolve the prepared updates in memory only.
      */
 
     /*
@@ -1227,7 +1265,7 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
             if (!tw_found)
-                WT_ERR(__txn_prepare_rollback_delete_key(session, btree, cbt));
+                WT_ERR(__txn_prepare_rollback_delete_key(session, page, head_upd));
             else
                 WT_ASSERT_ALWAYS(
                   session, !WT_TIME_WINDOW_HAS_PREPARE(&tw), "no committed update to fallback to.");
@@ -1266,12 +1304,12 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
         else {
             ret = 0;
             /*
-             * Allocate a tombstone and prepend it to the row so when we reconcile the update chain
-             * we don't copy the prepared cell, which is now associated with a rolled back prepare,
-             * and instead write nothing.
+             * Append a globally visible tombstone to the end of the chain. When reconciliation
+             * later drops the rolled-back prepared cell, the tombstone remains as the correct
+             * post-rollback state for the key.
              */
             if (!commit)
-                WT_ERR(__txn_prepare_rollback_delete_key(session, btree, cbt));
+                WT_ERR(__txn_prepare_rollback_delete_key(session, page, head_upd));
         }
         break;
     case RESOLVE_IN_MEMORY:
@@ -1615,7 +1653,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_ERR(__wti_mark_committed_truncate_table(session, op));
+            __wti_mark_committed_truncate_table(session, op);
             break;
         }
 
@@ -1881,7 +1919,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * turned on.
      */
     if (txn->txn_log.logrec != NULL &&
-      !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+      !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
@@ -2126,7 +2164,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             WT_TRET(__wt_delete_page_rollback(session, op));
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_RET(__wti_layered_table_truncate_rollback(session, op));
+            __wti_layered_table_truncate_rollback(session, op);
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2508,6 +2546,10 @@ __wt_txn_activity_drain(WT_SESSION_IMPL *session)
         if (!txn_active)
             break;
 
+        /* Don't spin forever if the connection has panicked. */
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PANIC))
+            break;
+
         WT_STAT_CONN_INCR(session, txn_release_blocked);
         __wt_yield();
     }
@@ -2602,9 +2644,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * disaggregated storage and the node still consider itself the leader. If it is not the
          * real leader, the storage layer services should return an error as it is not allowed to
          * write.
-         *
-         * FIXME-WT-14739: we should be able to do shutdown checkpoint for followers as well when we
-         * are able to skip the shared tables in checkpoint.
          */
         if (!skip_checkpoint && (!conn_is_disagg || conn->layered_table_manager.leader)) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
@@ -2730,13 +2769,15 @@ __wt_verbose_dump_txn_one(
 
     buf_len = 512;
     WT_RET(__wt_scr_alloc(session, buf_len, &buf));
+
+    const char *session_name = __wt_atomic_load_ptr_relaxed(&txn_session->name);
     WT_ERR(__wt_snprintf((char *)buf->data, buf_len,
       "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
       ", metadata pinned ID: %" PRIu64 ", name: %s",
       txn_session->id, __wt_atomic_load_uint64_v_relaxed(&txn_shared->id),
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id),
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->metadata_pinned),
-      txn_session->name == NULL ? "EMPTY" : txn_session->name));
+      session_name == NULL ? "EMPTY" : session_name));
 
     if (error_code != 0)
         WT_ERR_MSG(session, error_code, "%s, %s", (char *)buf->data,
@@ -2863,6 +2904,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "stable timestamp: %s",
       __wt_timestamp_to_string(
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp), ts_string)));
+    WT_RET(__wt_msg(session, "stable disaggregated schema epoch: %s",
+      __wt_timestamp_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch),
+        ts_string)));
     WT_RET(__wt_msg(
       session, "has_durable_timestamp: %s", txn_global->has_durable_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
@@ -2871,6 +2916,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "has_stable_disaggregated_schema_epoch: %s",
+      __wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) ? "yes" :
+                                                                                          "no"));
     WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->oldest_is_pinned) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "stable_is_pinned: %s",

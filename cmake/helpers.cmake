@@ -1,8 +1,3 @@
-include(CheckIncludeFiles)
-include(CheckSymbolExists)
-include(CheckLibraryExists)
-include(CheckTypeSize)
-
 # Helper function for evaluating a list of dependencies. Mostly used by the
 # "config_X" helpers to evaluate the dependencies required to enable the config
 # option.
@@ -244,274 +239,132 @@ function(config_bool config_name description)
     endif()
 endfunction()
 
-# config_func(config_name description FUNC <function-symbol> FILE <include-header> [DEPENDS <deps>] [LIBS <library-dependencies>])
-# Defines a boolean (0/1) configuration option based on whether a given function symbol exists.
-# The configuration option is stored in the cmake cache and can be exported to the wiredtiger config header.
-#   config_name - name of the configuration option.
-#   description - docstring to describe the configuration option (viewable in the cmake-gui).
-#   FUNC <function-symbol> - function symbol we want to search for.
-#   FILE <include-header> - header we expect the function symbol to be defined e.g a std header.
-#   DEPENDS <deps> - list of dependencies (semicolon separated) required for the configuration to be evaluated.
-#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
-#   LIBS <library-dependencies> - a list of any additional library dependencies needed to successfully link with the function symbol.
-function(config_func config_name description)
+# wt_find_library(NAME <name>
+#                 [CMAKE_TARGET <target>]
+#                 [PACKAGE <pkg> TARGET <target>]
+#                 [PKGCONFIG_MODULE <mod>]
+#                 [LIBRARY <libname>]
+#                 [HEADER <hdr>])
+#
+# Discover a third-party library through CMake's canonical lookup chain:
+#
+#   1. find_package(<PACKAGE> QUIET)
+#        Tries MODULE mode (CMake-shipped Find<Pkg>.cmake) then CONFIG mode
+#        (library-shipped <Pkg>Config.cmake).
+#   2. pkg_check_modules(... IMPORTED_TARGET <PKGCONFIG_MODULE>)
+#        Falls back to pkg-config metadata.
+#   3. find_library(<LIBRARY>) + find_path(<HEADER>)
+#        Raw filesystem search; constructs an UNKNOWN IMPORTED target.
+#
+# Each step is attempted only if the relevant arguments are provided. The first
+# successful step wins; the rest are skipped.
+#
+# On success:
+#   HAVE_LIB${upper(NAME)} cache variable set ON.
+#   wt::${CMAKE_TARGET or NAME} alias created from the discovered imported target.
+# On failure:
+#   HAVE_LIB${upper(NAME)} cache variable set OFF.
+#
+# Examples:
+#   wt_find_library(NAME lz4
+#       PACKAGE lz4 TARGET LZ4::lz4
+#       PKGCONFIG_MODULE liblz4
+#       HEADER lz4.h)
+#
+#   wt_find_library(NAME z CMAKE_TARGET zlib
+#       PACKAGE ZLIB TARGET ZLIB::ZLIB
+#       PKGCONFIG_MODULE zlib
+#       HEADER zlib.h)
+function(wt_find_library)
     cmake_parse_arguments(
         PARSE_ARGV
-        2
-        "CONFIG_FUNC"
+        0
+        "WTLIB"
         ""
-        "FUNC;DEPENDS;FILES;LIBS"
+        "NAME;CMAKE_TARGET;PACKAGE;TARGET;PKGCONFIG_MODULE;LIBRARY;HEADER"
         ""
     )
 
-    if (NOT "${CONFIG_FUNC_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to config_func: ${CONFIG_FUNC_UNPARSED_ARGUMENTS}")
+    if(NOT WTLIB_NAME)
+        message(FATAL_ERROR "wt_find_library: NAME is required")
     endif()
-    # We require an include header (not optional).
-    if ("${CONFIG_FUNC_FILES}" STREQUAL "")
-        message(FATAL_ERROR "No file list passed")
-    endif()
-    # We require a function symbol (not optional).
-    if ("${CONFIG_FUNC_FUNC}" STREQUAL "")
-        message(FATAL_ERROR "No function passed")
+    if(WTLIB_PACKAGE AND NOT WTLIB_TARGET)
+        message(FATAL_ERROR "wt_find_library(${WTLIB_NAME}): PACKAGE requires TARGET")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
-    eval_dependency("${CONFIG_FUNC_DEPENDS}" enabled)
-    if(enabled)
-        set(CMAKE_REQUIRED_LIBRARIES "${CONFIG_FUNC_LIBS}")
-        if((NOT "${WT_ARCH}" STREQUAL "") AND (NOT "${WT_ARCH}" STREQUAL ""))
-            # 'check_symbol_exists' won't use our current cache when test compiling the function symbol.
-            # To get around this we need to ensure we manually forward WT_ARCH and WT_OS as a minimum. This is particularly
-            # needed if 'check_symbol_exists' will leverage one of our toolchain files.
-            set(CMAKE_REQUIRED_FLAGS "-DWT_ARCH=${WT_ARCH} -DWT_OS=${WT_OS}")
-        endif()
-        check_symbol_exists(${CONFIG_FUNC_FUNC} "${CONFIG_FUNC_FILES}" has_symbol_${config_name})
-        set(CMAKE_REQUIRED_LIBRARIES)
-        set(CMAKE_REQUIRED_FLAGS)
-        set(has_symbol "0")
-        if(has_symbol_${config_name})
-            set(has_symbol ${has_symbol_${config_name}})
-        endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
-        if(${config_name}_DISABLED)
-            unset(${config_name}_DISABLED CACHE)
-            set(${config_name} ${has_symbol} CACHE BOOL "${description}" FORCE)
-        else()
-            set(${config_name} ${has_symbol} CACHE BOOL "${description}")
-        endif()
-        # 'check_symbol_exists' sets our given temp variable into the cache. Clear this so it doesn't persist between
-        # configuration runs.
-        unset(has_symbol_${config_name} CACHE)
+    string(TOUPPER "${WTLIB_NAME}" _name_upper)
+    set(_have_var "HAVE_LIB${_name_upper}")
+
+    if(WTLIB_CMAKE_TARGET)
+        set(_alias "wt::${WTLIB_CMAKE_TARGET}")
     else()
-        # Config doesn't meet dependency requirements, set a disabled state.
-        set(${config_name} OFF CACHE INTERNAL "" FORCE)
-        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
-    endif()
-endfunction()
-
-
-# config_include(config_name description FILE <include-header> [DEPENDS <deps>])
-# Defines a boolean (0/1) configuration option based on whether a given include header exists.
-# The configuration option is stored in the cmake cache and can be exported to the wiredtiger config header.
-#   config_name - name of the configuration option.
-#   description - docstring to describe the configuration option (viewable in the cmake-gui).
-#   FILE <include-header> - header we want to search for e.g a std header.
-#   DEPENDS <deps> - list of dependencies (semicolon separated) required for the configuration to be evaluated.
-#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
-function(config_include config_name description)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        2
-        "CONFIG_INCLUDE"
-        ""
-        "FILE;DEPENDS"
-        ""
-    )
-
-    if (NOT "${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to config_include: ${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}")
-    endif()
-    # We require a include header (not optional).
-    if ("${CONFIG_INCLUDE_FILE}" STREQUAL "")
-        message(FATAL_ERROR "No include file passed")
+        set(_alias "wt::${WTLIB_NAME}")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
-    eval_dependency("${CONFIG_INCLUDE_DEPENDS}" enabled)
-    if(enabled)
-        # 'check_include_files' won't use our current cache when test compiling the include header.
-        # To get around this we need to ensure we manually forward WT_ARCH and WT_OS as a minimum. This is particularly
-        # needed if 'check_include_files' will leverage one of our toolchain files.
-        if((NOT "${WT_ARCH}" STREQUAL "") AND (NOT "${WT_ARCH}" STREQUAL ""))
-            set(CMAKE_REQUIRED_FLAGS "-DWT_ARCH=${WT_ARCH} -DWT_OS=${WT_OS}")
-        endif()
-        check_include_files(${CONFIG_INCLUDE_FILE} has_include_${config_name})
-        set(CMAKE_REQUIRED_FLAGS)
-        set(has_include "0")
-        if(has_include_${config_name})
-            set(has_include ${has_include_${config_name}})
-        endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
-        if(${config_name}_DISABLED)
-            unset(${config_name}_DISABLED CACHE)
-            set(${config_name} ${has_include} CACHE BOOL "${description}" FORCE)
-        else()
-            set(${config_name} ${has_include} CACHE BOOL "${description}")
-        endif()
-        # 'check_include_files' sets our given temp variable into the cache. Clear this so it doesn't persist between
-        # configuration runs.
-        unset(has_include_${config_name} CACHE)
+    # Guard against repeated work.
+    if(TARGET ${_alias})
+        return()
+    endif()
+
+    if(WTLIB_LIBRARY)
+        set(_libname "${WTLIB_LIBRARY}")
     else()
-        set(${config_name} OFF CACHE INTERNAL "" FORCE)
-        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
-    endif()
-    # Set an internal cache variable with the CPP include statement. We can use this when building out our config header.
-    if (${${config_name}})
-        set(${config_name}_DECL "#include <${CONFIG_INCLUDE_FILE}>" CACHE INTERNAL "")
-    endif()
-endfunction()
-
-# config_lib(config_name description LIB <library> FUNC <function-symbol> [DEPENDS <deps>] [HEADER <file>])
-# Defines a boolean (0/1) configuration option based on whether a given library exists.
-# The configuration option is stored in the cmake cache and can be exported to the wiredtiger config header.
-#   config_name - name of the configuration option.
-#   description - docstring to describe the configuration option (viewable in the cmake-gui).
-#   LIB <library> - library we are searching for (defined as if we are linking against it e.g -lpthread).
-#   FUNC <function-symbol> - function symbol we expect to be available to link against within the library.
-#   DEPENDS <deps> - list of dependencies (semicolon separated) required for the configuration to be evaluated.
-#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
-function(config_lib config_name description)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        2
-        "CONFIG_LIB"
-        ""
-        "LIB;DEPENDS;HEADER"
-        ""
-    )
-
-    if (NOT "${CONFIG_LIB_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to config_lib: ${CONFIG_LIB_UNPARSED_ARGUMENTS}")
-    endif()
-    # We require a library (not optional).
-    if ("${CONFIG_LIB_LIB}" STREQUAL "")
-        message(FATAL_ERROR "No library passed")
+        set(_libname "${WTLIB_NAME}")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
-    eval_dependency("${CONFIG_LIB_DEPENDS}" enabled)
-    if(enabled)
-        message(CHECK_START "Looking for library ${CONFIG_LIB_LIB}")
-        # 'check_library_exists' won't use our current cache when test compiling the library.
-        # To get around this we need to ensure we manually forward WT_ARCH and WT_OS as a minimum. This is particularly
-        # needed if 'check_library_exists' will leverage one of our toolchain files.
-        if((NOT "${WT_ARCH}" STREQUAL "") AND (NOT "${WT_ARCH}" STREQUAL ""))
-            set(CMAKE_REQUIRED_FLAGS "-DWT_ARCH=${WT_ARCH} -DWT_OS=${WT_OS}")
+    message(CHECK_START "Looking for library ${_libname}")
+
+    set(_imported "")
+
+    # Step 1: find_package (MODULE then CONFIG by default).
+    if(WTLIB_PACKAGE)
+        find_package(${WTLIB_PACKAGE} QUIET)
+        if(${WTLIB_PACKAGE}_FOUND AND TARGET ${WTLIB_TARGET})
+            set(_imported ${WTLIB_TARGET})
         endif()
-        find_library(has_lib_${config_name} ${CONFIG_LIB_LIB})
-        set(CMAKE_REQUIRED_FLAGS)
-        set(has_lib "0")
-        set(has_include "")
-        if(has_lib_${config_name})
-            set(has_lib ${has_lib_${config_name}})
-            if (CONFIG_LIB_HEADER)
-                find_path(include_path_${config_name} ${CONFIG_LIB_HEADER})
-                if (include_path_${config_name})
-                    message(CHECK_PASS "found ${has_lib_${config_name}}, include path ${include_path_${config_name}}")
-                    set(has_include ${include_path_${config_name}})
-                else()
-                    message(CHECK_PASS "found ${has_lib_${config_name}}")
-                endif()
-                unset(include_path_${config_name} CACHE)
-            else()
-                message(CHECK_PASS "found ${has_lib_${config_name}}")
+    endif()
+
+    # Step 2: pkg-config.
+    if(NOT _imported AND WTLIB_PKGCONFIG_MODULE)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(${_name_upper} QUIET IMPORTED_TARGET ${WTLIB_PKGCONFIG_MODULE})
+            if(${_name_upper}_FOUND)
+                set(_imported "PkgConfig::${_name_upper}")
             endif()
-        else()
-            message(CHECK_FAIL "not found")
         endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
-        if(${config_name}_DISABLED)
-            unset(${config_name}_DISABLED CACHE)
-            set(${config_name} ${has_lib} CACHE STRING "${description}" FORCE)
-            set(${config_name}_INCLUDES ${has_include} CACHE STRING "Additional include paths for ${config_name}" FORCE)
-        else()
-            set(${config_name} ${has_lib} CACHE STRING "${description}")
-            set(${config_name}_INCLUDES ${has_include} CACHE STRING "Additional include paths for ${config_name}")
+    endif()
+
+    # Step 3: raw find_library + find_path.
+    if(NOT _imported)
+        find_library(${_name_upper}_LIBRARY ${_libname})
+        if(WTLIB_HEADER)
+            find_path(${_name_upper}_INCLUDE_DIR ${WTLIB_HEADER})
         endif()
-        # 'check_library_exists' sets our given temp variable into the cache. Clear this so it doesn't persist between
-        # configuration runs.
-        unset(has_lib_${config_name} CACHE)
+        if(${_name_upper}_LIBRARY AND (NOT WTLIB_HEADER OR ${_name_upper}_INCLUDE_DIR))
+            set(_raw "wt_imported_${WTLIB_NAME}")
+            if(NOT TARGET ${_raw})
+                add_library(${_raw} UNKNOWN IMPORTED GLOBAL)
+                set_target_properties(${_raw} PROPERTIES
+                    IMPORTED_LOCATION "${${_name_upper}_LIBRARY}")
+                if(WTLIB_HEADER)
+                    set_target_properties(${_raw} PROPERTIES
+                        INTERFACE_INCLUDE_DIRECTORIES "${${_name_upper}_INCLUDE_DIR}")
+                endif()
+            endif()
+            set(_imported ${_raw})
+        endif()
+    endif()
+
+    if(_imported)
+        set(${_have_var} ON CACHE INTERNAL "${WTLIB_NAME} available on system")
+        if(NOT TARGET ${_alias})
+            add_library(${_alias} ALIAS ${_imported})
+        endif()
+        message(CHECK_PASS "found")
     else()
-        message(STATUS "Not looking for library ${CONFIG_LIB_LIB}: disabled")
-        set(${config_name} 0 CACHE INTERNAL "" FORCE)
-        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
-    endif()
-endfunction()
-
-# config_compile(config_name description SOURCE <source-file> [DEPENDS <deps>] [LIBS <library-dependencies>])
-# Defines a boolean (0/1) configuration option based on whether a source file can be successfully compiled and run. Used
-# to determine if more fine grained functionality is supported on a given target environment (beyond what function
-# symbols, libraries and headers are available). The configuration option is stored in the cmake cache and can be
-# exported to the wiredtiger config header.
-#   config_name - name of the configuration option.
-#   description - docstring to describe the configuration option (viewable in the cmake-gui).
-#   SOURCE <source-file> - specific source file we want to test compile.
-#   DEPENDS <deps> - list of dependencies (semicolon separated) required for the configuration to be evaluated.
-#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
-#   LIBS <library-dependencies> - a list of any additional library dependencies needed to successfully compile the source.
-function(config_compile config_name description)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        2
-        "CONFIG_COMPILE"
-        ""
-        "SOURCE;DEPENDS;LIBS"
-        ""
-    )
-
-    if (NOT "${CONFIG_COMPILE_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to config_compile: ${CONFIG_COMPILE_UNPARSED_ARGUMENTS}")
-    endif()
-    # We require a source file (not optional).
-    if ("${CONFIG_COMPILE_SOURCE}" STREQUAL "")
-        message(FATAL_ERROR "No source passed")
-    endif()
-
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
-    eval_dependency("${CONFIG_COMPILE_DEPENDS}" enabled)
-    if(enabled)
-        # Test compile the source file.
-        try_run(
-            can_run_${config_name} can_compile_${config_name}
-            ${CMAKE_CURRENT_BINARY_DIR}
-            ${CONFIG_COMPILE_SOURCE}
-            CMAKE_FLAGS "-DWT_ARCH=${WT_ARCH}" "-DWT_OS=${WT_OS}"
-            LINK_LIBRARIES "${CONFIG_COMPILE_LIBS}"
-        )
-        set(can_run "0")
-        if((NOT "${can_run_${config_name}}" STREQUAL "FAILED_TO_RUN") AND
-            ("${can_run_${config_name}}" STREQUAL "0"))
-            set(can_run "1")
-        endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
-        if(${config_name}_DISABLED)
-            unset(${config_name}_DISABLED CACHE)
-            set(${config_name} ${can_run} CACHE STRING "${description}" FORCE)
-        else()
-            set(${config_name} ${can_run} CACHE STRING "${description}")
-        endif()
-        # 'try_run' sets our given temp variable into the cache. Clear this so it doesn't persist between
-        # configuration runs.
-        unset(can_run_${config_name} CACHE)
-        unset(can_compile_${config_name} CACHE)
-    else()
-        set(${config_name} 0 CACHE INTERNAL "" FORCE)
-        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+        set(${_have_var} OFF CACHE INTERNAL "${WTLIB_NAME} available on system")
+        message(CHECK_FAIL "not found")
     endif()
 endfunction()
 
@@ -569,18 +422,6 @@ function(parse_filelist_source filelist output_var)
             list(FIND plat_host "${file_group}" plat_index)
             if (("${plat_index}" GREATER_EQUAL "0") OR (${file_group} STREQUAL "${arch_host}"))
                 list(APPEND output_files ${file_name})
-                get_filename_component(file_ext ${file_name} EXT)
-                # POWERPC and ZSERIES hosts use the '.sx' extension for their ASM files. We need to
-                # manually tell CMake to ASM compile these files otherwise it will ignore them during
-                # compilation process.
-                if("${file_ext}" STREQUAL ".sx")
-                    if("${CMAKE_C_COMPILER_ID}" MATCHES "[Cc]lang")
-                        # If compiling PPC and ZSERIES assembly with Clang, we need to explicitly pass the language
-                        # type onto the compiler, since the 'sx' extension is unknown.
-                        set_source_files_properties(${file_name} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
-                    endif()
-                    set_source_files_properties(${file_name} PROPERTIES LANGUAGE ASM)
-                endif()
             endif()
         else()
             message(FATAL_ERROR "filelist (${filelist}) has an unexpected format [Invalid Line: \"${file}]\"")
@@ -599,99 +440,6 @@ function(add_cmake_flag included_flags flag)
         set(${included_flags} "${${included_flags}} ${flag}" CACHE STRING "" FORCE)
     endif()
 endfunction()
-
-# add_cmake_compiler_flags(FLAGS <flags...> LANGUAGES <languages...> BUILD_TYPES <build_types...>)
-# A helper function that adds one or more compiler flags to specified languages and build types,
-# avoiding duplication by using the existing add_cmake_flag function.
-#   FLAGS <flags...> - one or more compilation flags to add
-#   LANGUAGES <languages...> - one or more languages (C, CXX, etc.)
-#   BUILD_TYPES <build_types...> - one or more build types (Debug, RelWithDebInfo, Release, etc.)
-function(add_cmake_compiler_flags)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        0
-        "COMPILER_FLAGS"
-        ""
-        ""
-        "FLAGS;LANGUAGES;BUILD_TYPES"
-    )
-
-    # Validate required arguments
-    if(NOT COMPILER_FLAGS_FLAGS)
-        message(FATAL_ERROR "add_cmake_compiler_flags: FLAGS argument is required")
-    endif()
-    if(NOT COMPILER_FLAGS_LANGUAGES)
-        message(FATAL_ERROR "add_cmake_compiler_flags: LANGUAGES argument is required")
-    endif()
-    if(NOT COMPILER_FLAGS_BUILD_TYPES)
-        message(FATAL_ERROR "add_cmake_compiler_flags: BUILD_TYPES argument is required")
-    endif()
-
-    # Add each flag to each language/build_type combination
-    foreach(lang ${COMPILER_FLAGS_LANGUAGES})
-        foreach(build_type ${COMPILER_FLAGS_BUILD_TYPES})
-            # Convert build type to uppercase for CMAKE variable names
-            string(TOUPPER "${build_type}" build_type_upper)
-
-            # Initialize the flags variable if not already defined
-            if(NOT DEFINED CMAKE_${lang}_FLAGS_${build_type_upper})
-                set(CMAKE_${lang}_FLAGS_${build_type_upper} "")
-            endif()
-
-            # Add each flag while avoiding duplication
-            foreach(flag ${COMPILER_FLAGS_FLAGS})
-                add_cmake_flag(CMAKE_${lang}_FLAGS_${build_type_upper} "${flag}")
-            endforeach()
-        endforeach()
-    endforeach()
-endfunction()
-
-# add_cmake_linker_flags(FLAGS <flags...> BINARIES <binaries...> BUILD_TYPES <build_types...>)
-# A helper function that adds one or more linker flags to specified binary types and build types,
-# avoiding duplication by using the existing add_cmake_flag function.
-#   FLAGS <flags...> - one or more linker flags to add
-#   BINARIES <binaries...> - one or more binary types (EXE, SHARED, MODULE, etc.)
-#   BUILD_TYPES <build_types...> - one or more build types (Debug, RelWithDebInfo, Release, etc.)
-function(add_cmake_linker_flags)
-    cmake_parse_arguments(
-        PARSE_ARGV
-        0
-        "LINKER_FLAGS"
-        ""
-        ""
-        "FLAGS;BINARIES;BUILD_TYPES"
-    )
-
-    # Validate required arguments
-    if(NOT LINKER_FLAGS_FLAGS)
-        message(FATAL_ERROR "add_cmake_linker_flags: FLAGS argument is required")
-    endif()
-    if(NOT LINKER_FLAGS_BINARIES)
-        message(FATAL_ERROR "add_cmake_linker_flags: BINARIES argument is required")
-    endif()
-    if(NOT LINKER_FLAGS_BUILD_TYPES)
-        message(FATAL_ERROR "add_cmake_linker_flags: BUILD_TYPES argument is required")
-    endif()
-
-    # Add each flag to each binary_type/build_type combination
-    foreach(binary ${LINKER_FLAGS_BINARIES})
-        foreach(build_type ${LINKER_FLAGS_BUILD_TYPES})
-            # Convert build type to uppercase for CMAKE variable names
-            string(TOUPPER "${build_type}" build_type_upper)
-
-            # Initialize the flags variable if not already defined
-            if(NOT DEFINED CMAKE_${binary}_LINKER_FLAGS_${build_type_upper})
-                set(CMAKE_${binary}_LINKER_FLAGS_${build_type_upper} "")
-            endif()
-
-            # Add each flag while avoiding duplication
-            foreach(flag ${LINKER_FLAGS_FLAGS})
-                add_cmake_flag(CMAKE_${binary}_LINKER_FLAGS_${build_type_upper} "${flag}")
-            endforeach()
-        endforeach()
-    endforeach()
-endfunction()
-
 
 # replace_compile_options(flag_var [REMOVE <flags...>] [ADD <flags...>])
 # A helper function that removes specified compiler flags from a flag variable and optionally adds new ones.
