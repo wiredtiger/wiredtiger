@@ -2322,7 +2322,6 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool follower_blind_write;
     bool positioned;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -2341,9 +2340,7 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
-    follower_blind_write =
-      !S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE);
-    WT_ERR(__clayered_enter(clayered, false, follower_blind_write, false));
+    WT_ERR(__clayered_enter(clayered, false, false, false));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
