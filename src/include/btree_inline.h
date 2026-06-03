@@ -2136,7 +2136,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 #define WT_MIN_SPLIT_MULTIPLIER 16 /* At level 2, we see 1/16th entries */
 
     for (count = 0, size = 0, ins = ins_head->head[WT_MIN_SPLIT_DEPTH]; ins != NULL;
-         ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
+      ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
         count += WT_MIN_SPLIT_MULTIPLIER;
         size += WT_MIN_SPLIT_MULTIPLIER * (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
 
@@ -2522,7 +2522,7 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 #endif
 
     for (depth = 1; depth < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd_skiplist) < probability;
-         depth++)
+      depth++)
         ;
     return (depth);
 }
@@ -2850,7 +2850,7 @@ __wt_ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pinde
             goto found;
         for (start = &pindex->index[0], stop = &pindex->index[entries - 1],
             p = t = &pindex->index[slot];
-             p > start || t < stop;) {
+          p > start || t < stop;) {
             if (p > start && *--p == ref) {
                 slot = (uint32_t)(p - start);
                 goto found;
