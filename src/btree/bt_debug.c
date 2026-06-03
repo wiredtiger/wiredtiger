@@ -486,8 +486,8 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
     WT_DECL_ITEM(delta_decompressed);
     WT_DECL_RET;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
-    WT_PAGE_LOG_GET_ARGS get_args;
     const WT_PAGE_HEADER *base_display, *delta_display;
+    WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t size;
     uint8_t expected_magic;
     u_int count, i;
