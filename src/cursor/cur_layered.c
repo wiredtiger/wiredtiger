@@ -345,11 +345,8 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
 
     session = CUR2S(clayered);
 
-    WT_ASSERT_ALWAYS(session, !S2C(session)->layered_table_manager.leader,
-      "Leader should never try to advance to a never checkpoint.");
-
-    /* A random stable cursor shouldn't be reopened, it may have additional state. */
-    if (F_ISSET(clayered, WT_CLAYERED_RANDOM))
+    /* A leader does not require advancing a stable table. */
+    if (S2C(session)->layered_table_manager.leader)
         return (false);
 
     /*
