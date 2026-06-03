@@ -487,12 +487,10 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
           " must be strictly greater than the stable timestamp %" PRIu64,
           crypt->timestamp, stable_ts);
 
-    /* Build the entry before taking the lock to keep the critical section short. */
     WT_ERR(__wt_calloc_one(session, &entry));
     WT_ERR(__wt_buf_set(session, &entry->keys, crypt->keys.data, crypt->keys.size));
     entry->timestamp = crypt->timestamp;
 
-    /* The lock serializes this push against a concurrent checkpoint drain. */
     __wt_spin_lock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
     last_pushed = TAILQ_LAST(
       &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
