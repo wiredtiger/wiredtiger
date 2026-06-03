@@ -403,7 +403,7 @@ typedef struct {
     struct col_insert {
         uint32_t insert_list[256]; /* Inserted column-store records, maps one-to-one to tables */
         u_int insert_list_cnt;
-    } * col_insert;
+    } *col_insert;
 
     uint64_t keyno;                 /* key */
     WT_ITEM *key, _key;             /* read key */
