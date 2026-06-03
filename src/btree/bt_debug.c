@@ -512,7 +512,10 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
       get_args.backlink_checkpoint_id, get_args.delta_count));
     WT_ERR(__wt_msg(session, "results: count=%u", count));
 
-    /* Internal deltas decode against the base image, refined once result 0 is decoded. */
+    /*
+     * Internal deltas decode against the base image. Seed it with the raw base so a delta has a
+     * valid pointer even when the base is corrupt and skipped; the base iteration overwrites it.
+     */
     base_display = results[0].data;
     for (i = 0; i < count; i++) {
         /* Validate the block header magic and checksum before interpreting the buffer. */
@@ -878,14 +881,14 @@ __debug_cell_delta_leaf(WT_DBG *ds, int page_type, WT_CELL_UNPACK_DELTA_LEAF_KV 
     WT_RET(__debug_cell_kv(ds, NULL, page_type, "K", &unpack->delta_key));
 
     /* Absence of the delete bit means update only when no unknown bits are set. */
-    if (unpack->flags & ~WT_DELTA_LEAF_IS_DELETE) {
+    if (F_ISSET(unpack, ~WT_DELTA_LEAF_IS_DELETE)) {
         WT_RET(ds->f(ds,
           "\t"
           "delta_op: unknown flag 0x%" PRIx8 "\n",
           unpack->flags));
         return (0);
     }
-    op = (unpack->flags & WT_DELTA_LEAF_IS_DELETE) ? "delete" : "update";
+    op = F_ISSET(unpack, WT_DELTA_LEAF_IS_DELETE) ? "delete" : "update";
     WT_RET(ds->f(ds,
       "\t"
       "delta_op: %s\n",
@@ -899,7 +902,7 @@ __debug_cell_delta_leaf(WT_DBG *ds, int page_type, WT_CELL_UNPACK_DELTA_LEAF_KV 
           __wt_time_window_to_string(&unpack->delta_value.tw, time_string)));
     }
 
-    if (!(unpack->flags & WT_DELTA_LEAF_IS_DELETE))
+    if (!F_ISSET(unpack, WT_DELTA_LEAF_IS_DELETE))
         WT_RET(__debug_item_value(
           ds, "V", unpack->delta_value_data.data, unpack->delta_value_data.size));
 
