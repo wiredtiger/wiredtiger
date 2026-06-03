@@ -848,19 +848,16 @@ __debug_cell_kv(
 
 /*
  * __debug_cell_delta_leaf --
- *     Dump one (key, value) cell pair from a leaf delta. The value cell carries (flag_byte,
- *     value_bytes); the only flag defined today is WT_DELTA_LEAF_IS_DELETE. Reuses __debug_cell_kv
- *     for the key and the unwrapped value bytes so output matches the base page.
+ *     Dump one key/value pair from a leaf delta.
  */
 static int
 __debug_cell_delta_leaf(WT_DBG *ds, int page_type, WT_CELL_UNPACK_DELTA_LEAF_KV *unpack)
 {
     const char *op;
 
-    /* Key. */
     WT_RET(__debug_cell_kv(ds, NULL, page_type, "K", &unpack->delta_key));
 
-    /* Operation: delete or update. Reject unknown flag bits explicitly. */
+    /* Absence of the delete bit means update only when no unknown bits are set. */
     if (unpack->flags & ~WT_DELTA_LEAF_IS_DELETE) {
         WT_RET(ds->f(ds,
           "\t"
@@ -874,7 +871,6 @@ __debug_cell_delta_leaf(WT_DBG *ds, int page_type, WT_CELL_UNPACK_DELTA_LEAF_KV 
       "delta_op: %s\n",
       op));
 
-    /* Value time window (rides on the outer value cell). */
     if (!WT_TIME_WINDOW_IS_EMPTY(&unpack->delta_value.tw)) {
         char time_string[WT_TIME_STRING_SIZE];
         WT_RET(ds->f(ds,
@@ -883,7 +879,6 @@ __debug_cell_delta_leaf(WT_DBG *ds, int page_type, WT_CELL_UNPACK_DELTA_LEAF_KV 
           __wt_time_window_to_string(&unpack->delta_value.tw, time_string)));
     }
 
-    /* Value bytes; skip on delete since there are no payload bytes. */
     if (!(unpack->flags & WT_DELTA_LEAF_IS_DELETE))
         WT_RET(__debug_item_value(
           ds, "V", unpack->delta_value_data.data, unpack->delta_value_data.size));
@@ -893,8 +888,7 @@ __debug_cell_delta_leaf(WT_DBG *ds, int page_type, WT_CELL_UNPACK_DELTA_LEAF_KV 
 
 /*
  * __debug_cell_delta_int --
- *     Dump one (key, address-cookie) cell pair from an internal delta. A truncated/garbage cookie
- *     is reported inline so the dump continues.
+ *     Dump one key/child-address pair from an internal delta.
  */
 static int
 __debug_cell_delta_int(WT_DBG *ds, WT_CELL_UNPACK_DELTA_INT *unpack)
@@ -924,9 +918,8 @@ __debug_cell_delta_int(WT_DBG *ds, WT_CELL_UNPACK_DELTA_INT *unpack)
 
 /*
  * __debug_disk_delta --
- *     Dump a delta page in debugging mode, in the same structured style as __wti_debug_disk.
- *     base_dsk is the chain's base page (the internal-delta stream resolves keys and timestamps
- *     relative to it); delta_dsk is the delta we're decoding.
+ *     Dump a delta page in the structured style of __wti_debug_disk. Internal deltas are decoded
+ *     against the chain's base page; leaf deltas are self-contained.
  */
 static int
 __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
@@ -939,16 +932,19 @@ __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
     ds = &_ds;
+    flags = 0;
     WT_ASSERT(session, !(dump_all_data && dump_key_data));
-    flags = dump_all_data ? WT_DEBUG_UNREDACT_ALL : 0;
-    flags |= dump_key_data ? WT_DEBUG_UNREDACT_KEYS : 0;
+    if (dump_all_data)
+        LF_SET(WT_DEBUG_UNREDACT_ALL);
+    if (dump_key_data)
+        LF_SET(WT_DEBUG_UNREDACT_KEYS);
     WT_RET(__debug_config(session, ds, ofile, flags));
 
     {
         const WT_BLOCK_DISAGG_HEADER *blk;
 
         blk = WT_BLOCK_HEADER_REF(delta_dsk);
-        /* flags is a single byte; no byteswap needed. */
+        /* The block-header flags are a single byte; no byteswap needed. */
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED | WT_BLOCK_DISAGG_COMPRESSED)) {
             WT_ERR(ds->f(ds,
               "- delta page (underlying: %s)\n"
