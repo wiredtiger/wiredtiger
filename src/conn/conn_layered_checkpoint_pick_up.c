@@ -435,6 +435,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
       *sh_cursors[WT_DISAGG_CURSOR_COUNT];
+    WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_TIMER apply_timer;
@@ -496,6 +497,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_ERR(__wt_metadata_cursor(session, &md_write_cursor));
 
     /* Open the cursors on the shared metadata table. */
+    WT_ERR(__wt_scr_alloc(session, 0, &current_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_uri_buf));
     WT_ERR(__wt_buf_fmt(
       session, metadata_uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, metadata_checkpoint_name));
@@ -512,15 +514,24 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         WT_ERR(__disagg_bound_cursor(session, sh_cursors[i], __disagg_cursor_prefixes[i]));
     }
 
-    /* Advance all cursors to their first element within bounds. */
+    /* Initialize the cursor state arrays, so that the first iteration works correctly. */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
-        WT_ERR(__disagg_cursor_next(md_cursors[i], &md_keys[i]));
-        WT_ERR(__disagg_cursor_next(sh_cursors[i], &sh_keys[i]));
+        md_has[i] = sh_has[i] = true;
+        md_keys[i] = sh_keys[i] = NULL;
     }
-    WT_ERR(
-      __disagg_file_skip_local(md_cursors[WT_DISAGG_CURSOR_FILE], &md_keys[WT_DISAGG_CURSOR_FILE]));
 
     for (;;) {
+
+        /* Advance the cursors that are positioned at the current table name. */
+        for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
+            if (md_has[i])
+                WT_ERR(__disagg_cursor_next(md_cursors[i], &md_keys[i]));
+            if (sh_has[i])
+                WT_ERR(__disagg_cursor_next(sh_cursors[i], &sh_keys[i]));
+        }
+        WT_ERR(__disagg_file_skip_local(
+          md_cursors[WT_DISAGG_CURSOR_FILE], &md_keys[WT_DISAGG_CURSOR_FILE]));
+
         /*
          * Find the minimum table name across all non-exhausted cursors. Entries for the same
          * logical table share a name across URI schemes (e.g. "table:foo", "file:foo.wt",
@@ -536,6 +547,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         /* All cursors are exhausted. */
         if (current == NULL)
             break;
+
+        /* Copy and zero-terminate the table name. */
+        WT_ERR(__wt_buf_set(session, current_buf, current, current_len + 1));
+        ((char *)current_buf->data)[current_len] = '\0';
+        current = current_buf->data;
 
         /* Mark which cursors are positioned at the current table name. */
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
@@ -599,8 +615,17 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             ++existing_tables;
         } else if (!md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
-             * The shared metadata has a layered: entry but the local metadata does not. This is a
-             * new layered table. Create the ingest table if needed, then copy all shared entries.
+             * The shared metadata has a layered: entry but the local metadata does not. This could
+             * be a new layered table that we should pick up, but it could also mean that we have
+             * already dropped the table locally and should not recreate it as a result.
+             */
+            if (__wti_disagg_table_latest_create_remove(session, current) ==
+              WT_SHARED_METADATA_REMOVE)
+                continue;
+
+            /*
+             * This is a new layered table. Create the ingest table if needed, then copy all shared
+             * entries.
              */
             if (!sh_has[WT_DISAGG_CURSOR_FILE])
                 WT_ERR_MSG(session, EINVAL,
@@ -661,6 +686,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 /*
                  * Skip the shared metadata file, as it has already been processed.
                  */
+                continue;
             } else if (sh_has[WT_DISAGG_CURSOR_FILE] && !md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
                  * The shared metadata table has an entry for this file. Add it to the local
@@ -699,16 +725,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR(__disagg_insert_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
         }
-
-        /* Advance the cursors that are positioned at the current table name. */
-        for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
-            if (md_has[i])
-                WT_ERR(__disagg_cursor_next(md_cursors[i], &md_keys[i]));
-            if (sh_has[i])
-                WT_ERR(__disagg_cursor_next(sh_cursors[i], &sh_keys[i]));
-        }
-        WT_ERR(__disagg_file_skip_local(
-          md_cursors[WT_DISAGG_CURSOR_FILE], &md_keys[WT_DISAGG_CURSOR_FILE]));
     }
 
     __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
@@ -722,6 +738,7 @@ done:
 err:
     __wt_free(session, metadata_checkpoint_name);
     __wt_free(session, layered_ingest_uri);
+    __wt_scr_free(session, &current_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
     WT_TRET(__wt_metadata_cursor_release(session, &md_write_cursor));

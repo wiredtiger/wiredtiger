@@ -268,6 +268,8 @@ static inline const char *
 __shared_metadata_op_to_string(WT_SHARED_METADATA_OP op)
 {
     switch (op) {
+    case WT_SHARED_METADATA_NONE:
+        return ("NONE");
     case WT_SHARED_METADATA_UPDATE:
         return ("UPDATE");
     case WT_SHARED_METADATA_CREATE:
@@ -443,6 +445,32 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 }
 
 /*
+ * __wti_disagg_table_latest_create_remove --
+ *     Return the latest CREATE or REMOVE operation for the given table name in the shared metadata
+ *     queue. Returns WT_SHARED_METADATA_NONE as a sentinel when no CREATE or REMOVE entry is found.
+ *     UPDATE entries are skipped because they do not affect whether the table exists.
+ */
+WT_SHARED_METADATA_OP
+__wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+    WT_SHARED_METADATA_OP last_op;
+
+    conn = S2C(session);
+    last_op = WT_SHARED_METADATA_NONE;
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
+          strcmp(entry->table_name, table_name) == 0)
+            last_op = entry->metadata_op;
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (last_op);
+}
+
+/*
  * __disagg_shared_metadata_op_helper --
  *     Perform the remove/update operation in the shared metadata table.
  */
@@ -462,6 +490,8 @@ __disagg_shared_metadata_op_helper(
     cursor->set_key(cursor, key);
 
     switch (metadata_op) {
+    case WT_SHARED_METADATA_NONE:
+        break;
     case WT_SHARED_METADATA_REMOVE:
         /*
          * Layered tables can be created via two methods. When created with the "table:" prefix, we
