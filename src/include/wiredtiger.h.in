@@ -8855,13 +8855,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * transaction: rollback to stable prepared fast truncations that would
  * have been rolled back in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_PREP_TRUNC_ROLLBACK_DRYRUN	1965
+#define	WT_STAT_CONN_TXN_RTS_PREPARED_FAST_TRUNCATE_DRYRUN	1965
 /*! transaction: rollback to stable restored tombstones from history store */
 #define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1966
 /*! transaction: rollback to stable restored updates from history store */
 #define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1967
 /*! transaction: rollback to stable rolled back prepared fast truncations */
-#define	WT_STAT_CONN_TXN_RTS_PREP_TRUNC_ROLLBACK	1968
+#define	WT_STAT_CONN_TXN_RTS_PREPARED_FAST_TRUNCATE	1968
 /*! transaction: rollback to stable skipped btrees */
 #define	WT_STAT_CONN_TXN_RTS_BTREES_SKIPPED		1969
 /*! transaction: rollback to stable skipping delete rle */
@@ -10189,13 +10189,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * transaction: rollback to stable prepared fast truncations that would
  * have been rolled back in non-dryrun mode
  */
-#define	WT_STAT_DSRC_TXN_RTS_PREP_TRUNC_ROLLBACK_DRYRUN	2392
+#define	WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE_DRYRUN	2392
 /*! transaction: rollback to stable restored tombstones from history store */
 #define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2393
 /*! transaction: rollback to stable restored updates from history store */
 #define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2394
 /*! transaction: rollback to stable rolled back prepared fast truncations */
-#define	WT_STAT_DSRC_TXN_RTS_PREP_TRUNC_ROLLBACK	2395
+#define	WT_STAT_DSRC_TXN_RTS_PREPARED_FAST_TRUNCATE	2395
 /*! transaction: rollback to stable skipped btrees */
 #define	WT_STAT_DSRC_TXN_RTS_BTREES_SKIPPED		2396
 /*! transaction: rollback to stable skipping delete rle */

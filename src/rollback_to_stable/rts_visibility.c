@@ -145,11 +145,6 @@ __wti_rts_visibility_page_needs_abort(
         /* Retrieve the time aggregate from the unpacked address cell. */
         __wt_cell_get_ta(&vpack, &ta);
         durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
-        /*
-         * FIXME-WT-17663: For prepared fast truncates written to disk via WT_CONN_PRESERVE_PREPARED
-         * the prepare state is carried in vpack.page_del.prepare_state, NOT in ta->prepare. This
-         * case is not yet handled here, so such pages will be incorrectly treated as stable.
-         */
         prepared = ta->prepare;
         newest_txn = ta->newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||

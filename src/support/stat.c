@@ -868,10 +868,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->txn_rts_keys_restored = 0;
     stats->txn_rts_keys_removed_dryrun = 0;
     stats->txn_rts_keys_restored_dryrun = 0;
-    stats->txn_rts_prep_trunc_rollback_dryrun = 0;
+    stats->txn_rts_prepared_fast_truncate_dryrun = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
-    stats->txn_rts_prep_trunc_rollback = 0;
+    stats->txn_rts_prepared_fast_truncate = 0;
     stats->txn_rts_btrees_skipped = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
@@ -1329,10 +1329,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->txn_rts_keys_restored += from->txn_rts_keys_restored;
     to->txn_rts_keys_removed_dryrun += from->txn_rts_keys_removed_dryrun;
     to->txn_rts_keys_restored_dryrun += from->txn_rts_keys_restored_dryrun;
-    to->txn_rts_prep_trunc_rollback_dryrun += from->txn_rts_prep_trunc_rollback_dryrun;
+    to->txn_rts_prepared_fast_truncate_dryrun += from->txn_rts_prepared_fast_truncate_dryrun;
     to->txn_rts_hs_restore_tombstones += from->txn_rts_hs_restore_tombstones;
     to->txn_rts_hs_restore_updates += from->txn_rts_hs_restore_updates;
-    to->txn_rts_prep_trunc_rollback += from->txn_rts_prep_trunc_rollback;
+    to->txn_rts_prepared_fast_truncate += from->txn_rts_prepared_fast_truncate;
     to->txn_rts_btrees_skipped += from->txn_rts_btrees_skipped;
     to->txn_rts_delete_rle_skipped += from->txn_rts_delete_rle_skipped;
     to->txn_rts_stable_rle_skipped += from->txn_rts_stable_rle_skipped;
@@ -1843,11 +1843,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->txn_rts_keys_restored += WT_STAT_DSRC_READ(from, txn_rts_keys_restored);
     to->txn_rts_keys_removed_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_removed_dryrun);
     to->txn_rts_keys_restored_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_restored_dryrun);
-    to->txn_rts_prep_trunc_rollback_dryrun +=
-      WT_STAT_DSRC_READ(from, txn_rts_prep_trunc_rollback_dryrun);
+    to->txn_rts_prepared_fast_truncate_dryrun +=
+      WT_STAT_DSRC_READ(from, txn_rts_prepared_fast_truncate_dryrun);
     to->txn_rts_hs_restore_tombstones += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_updates);
-    to->txn_rts_prep_trunc_rollback += WT_STAT_DSRC_READ(from, txn_rts_prep_trunc_rollback);
+    to->txn_rts_prepared_fast_truncate += WT_STAT_DSRC_READ(from, txn_rts_prepared_fast_truncate);
     to->txn_rts_btrees_skipped += WT_STAT_DSRC_READ(from, txn_rts_btrees_skipped);
     to->txn_rts_delete_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_stable_rle_skipped);
@@ -3939,10 +3939,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_rts_keys_removed_dryrun = 0;
     stats->txn_rts_keys_restored_dryrun = 0;
     stats->txn_rts_pages_visited = 0;
-    stats->txn_rts_prep_trunc_rollback_dryrun = 0;
+    stats->txn_rts_prepared_fast_truncate_dryrun = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
-    stats->txn_rts_prep_trunc_rollback = 0;
+    stats->txn_rts_prepared_fast_truncate = 0;
     stats->txn_rts_btrees_skipped = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
@@ -5238,11 +5238,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rts_keys_removed_dryrun += WT_STAT_CONN_READ(from, txn_rts_keys_removed_dryrun);
     to->txn_rts_keys_restored_dryrun += WT_STAT_CONN_READ(from, txn_rts_keys_restored_dryrun);
     to->txn_rts_pages_visited += WT_STAT_CONN_READ(from, txn_rts_pages_visited);
-    to->txn_rts_prep_trunc_rollback_dryrun +=
-      WT_STAT_CONN_READ(from, txn_rts_prep_trunc_rollback_dryrun);
+    to->txn_rts_prepared_fast_truncate_dryrun +=
+      WT_STAT_CONN_READ(from, txn_rts_prepared_fast_truncate_dryrun);
     to->txn_rts_hs_restore_tombstones += WT_STAT_CONN_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_CONN_READ(from, txn_rts_hs_restore_updates);
-    to->txn_rts_prep_trunc_rollback += WT_STAT_CONN_READ(from, txn_rts_prep_trunc_rollback);
+    to->txn_rts_prepared_fast_truncate += WT_STAT_CONN_READ(from, txn_rts_prepared_fast_truncate);
     to->txn_rts_btrees_skipped += WT_STAT_CONN_READ(from, txn_rts_btrees_skipped);
     to->txn_rts_delete_rle_skipped += WT_STAT_CONN_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_CONN_READ(from, txn_rts_stable_rle_skipped);

@@ -30,21 +30,21 @@
 #   Verify that rollback to stable (RTS) is compatible with prepared fast
 #   truncate operations.
 #
-#   test_rts_rollback_prepared_fast_truncate: A prepared-but-uncommitted fast
+#   Test case prepared fast truncate: A prepared-but-uncommitted fast
 #   truncate is rolled back, then RTS is called. The data committed before
 #   stable_timestamp must remain visible throughout.
 #
-#   test_rts_rollback_committed_fast_truncate: A committed fast truncate at a
+#   Test case committed fast truncate: A committed fast truncate at a
 #   timestamp above stable_timestamp is rolled back by RTS. This verifies
 #   that the existing committed-fast-truncate RTS path continues to work
 #   correctly after the code changes for prepared fast truncation.
 #
-#   FIXME-WT-17663: txn_rts_prep_trunc_rollback cannot be asserted in
-#   test_rts_rollback_prepared_fast_truncate: RTS returns EBUSY when any prepared
-#   transaction is active, so the prepared fast truncate is rolled back via the session
-#   before RTS runs and the new code path is never reached. Once we write prepared
-#   fast truncates to disk, crash-recovery simulation can exercise the path where
-#   prepared transaction is gone but on-disk WT_REF_DELETED/INPROGRESS survives.
+#   FIXME-WT-17663: the new stat cannot be asserted in the prepared fast
+#   truncate test: RTS returns EBUSY when any prepared transaction is active
+#   so the prepared fast truncate is rolled back via the session before
+#   RTS runs and the new code path is never reached. Once we write prepared
+#   fast truncates to disk, we can simulate the path where prepared
+#   transaction is gone but on-disk WT_REF_DELETED survives.
 #   Add the stat assertion at that point.
 
 import wttest
