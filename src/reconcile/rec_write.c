@@ -2120,9 +2120,9 @@ __rec_build_delta(
                 total_keys = full_image->u.entries / 2 + r->keys_removed_from_disk_image_count;
             if (total_keys > 0 &&
               r->keys_removed_from_disk_image_count * 100 / total_keys >
-                conn->page_delta.delete_pct) {
+                conn->page_delta.delete_pct)
                 WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_delete_threshold);
-            } else {
+            else {
                 WT_RET(__rec_build_delta_leaf(session, full_image, r));
                 *build_deltap = true;
             }
