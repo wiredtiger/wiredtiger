@@ -1446,7 +1446,7 @@ ThreadRunner::run()
         WT_ERR(op_run_setup(&_thread->_op));
     }
 
-err :
+err:
 #ifdef _DEBUG
 {
     std::string messages = this->get_debug();
