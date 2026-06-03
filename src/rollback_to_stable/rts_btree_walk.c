@@ -23,27 +23,6 @@ __rts_btree_walk_check_btree_modified(WT_SESSION_IMPL *session, const char *uri,
 }
 
 /*
- * __rts_btree_abort_fast_truncate --
- *     Roll back a prepared fast truncate in place. The caller must hold the ref locked
- *     (WT_REF_LOCKED) and have confirmed both INPROGRESS prepare state and prepare_ts >
- *     rollback_timestamp before calling.
- */
-static void
-__rts_btree_abort_fast_truncate(
-  WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
-{
-    WT_PAGE_DELETED *page_del;
-
-    page_del = ref->page_del;
-    WT_ASSERT(session, page_del != NULL);
-    WT_ASSERT(session, page_del->prepare_state == WT_PREPARE_INPROGRESS);
-    WT_ASSERT(session, page_del->prepare_ts > rollback_timestamp);
-
-    __wt_free(session, ref->page_del);
-    WT_REF_SET_STATE(ref, WT_REF_DISK);
-}
-
-/*
  * __rts_btree_walk_page_skip --
  *     Skip if rollback to stable doesn't require reading this page.
  */
@@ -87,11 +66,12 @@ __rts_btree_walk_page_skip(
               "txnid=%" PRIu64,
               (void *)ref, __wt_timestamp_to_string(page_del->prepare_ts, time_string[0]),
               page_del->txnid);
-            if (!S2C(session)->rts->dryrun)
-                __rts_btree_abort_fast_truncate(session, ref, rollback_timestamp);
-            else
+            if (!S2C(session)->rts->dryrun) {
+                __wt_free(session, ref->page_del);
+                WT_REF_SET_STATE(ref, WT_REF_DISK);
+            } else
                 WT_REF_SET_STATE(ref, WT_REF_DELETED);
-            WT_RTS_STAT_CONN_INCR(session, txn_rts_prep_trunc_rollback);
+            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_prep_trunc_rollback);
             *skipp = true;
             return (0);
         }

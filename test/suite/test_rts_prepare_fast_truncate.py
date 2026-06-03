@@ -93,6 +93,15 @@ class test_rts_prepare_fast_truncate(wttest.WiredTigerTestCase):
         cursor.close()
         return count
 
+    def _truncate_all(self, session, uri, nrows):
+        c1 = session.open_cursor(uri)
+        c2 = session.open_cursor(uri)
+        c1.set_key(1)
+        c2.set_key(nrows)
+        session.truncate(None, c1, c2, None)
+        c1.close()
+        c2.close()
+
     def test_rts_rollback_prepared_fast_truncate(self):
         """
         Prepare a fast truncate, roll it back explicitly, then call RTS.
@@ -110,13 +119,7 @@ class test_rts_prepare_fast_truncate(wttest.WiredTigerTestCase):
         # prepare_state == INPROGRESS.  Do NOT commit.
         session2 = self.conn.open_session('isolation=snapshot')
         session2.begin_transaction()
-        c1 = session2.open_cursor(uri)
-        c2 = session2.open_cursor(uri)
-        c1.set_key(1)
-        c2.set_key(nrows)
-        session2.truncate(None, c1, c2, None)
-        c1.close()
-        c2.close()
+        self._truncate_all(session2, uri, nrows)
         session2.prepare_transaction('prepare_timestamp=20')
 
         # Roll back the prepared transaction via the session (not via RTS).
@@ -148,13 +151,7 @@ class test_rts_prepare_fast_truncate(wttest.WiredTigerTestCase):
         # Commit a fast truncate at timestamp 20 (above stable_timestamp=10).
         session2 = self.conn.open_session('isolation=snapshot')
         session2.begin_transaction()
-        c1 = session2.open_cursor(uri)
-        c2 = session2.open_cursor(uri)
-        c1.set_key(1)
-        c2.set_key(nrows)
-        session2.truncate(None, c1, c2, None)
-        c1.close()
-        c2.close()
+        self._truncate_all(session2, uri, nrows)
         session2.commit_transaction('commit_timestamp=20')
         session2.close()
 
