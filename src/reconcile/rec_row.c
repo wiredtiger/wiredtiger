@@ -286,8 +286,8 @@ __rec_pack_delta_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV 
         static WT_TIME_AGGREGATE local_ta;
         WT_TIME_AGGREGATE_INIT(&local_ta);
 
-        t_kv->cell_len = __wt_cell_pack_addr(
-          session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
+        t_kv->cell_len = __wt_cell_pack_addr(session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL,
+          WT_RECNO_OOB, NULL, &local_ta, false, 0);
         t_kv->len = t_kv->cell_len;
         WT_ASSERT(session, t_kv->len == WT_CELL_ADDR_DEL_VISIBLE_ALL_LEN);
         __wti_rec_kv_copy(session, p, t_kv);
@@ -471,7 +471,7 @@ __rec_row_merge(
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL);
+        __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL, false);
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, key->len + val->len))
@@ -711,13 +711,15 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page_del = NULL;
         if (__wt_off_page(page, addr)) {
             page_del = cms.state == WTI_CHILD_PROXY ? &cms.del : NULL;
-            __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
+            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+            __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del, false);
             source_ta = &addr->ta;
         } else if (cms.state == WTI_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
-            __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+            __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, false);
             source_ta = &vpack->ta;
         } else {
             retain_onpage = true;
@@ -755,7 +757,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             }
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED))
-                __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+                /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+                __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, false);
             else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
@@ -1158,11 +1161,11 @@ __wti_rec_row_leaf(
         /*
          * If we reconcile an on disk key with a globally visible stop time point and there are no
          * new updates for that key, skip writing that key. Or if garbage collection is enabled for
-         * the table, and the value has become obsolete.
+         * the table, no MODIFY update depends on it and the value has become obsolete.
          */
         if (upd == NULL) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-                if (__rec_row_garbage_collect_tw_eligible(r, twp)) {
+                if (!upd_select.was_modify && __rec_row_garbage_collect_tw_eligible(r, twp)) {
                     upd = &upd_tombstone;
                     r->key_removed_from_disk_image = true;
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);

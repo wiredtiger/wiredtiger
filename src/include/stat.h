@@ -1006,6 +1006,7 @@ struct __wt_connection_stats {
     int64_t layered_curs_prev_ingest;
     int64_t layered_curs_prev_stable;
     int64_t layered_curs_remove;
+    int64_t layered_curs_reopen_ingest;
     int64_t layered_curs_search_near;
     int64_t layered_curs_search_near_ingest;
     int64_t layered_curs_search_near_stable;
@@ -1736,6 +1737,7 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_prev_ingest;
     int64_t layered_curs_prev_stable;
     int64_t layered_curs_remove;
+    int64_t layered_curs_reopen_ingest;
     int64_t layered_curs_search_near;
     int64_t layered_curs_search_near_ingest;
     int64_t layered_curs_search_near_stable;
