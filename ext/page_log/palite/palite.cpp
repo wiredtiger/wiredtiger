@@ -738,8 +738,7 @@ public:
         if constexpr (Policy != THROW)
             return;
 
-        static constexpr auto sqlite2errno = []() constexpr
-        {
+        static constexpr auto sqlite2errno = []() constexpr {
             std::array<std::errc, SQLITE_NOTADB + 1> a{};
             a[SQLITE_OK] = std::errc::operation_not_permitted; /* unused */
             a[SQLITE_ERROR] = std::errc::invalid_argument;
@@ -1061,8 +1060,7 @@ struct Globals : public Table<Globals> {
         COUNT /* number of statements */
     };
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /* Increment LSN. */
@@ -1191,8 +1189,7 @@ struct Checkpoints : public Table<Checkpoints> {
         COUNT /* number of statements */
     };
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /*
@@ -1363,8 +1360,7 @@ struct Pages : public Table<Pages> {
      */
     static constexpr uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /*
