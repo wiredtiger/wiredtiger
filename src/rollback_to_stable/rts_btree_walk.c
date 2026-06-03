@@ -32,7 +32,7 @@ __rts_btree_walk_page_skip(
 {
     WT_PAGE_DELETED *page_del;
     wt_timestamp_t rollback_timestamp;
-    char time_string[2][WT_TIME_STRING_SIZE];
+    char time_string[3][WT_TIME_STRING_SIZE];
 
     rollback_timestamp = *(wt_timestamp_t *)context;
     WT_UNUSED(visible_all);
@@ -57,13 +57,8 @@ __rts_btree_walk_page_skip(
          * would otherwise treat as committed.
          */
         if (page_del == NULL ||
-          (page_del->prepare_state != WT_PREPARE_INPROGRESS &&
-            __wti_rts_visibility_txn_visible_id(session, page_del->txnid) &&
+          (page_del->committed && __wti_rts_visibility_txn_visible_id(session, page_del->txnid) &&
             page_del->pg_del_durable_ts <= rollback_timestamp)) {
-            WT_ASSERT(session,
-              page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
-                page_del->prepare_state == WT_PREPARE_RESOLVED);
-
             if (page_del == NULL)
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
                   WT_RTS_VERB_TAG_SKIP_DEL_NULL "ref=%p: deleted page walk skipped", (void *)ref);
