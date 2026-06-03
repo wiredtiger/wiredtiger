@@ -212,7 +212,7 @@ err:
 static const char *const __disagg_cursor_prefixes[WT_DISAGG_CURSOR_COUNT] = {
   "colgroup:", "file:", "layered:", "table:"};
 
-/* Length of each prefix string, so callers can skip past ':' without strchr. */
+/* Length of each prefix string. */
 static const size_t __disagg_cursor_prefix_lengths[WT_DISAGG_CURSOR_COUNT] = {9, 5, 8, 6};
 
 /*
@@ -237,8 +237,8 @@ __disagg_cursor_next(WT_CURSOR *cursor, const char **keyp)
 /*
  * __disagg_table_name --
  *     Return the table name embedded in a metadata key, stripping the URI prefix and any
- * scheme-specific suffix. The result is a pointer into the key buffer with a separate length it
- * is not null-terminated at that boundary.
+ *     scheme-specific suffix. The result is a pointer into the key buffer with a separate length it
+ *     is not null-terminated at that boundary.
  */
 static void
 __disagg_table_name(const char *key, int idx, const char **namep, size_t *lenp)
@@ -281,21 +281,6 @@ __disagg_file_skip_local(WT_CURSOR *cursor, const char **keyp)
 }
 
 /*
- * __disagg_table_name_cmp --
- *     Lexicographically compare two table names given as (pointer, length) pairs.
- */
-static int
-__disagg_table_name_cmp(const char *a, size_t a_len, const char *b, size_t b_len)
-{
-    int cmp;
-
-    cmp = memcmp(a, b, WT_MIN(a_len, b_len));
-    if (cmp == 0)
-        cmp = a_len < b_len ? -1 : a_len > b_len ? 1 : 0;
-    return (cmp);
-}
-
-/*
  * __disagg_update_min --
  *     If the table name embedded in key is less than the current minimum, replace the minimum. Does
  *     nothing when key is NULL (cursor exhausted).
@@ -309,8 +294,7 @@ __disagg_update_min(const char *key, int idx, const char **currentp, size_t *cur
     if (key == NULL)
         return;
     __disagg_table_name(key, idx, &name, &name_len);
-    if (*currentp == NULL ||
-      __disagg_table_name_cmp(name, name_len, *currentp, *current_lenp) < 0) {
+    if (*currentp == NULL || __wt_string_len_cmp(name, name_len, *currentp, *current_lenp) < 0) {
         *currentp = name;
         *current_lenp = name_len;
     }
@@ -330,7 +314,7 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
     if (key == NULL)
         return (false);
     __disagg_table_name(key, idx, &name, &name_len);
-    return (__disagg_table_name_cmp(name, name_len, current, current_len) == 0);
+    return (__wt_string_len_cmp(name, name_len, current, current_len) == 0);
 }
 
 /*
@@ -362,15 +346,16 @@ err:
  *     the shared metadata, then mark stale data handles as outdated.
  */
 static int
-__disagg_update_file_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor,
-  WT_CURSOR *md_file_cursor, WT_CURSOR *md_write_cursor)
+__disagg_update_file_meta(
+  WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, WT_CURSOR *md_file_cursor)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     char *cfg_ret, *current_value_copy;
-    const char *cfg[3], *checkpoint_name, *current_value, *metadata_value, *sh_file_key;
+    const char *cfg[3], *checkpoint_name, *current_value;
+    const char *md_file_key, *metadata_value, *sh_file_key;
     bool discard;
 
     cfg_ret = current_value_copy = NULL;
@@ -384,6 +369,10 @@ __disagg_update_file_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor,
     WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
     WT_ERR(__wt_buf_fmt(session, metadata_cfg, "checkpoint=%.*s", (int)cval.len, cval.str));
 
+    /* Check that the local metadata cursor is positioned at the same key. */
+    WT_ERR(md_file_cursor->get_key(md_file_cursor, &md_file_key));
+    WT_ASSERT(session, strcmp(md_file_key, sh_file_key) == 0);
+
     /* Merge the new checkpoint metadata into the current table metadata. */
     WT_ERR(md_file_cursor->get_value(md_file_cursor, &current_value));
     /* Copy the value since we don't own the memory after calling get_value(). */
@@ -394,9 +383,8 @@ __disagg_update_file_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor,
     cfg[2] = NULL;
     WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
-    md_write_cursor->set_key(md_write_cursor, sh_file_key);
-    md_write_cursor->set_value(md_write_cursor, cfg_ret);
-    WT_ERR_MSG_CHK(session, md_write_cursor->insert(md_write_cursor),
+    md_file_cursor->set_value(md_file_cursor, cfg_ret);
+    WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),
       "Failed to update metadata for key \"%s\"", sh_file_key);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -447,7 +435,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
       *sh_cursors[WT_DISAGG_CURSOR_COUNT];
-    WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_TIMER apply_timer;
@@ -488,6 +475,21 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     if (metadata_checkpoint_name == NULL)
         goto done;
 
+    /*
+     * !!!
+     * Open four parallel cursor pairs - one pair per URI scheme (colgroup:, file:, layered:,
+     * table:). Within each pair, md_cursors[i] scans local metadata and sh_cursors[i] scans the
+     * latest checkpoint of the shared metadata table. Both cursors in a pair are bounded to their
+     * respective URI scheme and advanced in lockstep so that entries for the same logical table
+     * name are reconciled together.
+     *
+     * For example, a layered table "foo" produces entries across four schemes:
+     *   colgroup:foo    file:foo.wt    layered:foo    table:foo
+     *
+     * The merge loop picks the minimum table name across all eight cursor positions in each
+     * iteration, then processes all four local/shared pairs for that name before advancing.
+     */
+
     /* Open the metadata cursors on the local metadata table. */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         WT_ERR(__wt_metadata_cursor(session, &md_cursors[i]));
@@ -511,7 +513,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     }
 
     /* Advance all cursors to their first element within bounds. */
-    WT_ERR(__wt_scr_alloc(session, 0, &current_buf));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
         WT_ERR(__disagg_cursor_next(md_cursors[i], &md_keys[i]));
         WT_ERR(__disagg_cursor_next(sh_cursors[i], &sh_keys[i]));
@@ -532,16 +533,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             __disagg_update_min(sh_keys[i], i, &current, &current_len);
         }
 
+        /* All cursors are exhausted. */
         if (current == NULL)
             break;
-
-        /*
-         * Copy the table name before advancing any cursor key buffers are owned by the cursor and
-         * are invalidated when the cursor moves.
-         */
-        WT_ERR(__wt_buf_set(session, current_buf, current, current_len + 1));
-        ((char *)current_buf->data)[current_len] = '\0';
-        current = current_buf->data;
 
         /* Mark which cursors are positioned at the current table name. */
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
@@ -549,29 +543,37 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             sh_has[i] = __disagg_key_at_table(sh_keys[i], i, current, current_len);
         }
 
-        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Reconciling metadata for \"%s\": "
-          "Local=[colgroup:%s file:%s layered:%s table:%s] "
-          "Shared=[colgroup:%s file:%s layered:%s table:%s]",
-          current, md_has[WT_DISAGG_CURSOR_COLGROUP] ? "Y" : "N",
-          md_has[WT_DISAGG_CURSOR_FILE] ? "Y" : "N", md_has[WT_DISAGG_CURSOR_LAYERED] ? "Y" : "N",
-          md_has[WT_DISAGG_CURSOR_TABLE] ? "Y" : "N", sh_has[WT_DISAGG_CURSOR_COLGROUP] ? "Y" : "N",
-          sh_has[WT_DISAGG_CURSOR_FILE] ? "Y" : "N", sh_has[WT_DISAGG_CURSOR_LAYERED] ? "Y" : "N",
-          sh_has[WT_DISAGG_CURSOR_TABLE] ? "Y" : "N");
-        for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
-            if (md_has[i]) {
-                WT_ERR(md_cursors[i]->get_value(md_cursors[i], &metadata_value));
-                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  Local [%s]: %s",
-                  __disagg_cursor_prefixes[i], metadata_value);
-            }
-            if (sh_has[i]) {
-                WT_ERR(sh_cursors[i]->get_value(sh_cursors[i], &metadata_value));
-                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  Shared[%s]: %s",
-                  __disagg_cursor_prefixes[i], metadata_value);
+        /* Log the reconciliation state for this table across all URI schemes. */
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_2)) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Reconciling metadata for \"%s\": "
+              "Local=[colgroup:%s file:%s layered:%s table:%s] "
+              "Shared=[colgroup:%s file:%s layered:%s table:%s]",
+              current, md_has[WT_DISAGG_CURSOR_COLGROUP] ? "Y" : "N",
+              md_has[WT_DISAGG_CURSOR_FILE] ? "Y" : "N",
+              md_has[WT_DISAGG_CURSOR_LAYERED] ? "Y" : "N",
+              md_has[WT_DISAGG_CURSOR_TABLE] ? "Y" : "N",
+              sh_has[WT_DISAGG_CURSOR_COLGROUP] ? "Y" : "N",
+              sh_has[WT_DISAGG_CURSOR_FILE] ? "Y" : "N",
+              sh_has[WT_DISAGG_CURSOR_LAYERED] ? "Y" : "N",
+              sh_has[WT_DISAGG_CURSOR_TABLE] ? "Y" : "N");
+            for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
+                if (md_has[i]) {
+                    WT_ERR(md_cursors[i]->get_value(md_cursors[i], &metadata_value));
+                    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  Local [%s]: %s",
+                      __disagg_cursor_prefixes[i], metadata_value);
+                }
+                if (sh_has[i]) {
+                    WT_ERR(sh_cursors[i]->get_value(sh_cursors[i], &metadata_value));
+                    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  Shared[%s]: %s",
+                      __disagg_cursor_prefixes[i], metadata_value);
+                }
             }
         }
 
-        /* Reconcile entries for this URI scheme and table. */
+        /*
+         * Reconcile entries for this URI scheme and table.
+         */
         if (md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
              * Both the local and shared metadata tables have a layered: entry. Update the file:
@@ -581,9 +583,17 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR_MSG(session, EINVAL,
                   "Missing shared file: metadata entry for layered table \"%s\"", current);
             if (md_has[WT_DISAGG_CURSOR_FILE])
-                WT_ERR(__disagg_update_file_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
-                  md_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                /*
+                 * The file already exists in the local metadata, so we just pick up its latest
+                 * checkpoint without changing its other metadata.
+                 */
+                WT_ERR(__disagg_update_file_meta(
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
             else
+                /*
+                 * We already have the layered table in the local metadata; we are just picking up
+                 * the stable component.
+                 */
                 WT_ERR(__disagg_insert_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
             ++existing_tables;
@@ -665,8 +675,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * local metadata with any new checkpoint information from the shared metadata, and
                  * mark any old checkpoints as discarded.
                  */
-                WT_ERR(__disagg_update_file_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
-                  md_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                WT_ERR(__disagg_update_file_meta(
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
                 ++existing_tables;
             }
 
@@ -713,7 +723,6 @@ err:
     __wt_free(session, metadata_checkpoint_name);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &metadata_uri_buf);
-    __wt_scr_free(session, &current_buf);
 
     WT_TRET(__wt_metadata_cursor_release(session, &md_write_cursor));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
