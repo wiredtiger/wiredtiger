@@ -72,11 +72,11 @@
 #define SODIUM_TESTKEY "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 #undef M
-#define M(v) ((v)*WT_MILLION) /* Million */
+#define M(v) ((v) * WT_MILLION) /* Million */
 #undef KILOBYTE
-#define KILOBYTE(v) ((v)*WT_KILOBYTE)
+#define KILOBYTE(v) ((v) * WT_KILOBYTE)
 #undef MEGABYTE
-#define MEGABYTE(v) ((v)*WT_MEGABYTE)
+#define MEGABYTE(v) ((v) * WT_MEGABYTE)
 
 /* Format isn't careful about path buffers, an easy to fix hard-coded length. */
 #define MAX_FORMAT_PATH 1024

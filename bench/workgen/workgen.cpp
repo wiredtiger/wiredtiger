@@ -68,7 +68,7 @@ extern "C" {
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 #define TIMESPEC_DOUBLE(ts) (static_cast<double>((ts).tv_sec) + ts.tv_nsec * 0.000000001)
-#define PCT(n, total) ((total) == 0 ? 0 : ((n)*100) / (total))
+#define PCT(n, total) ((total) == 0 ? 0 : ((n) * 100) / (total))
 #define OPS_PER_SEC(ops, ts) static_cast<int>((ts) == 0 ? 0.0 : (ops) / TIMESPEC_DOUBLE(ts))
 
 // Get the value of a STL container, even if it is not present

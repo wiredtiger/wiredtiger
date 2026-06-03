@@ -19,7 +19,7 @@
 #endif
 
 /* 16B alignment */
-#define WT_ALIGNED_16(p) (((uintptr_t)(p)&0x0f) == 0)
+#define WT_ALIGNED_16(p) (((uintptr_t)(p) & 0x0f) == 0)
 #define WT_VECTOR_SIZE 16 /* chunk size */
 
 /*
