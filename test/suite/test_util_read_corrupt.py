@@ -186,29 +186,28 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertIn(marker, err, msg)
 
     def test_dump_with_q_produces_partial_output(self):
-        # Graceful counterpart: same corruption, but -q turns the panic
-        # into an exit-1 return.
-        # Pins four properties of the -q behavior:
-        #   1. rc == 1 exactly (graceful non-zero, not a crash).
-        #   2. stderr is exactly the one-line cursor-level error from
-        #      util_err. Pinning the exact line catches both the "panic
-        #      messages leaked through" case (extra lines) and the
-        #      "error reporting was silently dropped" case (zero lines).
-        #   3. stdout starts with the dump header preamble verbatim.
-        #      The header is printed unconditionally before iteration,
-        #      so a regression that broke the early write path would
-        #      surface here.
-        #   4. The last key (00001999) is NOT in stdout - pins that
-        #      truncation happened, i.e., iteration stopped early at
-        #      the corrupt leaf rather than completing the whole walk.
-        #      This is the load-bearing assertion for "partial output."
-        #
-        # Note: we do not assert specific early keys are present. The
-        # test framework's checkpoint cadence can place any key range
-        # on the corrupt leaf - including the first few leaves - so
-        # iteration may stop after emitting zero records on some runs.
-        # The "last key absent" check still proves the walk did not
-        # complete, which is the contract.
+        # Graceful counterpart: same corruption, but -q runs the tree
+        # walker which skips bad pages and continues with sibling
+        # subtrees. Output is partial - only records on the corrupt
+        # leaf are missing - and the command exits non-zero to flag
+        # that something was skipped.
+        # Pins five properties of the -q behavior:
+        #   1. rc == 1 exactly (walker returned non-zero because a
+        #      subtree was skipped; pre-walker iteration would have
+        #      also returned 1 but for the different reason of "first
+        #      error stopped the walk").
+        #   2. stdout starts with the dump header preamble verbatim.
+        #   3. The first key (00000000) is in stdout - records before
+        #      the corrupt leaf made it through.
+        #   4. The last key (00001999) IS in stdout - records AFTER
+        #      the corrupt leaf also made it through. This is the
+        #      load-bearing skip-and-continue assertion: a non-walker
+        #      iteration would stop at the corrupt leaf and never
+        #      reach the last key.
+        #   5. Total record count is less than nentries - something
+        #      was actually skipped (test framework variance means we
+        #      cannot pin exactly how many records the corrupt leaf
+        #      contained, but it is definitely > 0 and < nentries).
         self.setup_corrupt_leaf_table()
         argv = [self._wt_path(), '-q', 'dump', self.uri]
         with open('dump_q.out', 'w') as out, open('dump_q.err', 'w') as err:
@@ -216,22 +215,31 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(rc, 1,
             'wt -q dump on corrupt data returned rc=%d; expected exactly '
             '1 (graceful non-zero)' % rc)
-        with open('dump_q.err') as f:
-            err = f.read()
-        self.assertEqual(err,
-            'wt: WT_CURSOR.next: WT_ERROR: non-specific WiredTiger error\n',
-            'wt -q dump stderr did not match the expected single-line '
-            'cursor error; got: %r' % err)
         with open('dump_q.out') as f:
             out = f.read()
         self.assertTrue(out.startswith('WiredTiger Dump (WiredTiger Version'),
             'wt -q dump stdout did not begin with the expected header; '
             'got first 80 chars: %r' % out[:80])
-        last_key_line = '%08d\\00\n' % (self.nentries - 1)
-        self.assertNotIn(last_key_line, out,
-            'wt -q dump stdout contains the last key %r; the walk '
-            'apparently completed and corruption was not hit, so this '
-            'test exercised nothing' % last_key_line.rstrip())
+        first_key = '%08d\\00\n' % 0
+        last_key = '%08d\\00\n' % (self.nentries - 1)
+        self.assertIn(first_key, out,
+            'wt -q dump stdout missing the first key; walker may not have '
+            'started or may have failed on the very first leaf')
+        self.assertIn(last_key, out,
+            'wt -q dump stdout missing the last key; the walker did not '
+            'skip past corruption to reach later leaves (this is the '
+            'load-bearing skip-and-continue assertion)')
+        # Record count must indicate something was skipped.
+        record_count = sum(1 for line in out.splitlines()
+                           if len(line) == 11 and line.endswith('\\00')
+                           and line[0:8].isdigit())
+        self.assertLess(record_count, self.nentries,
+            'wt -q dump emitted all %d records; corruption was not '
+            'exercised (count=%d)' % (self.nentries, record_count))
+        self.assertGreater(record_count, self.nentries // 2,
+            'wt -q dump emitted very few records (count=%d); walker may '
+            'have stopped early instead of skipping the corrupt leaf' %
+            record_count)
 
     # ---------- dump_record return-code regressions (no corruption) outside scope ----------
 

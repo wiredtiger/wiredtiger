@@ -602,6 +602,9 @@ extern int __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session,
 extern int __wt_disagg_shared_metadata_queue_publish(
   WT_SESSION_IMPL *session, const char *table_name, wt_timestamp_t schema_epoch)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_dump_tree(WT_SESSION_IMPL *session, const char *uri,
+  int (*emit)(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *), void *emit_ctx, bool read_corrupt)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_encrypt(WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t skip,
   WT_ITEM *in, WT_ITEM *out) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,

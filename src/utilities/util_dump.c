@@ -16,6 +16,7 @@
     (strncmp(s, (item).str, (item).len) == 0 && (s)[(item).len] == '\0')
 
 static int dump_all_records(WT_CURSOR *, bool, bool);
+static int dump_emit_record(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *);
 static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool, bool);
 static int dump_explore(WT_CURSOR *, const char *, bool, bool, bool, bool);
 static void dump_explore_bookmark_delete_key(WT_CURSOR *, char **, const char *);
@@ -290,7 +291,29 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
                     if (cursor->bound(cursor, "action=set,bound=upper") != 0)
                         goto err;
                 }
-                if (dump_all_records(cursor, reverse, json) != 0)
+                /*
+                 * Under -q on a plain table:URI with no JSON / hex / bounds, take the tree-walker
+                 * path: skip bad pages and continue. Falls back to the cursor walk for anything the
+                 * walker does not yet handle.
+                 */
+                if (quiet_corrupt && !json && !hex && !pretty && start_key == NULL &&
+                  end_key == NULL && WT_PREFIX_MATCH(simpleuri, "table:")) {
+                    char *walk_uri;
+                    size_t walk_uri_len;
+
+                    /* table:foo  ->  file:foo.wt */
+                    walk_uri_len = strlen(simpleuri) + strlen("file:.wt") + 1;
+                    if ((walk_uri = util_calloc(walk_uri_len, 1)) == NULL) {
+                        (void)util_err(session, errno, NULL);
+                        goto err;
+                    }
+                    if ((ret = __wt_snprintf(walk_uri, walk_uri_len, "file:%s.wt",
+                           simpleuri + strlen("table:"))) == 0)
+                        ret = __wt_dump_tree(session_impl, walk_uri, dump_emit_record, NULL, true);
+                    util_free(walk_uri);
+                    if (ret != 0)
+                        goto err;
+                } else if (dump_all_records(cursor, reverse, json) != 0)
                     goto err;
                 if ((start_key != NULL || end_key != NULL) &&
                   cursor->bound(cursor, "action=clear") != 0)
@@ -899,6 +922,38 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
     if (json && once && fprintf(fp, "\n") < 0)
         return (util_err(session, EIO, NULL));
     return (0);
+}
+
+/*
+ * dump_emit_record --
+ *     Emit one record from the tree walker as a print-format dump line. Keys and values are escaped
+ *     via __wt_raw_to_esc_hex so non-printable bytes appear as \xx; matches what a dump-format
+ *     cursor emits via get_key / get_value. JSON / hex / pretty output formats are not supported on
+ *     the walker path yet; the caller must route those URIs to the cursor-based dump.
+ */
+static int
+dump_emit_record(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value, void *ctx)
+{
+    WT_DECL_ITEM(esc_key);
+    WT_DECL_ITEM(esc_value);
+    WT_DECL_RET;
+
+    WT_UNUSED(ctx);
+
+    WT_RET(__wt_scr_alloc(session, 0, &esc_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &esc_value));
+
+    WT_ERR(__wt_raw_to_esc_hex(session, key->data, key->size, esc_key));
+    WT_ERR(__wt_raw_to_esc_hex(session, value->data, value->size, esc_value));
+
+    if (fprintf(fp, "%.*s\n%.*s\n", (int)esc_key->size, (const char *)esc_key->data,
+          (int)esc_value->size, (const char *)esc_value->data) < 0)
+        WT_ERR(util_err((WT_SESSION *)session, EIO, NULL));
+
+err:
+    __wt_scr_free(session, &esc_key);
+    __wt_scr_free(session, &esc_value);
+    return (ret);
 }
 
 /*

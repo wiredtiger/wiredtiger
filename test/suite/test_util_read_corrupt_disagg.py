@@ -44,10 +44,11 @@ from suite_subprocess import suite_subprocess
 #   test_<command>_without_q_fails_disagg
 #   test_<command>_with_q_<contract>_disagg
 #
-# The corruption helper follows the pattern proposed in WT-17667
-# (DisaggCorruptionMixin): close the connection so palite releases its
-# SQLite lock, UPDATE the page_data column to all-0xFF bytes, then
-# reopen. When the mixin lands, this helper can be replaced with it.
+# The corruption helper follows the pattern proposed in WT-17667 for a
+# shared disagg corruption helper: close the connection so the palite
+# page log releases its SQLite lock, UPDATE the page_data column to
+# all-0xFF bytes, then reopen. When the shared helper lands, this
+# inline copy can be replaced with it.
 @wttest.skip_for_hook("tiered", "wt does not run under tiered hook")
 class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
     uri = "layered:test_util_read_corrupt_disagg"
@@ -108,9 +109,10 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase, suite_subprocess,
             f"no base-image rows for table_id={table_id} in palite")
         return table_id, rows[0]['page_id'], rows[0]['lsn']
 
-    # Inline corruption helper. Pattern from WT-17667 (DisaggCorruptionMixin
-    # proposal): close the connection to release palite's SQLite lock,
-    # overwrite the targeted page's data with garbage, and reopen.
+    # Inline corruption helper. Pattern from the WT-17667 proposal for
+    # a shared disagg corruption helper: close the connection to release
+    # the palite page log's SQLite lock, overwrite the targeted page's
+    # data with garbage, and reopen.
     def _corrupt_one_base_page(self):
         table_id, page_id, lsn = self._find_base_image_page()
         self.close_conn()
