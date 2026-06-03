@@ -9,10 +9,9 @@
 #include "wt_internal.h"
 
 /*
- * Walker state. Caller fills emit + emit_ctx + read_corrupt; the walker
- * accumulates the first error encountered into dump_err so the caller
- * can return a non-zero exit even when iteration completed via the
- * read_corrupt skip path.
+ * Walker state. Caller fills emit + emit_ctx + read_corrupt; the walker accumulates the first error
+ * encountered into dump_err so the caller can return a non-zero exit even when iteration completed
+ * via the read_corrupt skip path.
  */
 typedef struct {
     int (*emit)(WT_SESSION_IMPL *, WT_ITEM *key, WT_ITEM *value, void *);
@@ -25,8 +24,7 @@ static int __dump_tree(WT_SESSION_IMPL *, WT_REF *, WT_DSTUFF *);
 
 /*
  * __dump_row_leaf --
- *     Emit each key/value pair on a row-store leaf via the caller's
- *     emit callback.
+ *     Emit each key/value pair on a row-store leaf via the caller's emit callback.
  */
 static int
 __dump_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSTUFF *ds)
@@ -57,12 +55,10 @@ err:
 
 /*
  * __dump_tree --
- *     Walk the btree below ref. On a leaf, emit each record via the
- *     caller's callback. On an internal page, recurse into each child
- *     subtree; if a child's __wt_page_in fails and read_corrupt is set,
- *     skip that subtree and continue with siblings. Modeled on
- *     __verify_tree in the btree verify code - the verify pattern for read_corrupt
- *     is the canonical reference.
+ *     Walk the btree below ref. On a leaf, emit each record via the caller's callback. On an
+ *     internal page, recurse into each child subtree; if a child's __wt_page_in fails and
+ *     read_corrupt is set, skip that subtree and continue with siblings. Modeled on __verify_tree
+ *     in the btree verify code - the verify pattern for read_corrupt is the canonical reference.
  */
 static int
 __dump_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_DSTUFF *ds)
@@ -95,11 +91,10 @@ __dump_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_DSTUFF *ds)
         break;
     default:
         /*
-         * Column-store and FLCS are not in scope for the MVP. The caller
-         * is expected to route those URIs to the cursor-based dump path.
+         * Column-store and FLCS are not in scope for the MVP. The caller is expected to route those
+         * URIs to the cursor-based dump path.
          */
-        WT_RET_MSG(session, ENOTSUP,
-          "dump tree walker does not yet support page type %s",
+        WT_RET_MSG(session, ENOTSUP, "dump tree walker does not yet support page type %s",
           __wt_page_type_string(page->type));
     }
 
@@ -108,20 +103,17 @@ __dump_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_DSTUFF *ds)
 
 /*
  * __wt_dump_tree --
- *     Walk the btree backing uri, handing each record to the caller's
- *     emit callback. Under read_corrupt mode, skip subtrees that cannot
- *     be loaded (corrupt internal or leaf pages) and continue with
- *     siblings. Returns 0 if the walk completed cleanly; returns the
- *     first error encountered during a corrupt-skip walk; returns a
- *     propagated error if read_corrupt is off and a page load failed.
+ *     Walk the btree backing uri, handing each record to the caller's emit callback. Under
+ *     read_corrupt mode, skip subtrees that cannot be loaded (corrupt internal or leaf pages) and
+ *     continue with siblings. Returns 0 if the walk completed cleanly; returns the first error
+ *     encountered during a corrupt-skip walk; returns a propagated error if read_corrupt is off and
+ *     a page load failed.
  *
- *     Acquires and releases the dhandle internally - the caller must
- *     not be holding it.
+ * Acquires and releases the dhandle internally - the caller must not be holding it.
  */
 int
 __wt_dump_tree(WT_SESSION_IMPL *session, const char *uri,
-  int (*emit)(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *),
-  void *emit_ctx, bool read_corrupt)
+  int (*emit)(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *), void *emit_ctx, bool read_corrupt)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
