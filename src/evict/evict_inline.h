@@ -885,7 +885,6 @@ __wt_evict_app_assist_worker_check(
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     busy = busy || __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE ||
-      session->hazards.num_active > 0 ||
       (__wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
         __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
           __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));

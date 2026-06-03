@@ -27,13 +27,12 @@ __evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE prev
 
 /*
  * __evict_exclusive --
- *     Wait for exclusive access to a page after the eviction CAS to LOCKED.
- *
- * In exclusive mode (WT_EVICT_LOCK_EXCLUSIVE == 1) the CAS in WT_REF_CAS_STATE_EVICT only
- * succeeded because the reader count was already zero, so this function returns immediately.
- *
- * In drain mode (WT_EVICT_LOCK_EXCLUSIVE == 0) the CAS preserved an in-flight reader count;
- * spin briefly until those readers release. New readers see LOCKED and decrement immediately.
+ *     Confirm exclusive access to a page after the eviction CAS to LOCKED. WT_REF_CAS_STATE_EVICT
+ *     only succeeds with reader count == 0, so in the common case the count is already zero and we
+ *     return immediately. A reader can still transiently increment the count after the lock and
+ *     before observing the LOCKED state, then undo it without touching the page; wait briefly for
+ *     any such transient count to clear so the page is not freed while a reader's increment is in
+ *     flight. If it does not clear, back off and retry the page later.
  */
 static WT_INLINE int
 __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -43,7 +42,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_ref_count(ref) == 0)
         return (0);
 
-    for (uint32_t i = 0; i < WT_EVICT_DRAIN_ITERS; ++i) {
+    for (uint32_t i = 0; i < WT_EVICT_READER_DRAIN_ITERS; ++i) {
         __wt_yield();
         if (__wt_ref_count(ref) == 0)
             return (0);

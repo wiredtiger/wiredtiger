@@ -11,16 +11,18 @@
 #include "evict_private.h"
 
 /*
- * Eviction locking mode.
+ * Eviction acquires pages exclusively: the CAS from WT_REF_MEM to WT_REF_LOCKED
+ * (WT_REF_CAS_STATE_EVICT) only succeeds when the reader count is zero, so eviction never locks a
+ * page that has active readers; if it loses the race at the CAS it leaves the page alone and
+ * retries later.
  *
- * 0 (drain): eviction CAS to LOCKED succeeds even with active readers; __evict_exclusive then
- *   spins up to WT_EVICT_DRAIN_ITERS times yielding for in-flight readers to release their count.
- *
- * 1 (exclusive): the eviction CAS to LOCKED only succeeds when the reader count is zero.
- *   Eviction never waits on readers; it loses the race at the CAS and retries later.
+ * One transient window remains even with exclusive acquire: a reader can increment the count
+ * (fetch_add) and only afterwards observe the now-LOCKED state, at which point it immediately
+ * decrements again without ever touching the page. After locking, eviction waits up to
+ * WT_EVICT_READER_DRAIN_ITERS yields for any such transient count to return to zero before freeing
+ * the page; if it does not clear, eviction backs off with EBUSY and retries the page later.
  */
-#define WT_EVICT_LOCK_EXCLUSIVE 1
-#define WT_EVICT_DRAIN_ITERS 100
+#define WT_EVICT_READER_DRAIN_ITERS 100
 
 struct __wt_evict {
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */

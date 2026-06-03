@@ -1879,13 +1879,13 @@ retry:
             /*
              * Skip files if we have too many active walks.
              *
-             * This used to be limited by the configured maximum number of hazard pointers per
-             * session. Even though that ceiling has been removed, we need to test eviction with
-             * huge numbers of active trees before allowing larger numbers of hazard pointers in the
-             * walk session.
+             * This used to be limited by the number of hazard pointers held by the walk session.
+             * Hazard pointers have been removed and we do not track a per-session pinned-walk-point
+             * count, so this is treated as zero active walks and the cap never trips.
              */
+            uint32_t walk_session_active = 0;
             if (__wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL &&
-              session->hazards.num_active > WTI_EVICT_MAX_TREES) {
+              walk_session_active > WTI_EVICT_MAX_TREES) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_too_many_active_walks);
                 __evict_disagg_btree_skip_count(session, btree);
                 continue;

@@ -167,10 +167,9 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
 
 /*
  * __ref_cas_state_evict --
- *     Eviction-specific CAS. In drain mode (WT_EVICT_LOCK_EXCLUSIVE == 0) this is identical to
- *     __ref_cas_state: the CAS succeeds even with active readers and __evict_exclusive drains them.
- *     In exclusive mode (WT_EVICT_LOCK_EXCLUSIVE == 1) the CAS additionally requires the reader
- *     count to be zero, so eviction never acquires the lock while readers are present.
+ *     Eviction-specific CAS from WT_REF_MEM to WT_REF_LOCKED. The CAS requires the reader count to
+ *     be zero in addition to the state match, so eviction never acquires the lock while any reader
+ *     is pinning the page; it simply loses the race and retries the page later.
  */
 static WT_INLINE bool
 __ref_cas_state_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
@@ -191,11 +190,9 @@ __ref_cas_state_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_st
             current = __wt_atomic_load_uint32_v_relaxed(&ref->state_and_count);
             if ((current & WT_REF_SC_STATE_MASK) != (uint32_t)old_state)
                 break;
-#if WT_EVICT_LOCK_EXCLUSIVE
-            /* Exclusive mode: refuse the CAS if any readers are present. */
+            /* Refuse the CAS if any readers are present. */
             if ((current & WT_REF_SC_COUNT_MASK) != 0)
                 break;
-#endif
             if (__wt_atomic_cas_uint32_v(&ref->state_and_count, current,
                   (current & WT_REF_SC_COUNT_MASK) | (uint32_t)new_state)) {
                 cas_result = true;

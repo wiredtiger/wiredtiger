@@ -531,8 +531,7 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
      * reading without locking.
      */
     if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
-        WT_STATP_CONN_SET(
-          session, stats, eviction_walks_active, evict->walk_session->hazards.num_active);
+        WT_STATP_CONN_SET(session, stats, eviction_walks_active, 0);
 
     /* Update eviction threshold stats. */
     __wt_evict_stats_update(session);
