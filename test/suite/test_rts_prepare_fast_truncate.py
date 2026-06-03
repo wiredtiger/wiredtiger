@@ -57,7 +57,7 @@ import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-class test_rts_prepfast_trunc(wttest.WiredTigerTestCase):
+class test_rts_prepare_fast_truncate(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
 
@@ -98,7 +98,7 @@ class test_rts_prepfast_trunc(wttest.WiredTigerTestCase):
         Prepare a fast truncate, roll it back explicitly, then call RTS.
         The data committed at stable_timestamp must remain fully visible.
         """
-        uri = 'table:test_rts_prepfast_trunc_prep'
+        uri = 'table:test_rts_prepare_fast_truncate_prep'
         nrows = 10000
 
         self._create_and_populate(uri, nrows)
@@ -106,7 +106,7 @@ class test_rts_prepfast_trunc(wttest.WiredTigerTestCase):
         # Reopen so all leaf pages are in WT_REF_DISK state on disk.
         self.reopen_conn()
 
-        # Prepare a fast truncate — this creates WT_REF_DELETED entries with
+        # Prepare a fast truncate. This creates WT_REF_DELETED entries with
         # prepare_state == INPROGRESS.  Do NOT commit.
         session2 = self.conn.open_session('isolation=snapshot')
         session2.begin_transaction()
@@ -124,7 +124,7 @@ class test_rts_prepfast_trunc(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # Now RTS can be called — no active transactions remain.
+        # Now RTS can be called, no active transactions remain.
         self.conn.rollback_to_stable()
 
         # All rows must be visible: the prepared truncation was never stable.
@@ -137,7 +137,7 @@ class test_rts_prepfast_trunc(wttest.WiredTigerTestCase):
         Commit a fast truncate at timestamp 20, then roll it back via RTS
         (stable_timestamp=10).  The data committed at ts=10 must be restored.
         """
-        uri = 'table:test_rts_prepfast_trunc_comm'
+        uri = 'table:test_rts_prepare_fast_truncate_comm'
         nrows = 10000
 
         self._create_and_populate(uri, nrows)

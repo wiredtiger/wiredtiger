@@ -41,7 +41,6 @@ __rts_btree_abort_fast_truncate(
 
     __wt_free(session, ref->page_del);
     WT_REF_SET_STATE(ref, WT_REF_DISK);
-    WT_STAT_CONN_INCR(session, txn_rts_prep_trunc_rollback);
 }
 
 /*
@@ -77,8 +76,8 @@ __rts_btree_walk_page_skip(
          * A prepared fast truncate whose prepare timestamp is after the stable timestamp must be
          * rolled back: it was never stable and has no durable timestamp.
          *
-         * FIXME-WT-17663: The case where a prepared fast truncate has been checkpointed
-         * to disk (WT_CONN_PRESERVE_PREPARED) and the ref surfaces as WT_REF_DISK is not handled.
+         * FIXME-WT-17663: The case where a prepared fast truncate has been checkpointed to disk
+         * (WT_CONN_PRESERVE_PREPARED) and the ref surfaces as WT_REF_DISK is not handled.
          */
         if (page_del != NULL && page_del->prepare_state == WT_PREPARE_INPROGRESS &&
           page_del->prepare_ts > rollback_timestamp) {
@@ -90,10 +89,9 @@ __rts_btree_walk_page_skip(
               page_del->txnid);
             if (!S2C(session)->rts->dryrun)
                 __rts_btree_abort_fast_truncate(session, ref, rollback_timestamp);
-            else {
+            else
                 WT_REF_SET_STATE(ref, WT_REF_DELETED);
-                WT_STAT_CONN_INCR(session, txn_rts_prep_trunc_rollback_dryrun);
-            }
+            WT_RTS_STAT_CONN_INCR(session, txn_rts_prep_trunc_rollback);
             *skipp = true;
             return (0);
         }
