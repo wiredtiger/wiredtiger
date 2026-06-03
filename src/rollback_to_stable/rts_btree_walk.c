@@ -53,8 +53,8 @@ __rts_btree_walk_page_skip(
 
         /*
          * Prepared fast truncates must not be skipped: they were never stable. Guard against a
-         * false-positive from prepared having no transaction id on pages loaded from disk, which
-         * it would otherwise treat as committed.
+         * false-positive from prepared having no transaction id on pages loaded from disk, which it
+         * would otherwise treat as committed.
          */
         if (page_del == NULL ||
           (page_del->prepare_state != WT_PREPARE_INPROGRESS &&
@@ -84,7 +84,8 @@ __rts_btree_walk_page_skip(
 
             /*
              * A prepared truncate falls through without skipping the btree: the tree walk
-             * instantiates the page and creates per-key tombstones, which RTS then aborts individually.
+             * instantiates the page and creates per-key tombstones, which RTS then aborts
+             * individually.
              */
             prepared = page_del->prepare_state == WT_PREPARE_INPROGRESS;
             start_ts = prepared ? page_del->prepare_ts : page_del->pg_del_start_ts;
@@ -92,7 +93,8 @@ __rts_btree_walk_page_skip(
                 WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_prepared_fast_truncate);
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_PAGE_DELETE
-              "deleted page with %s=%s, durable_timestamp=%s > rollback_timestamp=%s, txnid=%" PRIu64,
+              "deleted page with %s=%s, durable_timestamp=%s > rollback_timestamp=%s, "
+              "txnid=%" PRIu64,
               prepared ? "prepare_timestamp" : "commit_timestamp",
               __wt_timestamp_to_string(start_ts, time_string[0]),
               __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
