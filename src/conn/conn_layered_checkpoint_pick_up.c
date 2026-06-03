@@ -672,7 +672,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * The local metadata has a layered: entry but the shared metadata does not - a dropped
              * layered table.
              *
-             * FIXME-WT-17090: Remove the local metadata entries for the dropped table.
+             * FIXME-WT-17746: Remove the local metadata entries for the dropped table.
              */
         } else {
             /*
