@@ -135,6 +135,17 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         process-creation limit."""
         return ['%08d' % i for i in range(self.nentries)]
 
+    def _parse_dumped_keys(self, dump_output):
+        """Extract the set of keys from a wt dump (print-format) output.
+        Each record is two lines (key + value); keys are 8 ASCII digits
+        followed by '\\00' (the print-format null terminator escape)."""
+        keys = set()
+        for line in dump_output.splitlines():
+            if (len(line) == 11 and line.endswith('\\00')
+              and line[:8].isdigit()):
+                keys.add(line[:8])
+        return keys
+
     # ---------- dump ----------
 
     def test_dump_without_q_fails(self):
@@ -240,6 +251,54 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             'wt -q dump emitted very few records (count=%d); walker may '
             'have stopped early instead of skipping the corrupt leaf' %
             record_count)
+
+    # ---------- skip-and-continue walker correctness ----------
+
+    def test_dump_with_q_skipped_keys_are_contiguous(self):
+        # Stricter than test_dump_with_q_produces_partial_output: parse
+        # the emitted keys and assert the missing set is exactly a
+        # single contiguous range (proves the walker skipped exactly
+        # one subtree, not scattered records).  Catches "walker emits
+        # garbage records" and "walker drops records outside the
+        # corrupt leaf" regressions that the looser test would miss.
+        self.setup_corrupt_leaf_table()
+        argv = [self._wt_path(), '-q', 'dump', self.uri]
+        with open('dump_q.out', 'w') as out, open('dump_q.err', 'w') as err:
+            rc = subprocess.call(argv, stdout=out, stderr=err)
+        self.assertEqual(rc, 1)
+        with open('dump_q.out') as f:
+            out = f.read()
+        emitted = self._parse_dumped_keys(out)
+        expected = {'%08d' % i for i in range(self.nentries)}
+        missing = expected - emitted
+        extras = emitted - expected
+        self.assertEqual(extras, set(),
+            'walker emitted records that were never in the table: %r' % extras)
+        self.assertGreater(len(missing), 0,
+            'walker emitted every record; corruption was not exercised')
+        self.assertLess(len(missing), self.nentries // 4,
+            'walker dropped too many records (%d of %d); should have skipped '
+            'one corrupt leaf, not given up on a quarter of the table' %
+            (len(missing), self.nentries))
+        # Missing keys must be contiguous.  A regression that skipped
+        # non-corrupt records too would produce a gap with holes inside.
+        missing_idx = sorted(int(k) for k in missing)
+        gaps = [missing_idx[i + 1] - missing_idx[i]
+                for i in range(len(missing_idx) - 1)]
+        self.assertTrue(all(g == 1 for g in gaps),
+            'missing keys are not contiguous: %r.  The walker emitted records '
+            'past the corrupt leaf but also dropped some non-corrupt ones, '
+            'which means the skip-and-continue is not behaving like a single '
+            'subtree skip' % missing_idx)
+
+    # Multi-URI continuation and wide-corruption / subtree-skip tests
+    # were drafted but removed: multi-URI dump requires JSON output
+    # (util_dump.c rejects multiple URIs in non-JSON mode) so the
+    # per-URI continue path is unreachable today; wide corruption
+    # typically also damages blocks read during dhandle open and the
+    # end-of-file extent lists, which the current session-level quiet
+    # mechanism cannot suppress (a connection-level quiet flag is
+    # needed to handle dhandle-open failures gracefully).
 
     # ---------- dump_record return-code regressions (no corruption) outside scope ----------
 

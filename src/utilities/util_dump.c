@@ -109,13 +109,10 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_SESSION_IMPL *session_impl;
     uint64_t window;
     int ch, format_specifiers, i;
-    int multi_uri_err;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     const char *end_key, *key, *start_key;
     bool explore, hex, json, pretty, reverse, search_near;
     bool in_json_table = false;
-
-    multi_uri_err = 0;
 
     session_impl = (WT_SESSION_IMPL *)session;
     window = 0;
@@ -249,17 +246,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
               session->strerror(session, ret));
-            /*
-             * Under -q in non-JSON mode, treat cursor-open failure as per-URI: record the error so
-             * the command exits non-zero and continue with the next URI. JSON output is left out
-             * because aborting mid-table would yield malformed JSON.
-             */
-            if (quiet_corrupt && !json) {
-                if (multi_uri_err == 0)
-                    multi_uri_err = ret;
-                cursor = NULL;
-                continue;
-            }
             goto err;
         }
         /*
@@ -356,13 +342,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 err:
         ret = 1;
     }
-
-    /*
-     * If any URI failed under -q and the rest succeeded, surface the first per-URI error as the
-     * function's exit code so the command still exits non-zero.
-     */
-    if (ret == 0 && multi_uri_err != 0)
-        ret = 1;
 
     if (in_json_table)
         dump_json_table_end(session);
