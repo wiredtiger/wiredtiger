@@ -79,27 +79,24 @@ __rts_btree_walk_page_skip(
         }
 
         if (page_del != NULL) {
+            bool prepared;
+            wt_timestamp_t start_ts;
+
             /*
-             * A prepared truncate falls through here: the tree walk instantiates the
-             * page and creates per-key tombstones, which RTS then aborts individually.
+             * A prepared truncate falls through without skipping the btree: the tree walk
+             * instantiates the page and creates per-key tombstones, which RTS then aborts individually.
              */
-            if (page_del->prepare_state == WT_PREPARE_INPROGRESS) {
-                __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-                  WT_RTS_VERB_TAG_PAGE_DELETE
-                  "deleted page with prepare_timestamp=%s, durable_timestamp=%s > "
-                  "rollback_timestamp=%s, txnid=%" PRIu64,
-                  __wt_timestamp_to_string(page_del->prepare_ts, time_string[0]),
-                  __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
-                  __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
+            prepared = page_del->prepare_state == WT_PREPARE_INPROGRESS;
+            start_ts = prepared ? page_del->prepare_ts : page_del->pg_del_start_ts;
+            if (prepared)
                 WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_prepared_fast_truncate);
-            } else
-                __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-                  WT_RTS_VERB_TAG_PAGE_DELETE
-                  "deleted page with commit_timestamp=%s, durable_timestamp=%s > "
-                  "rollback_timestamp=%s, txnid=%" PRIu64,
-                  __wt_timestamp_to_string(page_del->pg_del_start_ts, time_string[0]),
-                  __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
-                  __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+              WT_RTS_VERB_TAG_PAGE_DELETE
+              "deleted page with %s=%s, durable_timestamp=%s > rollback_timestamp=%s, txnid=%" PRIu64,
+              prepared ? "prepare_timestamp" : "commit_timestamp",
+              __wt_timestamp_to_string(start_ts, time_string[0]),
+              __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
+              __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
         }
 
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
