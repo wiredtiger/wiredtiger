@@ -52,14 +52,16 @@ __rts_btree_walk_page_skip(
         page_del = ref->page_del;
 
         /*
-         * A prepared fast truncate whose prepare timestamp is after the stable timestamp must be
-         * rolled back: it was never stable and has no durable timestamp.
+         * A prepared fast truncate must be rolled back: it was never stable and has no durable
+         * timestamp. Both INPROGRESS and LOCKED are treated as not yet resolved.
          *
          * FIXME-WT-17663: The case where a prepared fast truncate has been checkpointed to disk
          * (WT_CONN_PRESERVE_PREPARED) and the ref surfaces as WT_REF_DISK is not handled.
          */
-        if (page_del != NULL && page_del->prepare_state == WT_PREPARE_INPROGRESS &&
-          page_del->prepare_ts > rollback_timestamp) {
+        if (page_del != NULL &&
+          (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
+            page_del->prepare_state == WT_PREPARE_LOCKED)) {
+            WT_ASSERT(session, page_del->prepare_ts > rollback_timestamp);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_PREPARED_FAST_TRUNCATE_ROLLBACK
               "ref=%p: rolling back prepared fast truncate with prepare_timestamp=%s, "
@@ -80,8 +82,9 @@ __rts_btree_walk_page_skip(
           (__wti_rts_visibility_txn_visible_id(session, page_del->txnid) &&
             page_del->pg_del_durable_ts <= rollback_timestamp)) {
             /*
-             * Committed or globally-visible truncates must be stable here: a prepared truncate in
-             * INPROGRESS state is caught above, so any prepared state remaining is invalid.
+             * Committed or globally-visible truncates must be stable here: prepared truncates in
+             * INPROGRESS or LOCKED state are caught above, so any prepared state remaining is
+             * invalid.
              */
             WT_ASSERT(session,
               page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||

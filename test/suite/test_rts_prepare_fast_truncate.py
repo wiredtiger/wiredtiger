@@ -26,32 +26,26 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_rts_prepfast_trunc.py
+# test_rts_prepare_fast_truncate.py
 #   Verify that rollback to stable (RTS) is compatible with prepared fast
 #   truncate operations.
 #
 #   test_rts_rollback_prepared_fast_truncate: A prepared-but-uncommitted fast
-#   truncate is rolled back explicitly (session.rollback_transaction()), then
-#   RTS is called.  The data committed before stable_timestamp must remain
-#   visible throughout.  This exercises the overall correctness of the
-#   prepared-fast-truncate lifecycle alongside RTS, including the removal of
-#   the old assertion in __rts_btree_walk_page_skip() that incorrectly
-#   rejected any WT_PAGE_DELETED in INPROGRESS state.
+#   truncate is rolled back, then RTS is called. The data committed before
+#   stable_timestamp must remain visible throughout.
 #
 #   test_rts_rollback_committed_fast_truncate: A committed fast truncate at a
-#   timestamp above stable_timestamp is rolled back by RTS.  This verifies
+#   timestamp above stable_timestamp is rolled back by RTS. This verifies
 #   that the existing committed-fast-truncate RTS path continues to work
 #   correctly after the code changes for prepared fast truncation.
 #
-#   Note on txn_rts_prep_trunc_rollback stat: the new stat is incremented by
-#   __rts_btree_abort_fast_truncate() only when a WT_REF_DELETED page_del with
-#   prepare_state == INPROGRESS and prepare_ts > stable_timestamp is encountered
-#   during the RTS tree walk.  Currently the checkpoint keeps prepared fast
-#   truncates out of the on-disk image (rec_child.c), so recovery-time RTS cannot
-#   see them, and runtime RTS requires no active transactions (EBUSY).
-#   TODO: once WT-17663 adds checkpoint support for prepared fast truncates, add
-#   self.assertGreater(txn_rts_prep_trunc_rollback, 0) to
-#   test_rts_rollback_prepared_fast_truncate.
+#   FIXME-WT-17663: txn_rts_prep_trunc_rollback cannot be asserted in
+#   test_rts_rollback_prepared_fast_truncate: RTS returns EBUSY when any prepared
+#   transaction is active, so the prepared fast truncate is rolled back via the session
+#   before RTS runs and the new code path is never reached. Once we write prepared
+#   fast truncates to disk, crash-recovery simulation can exercise the path where
+#   prepared transaction is gone but on-disk WT_REF_DELETED/INPROGRESS survives.
+#   Add the stat assertion at that point.
 
 import wttest
 from wiredtiger import stat
