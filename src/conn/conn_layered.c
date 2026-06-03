@@ -1674,9 +1674,9 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       "Failed to drain ingest tables");
 
     /*
-     * Disable cross-checkpoint caching on step-up. Leaders operate on a single live B-tree and
-     * will not benefit from reusing disk images across checkpoints. The cache is destroyed lazily
-     * in __wt_shared_dsk_cache_release once all follower-phase references have drained.
+     * Disable cross-checkpoint caching on step-up. Leaders operate on a single live B-tree and will
+     * not benefit from reusing disk images across checkpoints. The cache is destroyed lazily in
+     * __wt_shared_dsk_cache_release once all follower-phase references have drained.
      */
     conn->cache->shared_dsk_cache.enabled = false;
 
