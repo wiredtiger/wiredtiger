@@ -1681,8 +1681,8 @@ err:
 
 /*
  * __disagg_mark_btrees_readonly_then_step_down --
- *     Mark all disaggregated btrees as readonly. This must be called during leader step-down. And
- *     then step down to the follower mode.
+ *     Mark all disaggregated btrees readonly and outdated, then step down to follower mode. The
+ *     outdated mark makes the next leader open fresh handles instead of reusing these stale ones.
  */
 static void
 __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
@@ -1713,6 +1713,18 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 
         /* Mark the disaggregated as readonly. */
         F_SET(btree, WT_BTREE_READONLY);
+
+        /*
+         * Mark the handle outdated so the next leader opens a fresh one rather than reusing this
+         * handle's resident follower-era pages. Carrying those pages into the leader lets the drain
+         * dirty a page that still holds an unresolved on-disk prepared cell before the drain
+         * resolves it, which reconciliation cannot represent (leaked prepared update). A fresh
+         * handle faults such pages in only via the resolve, which covers them under a hazard
+         * pointer. The leader checkpoints the fresh handle, so the block-size accounting that a
+         * readonly tree would have drifted by being skipped stays consistent without clearing
+         * readonly at step-up.
+         */
+        F_SET(dhandle, WT_DHANDLE_OUTDATED);
 
         WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
