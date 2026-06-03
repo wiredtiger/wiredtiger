@@ -130,8 +130,9 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
     WT_SESSION_IMPL *session = CUR2S(clayered);
     bool role_change = S2C(session)->layered_table_manager.leader != clayered->leader;
 
-    WT_ASSERT_ALWAYS(session, !role_change || !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
-      "All the cursors should be left unpositioned before changing the role.");
+    if (role_change)
+        WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
+          "All the cursors should be left unpositioned before changing the role.");
 
     /* Query operations need a full set of cursors. */
     if (need_read_stable)
@@ -344,9 +345,8 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
 
     session = CUR2S(clayered);
 
-    /* A leader does not require advancing a stable table. */
-    if (S2C(session)->layered_table_manager.leader)
-        return (false);
+    WT_ASSERT_ALWAYS(session, !S2C(session)->layered_table_manager.leader,
+      "Leader should never try to advance to a never checkpoint.");
 
     /* A random stable cursor shouldn't be reopened, it may have additional state. */
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM))
@@ -527,20 +527,6 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT
 }
 
 /*
- * __clayered_conn_checkpoint_lsn --
- *     Return the current connection-level checkpoint LSN, or WT_DISAGG_LSN_NONE if this node is the
- *     leader (leaders do not track checkpoints via LSN).
- */
-static WT_INLINE uint64_t
-__clayered_conn_checkpoint_lsn(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    return (!conn->layered_table_manager.leader ?
-        __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) :
-        WT_DISAGG_LSN_NONE);
-}
-
-/*
  * __clayered_update_stable --
  *     Manage the stable cursor lifecycle: open it for the first time, advance it to a newer
  *     checkpoint, or reopen it in a different mode after a role change.
@@ -551,10 +537,13 @@ __clayered_update_stable(
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
-    uint64_t conn_lsn = __clayered_conn_checkpoint_lsn(session);
 
-    /* Open stable the first time. */
+    uint64_t conn_lsn = !conn->layered_table_manager.leader ?
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) :
+      WT_DISAGG_LSN_NONE;
+
     if (clayered->stable_cursor == NULL) {
+        /* Open stable the first time if needed. */
         bool follower_open_stable = (need_read_stable && conn_lsn != WT_DISAGG_LSN_NONE);
         if (conn->layered_table_manager.leader || follower_open_stable) {
             F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
@@ -563,35 +552,22 @@ __clayered_update_stable(
             clayered->stable_checkpoint_meta_lsn = conn_lsn;
             WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
         }
-
-        return (0);
-    }
-
-    /*
-     * Fast path: if the role is unchanged and the connection checkpoint LSN matches what the stable
-     * cursor is already on, there is nothing to do.
-     *
-     * FIXME-WT-14545: What is not checked here is the possibility that a step down and step up have
-     * both occurred since the last check. We don't have a way to detect that (or its opposite) at
-     * the moment. If we did, we'd want to issue a rollback if the stable cursor has any changes.
-     */
-    if (!role_change && conn_lsn == clayered->stable_checkpoint_meta_lsn)
-        return (0);
-
-    /* Leader should never reopen stable without a role change. */
-    WT_ASSERT(session, role_change || !conn->layered_table_manager.leader);
-
-    /*
-     * Reopen the cursor.
-     *
-     * We should always reopen the stable table when stepping up or down. That should be fine, since
-     * in this case all the cursors should be unpositioned and no current transactions should be
-     * running.
-     *
-     * The second case of reopening the stable table is when we want to open a new checkpoint on a
-     * follower to evict more entries from the ingest table.
-     */
-    if (role_change || __clayered_can_advance_stable(clayered, iteration)) {
+    } else if (role_change || __clayered_can_advance_stable(clayered, iteration)) {
+        /*
+         * Reopen the cursor.
+         *
+         * We should always reopen the stable table when stepping up or down. That should be fine,
+         * since in this case all the cursors should be unpositioned and no current transactions
+         * should be running.
+         *
+         * The second case of reopening the stable table is when we want to open a new checkpoint on
+         * a follower to evict more entries from the ingest table.
+         *
+         * FIXME-WT-14545: What is not checked here is the possibility that a step down and step up
+         * have both occurred since the last check. We don't have a way to detect that (or its
+         * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor
+         * has any changes.
+         */
         WT_RET(__clayered_reopen_stable(session, clayered));
         clayered->stable_checkpoint_meta_lsn = conn_lsn;
     }
