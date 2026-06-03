@@ -470,12 +470,14 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
     WT_DECL_RET;
     WT_DISAGG_PENDING_CRYPT_KEY *entry, *last_pushed;
     WT_SESSION_IMPL *session;
-    wt_timestamp_t last_ts, stable_ts;
+    wt_timestamp_t stable_ts;
+    bool locked;
 
     WT_UNUSED(kp);
     session = (WT_SESSION_IMPL *)wt_session;
     conn = S2C(session);
     entry = NULL;
+    locked = false;
 
     if (crypt == NULL || crypt->keys.data == NULL || crypt->keys.size == 0)
         WT_ERR_MSG(session, EINVAL, "set_key requires a non-empty key buffer");
@@ -492,22 +494,22 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
     entry->timestamp = crypt->timestamp;
 
     __wt_spin_lock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
+    locked = true;
     last_pushed = TAILQ_LAST(
       &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
-    if (last_pushed != NULL && crypt->timestamp <= last_pushed->timestamp) {
-        last_ts = last_pushed->timestamp;
-        __wt_spin_unlock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
+    if (last_pushed != NULL && crypt->timestamp <= last_pushed->timestamp)
         WT_ERR_MSG(session, EINVAL,
           "set_key timestamp %" PRIu64
           " must be strictly greater than the last pushed timestamp %" PRIu64,
-          crypt->timestamp, last_ts);
-    }
+          crypt->timestamp, last_pushed->timestamp);
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.pending_crypt_key_qh, entry, q);
-    __wt_spin_unlock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
 
-    return (0);
+    /* The queue owns the entry now. */
+    entry = NULL;
 
 err:
+    if (locked)
+        __wt_spin_unlock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
     __disagg_pending_crypt_key_free(session, &entry);
     return (ret);
 }
