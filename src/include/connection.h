@@ -294,9 +294,13 @@ struct __wt_disaggregated_storage {
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    /* Keys pushed since the last checkpoint, drained at the next checkpoint. */
+    /*
+     * Keys pushed since the last checkpoint, drained at the next checkpoint. The lock serializes
+     * pushes from user threads against the checkpoint drain.
+     */
     TAILQ_HEAD(__wt_disagg_pending_crypt_key_qh, __wt_disagg_pending_crypt_key)
     pending_crypt_key_qh;
+    WT_SPINLOCK pending_crypt_key_lock;
 
     uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
