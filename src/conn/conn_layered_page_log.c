@@ -543,11 +543,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         __wt_debug_crash(session);
 
     if (push_mode) {
-        /*
-         * Push mode: pick the most recently pushed key under the lock. The entry stays valid after
-         * we drop the lock because only this checkpoint thread frees entries, so the bytes can be
-         * copied and written without holding the lock. A concurrent push only appends after it.
-         */
+        /* Push mode: pick the most recently pushed key under the lock. */
         __wt_spin_lock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
         chosen_key = TAILQ_LAST(
           &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
