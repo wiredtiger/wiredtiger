@@ -2935,6 +2935,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
       "encryption=(secretkey=),"
       "error_prefix=,"
       "exclusive=,"
+      "extensions_strict=,"
       "in_memory=,"
       "log=(recover=),"
       "readonly=,"

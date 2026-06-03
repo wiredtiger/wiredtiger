@@ -446,7 +446,7 @@ static void
 configure_extensions(char **p, size_t max, const char *disagg_ext_cfg, const char *tiered_ext_cfg)
 {
     CONFIG_APPEND(*p,
-      ",extensions=["
+      ",extensions_strict=true,extensions=["
       "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s]",
       /* Collators. */
       REVERSE_PATH,
