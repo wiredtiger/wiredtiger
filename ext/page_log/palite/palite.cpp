@@ -768,8 +768,7 @@ public:
             a[SQLITE_RANGE] = std::errc::result_out_of_range;
             a[SQLITE_NOTADB] = std::errc::illegal_byte_sequence;
             return a;
-        }
-        ();
+        }();
 
         /* Verify that each slot was assigned. */
         static_assert(
@@ -1088,8 +1087,7 @@ struct Globals : public Table<Globals> {
              WHERE id = 1;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Globals::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -1221,8 +1219,7 @@ struct Checkpoints : public Table<Checkpoints> {
              WHERE lsn > ?;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Checkpoints::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -1494,8 +1491,7 @@ struct Pages : public Table<Pages> {
              WHERE lsn > ?;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Pages::sql_statements, [](const auto &s) { return s.empty(); }),
