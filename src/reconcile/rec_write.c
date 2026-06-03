@@ -2060,25 +2060,30 @@ static int
 __rec_build_delta(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE_HEADER *full_image, bool *build_deltap)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_PAGE_HEADER *header;
     uint32_t total_keys;
 
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
-            WT_CONNECTION_IMPL *conn;
             conn = S2C(session);
 
-            /*
-             * If too many of the page's entries are globally-visible deletes, write a full page
-             * instead of a delta. A globally-visible delete written to a delta wastes space; the
-             * same entry is simply absent from a full page. The delete count is tracked during full
-             * image construction in __wti_rec_row_leaf, which visits every key including those
-             * deleted in prior reconciliation cycles that never appear in the supd list.
+            /* !!!
+             * If too many keys have been removed from the disk image, write a full page instead of
+             * a delta. A key removed from the disk image still occupies space as a tombstone in the
+             * delta; the same key is simply absent from a full page. The count is tracked during
+             * full image construction, which visits every key including those removed in prior
+             * reconciliation cycles that never appear in the supd list.
              *
-             * The page header entry count tracks individual cells. When all values are empty no
-             * value cells are written so entries equals the key count. Otherwise entries counts
-             * both key and value cells, so the key count is entries / 2.
+             * Note: the total key count computed below is an approximation, not an exact value.
+             * See the breakdown by page flag below for details.
+             *
+             * The page header entry count tracks individual cells, not key-value pairs:
+             *   - WT_PAGE_EMPTY_V_ALL: no value cells written, entries == key count (exact).
+             *   - WT_PAGE_EMPTY_V_NONE: every key has a value cell, entries / 2 is exact.
+             *   - Neither flag (mixed): entries / 2 underestimates the key count, causing the
+             *     threshold to fire slightly more aggressively than configured.
              */
             if (F_ISSET(full_image, WT_PAGE_EMPTY_V_ALL))
                 total_keys = full_image->u.entries + r->keys_removed_from_disk_image_count;

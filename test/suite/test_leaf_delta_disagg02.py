@@ -33,10 +33,10 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 # test_leaf_delta_disagg02.py
-# Test that reconciliation writes a full page instead of a delta when enough of the leaf
-# page's entries are globally-visible deletes. A delete written to a delta occupies
-# disk space; the same entry is simply absent from a full page. The threshold is
-# controlled by page_delta.delete_pct.
+# Test that reconciliation writes a full page instead of a delta when too many keys have
+# been removed from the disk image. A removed key still occupies space as a tombstone in
+# the delta; the same key is simply absent from a full page. The threshold is controlled
+# by page_delta.delete_pct.
 @disagg_test_class
 class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
@@ -44,7 +44,7 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
     # Use delta_pct=1000 so the size threshold never rejects a delta; only the delete
     # threshold should determine whether we write a delta or a full page.
-    # Use delete_pct=50 (the default) explicitly so the test is self-documenting.
+    # Use delete_pct=50 explicitly to test the boundary at a fixed, predictable value.
     conn_base_config = (
         'cache_size=32MB,'
         'transaction_sync=(enabled,method=fsync),'
@@ -131,8 +131,8 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
     def test_delete_threshold_exceeded(self):
         """
-        Delete 7 of 10 keys (70% of the page)  above the 50% delete_pct threshold.
-        Reconciliation must write a full page, not a delta.
+        Remove 7 of 10 keys from the disk image (70% of the page), above the 50%
+        delete_pct threshold. Reconciliation must write a full page, not a delta.
         """
         base_ts = 10
         self.populate(base_ts)
@@ -150,7 +150,7 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
         )
         self.session.checkpoint()
 
-        # The delete threshold should have fired: no leaf delta, one rejection counted.
+        # Threshold fired: too many keys removed from disk image, full page written.
         self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri), 0)
         self.assertGreater(
             self.get_stat(stat.dsrc.rec_page_delta_rejected_delete_threshold, self.uri), 0
@@ -167,8 +167,9 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
     def test_delete_threshold_not_exceeded(self):
         """
-        Delete 3 of 10 keys (30% of the page) but also update 4 others  only 30% deletes,
-        below the 50% delete_pct threshold. Reconciliation must write a delta.
+        Remove 3 of 10 keys from the disk image (30% of the page) and update 4 others,
+        keeping the removed fraction below the 50% delete_pct threshold.
+        Reconciliation must write a delta.
         """
         base_ts = 10
         self.populate(base_ts)
@@ -189,7 +190,7 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
         )
         self.session.checkpoint()
 
-        # Delete fraction (3/10 = 30%) is below the threshold: a delta must be written.
+        # Removed fraction (3/10 = 30%) is below the threshold: a delta must be written.
         self.assertGreater(self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri), 0)
         self.assertEqual(
             self.get_stat(stat.dsrc.rec_page_delta_rejected_delete_threshold, self.uri), 0

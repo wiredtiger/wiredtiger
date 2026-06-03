@@ -196,7 +196,7 @@ struct __wti_reconcile {
     /* Track if there is any update chain with its updates all aborted. */
     bool has_upd_chain_all_aborted;
 
-    /* Count of keys removed from the disk image because their delete became globally visible. */
+    /* Count of keys removed from the disk image during full image construction. */
     uint32_t keys_removed_from_disk_image_count;
 
     /* Track if we write anything that is newer than the previous reconciliation. */

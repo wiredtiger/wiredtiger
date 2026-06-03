@@ -1939,10 +1939,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.delta_pct = (uint32_t)cval.val;
 
-        /*
-         * Get the delete percentage threshold above which a full page is written instead of a
-         * delta.
-         */
+        /* Get the threshold fraction of keys removed from the disk image to force a full page. */
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.delete_pct", &cval));
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.delete_pct = (uint32_t)cval.val;
