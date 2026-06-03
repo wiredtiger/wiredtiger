@@ -941,8 +941,7 @@ __debug_cell_delta_int(WT_DBG *ds, WT_CELL_UNPACK_DELTA_INT *unpack)
 
 /*
  * __debug_disk_delta --
- *     Dump a delta page in the structured style of __wti_debug_disk. Internal deltas are decoded
- *     against the chain's base page; leaf deltas are self-contained.
+ *     Dump a delta page in the structured style of __wti_debug_disk.
  */
 static int
 __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
