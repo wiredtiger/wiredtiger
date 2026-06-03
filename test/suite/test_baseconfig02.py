@@ -32,6 +32,7 @@ import wiredtiger, wttest
 #    basecfg cannot be replayed from there on reopen. wiredtiger_open must log a warning when the
 #    open configuration omits an early-load extension recorded in basecfg.
 @wttest.skip_for_hook("disagg", "hook always passes extensions, shadowing basecfg")
+@wttest.skip_for_hook("tiered", "hook always passes extensions, shadowing basecfg")
 class test_baseconfig02(wttest.WiredTigerTestCase):
     # Toggled to control whether conn_extensions emits the entry on the next open.
     include_extension = True
