@@ -117,7 +117,7 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 
     /* The stable cursor's btree must be read-write for a leader and read-only for a follower. */
     WT_ASSERT(CUR2S(clayered),
-      clayered->leader != !!F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
+      clayered->leader != F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
 }
 
 /*
@@ -125,7 +125,7 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
  *     Start an operation on a layered cursor.
  */
 static WT_INLINE int
-__clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable, bool iteration)
+__clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool follower_blind_write, bool iteration)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     bool role_change = S2C(session)->layered_table_manager.leader != clayered->leader;
@@ -134,8 +134,8 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
           "All the cursors should be left unpositioned before changing the role.");
 
-    /* Query operations need a full set of cursors. */
-    if (need_read_stable)
+    /* Blind writes let followers update ingest tables without accessing the stable table. */
+    if (!follower_blind_write)
         F_SET(clayered, WT_CLAYERED_READ_STABLE);
 
     /*
@@ -156,7 +156,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool need_read_stable,
     }
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
-    WT_RET(__clayered_update_stable(clayered, need_read_stable, iteration, role_change));
+    WT_RET(__clayered_update_stable(clayered, follower_blind_write, iteration, role_change));
 
     __clayered_update_state(clayered);
     __clayered_assert_stable_mode(clayered);
@@ -533,7 +533,7 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT
  */
 static int
 __clayered_update_stable(
-  WT_CURSOR_LAYERED *clayered, bool need_read_stable, bool iteration, bool role_change)
+  WT_CURSOR_LAYERED *clayered, bool follower_blind_write, bool iteration, bool role_change)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -544,7 +544,7 @@ __clayered_update_stable(
 
     if (clayered->stable_cursor == NULL) {
         /* Open stable the first time if needed. */
-        bool follower_open_stable = (need_read_stable && conn_lsn != WT_DISAGG_LSN_NONE);
+        bool follower_open_stable = (!follower_blind_write && conn_lsn != WT_DISAGG_LSN_NONE);
         if (conn->layered_table_manager.leader || follower_open_stable) {
             F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
             WT_RET(__clayered_open_stable(clayered, false));
@@ -1213,7 +1213,7 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
     iface = &clayered->iface;
 
-    WT_ERR(__clayered_enter(clayered, false, true, true));
+    WT_ERR(__clayered_enter(clayered, false, false, true));
     WT_ERR(__clayered_iterate_int(clayered, iter_flag));
 
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
@@ -1672,7 +1672,7 @@ __clayered_search(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, true, true, false));
+    WT_ERR(__clayered_enter(clayered, true, false, false));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -1960,7 +1960,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, true, true, false));
+    WT_ERR(__clayered_enter(clayered, true, false, false));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -2197,6 +2197,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
+    bool follower_blind_write;
 
     WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -2210,8 +2211,10 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(cursor, WT_CURSTD_OVERWRITE), false));
+
+    follower_blind_write =
+      !S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE);
+    WT_ERR(__clayered_enter(clayered, false, follower_blind_write, false));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -2258,6 +2261,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
+    bool follower_blind_write;
 
     WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -2275,8 +2279,10 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, false,
-      S2C(session)->layered_table_manager.leader || !F_ISSET(cursor, WT_CURSTD_OVERWRITE), false));
+
+    follower_blind_write =
+      !S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE);
+    WT_ERR(__clayered_enter(clayered, false, follower_blind_write, false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
@@ -2319,6 +2325,7 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool follower_blind_write;
     bool positioned;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -2337,7 +2344,9 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
-    WT_ERR(__clayered_enter(clayered, false, true, false));
+    follower_blind_write =
+      !S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE);
+    WT_ERR(__clayered_enter(clayered, false, follower_blind_write, false));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -2395,7 +2404,7 @@ __clayered_reserve(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
 
-    WT_ERR(__clayered_enter(clayered, false, true, false));
+    WT_ERR(__clayered_enter(clayered, false, false, false));
 
     /* WT_CURSOR.reserve is update-without-overwrite so we should check whether the key exists. */
     WT_ERR(__clayered_lookup(session, clayered, &value));
@@ -2439,7 +2448,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__clayered_enter(clayered, false, true, false));
+    WT_ERR(__clayered_enter(clayered, false, false, false));
 
     ingest_cursor = clayered->ingest_cursor;
     stable_cursor = clayered->stable_cursor;
@@ -2596,7 +2605,7 @@ __clayered_next_random(WT_CURSOR *cursor)
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__clayered_enter(clayered, false, true, true));
+    WT_ERR(__clayered_enter(clayered, false, false, true));
 
     /*
      * Pick a random row from stable, and fall back to ingest if stable is empty or not yet opened.
@@ -2789,7 +2798,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, false, true, false));
+    WT_ERR(__clayered_enter(clayered, false, false, false));
 
     /* Check for a rational modify vector count. */
     if (nentries <= 0)

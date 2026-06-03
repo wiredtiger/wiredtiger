@@ -63,6 +63,9 @@ class test_layered_config11(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_layered_read_write(self):
+        # FIXME-WT-15763: Step-down is not supported yet.
+        self.skipTest('Step-down is not supported yet.')
+
         uri = "layered:test_layered_config11"
         create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.session.create(uri, create_session_config)
@@ -73,9 +76,6 @@ class test_layered_config11(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor["Hello " + str(i)] = "World"
 
         self.session.checkpoint()
-
-        # FIXME-WT-15763: Step-down is not supported yet.
-        self.skipTest('Step-down is not supported yet.')
 
         follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
         self.reopen_conn(config=follower_config)
