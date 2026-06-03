@@ -614,7 +614,7 @@ class DisaggCorruptionMixin:
 
     def _pick_any_row(self):
         """Pick one row from the palite pages table across all shards.
-        Returns its (table_id, page_id, lsn) — i.e. one page image."""
+        Returns its (table_id, page_id, lsn)  i.e. one page image."""
         row = self._scan_shards(
             'SELECT table_id, page_id, lsn FROM pages '
             'ORDER BY table_id DESC, page_id ASC, lsn DESC LIMIT 1;',
@@ -624,7 +624,7 @@ class DisaggCorruptionMixin:
     def _pick_multi_lsn_row(self):
         """Pick one logical page (table_id, page_id) whose delta chain
         has >= 2 LSNs in the palite pages table. Returns (table_id,
-        page_id) — the per-LSN rows can then be queried separately."""
+        page_id)  the per-LSN rows can then be queried separately."""
         row = self._scan_shards(
             'SELECT table_id, page_id, COUNT(*) AS n FROM pages '
             'GROUP BY table_id, page_id HAVING n >= 2 '
