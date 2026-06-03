@@ -326,15 +326,18 @@ join(const Range &range, const Separator &sep)
 }
 
 /* Base-2 (binary) units */
-constexpr uint64_t operator""_KB(unsigned long long val)
+constexpr uint64_t
+operator""_KB(unsigned long long val)
 {
     return val * 1024;
 }
-constexpr uint64_t operator""_MB(unsigned long long val)
+constexpr uint64_t
+operator""_MB(unsigned long long val)
 {
     return val * 1024 * 1024;
 }
-constexpr uint64_t operator""_GB(unsigned long long val)
+constexpr uint64_t
+operator""_GB(unsigned long long val)
 {
     return val * 1024 * 1024 * 1024;
 }
