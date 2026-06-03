@@ -1553,6 +1553,8 @@ extern int __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METAD
 extern int __wti_disagg_parse_crypt_meta(
   WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata, uint64_t *page_idp, uint64_t *lsnp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
+  size_t meta_data_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session,
   const WT_CRYPT_KEYS *crypt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
@@ -1966,6 +1968,8 @@ extern void __wti_cursor_set_notsup(WT_CURSOR *cursor);
 extern void __wti_cursor_set_value_notsup(WT_CURSOR *cursor, ...);
 extern void __wti_debug_crash_if_flag_set(
   WT_SESSION_IMPL *session, uint32_t flag, const char *msg, const char *uri);
+extern void __wti_disagg_shared_metadata_queue_prune(
+  WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch);
 extern void __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages);
 extern void __wti_free_ref_index(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages);
