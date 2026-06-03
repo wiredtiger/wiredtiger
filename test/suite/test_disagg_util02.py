@@ -70,6 +70,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
+        extlist.extension('compressors', 'zstd')
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def _wt_page_extra_config(self):
@@ -251,6 +252,43 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         # _dirty_and_checkpoint writes values like "V00000000"; check one
         # survives unredacted.
         self.assertRegex(stdout, r"V: \{V\d{8}\}")
+
+    def test_delta_chain_compressed(self):
+        self._skip_if_not_diagnostic()
+        # One large leaf so the delta below stays a small fraction of the page
+        # (reconciliation keeps it as a delta instead of rewriting), while still
+        # being larger than the allocation unit so zstd shrinks it and the block
+        # is stored compressed.
+        self.session.create(self.uri,
+            "key_format=S,value_format=S,block_compressor=zstd,"
+            "leaf_page_max=10MB,memory_page_max=10MB")
+        c = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            c[f"k{i:08}"] = "v" * 100
+        c.close()
+        self.session.checkpoint()
+        c = self.session.open_cursor(self.uri)
+        for i in range(100):
+            c[f"k{i:08}"] = "V" * 100
+        c.close()
+        self.session.checkpoint()
+
+        # palite stores the put-args flags: WT_PAGE_LOG_COMPRESSED is 0x1 and
+        # WT_PAGE_LOG_DELTA is 0x2. Require both so we skip compressed full-image
+        # rewrites (which also carry a backlink).
+        page = self._find_page(
+            f"(flags & 0x1) != 0 AND (flags & 0x2) != 0 AND "
+            f"(flags & {self.PAGE_LOG_DISCARDED}) = 0",
+            "compressed delta")
+        stdout, _ = self._run_wt_page(
+            "-U", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+        self.assertGreater(self._assert_chain_header(stdout, page), 1)
+        # Fails without the fix: a compressed delta was reported as "cannot decode".
+        self.assertNotIn("cannot decode", stdout)
+        # Decompression produced a valid cell stream and the value bytes survived;
+        # the uppercase run only comes from the delta, not the base image.
+        self.assertIn("delta_op: update", stdout)
+        self.assertIn("V" * 100, stdout)
 
     def test_internal_delta_chain(self):
         self._skip_if_not_diagnostic()
