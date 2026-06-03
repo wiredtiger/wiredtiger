@@ -526,15 +526,14 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_DISAGG_PENDING_CRYPT_KEY *chosen_key, *drained;
+    WT_DISAGG_PENDING_CRYPT_KEY *chosen_key;
     WT_KEY_PROVIDER *key_provider;
     uint64_t lsn;
-    bool push_mode, reached_chosen;
+    bool push_mode;
 
     conn = S2C(session);
     key_provider = conn->key_provider;
     WT_CLEAR(crypt);
-    chosen_key = NULL;
     lsn = 0;
     push_mode = F_ISSET(conn, WT_CONN_KEY_PROVIDER_PUSH);
 
@@ -602,21 +601,9 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 
-    /*
-     * On success, drain the queue up to and including the key we just wrote. Keys pushed during the
-     * write are newer and stay queued for the next checkpoint.
-     */
-    if (push_mode && ret == 0) {
-        __wt_spin_lock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
-        while ((drained = TAILQ_FIRST(&conn->disaggregated_storage.pending_crypt_key_qh)) != NULL) {
-            TAILQ_REMOVE(&conn->disaggregated_storage.pending_crypt_key_qh, drained, q);
-            reached_chosen = drained == chosen_key;
-            __disagg_pending_crypt_key_free(session, &drained);
-            if (reached_chosen)
-                break;
-        }
-        __wt_spin_unlock(session, &conn->disaggregated_storage.pending_crypt_key_lock);
-    }
+    /* On success, drain all items in queue. */
+    if (push_mode && ret == 0)
+        __wti_disagg_pending_crypt_key_clear(session);
 
     if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
         __wt_debug_crash(session);
