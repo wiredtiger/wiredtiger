@@ -2341,8 +2341,8 @@ __clayered_insert(WT_CURSOR *cursor)
     if (ret == WT_DUPLICATE_KEY) {
         WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
         /*
-         * The btree cursor already populated the existing value via __wt_value_return +
-         * __cursor_localvalue during duplicate detection. Copy it directly without a second search.
+         * The btree cursor already holds a local copy of the existing value from duplicate
+         * detection. Copy it directly without a second search.
          */
         F_CLR(cursor, WT_CURSTD_VALUE_SET);
         WT_ITEM_SET(cursor->value, clayered->stable_cursor->value);
