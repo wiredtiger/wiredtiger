@@ -162,7 +162,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC)) {
         if (WT_PAGE_HAS_SHARED_DSK_REF(page)) {
             WT_ASSERT(session, WT_PAGE_IS_SHARED_DSK(page));
-            WT_ASSERT(session, S2C(session)->cache->shared_dsk_cache.enabled);
             WT_ASSERT(session, page->disagg_info->shared_dsk_item->data == dsk);
             WT_ASSERT(session, page->disagg_info->shared_dsk_item->data_size == dsk->mem_size);
             __wt_shared_dsk_cache_release(session, page->disagg_info->shared_dsk_item);
