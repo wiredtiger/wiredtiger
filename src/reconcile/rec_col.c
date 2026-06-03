@@ -22,7 +22,7 @@ typedef struct {
     bool deleted;
     bool dictionary;
     bool update_no_copy;
-} COL_VAR_CUR;
+} WT_COL_VAR_CUR;
 
 /*
  * State carried across all loop iterations in variable-length column-store reconciliation for
@@ -36,7 +36,7 @@ typedef struct {
     uint64_t rle;
     uint64_t src_recno;
     bool wrote_real_values;
-} COL_VAR_STATE;
+} WT_COL_VAR_STATE;
 
 /*
  * __wt_bulk_insert_var --
@@ -340,7 +340,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOK
  */
 static int
 __rec_col_var_upd_apply(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CURSOR_BTREE *cbt,
-  WTI_UPDATE_SELECT *upd_select, uint64_t src_recno, COL_VAR_CUR *cur)
+  WTI_UPDATE_SELECT *upd_select, uint64_t src_recno, WT_COL_VAR_CUR *cur)
 {
     WT_UPDATE *upd;
 
@@ -384,7 +384,7 @@ __rec_col_var_upd_apply(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CURSOR_BT
  */
 static int
 __rec_col_var_rle_extend(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
-  COL_VAR_STATE *st, COL_VAR_CUR *cur, bool *extendedp)
+  WT_COL_VAR_STATE *st, WT_COL_VAR_CUR *cur, bool *extendedp)
 {
     *extendedp = false;
 
@@ -417,7 +417,7 @@ __rec_col_var_rle_extend(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_
  */
 static int
 __rec_col_var_page_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
-  WT_SALVAGE_COOKIE *salvage, COL_VAR_STATE *st)
+  WT_SALVAGE_COOKIE *salvage, WT_COL_VAR_STATE *st)
 {
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     WT_BTREE *btree;
@@ -430,7 +430,7 @@ __rec_col_var_page_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *pag
     WT_DECL_RET;
     WT_INSERT *ins;
     WTI_UPDATE_SELECT upd_select;
-    COL_VAR_CUR cur;
+    WT_COL_VAR_CUR cur;
     WT_UPDATE *upd;
     uint64_t n, nrepeat;
     uint32_t i;
@@ -644,12 +644,12 @@ err:
  */
 static int
 __rec_col_var_append_loop(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
-  WT_SALVAGE_COOKIE *salvage, COL_VAR_STATE *st)
+  WT_SALVAGE_COOKIE *salvage, WT_COL_VAR_STATE *st)
 {
     WT_CURSOR_BTREE *cbt;
     WT_INSERT *ins;
     WTI_UPDATE_SELECT upd_select;
-    COL_VAR_CUR cur;
+    WT_COL_VAR_CUR cur;
     WT_UPDATE *upd;
     uint64_t n, skip;
     bool extended;
@@ -757,8 +757,8 @@ int
 __wti_rec_col_var(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
-    COL_VAR_STATE st;
     WT_BTREE *btree;
+    WT_COL_VAR_STATE st;
     WT_PAGE *page;
     WT_TIME_WINDOW clear_tw;
 
