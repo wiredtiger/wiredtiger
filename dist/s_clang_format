@@ -18,7 +18,7 @@ download_clang_format() {
 export PATH="$venv/bin":$PATH
 
 # Check if Clang-Format is already available with the desired version.
-desired_version="12.0.1"
+desired_version="19.1.7"
 if ! command -v clang-format &> /dev/null; then
     download_clang_format $desired_version || exit 1
 elif ! clang-format --version | grep -q $desired_version; then
