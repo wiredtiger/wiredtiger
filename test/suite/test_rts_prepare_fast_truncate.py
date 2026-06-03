@@ -39,13 +39,13 @@
 #   that the existing committed-fast-truncate RTS path continues to work
 #   correctly after the code changes for prepared fast truncation.
 #
-#   FIXME-WT-17663: the new stat cannot be asserted in the prepared fast
-#   truncate test: RTS returns EBUSY when any prepared transaction is active
-#   so the prepared fast truncate is rolled back via the session before
-#   RTS runs and the new code path is never reached. Once we write prepared
-#   fast truncates to disk, we can simulate the path where prepared
-#   transaction is gone but on-disk WT_REF_DELETED survives.
-#   Add the stat assertion at that point.
+#   FIXME-WT-17663: the prepared fast truncate RTS path cannot be exercised
+#   here: RTS returns EBUSY when any prepared transaction is active, so the
+#   prepared fast truncate is rolled back via the session before RTS runs.
+#   Once prepared fast truncates are written to disk, add a test that simulates
+#   recovery where the prepared transaction is absent but the on-disk
+#   WT_REF_DELETED survives. That test should verify that RTS instantiates the
+#   page with tombstones and aborts them correctly.
 
 import wttest
 from wiredtiger import stat
