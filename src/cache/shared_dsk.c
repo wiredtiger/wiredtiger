@@ -242,11 +242,11 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
 }
 
 /*
- * __wti_shared_dsk_cache_init --
+ * __wt_shared_dsk_cache_init --
  *     Initialize the shared disk cache.
  */
 int
-__wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
+__wt_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
 {
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;

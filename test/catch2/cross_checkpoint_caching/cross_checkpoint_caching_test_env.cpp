@@ -39,7 +39,7 @@ cross_checkpoint_caching_test_env::cross_checkpoint_caching_test_env(u_int hash_
     conn->disaggregated_storage.page_log_meta =
       reinterpret_cast<WT_PAGE_LOG_HANDLE *>(&_disagg_sentinel);
 
-    REQUIRE(__wti_shared_dsk_cache_init(_session, hash_size) == 0);
+    REQUIRE(__wt_shared_dsk_cache_init(_session, hash_size) == 0);
     conn->cache->shared_dsk_cache.enabled = true;
 }
 

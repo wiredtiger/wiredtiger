@@ -30,7 +30,7 @@ simulate_step_down(WT_SESSION_IMPL *session)
 {
     WT_SHARED_DSK_CACHE *cache = &S2C(session)->cache->shared_dsk_cache;
     if (cache->hash == NULL) {
-        REQUIRE(__wti_shared_dsk_cache_init(session, CROSS_CHECKPOINT_CACHING_TEST_HASH_SIZE) == 0);
+        REQUIRE(__wt_shared_dsk_cache_init(session, CROSS_CHECKPOINT_CACHING_TEST_HASH_SIZE) == 0);
     }
     cache->enabled = true;
 }

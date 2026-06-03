@@ -1661,7 +1661,7 @@ extern int __wti_session_compact_readonly(WT_SESSION *wt_session, const char *ur
   const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_session_notsup(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
+extern int __wt_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

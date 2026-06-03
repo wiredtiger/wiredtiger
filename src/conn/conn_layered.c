@@ -1757,7 +1757,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      */
     if (S2C(session)->cache->shared_dsk_cache.hash == NULL) {
         u_int hash_size = (u_int)WT_MAX(S2C(session)->cache_size / 500 / 100, 512);
-        WT_IGNORE_RET(__wti_shared_dsk_cache_init(session, hash_size));
+        WT_IGNORE_RET(__wt_shared_dsk_cache_init(session, hash_size));
         S2C(session)->cache->shared_dsk_cache.enabled = true;
     }
 }
