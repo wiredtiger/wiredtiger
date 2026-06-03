@@ -925,6 +925,7 @@ static int
 __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
   const WT_PAGE_HEADER *delta_dsk, const char *ofile, bool dump_all_data, bool dump_key_data)
 {
+    WT_BLOCK_DISAGG_HEADER *blk;
     WT_DBG *ds, _ds;
     WT_DECL_RET;
     uint32_t flags;
@@ -940,18 +941,14 @@ __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
         LF_SET(WT_DEBUG_UNREDACT_KEYS);
     WT_RET(__debug_config(session, ds, ofile, flags));
 
-    {
-        const WT_BLOCK_DISAGG_HEADER *blk;
-
-        blk = WT_BLOCK_HEADER_REF(delta_dsk);
-        /* The block-header flags are a single byte; no byteswap needed. */
-        if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED | WT_BLOCK_DISAGG_COMPRESSED)) {
-            WT_ERR(ds->f(ds,
-              "- delta page (underlying: %s)\n"
-              "\t> cannot decode: disagg block flags 0x%" PRIx8 " include encryption/compression\n",
-              __wt_page_type_string(delta_dsk->type), blk->flags));
-            goto err;
-        }
+    blk = WT_BLOCK_HEADER_REF(delta_dsk);
+    /* The block-header flags are a single byte; no byteswap needed. */
+    if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED | WT_BLOCK_DISAGG_COMPRESSED)) {
+        WT_ERR(ds->f(ds,
+          "- delta page (underlying: %s)\n"
+          "\t> cannot decode: disagg block flags 0x%" PRIx8 " include encryption/compression\n",
+          __wt_page_type_string(delta_dsk->type), blk->flags));
+        goto err;
     }
 
     WT_ERR(ds->f(ds,
