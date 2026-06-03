@@ -773,6 +773,27 @@ __wti_conn_remove_storage_source(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_conn_backup_init --
+ *     Initialize the WT_CONN_BACKUP structure.
+ */
+int
+__wti_conn_backup_init(WT_SESSION_IMPL *session)
+{
+    WT_RET(__wt_rwlock_init(session, &S2C(session)->backup.lock));
+    return (0);
+}
+
+/*
+ * __wti_conn_backup_destroy --
+ *     Destroy the WT_CONN_BACKUP structure.
+ */
+void
+__wti_conn_backup_destroy(WT_SESSION_IMPL *session)
+{
+    __wt_rwlock_destroy(session, &S2C(session)->backup.lock);
+}
+
+/*
  * __wti_conn_ext_init --
  *     Initialize the WT_CONN_EXTENSIONS structure.
  */
@@ -1249,6 +1270,15 @@ err:
 
     __wt_verbose_info(
       session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
+
+    /*
+     * The sweep server must be stopped before any thread group is destroyed: tearing down a thread
+     * group will cause session structures to be cleared. This will mess with the sweep's session
+     * walk. The sweep must also be stopped before the final checkpoint to prevent it from closing
+     * file handles while the checkpoint is reviewing open data handles.
+     */
+    WT_TRET(__wti_sweep_destroy(session));
+
     /* Shut down pre-fetching - it should not operate while closing the connection. */
     WT_TRET(__wti_prefetch_destroy(session));
 
@@ -1263,13 +1293,6 @@ err:
      * proceed without doing snapshot visibility checks.
      */
     session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
-
-    /*
-     * The sweep server is still running and it can close file handles at the same time the final
-     * checkpoint is reviewing open data handles (forcing checkpoint to reopen handles). Shut down
-     * the sweep server.
-     */
-    WT_TRET(__wti_sweep_destroy(session));
 
     /*
      * Shut down the checkpoint, compact and capacity server threads: we don't want to throttle
@@ -1425,7 +1448,7 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     session_ret = NULL;
     WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
-    session_ret->name = "connection-open-session";
+    __wt_atomic_store_ptr_relaxed(&session_ret->name, "connection-open-session");
     *wt_sessionp = &session_ret->iface;
 
 err:
@@ -2393,6 +2416,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_slow_truncate_follower", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
@@ -2419,6 +2448,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_truncate", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.stress_skiplist", &cval));
     if (cval.val)
@@ -2885,16 +2920,13 @@ err:
 static int
 __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_NOCONF(conn, session, set_key_provider);
-
-    /* The configuration string has no use but may be useful at a later time. */
-    if (config != NULL)
-        WT_ERR_MSG(session, EINVAL, "key provider configuration currently not supported.");
+    CONNECTION_API_CALL(conn, session, set_key_provider, config, cfg);
 
     /* You can only enable the key provider system in disaggregated mode. */
     if (__wt_conn_is_disagg(session))
@@ -2905,6 +2937,13 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
      */
     if (conn->key_provider != NULL)
         WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
+
+    WT_ERR(__wt_config_gets(session, cfg, "version", &cval));
+    if (cval.val == 1) {
+        F_SET(conn, WT_CONN_KEY_PROVIDER_PUSH);
+        /* Install the WT-implemented set_key for the module to call. */
+        key_provider->set_key = __wti_disagg_set_crypt_key;
+    }
 
     conn->key_provider = key_provider;
 
@@ -3737,8 +3776,8 @@ err:
      * to happen on tables to clean up the entries in the creation of the metadata file.
      */
     F_CLR(conn, WT_CONN_BACKUP_PARTIAL_RESTORE);
-    if (conn->partial_backup_remove_ids != NULL)
-        __wt_free(session, conn->partial_backup_remove_ids);
+    if (conn->backup.partial_remove_ids != NULL)
+        __wt_free(session, conn->backup.partial_remove_ids);
 
     if (ret != 0) {
         if (conn->default_session->event_handler->handle_general != NULL &&

@@ -73,11 +73,14 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
+CLI
 CLOEXEC
+CMAKE
 CMP
 CMake
 CMakeFiles
 CMakeLists
+CMakePresets
 CONF
 CONFIG
 CPP
@@ -88,6 +91,7 @@ CTest
 CURSORs
 CURSTD
 CURVERSION
+CXX
 CallsCustDate
 Canonicalize
 Castagnoli
@@ -121,6 +125,7 @@ DENABLE
 DESC
 DEST
 DHANDLE
+DHAVE
 DISAGG
 DISAGGREGATED
 DNE
@@ -436,6 +441,8 @@ RuntimeError
 SCons
 SDK
 SIGABRT
+SIGBUS
+SIGSEGV
 SIMD
 SLS
 SLVG
@@ -535,6 +542,7 @@ VPM
 VR
 VRFY
 VX
+ValidationModel
 Vc
 Vigenere
 Vixie
@@ -595,6 +603,7 @@ XSAN
 XXXX
 XXXXXX
 Xcode
+Xcode's
 XxxxHookCreator
 YCSB
 ZSTD
@@ -652,6 +661,7 @@ autoconf
 aws
 az
 bInheritHandle
+backends
 backlink
 backoff
 badsize
@@ -816,6 +826,7 @@ createsets
 crypto
 cryptobad
 cryptographic
+cst
 cstring
 csuite
 csv
@@ -963,6 +974,8 @@ endptr
 engflow
 enomem
 enqueue
+enqueued
+enqueues
 entindex
 entlist
 enum
@@ -986,6 +999,7 @@ execfn
 existp
 extern
 extlist
+extlists
 extraconfig
 fadvise
 fahrenheit
@@ -1025,6 +1039,7 @@ floatnum
 fmt
 fmterr
 fnv
+fnvhash
 foc
 fopen
 forceerror
@@ -1196,6 +1211,7 @@ keyid
 keyids
 keylen
 keynum
+keyp
 keystr
 keyv
 kp
@@ -1560,6 +1576,7 @@ reentrant
 refp
 regen
 regionp
+reinit
 reinstantiated
 relocked
 repl
@@ -1625,6 +1642,7 @@ sii
 sizeof
 sizep
 sizev
+skipTest
 skipTests
 skiplist
 skiplists
@@ -1662,6 +1680,7 @@ stdin
 stdout
 stepback
 stepp
+stepup
 stlr
 stlrb
 stlrh
@@ -1685,6 +1704,7 @@ strtouq
 struct
 structs
 su
+subcommand
 subconfig
 subconfigs
 subconfiguration
@@ -1765,6 +1785,7 @@ tolower
 tombstoned
 toml
 toolchain
+toolchains
 totalsec
 tp
 traceapi
@@ -1809,6 +1830,8 @@ uncheckpointed
 unconfigured
 uncustomized
 undef
+undeferred
+undefers
 undeleted
 underflowed
 unencoded
@@ -1872,6 +1895,7 @@ valuep
 valuesize
 valuev
 variadic
+vcvars
 vd
 vdata
 vec

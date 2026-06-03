@@ -699,6 +699,11 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
+        Config('disagg_slow_truncate_follower', 'false', r'''
+            if true, follower-side layered-table truncate uses the slow per-record delete path
+            instead of the optimized range delete. Intended for debugging the disaggregated
+            slow/fast truncate split; leader always uses fast truncate.''',
+            type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction
             to happen more aggressively. This includes but is not limited to not skewing newest,
@@ -730,6 +735,11 @@ connection_runtime_config = [
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal page processing.''',
             type='boolean'),
+        Config('slow_truncate', 'false', r'''
+            if true, disable the fast-truncate page-skip optimization during range truncate.
+            Intended for debugging the fast-truncate page-skip path on leader and
+            non-disaggregated truncates.''',
+            type='boolean', undoc=True),
         Config('stress_skiplist', 'false', r'''
             Configure various internal parameters to encourage race conditions and other issues
             with internal skip lists, e.g. using a more dense representation.''',
@@ -938,6 +948,17 @@ connection_runtime_config = [
         list, where each option specifies an event handler category e.g. 'error' represents
         the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=['error', 'message']),
+    Config('load_control', '', r'''
+        enable the load control subsystem.''',
+        type='category', subconfig=[
+        Config('enable', 'false', r'''
+            Load control will actively reject the work, based on other settings, to keep the
+            system healthy.''',
+            type='boolean'),
+        Config('control_threshold', '100', r'''
+            Threshold at which load control will actively start rejecting the work.''',
+            min=10, max=200),
+        ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
         min=0),
@@ -2227,7 +2248,13 @@ methods = {
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
 
-'WT_CONNECTION.set_key_provider' : Method([]),
+'WT_CONNECTION.set_key_provider' : Method([
+    Config('version', '0', r'''
+        the key provider API version. Version 0 uses the pull model
+        (WiredTiger calls WT_KEY_PROVIDER::get_key). Version 1 uses
+        the push model''',
+        min=0, max=1),
+]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''

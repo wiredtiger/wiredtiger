@@ -691,7 +691,7 @@ __log_file_server(void *arg)
                  * file system may not support truncate: both are OK, it's just more work during
                  * cursor traversal.
                  */
-                if (__wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) == 0 &&
+                if (__wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0 &&
                   __wt_tsan_suppress_load_uint32(&conn->log_mgr.cursors) == 0) {
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
                       ret = __wt_ftruncate(session, close_fh, __wt_lsn_offset(&close_end_lsn)),
@@ -769,7 +769,10 @@ restart:
     while (i < WTI_SLOT_POOL) {
         save_i = i;
         slot = &log->slot_pool[i++];
-        if (__wt_atomic_load_int64_v_relaxed(&slot->slot_state) != WTI_LOG_SLOT_WRITTEN)
+        /*
+         * Guard: slot_state. Acquire-load pairs with the release-store in __wti_log_release.
+         */
+        if (__wt_atomic_load_int64_v_acquire(&slot->slot_state) != WTI_LOG_SLOT_WRITTEN)
             continue;
         written[written_i].slot_index = save_i;
         WT_ASSIGN_LSN(&written[written_i++].lsn, &slot->slot_release_lsn);

@@ -2631,12 +2631,12 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         session_ret->iface = F_ISSET(conn, WT_CONN_READONLY) ? stds_readonly : stds;
     session_ret->iface.connection = &conn->iface;
 
-    session_ret->name = NULL;
+    __wt_atomic_store_ptr_relaxed(&session_ret->name, NULL);
     session_ret->id = i;
 
 #ifdef HAVE_UNITTEST_ASSERTS
     session_ret->unittest_assert_hit = false;
-    memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
+    memset(session->unittest_assert_msg, 0, sizeof(session->unittest_assert_msg));
 #endif
 
 #ifdef HAVE_DIAGNOSTIC
