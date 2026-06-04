@@ -2592,6 +2592,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     }
 
     /* Write the disk image and get an address. */
+#ifdef HAVE_DIAGNOSTIC
+    if (WT_PAGE_IS_INTERNAL(page))
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "__rec_split_write: ref=%p page_type=%d skip_write=%d build_delta=%d delta_size=%zu",
+          (void *)r->ref, page->type, (int)skip_write, (int)build_delta, r->delta.size);
+#endif
     if (skip_write) {
         /* Copy the previous written page's address if we skip writing. */
         WT_RET(__rec_copy_prev_addr(session, r));

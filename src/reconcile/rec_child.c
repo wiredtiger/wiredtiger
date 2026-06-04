@@ -32,8 +32,13 @@ __rec_child_deleted(
      * If there's no page-delete structure, the truncate must be globally visible. Discard any
      * underlying disk blocks and don't write anything in the internal page.
      */
-    if (page_del == NULL)
+    if (page_del == NULL) {
+#ifdef HAVE_DIAGNOSTIC
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "fast-truncate block free (page_del=NULL): ref=%p", (void *)ref);
+#endif
         return (__wt_ref_block_free(session, ref, true));
+    }
 
     /*
      * Check visibility. If the truncation is visible to us, we'll also want to know if it's visible
@@ -181,6 +186,10 @@ __rec_child_deleted(
      * is ever a read into this part of the name space again, the cache read function instantiates
      * an entirely new page.)
      */
+#ifdef HAVE_DIAGNOSTIC
+    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "fast-truncate block free (visible_all): ref=%p", (void *)ref);
+#endif
     WT_RET(__wt_ref_block_free(session, ref, true));
 
     /* Globally visible fast-truncate information is never used again, a NULL value is identical. */

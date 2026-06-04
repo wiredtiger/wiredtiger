@@ -1448,6 +1448,10 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
                 *ref->page_del = unpack.page_del;
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
+#ifdef HAVE_DIAGNOSTIC
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "proxy cell instantiated from disk: ref=%p", (void *)ref);
+#endif
 
             /*
              * If the tree is already dirty and so will be written, mark the page dirty. (We want to

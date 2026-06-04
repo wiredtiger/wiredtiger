@@ -623,6 +623,11 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     }
 
     /* Free any backing fast-truncate memory. */
+#ifdef HAVE_DIAGNOSTIC
+    if (ref->page_del != NULL)
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "fast-truncate block free (split): ref=%p", (void *)ref);
+#endif
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
