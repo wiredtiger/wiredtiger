@@ -628,16 +628,19 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
         WT_ADDR_COPY __diag_addr;
         WT_BLOCK_DISAGG_ADDRESS_COOKIE __diag_cookie;
         const uint8_t *__diag_ptr;
+        WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
         if (__wt_ref_addr_copy(session, ref, &__diag_addr)) {
             __diag_ptr = __diag_addr.addr;
-            if (__wt_block_disagg_addr_unpack(
-                  session, &__diag_ptr, __diag_addr.size, &__diag_cookie) == 0)
+            if (__diag_addr.size > 0 &&
+              __wt_block_disagg_addr_unpack(
+                session, &__diag_ptr, __diag_addr.size, &__diag_cookie) == 0)
                 __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "fast-truncate block free (split): ref=%p page_id=%" PRIu64
                   " lsn=%" PRIu64 " base_lsn=%" PRIu64,
                   (void *)ref, __diag_cookie.page_id, __diag_cookie.lsn,
                   __diag_cookie.base_lsn);
         }
+        WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     }
 #endif
     __wt_free(session, ref->page_del);

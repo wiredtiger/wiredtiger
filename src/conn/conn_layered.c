@@ -1636,6 +1636,8 @@ __disagg_follower_verify_latest_checkpoint(WT_SESSION_IMPL *session)
      */
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_lsn", &cval), true);
     if (ret == WT_NOTFOUND) {
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Step-up LSN check: metadata_lsn absent from checkpoint metadata, skipping");
         ret = 0;
         goto err;
     }

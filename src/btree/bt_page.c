@@ -1449,7 +1449,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 #ifdef HAVE_DIAGNOSTIC
-            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && unpack.size > 0) {
                 WT_BLOCK_DISAGG_ADDRESS_COOKIE __diag_cookie;
                 const uint8_t *__diag_ptr = unpack.data;
                 if (__wt_block_disagg_addr_unpack(
