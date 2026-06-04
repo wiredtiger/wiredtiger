@@ -1595,6 +1595,62 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __disagg_follower_verify_latest_checkpoint --
+ *     Check that the node has picked up the latest complete checkpoint before stepping up.
+ */
+static int
+__disagg_follower_verify_latest_checkpoint(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *connection = S2C(session);
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg = &connection->disaggregated_storage;
+    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
+    uint64_t last_checkpoint_lsn = 0, latest_meta_lsn = 0;
+    char *meta_str = NULL;
+
+    WT_CLEAR(args);
+
+    if (disagg->npage_log == NULL ||
+      disagg->npage_log->page_log->pl_get_complete_checkpoint == NULL)
+        return (0);
+
+    WT_ERR_NOTFOUND_OK(disagg->npage_log->page_log->pl_get_complete_checkpoint(
+                         disagg->npage_log->page_log, &session->iface, &args),
+      true);
+
+    /* If there is no checkpoint, the follower is already up to date. */
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
+
+    WT_ERR(__wt_strndup(
+      session, args.checkpoint_metadata.data, args.checkpoint_metadata.size, &meta_str));
+
+    /*
+     * The metadata_lsn embedded in the checkpoint_metadata blob is the correct value to compare
+     * against last_checkpoint_meta_lsn.
+     */
+    WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
+
+    latest_meta_lsn = (uint64_t)cval.val;
+    last_checkpoint_lsn = __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn);
+
+    if (latest_meta_lsn != last_checkpoint_lsn)
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Follower is not on the latest checkpoint: follower LSN=%" PRIu64 " latest LSN=%" PRIu64,
+          last_checkpoint_lsn, latest_meta_lsn);
+
+err:
+    __wt_buf_free(session, &args.checkpoint_metadata);
+    __wt_free(session, meta_str);
+    return (ret);
+}
+#endif
+
 /*
  * __disagg_restart_checkpoint --
  *     Restart the current checkpoint: Abandon the current checkpoint if it is incomplete (and the
@@ -1644,6 +1700,10 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__disagg_follower_verify_latest_checkpoint(session));
+#endif
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
