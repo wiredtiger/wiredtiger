@@ -597,12 +597,12 @@ class DisaggCorruptionMixin:
         non-empty JSON row from any shard, or self.fail() with fail_msg.
         Reopens WT before returning."""
         self.close_conn()
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         try:
             for shard in range(NUM_SHARDS):
                 db_path = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
                 if not os.path.exists(db_path):
                     continue
-                sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
                 result = subprocess.run(
                     [sqlite_exe, '-json', db_path, sql],
                     capture_output=True, text=True, check=True)
