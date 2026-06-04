@@ -612,11 +612,16 @@ class DisaggCorruptionMixin:
             self.reopen_conn()
         self.fail(fail_msg)
 
-    def _pick_one_row(self):
+    def _pick_one_row(self, exclude_discarded=False):
         """Pick one row from the palite pages table across all shards.
-        Returns its (table_id, page_id, lsn)  i.e. one page image."""
+        If exclude_discarded is set, rows already marked
+        WT_PAGE_LOG_DISCARDED are skipped, guaranteeing the returned
+        image is still alive. Returns its (table_id, page_id, lsn)
+        i.e. one page image."""
+        where = (f'WHERE flags & {self.WT_PAGE_LOG_DISCARDED} = 0 '
+                 if exclude_discarded else '')
         row = self._scan_shards(
-            'SELECT table_id, page_id, lsn FROM pages '
+            f'SELECT table_id, page_id, lsn FROM pages {where}'
             'ORDER BY table_id DESC, page_id ASC, lsn DESC LIMIT 1;',
             'no rows found in any pages_NN.db')
         return int(row['table_id']), int(row['page_id']), int(row['lsn'])
@@ -678,12 +683,12 @@ class DisaggCorruptionMixin:
         return table_id, page_id, lsn
 
     def set_random_page_discarded(self):
-        """Pick one page image (one (page_id, lsn) row in the palite
-        pages table) and OR WT_PAGE_LOG_DISCARDED into its flags
-        column, marking that single image as a tombstone. Other images
-        in the same delta chain are untouched. Returns the (table_id,
-        page_id, lsn) of the modified image."""
-        table_id, page_id, lsn = self._pick_one_row()
+        """Pick one not-yet-discarded page image (one (page_id, lsn) row
+        in the palite pages table) and OR WT_PAGE_LOG_DISCARDED into its
+        flags column, marking that single image as a tombstone. Other
+        images in the same delta chain are untouched. Returns the
+        (table_id, page_id, lsn) of the modified image."""
+        table_id, page_id, lsn = self._pick_one_row(exclude_discarded=True)
         self.close_conn()
         sql = (
             f"UPDATE pages SET flags = flags | {self.WT_PAGE_LOG_DISCARDED} "
