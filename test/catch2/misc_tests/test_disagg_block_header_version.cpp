@@ -13,12 +13,12 @@
 
 /*
  * This build can read a disagg block header if its own version is at least the header's
- * compatible_version. The read path used to compare against WT_BLOCK_DISAGG_COMPATIBLE_VERSION (this
- * build's own oldest-compatible bound) instead of WT_BLOCK_DISAGG_VERSION (this build's version),
- * incorrectly rejecting readable blocks once the writer version diverges from the compatible
- * version. The check is currently equivalent because the two macros are equal; this test fails the
- * moment WT_BLOCK_DISAGG_VERSION is bumped past WT_BLOCK_DISAGG_COMPATIBLE_VERSION and the wrong
- * macro is used, which is exactly when the bug can be observed.
+ * compatible_version. The read path used to compare against WT_BLOCK_DISAGG_COMPATIBLE_VERSION
+ * (this build's own oldest-compatible bound) instead of WT_BLOCK_DISAGG_VERSION (this build's
+ * version), incorrectly rejecting readable blocks once the writer version diverges from the
+ * compatible version. The check is currently equivalent because the two macros are equal; this test
+ * fails the moment WT_BLOCK_DISAGG_VERSION is bumped past WT_BLOCK_DISAGG_COMPATIBLE_VERSION and
+ * the wrong macro is used, which is exactly when the bug can be observed.
  */
 TEST_CASE("disagg block header version compatibility", "[block_disagg]")
 {
