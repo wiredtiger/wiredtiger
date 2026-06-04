@@ -919,7 +919,7 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
 
     for (; upd != NULL; upd = upd->next) {
         /* Skip aborted updates unless showing prepared rollbacks. */
-        if (upd->txnid == WT_TXN_ABORTED) {
+        if (__wt_tsan_suppress_load_uint64_v(&upd->txnid) == WT_TXN_ABORTED) {
             if (F_ISSET(version_cursor, WT_CURVERSION_SHOW_PREPARED_ROLLBACK) &&
               __curversion_is_prepare_rollback_update(upd))
                 break;

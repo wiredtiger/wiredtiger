@@ -318,8 +318,13 @@ __layered_fix_prepared_transaction_callback(
         /*
          * Mark the original update on the ingest btree as aborted. Otherwise, we may get a
          * WT_ROLLBACK error when we try to truncate the ingest btree.
+         *
+         * Use the synchronized store: a concurrent drain worker's version cursor may be reading
+         * this update's txnid (to skip aborted updates) while we abort it. This matches how WT
+         * aborts an update's txnid elsewhere and pairs with the atomic reads in the visibility
+         * path.
          */
-        op->u.op_upd->txnid = WT_TXN_ABORTED;
+        __wt_tsan_suppress_store_uint64_v(&op->u.op_upd->txnid, WT_TXN_ABORTED);
         /* Point the operation to the stable btree. */
         op->btree = cookie->stable_btree;
 
