@@ -77,16 +77,14 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_cache_config(session, cfg, false));
 
     /*
-     * Initialize the shared disk hash table only on disagg standby nodes.
+     * Initialize the shared disk hash table only on disagg nodes.
+     *
      * FIXME-WT-14721: Replace this config lookup with the standard disaggregated check once the
      * disaggregated configuration is available here.
      */
-    S2C(session)->cache->shared_dsk_cache.enabled = false;
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
-    if (cval.len != 0) {
-        WT_RET(__wt_disagg_config_get_role(session, cfg, &leader));
-        S2C(session)->cache->shared_dsk_cache.enabled = !leader;
-    }
+    S2C(session)->cache->shared_dsk_cache.enabled = (cval.len != 0);
+    S2C(session)->cache->shared_dsk_cache.enabled = false;
     if (S2C(session)->cache->shared_dsk_cache.enabled) {
         /*
          * Best-effort sizing: budget 0.2% of the cache and assume one item per bucket, so dividing
