@@ -2275,6 +2275,53 @@ __wt_btree_disagg_checkpointed(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __wt_btree_advance_ingest_max --
+ *     Advance an ingest btree's upper bound on the commit timestamps it holds. Sweep uses the bound
+ *     we calculate to decide when the whole ingest table is redundant relative to the stable table
+ *     from the last checkpoint. The bound only ever advances.
+ */
+static WT_INLINE void
+__wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t commit_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (commit_ts == WT_TS_NONE)
+        return;
+
+#if WT_TIMESTAMP_ASSUME_MONGODB_SECONDS
+    /*
+     * MongoDB packs the commit timestamp as <seconds : increment>, with the high 32 bits as
+     * wall-clock seconds. What we do here is round up to the start of the next second. Every commit
+     * within a second computes the same target, so only the first commit of each second will raise
+     * the bound. This generally minimizes contention except for a brief chance of collisions at the
+     * second boundary. This is safe, a conservative overestimate of the bound, preserving the
+     * requirement that needed data is never lost.
+     *
+     * Checkpoints generally happen at a fast pace, and continually raise the timestamp that sweep
+     * is using for comparison, so idle trees that aren't increasing their maximum bound will be
+     * swept, often in the next checkpoint.
+     */
+    target = ((commit_ts >> 32) + 1) << 32;
+#else
+    /*
+     * For the general case, we cannot make presumptions about how checkpoint timestamps are
+     * advancing, so we track the exact maximum committed timestamp. Correct for any timestamp
+     * scheme and sweeps as promptly as possible, but every advancing commit does a
+     * compare-and-swap, so it is not suited to highly concurrent workloads, especially those that
+     * stress a small number of btrees.
+     */
+    target = commit_ts;
+#endif
+
+    cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    while (cur < target) {
+        if (__wt_atomic_cas_uint64(&btree->max_ingest_write_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    }
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */

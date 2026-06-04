@@ -20,6 +20,18 @@
 #define WT_BTREE_VERSION_MAX ((WT_BTREE_VERSION){1, 1, 0}) /* Newest version supported */
 #endif
 
+/*
+ * Whether to assume MongoDB's packed <seconds:increment> commit-timestamp layout, where the high 32
+ * bits are wall-clock seconds that advance roughly once per second. If we know this to be true, we
+ * can increase our maximum commit timestamp at a slower pace, which gives us much better
+ * concurrency when many threads are pounding a single tree.
+ */
+#ifdef WT_STANDALONE_BUILD
+#define WT_TIMESTAMP_ASSUME_MONGODB_SECONDS 0
+#else
+#define WT_TIMESTAMP_ASSUME_MONGODB_SECONDS 1
+#endif
+
 #define WT_BTREE_MIN_ALLOC_SIZE 512
 
 /*
@@ -182,6 +194,9 @@ struct __wt_btree {
     /* FIXME-WT-15633: Combine `prune_timestamp` and `checkpoint_timestamp` into one variable */
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
     wt_timestamp_t checkpoint_timestamp;      /* Stable table checkpoint timestamp */
+
+    /* For an ingest btree, an upper bound on the commit timestamp of any update it holds. */
+    wt_shared wt_timestamp_t max_ingest_write_ts;
 
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */

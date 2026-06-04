@@ -1616,6 +1616,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     break;
 
                 WT_ERR(__wt_txn_op_set_timestamp(session, op, true));
+
+                /* Advance the ingest btree's commit timestamp maximum to enable prompt sweeps of
+                 * idle tables. */
+                if (F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT))
+                    __wt_btree_advance_ingest_max(op->btree, txn->time_point.commit_timestamp);
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
