@@ -99,6 +99,8 @@ Variables, via name=value, default listed in brackets:\n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
   may be a subsuite name (e.g. \'base\' runs test_base*.py)\n\
+  may be a named suite from NAMED_SUITES (e.g. \'disagg\', \'tiered\', \'classic\');\n\
+    a named suite may also imply hooks (e.g. \'disagg\' enables --hook disagg)\n\
 \n\
   When -C or -c are present, there may not be any tests named.\n\
   When -s is present, there must be a test named.\n\
@@ -133,6 +135,27 @@ def show_env(verbose, envvar):
 # capture the category (AKA 'subsuite') part of a test name,
 # e.g. test_util03 -> util
 reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
+
+from named_suites import (dispatch_multi_pass, fail_list_paths_for_hooks,
+                          is_multi_pass_invocation, test_files_for_suite)
+
+def _read_skip_file(path):
+    """Read a skip-list file and return the test names listed in it
+    (comment lines, trailing comments, and the .py extension stripped)."""
+    with open(path, 'r') as f:
+        lines = f.read().splitlines()
+    lines = [l for l in lines if not l.lstrip().startswith('#')]
+    return [re.split(r'\s+#', l)[0].strip().replace('.py', '') for l in lines]
+
+def collect_skip_tests(hook_names, user_skip_file):
+    """Merged list of test names to skip: auto skip lists for any active
+    hooks plus the user's --skip-tests-in-file."""
+    skip_tests = []
+    for path in fail_list_paths_for_hooks(hook_names):
+        skip_tests.extend(_read_skip_file(path))
+    if user_skip_file:
+        skip_tests.extend(_read_skip_file(user_skip_file))
+    return skip_tests
 
 # Look for a list of the form 0-9,11,15-17.
 def parse_int_list(str):
@@ -296,6 +319,13 @@ def configApply(suites, configfilename, configwrite):
     return newsuite
 
 def testsFromArg(tests, loader, arg, scenario, skipTests):
+    # Named suites expand to a list of test files (see named_suites.py).
+    named = test_files_for_suite(arg)
+    if named is not None:
+        for name in named:
+            testsFromArg(tests, loader, name, scenario, skipTests)
+        return
+
     # If a group of test is mentioned, do all tests in that group
     # e.g. 'run.py base'
     groupedfiles = glob.glob(suitedir + os.sep + 'test_' + arg + '*.py')
@@ -605,6 +635,13 @@ if __name__ == '__main__':
     tests = unittest.TestSuite()
     from testscenarios.scenarios import generate_scenarios
 
+    # A named suite that implies multiple hook configurations cannot run
+    # in this single process because a hook is installed once per process.
+    # Hand off to the multi-pass dispatcher, which launches one child
+    # per configuration.
+    if is_multi_pass_invocation(testargs, hook_names):
+        sys.exit(dispatch_multi_pass(testargs, sys.argv))
+
     import wthooks
     hookmgr = wthooks.WiredTigerHookManager(hook_names)
 
@@ -617,15 +654,7 @@ if __name__ == '__main__':
                                           extralongtest, zstdtest, ignoreStdout, printOutput,
                                           seedw, seedz, hookmgr, ss_random_prefix, timeout)
 
-    skipTests = []
-    if skipFileForTests:
-        with open(skipFileForTests, 'r') as f:
-            # Read the skip file and process it to get a list of tests to skip.
-            skipTests = f.read().splitlines()
-            # Remove comment lines starting with '#'.
-            skipTests = [test for test in skipTests if not test.lstrip().startswith('#')]
-            # Remove trailing comments and file extensions for each line.
-            skipTests = [re.split(r'\s+#', test)[0].strip().replace('.py', '') for test in skipTests]
+    skipTests = collect_skip_tests(hook_names, skipFileForTests)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:

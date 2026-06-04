@@ -32,12 +32,12 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 import wiredtiger
 
-# test_leaf_delta_disagg01.py
+# test_disagg_leaf_delta01.py
 # Test we can build leaf delta disk image from base image and deltas correctly, the test covers
 # different scenarios, where the k/v pair on latest delta should overwrite the same k/v pair for
 # earlier delta, the unpacking during merging process for delta and base image should work properly.
 @disagg_test_class
-class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
+class test_disagg_leaf_delta01(wttest.WiredTigerTestCase):
     prefix_compression = [
         ('enabled', dict(prefix_config='prefix_compression=true', prefix_enabled=True)),
         ('disabled', dict(prefix_config='prefix_compression=false', prefix_enabled=False)),
@@ -47,7 +47,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
     conn_delta_config = 'disaggregated=(role="leader"),page_delta=(internal_page_delta=true,leaf_page_delta=true),'
     disagg_storages = gen_disagg_storages('test_layered_delta09', disagg_only = True)
 
-    uri='layered:test_leaf_delta_disagg01'
+    uri='layered:test_disagg_leaf_delta01'
     init_key = "abc"
 
     scenarios = make_scenarios(disagg_storages, prefix_compression)

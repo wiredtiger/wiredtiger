@@ -33,10 +33,10 @@ from wtdataset import SimpleDataSet
 
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg01.py
+# test_disagg_key_provider01.py
 #    Test basic key provider scenarios.
 @disagg_test_class
-class test_key_provider_disagg01(wttest.WiredTigerTestCase):
+class test_disagg_key_provider01(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -46,7 +46,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         ('crash', dict(crash=True)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_disagg_key_provider01', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, crash_value)
 
     nentries = 1000
@@ -61,7 +61,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     turtle_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_TURTLE_FILE_ID):02d}.db'
     key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
-    uri = "layered:test_key_provider_disagg01"
+    uri = "layered:test_disagg_key_provider01"
 
     # Load the key provider store extension.
     def conn_extensions(self, extlist):
@@ -116,7 +116,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
             self.assertEqual(page_id, self.MAIN_KEK_PAGE_ID)
             self.assertEqual(version, self.EXPECTED_KEK_VERSION)
 
-    def test_key_provider_disagg01(self):
+    def test_disagg_key_provider01(self):
         if (self.ds_name != "palite"):
             self.skipTest("Must use PALite to verify contents")
 
