@@ -1715,14 +1715,11 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         F_SET(btree, WT_BTREE_READONLY);
 
         /*
-         * Mark the handle outdated so the next leader opens a fresh one rather than reusing this
-         * handle's resident follower-era pages. Carrying those pages into the leader lets the drain
-         * dirty a page that still holds an unresolved on-disk prepared cell before the drain
-         * resolves it, which reconciliation cannot represent (leaked prepared update). A fresh
-         * handle faults such pages in only via the resolve, which covers them under a hazard
-         * pointer. The leader checkpoints the fresh handle, so the block-size accounting that a
-         * readonly tree would have drifted by being skipped stays consistent without clearing
-         * readonly at step-up.
+         * Mark the handle outdated so that if we step back up as leader in the future, we open
+         * a fresh one rather than reusing this handle's resident pages. Carrying those pages
+         * into a new leader era lets the drain dirty a page that still holds an unresolved
+         * on-disk prepared cell before the drain resolves it, which reconciliation cannot
+         * represent (leaked prepared update).
          */
         F_SET(dhandle, WT_DHANDLE_OUTDATED);
 
