@@ -12,7 +12,7 @@
 #include "wt_internal.h"
 
 /*
- * This build can read a disagg block header iff its own version is at least the header's
+ * This build can read a disagg block header if its own version is at least the header's
  * compatible_version. The read path used to compare against WT_BLOCK_DISAGG_COMPATIBLE_VERSION (this
  * build's own oldest-compatible bound) instead of WT_BLOCK_DISAGG_VERSION (this build's version),
  * incorrectly rejecting readable blocks once the writer version diverges from the compatible
