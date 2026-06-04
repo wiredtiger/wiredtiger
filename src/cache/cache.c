@@ -68,7 +68,6 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     u_int hash_size;
-    bool leader;
 
     WT_ASSERT(session, S2C(session)->cache == NULL);
     WT_RET(__wt_calloc_one(session, &S2C(session)->cache));
