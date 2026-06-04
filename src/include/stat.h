@@ -960,6 +960,7 @@ struct __wt_connection_stats {
     int64_t cursor_sweep_closed;
     int64_t cursor_sweep_examined;
     int64_t cursor_sweep;
+    int64_t cursor_skip_corrupt;
     int64_t cursor_truncate;
     int64_t cursor_truncate_keys_deleted;
     int64_t cursor_update;
@@ -1704,6 +1705,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_reset_error;
     int64_t cursor_search_error;
     int64_t cursor_search_near_error;
+    int64_t cursor_skip_corrupt;
     int64_t cursor_update_error;
     int64_t cursor_insert;
     int64_t cursor_insert_bytes;

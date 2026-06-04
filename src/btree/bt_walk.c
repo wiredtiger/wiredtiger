@@ -381,6 +381,21 @@ descend:
 
             /* Unexpected error, so "couple" was released. */
             couple = NULL;
+
+            /*
+             * Under quiet-corrupt, treat a corruption-shape read failure as a skippable subtree and
+             * continue with the next sibling; surface the first such error at done: in place of the
+             * clean exit so the cursor's terminal next() reports it.
+             */
+            if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) &&
+              (ret == WT_ERROR || ret == EIO)) {
+                if (session->corrupt_skip_first_err == 0)
+                    session->corrupt_skip_first_err = ret;
+                WT_STAT_CONN_INCR(session, cursor_skip_corrupt);
+                ret = 0;
+                break;
+            }
+
             goto err;
         }
     }
@@ -391,6 +406,17 @@ done:
     if (time_diff_ms > 10 * WT_THOUSAND)
         __wt_verbose_warning(session, WT_VERB_READ,
           "tree walk took more than 10 seconds (%" PRIu64 "ms)", time_diff_ms);
+
+    /*
+     * Surface the first corruption skip at end-of-iteration so the cursor's terminal next() reports
+     * it. *refp == NULL is the WT_NOTFOUND-equivalent; intermediate leaves must still flow through
+     * with ret = 0. One-shot: clear after consuming.
+     */
+    if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) && *refp == NULL &&
+      session->corrupt_skip_first_err != 0) {
+        ret = session->corrupt_skip_first_err;
+        session->corrupt_skip_first_err = 0;
+    }
 err:
     WT_TRET(__wt_page_release(session, couple, flags));
     WT_TRET(__wt_page_release(session, ref_orig, flags));

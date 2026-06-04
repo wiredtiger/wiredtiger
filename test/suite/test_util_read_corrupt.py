@@ -324,10 +324,10 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_dump_q_hex_skips_corrupt(self):
         # Hex dump under -q must continue past corruption to the last key.
-        # The last key "00001999" encodes as 3030303031393939 in hex (8
-        # bytes of ASCII digits). A weaker assertion that just checks
-        # "output is hex" would pass even when the cursor stopped at
-        # corruption short of the end.
+        # Keys are stored with a trailing null so "00001999\0" encodes to
+        # 303030303139393900. A weaker assertion that just checks "output
+        # is hex" would pass even when the cursor stopped at corruption
+        # short of the end.
         self.setup_corrupt_leaf_table()
         rc, out, _ = self._run_dump_q('-x',
                                       outname='dump_q_hex.out',
@@ -339,7 +339,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTrue(all(all(c in '0123456789abcdef' for c in ln)
                             for ln in data_lines),
             'hex dump produced non-hex output lines')
-        last_key_hex = ('%08d' % (self.nentries - 1)).encode().hex()
+        last_key_hex = (('%08d' % (self.nentries - 1)) + '\0').encode().hex()
         self.assertIn(last_key_hex, data_lines,
             'hex dump did not emit the last key after skipping corrupt subtree')
 
@@ -354,7 +354,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
                                       outname='dump_q_rev.out',
                                       errname='dump_q_rev.err')
         self.assertEqual(rc, 1)
-        # Preserve order: parse keys as they appear, do not deduplicate.
+        # Preserve order: parse keys as they appear in stdout.
         ordered_keys = []
         for line in out.splitlines():
             if (len(line) == 11 and line.endswith('\\00')

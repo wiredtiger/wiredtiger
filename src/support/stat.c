@@ -280,6 +280,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor reset calls that return an error",
   "cursor: cursor search calls that return an error",
   "cursor: cursor search near calls that return an error",
+  "cursor: cursor tree walks that skipped a ref due to corruption under quiet-corrupt",
   "cursor: cursor update calls that return an error",
   "cursor: insert calls",
   "cursor: insert key and value bytes",
@@ -731,6 +732,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_reset_error = 0;
     stats->cursor_search_error = 0;
     stats->cursor_search_near_error = 0;
+    stats->cursor_skip_corrupt = 0;
     stats->cursor_update_error = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_bytes = 0;
@@ -1182,6 +1184,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_reset_error += from->cursor_reset_error;
     to->cursor_search_error += from->cursor_search_error;
     to->cursor_search_near_error += from->cursor_search_near_error;
+    to->cursor_skip_corrupt += from->cursor_skip_corrupt;
     to->cursor_update_error += from->cursor_update_error;
     to->cursor_insert += from->cursor_insert;
     to->cursor_insert_bytes += from->cursor_insert_bytes;
@@ -1675,6 +1678,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_reset_error += WT_STAT_DSRC_READ(from, cursor_reset_error);
     to->cursor_search_error += WT_STAT_DSRC_READ(from, cursor_search_error);
     to->cursor_search_near_error += WT_STAT_DSRC_READ(from, cursor_search_near_error);
+    to->cursor_skip_corrupt += WT_STAT_DSRC_READ(from, cursor_skip_corrupt);
     to->cursor_update_error += WT_STAT_DSRC_READ(from, cursor_update_error);
     to->cursor_insert += WT_STAT_DSRC_READ(from, cursor_insert);
     to->cursor_insert_bytes += WT_STAT_DSRC_READ(from, cursor_insert_bytes);
@@ -2431,6 +2435,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor sweep cursors closed",
   "cursor: cursor sweep cursors examined",
   "cursor: cursor sweeps",
+  "cursor: cursor tree walks that skipped a ref due to corruption under quiet-corrupt",
   "cursor: cursor truncate calls",
   "cursor: cursor truncates performed on individual keys",
   "cursor: cursor update calls",
@@ -3495,6 +3500,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_sweep_closed = 0;
     stats->cursor_sweep_examined = 0;
     stats->cursor_sweep = 0;
+    stats->cursor_skip_corrupt = 0;
     stats->cursor_truncate = 0;
     stats->cursor_truncate_keys_deleted = 0;
     stats->cursor_update = 0;
@@ -4671,6 +4677,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_sweep_closed += WT_STAT_CONN_READ(from, cursor_sweep_closed);
     to->cursor_sweep_examined += WT_STAT_CONN_READ(from, cursor_sweep_examined);
     to->cursor_sweep += WT_STAT_CONN_READ(from, cursor_sweep);
+    to->cursor_skip_corrupt += WT_STAT_CONN_READ(from, cursor_skip_corrupt);
     to->cursor_truncate += WT_STAT_CONN_READ(from, cursor_truncate);
     to->cursor_truncate_keys_deleted += WT_STAT_CONN_READ(from, cursor_truncate_keys_deleted);
     to->cursor_update += WT_STAT_CONN_READ(from, cursor_update);
