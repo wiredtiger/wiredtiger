@@ -937,8 +937,15 @@ __rec_hs_build_tw(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *prev_upd,
         } else {
             twp->durable_stop_ts = prev_upd->upd_durable_ts;
             twp->stop_ts = prev_upd->upd_start_ts;
+            if (prev_upd == list->onpage_upd && list->tw.start_ts != WT_TS_NONE &&
+              list->tw.start_ts < twp->stop_ts) {
+                twp->stop_ts = list->tw.start_ts;
+                twp->durable_stop_ts = list->tw.durable_start_ts;
+                twp->stop_txn = list->tw.start_txn;
+            } else {
+                twp->stop_txn = prev_upd->txnid;
+            }
         }
-        twp->stop_txn = prev_upd->txnid;
 
         if (prev_upd->type == WT_UPDATE_TOMBSTONE)
             *tombstonep = prev_upd;
