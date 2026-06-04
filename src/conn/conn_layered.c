@@ -1715,11 +1715,11 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         F_SET(btree, WT_BTREE_READONLY);
 
         /*
-         * Mark the handle outdated so that if we step back up as leader in the future, we open
-         * a fresh one rather than reusing this handle's resident pages. Carrying those pages
-         * into a new leader era lets the drain dirty a page that still holds an unresolved
-         * on-disk prepared cell before the drain resolves it, which reconciliation cannot
-         * represent (leaked prepared update).
+         * Mark the handle outdated so that if we step back up as leader in the future, we open a
+         * fresh one rather than reusing this handle's resident pages. Carrying those pages into a
+         * new leader era lets the drain dirty a page that still holds an unresolved on-disk
+         * prepared cell before the drain resolves it, which reconciliation cannot represent (leaked
+         * prepared update).
          */
         F_SET(dhandle, WT_DHANDLE_OUTDATED);
 
