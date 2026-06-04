@@ -254,8 +254,7 @@ restart:
              * Not-found is an expected return, as eviction might have been attempted. Restart is
              * not expected, our parent WT_REF should not have split.
              */
-            WT_ERR_NOTFOUND_OK(
-              __wt_page_swap(session, couple, ref, WT_READ_NOTFOUND_OK | flags), true);
+            ret = __wt_page_swap(session, couple, ref, WT_READ_NOTFOUND_OK | flags);
             if (ret == 0) {
                 /* Success, "couple" released. */
                 couple = NULL;
@@ -267,8 +266,21 @@ restart:
 
                 goto done;
             }
-
-            /* ret == WT_NOTFOUND, an expected error.  Continue with "couple" unchanged. */
+            if (ret == WT_NOTFOUND) {
+                /* Expected: eviction may have raced. Continue with "couple" unchanged. */
+                WT_NOT_READ(ret, 0);
+            } else if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) &&
+              (ret == WT_ERROR || ret == EIO)) {
+                /* Quiet-corrupt ascent skip; mirror of the descent gate. The swap released the
+                 * original couple on this error path, so clear it before the outer loop continues.
+                 */
+                couple = NULL;
+                if (session->corrupt_skip_first_err == 0)
+                    session->corrupt_skip_first_err = ret;
+                WT_STAT_CONN_INCR(session, cursor_skip_corrupt);
+                ret = 0;
+            } else
+                goto err;
         }
 
         if (prev)
