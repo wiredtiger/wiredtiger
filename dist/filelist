@@ -32,7 +32,6 @@ src/btree/bt_cursor.c
 src/btree/bt_debug.c
 src/btree/bt_delete.c
 src/btree/bt_discard.c
-src/btree/bt_dump.c
 src/btree/bt_handle.c
 src/btree/bt_import.c
 src/btree/bt_misc.c
