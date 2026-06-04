@@ -1086,7 +1086,7 @@ generate_compat_pairs()
         fi
     done
 
-    # Emit the pairs. 
+    # Emit the pairs.
     local key
     for key in "${!unique_pairs[@]}"; do
         echo "${unique_pairs[$key]}"
