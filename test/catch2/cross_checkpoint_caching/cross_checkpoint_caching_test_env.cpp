@@ -37,8 +37,8 @@ cross_checkpoint_caching_test_env::cross_checkpoint_caching_test_env(u_int hash_
     WT_CONNECTION_IMPL *conn = S2C(_session);
 
     /*
-     * __wti_shared_dsk_cache_destroy asserts the connection is disaggregated. Point page_log_meta
-     * at a non-null dummy so __wt_conn_is_disagg returns true.
+     * The destroy path asserts the connection is disaggregated. Point page_log_meta at a non-null
+     * dummy to satisfy that check.
      */
     conn->disaggregated_storage.page_log_meta =
       reinterpret_cast<WT_PAGE_LOG_HANDLE *>(&_disagg_sentinel);
@@ -59,7 +59,7 @@ cross_checkpoint_caching_test_env::~cross_checkpoint_caching_test_env()
     /* Prevent the connection-close cache destroy from running again. */
     conn->cache->shared_dsk_cache.enabled = false;
 
-    /* Detach the dummy so __wti_disagg_destroy doesn't dereference it as a real handle. */
+    /* Detach the dummy so the disagg teardown path doesn't dereference it as a real handle. */
     conn->disaggregated_storage.page_log_meta = nullptr;
 
     if (_cursor != nullptr)

@@ -80,12 +80,11 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
      * 0.2% of cache size divided by ~100B per entry (cache_size / 500 / 100), with a minimum of 512
      * buckets.
      *
-     * We cannot use __wt_conn_is_disagg here because __wti_disagg_conn_config hasn't run yet and
-     * page_log_meta is still NULL. Read the config directly instead.
+     * The standard disagg check requires page_log_meta to be initialized, which hasn't happened
+     * yet at this point in connection setup. Read the config directly instead.
      *
-     * FIXME-WT-14721: Once the init ordering in conn_open.c is fixed so that
-     * __wti_disagg_conn_config runs before __wt_cache_create, replace this config lookup with
-     * __wt_conn_is_disagg(session).
+     * FIXME-WT-14721: Once the disagg config init is reordered to run before cache creation,
+     * replace this config lookup with the standard disagg check.
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     S2C(session)->cache->shared_dsk_cache.enabled = (cval.len != 0);
