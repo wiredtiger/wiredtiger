@@ -379,23 +379,21 @@ descend:
             if (ret == WT_RESTART)
                 goto restart;
 
-            /* Unexpected error, so "couple" was released. */
-            couple = NULL;
-
             /*
-             * Under quiet-corrupt, treat a corruption-shape read failure as a skippable subtree and
-             * continue with the next sibling; surface the first such error at done: in place of the
-             * clean exit so the cursor's terminal next() reports it.
+             * Skippable corruption (gated by WT_READ_SKIP_CORRUPT): the swap kept the parent pinned
+             * for us. Record the first such error so it can be surfaced at done: in place of the
+             * clean exit, and break out so the outer loop advances to the next sibling.
              */
-            if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) &&
-              (ret == WT_ERROR || ret == EIO)) {
+            if (LF_ISSET(WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO)) {
                 if (session->corrupt_skip_first_err == 0)
                     session->corrupt_skip_first_err = ret;
                 WT_STAT_CONN_INCR(session, cursor_skip_corrupt);
-                ret = 0;
+                WT_NOT_READ(ret, 0);
                 break;
             }
 
+            /* Unexpected error, so "couple" was released. */
+            couple = NULL;
             goto err;
         }
     }
@@ -412,7 +410,7 @@ done:
      * it. *refp == NULL is the WT_NOTFOUND-equivalent; intermediate leaves must still flow through
      * with ret = 0. One-shot: clear after consuming.
      */
-    if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) && *refp == NULL &&
+    if (LF_ISSET(WT_READ_SKIP_CORRUPT) && *refp == NULL &&
       session->corrupt_skip_first_err != 0) {
         ret = session->corrupt_skip_first_err;
         session->corrupt_skip_first_err = 0;

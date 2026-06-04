@@ -2651,6 +2651,12 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         return (WT_NOTFOUND);
     if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
         return (WT_RESTART);
+    /*
+     * Skippable corruption: caller wants to keep the parent pinned and decide whether to advance to
+     * the next sibling. Return the error like NOTFOUND does, without releasing held.
+     */
+    if (LF_ISSET(WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO))
+        return (ret);
 
     /* Discard the original held page on either success or error. */
     acquired = ret == 0;
