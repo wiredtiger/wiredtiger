@@ -291,6 +291,99 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             'which means the skip-and-continue is not behaving like a single '
             'subtree skip' % missing_idx)
 
+    # ---------- cursor-walk option coverage under -q + corruption ----------
+
+    def _run_dump_q(self, *extra_argv, outname='dump_opt.out', errname='dump_opt.err'):
+        argv = [self._wt_path(), '-q', 'dump', *extra_argv, self.uri]
+        with open(outname, 'w') as out, open(errname, 'w') as err:
+            rc = subprocess.call(argv, stdout=out, stderr=err)
+        with open(outname) as f:
+            out_text = f.read()
+        with open(errname) as f:
+            err_text = f.read()
+        return rc, out_text, err_text
+
+    def test_dump_q_json_skips_corrupt(self):
+        # JSON dump under -q must emit a well-formed JSON document despite
+        # the corrupt subtree being skipped. Pins: rc == 1, first and last
+        # keys present (iteration crossed the corrupt span), JSON parses.
+        self.setup_corrupt_leaf_table()
+        rc, out, _ = self._run_dump_q('-j',
+                                      outname='dump_q_json.out',
+                                      errname='dump_q_json.err')
+        self.assertEqual(rc, 1, 'wt -q -j dump rc=%d, expected 1' % rc)
+        import json
+        doc = json.loads(out)
+        self.assertIn(self.uri, doc, 'dump JSON missing URI key')
+        records = doc[self.uri][1]['data']
+        keys = [r['key0'] for r in records]
+        self.assertIn('00000000', keys)
+        self.assertIn('%08d' % (self.nentries - 1), keys)
+        self.assertLess(len(keys), self.nentries,
+            'JSON dump emitted all records; corruption not exercised')
+
+    def test_dump_q_hex_skips_corrupt(self):
+        # Hex dump under -q must continue past corruption to the last key.
+        # The last key "00001999" encodes as 3030303031393939 in hex (8
+        # bytes of ASCII digits). A weaker assertion that just checks
+        # "output is hex" would pass even when the cursor stopped at
+        # corruption short of the end.
+        self.setup_corrupt_leaf_table()
+        rc, out, _ = self._run_dump_q('-x',
+                                      outname='dump_q_hex.out',
+                                      errname='dump_q_hex.err')
+        self.assertEqual(rc, 1)
+        lines = [ln for ln in out.splitlines() if ln]
+        self.assertIn('Data', lines, 'hex dump missing "Data" section marker')
+        data_lines = lines[lines.index('Data') + 1:]
+        self.assertTrue(all(all(c in '0123456789abcdef' for c in ln)
+                            for ln in data_lines),
+            'hex dump produced non-hex output lines')
+        last_key_hex = ('%08d' % (self.nentries - 1)).encode().hex()
+        self.assertIn(last_key_hex, data_lines,
+            'hex dump did not emit the last key after skipping corrupt subtree')
+
+    def test_dump_q_reverse_skips_corrupt(self):
+        # Reverse iteration under -q. Must actually run in reverse: the
+        # first emitted key should be near the end (nentries - 1), the
+        # last emitted near the start. A weaker assertion that only checks
+        # endpoint presence would pass when the dispatcher routes -r
+        # through the forward-only walker.
+        self.setup_corrupt_leaf_table()
+        rc, out, _ = self._run_dump_q('-r',
+                                      outname='dump_q_rev.out',
+                                      errname='dump_q_rev.err')
+        self.assertEqual(rc, 1)
+        # Preserve order: parse keys as they appear, do not deduplicate.
+        ordered_keys = []
+        for line in out.splitlines():
+            if (len(line) == 11 and line.endswith('\\00')
+                    and line[:8].isdigit()):
+                ordered_keys.append(line[:8])
+        self.assertGreater(len(ordered_keys), 0,
+            'reverse dump emitted nothing')
+        self.assertEqual(ordered_keys[0], '%08d' % (self.nentries - 1),
+            'reverse dump did not start at the last key (got %r); the '
+            'iteration is not actually running in reverse' % ordered_keys[0])
+        self.assertEqual(ordered_keys[-1], '00000000',
+            'reverse dump did not reach the first key after skipping '
+            'the corrupt subtree (last emitted: %r)' % ordered_keys[-1])
+
+    def test_dump_q_bounds_skips_corrupt(self):
+        # Bounded iteration under -q. Bounds span the table; walk must
+        # skip the corrupt subtree while honoring the bound contract.
+        self.setup_corrupt_leaf_table()
+        rc, out, _ = self._run_dump_q(
+            '-l', '00000000\\00',
+            '-u', '%08d\\00' % (self.nentries - 1),
+            outname='dump_q_b.out',
+            errname='dump_q_b.err')
+        self.assertEqual(rc, 1)
+        emitted = self._parse_dumped_keys(out)
+        self.assertIn('00000000', emitted)
+        self.assertIn('%08d' % (self.nentries - 1), emitted)
+        self.assertLess(len(emitted), self.nentries)
+
     # Multi-URI continuation and wide-corruption / subtree-skip tests
     # were drafted but removed: multi-URI dump requires JSON output
     # (util_dump.c rejects multiple URIs in non-JSON mode) so the
