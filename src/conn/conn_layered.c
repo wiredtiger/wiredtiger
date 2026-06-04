@@ -1644,7 +1644,7 @@ __disagg_follower_verify_latest_checkpoint(WT_SESSION_IMPL *session)
     last_checkpoint_lsn = __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn);
 
     if (latest_meta_lsn != last_checkpoint_lsn)
-        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Follower is not on the latest checkpoint: follower LSN=%" PRIu64 " latest LSN=%" PRIu64,
           last_checkpoint_lsn, latest_meta_lsn);
 
