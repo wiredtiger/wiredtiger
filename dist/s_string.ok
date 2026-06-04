@@ -467,6 +467,7 @@ SimpleDataSet
 SimpleDataStore
 SimpleIndexDataSet
 Skiplist
+Skippable
 SleepConditionVariableCS
 SmallVector
 Solaris
