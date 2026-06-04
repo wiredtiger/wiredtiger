@@ -864,6 +864,187 @@ err:
 }
 
 /*
+ * __layered_key_cmp --
+ *     Lexicographic comparator for WT_ITEM keys; suitable as a qsort callback.
+ */
+static int
+__layered_key_cmp(const void *a, const void *b)
+{
+    const WT_ITEM *ka, *kb;
+    size_t min_len;
+    int cmp;
+
+    ka = (const WT_ITEM *)a;
+    kb = (const WT_ITEM *)b;
+    min_len = WT_MIN(ka->size, kb->size);
+    if (min_len > 0 && (cmp = memcmp(ka->data, kb->data, min_len)) != 0)
+        return (cmp);
+    return (ka->size < kb->size ? -1 : ka->size > kb->size ? 1 : 0);
+}
+
+/*
+ * __layered_sample_ingest_keys --
+ *     Sample drainable keys from the ingest table and return up to (num_ranges - 1) split keys that
+ *     divide the drainable key space into roughly equal ranges. Uses a version cursor (filtered by
+ *     last_checkpoint_timestamp) so that only keys that will actually be drained contribute to the
+ *     sample preventing split points from landing in the pre-checkpoint key region where no drain
+ *     work will be done. Applies reservoir sampling (Algorithm R) over the sequential drainable-key
+ *     scan so that a single pass produces a uniform random sample of up to num_ranges^2 keys
+ *     without knowing the total count in advance. The caller owns the returned array and must free
+ *     it. Returns actual_splitsp == 0 when the drainable key space is too small to subdivide.
+ *     sampled_keysp receives the total number of unique drainable keys seen, useful as a proxy for
+ *     table size in diagnostic logging.
+ */
+static int
+__layered_sample_ingest_keys(WT_SESSION_IMPL *session, const char *ingest_uri, uint32_t num_ranges,
+  WT_ITEM **split_keysp, uint32_t *actual_splitsp, uint64_t *sampled_keysp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_VERSION *cversion;
+    WT_DECL_ITEM(cur_key);
+    WT_DECL_ITEM(prev_key);
+    WT_DECL_RET;
+    WT_ITEM *samples, *split_keys;
+    wt_timestamp_t last_checkpoint_timestamp;
+    uint64_t key_count;
+    uint32_t i, idx, j, max_splits, n_collected, n_splits, num_samples;
+    char buf[256], buf2[64];
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL};
+
+    conn = S2C(session);
+    cursor = NULL;
+    samples = NULL;
+    split_keys = NULL;
+    key_count = 0;
+    n_collected = 0;
+    n_splits = 0;
+    *split_keysp = NULL;
+    *actual_splitsp = 0;
+    *sampled_keysp = 0;
+
+    if (num_ranges <= 1)
+        return (0);
+
+    max_splits = num_ranges - 1;
+    num_samples = WT_MIN(num_ranges * num_ranges, 4096);
+
+    /*
+     * Open a version cursor filtered by last_checkpoint_timestamp so that cursor->next() only
+     * returns drainable (post-checkpoint) keys. This guarantees all split points fall on keys that
+     * drain workers will actually encounter, avoiding the pre-checkpoint dead zone.
+     */
+    last_checkpoint_timestamp =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
+    if (last_checkpoint_timestamp != WT_TS_NONE)
+        WT_ERR(__wt_snprintf(
+          buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
+    else
+        buf2[0] = '\0';
+    /*
+     * Match the drain main loop's version-cursor configuration. timestamp_order=true keeps the
+     * iteration ordered, and show_prepared_rollback=true makes rolled-back prepared updates visible
+     * -- without it, an ingest btree whose keys are dominated by rolled-back prepares would be
+     * undercounted here, causing split points to cluster in the committed region and load to
+     * imbalance across workers.
+     */
+    WT_ERR(__wt_snprintf(buf, sizeof(buf),
+      "debug=(dump_version=(enabled=true,raw_key_value=true,timestamp_order=true,cross_key=true,"
+      "show_prepared_rollback=%s,%s))",
+      F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) ? "true" : "false", buf2));
+    cfg[1] = buf;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &cur_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
+    WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cfg, &cursor));
+    cversion = (WT_CURSOR_VERSION *)cursor;
+    cbt = (WT_CURSOR_BTREE *)cversion->file_cursor;
+    WT_ERR(__wt_calloc_def(session, num_samples, &samples));
+
+    /*
+     * Reservoir sampling (Algorithm R): stream drainable keys via cursor->next() and maintain a
+     * uniform random sample of num_samples unique keys. We read the raw key from the underlying
+     * btree cursor and compare with prev_key to count each unique key exactly once, regardless of
+     * how many versions it has.
+     */
+    for (;;) {
+        ret = cursor->next(cursor);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            break;
+        }
+        WT_ERR(ret);
+
+        WT_ERR(cbt->iface.get_key(&cbt->iface, cur_key));
+
+        /* Multiple versions of the same key are returned in sequence  count each key once. */
+        if (prev_key->size > 0 && prev_key->size == cur_key->size &&
+          memcmp(prev_key->data, cur_key->data, cur_key->size) == 0)
+            continue;
+
+        WT_ERR(__wt_buf_set(session, prev_key, cur_key->data, cur_key->size));
+        key_count++;
+
+        if (key_count <= num_samples) {
+            /* Fill the reservoir with the first num_samples keys. */
+            WT_ERR(__wt_buf_set(session, &samples[key_count - 1], cur_key->data, cur_key->size));
+        } else {
+            /* Replace a random reservoir slot with probability num_samples / key_count. */
+            j = (uint32_t)(__wt_random(&session->rnd_random) % key_count);
+            if (j < num_samples)
+                WT_ERR(__wt_buf_set(session, &samples[j], cur_key->data, cur_key->size));
+        }
+    }
+
+    n_collected = (uint32_t)WT_MIN(key_count, (uint64_t)num_samples);
+    *sampled_keysp = key_count;
+
+    /* Need at least 2 samples per desired split to produce meaningful boundaries. */
+    n_splits = WT_MIN(max_splits, n_collected / 2);
+    if (n_splits == 0)
+        goto err;
+
+    /* Sort samples lexicographically to approximate the drainable key space distribution. */
+    __wt_qsort(samples, n_collected, sizeof(WT_ITEM), __layered_key_cmp);
+
+    WT_ERR(__wt_calloc_def(session, n_splits, &split_keys));
+
+    /* Pick n_splits evenly spaced entries from the sorted sample array. */
+    for (i = 0; i < n_splits; i++) {
+        idx = (uint32_t)((uint64_t)n_collected * (i + 1) / (n_splits + 1));
+        WT_ERR(__wt_buf_set(session, &split_keys[i], samples[idx].data, samples[idx].size));
+    }
+
+    *split_keysp = split_keys;
+    *actual_splitsp = n_splits;
+    split_keys = NULL;
+
+err:
+    __wt_scr_free(session, &cur_key);
+    __wt_scr_free(session, &prev_key);
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    if (samples != NULL) {
+        /* Only n_collected slots were populated; the tail slots are zeroed. */
+        for (i = 0; i < n_collected; i++)
+            __wt_buf_free(session, &samples[i]);
+        __wt_free(session, samples);
+    }
+    if (split_keys != NULL) {
+        /*
+         * split_keys is allocated with n_splits elements (line 1150), which may be smaller than
+         * max_splits when the drainable key count is sparse. Iterating up to max_splits would walk
+         * past the allocation.
+         */
+        for (i = 0; i < n_splits; i++)
+            __wt_buf_free(session, &split_keys[i]);
+        __wt_free(session, split_keys);
+    }
+    return (ret);
+}
+
+/*
  * __layered_apply_truncate_to_stable --
  *     Replay a single committed follower truncate against the stable btree over its full key range.
  *     Installs the txn/ts context and issues a range truncate via the INGEST_REPLAY path so that
@@ -1064,6 +1245,7 @@ __layered_drain_table_interleaved(
     wt_thread_t *tids;
     wt_timestamp_t prev_ts, to_ts;
     size_t s, ntruncates;
+    uint64_t actual_sampled;
     uint32_t actual_splits, j, k, nranges;
     const char *ingest_uri;
     bool empty;
@@ -1086,10 +1268,9 @@ __layered_drain_table_interleaved(
     if (empty)
         return (0);
 
-    /*
-     * Single range per table for now; key-range sampling is added in a follow-up. With no split
-     * keys, actual_splits stays 0 and every slice copies its whole keyspace as one range.
-     */
+    /* Sample once per table; the same split keys partition every slice. */
+    WT_ERR(__layered_sample_ingest_keys(session, ingest_uri, conn->layered_drain_data.thread_count,
+      &split_keys, &actual_splits, &actual_sampled));
     nranges = actual_splits + 1;
 
     WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
